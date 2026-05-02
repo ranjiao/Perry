@@ -1,29 +1,44 @@
 # Install — Perry
 
-Perry installs as **two peer skills** in `~/.claude/skills/`:
-`~/.claude/skills/okr/` and `~/.claude/skills/pmo/`. They're independent skill folders that cooperate by convention (file ownership), not by being nested.
+Perry installs as **one folder** at `~/.claude/skills/perry/`, containing three skill files at nested paths. Claude Code discovers each one and makes them invocable as `/perry`, `/okr`, and `/pmo`.
+
+```
+~/.claude/skills/perry/
+├── SKILL.md            ← /perry (top-level coordinator)
+├── README.md
+├── INSTALL.md
+├── okr/
+│   ├── SKILL.md        ← /okr (goal-setting child)
+│   └── state/          (templates: OKR_TEMPLATE.md, monthly_TEMPLATE.md)
+└── pmo/
+    ├── SKILL.md        ← /pmo (execution stewardship child)
+    └── state/          (templates: PROJECT_STATE_, TASKS_, DECISIONS_, weekly_, handoff_, evidence_TEMPLATE.md)
+```
+
+This nested layout is the same pattern used by gstack and other multi-skill packages — one folder on disk, multiple invocable skills.
 
 ## One-shot install
 
-From wherever you keep this repo on disk (`git clone`, download, or local copy), set `SRC` to that folder and run:
+From wherever you keep this repo on disk (`git clone`, download, or local copy):
 
 ```bash
 mkdir -p ~/.claude/skills
 SRC=/path/to/perry            # change to your local copy
-cp -R "$SRC/okr" ~/.claude/skills/okr
-cp -R "$SRC/pmo" ~/.claude/skills/pmo
+cp -R "$SRC" ~/.claude/skills/perry
 ```
 
 Verify:
 
 ```bash
-ls ~/.claude/skills
-# Expect at minimum: okr  pmo
+ls ~/.claude/skills/perry
+# Expect: SKILL.md  README.md  INSTALL.md  okr/  pmo/
 
-ls ~/.claude/skills/okr ~/.claude/skills/pmo
-# okr: SKILL.md  state/   (state has OKR_TEMPLATE.md, monthly_TEMPLATE.md)
-# pmo: SKILL.md  state/   (state has PROJECT_STATE_/TASKS_/DECISIONS_/weekly_/handoff_/evidence_TEMPLATE.md)
+ls ~/.claude/skills/perry/okr ~/.claude/skills/perry/pmo
+# okr: SKILL.md  state/
+# pmo: SKILL.md  state/
 ```
+
+In a Claude Code session, `/perry`, `/okr`, and `/pmo` should all be available.
 
 ## Update later
 
@@ -31,8 +46,7 @@ When you tweak files in the source folder, re-sync with:
 
 ```bash
 SRC=/path/to/perry
-rsync -a --delete "$SRC/okr/" ~/.claude/skills/okr/
-rsync -a --delete "$SRC/pmo/" ~/.claude/skills/pmo/
+rsync -a --delete "$SRC/" ~/.claude/skills/perry/
 ```
 
 ## First run in a project
@@ -40,19 +54,29 @@ rsync -a --delete "$SRC/pmo/" ~/.claude/skills/pmo/
 In Claude Code, from inside any project directory:
 
 ```
-/okr           # → bootstraps OKR.md via interview, then plan-month
-/pmo           # → bootstraps TASKS.md, PROJECT_STATE.md, DECISIONS.md, evidence/, weekly/, handoff/
+/perry          # combined snapshot + recommends next steps for the project
 ```
 
-Order matters once: run `/okr init` first so PMO's standup can show OKR progress on day one. After that, either order works.
+If this is a new project (no `OKR.md` / `TASKS.md` yet), `/perry` will offer first-time setup. The recommended first-run order is:
+
+```
+/okr init                       # interview: mission, Operating Principles,
+                                # 1–3 Objectives + KRs, Anti-Goals, version v1
+/okr plan-month <YYYY-MM>       # full monthly OKR (10 mandatory sections)
+/pmo                            # bootstraps execution files, runs first standup
+/okr plan-week                  # proposes first batch of weekly tasks
+                                # → /pmo writes them to TASKS.md after approval
+```
+
+After that, daily/weekly use is whichever of `/perry`, `/okr`, or `/pmo` matches the moment.
 
 ## Uninstall
 
 ```bash
-rm -rf ~/.claude/skills/okr ~/.claude/skills/pmo
+rm -rf ~/.claude/skills/perry
 ```
 
-State files (`OKR.md`, `TASKS.md`, etc.) live in each project folder — nothing is left behind in your home directory.
+State files (`OKR.md`, `TASKS.md`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
 
 ## Distributing Perry
 
