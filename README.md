@@ -4,6 +4,22 @@
 
 A two-skill set for Claude Code that captures the "virtual PMO + OKR steward" workflow so you don't have to re-instruct it every session.
 
+## 🚀 One-paste install
+
+Copy the prompt below and paste it into a fresh Claude Code session. Claude will clone Perry into `~/.claude/skills/perry/` and verify that `/perry`, `/okr`, and `/pmo` are available.
+
+```
+Install the Perry Claude skill from https://github.com/ranjiao/Perry
+
+Steps:
+1. Run: mkdir -p ~/.claude/skills && git clone https://github.com/ranjiao/Perry.git ~/.claude/skills/perry
+2. Verify the layout matches https://raw.githubusercontent.com/ranjiao/Perry/main/INSTALL.md
+3. Confirm /perry, /okr, and /pmo are now available as slash commands.
+```
+
+> Already have Perry installed? Update with:
+> `cd ~/.claude/skills/perry && git pull`
+
 ## What Perry does
 
 Perry pairs **goal-setting** with **execution stewardship** so a solo or small project gets the structure it needs without the bureaucracy that usually comes with it. Two skills, one mental model:
