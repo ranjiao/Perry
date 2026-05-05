@@ -25,9 +25,11 @@ Trigger on any of:
 
 Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
-1. **Read** `OKR.md` (current version) and `monthly/<current-YYYY-MM>.md`.
-2. **Read** `TASKS.md` (if PMO is also installed) so KR progress can be cross-checked against closed tasks and their evidence files.
-3. **Render the snapshot** — exactly this shape:
+0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language.
+1. **Read `.perry/hook.md`** if present (project-specific hook).
+2. **Read** `OKR.md` (current version) and `monthly/<current-YYYY-MM>.md`.
+3. **Read** `TASKS.md` (if PMO is also installed) so KR progress can be cross-checked against closed tasks and their evidence files.
+4. **Render the snapshot** — exactly this shape:
 
    ```
    🎯 Overall OKR <vN> (<period>) · <days_elapsed>/<days_total>d
@@ -49,13 +51,13 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
    Use `✓` for KRs ≥1.0, `◐` for ≥0.7, `◑` for ≥0.4, `◯` below.
 
-4. **Suggest 1–3 next actions** based on what's missing or behind:
+5. **Suggest 1–3 next actions** based on what's missing or behind:
    - "no monthly OKR for <YYYY-MM> → run `plan-month`"
    - "<n> days left, KR-M-O1.2 at 30% → run `plan-week` to focus on it"
    - "month-end in 4 days → run `score` then call PMO `rollover` then `plan-month` for next"
    - "scope-reduction trigger date passed and USER-XXX still open → apply scope cut"
 
-5. Then ask: **"What do you want to do?"**
+6. Then ask: **"What do you want to do?"**
 
 ## Subcommands
 

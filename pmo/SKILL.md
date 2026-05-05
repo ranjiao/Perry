@@ -25,7 +25,9 @@ Trigger on any of:
 
 Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
 
-1. **Read core state files** at the project root:
+0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; if the user is on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
+1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
+2. **Read core state files** at the project root:
    - `TASKS.md` (board)
    - `PROJECT_STATE.md` (dashboard)
    - `DECISIONS.md` (most recent 5 entries)
@@ -33,16 +35,19 @@ Always run this before anything else, even if the user asked a specific question
    - `handoff/` — most recent file (if any)
    If any are missing, see Bootstrap.
 
-2. **Read OKR state** if present (read-only):
+3. **Read OKR state** if present (read-only):
    - `OKR.md`
    - `monthly/<current-YYYY-MM>.md`
 
-3. **Compute deltas** since the last standup:
-   - `git log --since="<last_standup_date>" --oneline` if it's a git repo
+4. **Read design state** if present (read-only):
+   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into TASKS.md rows.
+
+5. **Compute deltas** since the last standup:
+   - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
    - File mtimes under the project root, especially `evidence/<YYYY-MM>/`
    - Recent entries from any project-specific MCP (see Per-project hooks)
 
-4. **Render the dashboard** — fixed shape, no preamble:
+6. **Render the dashboard** — fixed shape, no preamble:
 
    ```
    📍 Phase / Week  : <phase> · <week N of N> · <ISO week>
@@ -52,18 +57,20 @@ Always run this before anything else, even if the user asked a specific question
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
+   📐 Locked designs : <count> · pending hand-off: <count>
    📅 Last weekly   : <YYYY-WW>, <days>d ago · last handoff: <date>, <days>d ago
    ```
 
    If a field is empty, print `—`. Never fabricate.
 
-5. **Suggest 1–3 next actions** tailored to the deltas. Examples:
+7. **Suggest 1–3 next actions** tailored to the deltas. Examples:
    - "USER-014 idle 6d → run `nudge` to surface in chat"
    - "TASK-007 in_progress 4d, no evidence file → ask the owning agent for status"
    - "today is Friday → run `friday-review`"
    - "month-end in 3 days → schedule `end-month-retro`, then `rollover`"
+   - "DESIGN-002 locked 3d ago, no impl tasks in TASKS.md → ask `/design handoff DESIGN-002`"
 
-6. Then ask: **"What do you want to do?"**
+8. Then ask: **"What do you want to do?"**
 
 The standup is non-negotiable. It is the only way the PMO stays grounded in observable state.
 
@@ -137,13 +144,59 @@ Generate a self-contained delegation prompt for another agent (Coding / Research
 - Exact deliverable + verification criteria
 - Files in scope / out of scope
 - Required commands or tests
-- Safety constraints (e.g., "no live trading enablement", "no broker creds")
+- Safety constraints (project-defined; e.g., from a per-project hook)
 - Expected response format (e.g., file diff list + test output + 1-line summary)
+- **Git expectation** — see Git Role Boundaries below. For agents that produce commits, state explicitly: branch name pattern, push expectation, PR open expectation, and that the PR link must appear in the RESULT block.
 
 Print the prompt to chat. The user pastes it to a fresh Claude session. PMO does not execute the work itself.
 
-For coding tasks, always require: tests before/after, no unrelated refactors, list of changed files.
-For research tasks, always require: hypothesis, data period, universe, method, metrics, risk/failure modes, recommendation classified as `watch | dry-run | paper | reject` (or project-equivalent).
+For coding tasks, always require:
+- Relevant tests before/after the change.
+- No unrelated refactors.
+- Clear list of changed files.
+- **Commit code + tests on a feature branch named `coding/<task-id>-<slug>`** (do NOT commit directly to main).
+- **Push the branch and open a PR**; provide PR URL in the RESULT block.
+- **Do NOT merge own PR**; merge belongs to User or Review Agent.
+- If push or PR fails (auth, permissions, network), the RESULT block MUST say so explicitly so PMO can escalate.
+
+For research tasks, always require: hypothesis, data period, universe, method, metrics, risk/failure modes, recommendation classified per the project's promotion ladder (e.g., `watch | dry-run | paper | reject`, or whatever stages the project defines in its hook).
+
+### Git Role Boundaries
+
+Each role owns its own deliverable's commit. PMO never commits code; Coding never edits PMO docs. This boundary keeps commit history readable and prevents one agent from silently rewriting another's lane.
+
+| Role | Commits | Pushes | Opens PR | Merges to main |
+|---|---|---|---|---|
+| **Coding Agent** | Code + tests on a **feature branch** | ✓ | ✓ (own work) | ✗ |
+| **Research Agent** | Generated reports / evidence files | ✓ | ✓ (own work) | ✗ |
+| **PMO Agent** | PMO docs (`TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
+| **Review Agent** | Review notes / approval comments | ✓ | — | reviews; does not merge |
+| **User** | Anything on the user's behalf | ✓ | ✓ | ✓ for code PRs |
+
+**Rules**:
+- **Coding Agent commits its own work.** Do NOT instruct delegation prompts to "not commit / not push". Default expectation: Coding Agent pushes a feature branch and opens a PR; the PR link is included in the RESULT block.
+- **Coding Agent does not merge its own PR.** Merge belongs to User or Review Agent.
+- **PMO Agent does not commit code.** If Coding Agent failed to commit due to error or scope confusion, PMO escalates to the user; PMO does not silently commit code on Coding Agent's behalf.
+- **Direct push to main is acceptable** for: (a) PMO Agent's own doc commits with low risk; (b) trivial typo fixes the user explicitly authorizes. Code commits should go through PR by default.
+- **Branch naming**: feature branches use `<owner-prefix>/<task-id>-<slug>` (e.g. `coding/task-007-cli-lifecycle`, `pmo/2026-05-board-update`). PMO Agent may push directly to main when not on a feature branch.
+
+If `.perry/config.md` records `Repo layout: split` (PMO docs and code in separate repos), every Coding/Research delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
+
+### Time Estimation for Coding Agent Tasks
+
+Coding Agents are **30–100× faster** than human engineers. When PMO estimates time for delegated coding work, default to these calibrated numbers:
+
+| Scope | Human-engineer baseline | Coding Agent realistic |
+|---|---|---|
+| Small (1–2 files, <200 lines, narrow tests) | 30 min – 1 hour | **~1 minute** |
+| Medium (3–5 files, 200–500 lines, multi-area tests) | 2–4 hours | **~5 minutes** |
+| Large (architectural, multi-system) | 1–2 days | **~15 minutes** |
+
+Inflated estimates ("this will take an hour") cause the user to plan around the wrong duration. When the user asks "what should I do while it's running?", the answer should match the Coding Agent's actual speed, not the human baseline.
+
+This calibration applies only to autonomous Coding / Research Agent runs. Tasks delegated to humans (RM contact, professional consultations, manual external operations) keep human-pace estimates.
+
+If a project repeatedly observes cycle times outside these ranges, record the calibration in its hook block (e.g., "Coding Agent on this codebase averages ~3 min for medium due to slow test suite") and treat the hook value as the local override.
 
 ### Reporting
 
