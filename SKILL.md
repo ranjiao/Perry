@@ -1,30 +1,32 @@
 ---
 name: perry
-description: Perry — your virtual project office. A two-skill set that pairs goal-setting (okr) with execution stewardship (pmo) for solo or small projects. Use /perry for a combined snapshot of where the project is, or invoke /okr and /pmo directly for specific subcommands. okr owns OKR.md (versioned, with Operating Principles + Anti-Goals) and monthly/<YYYY-MM>.md. pmo owns TASKS.md, PROJECT_STATE.md, DECISIONS.md, evidence/<YYYY-MM>/, weekly/<YYYY-WW>.md, handoff/<YYYY-MM-DD>.md. They cooperate through file ownership; neither writes outside its lane.
+description: Perry — your virtual project office. A three-skill set: goal-setting (okr) + execution stewardship (pmo) + design-doc stewardship (design) for solo or small projects. Use /perry for a combined snapshot of where the project is, or invoke /okr, /pmo, /design directly for specific subcommands. okr owns OKR.md (versioned, with Operating Principles + Anti-Goals) and monthly/<YYYY-MM>.md. pmo owns TASKS.md, PROJECT_STATE.md, DECISIONS.md, evidence/<YYYY-MM>/, weekly/<YYYY-WW>.md, handoff/<YYYY-MM-DD>.md. design owns design/<DESIGN-ID>-<slug>.md. They cooperate through file ownership; no skill writes outside its lane. Project-wide preferences (document language, single vs split repo layout) live in .perry/config.md and are confirmed at first-time setup.
 ---
 
 # Perry — virtual project office
 
 > *Perry runs the office. You run the project.*
 
-Perry is a coordinated **skill set** with two children that share a project's state files at the project root. This top-level skill is the entry point: a combined snapshot, a brief intro for new users, and a router to whichever child you actually want.
+Perry is a coordinated **skill set** with three children that share a project's state files at the project root. This top-level skill is the entry point: a combined snapshot, a brief intro for new users, and a router to whichever child you actually want.
 
 ## Children of this skill
 
-This folder contains two child skills. They live under `~/.claude/skills/perry/<child>/SKILL.md` and are invocable on their own. Read each child's SKILL.md for full subcommand detail.
+This folder contains three child skills. They live under `~/.claude/skills/perry/<child>/SKILL.md` and are invocable on their own. Read each child's SKILL.md for full subcommand detail.
 
 | Child | Invoke as | Owns | What it does |
 |-------|-----------|------|--------------|
 | **`okr`** | `/okr` | `OKR.md`, `monthly/<YYYY-MM>.md` | Goal-setting: overall versioned OKR, monthly OKR with 10 mandatory sections, weekly task proposals (handed off to PMO) |
 | **`pmo`** | `/pmo` | `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/` | Execution stewardship: standup ritual, task triage, agent delegation, status reports, cadence rituals, monthly rollover |
+| **`design`** | `/design` | `design/<DESIGN-ID>-<slug>.md` | Design-doc stewardship: RFC drafting, user-decision tables, lock workflow, hand-off of implementation tasks to PMO |
 
 ## The hand-off contract (the most important rule)
 
 - `okr` is the **only writer** of `OKR.md` and `monthly/`. It **proposes** weekly tasks but never writes them.
-- `pmo` is the **only writer** of `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. It **reads** OKR files for context.
-- Each skill reads the other's files freely; neither writes outside its lane.
+- `pmo` is the **only writer** of `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. It **reads** OKR and design files for context.
+- `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`. On lock it **proposes** implementation tasks but never writes `TASKS.md`.
+- Each skill reads the others' files freely; no skill writes outside its lane.
 
-This single rule is what keeps the set composable and lets you drop in a third child later (e.g., `research-journal`, `risk-review`) without breakage.
+This single rule is what keeps the set composable and lets you drop in a fourth child later (e.g., `research-journal`, `risk-review`) without breakage.
 
 ## When this skill activates
 
@@ -40,8 +42,10 @@ If the user clearly wants only goal-setting → route to `/okr`. If clearly only
 
 When `/perry` is invoked, always run this before doing anything else.
 
-1. **Detect installation state**:
-   - `OKR.md` exists? `monthly/<current-YYYY-MM>.md` exists? `TASKS.md` exists? `evidence/<current-YYYY-MM>/` exists? `handoff/` non-empty?
+1. **Read `.perry/config.md`** if present, to pick up document language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded.
+
+2. **Detect installation state**:
+   - `OKR.md` exists? `monthly/<current-YYYY-MM>.md` exists? `TASKS.md` exists? `evidence/<current-YYYY-MM>/` exists? `design/` non-empty? `handoff/` non-empty?
    - If none of these exist → jump to **First-time setup** below.
    - If only some exist → flag the missing pieces.
 
@@ -68,26 +72,71 @@ When `/perry` is invoked, always run this before doing anything else.
 
    Use `—` for empty fields. Never fabricate values.
 
-3. **Suggest 1–3 next actions** combining OKR and PMO concerns:
+3. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
    - "month-end in 3 days → run `/pmo end-month-retro`, then `/okr score`, then `/pmo rollover`, then `/okr plan-month`"
    - "USER-014 idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
    - "no monthly OKR for current month → run `/okr plan-month`, then `/okr plan-week`, then `/pmo` to add the tasks"
+   - "DESIGN-002 in_review for 8d → run `/design lock` or `/design revise`"
 
 4. Then ask: **"What do you want to do?"**
 
-If the user picks an OKR-flavored action (plan, score, pivot, revise), invoke the `okr` skill via the Skill tool. If a PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk), invoke `pmo`. If unclear, ask which, then route.
+If the user picks an OKR-flavored action (plan, score, pivot, revise), invoke the `okr` skill. If a PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk), invoke `pmo`. If a design-flavored action (RFC, architecture, lock, supersede), invoke `design`. If unclear, ask which, then route.
 
 ## First-time setup
 
 When `/perry` is run in a project with no Perry state files at all:
 
 1. Briefly explain Perry (≤3 sentences).
-2. Recommend the order:
+2. **Confirm two project-wide preferences before any file is written** — record both in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source:
+   - **Document language**. Ask: "What language should Perry write all documents in? (English / 中文 / other)". Default: match the language the user used in the current message. All subsequent skill output (snapshots, dashboards, generated docs, delegation prompts) uses this language. If the user mixes languages later, keep using the configured language for written artifacts but mirror the user's language in chat replies.
+   - **Repo layout**. Ask: "Will this project also produce code? (yes → consider a two-repo split / no → single repo)". See **Repo layout options** below. Record the choice plus the paths.
+3. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-month <YYYY-MM>` — creates the monthly OKR with all 10 mandatory sections.
    - Then, run `/pmo` — bootstraps the execution files (`TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
    - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes to `TASKS.md`.
-3. Ask: "Run `/okr init` now?" — if yes, invoke the `okr` skill. If no, stop and let the user proceed at their own pace.
+4. Ask: "Run `/okr init` now?" — if yes, invoke the `okr` skill. If no, stop and let the user proceed at their own pace.
+
+## Repo layout options
+
+Perry supports two layouts. Pick one at first-time setup; record the choice in `.perry/config.md`.
+
+### Option A — single repo (default for non-code projects)
+
+Everything (OKR, TASKS, evidence, design, handoff, weekly) lives in one repo at the project root. Use this when:
+- The project does not produce code (research notes, ops runbooks, business planning, personal projects without a codebase).
+- The project ships code but the volume of code commits is low and PMO commits will not pollute the history.
+
+This is the simplest layout. No cross-repo references; everything is one `git log` away.
+
+### Option B — two-repo split (PMO docs ↔ code)
+
+PMO docs live in `<project>-pmo/` (this repo, where Perry's state files sit); code lives in `<project>/`. Use this when:
+- The project ships code AND has been observed to suffer from branch contention between PMO doc commits and code commits, OR PMO commits visibly pollute code commit history.
+- The user explicitly prefers the separation.
+
+Cross-reference convention:
+- PMO docs reference code via `<commit-SHA> path/to/file.py` (commit SHA pinned, not branch — survives rebases).
+- Code commits reference PMO task IDs in commit messages (e.g., `Closes TASK-007`).
+- Each repo has its own `.git/`; neither repo is a submodule of the other.
+
+Trigger to migrate from A → B: ≥ 2 incidents of branch contention or commit-history pollution within a month. Capture the trigger as a `DECISIONS.md` ADR (`Type: Process`) before splitting.
+
+When B is in effect, `.perry/config.md` records both paths so every child skill knows where to look. Delegation prompts to Coding Agents must explicitly state which repo their work targets.
+
+### `.perry/config.md` shape
+
+```
+# Perry configuration
+
+- Document language: <English | 中文 | ...>
+- Repo layout: <single | split>
+- PMO repo path: <absolute path>
+- Code repo path: <absolute path or — if single>
+- Last updated: <YYYY-MM-DD>
+```
+
+Children read this file before any output. If the file is missing, prompt the user to run first-time setup.
 
 ## Routing reference
 
@@ -107,10 +156,15 @@ When the user types something inside a `/perry` session, route to the right chil
 - Decisions and risks · `decide`, `risk`, `nudge`
 - Monthly transition · `rollover`
 
+**Route to `/design` for:**
+- Anything called RFC / architecture / design doc · `new`, `decide`, `lock`, `revise`, `supersede`, `drop`, `handoff`, `status`
+- "Should we design this before building it?" → yes if multi-system, irreversible, or has multiple open user decisions
+
 **Handle here in `/perry` (without routing):**
 - The combined snapshot itself.
 - "Explain Perry" / "what is this skill" — short pointer to README.
-- Recommending the next action when the choice spans both children.
+- Recommending the next action when the choice spans more than one child.
+- Confirming or updating `.perry/config.md` (document language, repo layout).
 
 ## Style rules
 
@@ -122,7 +176,9 @@ When the user types something inside a `/perry` session, route to the right chil
 
 ## Per-project hooks (optional)
 
-If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`okr/SKILL.md` and `pmo/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
+If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`okr/SKILL.md`, `pmo/SKILL.md`, `design/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
+
+Project hook files live at the project root (not in the skill folder), so a single Perry installation can serve many projects without entanglement. The recommended location is `<project_root>/.perry/hook.md`; children read it on every invocation.
 
 ## See also
 
@@ -130,3 +186,4 @@ If your project has specific roadmap files, MCP tools, agent roles, cost ceiling
 - [INSTALL.md](../INSTALL.md) — install instructions.
 - [okr/SKILL.md](okr/SKILL.md) — full goal-setting subcommands and templates.
 - [pmo/SKILL.md](pmo/SKILL.md) — full execution stewardship subcommands and templates.
+- [design/SKILL.md](design/SKILL.md) — full design-doc stewardship subcommands and templates.
