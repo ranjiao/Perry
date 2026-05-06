@@ -1,66 +1,53 @@
 # Install — Perry
 
-Perry installs as **one folder** at `~/.claude/skills/perry/`, containing four skill files at nested paths. Claude Code discovers each one and makes them invocable as `/perry`, `/okr`, `/pmo`, and `/design`.
+Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). All four need to be discoverable as siblings under your skills directory so each one is invocable on its own.
+
+The `setup` script handles this. It links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
 
 ```
-~/.claude/skills/perry/
-├── SKILL.md            ← /perry (top-level coordinator)
-├── README.md
-├── INSTALL.md
-├── okr/
-│   ├── SKILL.md        ← /okr (goal-setting child)
-│   └── state/          (templates: OKR_TEMPLATE.md, monthly_TEMPLATE.md)
-├── pmo/
-│   ├── SKILL.md        ← /pmo (execution stewardship child)
-│   └── state/          (templates: PROJECT_STATE_, TASKS_, DECISIONS_, weekly_, handoff_, evidence_TEMPLATE.md)
-└── design/
-    ├── SKILL.md        ← /design (design-doc steward child)
-    └── state/          (template: design_TEMPLATE.md)
+~/.claude/skills/
+├── perry      → <source dir>/Perry         # top-level (real symlink to source)
+├── okr        → perry/okr                  # child (relative)
+├── pmo        → perry/pmo                  # child (relative)
+└── design     → perry/design               # child (relative)
 ```
-
-This nested layout is the same pattern used by gstack and other multi-skill packages — one folder on disk, multiple invocable skills.
 
 ## One-shot install
 
-### Option 1 — symlink (recommended for development)
-
-If you keep this repo as a working git checkout and want changes you push to take effect immediately:
-
 ```bash
-mkdir -p ~/.claude/skills
-ln -s /path/to/perry ~/.claude/skills/perry
+git clone <perry repo> ~/proj/Perry         # or wherever you want the source
+~/proj/Perry/setup                          # global install: ~/.claude/skills/
 ```
 
-### Option 2 — copy (snapshot install)
+That's it. Re-run the script anytime; it's idempotent.
 
-If you'd rather pin a copy that doesn't move when you edit the source:
+### Per-project install
 
-```bash
-mkdir -p ~/.claude/skills
-SRC=/path/to/perry
-cp -R "$SRC" ~/.claude/skills/perry
-```
-
-Verify either option:
+If you want Perry available only inside one project (not globally):
 
 ```bash
-ls ~/.claude/skills/perry
-# Expect: SKILL.md  README.md  INSTALL.md  okr/  pmo/  design/
-
-ls ~/.claude/skills/perry/{okr,pmo,design}/SKILL.md
+cd /path/to/your/project
+~/proj/Perry/setup --local                  # installs to ./. claude/skills/
 ```
 
-In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` should all be available.
+### Verify
+
+```bash
+ls ~/.claude/skills | grep -E '^(perry|okr|pmo|design)$'
+# Expect all four
+```
+
+In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all available.
 
 ## Update later
 
-If you used the symlink: `git pull` in the source folder; changes apply immediately.
+If you installed via symlink (the default), Perry tracks the source folder live — `git pull` in the source folder is enough.
 
-If you used the copy: re-sync with `rsync`:
+If you installed by copy:
 
 ```bash
-SRC=/path/to/perry
-rsync -a --delete "$SRC/" ~/.claude/skills/perry/
+rsync -a --delete ~/proj/Perry/ ~/.claude/skills/perry/
+~/.claude/skills/perry/setup     # refresh child symlinks if any new children were added
 ```
 
 ## First run in a project
@@ -93,13 +80,11 @@ Project-specific additions (custom agents, MCP tools, domain constraints, promot
 ## Uninstall
 
 ```bash
-rm -rf ~/.claude/skills/perry      # if you used cp
-# or
-rm ~/.claude/skills/perry          # if you used the symlink
+rm ~/.claude/skills/{perry,okr,pmo,design}
 ```
 
 State files (`OKR.md`, `tasks/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
 
 ## Distributing Perry
 
-Perry is just files. Copy or `git clone` the `perry/` folder onto a new machine, then run the install commands above. No package manager, no daemon, no sync state.
+Perry is just files. `git clone` the source onto a new machine, then run `setup`. No package manager, no daemon, no sync state.
