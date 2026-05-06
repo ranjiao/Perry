@@ -181,6 +181,68 @@ For coding tasks, always require:
 
 For research tasks, always require: hypothesis, data period, universe, method, metrics, risk/failure modes, recommendation classified per the project's promotion ladder (e.g., `watch | dry-run | paper | reject`, or whatever stages the project defines in its hook).
 
+#### `dispatch <task-id>`
+Same goal as `delegate` but **fully automated** end-to-end. PMO renders the prompt, fires it at an executor, watches for completion, parses the result, runs any objective verification commands declared in the spec, writes an evidence file, updates BOARD + journal, and reports back. Subjective verification stays with the user (status moves to `review`, not `done`).
+
+**Pre-flight (any failure → refuse and fall back to `delegate`)**:
+1. `evidence/<YYYY-MM>/<TASK-ID>-spec.md` exists.
+2. Spec contains `Dispatch mode: auto` (default `manual` — explicit opt-in required).
+3. Spec contains `Executor: claude-subagent | codex` (not `manual`).
+4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` sections against the project hook's high-stakes operations list (in `.perry/hook.md`). Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question, not a refusal trigger.
+5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
+
+**Dispatch (per executor)**:
+
+For `Executor: claude-subagent`:
+- Use the `Agent` tool with `subagent_type: general-purpose`.
+- Build the prompt by concatenating: spec full text + project hook safety constraints + Git expectation block + RESULT format requirement.
+- Decide async-ness from the spec's size hint: `Estimated cycle: small` → `run_in_background: false` (sync wait); `medium | large` → `run_in_background: true`.
+- Sub-agent shares parent cwd. For split-repo projects, instruct the sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
+
+For `Executor: codex`:
+- Use Bash tool: `codex exec "<prompt>"` from the code-repo cwd (`cd <code-repo-path> && codex exec ...`).
+- Always `run_in_background: true` (codex is its own session — async by default).
+- Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: spec full text + relevant project hook excerpts + git expectation + RESULT format + the explicit list of files codex can read for context.
+- Capture stdout to a temp file; on completion, parse for the RESULT block (defined format below).
+
+**Common (post-dispatch, before completion)**:
+- Append `## Status changes` line to today's journal: `[TASK-X] not_started → in_progress · dispatched HH:MM · executor=<name> · async=<bool>`.
+- Update BOARD row: status → `in_progress`; Next action → "dispatched <time>; awaiting completion".
+- Reply to user: `Dispatched <TASK-X> via <executor>. Will report when done.` Do NOT block waiting for sync; rely on runtime notification.
+
+**On completion (notification arrives)**:
+1. Read the agent's RESULT block. Required fields:
+   - `PR URL:` (or "n/a — direct push" with explicit reason)
+   - `Files changed: <count>` + bullet list
+   - `Tests: <pass>/<total>` + command used
+   - `Cycle time: <minutes>` (for calibration)
+   - `Notes:` (anything unusual)
+2. Run **objective verification** from the spec's `Verification` section. Anything that looks like a runnable command (starts with `$`, names a CLI like `pytest` / `gh` / `gim`, or has a clearly executable shape) — run it. Capture output.
+3. Cross-check the result against the spec's `Out of scope` — if the agent's `Files changed` list contains paths declared out-of-scope, raise a hard failure (likely scope creep or safety violation).
+4. **Status decision**:
+   - All objective verifications pass + no scope violation + RESULT block has all required fields → status `review` (NEVER auto-`done`; subjective verification is the user's, per the project's standing rule).
+   - Anything fails → status `review` with failure annotation; per Q4=C, no auto-retry, no auto-rollback.
+5. Write `evidence/<YYYY-MM>/<TASK-ID>-dispatch-<YYYY-MM-DD-HHMM>.md` containing:
+   - Header (date, executor, async, cycle time)
+   - Full agent RESULT block verbatim
+   - Objective verification commands + their outputs
+   - Subjective verification items (copied from spec, marked `[user-verify]`)
+   - PR URL + branch + commit SHA
+6. Update BOARD row: status → `review`; Next action → "user verifies subjective items: <…>"; Evidence → path of dispatch file.
+7. Append `## Status changes` to today's journal: `[TASK-X] in_progress → review · executor=<name> · cycle=<min> · evidence: <path>`.
+8. Surface to user (in chat): pass/fail summary + 1-line subjective verification ask.
+
+**Failure handling (Q4 = mark review, no auto-retry)**:
+- Executor crashed / non-zero exit / timeout → write evidence with raw output, status `review`, surface failure summary, ask user whether to retry / fix manually / drop.
+- ff-only PR push failed → same, with manual-resolution hint.
+- Agent declared `done` but tests failed → same.
+
+**Cost / quota awareness**:
+- Each `claude-subagent` call counts against the parent CC session quota (5-hour Sonnet caps, weekly Opus caps).
+- Each `codex` call counts against OpenAI quota.
+- PMO does not enforce a per-call dollar cap; spec writer chooses executor as a quota-routing hint.
+- Hooks may declare project-specific quota limits (e.g., "no more than 5 dispatches per day") — PMO honors those if present.
+
 ### Git Role Boundaries
 
 Each role owns its own deliverable's commit. PMO never commits code; Coding never edits PMO docs. This boundary keeps commit history readable and prevents one agent from silently rewriting another's lane.
@@ -268,7 +330,22 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 
 1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path` only.
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including the full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The journal entry is the canonical historical record of the task's original scope.
-3. **For P0 and P1 tasks**, ALSO write a separate **spec file** at `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema. The BOARD row's Evidence column points at this spec file. Reasoning: P0/P1 tasks get dispatched, re-dispatched, and audited; future PMO sessions need fast, scoped access to the schema without grepping through journal entries by date. P2 / backlog / watch tasks may rely on the journal entry alone — promote a P2 to P1 → write the spec file at promotion time.
+3. **For P0 and P1 tasks**, ALSO write a separate **spec file** at `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. The BOARD row's Evidence column points at this spec file. Reasoning: P0/P1 tasks get dispatched, re-dispatched, and audited; future PMO sessions need fast, scoped access to the schema without grepping through journal entries by date. P2 / backlog / watch tasks may rely on the journal entry alone — promote a P2 to P1 → write the spec file at promotion time.
+
+   **Required header fields in every spec file** (used by `dispatch`):
+   ```
+   > Dispatch mode: auto | manual               # default 'manual'; 'auto' is explicit opt-in
+   > Executor: claude-subagent | codex | manual # only consulted when Dispatch mode = auto
+   > Estimated cycle: small | medium | large    # informs sync vs async + cycle-time tracking
+   > Subjective verification: <list, or '(none)'>
+   ```
+
+   **Choosing executor (spec writer responsibility)**:
+   - `claude-subagent`: small task, needs MCP tools the parent session has, needs codebase familiarity.
+   - `codex`: medium/large self-contained task, no MCP dependency, save Claude Code quota.
+   - `manual`: high-stakes per project hook (live trading, broker creds, .env, paid sources, cost ceiling raise) OR subjective decision-making (research candidate selection, design choices).
+
+   The spec writer commits to the choice with one inline reason: `> Executor: codex (high confidence — pure analytics task, no MCP needed)`.
 
 The spec file uses the same template content as the journal `## New tasks added` block; it's not duplication, it's two surfaces with different access patterns:
 
