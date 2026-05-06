@@ -116,24 +116,28 @@ Writes `design/<DESIGN-ID>-<slug>.md` from `state/design_TEMPLATE.md` with `Stat
 ### `decide <DESIGN-ID>`
 Walk every unresolved row in the User Decisions table. For each: present the options, ask the user to pick (or to add an option), record the choice with today's date. Refuse to "decide on the user's behalf" — leave TBD if the user cannot decide now.
 
+**Use `AskUserQuestion`** to render each row's options as buttons (header = decision number or short topic, ≤ 12 chars). The Options column in the User Decisions table is written pipe-separated (`A / B / C`) precisely so each token maps to one `AskUserQuestion` option. Batch up to 4 unresolved rows per `AskUserQuestion` call. The user can always pick "Other" to add a new option, in which case append it to the row's Options list and record the choice.
+
 ### `lock <DESIGN-ID>`
 Move a doc from `in_review` → `locked`. Pre-flight checks:
 - All required sections present and non-empty.
 - User Decisions table has zero TBD / blank rows.
 - Implementation plan section has at least one proposed task.
 
-If any check fails, refuse the move and print the gap list. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). Ask: "Hand these to PMO now? (yes/edit/skip)".
+If any check fails, refuse the move and print the gap list. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
 
 ### `revise <DESIGN-ID>`
 For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Tells PMO to add a `DECISIONS.md` ADR (`Type: Design`).
 
-For changes large enough that the original problem framing or architecture no longer holds, use `supersede` instead.
+**First step**: use `AskUserQuestion` (header `"Revise scope"`, options = `Decision update | Architecture refinement | Implementation re-sequence | Use supersede instead (Recommended if structural)`) to gauge the change kind. If the user picks `Use supersede instead`, route to `supersede` and stop here.
 
 ### `supersede <OLD-ID> <NEW-slug>`
 Mark `OLD-ID` as `superseded`, point its header to a new doc, and run `new` to create the successor. The successor's References section must cite the predecessor and explain what changed at the framing level.
 
 ### `drop <DESIGN-ID> <reason>`
 Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Append to PMO's `DECISIONS.md` (`Type: Design`).
+
+If the user invokes `drop` without a reason, **use `AskUserQuestion`** (header `"Drop reason"`, options = `Problem went away | Pivoted past it | Replaced by other work (Recommended if you saw it in another spec) | Other`) to nudge a categorization; require free-text elaboration after the bucket selection. Reason is mandatory — refuse to drop without one.
 
 ### `handoff <DESIGN-ID>`
 For a locked doc whose Implementation plan is still un-handed-off. Re-prints the implementation task list in PMO's `add-task` format. Shortcut for re-running the lock-time prompt.

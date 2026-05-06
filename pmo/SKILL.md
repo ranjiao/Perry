@@ -154,7 +154,7 @@ Walk `BOARD.md` top-to-bottom. For each open row:
 - Owner is an agent but no recent delegation prompt in chat? → flag
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
 
-Print the triage table, ask which actions to apply, update `BOARD.md`, and write a `## Status changes` block in today's journal entry summarizing what moved.
+Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per `AskUserQuestion` call (each row = one question); for more rows, run multiple calls. After collecting answers, update `BOARD.md`, and write a `## Status changes` block in today's journal entry summarizing what moved.
 
 If `BOARD.md` is over the 200-line cap, triage MUST propose specific cuts before exiting.
 
@@ -187,7 +187,7 @@ Same goal as `delegate` but **fully automated** end-to-end. PMO renders the prom
 **Pre-flight (any failure → refuse and fall back to `delegate`)**:
 1. `evidence/<YYYY-MM>/<TASK-ID>-spec.md` exists.
 2. Spec contains `Dispatch mode: auto` (default `manual` — explicit opt-in required).
-3. Spec contains `Executor: claude-subagent | codex` (not `manual`).
+3. Spec contains `Executor: claude-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use `AskUserQuestion` (header `"Executor"`, options = `claude-subagent | codex (if installed) | manual — fall back to delegate`) to ask the user for a one-shot choice this run; do NOT silently default. Persist the answer back into the spec only if the user explicitly says "save this for next time".
 4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` sections against the project hook's high-stakes operations list (in `.perry/hook.md`). Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question, not a refusal trigger.
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
 
@@ -311,7 +311,7 @@ For every User Input Queue item idle ≥5 days, surface a one-line reminder in c
 ### Task lifecycle
 
 #### `close-task <id>`
-Reject if no evidence path provided. Then:
+Reject if no evidence path provided. If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) to confirm before flipping status. On `Verified — close`:
 1. **Remove the row from `BOARD.md`** (closed tasks leave the board; this is what keeps the board small).
 2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path>`.
 3. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too.
@@ -387,7 +387,7 @@ With the BOARD/journal split, rollover is nearly trivial — `BOARD.md` is alrea
 2. **Create `journal/<new-YYYY-MM>/` directory.** The first journal entry will be created the next time `add-task` / `triage` / `close-task` writes one.
 3. **Create `evidence/<new-YYYY-MM>/` directory.**
 4. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a month boundary in the first place. If a row's task ID convention encodes a month (e.g., `PAPER-007` was originally created in 2026-05), leave the ID untouched — it's the canonical handle.
-5. For tasks the user explicitly wants to drop instead of carry: run `drop-task` (regular subcommand) which writes the close to `journal/<old-YYYY-MM>/<last-day>.md` AND removes from BOARD.
+5. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `drop-task` which writes the close to `journal/<old-YYYY-MM>/<last-day>.md` AND removes from BOARD.
 6. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
 7. Append a `## Notes` entry to the first day of the new month's journal: "rollover from <prev-YYYY-MM>; <n> rows carried; see evidence/<prev-YYYY-MM>/retro.md".
 
