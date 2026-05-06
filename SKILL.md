@@ -158,7 +158,7 @@ When the user types something inside a `/perry` session, route to the right chil
 - The standup itself, status, triage, blocker check
 - Task lifecycle · `add-task`, `close-task`, `drop-task`
 - Cadence rituals · `monday-plan`, `midweek-check`, `friday-review`, `mid-month-review`, `end-month-retro`
-- Cross-session work · `coordinate`, `delegate`, `handoff`
+- Cross-session work · `coordinate`, `delegate` (manual prompt), `dispatch` (auto end-to-end via claude-subagent or codex), `handoff`
 - Decisions and risks · `decide`, `risk`, `nudge`
 - Monthly transition · `rollover`
 
