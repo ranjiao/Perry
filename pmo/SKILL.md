@@ -1,6 +1,6 @@
 ---
 name: pmo
-description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains tasks/<YYYY-MM>.md (per-month boards, current month is the live one), PROJECT_STATE.md (cross-monthly dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and monthly/<YYYY-MM>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
+description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains BOARD.md (live working memory — current open work only, ≤200 lines), journal/<YYYY-MM>/<YYYY-MM-DD>.md (daily append-only history of status changes / new tasks / decisions), PROJECT_STATE.md (cross-monthly dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and monthly/<YYYY-MM>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
 ---
 
 # PMO — Perry's execution steward
@@ -11,7 +11,19 @@ Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not na
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO appends them to the current month's `tasks/<YYYY-MM>.md` after user approval and tracks day-to-day execution.** PMO is the only writer of `tasks/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `monthly/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `monthly/`.
+
+## The three-tier model (read this first)
+
+PMO state is split across three layers with different lifecycles. Mixing them in one file is what causes the "1000-line unreadable board" anti-pattern.
+
+| Layer | File(s) | Lifetime | Read frequency | Write pattern |
+|---|---|---|---|---|
+| **Live** | `BOARD.md` | now (closed work leaves) | every standup | mutated as state changes; **≤200 lines hard cap** |
+| **History** | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | append-only per day | only when user asks "what happened on X" or weekly/retro reads recent days | one file per day; **append-only after the day ends** |
+| **Artifact** | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | per task | only when verifying a `done` claim or writing a retro | one file per task deliverable |
+
+`BOARD.md` is the PMO's **working memory**. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
 
 ## When this skill activates
 
@@ -19,7 +31,7 @@ Trigger on any of:
 - The user invokes `/pmo` or types "PMO".
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
-- A new session opens in a project that contains a `tasks/` directory at the root.
+- A new session opens in a project that contains a `BOARD.md` at the root.
 
 ## Mandatory first move: the Standup
 
@@ -27,20 +39,22 @@ Always run this before anything else, even if the user asked a specific question
 
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; if the user is on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
-2. **Read core state files** at the project root:
-   - `tasks/<current-YYYY-MM>.md` (this month's board; always the live one)
+2. **Read live state**:
+   - `BOARD.md` (current open work — the working memory)
    - `PROJECT_STATE.md` (cross-monthly dashboard)
    - `DECISIONS.md` (most recent 5 entries)
+   If any are missing, see Bootstrap.
+
+3. **Read recent history** — only the last 1–2 days of journal:
+   - `journal/<YYYY-MM>/<today>.md` if it exists, else
+   - `journal/<YYYY-MM>/<latest>.md`, plus the file before it.
+   Do NOT walk the whole month; that defeats the purpose of the BOARD/journal split. Read older journal entries only on demand for `mid-month-review`, `end-month-retro`, or when answering a question about a specific past date.
+
+4. **Read context files** (read-only):
    - `weekly/` — most recent file
    - `handoff/` — most recent file (if any)
-   If any are missing, see Bootstrap. The previous month's `tasks/<prev-YYYY-MM>.md` is read-only history; never write to it after rollover.
-
-3. **Read OKR state** if present (read-only):
-   - `OKR.md`
-   - `monthly/<current-YYYY-MM>.md`
-
-4. **Read design state** if present (read-only):
-   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `tasks/<current-YYYY-MM>.md` rows.
+   - `OKR.md` and `monthly/<current-YYYY-MM>.md` if OKR is installed
+   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `BOARD.md` rows.
 
 5. **Compute deltas** since the last standup:
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
@@ -68,7 +82,8 @@ Always run this before anything else, even if the user asked a specific question
    - "TASK-007 in_progress 4d, no evidence file → ask the owning agent for status"
    - "today is Friday → run `friday-review`"
    - "month-end in 3 days → schedule `end-month-retro`, then `rollover`"
-   - "DESIGN-002 locked 3d ago, no impl tasks in `tasks/<current-YYYY-MM>.md` → ask `/design handoff DESIGN-002`"
+   - "DESIGN-002 locked 3d ago, no impl tasks in `BOARD.md` → ask `/design handoff DESIGN-002`"
+   - "BOARD.md is 240 lines (over the 200 cap) → run `triage` to push detail into evidence and close stale rows"
 
 8. Then ask: **"What do you want to do?"**
 
@@ -128,15 +143,19 @@ After the standup, the user usually picks one of these.
 ### Planning
 
 #### `plan-week`
-Generate this ISO week's plan. Reads `monthly/<current-YYYY-MM>.md` (if OKR present) or `tasks/<current-YYYY-MM>.md` directly. Picks 3–5 highest-leverage open tasks for the week, marks them P0, confirms with user, updates `tasks/<current-YYYY-MM>.md`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `monthly/<current-YYYY-MM>.md` (if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user, updates `BOARD.md`, and writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 #### `triage`
-Walk `tasks/<current-YYYY-MM>.md` top-to-bottom. For each open task:
+Walk `BOARD.md` top-to-bottom. For each open row:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d) → flag
-- Same dependency cited in ≥2 tasks? → structural blocker
-- `done` claim without evidence file? → revert to `review`
+- Same dependency cited in ≥2 rows? → structural blocker
+- `done` claim without evidence file in `evidence/<YYYY-MM>/` → revert to `review`
 - Owner is an agent but no recent delegation prompt in chat? → flag
-Print triage table, ask which actions to apply, update `tasks/<current-YYYY-MM>.md` and append a Change Log entry.
+- Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
+
+Print the triage table, ask which actions to apply, update `BOARD.md`, and write a `## Status changes` block in today's journal entry summarizing what moved.
+
+If `BOARD.md` is over the 200-line cap, triage MUST propose specific cuts before exiting.
 
 #### `delegate <task-id> <agent-type>`
 Generate a self-contained delegation prompt for another agent (Coding / Research / Review). Required fields in the prompt:
@@ -169,7 +188,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 |---|---|---|---|---|
 | **Coding Agent** | Code + tests on a **feature branch** | ✓ | ✓ (own work) | ✗ |
 | **Research Agent** | Generated reports / evidence files | ✓ | ✓ (own work) | ✗ |
-| **PMO Agent** | PMO docs (`tasks/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
+| **PMO Agent** | PMO docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
 | **Review Agent** | Review notes / approval comments | ✓ | — | reviews; does not merge |
 | **User** | Anything on the user's behalf | ✓ | ✓ | ✓ for code PRs |
 
@@ -201,19 +220,19 @@ If a project repeatedly observes cycle times outside these ranges, record the ca
 ### Reporting
 
 #### `status` (a.k.a. `friday-review`)
-Generate this week's PMO status report using the Reporting Format below. Save to `weekly/<YYYY-WW>.md`.
+Generate this week's PMO status report using the Reporting Format below. Reads `BOARD.md` (current state) + this week's journal entries (`journal/<YYYY-MM>/<YYYY-MM-DD>.md` for each day this week). Save to `weekly/<YYYY-WW>.md`.
 
 #### `monday-plan`
-Run at start of week. Output: priorities for the week, P0 set, blockers needing user input, scope cuts if needed. Append to current week's `weekly/` file.
+Run at start of week. Reads `BOARD.md` + last week's `weekly/<YYYY-WW>.md` if any. Output: priorities for the week, P0 set, blockers needing user input, scope cuts if needed. Append to current week's `weekly/` file AND write a `## Notes` entry in `journal/<YYYY-MM>/<today>.md`.
 
 #### `midweek-check`
-Mid-week pulse. Output: P0 movement check, blocker escalations, cost-ceiling progress (if any), tests/verification reminders for in-progress coding work.
+Mid-week pulse. Reads `BOARD.md` + journal entries since Monday. Output: P0 movement check, blocker escalations, cost-ceiling progress (if any), tests/verification reminders for in-progress coding work. Write findings to `journal/<YYYY-MM>/<today>.md`.
 
 #### `mid-month-review`
-Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Mid-Month Scope Reduction Rule** declared in `monthly/<YYYY-MM>.md`. Recommend scope cuts. Save the review to `evidence/<YYYY-MM>/midmonth-review.md`.
+Reads `BOARD.md` + ALL journal entries for the current month (this is one of the few cases where you legitimately need the full month's history). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Mid-Month Scope Reduction Rule** declared in `monthly/<YYYY-MM>.md`. Recommend scope cuts. Save the review to `evidence/<YYYY-MM>/midmonth-review.md`.
 
 #### `end-month-retro`
-At month-end. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates for next month. Save to `evidence/<YYYY-MM>/retro.md`. This document is OKR's input for `plan-month` of the next month.
+At month-end. Reads `BOARD.md` + ALL journal entries for the month + `evidence/<YYYY-MM>/` files. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates for next month. Save to `evidence/<YYYY-MM>/retro.md`. This document is OKR's input for `plan-month` of the next month.
 
 ### Decisions & risk
 
@@ -229,13 +248,28 @@ For every User Input Queue item idle ≥5 days, surface a one-line reminder in c
 ### Task lifecycle
 
 #### `close-task <id>`
-Mark a task `done` in `tasks/<current-YYYY-MM>.md`. Reject if no evidence path provided. Move to `## Done`. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too. If the task was originally added in a previous month and carried forward, leave the historical entry untouched in the older `tasks/<prev-YYYY-MM>.md` and complete the carried-forward row in the current month's file.
+Reject if no evidence path provided. Then:
+1. **Remove the row from `BOARD.md`** (closed tasks leave the board; this is what keeps the board small).
+2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path>`.
+3. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too.
+4. The original task definition (in the journal entry of its creation date) stays untouched — that's the historical record.
+
+To find a closed task later: `grep "TASK-007" journal/` returns its creation entry, all status changes, and its close entry across days/months.
 
 #### `drop-task <id> <reason>`
-Mark a task `dropped` with a reason recorded inline. Append to Change Log.
+Symmetric to `close-task`:
+1. Remove the row from `BOARD.md`.
+2. Append a `## Status changes` line to today's journal: `[ID] <prev-status> → dropped · reason: <reason>`.
+3. The original task definition in its creation-day journal entry stays untouched.
 
 #### `add-task` (interactive)
-After OKR `plan-week` proposes tasks and the user approves, PMO appends each one to `tasks/<current-YYYY-MM>.md` with a fresh slug id (never reused, never recycled across months), full schema (Owner, Priority, Deliverable, Verification, Dependencies, Evidence, Next action, Scope, Out of scope), and a kr-id tag.
+After OKR `plan-week` (or any other source) proposes a task and the user approves, PMO does both:
+1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path` only.
+2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including the full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The journal entry is the canonical source for the task's original scope; BOARD.md only carries enough to know what's open.
+
+Slug IDs are never reused or recycled across months.
+
+If the task is large enough to need its own working artifact from day one (e.g., a checklist, a design ladder, or a series of subtasks), also create `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` and reference it from the BOARD row's Evidence column.
 
 ### Cross-session
 
@@ -249,23 +283,25 @@ Generate the **Day-N Status doc** — a single self-contained document a future 
 3. User Input Queue with recommendations
 4. Next ISO week's day-by-day milestones
 5. Open risks with mitigations
-6. Board snapshot (P0/P1/P2 buckets)
-7. "Read these N files first when you resume" pointer
+6. BOARD snapshot — copy the current `BOARD.md` table contents (or summarize if too long)
+7. "Read these N files first when you resume" pointer (typically: `handoff/<this-doc>.md`, `BOARD.md`, last 1–2 journal entries, `PROJECT_STATE.md`)
 
 The first line of every PMO session after a handoff exists is: "Read `handoff/<latest>.md` and tell me your status." The handoff doc is the bridge.
 
 ### Monthly transition
 
 #### `rollover`
-When the calendar moves to a new month (or the user asks):
-1. Confirm `evidence/<previous-YYYY-MM>/retro.md` exists; if not, prompt for `end-month-retro` first.
-2. **Create `tasks/<new-YYYY-MM>.md`** from the template. The previous month's `tasks/<prev-YYYY-MM>.md` stays in place untouched as historical record.
-3. For unresolved tasks in the previous month: mark `dropped` (with reason) in the OLD file OR carry forward into the new file with a fresh row that references the old TASK-ID (e.g., `Carried from PAPER-007 (2026-05)`).
-4. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
-5. Create the new month's `evidence/<new-YYYY-MM>/` folder.
-6. Append a Change Log entry to the new month's tasks file.
+With the BOARD/journal split, rollover is nearly trivial — `BOARD.md` is already current, the previous month's journal entries already exist as the historical record. Steps:
 
-The per-month layout makes rollover almost free: there is no "rewrite" step. The old file is the historical record; the new file is the live board. `git log -- tasks/` shows the full history per month.
+1. Confirm `evidence/<previous-YYYY-MM>/retro.md` exists; if not, prompt for `end-month-retro` first.
+2. **Create `journal/<new-YYYY-MM>/` directory.** The first journal entry will be created the next time `add-task` / `triage` / `close-task` writes one.
+3. **Create `evidence/<new-YYYY-MM>/` directory.**
+4. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a month boundary in the first place. If a row's task ID convention encodes a month (e.g., `PAPER-007` was originally created in 2026-05), leave the ID untouched — it's the canonical handle.
+5. For tasks the user explicitly wants to drop instead of carry: run `drop-task` (regular subcommand) which writes the close to `journal/<old-YYYY-MM>/<last-day>.md` AND removes from BOARD.
+6. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
+7. Append a `## Notes` entry to the first day of the new month's journal: "rollover from <prev-YYYY-MM>; <n> rows carried; see evidence/<prev-YYYY-MM>/retro.md".
+
+`git log -- journal/` shows the full history per day; `git log -- BOARD.md` shows the live board's evolution.
 
 ## State files
 
@@ -273,26 +309,37 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 | File / dir | Owner | Purpose | Template |
 |------------|-------|---------|----------|
-| `tasks/<YYYY-MM>.md` | pmo | One per month: Month-Level Status, User Input Queue, P0/P1/P2/Cadence task blocks, Done Checklist, Change Log. The current month's file is the live board; older files are read-only history. | `state/TASKS_TEMPLATE.md` |
+| `BOARD.md` | pmo | **Live working memory.** Current open work only — terse rows, no narrative. P0 / P1 / P2 / Cadence tables + User Input Queue + 1-line risk pointers. Closed tasks leave this file. **Hard cap: ≤200 lines.** | `state/BOARD_TEMPLATE.md` |
+| `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | pmo | **Daily append-only history.** One file per day. Sections: Status changes / New tasks added / Decisions / Notes / Carry to tomorrow. Frozen after the day ends; never retroactively edited. | `state/journal_TEMPLATE.md` |
 | `PROJECT_STATE.md` | pmo | Cross-monthly living dashboard: phase, week, top risks, recent cross-session work, multi-month carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
 | `DECISIONS.md` | pmo | Append-only ADR log (single file, all months) | `state/DECISIONS_TEMPLATE.md` |
 | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | pmo | Per-task artifacts: reports, checklists, drill records, gap lists, retros | `state/evidence_TEMPLATE.md` |
 | `weekly/<YYYY-WW>.md` | pmo | One ISO week's status report | `state/weekly_TEMPLATE.md` |
 | `handoff/<YYYY-MM-DD>.md` | pmo | Session resumption doc | `state/handoff_TEMPLATE.md` |
 | `OKR.md`, `monthly/` | okr | Read by PMO; never written by PMO | (in okr skill) |
+| `design/<DESIGN-ID>-*.md` | design | Read by PMO to know which locked designs need implementation tasks; never written by PMO | (in design skill) |
 
-Keep each `tasks/<YYYY-MM>.md` and `PROJECT_STATE.md` under ~500 lines. Long evidence content lives in `evidence/`, not in the board itself. If a month's tasks file is approaching the limit, ruthlessly push detail into per-task evidence files and leave only status + next-action + evidence path in the board.
+**Size discipline (non-negotiable)**:
+- `BOARD.md` ≤ 200 lines. If it grows past, `triage` MUST cut it before the next standup ends.
+- `PROJECT_STATE.md` ≤ 200 lines.
+- Individual `journal/<YYYY-MM>/<YYYY-MM-DD>.md` files have no cap (a busy day might be 300+ lines), but they're append-only and rarely re-read in full — only when answering "what happened on X".
+- Long task content (rich definitions, audit checklists, drill records) lives in `evidence/`, not in BOARD or journal.
 
 ## Bootstrap
 
-If invoked in a project with no `tasks/` directory, ask once:
+If invoked in a project with no `BOARD.md`, ask once:
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 
 If yes:
 1. Detect project metadata (folder name, README, any roadmap-looking markdown, git repo URL).
-2. Create at the project root: `tasks/<current-YYYY-MM>.md`, `PROJECT_STATE.md`, `DECISIONS.md`, plus empty `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/` directories.
+2. Create at the project root:
+   - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
+   - `PROJECT_STATE.md` (from template)
+   - `DECISIONS.md` (from template, ADR-001 stub recording bootstrap)
+   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
-4. Run the standup.
+4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
+5. Run the standup.
 
 ## Reporting Format (used by `status`, `monday-plan`, `friday-review`)
 
@@ -338,7 +385,7 @@ When surfacing a decision, blocker, or open question to the user in chat, **lead
 
 The rule: a user reading the chat without opening a single file should understand WHAT is being decided and WHY it matters. The IDs let them dig deeper afterward.
 
-This rule is for chat output only. Inside `tasks/`, `evidence/`, `DECISIONS.md`, and `weekly/`, IDs and short titles are still the canonical form — those files are reference material, not conversation.
+This rule is for chat output only. Inside `BOARD.md`, `journal/`, `evidence/`, `DECISIONS.md`, and `weekly/`, IDs and short titles are still the canonical form — those files are reference material, not conversation.
 
 ### The in-flight board (use when it helps, not by default)
 

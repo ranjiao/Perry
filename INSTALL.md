@@ -58,7 +58,7 @@ In Claude Code, from inside any project directory:
 /perry          # combined snapshot + recommends next steps for the project
 ```
 
-If this is a new project (no `OKR.md` / `tasks/` yet), `/perry` will run first-time setup, which:
+If this is a new project (no `OKR.md` / `BOARD.md` yet), `/perry` will run first-time setup, which:
 1. Confirms your **document language** (English / 中文 / other) and writes it to `.perry/config.md`.
 2. Confirms your **repo layout** — single repo (default for non-code projects) or split (PMO docs ↔ code) — and writes it to `.perry/config.md`.
 
@@ -70,7 +70,7 @@ The recommended first-run order is:
 /okr plan-month <YYYY-MM>       # full monthly OKR (10 mandatory sections)
 /pmo                            # bootstraps execution files, runs first standup
 /okr plan-week                  # proposes first batch of weekly tasks
-                                # → /pmo writes them to tasks/<YYYY-MM>.md after approval
+                                # → /pmo writes them to BOARD.md + today's journal entry after approval
 ```
 
 After that, daily/weekly use is whichever of `/perry`, `/okr`, `/pmo`, or `/design` matches the moment.
@@ -83,7 +83,7 @@ Project-specific additions (custom agents, MCP tools, domain constraints, promot
 rm ~/.claude/skills/{perry,okr,pmo,design}
 ```
 
-State files (`OKR.md`, `tasks/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
+State files (`OKR.md`, `BOARD.md`, `journal/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
 
 ## Distributing Perry
 
