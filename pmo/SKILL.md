@@ -37,6 +37,7 @@ Trigger on any of:
 
 Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
 
+−1. **Run the weekly auto-update check** — `bash ~/.claude/skills/perry/bin/perry-update-check`. Throttled to once per 7 days; most calls exit immediately with no output. Surface any output verbatim.
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; if the user is on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
 2. **Read live state**:

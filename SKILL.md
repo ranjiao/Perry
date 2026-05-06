@@ -42,6 +42,12 @@ If the user clearly wants only goal-setting → route to `/okr`. If clearly only
 
 When `/perry` is invoked, always run this before doing anything else.
 
+0. **Run the weekly auto-update check** — silently in the background:
+   ```
+   bash ~/.claude/skills/perry/bin/perry-update-check
+   ```
+   The script throttles itself to once per 7 days; most invocations exit immediately with no output. When it does run, output is one line (or zero). Surface its output to the user verbatim if non-empty (the user wants to know about updates), then continue with the snapshot.
+
 1. **Read `.perry/config.md`** if present, to pick up document language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded.
 
 2. **Detect installation state**:
@@ -179,6 +185,18 @@ When the user types something inside a `/perry` session, route to the right chil
 If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`okr/SKILL.md`, `pmo/SKILL.md`, `design/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
 
 Project hook files live at the project root (not in the skill folder), so a single Perry installation can serve many projects without entanglement. The recommended location is `<project_root>/.perry/hook.md`; children read it on every invocation.
+
+## Auto-update
+
+Every Perry skill invocation runs `bin/perry-update-check` as the first action. The script:
+- Throttles itself to **once per 7 days** via `~/.claude/skills/perry/.update-check` mtime; most invocations exit immediately with no output.
+- Detects "dev mode" — symlink install, dirty working tree, or non-`main` branch — and in that case **only fetches and reports**; it never auto-pulls (so it can't trample your WIP if you're editing Perry source).
+- For "consumer mode" (real directory, clean tree, on `main`), does an ff-only `git pull` from `origin/main`.
+- Always exits 0 (network failure, unresolved merge, etc. → notify and continue; never block the standup).
+
+Manual trigger: `~/.claude/skills/perry/bin/perry-update-check --force` (bypasses throttle).
+
+The script is invoked from the standup ritual of every child (`okr` / `pmo` / `design`), so triggering any of `/perry`, `/okr`, `/pmo`, `/design` covers it. If the skill source is not a git checkout (e.g., extracted from a tarball), the check exits silently.
 
 ## See also
 
