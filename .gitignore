@@ -1,0 +1,5 @@
+# Auto-update timestamp written by bin/perry-update-check
+.update-check
+
+# macOS
+.DS_Store
