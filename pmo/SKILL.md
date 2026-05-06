@@ -1,6 +1,6 @@
 ---
 name: pmo
-description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains TASKS.md (board), PROJECT_STATE.md (dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and monthly/<YYYY-MM>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
+description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains tasks/<YYYY-MM>.md (per-month boards, current month is the live one), PROJECT_STATE.md (cross-monthly dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and monthly/<YYYY-MM>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
 ---
 
 # PMO — Perry's execution steward
@@ -11,7 +11,7 @@ Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not na
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO appends them to `TASKS.md` after user approval and tracks day-to-day execution.** PMO is the only writer of `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `monthly/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO appends them to the current month's `tasks/<YYYY-MM>.md` after user approval and tracks day-to-day execution.** PMO is the only writer of `tasks/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `monthly/`.
 
 ## When this skill activates
 
@@ -19,7 +19,7 @@ Trigger on any of:
 - The user invokes `/pmo` or types "PMO".
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
-- A new session opens in a project that contains a `TASKS.md` at the root.
+- A new session opens in a project that contains a `tasks/` directory at the root.
 
 ## Mandatory first move: the Standup
 
@@ -28,19 +28,19 @@ Always run this before anything else, even if the user asked a specific question
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; if the user is on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
 2. **Read core state files** at the project root:
-   - `TASKS.md` (board)
-   - `PROJECT_STATE.md` (dashboard)
+   - `tasks/<current-YYYY-MM>.md` (this month's board; always the live one)
+   - `PROJECT_STATE.md` (cross-monthly dashboard)
    - `DECISIONS.md` (most recent 5 entries)
    - `weekly/` — most recent file
    - `handoff/` — most recent file (if any)
-   If any are missing, see Bootstrap.
+   If any are missing, see Bootstrap. The previous month's `tasks/<prev-YYYY-MM>.md` is read-only history; never write to it after rollover.
 
 3. **Read OKR state** if present (read-only):
    - `OKR.md`
    - `monthly/<current-YYYY-MM>.md`
 
 4. **Read design state** if present (read-only):
-   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into TASKS.md rows.
+   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `tasks/<current-YYYY-MM>.md` rows.
 
 5. **Compute deltas** since the last standup:
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
@@ -68,7 +68,7 @@ Always run this before anything else, even if the user asked a specific question
    - "TASK-007 in_progress 4d, no evidence file → ask the owning agent for status"
    - "today is Friday → run `friday-review`"
    - "month-end in 3 days → schedule `end-month-retro`, then `rollover`"
-   - "DESIGN-002 locked 3d ago, no impl tasks in TASKS.md → ask `/design handoff DESIGN-002`"
+   - "DESIGN-002 locked 3d ago, no impl tasks in `tasks/<current-YYYY-MM>.md` → ask `/design handoff DESIGN-002`"
 
 8. Then ask: **"What do you want to do?"**
 
@@ -128,15 +128,15 @@ After the standup, the user usually picks one of these.
 ### Planning
 
 #### `plan-week`
-Generate this ISO week's plan. Reads `monthly/<current-YYYY-MM>.md` (if OKR present) or `TASKS.md` directly. Picks 3–5 highest-leverage open tasks for the week, marks them P0, confirms with user, updates `TASKS.md`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `monthly/<current-YYYY-MM>.md` (if OKR present) or `tasks/<current-YYYY-MM>.md` directly. Picks 3–5 highest-leverage open tasks for the week, marks them P0, confirms with user, updates `tasks/<current-YYYY-MM>.md`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 #### `triage`
-Walk `TASKS.md` top-to-bottom. For each open task:
+Walk `tasks/<current-YYYY-MM>.md` top-to-bottom. For each open task:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d) → flag
 - Same dependency cited in ≥2 tasks? → structural blocker
 - `done` claim without evidence file? → revert to `review`
 - Owner is an agent but no recent delegation prompt in chat? → flag
-Print triage table, ask which actions to apply, update `TASKS.md` and append a Change Log entry.
+Print triage table, ask which actions to apply, update `tasks/<current-YYYY-MM>.md` and append a Change Log entry.
 
 #### `delegate <task-id> <agent-type>`
 Generate a self-contained delegation prompt for another agent (Coding / Research / Review). Required fields in the prompt:
@@ -169,7 +169,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 |---|---|---|---|---|
 | **Coding Agent** | Code + tests on a **feature branch** | ✓ | ✓ (own work) | ✗ |
 | **Research Agent** | Generated reports / evidence files | ✓ | ✓ (own work) | ✗ |
-| **PMO Agent** | PMO docs (`TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
+| **PMO Agent** | PMO docs (`tasks/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
 | **Review Agent** | Review notes / approval comments | ✓ | — | reviews; does not merge |
 | **User** | Anything on the user's behalf | ✓ | ✓ | ✓ for code PRs |
 
@@ -229,13 +229,13 @@ For every User Input Queue item idle ≥5 days, surface a one-line reminder in c
 ### Task lifecycle
 
 #### `close-task <id>`
-Mark a task `done` in `TASKS.md`. Reject if no evidence path provided. Move to `## Done`. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too.
+Mark a task `done` in `tasks/<current-YYYY-MM>.md`. Reject if no evidence path provided. Move to `## Done`. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too. If the task was originally added in a previous month and carried forward, leave the historical entry untouched in the older `tasks/<prev-YYYY-MM>.md` and complete the carried-forward row in the current month's file.
 
 #### `drop-task <id> <reason>`
 Mark a task `dropped` with a reason recorded inline. Append to Change Log.
 
 #### `add-task` (interactive)
-After OKR `plan-week` proposes tasks and the user approves, PMO appends each one to `TASKS.md` with a fresh slug id (never reused), full schema (Owner, Priority, Deliverable, Verification, Dependencies, Evidence, Next action, Scope, Out of scope), and a kr-id tag.
+After OKR `plan-week` proposes tasks and the user approves, PMO appends each one to `tasks/<current-YYYY-MM>.md` with a fresh slug id (never reused, never recycled across months), full schema (Owner, Priority, Deliverable, Verification, Dependencies, Evidence, Next action, Scope, Out of scope), and a kr-id tag.
 
 ### Cross-session
 
@@ -259,11 +259,13 @@ The first line of every PMO session after a handoff exists is: "Read `handoff/<l
 #### `rollover`
 When the calendar moves to a new month (or the user asks):
 1. Confirm `evidence/<previous-YYYY-MM>/retro.md` exists; if not, prompt for `end-month-retro` first.
-2. For unresolved tasks: mark `dropped` (with reason) OR carry forward into the new month referencing the old TASK-ID.
-3. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
-4. Create the new month's `evidence/<new-YYYY-MM>/` folder.
-5. Archive (don't rewrite) the previous month's `TASKS.md` content; carry-overs go into the new top section.
-6. Append a Change Log entry.
+2. **Create `tasks/<new-YYYY-MM>.md`** from the template. The previous month's `tasks/<prev-YYYY-MM>.md` stays in place untouched as historical record.
+3. For unresolved tasks in the previous month: mark `dropped` (with reason) in the OLD file OR carry forward into the new file with a fresh row that references the old TASK-ID (e.g., `Carried from PAPER-007 (2026-05)`).
+4. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
+5. Create the new month's `evidence/<new-YYYY-MM>/` folder.
+6. Append a Change Log entry to the new month's tasks file.
+
+The per-month layout makes rollover almost free: there is no "rewrite" step. The old file is the historical record; the new file is the live board. `git log -- tasks/` shows the full history per month.
 
 ## State files
 
@@ -271,25 +273,25 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 | File / dir | Owner | Purpose | Template |
 |------------|-------|---------|----------|
-| `TASKS.md` | pmo | Board: Month-Level Status, User Input Queue, P0/P1/P2/Cadence task blocks, Done Checklist, Change Log | `state/TASKS_TEMPLATE.md` |
-| `PROJECT_STATE.md` | pmo | Living dashboard: phase, week, top risks, recent cross-session work | `state/PROJECT_STATE_TEMPLATE.md` |
-| `DECISIONS.md` | pmo | Append-only ADR log | `state/DECISIONS_TEMPLATE.md` |
+| `tasks/<YYYY-MM>.md` | pmo | One per month: Month-Level Status, User Input Queue, P0/P1/P2/Cadence task blocks, Done Checklist, Change Log. The current month's file is the live board; older files are read-only history. | `state/TASKS_TEMPLATE.md` |
+| `PROJECT_STATE.md` | pmo | Cross-monthly living dashboard: phase, week, top risks, recent cross-session work, multi-month carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
+| `DECISIONS.md` | pmo | Append-only ADR log (single file, all months) | `state/DECISIONS_TEMPLATE.md` |
 | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | pmo | Per-task artifacts: reports, checklists, drill records, gap lists, retros | `state/evidence_TEMPLATE.md` |
 | `weekly/<YYYY-WW>.md` | pmo | One ISO week's status report | `state/weekly_TEMPLATE.md` |
 | `handoff/<YYYY-MM-DD>.md` | pmo | Session resumption doc | `state/handoff_TEMPLATE.md` |
 | `OKR.md`, `monthly/` | okr | Read by PMO; never written by PMO | (in okr skill) |
 
-Keep `TASKS.md` and `PROJECT_STATE.md` under ~500 lines each. Long evidence content lives in `evidence/`, not in the board itself.
+Keep each `tasks/<YYYY-MM>.md` and `PROJECT_STATE.md` under ~500 lines. Long evidence content lives in `evidence/`, not in the board itself. If a month's tasks file is approaching the limit, ruthlessly push detail into per-task evidence files and leave only status + next-action + evidence path in the board.
 
 ## Bootstrap
 
-If invoked in a project with no `TASKS.md`, ask once:
+If invoked in a project with no `tasks/` directory, ask once:
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 
 If yes:
 1. Detect project metadata (folder name, README, any roadmap-looking markdown, git repo URL).
-2. Copy templates to project root: `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, plus empty `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/` directories.
-3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM).
+2. Create at the project root: `tasks/<current-YYYY-MM>.md`, `PROJECT_STATE.md`, `DECISIONS.md`, plus empty `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/` directories.
+3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Run the standup.
 
 ## Reporting Format (used by `status`, `monday-plan`, `friday-review`)
@@ -336,7 +338,7 @@ When surfacing a decision, blocker, or open question to the user in chat, **lead
 
 The rule: a user reading the chat without opening a single file should understand WHAT is being decided and WHY it matters. The IDs let them dig deeper afterward.
 
-This rule is for chat output only. Inside `TASKS.md`, `evidence/`, `DECISIONS.md`, and `weekly/`, IDs and short titles are still the canonical form — those files are reference material, not conversation.
+This rule is for chat output only. Inside `tasks/`, `evidence/`, `DECISIONS.md`, and `weekly/`, IDs and short titles are still the canonical form — those files are reference material, not conversation.
 
 ### The in-flight board (use when it helps, not by default)
 
