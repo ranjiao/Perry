@@ -200,10 +200,16 @@ For `Executor: claude-subagent`:
 - Sub-agent shares parent cwd. For split-repo projects, instruct the sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
 
 For `Executor: codex`:
-- Use Bash tool: `codex exec "<prompt>"` from the code-repo cwd (`cd <code-repo-path> && codex exec ...`).
+- **MANDATORY pre-flight**: before the first codex dispatch in any session (or after the 6-hour smoke cache expires), run:
+  ```
+  bash ~/.claude/skills/perry/bin/perry-codex-preflight
+  ```
+  The script: (a) checks `codex --version` against `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) runs a quick `codex exec "Reply with just: PERRY_OK"` smoke test (timeout 60s if `timeout` / `gtimeout` is installed; else runs unprotected with a one-line warning). Result is cached for 6h at `~/.cache/perry/codex-smoke-pass`. Exit 0 → green light. Exit non-0 → **refuse the dispatch and surface the script's stderr verbatim**; fall back to `delegate`. This catches stuck CLI / broken auth / version-rejected-by-API failure modes BEFORE we fire a `run_in_background: true` codex call that would otherwise silently hang.
+- Then: use Bash tool: `cd <code-repo-path> && codex exec "<prompt>"`.
 - Always `run_in_background: true` (codex is its own session — async by default).
 - Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: spec full text + relevant project hook excerpts + git expectation + RESULT format + the explicit list of files codex can read for context.
 - Capture stdout to a temp file; on completion, parse for the RESULT block (defined format below).
+- If the long-running codex call fails (non-0 exit / no RESULT block / timeout exceeded — independent of the smoke test), per the failure-handling rules below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
 
 **Common (post-dispatch, before completion)**:
 - Append `## Status changes` line to today's journal: `[TASK-X] not_started → in_progress · dispatched HH:MM · executor=<name> · async=<bool>`.
