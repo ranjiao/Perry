@@ -2,7 +2,8 @@
 
 > Live working memory. Current open work only — closed tasks leave this file.
 > History of what happened on a given day: `journal/<YYYY-MM>/<YYYY-MM-DD>.md`
-> Per-task detail (rich definitions, deliverables, audit trails): `evidence/<YYYY-MM>/<TASK-ID>-*.md`
+> Per-task spec / deliverable / audit: `evidence/<YYYY-MM>/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
+> Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
 > Last updated: <YYYY-MM-DD>
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
