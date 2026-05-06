@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# perry-codex-preflight — verify codex CLI is installed, recent enough,
+# and produces output. Run before /pmo dispatch's first codex invocation
+# in any session. Exit 0 → green light. Exit non-0 → refuse + explain.
+#
+# Designed to fail fast (within ~60s) so a background `codex exec` won't
+# silently hang waiting on a broken CLI / auth / network.
+set -e
+
+# ─── Defaults (override via env) ─────────────────────────────
+MIN_VERSION="${PERRY_CODEX_MIN_VERSION:-0.100.0}"
+SMOKE_TTL="${PERRY_CODEX_SMOKE_TTL:-21600}"        # 6 hours
+SMOKE_TIMEOUT="${PERRY_CODEX_SMOKE_TIMEOUT:-60}"   # seconds
+
+CACHE_DIR="$HOME/.cache/perry"
+SMOKE_FILE="$CACHE_DIR/codex-smoke-pass"
+
+# ─── Parse flags ─────────────────────────────────────────────
+QUIET=0
+FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --quiet) QUIET=1; shift ;;
+    --force) FORCE=1; shift ;;
+    -h|--help)
+      cat <<'USAGE'
+perry-codex-preflight — verify codex CLI before /pmo dispatch.
+
+Usage: perry-codex-preflight [--force] [--quiet]
+
+  --force   bypass 6h smoke-test cache; re-run smoke
+  --quiet   suppress non-error output
+
+Env overrides:
+  PERRY_CODEX_MIN_VERSION   minimum codex version (default 0.100.0)
+  PERRY_CODEX_SMOKE_TTL     smoke cache TTL in seconds (default 21600 = 6h)
+  PERRY_CODEX_SMOKE_TIMEOUT smoke command timeout (default 60s)
+
+Exit codes:
+  0  — codex usable; safe to proceed
+  1  — codex missing / version too old / smoke failed
+  2  — bad invocation (unknown flag)
+
+Cache file: ~/.cache/perry/codex-smoke-pass (mtime = last successful smoke)
+USAGE
+      exit 0 ;;
+    *) echo "Unknown flag: $1 (try --help)" >&2; exit 2 ;;
+  esac
+done
+
+log()  { [ "$QUIET" -eq 1 ] || echo "$@"; }
+warn() { echo "$@" >&2; }
+fail() { echo "$@" >&2; exit 1; }
+
+# ─── 1. Codex installed? ─────────────────────────────────────
+if ! command -v codex >/dev/null 2>&1; then
+  fail "❌ codex CLI not found in PATH. Install: https://github.com/openai/codex"
+fi
+
+# ─── 2. Version check ────────────────────────────────────────
+# Expected format: "codex-cli X.Y.Z" — pick the version token (last whitespace-sep field)
+VERSION_OUTPUT=$(codex --version 2>&1 || true)
+ACTUAL_VERSION=$(echo "$VERSION_OUTPUT" | head -1 | awk '{print $NF}')
+
+if [ -z "$ACTUAL_VERSION" ]; then
+  warn "⚠️  Could not parse codex version from: $VERSION_OUTPUT"
+  warn "   Proceeding to smoke test anyway."
+else
+  # Semver-ish compare via sort -V
+  LOWEST=$(printf '%s\n%s\n' "$MIN_VERSION" "$ACTUAL_VERSION" | sort -V | head -1)
+  if [ "$LOWEST" != "$MIN_VERSION" ]; then
+    fail "❌ codex $ACTUAL_VERSION is below required $MIN_VERSION.
+   Upgrade: see https://github.com/openai/codex
+   Or override: PERRY_CODEX_MIN_VERSION=$ACTUAL_VERSION ~/.claude/skills/perry/bin/perry-codex-preflight"
+  fi
+  log "🟢 codex version $ACTUAL_VERSION (>= $MIN_VERSION)"
+fi
+
+# ─── 3. Smoke test (6h TTL) ──────────────────────────────────
+mkdir -p "$CACHE_DIR"
+NOW=$(date +%s)
+
+if [ "$FORCE" -eq 0 ] && [ -f "$SMOKE_FILE" ]; then
+  LAST=$(stat -f %m "$SMOKE_FILE" 2>/dev/null || stat -c %Y "$SMOKE_FILE" 2>/dev/null || echo 0)
+  ELAPSED=$((NOW - LAST))
+  if [ "$ELAPSED" -lt "$SMOKE_TTL" ]; then
+    log "🟢 codex smoke test cached ($((ELAPSED / 60))m ago, TTL $((SMOKE_TTL / 60))m)"
+    exit 0
+  fi
+fi
+
+log "⏳ Running codex smoke test (timeout ${SMOKE_TIMEOUT}s)..."
+
+# Determine timeout binary: prefer 'timeout' (Linux / coreutils), then 'gtimeout' (brew coreutils on macOS)
+TIMEOUT_BIN=""
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_BIN="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_BIN="gtimeout"
+fi
+
+if [ -z "$TIMEOUT_BIN" ]; then
+  warn "⚠️  No 'timeout' / 'gtimeout' available — smoke test runs without timeout protection."
+  warn "   Install for hang protection: brew install coreutils  (provides gtimeout)"
+fi
+
+SMOKE_PROMPT="Reply with just one token: PERRY_OK"
+SMOKE_EXIT=0
+
+if [ -n "$TIMEOUT_BIN" ]; then
+  SMOKE_OUT=$("$TIMEOUT_BIN" "$SMOKE_TIMEOUT" codex exec "$SMOKE_PROMPT" 2>&1) || SMOKE_EXIT=$?
+  # GNU timeout uses exit code 124 for timeout
+  if [ "$SMOKE_EXIT" -eq 124 ]; then
+    fail "❌ codex smoke test timed out after ${SMOKE_TIMEOUT}s.
+   Likely causes: stuck process, broken auth, network down.
+   Manual debug: codex exec 'hello'"
+  fi
+else
+  SMOKE_OUT=$(codex exec "$SMOKE_PROMPT" 2>&1) || SMOKE_EXIT=$?
+fi
+
+if [ "$SMOKE_EXIT" -ne 0 ]; then
+  warn "❌ codex smoke test failed (exit=$SMOKE_EXIT). Output (first 20 lines):"
+  echo "$SMOKE_OUT" | head -20 >&2
+  exit 1
+fi
+
+if ! echo "$SMOKE_OUT" | grep -q "PERRY_OK"; then
+  warn "❌ codex smoke test exited 0 but output is missing the PERRY_OK token. Output (first 20 lines):"
+  echo "$SMOKE_OUT" | head -20 >&2
+  exit 1
+fi
+
+touch "$SMOKE_FILE"
+log "🟢 codex smoke test passed; cached for ${SMOKE_TTL}s ($((SMOKE_TTL / 60)) min)"
