@@ -114,7 +114,7 @@ Confirm with user; write `monthly/<YYYY-MM>.md` from `state/monthly_TEMPLATE.md`
 
 #### `score [<YYYY-MM>]`
 End-of-month retrospective. Cross-reference `evidence/<YYYY-MM>/` and `BOARD.md` Done section.
-1. For each monthly KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path.
+1. For each monthly KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"KR-1.2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
 2. Compute KR score 0.0–1.0 (overshot caps at 1.0; record stretch overshoot separately).
 3. Aggregate to Objective score (mean of KRs).
 4. Write **Retro** section in `monthly/<YYYY-MM>.md`:
@@ -140,7 +140,8 @@ The **PMO hand-off**. Most-used subcommand.
    - Deliverable + Verification (1 line each)
    - Out-of-scope notes if relevant (e.g., "do not enable live trading", "no broker creds")
 3. Print 3–5 candidate tasks in a table.
-4. Ask user: "Approve all? Pick a subset? Edit?"
+4. **If ≤ 4 candidates**: use `AskUserQuestion` with `multiSelect: true` (header `"Pick tasks"`) — each candidate is one option with the task title in `label` and the rationale + KR linkage in `description`. User clicks the subset they approve.
+   **If 5 candidates**: use `AskUserQuestion` (single-select, header `"Subset"`) with options `Approve all 5 | Pick subset (Recommended) | Edit before approving | Skip this week`. If "Pick subset", follow up with a free-text "which IDs to include?" prompt.
 5. On approval, **hand off to PMO**: print the exact task block list. PMO `add-task` writes the BOARD row and the journal definition. OKR never writes `BOARD.md` or `journal/` directly.
 6. Update the current week's row in `monthly/<YYYY-MM>.md` with the chosen TASK-IDs, so KR-to-task linkage is visible from both sides.
 
@@ -149,7 +150,7 @@ The **PMO hand-off**. Most-used subcommand.
 #### `pivot <reason>`
 For mid-period goal changes (market shift, big learning, capital change). High-friction by design — pivots should be rare.
 1. Restate the affected O / KR.
-2. Walk through: change title? change metric? drop entirely? add a new one?
+2. Walk through: change title? change metric? drop entirely? add a new one? **Use `AskUserQuestion`** (header `"Pivot kind"`, options = `Change title | Change metric (Recommended) | Drop entirely | Add new KR`) for each affected KR.
 3. If pivoting overall OKR → run `revise` to bump version. If only monthly → write a `## Changes` line in `monthly/<YYYY-MM>.md` with `YYYY-MM-DD — <what> — <reason>`. Old text stays as strikethrough.
 4. Hand off to PMO: append a `DECISIONS.md` ADR (`Type: Process`) capturing the pivot rationale and which Operating Principle (if any) it tested.
 
