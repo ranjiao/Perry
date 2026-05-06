@@ -1,6 +1,6 @@
 ---
 name: design
-description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / monthly/ for goal context and tasks/<current-YYYY-MM>.md to surface in-flight implementation work for any locked design.
+description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / monthly/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
 ---
 
 # design — Perry's design-doc steward
@@ -13,9 +13,9 @@ Voice: structured, decision-oriented, friction-friendly. The design skill refuse
 
 Pairs with **`pmo`** and **`okr`**. Hand-off rules:
 - `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`.
-- `design` reads `OKR.md` / `monthly/` for goal context (read-only) and reads `tasks/<current-YYYY-MM>.md` to surface which implementation tasks reference each locked design.
-- Once a doc reaches **Design locked**, `design` hands off to `pmo`: print a list of proposed implementation tasks (each tagged with the design ID); user approves; `pmo add-task` writes them to `tasks/<current-YYYY-MM>.md`. PMO's evidence files for those tasks back-reference the design ID in their first lines.
-- `design` never writes `tasks/`, `OKR.md`, `monthly/`, `evidence/`, or any other Perry-owned file.
+- `design` reads `OKR.md` / `monthly/` for goal context (read-only) and reads `BOARD.md` to surface which implementation tasks reference each locked design.
+- Once a doc reaches **Design locked**, `design` hands off to `pmo`: print a list of proposed implementation tasks (each tagged with the design ID); user approves; `pmo add-task` writes them to `BOARD.md`. PMO's evidence files for those tasks back-reference the design ID in their first lines.
+- `design` never writes `BOARD.md`, `journal/`, `OKR.md`, `monthly/`, `evidence/`, or any other Perry-owned file.
 
 ## When this skill activates
 
@@ -32,7 +32,7 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Scan** `design/` for all `*.md` files. Parse each doc's frontmatter / header for `Status:` (one of: `draft`, `in_review`, `locked`, `superseded`, `dropped`) and `Date:`.
-3. **Cross-check `tasks/<current-YYYY-MM>.md`** (if PMO is installed): for each locked design, count open vs done implementation tasks that back-reference the design ID.
+3. **Cross-check `BOARD.md`** (if PMO is installed): for each locked design, count open vs done implementation tasks that back-reference the design ID.
 4. **Render the snapshot** — fixed shape, no preamble:
 
    ```
@@ -52,7 +52,7 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
 5. **Suggest 1–3 next actions**:
    - "DESIGN-002 in_review for 8d → run `lock` or `revise`"
-   - "DESIGN-001 locked 5d ago, no impl tasks in tasks/<current-YYYY-MM>.md → run `handoff DESIGN-001`"
+   - "DESIGN-001 locked 5d ago, no impl tasks in BOARD.md → run `handoff DESIGN-001`"
    - "DESIGN-003 has 3 open user decisions → run `decide DESIGN-003`"
 
 6. Then ask: **"What do you want to do?"**
@@ -138,7 +138,7 @@ Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying p
 For a locked doc whose Implementation plan is still un-handed-off. Re-prints the implementation task list in PMO's `add-task` format. Shortcut for re-running the lock-time prompt.
 
 ### `status [<DESIGN-ID>]`
-Without an ID: print the snapshot. With an ID: print that doc's full status — section completeness, open user decisions, current `Status:`, days in current state, linked tasks/<current-YYYY-MM>.md rows (count by status), recent Changes entries.
+Without an ID: print the snapshot. With an ID: print that doc's full status — section completeness, open user decisions, current `Status:`, days in current state, linked BOARD.md rows (count by status), recent Changes entries.
 
 ## State files
 
@@ -147,7 +147,7 @@ Without an ID: print the snapshot. With an ID: print that doc's full status — 
 | `design/<DESIGN-ID>-<slug>.md` | design | One design doc per ID | `state/design_TEMPLATE.md` |
 | `design/README.md` | design | Local DESIGN-ID convention + index | (written on `init`) |
 | `OKR.md`, `monthly/<YYYY-MM>.md` | okr | Read by design for goal context; never written | (in okr skill) |
-| `tasks/<YYYY-MM>.md` | pmo | Read by design to count implementation rows; never written | (in pmo skill) |
+| `BOARD.md` | pmo | Read by design to count implementation rows; never written | (in pmo skill) |
 
 Design docs live in their own `design/` directory at the project root, parallel to `evidence/`, `weekly/`, etc. They are not stored under `evidence/` because they are decisions, not artifacts of completed work.
 
@@ -161,9 +161,9 @@ If `design/` exists but contains no docs:
 
 ## Hand-off contract with PMO (the most important rule)
 
-A locked design doc is a contract: it names the problem, the chosen architecture, and the implementation phases. PMO's job after lock is to turn the Implementation plan into rich task blocks in `tasks/<current-YYYY-MM>.md`. Each implementation task's evidence file (`evidence/<YYYY-MM>/<TASK-ID>-*.md`) must reference the design ID in its first lines so a future reader can trace any artifact back to the decision that authorized it.
+A locked design doc is a contract: it names the problem, the chosen architecture, and the implementation phases. PMO's job after lock is to turn the Implementation plan into rich task blocks in `BOARD.md`. Each implementation task's evidence file (`evidence/<YYYY-MM>/<TASK-ID>-*.md`) must reference the design ID in its first lines so a future reader can trace any artifact back to the decision that authorized it.
 
-Conversely, design docs **must not** restate task-level execution status — that lives in `tasks/<current-YYYY-MM>.md` and `evidence/`. The design doc is frozen at lock time except for `## Changes` entries; ongoing implementation noise belongs in PMO's lane.
+Conversely, design docs **must not** restate task-level execution status — that lives in `BOARD.md` and `evidence/`. The design doc is frozen at lock time except for `## Changes` entries; ongoing implementation noise belongs in PMO's lane.
 
 If you find yourself wanting to update a locked design with implementation details, that's a sign you should either (a) write an evidence file under PMO's lane, or (b) `revise` / `supersede` if the architecture itself changed.
 
@@ -173,7 +173,7 @@ If you find yourself wanting to update a locked design with implementation detai
 - **Refuse to lock a doc with open user decisions.** Print the gap list.
 - **Cite paths and IDs.** Every claim ("DESIGN-002 has 3 open decisions") points to the file.
 - **Append-only after lock.** Use `## Changes` for small edits, `revise` / `supersede` for structural ones.
-- **Don't duplicate PMO state.** Implementation status lives in `tasks/<current-YYYY-MM>.md`, not in design docs.
+- **Don't duplicate PMO state.** Implementation status lives in `BOARD.md`, not in design docs.
 - **Don't invent state.** If a doc is missing a required section, say so — don't fabricate one.
 
 ## Per-project hooks (optional)
