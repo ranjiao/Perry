@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# perry-update-check — once-per-week background check that the Perry skill
+# folder is current with origin/main.
+#
+# - Throttled to 7 days via .update-check timestamp file inside the source.
+# - Skips silently if the source isn't a git repo.
+# - Detects "dev mode" (symlink install / dirty tree / non-main branch) and
+#   in that case ONLY fetches + reports; never pulls (won't trample WIP).
+# - "Consumer mode" (real directory, clean tree, on main) does ff-only pull.
+#
+# Designed to be invoked by the Perry skill standup ritual. Always exits 0
+# unless the user explicitly passed --strict.
+set -e
+
+WEEK_SECS=$((7 * 24 * 60 * 60))
+
+# ─── Parse flags ──────────────────────────────────────────────
+QUIET=0
+FORCE=0   # bypass the 7-day throttle (for manual invocation)
+STRICT=0  # exit non-zero on any failure (for CI / debugging)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --quiet)  QUIET=1; shift ;;
+    --force)  FORCE=1; shift ;;
+    --strict) STRICT=1; shift ;;
+    -h|--help)
+      cat <<'USAGE'
+perry-update-check — Perry skill auto-update probe (once per week).
+
+Usage: perry-update-check [--force] [--quiet] [--strict]
+
+  --force   ignore the 7-day throttle; check now
+  --quiet   suppress non-error output
+  --strict  exit non-zero on any failure (default: always exit 0)
+
+The script is invoked from the Perry skill standup ritual. Manual run:
+
+  ~/.claude/skills/perry/bin/perry-update-check --force
+USAGE
+      exit 0 ;;
+    *) echo "Unknown flag: $1 (try --help)" >&2; exit 1 ;;
+  esac
+done
+
+log()  { [ "$QUIET" -eq 1 ] || echo "$@"; }
+warn() { echo "$@" >&2; }
+fail() { warn "$@"; [ "$STRICT" -eq 1 ] && exit 1 || exit 0; }
+
+# ─── Resolve source dir ───────────────────────────────────────
+PERRY_LINK="$HOME/.claude/skills/perry"
+
+# stat -L is Linux; -F gets symlink info on macOS
+if [ ! -e "$PERRY_LINK" ]; then
+  fail "Perry not installed at $PERRY_LINK — skipping update check."
+fi
+
+# Resolve to real path (follows symlinks). readlink behavior differs on
+# macOS vs Linux, so use a portable two-step.
+if [ -L "$PERRY_LINK" ]; then
+  IS_SYMLINK=1
+  # macOS readlink prints the immediate target only; cd-then-pwd resolves
+  SRC="$(cd "$PERRY_LINK" 2>/dev/null && pwd -P)"
+else
+  IS_SYMLINK=0
+  SRC="$PERRY_LINK"
+fi
+
+if [ -z "$SRC" ] || [ ! -d "$SRC" ]; then
+  fail "Could not resolve Perry source dir from $PERRY_LINK — skipping."
+fi
+
+# ─── Skip if not a git repo ───────────────────────────────────
+if ! git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
+  log "Perry source at $SRC is not a git checkout — skipping update check."
+  exit 0
+fi
+
+# ─── Throttle: ≥ 7 days since last check ──────────────────────
+CHECK_FILE="$SRC/.update-check"
+NOW=$(date +%s)
+
+if [ "$FORCE" -eq 0 ] && [ -f "$CHECK_FILE" ]; then
+  # Portable mtime: try macOS stat first, fall back to GNU
+  LAST=$(stat -f %m "$CHECK_FILE" 2>/dev/null || stat -c %Y "$CHECK_FILE" 2>/dev/null || echo 0)
+  ELAPSED=$((NOW - LAST))
+  if [ "$ELAPSED" -lt "$WEEK_SECS" ]; then
+    # Recently checked; bail without noise
+    exit 0
+  fi
+fi
+
+# ─── Detect dev-mode signals ──────────────────────────────────
+DIRTY=0
+if [ -n "$(git -C "$SRC" status --porcelain 2>/dev/null)" ]; then
+  DIRTY=1
+fi
+
+BRANCH=$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+# Dev mode = any of: symlinked install, dirty tree, not on main
+DEV_MODE=0
+if [ "$IS_SYMLINK" -eq 1 ] || [ "$DIRTY" -eq 1 ] || [ "$BRANCH" != "main" ]; then
+  DEV_MODE=1
+fi
+
+# ─── Fetch origin/main ────────────────────────────────────────
+if ! git -C "$SRC" fetch origin main --quiet 2>/dev/null; then
+  fail "perry-update-check: git fetch failed (offline?). Will retry next time."
+fi
+
+BEHIND=$(git -C "$SRC" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+
+# Touch the timestamp regardless of outcome — we tried.
+touch "$CHECK_FILE"
+
+# ─── Report / act ─────────────────────────────────────────────
+if [ "$BEHIND" -eq 0 ]; then
+  # Up-to-date. Silent unless --quiet was NOT set AND we were forced
+  if [ "$FORCE" -eq 1 ]; then
+    log "🟢 Perry up-to-date (HEAD is on origin/main)."
+  fi
+  exit 0
+fi
+
+# We're behind.
+if [ "$DEV_MODE" -eq 1 ]; then
+  reason=""
+  [ "$IS_SYMLINK" -eq 1 ] && reason="${reason}symlink"
+  [ "$DIRTY" -eq 1 ]      && reason="${reason}${reason:+,}dirty"
+  [ "$BRANCH" != "main" ] && reason="${reason}${reason:+,}on $BRANCH"
+  log "🟡 Perry: $BEHIND new commit(s) on origin/main, but skipping pull (dev mode: $reason)."
+  log "   To update: cd $SRC && git pull"
+  exit 0
+fi
+
+# Consumer mode: clean main, real directory. Try ff-only pull.
+if git -C "$SRC" pull --ff-only origin main --quiet 2>/dev/null; then
+  NEW_SHA=$(git -C "$SRC" rev-parse --short HEAD)
+  log "🔄 Perry auto-updated: pulled $BEHIND commit(s); now at $NEW_SHA."
+else
+  warn "⚠️  Perry: $BEHIND new commit(s) on origin/main but ff-only pull failed."
+  warn "   Resolve manually: cd $SRC && git pull"
+fi
