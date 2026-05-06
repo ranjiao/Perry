@@ -93,9 +93,11 @@ If the user picks an OKR-flavored action (plan, score, pivot, revise), invoke th
 When `/perry` is run in a project with no Perry state files at all:
 
 1. Briefly explain Perry (≤3 sentences).
-2. **Confirm two project-wide preferences before any file is written** — record both in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source:
-   - **Document language**. Ask: "What language should Perry write all documents in? (English / 中文 / other)". Default: match the language the user used in the current message. All subsequent skill output (snapshots, dashboards, generated docs, delegation prompts) uses this language. If the user mixes languages later, keep using the configured language for written artifacts but mirror the user's language in chat replies.
-   - **Repo layout**. Ask: "Will this project also produce code? (yes → consider a two-repo split / no → single repo)". See **Repo layout options** below. Record the choice plus the paths.
+2. **Confirm two project-wide preferences before any file is written** — record both in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask both via a single `AskUserQuestion` tool call (two questions, structured options):
+   - **Document language** (header `"Language"`): options = `English (Recommended if user typed English) | 中文 (Recommended if user typed 中文) | other`. The "Recommended" tag goes on whichever matches the user's recent chat language.
+   - **Repo layout** (header `"Repo layout"`): options = `Single repo (Recommended for non-code projects) | Split repo (PMO ↔ code; only if both exist and you've seen branch contention)`. See **Repo layout options** below for the trade-off explanation that goes into each option's `description`.
+
+   All subsequent skill output (snapshots, dashboards, generated docs, delegation prompts) uses the configured language. If the user mixes languages later, keep using the configured language for written artifacts but mirror the user's language in chat replies.
 3. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-month <YYYY-MM>` — creates the monthly OKR with all 10 mandatory sections.
@@ -179,6 +181,45 @@ When the user types something inside a `/perry` session, route to the right chil
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
+
+## User-prompt convention (AskUserQuestion)
+
+Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the `AskUserQuestion` tool over free-text "what do you want?" prompts. The Claude Desktop UI renders `AskUserQuestion` as clickable button choices with an automatic "Other" free-text fallback — much faster for the user than typing.
+
+### When to use it
+
+- Any subcommand that branches based on a user choice with a small bounded option set (e.g., `okr score` per-KR `achieved | partial | missed | dropped`, `pmo triage` per-row `apply | edit | skip`, `design decide` per-User-Decision row).
+- First-time setup choices (document language, repo layout).
+- Per-spec dispatch choice when the spec doesn't pin an executor (`pmo dispatch` → falls back to asking `claude-subagent | codex | manual`).
+- Multi-select when you offer up to 4 candidate items the user may approve all/some/none of (use `multiSelect: true`).
+
+### When NOT to use it
+
+- Open-ended questions that need a sentence or paragraph (e.g., "What is this project's mission?"). Free-text only.
+- Choice sets larger than 4 options. Either narrow first (recommend 1–4 + leave "Other" as the auto-filled fallback), or split into two `AskUserQuestion` calls.
+- Confirmations that should always block on explicit user words (e.g., authorizing a high-stakes operation per the project hook). The auto-update check, `pmo dispatch` pre-flight refusals, and similar safety gates STILL ask in chat — `AskUserQuestion` is not a permission grant.
+
+### Conventions
+
+- **2–4 options per question.** No more, no fewer.
+- **Label ≤ 5 words.** The tool enforces this; long descriptions go in the `description` field, not `label`.
+- **Recommended option first.** Append `(Recommended)` to the label so the user sees which one Perry suggests.
+- **Header chip ≤ 12 chars** (e.g., "Executor", "Status", "KR-1.2").
+- **Each option's `description` carries the trade-off** — what happens, what it implies, what's lost. Don't make the user guess.
+- **Optional `preview`** for showing a code/template snippet (e.g., showing what the rendered task block will look like before they approve).
+- Mutually exclusive options unless `multiSelect: true`.
+
+### Concrete pattern: child skills with structured option lists
+
+For child skills whose state files already enumerate options (notably `design/<DESIGN-ID>-*.md`'s `User Decisions` table), write the Options column in **pipe-separated short labels** so `decide` can map each cell directly to `AskUserQuestion` options without rephrasing:
+
+```
+| # | Decision | Options | Chosen | Date |
+|---|---|---|---|---|
+| 1 | Cache backend | Redis | Memcached | DynamoDB | TBD | — |
+```
+
+Each piped token becomes one `AskUserQuestion` option label.
 
 ## Per-project hooks (optional)
 
