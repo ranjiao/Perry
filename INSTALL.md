@@ -1,52 +1,53 @@
 # Install — Perry
 
-Perry installs as **one folder** at `~/.claude/skills/perry/`, containing three skill files at nested paths. Claude Code discovers each one and makes them invocable as `/perry`, `/okr`, and `/pmo`.
+Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). All four need to be discoverable as siblings under your skills directory so each one is invocable on its own.
+
+The `setup` script handles this. It links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
 
 ```
-~/.claude/skills/perry/
-├── SKILL.md            ← /perry (top-level coordinator)
-├── README.md
-├── INSTALL.md
-├── okr/
-│   ├── SKILL.md        ← /okr (goal-setting child)
-│   └── state/          (templates: OKR_TEMPLATE.md, monthly_TEMPLATE.md)
-└── pmo/
-    ├── SKILL.md        ← /pmo (execution stewardship child)
-    └── state/          (templates: PROJECT_STATE_, TASKS_, DECISIONS_, weekly_, handoff_, evidence_TEMPLATE.md)
+~/.claude/skills/
+├── perry      → <source dir>/Perry         # top-level (real symlink to source)
+├── okr        → perry/okr                  # child (relative)
+├── pmo        → perry/pmo                  # child (relative)
+└── design     → perry/design               # child (relative)
 ```
-
-This nested layout is the same pattern used by gstack and other multi-skill packages — one folder on disk, multiple invocable skills.
 
 ## One-shot install
 
-From wherever you keep this repo on disk (`git clone`, download, or local copy):
-
 ```bash
-mkdir -p ~/.claude/skills
-SRC=/path/to/perry            # change to your local copy
-cp -R "$SRC" ~/.claude/skills/perry
+git clone <perry repo> ~/proj/Perry         # or wherever you want the source
+~/proj/Perry/setup                          # global install: ~/.claude/skills/
 ```
 
-Verify:
+That's it. Re-run the script anytime; it's idempotent.
+
+### Per-project install
+
+If you want Perry available only inside one project (not globally):
 
 ```bash
-ls ~/.claude/skills/perry
-# Expect: SKILL.md  README.md  INSTALL.md  okr/  pmo/
-
-ls ~/.claude/skills/perry/okr ~/.claude/skills/perry/pmo
-# okr: SKILL.md  state/
-# pmo: SKILL.md  state/
+cd /path/to/your/project
+~/proj/Perry/setup --local                  # installs to ./. claude/skills/
 ```
 
-In a Claude Code session, `/perry`, `/okr`, and `/pmo` should all be available.
+### Verify
+
+```bash
+ls ~/.claude/skills | grep -E '^(perry|okr|pmo|design)$'
+# Expect all four
+```
+
+In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all available.
 
 ## Update later
 
-When you tweak files in the source folder, re-sync with:
+If you installed via symlink (the default), Perry tracks the source folder live — `git pull` in the source folder is enough.
+
+If you installed by copy:
 
 ```bash
-SRC=/path/to/perry
-rsync -a --delete "$SRC/" ~/.claude/skills/perry/
+rsync -a --delete ~/proj/Perry/ ~/.claude/skills/perry/
+~/.claude/skills/perry/setup     # refresh child symlinks if any new children were added
 ```
 
 ## First run in a project
@@ -57,7 +58,11 @@ In Claude Code, from inside any project directory:
 /perry          # combined snapshot + recommends next steps for the project
 ```
 
-If this is a new project (no `OKR.md` / `TASKS.md` yet), `/perry` will offer first-time setup. The recommended first-run order is:
+If this is a new project (no `OKR.md` / `BOARD.md` yet), `/perry` will run first-time setup, which:
+1. Confirms your **document language** (English / 中文 / other) and writes it to `.perry/config.md`.
+2. Confirms your **repo layout** — single repo (default for non-code projects) or split (PMO docs ↔ code) — and writes it to `.perry/config.md`.
+
+The recommended first-run order is:
 
 ```
 /okr init                       # interview: mission, Operating Principles,
@@ -65,19 +70,21 @@ If this is a new project (no `OKR.md` / `TASKS.md` yet), `/perry` will offer fir
 /okr plan-month <YYYY-MM>       # full monthly OKR (10 mandatory sections)
 /pmo                            # bootstraps execution files, runs first standup
 /okr plan-week                  # proposes first batch of weekly tasks
-                                # → /pmo writes them to TASKS.md after approval
+                                # → /pmo writes them to BOARD.md + today's journal entry after approval
 ```
 
-After that, daily/weekly use is whichever of `/perry`, `/okr`, or `/pmo` matches the moment.
+After that, daily/weekly use is whichever of `/perry`, `/okr`, `/pmo`, or `/design` matches the moment.
+
+Project-specific additions (custom agents, MCP tools, domain constraints, promotion stages, cost ceiling source) live at `<project_root>/.perry/hook.md`. The skill folder itself stays project-agnostic.
 
 ## Uninstall
 
 ```bash
-rm -rf ~/.claude/skills/perry
+rm ~/.claude/skills/{perry,okr,pmo,design}
 ```
 
-State files (`OKR.md`, `TASKS.md`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
+State files (`OKR.md`, `BOARD.md`, `journal/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
 
 ## Distributing Perry
 
-Perry is just files. Copy or `git clone` the `perry/` folder onto a new machine, then run the install commands above. No package manager, no daemon, no sync state.
+Perry is just files. `git clone` the source onto a new machine, then run `setup`. No package manager, no daemon, no sync state.
