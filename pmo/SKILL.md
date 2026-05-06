@@ -263,13 +263,25 @@ Symmetric to `close-task`:
 3. The original task definition in its creation-day journal entry stays untouched.
 
 #### `add-task` (interactive)
-After OKR `plan-week` (or any other source) proposes a task and the user approves, PMO does both:
+After OKR `plan-week` (or any other source) proposes a task and the user approves, PMO does THREE things — the third one is conditional on priority.
+
 1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path` only.
-2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including the full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The journal entry is the canonical source for the task's original scope; BOARD.md only carries enough to know what's open.
+2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including the full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The journal entry is the canonical historical record of the task's original scope.
+3. **For P0 and P1 tasks**, ALSO write a separate **spec file** at `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema. The BOARD row's Evidence column points at this spec file. Reasoning: P0/P1 tasks get dispatched, re-dispatched, and audited; future PMO sessions need fast, scoped access to the schema without grepping through journal entries by date. P2 / backlog / watch tasks may rely on the journal entry alone — promote a P2 to P1 → write the spec file at promotion time.
+
+The spec file uses the same template content as the journal `## New tasks added` block; it's not duplication, it's two surfaces with different access patterns:
+
+| File | Purpose | Lifetime |
+|---|---|---|
+| `journal/<YYYY-MM>/<creation-day>.md` | Historical "this was created here" record | Frozen after the day ends |
+| `evidence/<YYYY-MM>/<TASK-ID>-spec.md` | Live schema for dispatch / re-dispatch / audit | Mutable as scope refines (subsequent edits must add `## Changes` log inside the file) |
+| `evidence/<YYYY-MM>/<TASK-ID>-*.md` (other names) | Deliverable artifacts: reports, drill records, checklists | Per-deliverable |
+
+When the task closes, leave the spec file in place — it's the canonical scope record that other evidence files reference.
 
 Slug IDs are never reused or recycled across months.
 
-If the task is large enough to need its own working artifact from day one (e.g., a checklist, a design ladder, or a series of subtasks), also create `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` and reference it from the BOARD row's Evidence column.
+If the task is large enough to need its own working artifact from day one (e.g., a checklist, a design ladder, or a series of subtasks), the working artifact lives at `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` (a separate file from the spec).
 
 ### Cross-session
 
