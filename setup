@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Perry setup — install perry/ + link child skills (okr, pmo, design)
+# as siblings so Claude Code surfaces /perry, /okr, /pmo, /design.
+set -e
+
+SETUP_DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_DIR="$(cd "$(dirname "$0")" && pwd -P)"   # resolves symlinks
+
+# ─── Parse flags ──────────────────────────────────────────────
+LOCAL=0
+QUIET=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --local)  LOCAL=1; shift ;;
+    --quiet)  QUIET=1; shift ;;
+    -h|--help)
+      cat <<'USAGE'
+Perry setup — register the Perry skill set with Claude Code.
+
+Usage: setup [--local] [--quiet]
+
+  (no flag)   Install to ~/.claude/skills/                 (global, default)
+  --local     Install to ./. claude/skills/                (current project)
+  --quiet     Suppress non-error output
+
+What it does:
+  1. Ensures perry/ exists in the target skills directory
+     (creates a symlink pointing at this script's source if missing).
+  2. For each child skill (okr, pmo, design), creates a relative symlink
+     '<name> -> perry/<name>' in the same skills directory, so each child
+     shows up as a top-level slash command.
+
+Re-running is safe and idempotent: existing symlinks are updated; existing
+real files/directories at any target are left untouched (and reported).
+USAGE
+      exit 0 ;;
+    *) echo "Unknown flag: $1 (try --help)" >&2; exit 1 ;;
+  esac
+done
+
+if [ "$LOCAL" -eq 1 ]; then
+  HOST_DIR="$(pwd)/.claude/skills"
+else
+  HOST_DIR="$HOME/.claude/skills"
+fi
+
+mkdir -p "$HOST_DIR"
+
+log() { [ "$QUIET" -eq 1 ] || echo "$@"; }
+warn() { echo "$@" >&2; }
+
+# ─── 1. Ensure perry/ itself is in HOST_DIR ───────────────────
+PERRY_TARGET="$HOST_DIR/perry"
+
+if [ "$SETUP_DIR" = "$PERRY_TARGET" ]; then
+  log "  perry/ already lives at $PERRY_TARGET (running from there)"
+elif [ -L "$PERRY_TARGET" ]; then
+  resolved="$(cd "$PERRY_TARGET" && pwd -P)"
+  if [ "$resolved" = "$SOURCE_DIR" ]; then
+    log "  perry/ symlink already points at $SOURCE_DIR"
+  else
+    warn "  perry/ symlink points at $resolved"
+    warn "  this script lives at $SOURCE_DIR — leaving existing link in place."
+    warn "  rm \"$PERRY_TARGET\" and re-run if you want to repoint."
+  fi
+elif [ -d "$PERRY_TARGET" ]; then
+  warn "  perry/ exists at $PERRY_TARGET (not a symlink) — leaving in place."
+  warn "  Sync new content with: rsync -a --delete \"$SOURCE_DIR/\" \"$PERRY_TARGET/\""
+elif [ -e "$PERRY_TARGET" ]; then
+  warn "  $PERRY_TARGET exists and is not a directory — refusing to touch."
+  exit 1
+else
+  log "  linking perry/ -> $SOURCE_DIR"
+  ln -snf "$SOURCE_DIR" "$PERRY_TARGET"
+fi
+
+# ─── 2. Link child skills as siblings of perry/ ───────────────
+link_children() {
+  local perry_dir="$1"
+  local skills_dir="$2"
+  local linked=() skipped=()
+
+  if [ ! -d "$perry_dir" ]; then
+    warn "  perry directory not found at $perry_dir — aborting child link"
+    return 1
+  fi
+
+  for child_dir in "$perry_dir"/*/; do
+    [ -f "$child_dir/SKILL.md" ] || continue
+    name="$(basename "$child_dir")"
+    target="$skills_dir/$name"
+
+    if [ -L "$target" ]; then
+      # Existing symlink — replace if it doesn't already point at perry/<name>
+      existing="$(readlink "$target")"
+      if [ "$existing" = "perry/$name" ]; then
+        continue   # already correct, no log noise
+      fi
+      ln -snf "perry/$name" "$target"
+      linked+=("$name")
+    elif [ ! -e "$target" ]; then
+      ln -snf "perry/$name" "$target"
+      linked+=("$name")
+    else
+      skipped+=("$name (real file/dir at $target)")
+    fi
+  done
+
+  [ ${#linked[@]} -gt 0 ] && log "  linked child skills: ${linked[*]}"
+  [ ${#skipped[@]} -gt 0 ] && warn "  skipped: ${skipped[*]}"
+  return 0
+}
+
+link_children "$PERRY_TARGET" "$HOST_DIR"
+
+# ─── 3. Summary ───────────────────────────────────────────────
+log ""
+log "Perry ready."
+log "  source : $SOURCE_DIR"
+log "  host   : $HOST_DIR"
+log "  skills : /perry, /okr, /pmo, /design"
+log ""
+log "  Inside any project: run  /perry  for the combined dashboard, or"
+log "                       /okr | /pmo | /design  for a specific child."

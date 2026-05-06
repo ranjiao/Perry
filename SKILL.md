@@ -1,6 +1,6 @@
 ---
 name: perry
-description: Perry — your virtual project office. A three-skill set: goal-setting (okr) + execution stewardship (pmo) + design-doc stewardship (design) for solo or small projects. Use /perry for a combined snapshot of where the project is, or invoke /okr, /pmo, /design directly for specific subcommands. okr owns OKR.md (versioned, with Operating Principles + Anti-Goals) and monthly/<YYYY-MM>.md. pmo owns TASKS.md, PROJECT_STATE.md, DECISIONS.md, evidence/<YYYY-MM>/, weekly/<YYYY-WW>.md, handoff/<YYYY-MM-DD>.md. design owns design/<DESIGN-ID>-<slug>.md. They cooperate through file ownership; no skill writes outside its lane. Project-wide preferences (document language, single vs split repo layout) live in .perry/config.md and are confirmed at first-time setup.
+description: Perry — your virtual project office. A three-skill set: goal-setting (okr) + execution stewardship (pmo) + design-doc stewardship (design) for solo or small projects. Use /perry for a combined snapshot of where the project is, or invoke /okr, /pmo, /design directly for specific subcommands. okr owns OKR.md (versioned, with Operating Principles + Anti-Goals) and monthly/<YYYY-MM>.md. pmo owns BOARD.md (live working memory, ≤200 lines), journal/<YYYY-MM>/<YYYY-MM-DD>.md (daily history), PROJECT_STATE.md, DECISIONS.md, evidence/<YYYY-MM>/, weekly/<YYYY-WW>.md, handoff/<YYYY-MM-DD>.md. design owns design/<DESIGN-ID>-<slug>.md. They cooperate through file ownership; no skill writes outside its lane. Project-wide preferences (document language, single vs split repo layout) live in .perry/config.md and are confirmed at first-time setup.
 ---
 
 # Perry — virtual project office
@@ -16,14 +16,14 @@ This folder contains three child skills. They live under `~/.claude/skills/perry
 | Child | Invoke as | Owns | What it does |
 |-------|-----------|------|--------------|
 | **`okr`** | `/okr` | `OKR.md`, `monthly/<YYYY-MM>.md` | Goal-setting: overall versioned OKR, monthly OKR with 10 mandatory sections, weekly task proposals (handed off to PMO) |
-| **`pmo`** | `/pmo` | `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/` | Execution stewardship: standup ritual, task triage, agent delegation, status reports, cadence rituals, monthly rollover |
+| **`pmo`** | `/pmo` | `BOARD.md` (live), `journal/<YYYY-MM>/<DD>.md` (daily), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/` | Execution stewardship: standup ritual, task triage, agent delegation, status reports, cadence rituals, monthly rollover |
 | **`design`** | `/design` | `design/<DESIGN-ID>-<slug>.md` | Design-doc stewardship: RFC drafting, user-decision tables, lock workflow, hand-off of implementation tasks to PMO |
 
 ## The hand-off contract (the most important rule)
 
 - `okr` is the **only writer** of `OKR.md` and `monthly/`. It **proposes** weekly tasks but never writes them.
-- `pmo` is the **only writer** of `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. It **reads** OKR and design files for context.
-- `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`. On lock it **proposes** implementation tasks but never writes `TASKS.md`.
+- `pmo` is the **only writer** of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. It **reads** OKR and design files for context.
+- `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`. On lock it **proposes** implementation tasks but never writes `BOARD.md` or `journal/`.
 - Each skill reads the others' files freely; no skill writes outside its lane.
 
 This single rule is what keeps the set composable and lets you drop in a fourth child later (e.g., `research-journal`, `risk-review`) without breakage.
@@ -34,7 +34,7 @@ Trigger on any of:
 - The user invokes `/perry` or types "Perry".
 - The user opens a session and wants a "where are we" overview without specifying OKR vs PMO.
 - The user is new to Perry and asks how it works or what to do first.
-- A new session opens in a project that contains both `OKR.md` and `TASKS.md` and the user wants the combined view.
+- A new session opens in a project that contains both `OKR.md` and `BOARD.md` and the user wants the combined view.
 
 If the user clearly wants only goal-setting → route to `/okr`. If clearly only execution → route to `/pmo`. The coordinator is for the cases in between.
 
@@ -45,7 +45,7 @@ When `/perry` is invoked, always run this before doing anything else.
 1. **Read `.perry/config.md`** if present, to pick up document language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded.
 
 2. **Detect installation state**:
-   - `OKR.md` exists? `monthly/<current-YYYY-MM>.md` exists? `TASKS.md` exists? `evidence/<current-YYYY-MM>/` exists? `design/` non-empty? `handoff/` non-empty?
+   - `OKR.md` exists? `monthly/<current-YYYY-MM>.md` exists? `BOARD.md` exists? `journal/<current-YYYY-MM>/` non-empty? `evidence/<current-YYYY-MM>/` exists? `design/` non-empty? `handoff/` non-empty?
    - If none of these exist → jump to **First-time setup** below.
    - If only some exist → flag the missing pieces.
 
@@ -93,8 +93,8 @@ When `/perry` is run in a project with no Perry state files at all:
 3. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-month <YYYY-MM>` — creates the monthly OKR with all 10 mandatory sections.
-   - Then, run `/pmo` — bootstraps the execution files (`TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
-   - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes to `TASKS.md`.
+   - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
+   - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
 4. Ask: "Run `/okr init` now?" — if yes, invoke the `okr` skill. If no, stop and let the user proceed at their own pace.
 
 ## Repo layout options

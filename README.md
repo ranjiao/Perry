@@ -2,7 +2,7 @@
 
 > *Perry runs the office. You run the project.*
 
-A two-skill set for Claude Code that captures the "virtual PMO + OKR steward" workflow so you don't have to re-instruct it every session.
+A three-skill set for Claude Code that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session.
 
 ## 🚀 One-paste install
 
@@ -22,12 +22,13 @@ Steps:
 
 ## What Perry does
 
-Perry pairs **goal-setting** with **execution stewardship** so a solo or small project gets the structure it needs without the bureaucracy that usually comes with it. Two skills, one mental model:
+Perry pairs **goal-setting** with **execution stewardship** and **design-doc stewardship** so a solo or small project gets the structure it needs without the bureaucracy that usually comes with it. Three skills, one mental model:
 
 | Skill | Role | Owns | Reads from peer |
 |-------|------|------|------------------|
-| **`okr`** | The "why" — goal-setting partner | `OKR.md` (versioned, with Operating Principles + Anti-Goals), `monthly/<YYYY-MM>.md` (Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing) | `TASKS.md`, `evidence/<YYYY-MM>/retro.md` |
-| **`pmo`** | The "how" — execution steward | `TASKS.md` (rich task blocks, User Input Queue, Cadence, Change Log), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md` | `OKR.md`, `monthly/<YYYY-MM>.md` |
+| **`okr`** | The "why" — goal-setting partner | `OKR.md` (versioned, with Operating Principles + Anti-Goals), `monthly/<YYYY-MM>.md` (Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing) | `BOARD.md`, `evidence/<YYYY-MM>/retro.md` |
+| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md` | `OKR.md`, `monthly/<YYYY-MM>.md` |
+| **`design`** | The "decided" — RFC steward | `design/<DESIGN-ID>-<slug>.md` (Problem, Goals, Non-Goals, User Decisions, Architecture, Implementation plan, Risks, Changes) | `OKR.md`, `monthly/<YYYY-MM>.md`, `BOARD.md` |
 
 Both skills run a mandatory snapshot/standup the moment they're invoked, so you always start from the actual state of your files instead of vibes.
 
@@ -44,7 +45,7 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
                                   │  Scope Reduction rule    │              ▼
                                   │  Definition of Done      │    ┌────────────────────────┐
                                   │  Not Doing               │    │  PMO appends to        │
-                                  └──────────────────────────┘    │  TASKS.md (rich block) │
+                                  └──────────────────────────┘    │  BOARD + journal entry   │
                                                                   │  · runs standup        │
                                                                   │  · triages weekly      │
                                                                   │  · delegates to agents │
@@ -56,8 +57,9 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 **The hand-off rule (the most important contract):**
 - `okr` **writes** `OKR.md` and `monthly/`. **Proposes** weekly tasks; never writes them.
-- `pmo` **writes** `TASKS.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. **Reads** OKR files for context.
-- Each skill reads the other's files freely; neither writes outside its lane.
+- `pmo` **writes** `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. **Reads** OKR and design files for context.
+- `design` **writes** `design/<DESIGN-ID>-<slug>.md`. **Proposes** implementation tasks on lock; never writes them.
+- Each skill reads the others' files freely; no skill writes outside its lane.
 
 ## Key concepts
 
@@ -86,7 +88,7 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 /okr        → plan-week                      # proposes 3–5 candidate tasks for this ISO week
                                               # user approves a subset
 
-/pmo        → (auto) appends rich task blocks to TASKS.md, runs standup
+/pmo        → (auto) writes BOARD rows + full task definitions to journal/<YYYY-MM>/<today>.md, runs standup
 ... daily work ... /pmo close-task ... /pmo decide ... /pmo delegate <id> ...
 /pmo        → friday-review                  # writes weekly/<YYYY-WW>.md
 /pmo        → handoff                        # writes handoff/<today>.md before stopping
@@ -99,16 +101,26 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 /okr        → plan-month <next>              # next month begins
 ```
 
-## Project file layout (after both skills bootstrap)
+## Project file layout (after all skills bootstrap)
 
 ```
 <project_root>/
+├── .perry/
+│   ├── config.md                       ← language + repo layout (single | split)
+│   └── hook.md                         ← project-specific additions (optional)
 ├── OKR.md                              ← okr (overall, versioned)
 ├── monthly/
 │   └── 2026-05.md                       ← okr (this month, full schema)
-├── TASKS.md                             ← pmo (board)
+├── BOARD.md                             ← pmo (LIVE working memory; ≤200 lines; closed tasks leave)
+├── journal/
+│   └── 2026-05/
+│       ├── 2026-05-01.md                ← pmo (day's status changes / new tasks / decisions)
+│       ├── 2026-05-02.md
+│       └── ...                          ← one file per day; append-only after the day ends
 ├── PROJECT_STATE.md                     ← pmo (cross-monthly dashboard)
-├── DECISIONS.md                         ← pmo (ADR log)
+├── DECISIONS.md                         ← pmo (ADR log, all months)
+├── design/
+│   └── DESIGN-001-process-mgmt.md       ← design (RFC)
 ├── evidence/
 │   └── 2026-05/
 │       ├── TASK-001-deliverable-name.md       ← pmo (per-task artifact)
