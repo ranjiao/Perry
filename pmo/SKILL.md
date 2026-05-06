@@ -61,6 +61,7 @@ Always run this before anything else, even if the user asked a specific question
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
    - File mtimes under the project root, especially `evidence/<YYYY-MM>/`
    - Recent entries from any project-specific MCP (see Per-project hooks)
+   - **In-flight dispatches**: run `bash ~/.claude/skills/perry/bin/perry-dispatch-limit list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show the count + per-task age in the dashboard's "Open tasks" or as a separate `🚀 In flight` line.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
@@ -190,6 +191,7 @@ Same goal as `delegate` but **fully automated** end-to-end. PMO renders the prom
 3. Spec contains `Executor: claude-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use `AskUserQuestion` (header `"Executor"`, options = `claude-subagent | codex (if installed) | manual — fall back to delegate`) to ask the user for a one-shot choice this run; do NOT silently default. Persist the answer back into the spec only if the user explicitly says "save this for next time".
 4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` sections against the project hook's high-stakes operations list (in `.perry/hook.md`). Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question, not a refusal trigger.
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
+6. **Concurrency check**: run `bash ~/.claude/skills/perry/bin/perry-dispatch-limit register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; refuse this dispatch (script's stderr lists what's currently in flight). On limit-hit, ask the user via `AskUserQuestion` (header `"Dispatch full"`, options): `Wait — show in-flight (Recommended) | Switch to other executor (if it has slots) | Fall back to /pmo delegate (manual paste)`. Default limits: 2 codex, 2 claude-subagent, 3 total — overridable via env (`PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_TOTAL`) so the user can match their actual quota headroom (the rationale: "too many concurrent agents fast-burn quota and ALL tasks fail" — observed in real use).
 
 **Dispatch (per executor)**:
 
@@ -217,6 +219,7 @@ For `Executor: codex`:
 - Reply to user: `Dispatched <TASK-X> via <executor>. Will report when done.` Do NOT block waiting for sync; rely on runtime notification.
 
 **On completion (notification arrives)**:
+0. **Release the concurrency slot first thing**: `bash ~/.claude/skills/perry/bin/perry-dispatch-limit release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — default 1h — covering the case where PMO crashed mid-completion.)
 1. Read the agent's RESULT block. Required fields:
    - `PR URL:` (or "n/a — direct push" with explicit reason)
    - `Files changed: <count>` + bullet list
@@ -239,9 +242,10 @@ For `Executor: codex`:
 8. Surface to user (in chat): pass/fail summary + 1-line subjective verification ask.
 
 **Failure handling (Q4 = mark review, no auto-retry)**:
-- Executor crashed / non-zero exit / timeout → write evidence with raw output, status `review`, surface failure summary, ask user whether to retry / fix manually / drop.
+- Executor crashed / non-zero exit / timeout → release the slot (`perry-dispatch-limit release <task-id>`), write evidence with raw output, status `review`, surface failure summary, ask user whether to retry / fix manually / drop.
 - ff-only PR push failed → same, with manual-resolution hint.
 - Agent declared `done` but tests failed → same.
+- The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires.
 
 **Cost / quota awareness**:
 - Each `claude-subagent` call counts against the parent CC session quota (5-hour Sonnet caps, weekly Opus caps).

@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# perry-dispatch-limit — track and enforce max concurrent /pmo dispatches.
+#
+# Each in-flight dispatch leaves a marker file at
+#   ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
+#
+# `register` reserves a slot (refuses if at limit). `release` frees it.
+# Stale markers (older than PERRY_DISPATCH_STALE_TTL, default 1h) are
+# auto-cleaned before counting — covers the case where a previous PMO
+# session crashed without releasing.
+set -e
+
+# ─── Defaults (override via env) ─────────────────────────────
+MAX_CODEX="${PERRY_MAX_DISPATCH_CODEX:-2}"
+MAX_SUBAGENT="${PERRY_MAX_DISPATCH_SUBAGENT:-2}"
+MAX_TOTAL="${PERRY_MAX_DISPATCH_TOTAL:-3}"
+STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-3600}"  # 1 hour
+
+CACHE_DIR="$HOME/.cache/perry/in-flight"
+mkdir -p "$CACHE_DIR"
+
+# ─── Helpers ─────────────────────────────────────────────────
+usage() {
+  cat <<'USAGE'
+perry-dispatch-limit — track concurrent /pmo dispatch slots.
+
+Usage:
+  perry-dispatch-limit register <task-id> <executor>
+  perry-dispatch-limit release  <task-id>
+  perry-dispatch-limit check    <executor>
+  perry-dispatch-limit list
+
+Subcommands:
+  register   Reserve a slot. Exit 0 = reserved; exit 1 = limit hit (stderr lists what's in flight).
+  release    Free the slot for <task-id>. Exit 0 always (idempotent).
+  check      Print current count for <executor>. Exit 0 if room, 1 if at limit.
+  list       Print all active markers (after cleaning stale).
+
+Executors: codex, claude-subagent
+
+Env overrides (defaults shown):
+  PERRY_MAX_DISPATCH_CODEX=2       Max concurrent codex dispatches
+  PERRY_MAX_DISPATCH_SUBAGENT=2    Max concurrent claude-subagent dispatches
+  PERRY_MAX_DISPATCH_TOTAL=3       Cap across all executors (whichever hits first wins)
+  PERRY_DISPATCH_STALE_TTL=3600    Stale-marker TTL in seconds (default 1h)
+
+Cache: ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
+USAGE
+}
+
+mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
+clean_stale() {
+  local now last age
+  now=$(date +%s)
+  for f in "$CACHE_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    last=$(mtime "$f")
+    age=$((now - last))
+    if [ "$age" -gt "$STALE_TTL" ]; then
+      rm -f "$f"
+    fi
+  done
+}
+
+count_executor() {
+  local exec="$1"
+  local n
+  n=$(ls "$CACHE_DIR"/*"-${exec}.json" 2>/dev/null | wc -l)
+  echo "$(echo "$n" | tr -d ' ')"
+}
+
+count_all() {
+  local n
+  n=$(ls "$CACHE_DIR"/*.json 2>/dev/null | wc -l)
+  echo "$(echo "$n" | tr -d ' ')"
+}
+
+list_markers() {
+  local n
+  n=$(count_all)
+  if [ "$n" -eq 0 ]; then
+    echo "(no active dispatches)"
+    return
+  fi
+  echo "$n active dispatch(es):"
+  for f in "$CACHE_DIR"/*.json; do
+    [ -e "$f" ] || continue
+    local name age now last
+    name=$(basename "$f" .json)
+    now=$(date +%s)
+    last=$(mtime "$f")
+    age=$((now - last))
+    echo "  • $name  (started $((age / 60))m ago)"
+  done
+}
+
+max_for_executor() {
+  case "$1" in
+    codex) echo "$MAX_CODEX" ;;
+    claude-subagent) echo "$MAX_SUBAGENT" ;;
+    *) echo "0" ;;
+  esac
+}
+
+# ─── Main ────────────────────────────────────────────────────
+cmd="${1:-}"
+[ $# -gt 0 ] && shift || true
+
+case "$cmd" in
+  register)
+    task_id="${1:-}"
+    executor="${2:-}"
+    if [ -z "$task_id" ] || [ -z "$executor" ]; then
+      echo "Usage: register <task-id> <executor>" >&2
+      exit 2
+    fi
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+      exit 2
+    fi
+
+    clean_stale
+    max_per=$(max_for_executor "$executor")
+    cur_per=$(count_executor "$executor")
+    cur_total=$(count_all)
+
+    if [ "$cur_per" -ge "$max_per" ]; then
+      echo "❌ $executor at limit: $cur_per / $max_per in flight" >&2
+      list_markers >&2
+      exit 1
+    fi
+    if [ "$cur_total" -ge "$MAX_TOTAL" ]; then
+      echo "❌ Global dispatch limit hit: $cur_total / $MAX_TOTAL in flight" >&2
+      list_markers >&2
+      exit 1
+    fi
+
+    marker="$CACHE_DIR/${task_id}-${executor}.json"
+    cat > "$marker" <<EOF
+{
+  "task_id": "$task_id",
+  "executor": "$executor",
+  "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "registered_pid": $$
+}
+EOF
+    new_per=$((cur_per + 1))
+    new_total=$((cur_total + 1))
+    echo "🟢 Slot reserved: $task_id ($executor). Now $new_per / $max_per for $executor; $new_total / $MAX_TOTAL total."
+    ;;
+
+  release)
+    task_id="${1:-}"
+    if [ -z "$task_id" ]; then
+      echo "Usage: release <task-id>" >&2
+      exit 2
+    fi
+    rm -f "$CACHE_DIR"/"${task_id}"-*.json 2>/dev/null
+    echo "🟢 Released: $task_id"
+    ;;
+
+  check)
+    executor="${1:-}"
+    if [ -z "$executor" ]; then
+      echo "Usage: check <executor>" >&2
+      exit 2
+    fi
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+      exit 2
+    fi
+
+    clean_stale
+    max_per=$(max_for_executor "$executor")
+    cur_per=$(count_executor "$executor")
+    cur_total=$(count_all)
+
+    echo "$executor: $cur_per / $max_per in flight; total $cur_total / $MAX_TOTAL"
+    if [ "$cur_per" -ge "$max_per" ] || [ "$cur_total" -ge "$MAX_TOTAL" ]; then
+      exit 1
+    fi
+    ;;
+
+  list)
+    clean_stale
+    list_markers
+    ;;
+
+  -h|--help|"")
+    usage
+    ;;
+
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
