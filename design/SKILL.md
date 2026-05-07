@@ -21,6 +21,7 @@ Pairs with **`pmo`** and **`okr`**. Hand-off rules:
 
 Trigger on any of:
 - The user invokes `/design` or types "design doc" / "RFC".
+- The user types "/design help" or "/design help <subcommand>" — see `### help` under the Subcommand index; do NOT trigger the Design Snapshot for help.
 - The user says "let's design X before we build it", "lock the architecture", "write the user decisions for Y", "what's the design for Z".
 - A new session opens in a project that contains a `design/` directory.
 - PMO surfaces a design-shaped task (multi-system, irreversible, or with multiple open user decisions) and routes the planning step here before delegating implementation.
@@ -98,6 +99,33 @@ Every design doc uses these sections in this order. Sections marked **required**
 11. **References** (optional) — links to OKR sections, prior designs, external docs, code paths.
 
 Templates live at `state/design_TEMPLATE.md`.
+
+## Subcommand index
+
+For navigation help: `/design help` prints this index; `/design help <subcommand>` prints just that row plus the matching section below.
+
+| Subcommand | One-line | Section |
+|---|---|---|
+| `init` | First-time bootstrap of the `design/` lane (write README) | Subcommands |
+| `new <slug>` | Start a new design doc (interactive: title, ID, KR linkage) | Subcommands |
+| `decide <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion | Subcommands |
+| `lock <DESIGN-ID>` | Move `in_review` → `locked`; print impl tasks for PMO `add-task` | Subcommands |
+| `revise <DESIGN-ID>` | Material change after lock; appends `## Changes` | Subcommands |
+| `supersede <OLD-ID> <NEW-slug>` | Replace one doc with a successor | Subcommands |
+| `drop <DESIGN-ID> <reason>` | Mark `dropped` (problem went away / pivoted past) | Subcommands |
+| `handoff <DESIGN-ID>` | Re-print impl tasks for a locked doc | Subcommands |
+| `status [<DESIGN-ID>]` | Without arg: snapshot. With arg: that doc's full status | Subcommands |
+| `help [<subcommand>]` | Print this index; with arg, print + read matching section | (handled here) |
+
+Peer skills: `/pmo help` (execution) · `/okr help` (goals) · `/perry help` (combined overview)
+
+### `help [<subcommand>]`
+
+Without arg: print the **Subcommand index** table above plus a short pointer to peer skills.
+
+With arg: locate the row for `<subcommand>`, print it, then read the matching `### <subcommand>` section below so the full procedure is in context. If the user types a subcommand that doesn't exist, suggest the closest match.
+
+`help` does NOT trigger the Design Snapshot (it's a navigation command).
 
 ## Subcommands
 
