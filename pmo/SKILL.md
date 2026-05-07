@@ -16,9 +16,10 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | Reference file | Loaded when running |
 |---|---|
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
+| `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-month-review`, `end-month-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), monthly (`rollover`) |
-| `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`) |
+| `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |
 | `reference/reporting-format.md` | `status`, `monday-plan`, `midweek-check` weekly output |
 
@@ -45,6 +46,7 @@ PMO state is split across three layers with different lifecycles. Mixing them in
 Trigger on any of:
 - The user invokes `/pmo` or types "PMO".
 - The user types "/pmo help" or "/pmo help <subcommand>" — see `### help` under the Subcommand index; do NOT trigger the standup for help.
+- The user invokes `/pmo autopilot [flags]` — see `reference/autopilot.md`. The standup ritual still runs as part of autopilot's pre-flight (it's where the BOARD eligibility analysis comes from), but no other subcommand interleaves until autopilot exits.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
 - A new session opens in a project that contains a `BOARD.md` at the root.
@@ -167,6 +169,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `triage` | Walk BOARD top-to-bottom; flag stale / inflated / evidence-less rows | `reference/subcommands.md` |
 | `delegate <task-id> <agent-type>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
 | `dispatch <task-id>` | Fully automated: spec → executor → verify → evidence → BOARD/journal | `reference/dispatch.md` |
+| `autopilot [--max-dispatches=N] [--max-duration=Th] [--max-failures=F] [--dry-run]` | Drive the BOARD top-to-bottom: dispatch every safe-to-dispatch row until budget exhausts. Default budget 10 / 2h / 3. **First run per project is forced dry-run + briefing.** Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. Never auto-`done` (always lands at `review`). | `reference/autopilot.md` |
 | `status` (= `friday-review`) | This week's status report → `weekly/<YYYY-WW>.md` | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `monday-plan` | Start-of-week priorities + scope cuts → `weekly/` + journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
