@@ -32,6 +32,7 @@ This single rule is what keeps the set composable and lets you drop in a fourth 
 
 Trigger on any of:
 - The user invokes `/perry` or types "Perry".
+- The user types "/perry help" or "/perry help <child>" — see `## /perry help` below; do NOT trigger the combined snapshot for help.
 - The user opens a session and wants a "where are we" overview without specifying OKR vs PMO.
 - The user is new to Perry and asks how it works or what to do first.
 - A new session opens in a project that contains both `OKR.md` and `BOARD.md` and the user wants the combined view.
@@ -173,6 +174,47 @@ When the user types something inside a `/perry` session, route to the right chil
 - "Explain Perry" / "what is this skill" — short pointer to README.
 - Recommending the next action when the choice spans more than one child.
 - Confirming or updating `.perry/config.md` (document language, repo layout).
+- `help` — see below.
+
+## `/perry help [<child>]`
+
+Without arg: print a compact overview of the three children + when to use each + a pointer to each child's own `help`. This is the navigation entry point for users who don't know what's available yet.
+
+Suggested format:
+
+```
+Perry — virtual project office (3 invocable skills)
+
+  /okr      Goal-setting (overall + monthly OKR + weekly task proposals)
+            Use when: setting goals, planning the month, scoring KRs,
+            pivoting strategy.
+            Common: /okr init, plan-month, plan-week, score, dashboard
+            Full list: /okr help
+
+  /pmo      Execution stewardship (BOARD, journal, dispatch, cadence)
+            Use when: standup, planning the week, delegating to agents,
+            tracking blockers, writing weekly status, monthly rollover.
+            Common: /pmo, plan-week, triage, dispatch, friday-review
+            Full list: /pmo help
+
+  /design   Design-doc / RFC stewardship (locked decisions before building)
+            Use when: drafting an RFC, locking user decisions, handing off
+            implementation tasks to PMO.
+            Common: /design new, decide, lock, handoff
+            Full list: /design help
+
+  /perry    This skill — combined snapshot across all three.
+            Use when: starting a fresh session, one-stop "where are we",
+            unsure which child you want.
+            Common: /perry, /perry help
+
+First-time setup: /perry in a new project → confirms language + repo layout.
+Read more: ~/.claude/skills/perry/README.md
+```
+
+With arg `okr`, `pmo`, or `design`: route to that child's `help` subcommand (the children own the detail). Don't re-render their tables here.
+
+`help` does NOT trigger the combined snapshot ritual.
 
 ## Style rules
 
