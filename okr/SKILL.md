@@ -17,6 +17,7 @@ Pairs with **`pmo`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR 
 
 Trigger on any of:
 - The user invokes `/okr` or types "OKR".
+- The user types "/okr help" or "/okr help <subcommand>" — see `### help` under the Subcommand index; do NOT trigger the OKR Snapshot for help.
 - The user says "let's set goals", "目标", "what's the goal this month", "review the period", "pivot the strategy".
 - The user wants to score progress, plan a month, generate weekly tasks, or update Operating Principles / Anti-Goals.
 - A new session opens in a project containing `OKR.md` at the root.
@@ -59,6 +60,31 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
    - "scope-reduction trigger date passed and USER-XXX still open → apply scope cut"
 
 6. Then ask: **"What do you want to do?"**
+
+## Subcommand index
+
+For navigation help: `/okr help` prints this index; `/okr help <subcommand>` prints just that row plus the matching section below.
+
+| Subcommand | One-line | Section |
+|---|---|---|
+| `init` | First-time bootstrap of overall `OKR.md` (interview) | Setup & cadence |
+| `revise` | Append a new version to `OKR.md` (material goal change) | Setup & cadence |
+| `plan-month [<YYYY-MM>]` | Write the monthly OKR with all 10 mandatory sections | Monthly cadence |
+| `score [<YYYY-MM>]` | End-of-month per-KR scoring → `evidence/<YYYY-MM>/retro.md` | Monthly cadence |
+| `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | Weekly cadence |
+| `pivot <reason>` | Mid-period goal change (high-friction by design) | Pivots & dashboards |
+| `dashboard` | Detailed view per Objective (computes status, projection) | Pivots & dashboards |
+| `help [<subcommand>]` | Print this index; with arg, print + read matching section | (handled here) |
+
+Peer skills: `/pmo help` (execution) · `/design help` (RFCs) · `/perry help` (combined overview)
+
+### `help [<subcommand>]`
+
+Without arg: print the **Subcommand index** table above plus a short pointer to peer skills.
+
+With arg: locate the row for `<subcommand>`, print it, then read the matching `### <subcommand>` section below so the full procedure is in context for follow-up. If the user types a subcommand that doesn't exist, suggest the closest match.
+
+`help` does NOT trigger the OKR Snapshot (it's a navigation command). The user can still type `/okr` directly for the snapshot.
 
 ## Subcommands
 
