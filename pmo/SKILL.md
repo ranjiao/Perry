@@ -44,6 +44,7 @@ PMO state is split across three layers with different lifecycles. Mixing them in
 
 Trigger on any of:
 - The user invokes `/pmo` or types "PMO".
+- The user types "/pmo help" or "/pmo help <subcommand>" — see `### help` under the Subcommand index; do NOT trigger the standup for help.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
 - A new session opens in a project that contains a `BOARD.md` at the root.
@@ -158,6 +159,8 @@ If a task moves to `done` without acceptable evidence, refuse the move and flag 
 
 After the standup, the user usually picks one of these. **Read the linked reference file before acting.**
 
+For navigation help at any time: `/pmo help` prints this entire index; `/pmo help <subcommand>` prints just that row plus reads the linked reference file (so the user gets the full procedure inline).
+
 | Subcommand | One-line | Reference |
 |---|---|---|
 | `plan-week` | Pick this ISO week's 3–5 P0 tasks; update BOARD + journal | `reference/subcommands.md` |
@@ -178,8 +181,17 @@ After the standup, the user usually picks one of these. **Read the linked refere
 | `coordinate` | Pull cross-session updates → `PROJECT_STATE.md` | `reference/subcommands.md` |
 | `handoff` | Day-N status doc → `handoff/<YYYY-MM-DD>.md` | `reference/subcommands.md` |
 | `rollover` | Month transition; create new journal + evidence dirs | `reference/subcommands.md` |
+| `help [<subcommand>]` | Print this index; with arg, print that row + read the matching reference file | (handled here in SKILL.md) |
 
 Conversational shape (every reply): plain language with IDs as parens; in-flight board on demand only. See `reference/conversational.md`.
+
+### `help [<subcommand>]`
+
+Without arg: print the **Subcommand index** table above verbatim, plus a short pointer to peer skills (`/okr help`, `/design help`, `/perry help`).
+
+With arg: locate the row for `<subcommand>`, print it, then **read the matching reference file** so the procedure is in context for any follow-up. If the user types a subcommand that doesn't exist, suggest the closest match (e.g., `clos` → `close-task`).
+
+`help` itself does NOT trigger the standup ritual (it's a navigation command, not an action). The user can still ask for a standup by typing `/pmo` directly.
 
 ## State files
 
