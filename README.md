@@ -6,15 +6,14 @@ A three-skill set for **Claude Code** and **Codex CLI** that captures the "virtu
 
 ## 🚀 One-paste install (Claude Code)
 
-Copy the prompt below and paste it into a fresh Claude Code session. Claude will clone Perry into `~/.claude/skills/perry/` and verify that `/perry`, `/okr`, and `/pmo` are available.
+Copy the prompt below and paste it into a fresh Claude Code session. Claude clones Perry, runs `setup` (which creates the child symlinks so `/okr`, `/pmo`, `/design` show up as top-level slash commands too), and verifies all four.
 
 ```
 Install the Perry Claude skill from https://github.com/ranjiao/Perry
 
 Steps:
-1. Run: mkdir -p ~/.claude/skills && git clone https://github.com/ranjiao/Perry.git ~/.claude/skills/perry
-2. Verify the layout matches https://raw.githubusercontent.com/ranjiao/Perry/main/INSTALL.md
-3. Confirm /perry, /okr, and /pmo are now available as slash commands.
+1. Run: mkdir -p ~/.claude/skills && git clone https://github.com/ranjiao/Perry.git ~/.claude/skills/perry && ~/.claude/skills/perry/setup
+2. Confirm /perry, /okr, /pmo, and /design are now available as slash commands.
 ```
 
 > Already have Perry installed? Update with:
@@ -26,8 +25,10 @@ Codex CLI uses the same `SKILL.md` frontmatter format as Claude Code, just from 
 
 ```bash
 git clone https://github.com/ranjiao/Perry ~/proj/Perry
-~/proj/Perry/setup --codex          # installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
+~/proj/Perry/setup --codex          # see flag note below
 ```
+
+> **What `--codex` does**: setup *always* installs to `~/.claude/skills/` (Claude Code's location); `--codex` *additionally* installs to `~/.agents/skills/` (Codex's location). If you only use Codex, the `~/.claude/skills/perry` symlinks are inert clutter — harmless if you don't have Claude Code installed, and free coverage if you ever try Claude Code later. There is no Claude-Code-only flag because that's the default; there is no Codex-only flag (yet) because the Claude Code symlinks have no runtime cost.
 
 After install, inside `codex` invoke Perry via `/skills` (pick perry / okr / pmo / design), `$perry` / `$okr` / `$pmo` / `$design` (explicit mention), or just describe the task and let Codex match the description. See [INSTALL.md § Codex CLI](INSTALL.md#codex-cli) for verification + per-host fallbacks (free-text prompts replace `AskUserQuestion`, `Executor: claude-subagent` is refused, async dispatch uses shell `&`).
 
