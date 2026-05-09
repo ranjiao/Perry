@@ -47,13 +47,25 @@ warn() { echo "$@" >&2; }
 fail() { warn "$@"; [ "$STRICT" -eq 1 ] && exit 1 || exit 0; }
 
 # ─── Resolve source dir ───────────────────────────────────────
-# Prefer $PERRY_HOME (Codex / explicit install); fall back to the Claude Code
-# default symlink location so existing Claude Code installs keep working.
-PERRY_LINK="${PERRY_HOME:-$HOME/.claude/skills/perry}"
+# Resolution order:
+#   1. $PERRY_HOME if set (explicit override; works for any custom install)
+#   2. $HOME/.claude/skills/perry (Claude Code default)
+#   3. $HOME/.agents/skills/perry (Codex CLI default)
+#   4. Self-locate via $0 (script's own grandparent dir)
+PERRY_LINK=""
+for candidate in \
+  "${PERRY_HOME:-}" \
+  "$HOME/.claude/skills/perry" \
+  "$HOME/.agents/skills/perry"
+do
+  [ -z "$candidate" ] && continue
+  if [ -e "$candidate" ]; then
+    PERRY_LINK="$candidate"
+    break
+  fi
+done
 
-# Last-resort fallback: locate ourselves via $0 (works for `perry-update-check`
-# invoked through any path, including a different PERRY_HOME).
-if [ ! -e "$PERRY_LINK" ]; then
+if [ -z "$PERRY_LINK" ]; then
   SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
   CANDIDATE="$(cd "$SCRIPT_DIR/.." && pwd -P)"
   if [ -d "$CANDIDATE" ] && [ -f "$CANDIDATE/SKILL.md" ]; then
@@ -61,8 +73,8 @@ if [ ! -e "$PERRY_LINK" ]; then
   fi
 fi
 
-if [ ! -e "$PERRY_LINK" ]; then
-  fail "Perry not installed at $PERRY_LINK — skipping update check (set PERRY_HOME to override)."
+if [ -z "$PERRY_LINK" ] || [ ! -e "$PERRY_LINK" ]; then
+  fail "Perry install not found — checked \$PERRY_HOME, ~/.claude/skills/perry, ~/.agents/skills/perry. Set PERRY_HOME to override."
 fi
 
 # Resolve to real path (follows symlinks). readlink behavior differs on

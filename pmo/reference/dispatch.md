@@ -9,7 +9,7 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 3. Spec contains `Executor: claude-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use `AskUserQuestion` (header `"Executor"`, options = `claude-subagent | codex (if installed) | manual — fall back to delegate`) for a one-shot choice this run; do NOT silently default. Persist the answer back into the spec only if the user explicitly says "save this for next time". On Codex (`$HOST = codex-cli`) **omit** the `claude-subagent` option (the executor isn't available) — see `../../reference/host-capabilities.md`. If a spec already pins `Executor: claude-subagent` on Codex, refuse the dispatch and tell the user to switch to `codex` or fall back to `/pmo delegate`.
 4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` against the project hook's high-stakes operations list (in `.perry/hook.md`). Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question.
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
-6. **Concurrency check**: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, ask the user via `AskUserQuestion` (header `"Dispatch full"`, options): `Wait — show in-flight (Recommended) | Switch to other executor (if it has slots) | Fall back to /pmo delegate (manual paste)`. Default limits: 2 codex, 2 claude-subagent, 3 total — overridable via env (`PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_TOTAL`). On Codex the cap is advisory across separate sessions — see `../../reference/host-capabilities.md § perry-dispatch-limit`.
+6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, ask the user via `AskUserQuestion` (header `"Dispatch full"`, options): `Wait — show in-flight (Recommended) | Switch to other executor (if it has slots) | Fall back to /pmo delegate (manual paste)`. Default limits: 2 codex, 2 claude-subagent, 3 total — overridable via env (`PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_TOTAL`). On Codex the cap is advisory across separate sessions — see `../../reference/host-capabilities.md § perry-dispatch-limit`.
 
 ## Dispatch — per executor
 
@@ -25,7 +25,7 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 
 - **MANDATORY pre-flight** before the first codex dispatch in any session (or after the 6h smoke cache expires):
   ```
-  bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-codex-preflight"
+  bash "$PERRY_HOME/bin/perry-codex-preflight"
   ```
   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
 - Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.
@@ -42,7 +42,7 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 
 ## On completion (notification arrives)
 
-0. **Release the concurrency slot first thing**: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — default 1h — covering the case where PMO crashed mid-completion.)
+0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — default 1h — covering the case where PMO crashed mid-completion.)
 1. Read the agent's RESULT block. Required fields:
    - `PR URL:` (or "n/a — direct push" with explicit reason)
    - `Files changed: <count>` + bullet list
@@ -66,7 +66,7 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 
 ## Failure handling (mark `review`, no auto-retry)
 
-- Executor crashed / non-zero exit / timeout → release the slot (`bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" release <task-id>`), write evidence with raw output, status `review`, surface failure summary, ask user retry / fix manually / drop.
+- Executor crashed / non-zero exit / timeout → release the slot (`bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`), write evidence with raw output, status `review`, surface failure summary, ask user retry / fix manually / drop.
 - ff-only PR push failed → same, with manual-resolution hint.
 - Agent declared `done` but tests failed → same.
 - The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires.
