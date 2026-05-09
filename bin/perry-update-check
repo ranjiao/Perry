@@ -35,7 +35,7 @@ Usage: perry-update-check [--force] [--quiet] [--strict]
 
 The script is invoked from the Perry skill standup ritual. Manual run:
 
-  ~/.claude/skills/perry/bin/perry-update-check --force
+  bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check" --force
 USAGE
       exit 0 ;;
     *) echo "Unknown flag: $1 (try --help)" >&2; exit 1 ;;
@@ -47,11 +47,22 @@ warn() { echo "$@" >&2; }
 fail() { warn "$@"; [ "$STRICT" -eq 1 ] && exit 1 || exit 0; }
 
 # ─── Resolve source dir ───────────────────────────────────────
-PERRY_LINK="$HOME/.claude/skills/perry"
+# Prefer $PERRY_HOME (Codex / explicit install); fall back to the Claude Code
+# default symlink location so existing Claude Code installs keep working.
+PERRY_LINK="${PERRY_HOME:-$HOME/.claude/skills/perry}"
 
-# stat -L is Linux; -F gets symlink info on macOS
+# Last-resort fallback: locate ourselves via $0 (works for `perry-update-check`
+# invoked through any path, including a different PERRY_HOME).
 if [ ! -e "$PERRY_LINK" ]; then
-  fail "Perry not installed at $PERRY_LINK — skipping update check."
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+  CANDIDATE="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+  if [ -d "$CANDIDATE" ] && [ -f "$CANDIDATE/SKILL.md" ]; then
+    PERRY_LINK="$CANDIDATE"
+  fi
+fi
+
+if [ ! -e "$PERRY_LINK" ]; then
+  fail "Perry not installed at $PERRY_LINK — skipping update check (set PERRY_HOME to override)."
 fi
 
 # Resolve to real path (follows symlinks). readlink behavior differs on

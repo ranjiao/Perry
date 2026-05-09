@@ -2,9 +2,9 @@
 
 > *Perry runs the office. You run the project.*
 
-A three-skill set for Claude Code that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session.
+A three-skill set for **Claude Code** and **Codex CLI** that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session.
 
-## 🚀 One-paste install
+## 🚀 One-paste install (Claude Code)
 
 Copy the prompt below and paste it into a fresh Claude Code session. Claude will clone Perry into `~/.claude/skills/perry/` and verify that `/perry`, `/okr`, and `/pmo` are available.
 
@@ -19,6 +19,20 @@ Steps:
 
 > Already have Perry installed? Update with:
 > `cd ~/.claude/skills/perry && git pull`
+
+## 🚀 Install (Codex CLI)
+
+Codex reads `AGENTS.md` (not `SKILL.md` frontmatter), so the install differs:
+
+```bash
+git clone https://github.com/ranjiao/Perry ~/proj/Perry
+echo 'export PERRY_HOME="$HOME/proj/Perry"' >> ~/.zshrc
+echo 'export PERRY_HOST=codex-cli'           >> ~/.zshrc
+mkdir -p ~/.codex && ln -sf "$HOME/proj/Perry/AGENTS.md" ~/.codex/AGENTS.md
+exec $SHELL
+```
+
+After install, type `pmo` / `okr` / `design` / `perry` (with or without `/`) inside Codex. See [INSTALL.md § Codex CLI](INSTALL.md#codex-cli) for verification + per-host fallbacks (free-text prompts replace `AskUserQuestion`, `Executor: claude-subagent` is refused, async dispatch uses shell `&`).
 
 ## What Perry does
 
