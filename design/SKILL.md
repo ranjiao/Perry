@@ -30,7 +30,8 @@ Trigger on any of:
 
 Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
-−1. **Run the weekly auto-update check** — `bash ~/.claude/skills/perry/bin/perry-update-check`. Throttled to once per 7 days; surface any output verbatim.
+−2. **Detect host** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-detect-host"`. Remember as `$HOST` and read `${PERRY_HOME:-$HOME/.claude/skills/perry}/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback).
+−1. **Run the weekly auto-update check** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Scan** `design/` for all `*.md` files. Parse each doc's frontmatter / header for `Status:` (one of: `draft`, `in_review`, `locked`, `superseded`, `dropped`) and `Date:`.

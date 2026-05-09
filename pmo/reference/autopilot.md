@@ -93,7 +93,8 @@ First-run protection:
    - **Skipped — high-stakes**: hook safety scan flags a match → never auto-dispatched even if `Dispatch mode: auto` (safety > flag).
    - **Skipped — no spec**: P0/P1 missing `<TASK-ID>-spec.md` → never auto-dispatched (spec is the safety contract).
    - **Skipped — blocked**: open dependency.
-   - **Skipped — already in flight**: `perry-dispatch-limit list` shows it as currently running.
+   - **Skipped — already in flight**: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" list` shows it as currently running.
+   - **Skipped — host mismatch** (Codex only): spec pins `Executor: claude-subagent` but `$HOST = codex-cli`. The `claude-subagent` executor isn't available on Codex; the spec must be edited to `codex` (or `manual`) before autopilot can dispatch it. Per `../../reference/host-capabilities.md § Agent / subagent_type`.
    - **Skipped — review/done**: already past dispatch.
 4. Apply priority order: P0 first, then P1, then P2 (within each, oldest-pending first).
 5. Truncate eligible list to `max-dispatches` (default 10).
@@ -121,17 +122,17 @@ Repeat:
    - No remaining eligible tasks → exit (success)
 
 2. **Saturate dispatch slots**:
-   - Run `perry-dispatch-limit list` to see current concurrency.
+   - Run `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" list` to see current concurrency.
    - While slots available AND eligible tasks remain:
      - Pick next task (P0 > P1 > P2; oldest first).
      - Run full `/pmo dispatch <task-id>` flow (see `dispatch.md`):
        - Pre-flight (codex preflight if codex; safety re-validation; concurrency register)
-       - Dispatch via executor with `run_in_background: true`
+       - Dispatch via executor with async (Claude Code: `run_in_background: true`; Codex: shell `&` per `../../reference/host-capabilities.md`).
        - Increment `dispatches_done`. Append journal status-change line.
        - Append a row to the run summary's per-task table: dispatched at, executor.
 
 3. **Wait for ANY in-flight dispatch to complete**:
-   - Receive runtime notification (background dispatches notify on completion).
+   - On Claude Code: receive runtime notification (background dispatches notify on completion). On Codex (`$HOST = codex-cli`): poll the per-task log files (`/tmp/perry-dispatch-<id>.log`) every 30s and the PID files (`/tmp/perry-dispatch-<id>.pid`) for process exit; treat first appearance of `=== END RESULT ===` (or process exit) as completion. See `../../reference/host-capabilities.md § Bash run_in_background → shell &`.
    - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, update BOARD to `review`, append journal line.
    - Append result to the run summary's per-task table: completed at, status, evidence path.
    - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark task `review` with failure annotation. **Never auto-retry.**

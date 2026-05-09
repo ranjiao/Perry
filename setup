@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Perry setup — install perry/ + link child skills (okr, pmo, design)
 # as siblings so Claude Code surfaces /perry, /okr, /pmo, /design.
+# For Codex CLI install, see --codex (links AGENTS.md into ~/.codex/) or
+# the manual steps in INSTALL.md.
 set -e
 
 SETUP_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -9,26 +11,36 @@ SOURCE_DIR="$(cd "$(dirname "$0")" && pwd -P)"   # resolves symlinks
 # ─── Parse flags ──────────────────────────────────────────────
 LOCAL=0
 QUIET=0
+CODEX=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --local)  LOCAL=1; shift ;;
+    --codex)  CODEX=1; shift ;;
     --quiet)  QUIET=1; shift ;;
     -h|--help)
       cat <<'USAGE'
-Perry setup — register the Perry skill set with Claude Code.
+Perry setup — register the Perry skill set with your host (Claude Code or Codex CLI).
 
-Usage: setup [--local] [--quiet]
+Usage: setup [--local] [--codex] [--quiet]
 
-  (no flag)   Install to ~/.claude/skills/                 (global, default)
-  --local     Install to ./. claude/skills/                (current project)
+  (no flag)   Claude Code, global: install to ~/.claude/skills/
+  --local     Claude Code, per-project: install to ./.claude/skills/
+  --codex     Also link AGENTS.md into ~/.codex/AGENTS.md for Codex CLI
+              (idempotent; refuses to overwrite an existing non-symlink file).
+              Combine with or without --local.
   --quiet     Suppress non-error output
 
-What it does:
+What it does (Claude Code):
   1. Ensures perry/ exists in the target skills directory
      (creates a symlink pointing at this script's source if missing).
   2. For each child skill (okr, pmo, design), creates a relative symlink
      '<name> -> perry/<name>' in the same skills directory, so each child
      shows up as a top-level slash command.
+
+What it does (--codex, additionally):
+  3. Symlinks $SOURCE_DIR/AGENTS.md → ~/.codex/AGENTS.md so Codex picks
+     up Perry as global instructions. Prints the recommended
+     PERRY_HOME / PERRY_HOST shell exports if they're not already set.
 
 Re-running is safe and idempotent: existing symlinks are updated; existing
 real files/directories at any target are left untouched (and reported).
@@ -113,11 +125,44 @@ link_children() {
 
 link_children "$PERRY_TARGET" "$HOST_DIR"
 
-# ─── 3. Summary ───────────────────────────────────────────────
+# ─── 3. Optional Codex link ───────────────────────────────────
+if [ "$CODEX" -eq 1 ]; then
+  CODEX_DIR="$HOME/.codex"
+  CODEX_TARGET="$CODEX_DIR/AGENTS.md"
+  AGENTS_SRC="$SOURCE_DIR/AGENTS.md"
+
+  if [ ! -f "$AGENTS_SRC" ]; then
+    warn "  --codex requested but $AGENTS_SRC is missing — skipping Codex link."
+  else
+    mkdir -p "$CODEX_DIR"
+    if [ -L "$CODEX_TARGET" ]; then
+      resolved="$(cd "$CODEX_DIR" && pwd -P)/$(readlink "$CODEX_TARGET")"
+      log "  Codex AGENTS.md symlink already present (-> $(readlink "$CODEX_TARGET"))"
+      ln -snf "$AGENTS_SRC" "$CODEX_TARGET"
+    elif [ -e "$CODEX_TARGET" ]; then
+      warn "  $CODEX_TARGET exists and is not a symlink — leaving in place."
+      warn "  Manual merge: cat \"$AGENTS_SRC\" >> \"$CODEX_TARGET\""
+    else
+      ln -snf "$AGENTS_SRC" "$CODEX_TARGET"
+      log "  linked $CODEX_TARGET -> $AGENTS_SRC"
+    fi
+
+    # Shell-export hints (only if not already set)
+    if [ -z "${PERRY_HOME:-}" ] || [ -z "${PERRY_HOST:-}" ]; then
+      log ""
+      log "  Add to your shell profile so Codex finds Perry's bin/ + reference/:"
+      [ -z "${PERRY_HOME:-}" ] && log "    export PERRY_HOME=\"$SOURCE_DIR\""
+      [ -z "${PERRY_HOST:-}" ] && log "    export PERRY_HOST=codex-cli"
+    fi
+  fi
+fi
+
+# ─── 4. Summary ───────────────────────────────────────────────
 log ""
 log "Perry ready."
 log "  source : $SOURCE_DIR"
-log "  host   : $HOST_DIR"
+log "  host   : $HOST_DIR (Claude Code skills dir)"
+[ "$CODEX" -eq 1 ] && log "  codex  : ~/.codex/AGENTS.md linked"
 log "  skills : /perry, /okr, /pmo, /design"
 log ""
 log "  Inside any project: run  /perry  for the combined dashboard, or"

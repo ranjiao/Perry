@@ -1,6 +1,8 @@
 # Install — Perry
 
-Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). All four need to be discoverable as siblings under your skills directory so each one is invocable on its own.
+Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** (default) and **Codex CLI**. Pick the install path for your host below; both can coexist on the same machine.
+
+## Claude Code
 
 The `setup` script handles this. It links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
 
@@ -38,6 +40,29 @@ ls ~/.claude/skills | grep -E '^(perry|okr|pmo|design)$'
 ```
 
 In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all available.
+
+## Codex CLI
+
+Codex doesn't read `SKILL.md` frontmatter; it reads `AGENTS.md` from the current working directory or `~/.codex/AGENTS.md` globally. Perry ships an `AGENTS.md` at the repo root that routes `perry` / `okr` / `pmo` / `design` to the right SKILL.md.
+
+```bash
+git clone https://github.com/ranjiao/Perry ~/proj/Perry      # or wherever
+cat >> ~/.zshrc <<'SH'                                       # or ~/.bashrc
+export PERRY_HOME="$HOME/proj/Perry"
+export PERRY_HOST=codex-cli
+SH
+mkdir -p ~/.codex
+ln -sf "$PERRY_HOME/AGENTS.md" ~/.codex/AGENTS.md            # or append to existing
+```
+
+Reload your shell (`exec $SHELL`) and start `codex` inside any project. Type `pmo`, `okr`, `design`, or `perry` (with or without leading `/`) to invoke each skill. Per-host fallbacks (free-text prompts in place of `AskUserQuestion`, refusal of `Executor: claude-subagent`, shell-backgrounded `codex exec` instead of Bash `run_in_background`) are documented in `reference/host-capabilities.md`, which AGENTS.md tells Codex to read first on every invocation.
+
+### Verify (Codex)
+
+```bash
+$PERRY_HOME/bin/perry-detect-host        # expect: codex-cli
+ls ~/.codex/AGENTS.md                    # expect: symlink to $PERRY_HOME/AGENTS.md
+```
 
 ## Update later
 
@@ -80,7 +105,8 @@ Project-specific additions (custom agents, MCP tools, domain constraints, promot
 ## Uninstall
 
 ```bash
-rm ~/.claude/skills/{perry,okr,pmo,design}
+rm ~/.claude/skills/{perry,okr,pmo,design}     # Claude Code
+rm ~/.codex/AGENTS.md                           # Codex (only if it was the symlink we created)
 ```
 
 State files (`OKR.md`, `BOARD.md`, `journal/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.
