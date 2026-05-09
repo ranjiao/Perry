@@ -43,25 +43,44 @@ In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all availa
 
 ## Codex CLI
 
-Codex doesn't read `SKILL.md` frontmatter; it reads `AGENTS.md` from the current working directory or `~/.codex/AGENTS.md` globally. Perry ships an `AGENTS.md` at the repo root that routes `perry` / `okr` / `pmo` / `design` to the right SKILL.md.
+Codex CLI discovers skills the same way Claude Code does — by reading `SKILL.md` frontmatter (`name` + `description`) from a canonical skills directory. The path is different: Codex scans `$HOME/.agents/skills/` (per the [Codex Skills docs](https://developers.openai.com/codex/skills)), not `~/.claude/skills/`.
+
+The same `setup` script handles both hosts. Add `--codex` to also install for Codex:
 
 ```bash
 git clone https://github.com/ranjiao/Perry ~/proj/Perry      # or wherever
-cat >> ~/.zshrc <<'SH'                                       # or ~/.bashrc
-export PERRY_HOME="$HOME/proj/Perry"
-export PERRY_HOST=codex-cli
-SH
-mkdir -p ~/.codex
-ln -sf "$PERRY_HOME/AGENTS.md" ~/.codex/AGENTS.md            # or append to existing
+~/proj/Perry/setup --codex                                    # installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
 ```
 
-Reload your shell (`exec $SHELL`) and start `codex` inside any project. Type `pmo`, `okr`, `design`, or `perry` (with or without leading `/`) to invoke each skill. Per-host fallbacks (free-text prompts in place of `AskUserQuestion`, refusal of `Executor: claude-subagent`, shell-backgrounded `codex exec` instead of Bash `run_in_background`) are documented in `reference/host-capabilities.md`, which AGENTS.md tells Codex to read first on every invocation.
+The script creates the same symlink layout under each host's skills dir:
+
+```
+~/.agents/skills/                                             # Codex
+├── perry      → <source dir>/Perry         # top-level (real symlink to source)
+├── okr        → perry/okr                  # child (relative)
+├── pmo        → perry/pmo                  # child (relative)
+└── design     → perry/design               # child (relative)
+```
+
+Setup also prints the recommended shell exports for unambiguous `$PERRY_HOME` resolution:
+
+```bash
+export PERRY_HOME="$HOME/.agents/skills/perry"   # or wherever Perry lives for you
+export PERRY_HOST=codex-cli                      # or omit and let auto-detect handle it
+```
+
+Reload your shell (`exec $SHELL`) and start `codex` inside any project. Invoke Perry via:
+- **`/skills`** — list available skills, pick `perry` / `okr` / `pmo` / `design`
+- **`$perry`** / **`$okr`** / **`$pmo`** / **`$design`** — explicit mention in your prompt
+- **Implicit** — Codex picks the skill when your task matches the description
+
+Per-host fallbacks (free-text prompts in place of `AskUserQuestion`, refusal of `Executor: claude-subagent`, shell-backgrounded `codex exec` instead of Bash `run_in_background`) are documented in `reference/host-capabilities.md`, which the SKILL.md standup ritual reads on every invocation.
 
 ### Verify (Codex)
 
 ```bash
-$PERRY_HOME/bin/perry-detect-host        # expect: codex-cli
-ls ~/.codex/AGENTS.md                    # expect: symlink to $PERRY_HOME/AGENTS.md
+ls ~/.agents/skills | grep -E '^(perry|okr|pmo|design)$'      # expect all four
+~/.agents/skills/perry/bin/perry-detect-host                  # expect: codex-cli (when run inside codex)
 ```
 
 ## Update later
@@ -106,7 +125,7 @@ Project-specific additions (custom agents, MCP tools, domain constraints, promot
 
 ```bash
 rm ~/.claude/skills/{perry,okr,pmo,design}     # Claude Code
-rm ~/.codex/AGENTS.md                           # Codex (only if it was the symlink we created)
+rm ~/.agents/skills/{perry,okr,pmo,design}     # Codex (if --codex was used)
 ```
 
 State files (`OKR.md`, `BOARD.md`, `journal/`, `evidence/`, etc.) live in each project folder — nothing is left behind in your home directory.

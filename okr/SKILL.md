@@ -26,8 +26,9 @@ Trigger on any of:
 
 Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
-−2. **Detect host** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-detect-host"`. Remember as `$HOST` and read `${PERRY_HOME:-$HOME/.claude/skills/perry}/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback; same chosen value, same downstream writes).
-−1. **Run the weekly auto-update check** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `okr/SKILL.md`).
+−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback; same chosen value, same downstream writes).
+−1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Read** `OKR.md` (current version) and `monthly/<current-YYYY-MM>.md`.
