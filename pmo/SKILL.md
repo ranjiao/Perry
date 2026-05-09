@@ -17,6 +17,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 |---|---|
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
+| `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-month-review` / `end-month-retro` |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-month-review`, `end-month-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), monthly (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
@@ -47,6 +48,7 @@ Trigger on any of:
 - The user invokes `/pmo` or types "PMO".
 - The user types "/pmo help" or "/pmo help <subcommand>" — see `### help` under the Subcommand index; do NOT trigger the standup for help.
 - The user invokes `/pmo autopilot [flags]` — see `reference/autopilot.md`. The standup ritual still runs as part of autopilot's pre-flight (it's where the BOARD eligibility analysis comes from), but no other subcommand interleaves until autopilot exits.
+- The user invokes `/pmo digest <path>` or drops a file in `inputs/` and asks for digestion — see `reference/digests.md`. Digest is a focused subcommand and does not require the full standup before running.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
 - A new session opens in a project that contains a `BOARD.md` at the root.
@@ -81,7 +83,10 @@ Always run this before anything else, even if the user asked a specific question
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
    - File mtimes under the project root, especially `evidence/<YYYY-MM>/`
    - Recent entries from any project-specific MCP (see Per-project hooks)
-   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
+   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show as a `🚀 In flight` line.
+   - **Inputs / knowledge** (if `inputs/` or `knowledge/` exist):
+     - Count files in `inputs/` (un-digested raw drops); note oldest mtime.
+     - Read `knowledge/INDEX.md` header line for active / eternal / stale / archived counts (do NOT load digest contents — see `reference/digests.md § Standup integration`). On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
@@ -91,6 +96,8 @@ Always run this before anything else, even if the user asked a specific question
    🗓  This month   : <monthly O title> · <KRs done>/<KRs total> · cost <spent>/<ceiling>
    📋 Open tasks    : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
    🚀 In flight     : <count> dispatches running (— if 0)
+   📥 Inputs        : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest    (omit row if 0)
+   📚 Knowledge     : <active> active · <eternal> eternal · <stale> stale · <archived> archived (— if no knowledge/)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
@@ -107,6 +114,8 @@ Always run this before anything else, even if the user asked a specific question
    - "month-end in 3 days → schedule `end-month-retro`, then `rollover`"
    - "DESIGN-002 locked 3d ago, no impl tasks in `BOARD.md` → ask `/design handoff DESIGN-002`"
    - "BOARD.md is 240 lines (over the 200 cap) → run `triage` to push detail into evidence and close stale rows"
+   - "3 files sitting in `inputs/` un-digested (oldest 6d) → run `/pmo digest <oldest>`"
+   - "`knowledge/` has 5 stale digests → triage during next `mid-month-review` or `end-month-retro`"
 
 8. Then ask: **"What do you want to do?"**
 
@@ -172,6 +181,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `delegate <task-id> <agent-type>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
 | `dispatch <task-id>` | Fully automated: spec → executor → verify → evidence → BOARD/journal | `reference/dispatch.md` |
 | `autopilot [--max-dispatches=N] [--max-duration=Th] [--max-failures=F] [--dry-run]` | Drive the BOARD top-to-bottom: dispatch every safe-to-dispatch row until budget exhausts. Default budget 10 / 2h / 3. **First run per project is forced dry-run + briefing.** Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. Never auto-`done` (always lands at `review`). | `reference/autopilot.md` |
+| `digest <path> [--refresh] [--paste]` | Read external doc at `inputs/<path>`, write structured digest, move source + digest to `knowledge/<topic>/`. AskUserQuestion verifies key facts + topic. `--refresh` re-reads after source change. `--paste` captures inline pasted text. | `reference/digests.md` |
 | `status` (= `friday-review`) | This week's status report → `weekly/<YYYY-WW>.md` | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `monday-plan` | Start-of-week priorities + scope cuts → `weekly/` + journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
@@ -211,6 +221,9 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | pmo | Per-task artifacts: spec files, reports, checklists, drill records, gap lists, retros | `state/evidence_TEMPLATE.md` |
 | `weekly/<YYYY-WW>.md` | pmo | One ISO week's status report | `state/weekly_TEMPLATE.md` |
 | `handoff/<YYYY-MM-DD>.md` | pmo | Session resumption doc | `state/handoff_TEMPLATE.md` |
+| `inputs/<filename>` | (raw drop zone) | User puts external docs (PDFs, Excels, screenshots, pasted markdown) here for PMO to digest. PMO consumes via `/pmo digest`; ideally drained to 0 between sessions. | — |
+| `knowledge/<topic>/<source>` + `<source>-digest.md` | pmo | Topic-organized library of digested sources. Source moves here from `inputs/` on digest; digest is PMO's structured summary (TL;DR + Key facts + Open questions). Referenced by spec / journal / decisions to avoid re-reading source. | `state/digest_TEMPLATE.md` |
+| `knowledge/INDEX.md` | pmo | Auto-maintained catalog of all digests by status (active / eternal / archived) and topic | `state/knowledge_INDEX_TEMPLATE.md` |
 | `OKR.md`, `monthly/` | okr | Read by PMO; never written by PMO | (in okr skill) |
 | `design/<DESIGN-ID>-*.md` | design | Read by PMO to know which locked designs need implementation tasks; never written by PMO | (in design skill) |
 
@@ -232,7 +245,8 @@ If yes:
    - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
    - `PROJECT_STATE.md` (from template)
    - `DECISIONS.md` (from template, ADR-001 stub recording bootstrap)
-   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`
+   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`
+   - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
 5. Run the standup.

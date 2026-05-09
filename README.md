@@ -39,7 +39,7 @@ Perry pairs **goal-setting** with **execution stewardship** and **design-doc ste
 | Skill | Role | Owns | Reads from peer |
 |-------|------|------|------------------|
 | **`okr`** | The "why" — goal-setting partner | `OKR.md` (versioned, with Operating Principles + Anti-Goals), `monthly/<YYYY-MM>.md` (Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing) | `BOARD.md`, `evidence/<YYYY-MM>/retro.md` |
-| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md` | `OKR.md`, `monthly/<YYYY-MM>.md` |
+| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` + `knowledge/<topic>/` (external-doc digests) | `OKR.md`, `monthly/<YYYY-MM>.md` |
 | **`design`** | The "decided" — RFC steward | `design/<DESIGN-ID>-<slug>.md` (Problem, Goals, Non-Goals, User Decisions, Architecture, Implementation plan, Risks, Changes) | `OKR.md`, `monthly/<YYYY-MM>.md`, `BOARD.md` |
 
 Both skills run a mandatory snapshot/standup the moment they're invoked, so you always start from the actual state of your files instead of vibes.
@@ -91,6 +91,10 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 **Handoff doc (PMO):** `handoff/<YYYY-MM-DD>.md` is the bridge between sessions. The first line of every PMO session after a handoff exists is: "Read `handoff/<latest>.md` and tell me your status." The handoff doc replaces having to scroll back through chat.
 
+**External-doc digests (PMO):** `inputs/` is the raw drop zone for PDFs / Excels / screenshots / pasted text the user hands PMO. `/pmo digest <path>` reads the source, drafts a structured summary (TL;DR + Key facts with citations + Open questions + What PMO must remember + Section map), verifies key facts with the user via `AskUserQuestion`, then moves both source and digest into `knowledge/<topic>/`. Subsequent specs / decisions / journal cite the digest by path instead of re-reading the source. Digests carry a `Status: active | eternal | archived | superseded` field; archive review runs automatically inside `mid-month-review` and `end-month-retro`. **Bounded scope** — design target is 5–30 active digests per project; this is human-style note-taking, not RAG. See `pmo/reference/digests.md` for the full spec.
+
+**Autopilot (PMO):** `/pmo autopilot` walks BOARD top-to-bottom and dispatches every safe-to-dispatch row until budget exhausts (default 10 dispatches / 2h / 3 failures). First run per project is forced dry-run + briefing. Hard safety rails: never auto-`done`, never modify specs, never override hook safety list, never auto-retry. Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. See `pmo/reference/autopilot.md`.
+
 ## Typical flow (first time, any project)
 
 ```
@@ -102,6 +106,8 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 /pmo        → (auto) writes BOARD rows + full task definitions to journal/<YYYY-MM>/<today>.md, runs standup
 ... daily work ... /pmo close-task ... /pmo decide ... /pmo delegate <id> ...
+/pmo        → digest <inputs/...>            # whenever user drops external docs (PDF/Excel/notes)
+/pmo        → autopilot                       # batch-dispatch eligible specs while you're away
 /pmo        → friday-review                  # writes weekly/<YYYY-WW>.md
 /pmo        → handoff                        # writes handoff/<today>.md before stopping
 
@@ -142,6 +148,17 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 │   └── 2026-W18.md                      ← pmo (status report)
 ├── handoff/
 │   └── 2026-05-01.md                    ← pmo (session bridge)
+├── inputs/                              ← raw drop zone for external docs (ephemeral)
+│   └── 2026-05-07-look-cap-q1-report.pdf      ← waiting for /pmo digest
+├── knowledge/                           ← post-digest organized library
+│   ├── INDEX.md                                ← pmo (auto-maintained catalog)
+│   ├── _shared/
+│   │   └── USER-002-constraints-digest.md     ← project-constitution (eternal)
+│   ├── gavi/
+│   │   ├── 2025-12-09-term-sheet.pdf          ← moved from inputs/
+│   │   └── 2025-12-09-term-sheet-digest.md    ← PMO's structured summary
+│   └── research/
+│       └── jegadeesh-titman-1993-digest.md
 └── ... (your actual project files)
 ```
 
