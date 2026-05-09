@@ -93,7 +93,7 @@ First-run protection:
    - **Skipped — high-stakes**: hook safety scan flags a match → never auto-dispatched even if `Dispatch mode: auto` (safety > flag).
    - **Skipped — no spec**: P0/P1 missing `<TASK-ID>-spec.md` → never auto-dispatched (spec is the safety contract).
    - **Skipped — blocked**: open dependency.
-   - **Skipped — already in flight**: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" list` shows it as currently running.
+   - **Skipped — already in flight**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` shows it as currently running.
    - **Skipped — host mismatch** (Codex only): spec pins `Executor: claude-subagent` but `$HOST = codex-cli`. The `claude-subagent` executor isn't available on Codex; the spec must be edited to `codex` (or `manual`) before autopilot can dispatch it. Per `../../reference/host-capabilities.md § Agent / subagent_type`.
    - **Skipped — review/done**: already past dispatch.
 4. Apply priority order: P0 first, then P1, then P2 (within each, oldest-pending first).
@@ -122,7 +122,7 @@ Repeat:
    - No remaining eligible tasks → exit (success)
 
 2. **Saturate dispatch slots**:
-   - Run `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" list` to see current concurrency.
+   - Run `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` to see current concurrency.
    - While slots available AND eligible tasks remain:
      - Pick next task (P0 > P1 > P2; oldest first).
      - Run full `/pmo dispatch <task-id>` flow (see `dispatch.md`):

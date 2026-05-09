@@ -4,10 +4,10 @@ Perry runs on two hosts: **Claude Code** (full tool surface) and **Codex CLI** (
 
 ## Detect once per session
 
-The standup ritual of every Perry skill (`/perry`, `/okr`, `/pmo`, `/design`) runs:
+The standup ritual of every Perry skill (`/perry`, `/okr`, `/pmo`, `/design`) sets `$PERRY_HOME` first (derived from the SKILL.md path it just read; see § `$PERRY_HOME` below), then runs:
 
 ```
-bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-detect-host"
+bash "$PERRY_HOME/bin/perry-detect-host"
 ```
 
 The script prints one of: `claude-code`, `codex-cli`, `unknown`. Remember the result as `$HOST` for the rest of the conversation; do not re-run per subcommand.
@@ -35,13 +35,18 @@ If a future Codex version stops setting `CODEX_*` vars (or Claude Code starts se
 
 ## `$PERRY_HOME` — where Perry's bin/ + reference/ live
 
-The skill folder itself. Default is `$HOME/.claude/skills/perry` (Claude Code's standard install). Codex users set `PERRY_HOME` to wherever they cloned Perry (e.g., `$HOME/proj/Perry`).
+The perry/ root directory — contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, and the top-level `SKILL.md`.
 
-Every bin/ invocation in any SKILL.md or reference file is written as:
-```
-bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/<script>"
-```
-so the same prose works for both hosts without further branching.
+**Default install locations** (host-canonical):
+- Claude Code: `$HOME/.claude/skills/perry`
+- Codex CLI: `$HOME/.agents/skills/perry`
+
+**Resolution at runtime**:
+1. If `$PERRY_HOME` is set in env → use it (works for any custom install location, e.g., `$HOME/proj/Perry`).
+2. Otherwise the standup ritual derives it from the path of the SKILL.md the agent just read: parent dir for the top-level `SKILL.md`, grandparent for `okr/SKILL.md` / `pmo/SKILL.md` / `design/SKILL.md`.
+3. The bin scripts (`perry-update-check`, etc.) self-locate via `$0` as a third fallback for command-line invocations outside a Perry session.
+
+Every bin/ invocation in SKILL.md and reference files is written as `bash "$PERRY_HOME/bin/<script>"` — the standup step that sets `$PERRY_HOME` is the precondition.
 
 ## Capability matrix
 
@@ -51,7 +56,8 @@ so the same prose works for both hosts without further branching.
 | `Agent()` tool with `subagent_type` | use it for `claude-subagent` executor | not available — refuse `Executor: claude-subagent` and route to `codex` or manual delegate |
 | `Bash` `run_in_background: true` parameter | pass it on the tool call | not a tool param — wrap in `&` background-shell pattern (see below) |
 | `perry-dispatch-limit` concurrency cap | enforced (cross-task within session) | enforced filesystem-wide, but **advisory only** across separate codex sessions; surface as "local-only on Codex" |
-| Skill discovery / slash commands | via `SKILL.md` frontmatter under `~/.claude/skills/` | via `AGENTS.md` at repo root or `~/.codex/AGENTS.md` (see `INSTALL.md` § Codex) |
+| Skill discovery | reads `SKILL.md` frontmatter from `~/.claude/skills/<name>/` | reads `SKILL.md` frontmatter from `~/.agents/skills/<name>/` (also `$CWD/.agents/skills/`, `/etc/codex/skills/`). Both hosts use the same SKILL.md files; install paths differ. See `INSTALL.md` |
+| Skill invocation | `/perry`, `/okr`, `/pmo`, `/design` slash commands | `/skills` then pick perry/okr/pmo/design, or `$perry` / `$pmo` / `$okr` / `$design` to mention, or implicit triggering on description match |
 | `ScheduleWakeup` / `/loop` / `/schedule` | available (host-provided) | not available — Perry does not depend on these |
 | Plan mode / `ExitPlanMode` | available | not available — Perry does not depend on these |
 
