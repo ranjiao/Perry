@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# perry-detect-host — print the host runtime so SKILL.md branches can
+# choose the right tool (AskUserQuestion vs free-text, Agent vs codex
+# exec, etc.). Output is a single lowercase token to stdout:
+#
+#   claude-code   running inside Claude Code (CLI / Desktop)
+#   codex-cli     running inside OpenAI Codex CLI
+#   unknown       cannot determine (treat as claude-code by default in
+#                 SKILL.md branches; manual override below recommended)
+#
+# Manual override (always wins):
+#   export PERRY_HOST=claude-code      # or codex-cli
+#
+# Detection is best-effort: env-var sniffing first, parent-process name
+# second. Both can change as host runtimes evolve; the env override is
+# the durable contract. Always exits 0 — this script never blocks.
+
+set -e
+
+# ─── 1. Manual override wins ─────────────────────────────────
+if [ -n "${PERRY_HOST:-}" ]; then
+  case "$PERRY_HOST" in
+    claude-code|codex-cli|unknown)
+      echo "$PERRY_HOST"
+      exit 0
+      ;;
+    *)
+      echo "unknown"
+      exit 0
+      ;;
+  esac
+fi
+
+# ─── 2. Env-var heuristics ───────────────────────────────────
+# IMPORTANT: check CODEX_* BEFORE CLAUDE_* because Codex inherits the
+# parent shell environment when launched from Claude Code (e.g., a
+# `/pmo dispatch` running `codex exec`). Inside that nested session,
+# both CLAUDECODE=1 (inherited) AND CODEX_SANDBOX=seatbelt (set by
+# Codex itself) are present — the innermost active runtime is Codex,
+# so CODEX_* takes precedence. Standalone Codex sessions don't have
+# CLAUDECODE; standalone Claude Code sessions don't have CODEX_*.
+# Either way, this ordering returns the correct innermost host.
+#
+# Verified against codex-cli 0.130.0 in 2026-05; the actual sentinel
+# vars set inside `codex exec` are: CODEX_SANDBOX, CODEX_SANDBOX_*,
+# CODEX_THREAD_ID, CODEX_CI, CODEX_MANAGED_BY_NPM. CODEX_HOME is NOT
+# set automatically — it's a user-level pointer to ~/.codex. Match
+# any var starting with CODEX_ to stay robust to version drift.
+if [ -n "${CODEX_SANDBOX:-}" ] || [ -n "${CODEX_THREAD_ID:-}" ] || env | grep -q '^CODEX_'; then
+  echo "codex-cli"
+  exit 0
+fi
+
+# Claude Code sets CLAUDECODE=1, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_*
+# vars in tool execution contexts.
+if [ -n "${CLAUDECODE:-}" ] || [ -n "${CLAUDE_CODE_ENTRYPOINT:-}" ] || [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+  echo "claude-code"
+  exit 0
+fi
+
+# ─── 3. Parent-process heuristic (best effort) ───────────────
+# `ps -p $PPID -o comm=` works on macOS and Linux. The parent of a Bash
+# tool call is the host process (claude / codex). Walk up a couple of
+# levels in case there's a shell wrapper.
+parent_cmd=""
+pid=$PPID
+for _ in 1 2 3; do
+  [ "$pid" -le 1 ] && break
+  parent_cmd=$(ps -p "$pid" -o comm= 2>/dev/null | tr -d ' ' || true)
+  case "$parent_cmd" in
+    *codex*)  echo "codex-cli";   exit 0 ;;
+    *claude*) echo "claude-code"; exit 0 ;;
+  esac
+  pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ' || echo 0)
+done
+
+# ─── 4. Give up ──────────────────────────────────────────────
+echo "unknown"
+exit 0
