@@ -55,8 +55,9 @@ Trigger on any of:
 
 Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
 
-−2. **Detect host** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `codex-cli`). Then read `${PERRY_HOME:-$HOME/.claude/skills/perry}/reference/host-capabilities.md` once for fallback rules; subsequent references to `AskUserQuestion`, `Agent()` / `subagent_type`, and `run_in_background` in this file and the reference files apply per that matrix.
-−1. **Run the weekly auto-update check** — `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: `$PERRY_HOME` is the perry/ root dir, the grandparent of `pmo/SKILL.md` (it contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, top-level `SKILL.md`). All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
+−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `codex-cli`). Then read `$PERRY_HOME/reference/host-capabilities.md` once for fallback rules; subsequent references to `AskUserQuestion`, `Agent()` / `subagent_type`, and `run_in_background` in this file and the reference files apply per that matrix.
+−1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
 2. **Read live state**:
@@ -80,7 +81,7 @@ Always run this before anything else, even if the user asked a specific question
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
    - File mtimes under the project root, especially `evidence/<YYYY-MM>/`
    - Recent entries from any project-specific MCP (see Per-project hooks)
-   - **In-flight dispatches**: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-dispatch-limit" list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
+   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 

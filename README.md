@@ -22,17 +22,14 @@ Steps:
 
 ## 🚀 Install (Codex CLI)
 
-Codex reads `AGENTS.md` (not `SKILL.md` frontmatter), so the install differs:
+Codex CLI uses the same `SKILL.md` frontmatter format as Claude Code, just from a different skills directory ([per the Codex Skills docs](https://developers.openai.com/codex/skills)): `~/.agents/skills/`. The same `setup` script handles both hosts:
 
 ```bash
 git clone https://github.com/ranjiao/Perry ~/proj/Perry
-echo 'export PERRY_HOME="$HOME/proj/Perry"' >> ~/.zshrc
-echo 'export PERRY_HOST=codex-cli'           >> ~/.zshrc
-mkdir -p ~/.codex && ln -sf "$HOME/proj/Perry/AGENTS.md" ~/.codex/AGENTS.md
-exec $SHELL
+~/proj/Perry/setup --codex          # installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
 ```
 
-After install, type `pmo` / `okr` / `design` / `perry` (with or without `/`) inside Codex. See [INSTALL.md § Codex CLI](INSTALL.md#codex-cli) for verification + per-host fallbacks (free-text prompts replace `AskUserQuestion`, `Executor: claude-subagent` is refused, async dispatch uses shell `&`).
+After install, inside `codex` invoke Perry via `/skills` (pick perry / okr / pmo / design), `$perry` / `$okr` / `$pmo` / `$design` (explicit mention), or just describe the task and let Codex match the description. See [INSTALL.md § Codex CLI](INSTALL.md#codex-cli) for verification + per-host fallbacks (free-text prompts replace `AskUserQuestion`, `Executor: claude-subagent` is refused, async dispatch uses shell `&`).
 
 ## What Perry does
 
