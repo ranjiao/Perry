@@ -33,8 +33,12 @@ Mid-week pulse. Reads `BOARD.md` + journal entries since Monday. Output: P0 move
 ### `mid-month-review`
 Reads `BOARD.md` + ALL journal entries for the current month (one of the few legit cases for full-month reading). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Mid-Month Scope Reduction Rule** declared in `monthly/<YYYY-MM>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midmonth-review.md`.
 
+**Digest archive review** (added to mid-month-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `monthly/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `reference/digests.md § Archive lifecycle` for full detail.
+
 ### `end-month-retro`
 At month-end. Reads `BOARD.md` + ALL journal entries for the month + `evidence/<YYYY-MM>/`. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md`. This is OKR's input for `plan-month` of the next month.
+
+**Digest archive review** (same procedure as `mid-month-review`; second monthly pass): re-scan archive candidates and process via `AskUserQuestion`. End-of-month is the safer gate — anything still un-referenced after a full month is more likely truly inactive. Also at end-of-month, **rebuild `knowledge/INDEX.md` fully** (not just incrementally): re-grep all references for `Last referenced` dates, recompute counts, alphabetize within topics. Cheap operation (~2-3 sec for 30 digests).
 
 ## Decisions & risk
 
