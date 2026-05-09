@@ -11,7 +11,9 @@ Perry is a coordinated **skill set** with three children that share a project's 
 
 ## Children of this skill
 
-This folder contains three child skills. They live under `~/.claude/skills/perry/<child>/SKILL.md` and are invocable on their own. Read each child's SKILL.md for full subcommand detail.
+This folder contains three child skills. They live under `${PERRY_HOME:-$HOME/.claude/skills/perry}/<child>/SKILL.md` and are invocable on their own. Read each child's SKILL.md for full subcommand detail.
+
+> **Host portability**: Perry runs on **Claude Code** and **Codex CLI**. The standup ritual below detects which host is live and reads `reference/host-capabilities.md` for the fallback rules (free-text prompts instead of `AskUserQuestion` on Codex, refusal of `Executor: claude-subagent` on Codex, etc.). Where this file or a child SKILL.md names a Claude-Code-specific tool (`AskUserQuestion`, `Agent()`, `Bash run_in_background`), that capability page owns the per-host translation; SKILL.md prose stays single-sourced.
 
 | Child | Invoke as | Owns | What it does |
 |-------|-----------|------|--------------|
@@ -43,9 +45,15 @@ If the user clearly wants only goal-setting → route to `/okr`. If clearly only
 
 When `/perry` is invoked, always run this before doing anything else.
 
+−1. **Detect host once** — silently:
+   ```
+   bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-detect-host"
+   ```
+   Output: `claude-code` | `codex-cli` | `unknown`. Remember as `$HOST` for the rest of the conversation. Then read `${PERRY_HOME:-$HOME/.claude/skills/perry}/reference/host-capabilities.md` for fallback rules. If output is `unknown`, default `$HOST=claude-code` but tell the user once and recommend setting `PERRY_HOST` in their shell profile.
+
 0. **Run the weekly auto-update check** — silently in the background:
    ```
-   bash ~/.claude/skills/perry/bin/perry-update-check
+   bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check"
    ```
    The script throttles itself to once per 7 days; most invocations exit immediately with no output. When it does run, output is one line (or zero). Surface its output to the user verbatim if non-empty (the user wants to know about updates), then continue with the snapshot.
 
@@ -209,7 +217,7 @@ Perry — virtual project office (3 invocable skills)
             Common: /perry, /perry help
 
 First-time setup: /perry in a new project → confirms language + repo layout.
-Read more: ~/.claude/skills/perry/README.md
+Read more: ${PERRY_HOME:-~/.claude/skills/perry}/README.md
 ```
 
 With arg `okr`, `pmo`, or `design`: route to that child's `help` subcommand (the children own the detail). Don't re-render their tables here.
@@ -226,7 +234,9 @@ With arg `okr`, `pmo`, or `design`: route to that child's `help` subcommand (the
 
 ## User-prompt convention (AskUserQuestion)
 
-Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the `AskUserQuestion` tool over free-text "what do you want?" prompts. The Claude Desktop UI renders `AskUserQuestion` as clickable button choices with an automatic "Other" free-text fallback — much faster for the user than typing.
+Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the `AskUserQuestion` tool over free-text "what do you want?" prompts. The Claude Code / Desktop UI renders `AskUserQuestion` as clickable button choices with an automatic "Other" free-text fallback — much faster for the user than typing.
+
+> **Codex host**: `AskUserQuestion` is not available. Render the same option set as a numbered free-text prompt per `reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. The chosen value, downstream writes, and conventions below are unchanged — only the rendering differs.
 
 ### When to use it
 
@@ -272,12 +282,12 @@ Project hook files live at the project root (not in the skill folder), so a sing
 ## Auto-update
 
 Every Perry skill invocation runs `bin/perry-update-check` as the first action. The script:
-- Throttles itself to **once per 7 days** via `~/.claude/skills/perry/.update-check` mtime; most invocations exit immediately with no output.
+- Throttles itself to **once per 7 days** via `${PERRY_HOME:-$HOME/.claude/skills/perry}/.update-check` mtime; most invocations exit immediately with no output.
 - Detects "dev mode" — symlink install, dirty working tree, or non-`main` branch — and in that case **only fetches and reports**; it never auto-pulls (so it can't trample your WIP if you're editing Perry source).
 - For "consumer mode" (real directory, clean tree, on `main`), does an ff-only `git pull` from `origin/main`.
 - Always exits 0 (network failure, unresolved merge, etc. → notify and continue; never block the standup).
 
-Manual trigger: `~/.claude/skills/perry/bin/perry-update-check --force` (bypasses throttle).
+Manual trigger: `bash "${PERRY_HOME:-$HOME/.claude/skills/perry}/bin/perry-update-check" --force` (bypasses throttle).
 
 The script is invoked from the standup ritual of every child (`okr` / `pmo` / `design`), so triggering any of `/perry`, `/okr`, `/pmo`, `/design` covers it. If the skill source is not a git checkout (e.g., extracted from a tarball), the check exits silently.
 
