@@ -1,32 +1,28 @@
-# DECISIONS — {{project_name}}
+# Decisions index — {{project_name}}
 
-> ADR-style log. Append-only. Edited by the `pmo decide` subcommand.
-> Each decision is immutable once written. To change a decision, append a new
-> entry that supersedes the old one (link the old id in `Supersedes:`).
+> Auto-maintained by PMO on every `/pmo decide` / status flip.
+> Per-decision content lives in `decisions/ADR-NNN-<slug>.md`. This file is index only — keep ≤ 200 lines.
+> Active: 0 · Superseded: 0 · Expired: 0 · Archived: 0
+> Last updated: {{today}}
 
----
+## Active
 
-## ADR-001 — {{title}}
+| ADR | Title | Type | Date | Sunset / Notes |
+|---|---|---|---|---|
+| (none yet) | | | | |
 
-- **Date**: {{date}}
-- **Type**: {{Trading | Process | Architecture | Tooling}}
-- **Status**: {{Accepted | Superseded by ADR-NNN | Deprecated}}
-- **Supersedes**: —
+<!-- entries look like:
+| [ADR-001](decisions/ADR-001-perry-skill-migration.md) | Adopt Perry skill | Process | 2026-05-06 | — |
+| [ADR-002](decisions/ADR-002-r1z-alphabet-acceptance.md) | R-1-Z 临时接受 ALPHABET 8.18% breach | Trading | 2026-05-06 | 2026-06-30 mandatory action |
+-->
 
-### Context
-{{What situation forced this decision? What constraints applied?}}
+## Superseded / Expired / Archived (historical)
 
-### Options considered
-1. **{{option}}** — {{trade-off in one line}}
-2. **{{option}}** — {{trade-off in one line}}
-3. **{{option}}** — {{trade-off in one line}}
+| ADR | Title | Status | Status date | Replaced by |
+|---|---|---|---|---|
+| (none yet) | | | | |
 
-### Decision
-{{Chosen option and why, in 1–3 sentences.}}
-
-### Consequences
-- ✅ {{what becomes easier}}
-- ⚠️ {{what becomes harder or risky}}
-- 🔁 {{what we'll revisit and when}}
-
----
+<!-- entries look like:
+| [ADR-005](decisions/ADR-005-old-data-pipeline.md) | Old data pipeline choice | superseded | 2026-08-15 | ADR-009 |
+| [ADR-008](decisions/ADR-008-r2-z-temp-accept.md) | R-2-Z temporary acceptance | expired | 2026-10-30 | (no successor — user took action per sunset) |
+-->
