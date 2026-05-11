@@ -42,8 +42,10 @@ At month-end. Reads `BOARD.md` + ALL journal entries for the month + `evidence/<
 
 ## Decisions & risk
 
-### `decide <topic>`
-ADR-style. Walk Context → Options → Chosen → Consequences. Append to `DECISIONS.md` (`state/DECISIONS_TEMPLATE.md`). Tag with `Type:` (e.g., `Process`, `Architecture`, `Trading`).
+### `decide <topic>` / `decide --supersede ADR-NNN` / `decide --expire ADR-NNN` / `decide --archive ADR-NNN`
+ADR-style decision recording with file-per-decision layout. New ADR writes to `decisions/ADR-NNN-<slug>.md` from `state/ADR_TEMPLATE.md`; updates the `DECISIONS.md` index. Status lifecycle: `active → superseded | expired | archived` (files never move; only header field flips). Content written in `.perry/config.md` § Document language. **Full procedure in `reference/decisions.md`** — read that file before running any `decide` variant.
+
+If the project still has the **old monolithic `DECISIONS.md`** (one big file with all ADRs inline, no `decisions/` directory): PMO surfaces a one-time migration suggestion in the standup. The migration is a manual interactive operation — no dedicated subcommand. See `reference/decisions.md § Migration` for the procedure PMO walks the user through.
 
 ### `risk`
 Print and triage risks in `PROJECT_STATE.md ## Risks`. For each: still valid? severity changed? mitigation in place? owner? Update accordingly.

@@ -39,7 +39,7 @@ Perry pairs **goal-setting** with **execution stewardship** and **design-doc ste
 | Skill | Role | Owns | Reads from peer |
 |-------|------|------|------------------|
 | **`okr`** | The "why" — goal-setting partner | `OKR.md` (versioned, with Operating Principles + Anti-Goals), `monthly/<YYYY-MM>.md` (Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing) | `BOARD.md`, `evidence/<YYYY-MM>/retro.md` |
-| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` + `knowledge/<topic>/` (external-doc digests) | `OKR.md`, `monthly/<YYYY-MM>.md` |
+| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md` (index) + `decisions/ADR-NNN-<slug>.md` (per-decision ADR files), `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` + `knowledge/<topic>/` (external-doc digests) | `OKR.md`, `monthly/<YYYY-MM>.md` |
 | **`design`** | The "decided" — RFC steward | `design/<DESIGN-ID>-<slug>.md` (Problem, Goals, Non-Goals, User Decisions, Architecture, Implementation plan, Risks, Changes) | `OKR.md`, `monthly/<YYYY-MM>.md`, `BOARD.md` |
 
 Both skills run a mandatory snapshot/standup the moment they're invoked, so you always start from the actual state of your files instead of vibes.
@@ -93,6 +93,8 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 **External-doc digests (PMO):** `inputs/` is the raw drop zone for PDFs / Excels / screenshots / pasted text the user hands PMO. `/pmo digest <path>` reads the source, drafts a structured summary (TL;DR + Key facts with citations + Open questions + What PMO must remember + Section map), verifies key facts with the user via `AskUserQuestion`, then moves both source and digest into `knowledge/<topic>/`. Subsequent specs / decisions / journal cite the digest by path instead of re-reading the source. Digests carry a `Status: active | eternal | archived | superseded` field; archive review runs automatically inside `mid-month-review` and `end-month-retro`. **Bounded scope** — design target is 5–30 active digests per project; this is human-style note-taking, not RAG. See `pmo/reference/digests.md` for the full spec.
 
+**Decisions split (PMO):** `DECISIONS.md` at the project root is **an index only** (≤200 lines): a table of all ADRs with ID / Title / Type / Date / Status + link to the per-decision file. The full reasoning lives in `decisions/ADR-NNN-<slug>.md` — one file per ADR with Context / Options / Chosen / Consequences / Evidence / Sunset criteria. `/pmo decide <topic>` creates new ADRs in the configured document language; `--supersede` / `--expire` / `--archive` manage the lifecycle (files never move on status change, only header flips). Standup reads index-only — per-decision content loaded on demand. Same scaling pattern as BOARD.md vs `journal/`. See `pmo/reference/decisions.md`.
+
 **Autopilot (PMO):** `/pmo autopilot` walks BOARD top-to-bottom and dispatches every safe-to-dispatch row until budget exhausts (default 10 dispatches / 2h / 3 failures). First run per project is forced dry-run + briefing. Hard safety rails: never auto-`done`, never modify specs, never override hook safety list, never auto-retry. Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. See `pmo/reference/autopilot.md`.
 
 ## Typical flow (first time, any project)
@@ -136,7 +138,11 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 │       ├── 2026-05-02.md
 │       └── ...                          ← one file per day; append-only after the day ends
 ├── PROJECT_STATE.md                     ← pmo (cross-monthly dashboard)
-├── DECISIONS.md                         ← pmo (ADR log, all months)
+├── DECISIONS.md                         ← pmo (INDEX only, ≤200 lines)
+├── decisions/
+│   ├── ADR-001-pmo-bootstrap.md         ← pmo (one file per decision; Context/Options/Chosen/Consequences)
+│   ├── ADR-002-r1z-alphabet.md          ← Status: active | superseded | expired | archived (header field; files don't move)
+│   └── ...
 ├── design/
 │   └── DESIGN-001-process-mgmt.md       ← design (RFC)
 ├── evidence/

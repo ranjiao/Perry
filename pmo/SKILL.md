@@ -18,6 +18,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-month-review` / `end-month-retro` |
+| `reference/decisions.md` | `/pmo decide <topic>` and `--supersede` / `--expire` / `--archive` (ADR lifecycle + `decisions/` split + language rule) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-month-review`, `end-month-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), monthly (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
@@ -65,7 +66,8 @@ Always run this before anything else, even if the user asked a specific question
 2. **Read live state**:
    - `BOARD.md` (current open work — the working memory)
    - `PROJECT_STATE.md` (cross-monthly dashboard)
-   - `DECISIONS.md` (most recent 5 entries)
+   - `DECISIONS.md` (index only — counts + most recent active ADR. Do NOT load per-decision files unless a current question requires one; see `reference/decisions.md § Standup integration`.)
+   - **Sunset check**: scan `DECISIONS.md` Active section for ADRs with date-based sunset criteria that have passed today's date. If any: surface 🚨 in dashboard, suggest `/pmo decide --expire ADR-NNN`.
    If any are missing, see Bootstrap.
 
 3. **Read recent history** — only the last 1–2 days of journal:
@@ -187,7 +189,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `mid-month-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midmonth-review.md` | `reference/subcommands.md` |
 | `end-month-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
-| `decide <topic>` | ADR-style; append to `DECISIONS.md` | `reference/subcommands.md` |
+| `decide <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates `DECISIONS.md` index. `--supersede ADR-NNN` / `--expire ADR-NNN` / `--archive ADR-NNN` manage lifecycle. Content written in `.perry/config.md` § Document language. | `reference/decisions.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
@@ -217,7 +219,8 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `BOARD.md` | pmo | **Live working memory.** Current open work only — terse rows, no narrative. P0 / P1 / P2 / Cadence tables + User Input Queue + 1-line risk pointers. Closed tasks leave this file. **Hard cap: ≤200 lines.** | `state/BOARD_TEMPLATE.md` |
 | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | pmo | **Daily append-only history.** One file per day. Sections: Status changes / New tasks added / Decisions / Notes / Carry to tomorrow. Frozen after the day ends. | `state/journal_TEMPLATE.md` |
 | `PROJECT_STATE.md` | pmo | Cross-monthly living dashboard: phase, week, top risks, recent cross-session work, multi-month carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
-| `DECISIONS.md` | pmo | Append-only ADR log (single file, all months) | `state/DECISIONS_TEMPLATE.md` |
+| `DECISIONS.md` | pmo | **Index only** — table of active + historical ADRs with links to per-decision files. ≤ 200 lines. | `state/DECISIONS_TEMPLATE.md` |
+| `decisions/ADR-NNN-<slug>.md` | pmo | One ADR per file: Context / Options / Chosen / Consequences / Evidence / Sunset criteria. Append-only after creation (status flips append `## Status change` entries; never edit Chosen/Consequences in place). | `state/ADR_TEMPLATE.md` |
 | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | pmo | Per-task artifacts: spec files, reports, checklists, drill records, gap lists, retros | `state/evidence_TEMPLATE.md` |
 | `weekly/<YYYY-WW>.md` | pmo | One ISO week's status report | `state/weekly_TEMPLATE.md` |
 | `handoff/<YYYY-MM-DD>.md` | pmo | Session resumption doc | `state/handoff_TEMPLATE.md` |
@@ -244,8 +247,9 @@ If yes:
 2. Create at the project root:
    - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
    - `PROJECT_STATE.md` (from template)
-   - `DECISIONS.md` (from template, ADR-001 stub recording bootstrap)
-   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`
+   - `DECISIONS.md` (from `state/DECISIONS_TEMPLATE.md` — index only)
+   - `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` (Type: Process, Status: active, records the bootstrap event). DECISIONS.md index gets the matching ADR-001 row added.
+   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
