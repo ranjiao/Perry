@@ -185,19 +185,16 @@ On `/pmo` bootstrap (per `SKILL.md § Bootstrap`):
 
 ## Migration: old monolithic `DECISIONS.md`
 
-If PMO standup detects `DECISIONS.md` is the **old monolithic format** (contains `## ADR-NNN` headers + content directly, no `decisions/` directory), surface in the standup's suggestions:
+Projects that adopted Perry before this split still have a single-file `DECISIONS.md` with all ADRs inline. Migration is a **one-time manual operation** the user runs interactively with PMO — no dedicated subcommand. Procedure:
 
-> "DECISIONS.md is the old single-file format. Run `/pmo decide --migrate-from-monolithic` to split into `decisions/` and rebuild index."
-
-Migration procedure (`--migrate-from-monolithic`):
-1. Read old `DECISIONS.md` top-to-bottom; identify ADR boundaries (lines matching `^## ADR-NNN — `).
-2. For each ADR: extract content, parse Type / Status / Date / Supersedes from the header section, slug the title.
-3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields).
-4. Rebuild `DECISIONS.md` as the index.
+1. PMO reads the old `DECISIONS.md` top-to-bottom; identifies ADR boundaries (lines matching `^## ADR-NNN — `).
+2. For each ADR: extract content; parse Type / Status / Date / Supersedes from the header section; slug the title (≤8 words, lowercase, hyphenated).
+3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `state/ADR_TEMPLATE.md`).
+4. Rewrite `DECISIONS.md` as the index per `state/DECISIONS_TEMPLATE.md`. Active section + Superseded / Expired / Archived sections.
 5. Append journal entry: `Migrated N ADRs from monolithic DECISIONS.md to decisions/ split.`
-6. Show diff summary to user before commit.
+6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
-Migration is one-shot and irreversible (the old format is lost in git history, but git history preserves the original). After migration, `/pmo decide` always uses the new layout.
+When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), surface the migration suggestion in the standup's "next actions" list; user kicks off the migration in chat. PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
 
 ## Per-project hook overrides
 
