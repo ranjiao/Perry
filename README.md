@@ -4,33 +4,36 @@
 
 A three-skill set for **Claude Code** and **Codex CLI** that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session.
 
-## 🚀 One-paste install (Claude Code)
+## 🚀 One-paste install
 
-Copy the prompt below and paste it into a fresh Claude Code session. Claude clones Perry, runs `setup` (which creates the child symlinks so `/okr`, `/pmo`, `/design` show up as top-level slash commands too), and verifies all four.
+`setup` auto-detects which agent host(s) you have (`claude` and/or `codex` in PATH) and installs Perry for whichever it finds. No flag needed if you only use one of them.
+
+### Paste into a fresh Claude Code or Codex CLI session
 
 ```
-Install the Perry Claude skill from https://github.com/ranjiao/Perry
+Install the Perry skill set from https://github.com/ranjiao/Perry.
 
 Steps:
-1. Run: mkdir -p ~/.claude/skills && git clone https://github.com/ranjiao/Perry.git ~/.claude/skills/perry && ~/.claude/skills/perry/setup
-2. Confirm /perry, /okr, /pmo, and /design are now available as slash commands.
+1. Run: mkdir -p ~/proj && git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup --yes-deps
+2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, surface those to me as TODOs — those need my consent (GUI / sudo).
+3. Confirm /perry, /okr, /pmo, /design are available.
 ```
+
+The agent's Bash tool isn't a TTY, so `setup` automatically switches to **auto-skip mode** — runs the dep check, surfaces what's missing, but won't block on Y/N prompts or sudo passwords. Adding `--yes-deps` opts into auto-installing what's installable non-interactively. Items that need GUI (Xcode CLT) or sudo (Homebrew) are listed as TODOs at the end for the user to handle.
 
 > Already have Perry installed? Update with:
-> `cd ~/.claude/skills/perry && git pull`
+> `cd ~/proj/Perry && git pull`
 
-## 🚀 Install (Codex CLI)
+### Host selection
 
-Codex CLI uses the same `SKILL.md` frontmatter format as Claude Code, just from a different skills directory ([per the Codex Skills docs](https://developers.openai.com/codex/skills)): `~/.agents/skills/`. The same `setup` script handles both hosts:
+| Command | What gets installed |
+|---|---|
+| `~/proj/Perry/setup` | Auto-detect: install for whichever of `claude` / `codex` is in PATH. Both → both. Neither → fail with options. |
+| `~/proj/Perry/setup --claude` | Force install for Claude Code only (`~/.claude/skills/`). |
+| `~/proj/Perry/setup --codex` | Force install for Codex CLI only (`~/.agents/skills/`). |
+| `~/proj/Perry/setup --claude --codex` | Install for both regardless of detection. |
 
-```bash
-git clone https://github.com/ranjiao/Perry ~/proj/Perry
-~/proj/Perry/setup --codex          # see flag note below
-```
-
-> **What `--codex` does**: setup *always* installs to `~/.claude/skills/` (Claude Code's location); `--codex` *additionally* installs to `~/.agents/skills/` (Codex's location). If you only use Codex, the `~/.claude/skills/perry` symlinks are inert clutter — harmless if you don't have Claude Code installed, and free coverage if you ever try Claude Code later. There is no Claude-Code-only flag because that's the default; there is no Codex-only flag (yet) because the Claude Code symlinks have no runtime cost.
-
-After install, inside `codex` invoke Perry via `/skills` (pick perry / okr / pmo / design), `$perry` / `$okr` / `$pmo` / `$design` (explicit mention), or just describe the task and let Codex match the description. See [INSTALL.md § Codex CLI](INSTALL.md#codex-cli) for verification + per-host fallbacks (free-text prompts replace `AskUserQuestion`, `Executor: claude-subagent` is refused, async dispatch uses shell `&`).
+See **[INSTALL.md](INSTALL.md)** for the agent-driven install flow, the fresh-Mac dependency matrix (Xcode CLT / Homebrew / Node / etc.), and per-host fallbacks for Codex (free-text prompts replace `AskUserQuestion`, async dispatch uses shell `&`, etc.).
 
 ## What Perry does
 
