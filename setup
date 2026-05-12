@@ -106,6 +106,25 @@ esac
 
 dep_present() { command -v "$1" >/dev/null 2>&1; }
 
+# ─── TTY / agent-context detection ────────────────────────────
+# When invoked by Claude Code / Codex CLI / any agent's Bash tool, stdin
+# is typically NOT a TTY. Interactive Y/N prompts (`read -r`) would hang
+# or return EOF, leaving the user with no idea what was skipped. Detect
+# this and switch DEPS_MODE from "prompt" to a non-blocking variant
+# ("auto-skip") that still runs the dep CHECK but never tries to install
+# or read from stdin.
+IS_INTERACTIVE=1
+if [ ! -t 0 ]; then IS_INTERACTIVE=0; fi
+
+if [ "$IS_INTERACTIVE" -eq 0 ] && [ "$DEPS_MODE" = "prompt" ]; then
+  DEPS_MODE="auto-skip"   # internal: check + report, skip all installs
+fi
+
+# Tracks items skipped in auto-skip mode so we can surface a clear "next
+# steps" summary at the end of Phase 0 (the agent can relay these to the
+# user as TODOs).
+DEPS_SKIPPED_INSTALL=()
+
 # ─── Host selection: which hosts are we installing for? ───────
 INSTALL_CLAUDE=0
 INSTALL_CODEX=0
@@ -144,9 +163,11 @@ DEPS_MISSING_SOFT=()
 DEPS_MISSING_OPTIONAL=()
 
 confirm() {
-  if [ "$DEPS_MODE" = "yes" ]; then return 0; fi
-  if [ "$DEPS_MODE" = "no" ];  then return 1; fi
-  if [ "$DEPS_MODE" = "check-only" ]; then return 1; fi
+  case "$DEPS_MODE" in
+    yes)                     return 0 ;;
+    no|check-only|auto-skip) return 1 ;;
+  esac
+  # Interactive prompt (TTY only — auto-skip handles non-TTY already)
   local prompt="$1"
   local reply
   printf "%s [Y/n] " "$prompt"
@@ -164,6 +185,11 @@ check_deps() {
     [ "$INSTALL_CLAUDE" -eq 1 ] && printf "claude-code "
     [ "$INSTALL_CODEX"  -eq 1 ] && printf "codex-cli"
   )"
+  if [ "$IS_INTERACTIVE" -eq 0 ]; then
+    log "  ℹ️  Non-interactive stdin (likely run by an agent's Bash tool)."
+    log "     Mode: $DEPS_MODE — will check + report, but skip any install that would prompt for input or sudo."
+    log "     To install missing deps automatically, re-run with --yes-deps (note: Homebrew install still needs sudo)."
+  fi
 
   # --- Always required ---
   for c in bash curl perl; do
@@ -277,10 +303,18 @@ install_homebrew() {
   [ "$IS_MAC" -eq 0 ] && return 0
   dep_present brew && return 0
   log ""
-  log "📦 Homebrew installer will run (you may be prompted for your password):"
+  log "📦 Homebrew installer (needs sudo password during install):"
   log "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
   if confirm "  Install Homebrew now?"; then
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    # NONINTERACTIVE=1 skips "press RETURN to continue" but does NOT skip
+    # sudo. On a fresh Mac, the sudo prompt will still appear (interactive
+    # only). When this script is invoked by an agent's Bash tool (no TTY),
+    # confirm() returns 1 in auto-skip mode and we never reach this line.
+    if [ "$DEPS_MODE" = "yes" ]; then
+      NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    else
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
     if [ -x /opt/homebrew/bin/brew ]; then
       eval "$(/opt/homebrew/bin/brew shellenv)"
     elif [ -x /usr/local/bin/brew ]; then
@@ -292,6 +326,7 @@ install_homebrew() {
     fi
   else
     log "  Skipped Homebrew install."
+    DEPS_SKIPPED_INSTALL+=("Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
     return 1
   fi
 }
@@ -301,12 +336,15 @@ install_coreutils() {
   dep_present gtimeout && return 0
   if ! dep_present brew; then
     log "  (coreutils needs Homebrew — skipping; you can install later: brew install coreutils)"
+    DEPS_SKIPPED_INSTALL+=("coreutils (needs Homebrew first): brew install coreutils")
     return 0
   fi
   log ""
   log "📦 coreutils (provides gtimeout):"
   if confirm "  brew install coreutils now?"; then
     brew install coreutils
+  else
+    DEPS_SKIPPED_INSTALL+=("coreutils: brew install coreutils")
   fi
 }
 
@@ -314,12 +352,15 @@ install_node() {
   dep_present node && return 0
   if ! dep_present brew; then
     log "  (Node.js needs Homebrew or a separate install — skipping)"
+    DEPS_SKIPPED_INSTALL+=("Node.js (needs Homebrew first): brew install node")
     return 0
   fi
   log ""
   log "📦 Node.js (needed only for codex CLI):"
   if confirm "  brew install node now?"; then
     brew install node
+  else
+    DEPS_SKIPPED_INSTALL+=("Node.js: brew install node")
   fi
 }
 
@@ -327,12 +368,15 @@ install_codex_cli() {
   dep_present codex && return 0
   if ! dep_present npm; then
     log "  (codex needs npm — skipping; install Node.js first)"
+    DEPS_SKIPPED_INSTALL+=("codex CLI (needs Node.js first): npm install -g @openai/codex")
     return 0
   fi
   log ""
   log "📦 codex CLI (only needed for codex executor in /pmo dispatch):"
   if confirm "  npm install -g @openai/codex now?"; then
     npm install -g @openai/codex
+  else
+    DEPS_SKIPPED_INSTALL+=("codex CLI: npm install -g @openai/codex")
   fi
 }
 
@@ -383,6 +427,21 @@ if [ "$DEPS_MODE" != "no" ]; then
     for d in "${DEPS_MISSING_SOFT[@]}" "${DEPS_MISSING_OPTIONAL[@]}"; do
       log "  (Linux: install $d via your package manager if you need it)"
     done
+  fi
+
+  # Surface any skipped install actions as a clear "next steps" block.
+  # The agent calling setup can relay this to the user as TODOs.
+  if [ ${#DEPS_SKIPPED_INSTALL[@]} -gt 0 ]; then
+    log ""
+    log "📋 Skipped installs — run these manually if you want the soft/optional deps:"
+    for item in "${DEPS_SKIPPED_INSTALL[@]}"; do
+      log "   • $item"
+    done
+    if [ "$IS_INTERACTIVE" -eq 0 ]; then
+      log ""
+      log "   (Setup is in auto-skip mode because stdin isn't a TTY. To auto-install"
+      log "    everything possible, ask the user to re-run setup interactively, or run with --yes-deps.)"
+    fi
   fi
 
   log ""

@@ -15,6 +15,39 @@ Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/p
 
 `--local` makes the Claude install per-project (`./.claude/skills/`). It has no effect on the Codex install (Codex install is always global at `~/.agents/skills/`).
 
+## Agent-driven install (Claude Code / Codex CLI runs setup for you)
+
+If you paste the one-paste install prompt into a fresh Claude Desktop or Codex CLI session, the agent runs `setup` via its Bash tool. That's a non-interactive context — stdin isn't a TTY — and setup detects this and switches to **auto-skip mode**:
+
+- Phase 0 dependency check still runs (you see exactly what's present/missing)
+- Auto-installs that would block on a Y/N prompt or sudo password are **skipped** (no infinite hangs)
+- Phase 1 symlinks still run
+- A "Skipped installs" block lists copy-paste commands the user can run manually if they want the optional deps
+
+**What blocks in agent context** (and how setup handles it):
+
+| Action | What happens | Setup behavior |
+|---|---|---|
+| `xcode-select --install` (GUI dialog) | Command returns 0 immediately; dialog appears; user must click manually | Setup fails Phase 0 with the command + waits for the user (re-run setup after install) |
+| Homebrew installer | Hits `sudo` password prompt — would block forever on agent's Bash | Skipped in auto-skip mode; user runs the install command from the surfaced TODO list |
+| `brew install coreutils` / `brew install node` | Non-interactive once brew is set up | Skipped (no consent to ask); listed in TODO block |
+| `npm install -g @openai/codex` | Non-interactive | Skipped (no consent to ask); listed in TODO block |
+| `read -r reply` (our Y/N prompts) | Returns EOF on no-TTY | Auto-skip mode bypasses entirely |
+
+**To force auto-install in agent context** (user accepting all side effects ahead of time): pass `--yes-deps`. Note that Homebrew's installer still needs the user's sudo password — `--yes-deps` sets `NONINTERACTIVE=1` (skips Homebrew's "press RETURN" prompt) but cannot bypass macOS's sudo prompt.
+
+Recommended agent-driven install flow (clean room → working Perry):
+
+```
+1. User: install Xcode CLT once (xcode-select --install + click GUI)
+2. User: install Homebrew once (run the curl command from brew.sh — needs sudo)
+3. User: install Claude Code or Codex CLI
+4. Agent: git clone https://github.com/ranjiao/Perry ~/proj/Perry
+5. Agent: ~/proj/Perry/setup --yes-deps      # everything else is automated now
+```
+
+Steps 1-3 are user actions because they need GUI/sudo/external download. After that, the agent can drive everything to completion.
+
 ## Fresh Mac? Read this first
 
 The `setup` script runs a Phase 0 **dependency check** before symlinking. Status icons in the output: ✅ present, ⚠️ recommended but missing, ❌ required and missing.
