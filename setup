@@ -6,11 +6,19 @@
 # Both hosts read SKILL.md frontmatter natively for skill discovery; the
 # install is just a symlink in the host's canonical skills directory.
 #
+# Host selection:
+#   No flag         → auto-detect; install for whichever host(s) are present
+#                     in PATH (claude / codex). Fails if neither is detected
+#                     and no flag forces.
+#   --claude        → force install for Claude Code (~/.claude/skills/)
+#   --codex         → force install for Codex CLI (~/.agents/skills/)
+#   --claude --codex → install for both regardless of detection
+#
 # Before the symlink phase, runs a dependency check (Phase 0). On a fresh
 # macOS, several deps may be missing — git (Xcode CLT), Homebrew, gtimeout
-# (coreutils), Node.js (for codex), codex CLI, Claude Code itself. The
-# script reports each, and with --yes-deps will auto-install the ones that
-# can be installed non-interactively.
+# (coreutils), Node.js (for codex), codex CLI. The script reports each, and
+# with --yes-deps will auto-install the ones that can be installed
+# non-interactively.
 set -e
 
 SETUP_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,26 +27,34 @@ SOURCE_DIR="$(cd "$(dirname "$0")" && pwd -P)"   # resolves symlinks
 # ─── Parse flags ──────────────────────────────────────────────
 LOCAL=0
 QUIET=0
-CODEX=0
+EXPLICIT_CLAUDE=0
+EXPLICIT_CODEX=0
+ANY_EXPLICIT=0
 DEPS_MODE="prompt"  # prompt | yes | no | check-only
 while [ $# -gt 0 ]; do
   case "$1" in
     --local)            LOCAL=1; shift ;;
-    --codex)            CODEX=1; shift ;;
+    --claude)           EXPLICIT_CLAUDE=1; ANY_EXPLICIT=1; shift ;;
+    --codex)            EXPLICIT_CODEX=1;  ANY_EXPLICIT=1; shift ;;
     --quiet)            QUIET=1; shift ;;
     --yes-deps)         DEPS_MODE="yes"; shift ;;
     --no-deps)          DEPS_MODE="no"; shift ;;
     --check-deps-only)  DEPS_MODE="check-only"; shift ;;
     -h|--help)
       cat <<'USAGE'
-Perry setup — register the Perry skill set with your host (Claude Code or Codex CLI).
+Perry setup — register the Perry skill set with your host (Claude Code or Codex CLI or both).
 
-Usage: setup [--local] [--codex] [--yes-deps|--no-deps|--check-deps-only] [--quiet]
+Usage: setup [--claude] [--codex] [--local] [--yes-deps|--no-deps|--check-deps-only] [--quiet]
 
-Install targets:
-  (no flag)   Claude Code, global: install to ~/.claude/skills/
-  --local     Claude Code, per-project: install to ./.claude/skills/
-  --codex     Also install to ~/.agents/skills/ for Codex CLI.
+Host selection:
+  (no flag)   Auto-detect: install for whichever of claude / codex is in
+              PATH. Both → install both. Neither → fail with instructions.
+  --claude    Force install for Claude Code (~/.claude/skills/).
+  --codex     Force install for Codex CLI    (~/.agents/skills/).
+              Combine --claude --codex to force both regardless of detection.
+
+  --local     Per-project Claude Code install (./.claude/skills/).
+              Has no effect on Codex install — Codex install is always global.
 
 Dependency handling (Phase 0, runs before symlink phase):
   (default)            Check deps; prompt for each missing one.
@@ -53,16 +69,17 @@ Dependency handling (Phase 0, runs before symlink phase):
 
 What setup does:
   Phase 0 — dependency check (skippable with --no-deps):
-    git, curl, bash, perl     — required, pre-installed on Mac (git via Xcode CLT)
+    git, curl, bash, perl     — always required (pre-installed on Mac;
+                                Xcode CLT prompts for git on first run)
+    claude                    — required only if installing for Claude Code
+    codex                     — required only if installing for Codex CLI
+                                (also useful as an executor regardless of host)
     Homebrew                  — optional gate for other Mac installs
     coreutils (gtimeout)      — soft; Perry's codex preflight uses timeout
-                                if available, else runs unprotected (warning).
-    Node.js + npm             — optional; only needed for codex executor.
-    codex CLI (npm i -g)      — optional; only if you use the codex executor.
-    Claude Code               — required for Claude Code host; not auto-installable
-                                (download from claude.com/download).
+                                if available, else runs unprotected (warning)
+    Node.js + npm             — required for `npm install -g @openai/codex`
 
-  Phase 1 — symlink:
+  Phase 1 — symlink (per selected host):
     For each target skills directory:
       1. Symlinks perry/ → this script's source.
       2. Symlinks each child skill (okr, pmo, design) as a sibling pointing
@@ -87,23 +104,49 @@ case "$OS" in
   Linux*)  IS_LINUX=1 ;;
 esac
 
-# ─── Phase 0: dependency check ────────────────────────────────
-# Each dep returns 0 if present, 1 if missing. After all checks, we decide
-# what to install based on DEPS_MODE.
-
-DEPS_MISSING_REQUIRED=()  # halt if non-empty
-DEPS_MISSING_SOFT=()       # warn but proceed
-DEPS_MISSING_OPTIONAL=()   # info; only matters if user wants the feature
-
 dep_present() { command -v "$1" >/dev/null 2>&1; }
 
+# ─── Host selection: which hosts are we installing for? ───────
+INSTALL_CLAUDE=0
+INSTALL_CODEX=0
+
+if [ "$ANY_EXPLICIT" -eq 1 ]; then
+  # User specified at least one of --claude / --codex — honor their choice
+  INSTALL_CLAUDE=$EXPLICIT_CLAUDE
+  INSTALL_CODEX=$EXPLICIT_CODEX
+else
+  # Auto-detect from PATH
+  dep_present claude && INSTALL_CLAUDE=1 || true
+  dep_present codex  && INSTALL_CODEX=1  || true
+fi
+
+if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
+  warn ""
+  warn "❌ No host detected and no --claude/--codex flag given."
+  warn ""
+  warn "Perry installs as a skill for either Claude Code or Codex CLI (or both)."
+  warn "Detection looks for the 'claude' or 'codex' binaries in PATH."
+  warn ""
+  warn "Options:"
+  warn "  1. Install Claude Code from https://claude.com/download and re-run setup."
+  warn "  2. Install Codex CLI: npm install -g @openai/codex  (needs Node.js)"
+  warn "  3. Run with explicit flag if a host is installed but not in PATH:"
+  warn "       ~/proj/Perry/setup --claude"
+  warn "       ~/proj/Perry/setup --codex"
+  warn "       ~/proj/Perry/setup --claude --codex"
+  exit 1
+fi
+
+# ─── Phase 0: dependency check ────────────────────────────────
+
+DEPS_MISSING_REQUIRED=()
+DEPS_MISSING_SOFT=()
+DEPS_MISSING_OPTIONAL=()
+
 confirm() {
-  # confirm "prompt text" → returns 0 if yes, 1 if no.
-  # --yes-deps treats all as yes; --no-deps treats all as no.
   if [ "$DEPS_MODE" = "yes" ]; then return 0; fi
   if [ "$DEPS_MODE" = "no" ];  then return 1; fi
   if [ "$DEPS_MODE" = "check-only" ]; then return 1; fi
-  # Interactive prompt
   local prompt="$1"
   local reply
   printf "%s [Y/n] " "$prompt"
@@ -117,8 +160,12 @@ confirm() {
 check_deps() {
   log ""
   log "── Phase 0: dependency check ─────────────────────────────"
+  log "  Installing for: $(
+    [ "$INSTALL_CLAUDE" -eq 1 ] && printf "claude-code "
+    [ "$INSTALL_CODEX"  -eq 1 ] && printf "codex-cli"
+  )"
 
-  # --- Required, expected on every system ---
+  # --- Always required ---
   for c in bash curl perl; do
     if dep_present "$c"; then
       log "  ✅ $c          ($(command -v "$c"))"
@@ -128,7 +175,7 @@ check_deps() {
     fi
   done
 
-  # --- git — Mac needs Xcode CLT ---
+  # --- git ---
   if dep_present git && git --version >/dev/null 2>&1; then
     log "  ✅ git         ($(command -v git))"
   else
@@ -141,16 +188,41 @@ check_deps() {
     DEPS_MISSING_REQUIRED+=("git")
   fi
 
-  # --- Claude Code (required if using Claude Code host) ---
-  if dep_present claude; then
-    log "  ✅ claude      ($(command -v claude))"
+  # --- claude (only required if installing Claude host) ---
+  if [ "$INSTALL_CLAUDE" -eq 1 ]; then
+    if dep_present claude; then
+      log "  ✅ claude      ($(command -v claude))"
+    else
+      log "  ❌ claude      (REQUIRED for Claude Code install target)"
+      log "                 → install from https://claude.com/download"
+      log "                 (Or drop --claude / pass --codex only if you don't use Claude Code.)"
+      DEPS_MISSING_REQUIRED+=("claude")
+    fi
   else
-    log "  ⚠️  claude      (Claude Code CLI not in PATH — install from https://claude.com/download)"
-    log "                 (Not auto-installable. Required for the default install target.)"
-    DEPS_MISSING_REQUIRED+=("claude")
+    if dep_present claude; then
+      log "  ℹ️  claude      (in PATH, but install target is Codex-only — skipping Claude install)"
+    fi
   fi
 
-  # --- Homebrew (Mac only, optional but gates several others) ---
+  # --- codex (required if installing Codex host; otherwise optional executor) ---
+  if [ "$INSTALL_CODEX" -eq 1 ]; then
+    if dep_present codex; then
+      log "  ✅ codex       ($(command -v codex) — $(codex --version 2>/dev/null | head -1))"
+    else
+      log "  ❌ codex       (REQUIRED for Codex CLI install target)"
+      log "                 → install: npm install -g @openai/codex   (needs Node.js)"
+      DEPS_MISSING_REQUIRED+=("codex")
+    fi
+  else
+    if dep_present codex; then
+      log "  ✅ codex       ($(command -v codex) — $(codex --version 2>/dev/null | head -1)) — available as executor"
+    else
+      log "  ℹ️  codex       (optional — only if you use codex executor in /pmo dispatch)"
+      DEPS_MISSING_OPTIONAL+=("codex")
+    fi
+  fi
+
+  # --- Homebrew (Mac only) ---
   if [ "$IS_MAC" -eq 1 ]; then
     if dep_present brew; then
       log "  ✅ brew        ($(command -v brew))"
@@ -160,7 +232,7 @@ check_deps() {
     fi
   fi
 
-  # --- gtimeout / timeout (soft — codex preflight uses if available) ---
+  # --- timeout / gtimeout (soft) ---
   if dep_present timeout || dep_present gtimeout; then
     local which_timeout
     which_timeout="$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null)"
@@ -171,25 +243,17 @@ check_deps() {
     DEPS_MISSING_SOFT+=("coreutils")
   fi
 
-  # --- Node.js (optional, needed for codex CLI) ---
+  # --- Node.js (optional, for codex install path) ---
   if dep_present node; then
     log "  ✅ node        ($(command -v node) — $(node --version 2>/dev/null))"
   else
-    log "  ℹ️  node        (optional — needed only for codex executor)"
+    log "  ℹ️  node        (optional — needed only for codex install / executor)"
     DEPS_MISSING_OPTIONAL+=("node")
-  fi
-
-  # --- codex CLI (optional, only for codex executor) ---
-  if dep_present codex; then
-    log "  ✅ codex       ($(command -v codex) — $(codex --version 2>/dev/null | head -1))"
-  else
-    log "  ℹ️  codex       (optional — only if you use codex executor in /pmo dispatch)"
-    DEPS_MISSING_OPTIONAL+=("codex")
   fi
 
   log ""
 
-  # --- Decide what to do ---
+  # --- Decision summary ---
   if [ ${#DEPS_MISSING_REQUIRED[@]} -gt 0 ]; then
     log "Required missing: ${DEPS_MISSING_REQUIRED[*]}"
   fi
@@ -210,15 +274,13 @@ check_deps() {
 # ─── Installer helpers ────────────────────────────────────────
 
 install_homebrew() {
-  if [ "$IS_MAC" -eq 0 ]; then return 0; fi
-  if dep_present brew; then return 0; fi
+  [ "$IS_MAC" -eq 0 ] && return 0
+  dep_present brew && return 0
   log ""
   log "📦 Homebrew installer will run (you may be prompted for your password):"
   log "   /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
   if confirm "  Install Homebrew now?"; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    # Apple Silicon brew installs to /opt/homebrew; PATH may not include it
-    # in the current shell. Source the shellenv inline.
     if [ -x /opt/homebrew/bin/brew ]; then
       eval "$(/opt/homebrew/bin/brew shellenv)"
     elif [ -x /usr/local/bin/brew ]; then
@@ -235,7 +297,8 @@ install_homebrew() {
 }
 
 install_coreutils() {
-  if dep_present timeout || dep_present gtimeout; then return 0; fi
+  dep_present timeout && return 0
+  dep_present gtimeout && return 0
   if ! dep_present brew; then
     log "  (coreutils needs Homebrew — skipping; you can install later: brew install coreutils)"
     return 0
@@ -248,7 +311,7 @@ install_coreutils() {
 }
 
 install_node() {
-  if dep_present node; then return 0; fi
+  dep_present node && return 0
   if ! dep_present brew; then
     log "  (Node.js needs Homebrew or a separate install — skipping)"
     return 0
@@ -260,8 +323,8 @@ install_node() {
   fi
 }
 
-install_codex() {
-  if dep_present codex; then return 0; fi
+install_codex_cli() {
+  dep_present codex && return 0
   if ! dep_present npm; then
     log "  (codex needs npm — skipping; install Node.js first)"
     return 0
@@ -278,24 +341,23 @@ install_codex() {
 if [ "$DEPS_MODE" != "no" ]; then
   check_deps
 
-  # If REQUIRED missing (git / claude / bash / curl / perl), don't auto-install
-  # silently — these need user action (Xcode CLT GUI / Claude Code download).
-  # Surface them and exit unless --no-deps.
   if [ ${#DEPS_MISSING_REQUIRED[@]} -gt 0 ]; then
     warn ""
     warn "❌ Required dependencies missing: ${DEPS_MISSING_REQUIRED[*]}"
     for d in "${DEPS_MISSING_REQUIRED[@]}"; do
       case "$d" in
         git)
-          if [ "$IS_MAC" -eq 1 ]; then
-            warn "   Run:  xcode-select --install   (then re-run this setup)"
-          else
-            warn "   Install git via your distro's package manager."
-          fi
+          [ "$IS_MAC" -eq 1 ] \
+            && warn "   Run:  xcode-select --install   (then re-run this setup)" \
+            || warn "   Install git via your distro's package manager."
           ;;
         claude)
           warn "   Download Claude Code: https://claude.com/download"
-          warn "   (If you only use Codex CLI, pass --codex AND --no-deps to skip this check.)"
+          warn "   (Or drop --claude / pass --codex only if you don't use Claude Code.)"
+          ;;
+        codex)
+          warn "   Install codex: npm install -g @openai/codex   (needs Node.js)"
+          warn "   (Or drop --codex / pass --claude only if you don't use Codex CLI.)"
           ;;
         *)
           warn "   $d is missing — install before re-running setup."
@@ -307,14 +369,17 @@ if [ "$DEPS_MODE" != "no" ]; then
     exit 1
   fi
 
-  # Soft + optional installs (Mac-friendly + brew-mediated)
+  # Soft + optional installs (Mac auto-installs via brew)
   if [ "$IS_MAC" -eq 1 ]; then
     install_homebrew || true
     install_coreutils || true
-    install_node || true
-    install_codex || true
+    # Only offer Node + codex CLI if user is installing Codex host OR explicitly
+    # told us about codex via --yes-deps. Don't push it on Claude-only users.
+    if [ "$INSTALL_CODEX" -eq 1 ] || [ "$DEPS_MODE" = "yes" ]; then
+      install_node || true
+      install_codex_cli || true
+    fi
   else
-    # Linux: skip the brew flow; just note remaining missing optional deps
     for d in "${DEPS_MISSING_SOFT[@]}" "${DEPS_MISSING_OPTIONAL[@]}"; do
       log "  (Linux: install $d via your package manager if you need it)"
     done
@@ -333,7 +398,6 @@ install_at() {
 
   local perry_target="$host_dir/perry"
 
-  # Step 1: ensure perry/ symlink at the target
   if [ "$SETUP_DIR" = "$perry_target" ]; then
     log "  [$label] perry/ already lives at $perry_target (running from there)"
   elif [ -L "$perry_target" ]; then
@@ -356,7 +420,6 @@ install_at() {
     ln -snf "$SOURCE_DIR" "$perry_target"
   fi
 
-  # Step 2: link child skills as siblings
   if [ ! -d "$perry_target" ]; then
     warn "  [$label] perry directory not found at $perry_target — aborting child link"
     return 1
@@ -383,32 +446,40 @@ install_at() {
     fi
   done
 
-  [ ${#linked[@]} -gt 0 ] && log "  [$label] linked child skills: ${linked[*]}"
-  [ ${#skipped[@]} -gt 0 ] && warn "  [$label] skipped: ${skipped[*]}"
+  [ ${#linked[@]} -gt 0 ]  && log "  [$label] linked child skills: ${linked[*]}"  || true
+  [ ${#skipped[@]} -gt 0 ] && warn "  [$label] skipped: ${skipped[*]}"            || true
   return 0
 }
 
 log ""
 log "── Phase 1: skill symlink ────────────────────────────────"
 
-# Claude Code install (always)
-if [ "$LOCAL" -eq 1 ]; then
-  CC_DIR="$(pwd)/.claude/skills"
-else
-  CC_DIR="$HOME/.claude/skills"
+# Claude Code install
+CC_DIR=""
+if [ "$INSTALL_CLAUDE" -eq 1 ]; then
+  if [ "$LOCAL" -eq 1 ]; then
+    CC_DIR="$(pwd)/.claude/skills"
+  else
+    CC_DIR="$HOME/.claude/skills"
+  fi
+  install_at "$CC_DIR" "claude-code"
 fi
-install_at "$CC_DIR" "claude-code"
 
-# Codex install (with --codex)
-if [ "$CODEX" -eq 1 ]; then
+# Codex install
+CODEX_DIR=""
+if [ "$INSTALL_CODEX" -eq 1 ]; then
+  if [ "$LOCAL" -eq 1 ]; then
+    log ""
+    log "  Note: --local applies to Claude Code only; Codex install always goes to global ~/.agents/skills/"
+  fi
   CODEX_DIR="$HOME/.agents/skills"
   install_at "$CODEX_DIR" "codex"
 
   if [ -z "${PERRY_HOME:-}" ] || [ -z "${PERRY_HOST:-}" ]; then
     log ""
     log "  [codex] Recommended shell exports (so SKILL.md \$PERRY_HOME refs are unambiguous):"
-    [ -z "${PERRY_HOME:-}" ] && log "    export PERRY_HOME=\"$CODEX_DIR/perry\""
-    [ -z "${PERRY_HOST:-}" ] && log "    export PERRY_HOST=codex-cli"
+    [ -z "${PERRY_HOME:-}" ] && log "    export PERRY_HOME=\"$CODEX_DIR/perry\""    || true
+    [ -z "${PERRY_HOST:-}" ] && log "    export PERRY_HOST=codex-cli"                 || true
   fi
 fi
 
@@ -416,11 +487,11 @@ fi
 log ""
 log "Perry ready."
 log "  source       : $SOURCE_DIR"
-log "  claude-code  : $CC_DIR"
-[ "$CODEX" -eq 1 ] && log "  codex        : $HOME/.agents/skills" || true
+[ "$INSTALL_CLAUDE" -eq 1 ] && log "  claude-code  : $CC_DIR"   || true
+[ "$INSTALL_CODEX"  -eq 1 ] && log "  codex        : $CODEX_DIR" || true
 log "  skills       : /perry, /okr, /pmo, /design"
 log ""
-log "  Claude Code: invoke /perry inside a project for the combined dashboard."
-[ "$CODEX" -eq 1 ] && log "  Codex CLI  : invoke /skills, then pick perry — or type \$perry to mention." || true
+[ "$INSTALL_CLAUDE" -eq 1 ] && log "  Claude Code: invoke /perry inside a project for the combined dashboard." || true
+[ "$INSTALL_CODEX"  -eq 1 ] && log "  Codex CLI  : invoke /skills, then pick perry — or type \$perry to mention." || true
 
 exit 0

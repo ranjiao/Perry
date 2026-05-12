@@ -1,6 +1,19 @@
 # Install — Perry
 
-Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** (default) and **Codex CLI**. Pick the install path for your host below; both can coexist on the same machine.
+Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** and **Codex CLI**. Both can coexist on the same machine.
+
+## Host selection
+
+`setup` auto-detects which host(s) you have. No flag needed if you only use one of them.
+
+| Command | What gets installed |
+|---|---|
+| `setup` | Auto-detect: install for whichever of `claude` / `codex` is in your PATH. Both → both. Neither → fail with instructions. |
+| `setup --claude` | Force install for Claude Code only (`~/.claude/skills/`). |
+| `setup --codex` | Force install for Codex CLI only (`~/.agents/skills/`). |
+| `setup --claude --codex` | Force install for both regardless of detection. |
+
+`--local` makes the Claude install per-project (`./.claude/skills/`). It has no effect on the Codex install (Codex install is always global at `~/.agents/skills/`).
 
 ## Fresh Mac? Read this first
 
@@ -26,9 +39,9 @@ Default behavior is **interactive prompts** for each missing optional/soft dep. 
 ~/proj/Perry/setup --no-deps               # skip dep check, just symlink
 ```
 
-## Claude Code
+## Claude Code (host-specific details)
 
-The `setup` script handles this. It links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
+Default install target: `~/.claude/skills/`. The `setup` script links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
 
 ```
 ~/.claude/skills/
@@ -65,15 +78,27 @@ ls ~/.claude/skills | grep -E '^(perry|okr|pmo|design)$'
 
 In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all available.
 
-## Codex CLI
+## Codex CLI (host-specific details)
 
-Codex CLI discovers skills the same way Claude Code does — by reading `SKILL.md` frontmatter (`name` + `description`) from a canonical skills directory. The path is different: Codex scans `$HOME/.agents/skills/` (per the [Codex Skills docs](https://developers.openai.com/codex/skills)), not `~/.claude/skills/`.
+Codex CLI discovers skills the same way Claude Code does — by reading `SKILL.md` frontmatter (`name` + `description`) from a canonical skills directory. The path is different: Codex scans `$HOME/.agents/skills/` (per the [Codex Skills docs](https://developers.openai.com/codex/skills)).
 
-The same `setup` script handles both hosts. Add `--codex` to also install for Codex:
+If you only have Codex installed (no Claude Code), `setup` auto-detects and installs for Codex only:
 
 ```bash
-git clone https://github.com/ranjiao/Perry ~/proj/Perry      # or wherever
-~/proj/Perry/setup --codex                                    # installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
+git clone https://github.com/ranjiao/Perry ~/proj/Perry
+~/proj/Perry/setup                                            # auto-detects Codex; installs to ~/.agents/skills/
+```
+
+To force Codex install (e.g., if Claude is also in PATH but you only want Codex):
+
+```bash
+~/proj/Perry/setup --codex                                    # Codex only — installs to ~/.agents/skills/
+```
+
+To install for both hosts:
+
+```bash
+~/proj/Perry/setup --claude --codex                           # both — installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
 ```
 
 The script creates the same symlink layout under each host's skills dir:
