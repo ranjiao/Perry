@@ -2,6 +2,30 @@
 
 Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** (default) and **Codex CLI**. Pick the install path for your host below; both can coexist on the same machine.
 
+## Fresh Mac? Read this first
+
+The `setup` script runs a Phase 0 **dependency check** before symlinking. Status icons in the output: ✅ present, ⚠️ recommended but missing, ❌ required and missing.
+
+What a brand-new Mac will be missing (and how setup handles it):
+
+| Dep | What it's for | Auto-installable? | How |
+|---|---|---|---|
+| **git** (Xcode CLT) | Cloning Perry + `perry-update-check` | ❌ GUI prompt | Setup fails fast and tells you to run `xcode-select --install` |
+| **Claude Code CLI** | The default install target reads `~/.claude/skills/` | ❌ external download | Setup fails fast with a link to `claude.com/download` |
+| **Homebrew** | Mac package manager (gates several others) | ✅ via the official curl-install script | Interactive prompt; `--yes-deps` auto-installs |
+| **coreutils** (provides `gtimeout`) | Soft: `perry-codex-preflight` uses `timeout` if present, degrades gracefully if not | ✅ `brew install coreutils` | Interactive prompt; `--yes-deps` auto-installs |
+| **Node.js** | Only needed if you use the **codex** executor in `/pmo dispatch` | ✅ `brew install node` | Interactive prompt; `--yes-deps` auto-installs |
+| **codex CLI** | Same — only for codex executor | ✅ `npm install -g @openai/codex` | Interactive prompt; `--yes-deps` auto-installs |
+
+Default behavior is **interactive prompts** for each missing optional/soft dep. Pass `--yes-deps` to accept all auto-installs without prompting, `--no-deps` to skip Phase 0 entirely, or `--check-deps-only` to see the report and exit without installing or symlinking.
+
+```bash
+~/proj/Perry/setup --check-deps-only      # see what's present / missing; exit
+~/proj/Perry/setup                         # default: prompt per missing dep
+~/proj/Perry/setup --yes-deps              # auto-install everything that can be
+~/proj/Perry/setup --no-deps               # skip dep check, just symlink
+```
+
 ## Claude Code
 
 The `setup` script handles this. It links the parent `perry/` once, then creates one relative symlink per child so Claude Code surfaces each as a top-level slash command.
