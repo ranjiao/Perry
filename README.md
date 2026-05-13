@@ -100,6 +100,15 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 **Autopilot (PMO):** `/pmo autopilot` walks BOARD top-to-bottom and dispatches every safe-to-dispatch row until budget exhausts (default 10 dispatches / 2h / 3 failures). First run per project is forced dry-run + briefing. Hard safety rails: never auto-`done`, never modify specs, never override hook safety list, never auto-retry. Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. See `pmo/reference/autopilot.md`.
 
+**Anti-drift discipline — invariants / runbooks / incidents (PMO):** When agents write the code, the user loses both architectural grip and operational grip. Perry's countermeasures (all **optional, lazy-created** — they materialise on first use, not at bootstrap):
+
+- **`architecture/INVARIANTS.md`** — hard + soft structural rules with a runnable `Check:` field per invariant. `/pmo audit` runs every check, cross-references runbook coverage and ADR sunset, and writes a dated report. Dispatch refuses tasks touching hard invariants without explicit user waiver. OKR `plan-month` refuses to write a new month until every open audit violation is addressed (resolve / defer-via-ADR / `Not Doing`). See `pmo/reference/architecture.md`.
+- **`runbook/<component>.md`** — one file per deployed component, four mandatory sections (What it does / How to tell it's healthy / Common failures + canned ops / Escalation). Task specs declare `Deployed: yes | no`; `close-task` refuses to close a `Deployed: yes` task without a matching runbook. `/pmo runbook-check` surfaces gaps. See `pmo/reference/runbooks.md`.
+- **`incidents/<YYYY-MM-DD>-<slug>.md`** — postmortem record per production failure. `/pmo incident close` enforces a 3-question gate (Knowledge / Invariant / Runbook): each question must produce a concrete artifact OR an explicit skip-with-reason. The skip pattern across months is itself a feedback signal — surfaced by `mid-month-review`. See `pmo/reference/incidents.md`.
+- **`/pmo health-check`** — meta-runner that composes audit + runbook-check + digest stale + incident patterns into one report at `evidence/<YYYY-MM>/health-check-<date>.md`. Called inline by `mid-month-review` and `end-month-retro`; can also be invoked manually. See `pmo/reference/health-check.md`.
+
+These four work together: incidents reveal which invariants are missing and which runbooks are wrong; audit catches drift early; runbook keeps the user able to operate the system without reading code. None of them is mandatory, but each is the contract Perry uses to keep an agent-built project under user control.
+
 ## Typical flow (first time, any project)
 
 ```
@@ -168,6 +177,19 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 │   │   └── 2025-12-09-term-sheet-digest.md    ← PMO's structured summary
 │   └── research/
 │       └── jegadeesh-titman-1993-digest.md
+│
+│   # The three below are OPTIONAL — created lazily on first use, not at bootstrap.
+├── architecture/                        ← anti-drift discipline (only if you use /pmo invariant or /pmo audit)
+│   ├── INVARIANTS.md                            ← hard + soft architectural rules with checkable `Check:` field
+│   └── audit-history/
+│       └── 2026-05-13.md                        ← per-run audit report
+├── runbook/                             ← operability of deployed components (only if any spec has `Deployed: yes`)
+│   ├── INDEX.md                                 ← auto-maintained catalog
+│   └── trader-daemon.md                         ← per-component: What / Healthy / Failures / Escalation
+├── incidents/                           ← postmortem records (only if you use /pmo incident)
+│   ├── INDEX.md
+│   └── 2026-05-12-trader-stuck.md               ← timeline + root cause + fix + derived changes
+│
 └── ... (your actual project files)
 ```
 
