@@ -292,6 +292,9 @@ If yes:
 - **Never write to OKR files.** Hand off via chat.
 - **Plain language in chat, IDs in files.** See `reference/conversational.md`.
 - **In-flight board on demand, not by default.** See `reference/conversational.md`.
+- **One topic, one question per reply (R1+R2).** Multiple topics → list them and ask which first. No batched `AskUserQuestion` of unrelated questions. See `reference/conversational.md § Five behavioral rules`.
+- **Plan before produce (R3+R4).** Writing a spec / ADR / ARCHITECTURE edit, or answering an open-ended user question, requires Phase A (propose in chat) → user OK → Phase B (write files). Mechanical single-step work (status flip, close-task on aligned spec, journal append, standup snapshot, dispatch on existing spec) skips Phase A. See `reference/conversational.md § Five behavioral rules`.
+- **Ambiguous input → one clarifying question, not a default (R5).** Don't pick "the reasonable default" and produce based on it.
 - **Read the matching reference file before running a subcommand.** Don't act from memory of an earlier turn.
 
 ## User-Unavailable Degradation
