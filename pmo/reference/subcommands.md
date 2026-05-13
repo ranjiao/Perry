@@ -14,6 +14,9 @@ Walk `BOARD.md` top-to-bottom. For each open row:
 - `done` claim without evidence file in `evidence/<YYYY-MM>/` → revert to `review`
 - Owner is an agent but no recent delegation prompt in chat? → flag
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
+- Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `reference/runbooks.md`).
+- Spec's `Touches invariants:` lists a hard invariant whose latest audit shows unresolved violations → flag with "review against INV-NNN" annotation (see `reference/architecture.md`).
+- Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `reference/incidents.md`).
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Update `BOARD.md`, write a `## Status changes` block in today's journal entry summarizing what moved.
 
@@ -33,10 +36,19 @@ Mid-week pulse. Reads `BOARD.md` + journal entries since Monday. Output: P0 move
 ### `mid-month-review`
 Reads `BOARD.md` + ALL journal entries for the current month (one of the few legit cases for full-month reading). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Mid-Month Scope Reduction Rule** declared in `monthly/<YYYY-MM>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midmonth-review.md`.
 
-**Digest archive review** (added to mid-month-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `monthly/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `reference/digests.md § Archive lifecycle` for full detail.
+**Inline health-check** (added to mid-month-review): run `/pmo health-check` (see `reference/health-check.md`) and fold its findings — audit violations, runbook gaps, incident patterns — into the mid-month-review report. The detailed report lives at `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`; the mid-month-review summarises the top decision items inline.
+
+**Digest archive review** (added to mid-month-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `monthly/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
 
 ### `end-month-retro`
 At month-end. Reads `BOARD.md` + ALL journal entries for the month + `evidence/<YYYY-MM>/`. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md`. This is OKR's input for `plan-month` of the next month.
+
+**Inline health-check** (added to end-month-retro): run `/pmo health-check` (see `reference/health-check.md`). The retro additionally folds in:
+- **Incident feedback-loop ratio**: of all incidents resolved this month, how many produced derived changes (invariant / runbook / digest)? A low ratio + recurring components = a structural problem worth a KR in next month's OKR.
+- **Audit drift trend**: how many invariant violations from the last audit are still open at month-end? Carry them into next month's OKR as either resolution KRs, deferral ADRs, or `Not Doing` lines (see `okr/SKILL.md § plan-month`).
+- **Runbook coverage**: count of deployed components without runbook, vs same count at start of month. Drift in this number is a red flag.
+
+These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" section so OKR's `plan-month` for next month can read them directly.
 
 **Digest archive review** (same procedure as `mid-month-review`; second monthly pass): re-scan archive candidates and process via `AskUserQuestion`. End-of-month is the safer gate — anything still un-referenced after a full month is more likely truly inactive. Also at end-of-month, **rebuild `knowledge/INDEX.md` fully** (not just incrementally): re-grep all references for `Last referenced` dates, recompute counts, alphabetize within topics. Cheap operation (~2-3 sec for 30 digests).
 
@@ -62,12 +74,23 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). Journal entry is the canonical historical record.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
 
-   **Required header fields in every spec file** (used by `dispatch`):
+   **Required header fields in every spec file** (used by `dispatch` and `close-task`):
    ```
    > Dispatch mode: auto | manual               # default 'manual'; 'auto' is explicit opt-in
    > Executor: claude-subagent | codex | manual # only consulted when Dispatch mode = auto
    > Estimated cycle: small | medium | large    # informs sync vs async + cycle-time tracking
    > Subjective verification: <list, or '(none)'>
+   > Touches invariants: <comma-separated INV-NNN list, or '(none)'>   # used by dispatch pre-flight; see reference/architecture.md
+   > Deployed: yes | no                          # default 'no'; 'yes' triggers runbook + observability gate at close
+   > Runbook: runbook/<slug>.md                  # required ONLY when Deployed: yes; path must exist before close-task
+   ```
+
+   **When `Deployed: yes`, the spec ALSO requires an `## Observability` section** with three sub-fields (see `reference/runbooks.md § Spec contract`):
+   ```
+   ## Observability
+   - Success signal:   <log line / metric / endpoint / `command` output that proves it's working>
+   - Failure diagnosis: `<single command>` — one line that answers "what's broken right now"
+   - Runbook path:     runbook/<slug>.md
    ```
 
    **Choosing executor (spec writer responsibility)**:
@@ -92,11 +115,22 @@ Slug IDs are never reused or recycled across months.
 If the task needs a working artifact from day one (checklist, design ladder, subtasks), the working artifact lives at `evidence/<YYYY-MM>/<TASK-ID>-<slug>.md` (separate file from the spec).
 
 ### `close-task <id>`
-Reject if no evidence path provided. If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
+Reject if no evidence path provided.
+
+**Pre-close gate — `Deployed: yes` requires a runbook** (see `reference/runbooks.md § close-task gate`):
+1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. If header has `Deployed: yes`:
+   - `Runbook:` field must be present AND point at an existing file.
+   - The referenced runbook file must have all four mandatory sections (What / Healthy / Failures / Escalation), non-empty.
+   - The spec must contain an `## Observability` section with non-empty Success signal / Failure diagnosis / Runbook path.
+2. **If any check fails**, refuse close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires a written reason; the override is logged under `## Status changes` as `runbook-override: <reason>`.
+3. `Deployed: no` or field absent → skip this gate.
+
+If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
 1. **Remove the row from `BOARD.md`**.
 2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path>`.
 3. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
+5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).
 
 To find a closed task later: `grep "TASK-007" journal/` returns its creation entry, all status changes, and its close entry.
 
