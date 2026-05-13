@@ -38,10 +38,10 @@ What was changed to resolve THIS incident. File paths, commands, config edits, c
 
 ## Derived changes
 
-Filled at close-time by the 3-question gate (Knowledge / Invariant / Runbook). Each answer is either a concrete artifact path OR an explicit skip with reason.
+Filled at close-time by the 3-question gate (Knowledge / Architecture / Runbook). Each answer is either a concrete artifact path OR an explicit skip with reason.
 
 - **Knowledge**: {{knowledge/<topic>/<slug>-digest.md, or 'skipped — <reason>'}}
-- **Invariant**: {{INV-NNN added or strengthened, or 'skipped — <reason>'}}
+- **Architecture**: {{ARCHITECTURE.md §-section added or tightened, or 'skipped — <reason>'}}
 - **Runbook**: {{runbook/<component>.md updated, or 'skipped — <reason>'}}
 
 ## Notes / open follow-ups

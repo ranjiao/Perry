@@ -100,14 +100,16 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 
 **Autopilot (PMO):** `/pmo autopilot` walks BOARD top-to-bottom and dispatches every safe-to-dispatch row until budget exhausts (default 10 dispatches / 2h / 3 failures). First run per project is forced dry-run + briefing. Hard safety rails: never auto-`done`, never modify specs, never override hook safety list, never auto-retry. Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. See `pmo/reference/autopilot.md`.
 
-**Anti-drift discipline — invariants / runbooks / incidents (PMO):** When agents write the code, the user loses both architectural grip and operational grip. Perry's countermeasures (all **optional, lazy-created** — they materialise on first use, not at bootstrap):
+**Anti-drift discipline — ARCHITECTURE.md / runbooks / incidents (PMO):** When agents write the code, the user loses both architectural grip and operational grip. Perry's countermeasures (all **optional, lazy-created** — they materialise on first use, not at bootstrap):
 
-- **`architecture/INVARIANTS.md`** — hard + soft structural rules with a runnable `Check:` field per invariant. `/pmo audit` runs every check, cross-references runbook coverage and ADR sunset, and writes a dated report. Dispatch refuses tasks touching hard invariants without explicit user waiver. OKR `plan-month` refuses to write a new month until every open audit violation is addressed (resolve / defer-via-ADR / `Not Doing`). See `pmo/reference/architecture.md`.
-- **`runbook/<component>.md`** — one file per deployed component, four mandatory sections (What it does / How to tell it's healthy / Common failures + canned ops / Escalation). Task specs declare `Deployed: yes | no`; `close-task` refuses to close a `Deployed: yes` task without a matching runbook. `/pmo runbook-check` surfaces gaps. See `pmo/reference/runbooks.md`.
-- **`incidents/<YYYY-MM-DD>-<slug>.md`** — postmortem record per production failure. `/pmo incident close` enforces a 3-question gate (Knowledge / Invariant / Runbook): each question must produce a concrete artifact OR an explicit skip-with-reason. The skip pattern across months is itself a feedback signal — surfaced by `mid-month-review`. See `pmo/reference/incidents.md`.
-- **`/pmo health-check`** — meta-runner that composes audit + runbook-check + digest stale + incident patterns into one report at `evidence/<YYYY-MM>/health-check-<date>.md`. Called inline by `mid-month-review` and `end-month-retro`; can also be invoked manually. See `pmo/reference/health-check.md`.
+- **`ARCHITECTURE.md` (the central one)** — a single, user-owned, agent-read-only document at project root. Fixed 8-section structure (Mission & scope / Components / Boundaries & dependencies / Data flow / Contracts / Non-negotiables / Open questions / Change log). Every dispatched agent gets the full document injected into its prompt and must produce an `ARCHITECTURE COMPLIANCE` attestation listing touched §-sections. Before `close-task` can flip to `done`, an **independent review agent** (separate Claude subagent or codex call) reads the same document plus the diff and adversarially rebuts the primary agent's attestation — `PASS` or `FAIL`. `close-task` refuses on `FAIL`. This is the guarantee mechanism: an architecture-touching task cannot close without the doc-vs-diff consistency check passing. The cost is one extra small LLM call per dispatch. See `pmo/reference/architecture.md`.
+- **`runbook/<component>.md`** — one file per deployed component, four mandatory sections (What it does / How to tell it's healthy / Common failures + canned ops / Escalation). Task specs declare `Deployed: yes | no`; `close-task` refuses to close a `Deployed: yes` task without a matching runbook. See `pmo/reference/runbooks.md`.
+- **`incidents/<YYYY-MM-DD>-<slug>.md`** — postmortem record per production failure. `/pmo incident close` enforces a 3-question gate (Knowledge / **Architecture** / Runbook): each question must produce a concrete artifact OR an explicit skip-with-reason. The "Architecture" question asks whether the incident reveals that `ARCHITECTURE.md` is wrong, missing, or out of date. See `pmo/reference/incidents.md`.
+- **`/pmo health-check`** — meta-runner that composes `architecture-audit` + `runbook-check` + digest stale + incident patterns into one report at `evidence/<YYYY-MM>/health-check-<date>.md`. Called inline by `mid-month-review` and `end-month-retro`. See `pmo/reference/health-check.md`.
 
-These four work together: incidents reveal which invariants are missing and which runbooks are wrong; audit catches drift early; runbook keeps the user able to operate the system without reading code. None of them is mandatory, but each is the contract Perry uses to keep an agent-built project under user control.
+These four work together: `ARCHITECTURE.md` is the user-controlled spine; incidents reveal where the spine is wrong; runbooks keep the user able to operate without reading agent-written code; health-check is the periodic reality check. None of them is mandatory, but each is a contract Perry uses to keep an agent-built project under user control.
+
+**OKR cross-month firewall:** `okr plan-month` reads the latest `architecture/audit-history/<date>.md` and `ARCHITECTURE.md § Open questions`. It refuses to write the new month's OKR until every unresolved drift item is explicitly addressed — resolve as a KR, accept by editing `ARCHITECTURE.md`, defer with an ADR, or list under `Not Doing` with rationale. The architecture doc is the lever; OKR is the recurring forcing function.
 
 ## Typical flow (first time, any project)
 
@@ -178,11 +180,13 @@ These four work together: incidents reveal which invariants are missing and whic
 │   └── research/
 │       └── jegadeesh-titman-1993-digest.md
 │
-│   # The three below are OPTIONAL — created lazily on first use, not at bootstrap.
-├── architecture/                        ← anti-drift discipline (only if you use /pmo invariant or /pmo audit)
-│   ├── INVARIANTS.md                            ← hard + soft architectural rules with checkable `Check:` field
+│   # The four below are OPTIONAL — created lazily on first use, not at bootstrap.
+├── ARCHITECTURE.md                      ← USER-OWNED single source of truth for system design.
+│                                         Injected into every dispatched agent's prompt.
+│                                         Independent review agent verifies every code change against it.
+├── architecture/
 │   └── audit-history/
-│       └── 2026-05-13.md                        ← per-run audit report
+│       └── 2026-05-13.md                        ← per-run audit report (mechanical + LLM consistency scan)
 ├── runbook/                             ← operability of deployed components (only if any spec has `Deployed: yes`)
 │   ├── INDEX.md                                 ← auto-maintained catalog
 │   └── trader-daemon.md                         ← per-component: What / Healthy / Failures / Escalation

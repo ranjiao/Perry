@@ -6,7 +6,7 @@
 > Created: {{YYYY-MM-DD}}
 > Last verified: {{YYYY-MM-DD}}
 > Linked spec: evidence/{{YYYY-MM}}/{{TASK-ID}}-spec.md
-> Linked invariants: {{INV-NNN list, or '(none)'}}
+> Linked architecture sections: {{§N references in ARCHITECTURE.md, or '(none)'}}
 
 ## What it does
 

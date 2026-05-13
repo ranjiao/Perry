@@ -153,7 +153,7 @@ When canned ops fail, the user does what:
 - **`triage`**: any BOARD row whose spec has `Deployed: yes` AND status `review` AND no `Runbook:` field gets flagged in the triage table.
 - **`mid-month-review` / `end-month-retro`**: each calls `runbook-check` and folds the result into its report.
 - **`/pmo incident <slug>`** (see `incidents.md`): on incident close, the 3-question gate asks "update the runbook for this component?" — incidents are the cheapest signal that the runbook is incomplete.
-- **`/pmo audit`** (see `architecture.md`): treats "no runbook for deployed component" as a structural drift line item.
+- **`/pmo architecture-audit`** (see `architecture.md`): treats "no runbook for deployed component" as a structural drift line item, surfaced alongside `ARCHITECTURE.md` violations.
 
 ## Per-project hooks
 

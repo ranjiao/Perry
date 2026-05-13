@@ -59,10 +59,10 @@ This is where the feedback loop lives. Refuse the close until all three question
    - `No — duplicate of existing digest` — prompt for the digest path; record it as the reference.
    - `No — too narrow to generalise` — must include a one-line reason.
 
-   **Q2** — `header: "Invariant"`, options:
-   - `Yes — add new INV-NNN` — opens `architecture/INVARIANTS.md` for an inline addition; the proposed invariant text is pre-drafted from the incident's root cause.
-   - `Yes — strengthen existing INV-NNN` — prompt for which one.
-   - `No — incident is on the runbook side, not architecture` — must include a one-line reason.
+   **Q2** — `header: "Architecture"`, options:
+   - `Yes — update ARCHITECTURE.md` — prompt for which §-section. Common edits: add a new §6 non-negotiable; tighten a §5 contract; surface a §7 open question. The doc edit is the user's; PMO opens the file and pre-drafts the proposed change inline based on the incident root cause.
+   - `Yes — file a follow-up ADR` — calls `/pmo decide` so the decision history captures the new structural rule before it lands in `ARCHITECTURE.md`. The ADR's resolution writes the section edit when ready.
+   - `No — incident is on the runbook side, not the architecture` — must include a one-line reason.
 
    **Q3** — `header: "Runbook"`, options:
    - `Yes — update runbook/<component>.md` — appends a new "Common failures" entry pre-drafted from this incident; bumps `Last verified:` date.
@@ -73,7 +73,7 @@ This is where the feedback loop lives. Refuse the close until all three question
    ```
    ## Derived changes
    - Knowledge: knowledge/<topic>/<this-incident>-digest.md       (or "skipped — <reason>")
-   - Invariant: INV-007 (added) / INV-003 (strengthened)          (or "skipped — <reason>")
+   - Architecture: ARCHITECTURE.md §6.NN-7 (added) / §5.<contract> (tightened)   (or "skipped — <reason>")
    - Runbook: runbook/trader-daemon.md (failure mode added)       (or "skipped — <reason>")
    ```
 
@@ -131,7 +131,7 @@ What was changed to resolve THIS incident. File paths, commands, config edits. D
 Filled at close-time by the 3-question gate:
 
 - Knowledge: {{knowledge/<topic>/<slug>-digest.md, or 'skipped — <reason>'}}
-- Invariant: {{INV-NNN added or strengthened, or 'skipped — <reason>'}}
+- Architecture: {{ARCHITECTURE.md §-section added or tightened, or 'skipped — <reason>'}}
 - Runbook: {{runbook/<component>.md updated, or 'skipped — <reason>'}}
 
 ## Notes / open follow-ups

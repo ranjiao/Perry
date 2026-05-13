@@ -122,7 +122,10 @@ Used when goals materially change between versions (new constraints, new mission
 Default: current month. Read:
 - `OKR.md` (current version).
 - `evidence/<previous-YYYY-MM>/retro.md` (PMO's end-month retro, if it exists).
-- **`architecture/audit-history/<latest>.md`** (if `architecture/` exists) — see `pmo/reference/architecture.md § OKR integration`. Every unresolved invariant violation must appear in the new monthly OKR as one of: a KR/Project that resolves it, a `Not Doing` line acknowledging the deferral with rationale, or a pending ADR ID. If none of these covers an open violation → refuse to write `monthly/<YYYY-MM>.md` until the user picks a response.
+- **`ARCHITECTURE.md`** (if it exists at project root) — full text, with focus on:
+  - `§7 Open questions` — surface any idle ≥30 days as User Input Queue candidates the new month's OKR should resolve.
+  - `§8 Change log` since last `plan-month` — summarise as part of `Month Focus` narrative (what changed in system design).
+- **`architecture/audit-history/<latest>.md`** (if exists) — see `pmo/reference/architecture.md § OKR integration`. Every unresolved drift item must appear in the new monthly OKR as one of: a KR/Project that resolves it, an `ARCHITECTURE.md` edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. If none of these covers an open item → refuse to write `monthly/<YYYY-MM>.md` until the user picks a response.
 - **`evidence/<previous-YYYY-MM>/retro.md § Health metrics`** (if present) — the three carry-forward numbers PMO's end-month retro computed: incident feedback-loop ratio, audit drift trend, runbook coverage gap. These inform whether next month needs an operability-focused Objective.
 
 The monthly OKR is *not* a smaller copy of the overall OKR — it's a tactical commitment with these mandatory sections:

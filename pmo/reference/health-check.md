@@ -8,7 +8,7 @@ A single ritual that surfaces all the drift signals at once. Designed for once-a
 
 In order:
 
-1. **`/pmo audit --quiet`** (`architecture.md`) — invariant violations + ADR sunset + spec/reality mismatches. Writes `architecture/audit-history/<YYYY-MM-DD>.md`.
+1. **`/pmo architecture-audit --quiet`** (`architecture.md`) — two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs `ARCHITECTURE.md`. Writes `architecture/audit-history/<YYYY-MM-DD>.md`. Also surfaces §7 open questions idle ≥30 days and §8 change-log entries from the last 30 days.
 2. **`/pmo runbook-check`** (`runbooks.md`) — missing/stale/incomplete runbooks for deployed components. Updates `runbook/INDEX.md`.
 3. **Digest stale scan** (`digests.md § Archive lifecycle`) — knowledge entries un-referenced for ≥ `archive_inactive_days`. Updates `knowledge/INDEX.md`.
 4. **Incident pattern check** (`incidents.md`) — incidents from the last 30 days, grouped by component; flag any "derived-change skipped" patterns (e.g., ≥ 3 incidents in same component with no invariant added).
@@ -28,11 +28,11 @@ Single file: `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`. Sections:
 > Took: <duration>
 
 ## Summary line
-🏛 Invariants: <N active · K violations · M unchecked>
-📕 Runbooks:   <N active · S stale · G gaps>
-📚 Digests:    <A active · E eternal · X stale-candidates>
-🔥 Incidents:  <O open · M-this-month · D-with-derived-changes / M-total>
-📋 BOARD:      <lines>/200 · <stale rows> stale · <evidence-less done> claims pending
+🏛 Architecture: <v<N> · last reviewed <Nd ago> · §6 NN: <count> · §7 open: <count> · audit drift: <K>>
+📕 Runbooks:    <N active · S stale · G gaps>
+📚 Digests:     <A active · E eternal · X stale-candidates>
+🔥 Incidents:   <O open · M-this-month · D-with-derived-changes / M-total>
+📋 BOARD:       <lines>/200 · <stale rows> stale · <evidence-less done> claims pending
 
 ## Drift to decide
 [Numbered list — one row per item needing user decision.]
