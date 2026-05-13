@@ -15,7 +15,8 @@ Walk `BOARD.md` top-to-bottom. For each open row:
 - Owner is an agent but no recent delegation prompt in chat? → flag
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
 - Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `reference/runbooks.md`).
-- Spec's `Touches invariants:` lists a hard invariant whose latest audit shows unresolved violations → flag with "review against INV-NNN" annotation (see `reference/architecture.md`).
+- Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `reference/architecture.md`).
+- Latest `architecture/audit-history/<date>.md` has open drift items older than 7 days → flag with "audit drift open" annotation; not blocking but visible.
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `reference/incidents.md`).
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Update `BOARD.md`, write a `## Status changes` block in today's journal entry summarizing what moved.
@@ -80,7 +81,7 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
    > Executor: claude-subagent | codex | manual # only consulted when Dispatch mode = auto
    > Estimated cycle: small | medium | large    # informs sync vs async + cycle-time tracking
    > Subjective verification: <list, or '(none)'>
-   > Touches invariants: <comma-separated INV-NNN list, or '(none)'>   # used by dispatch pre-flight; see reference/architecture.md
+   > Touches architecture: <comma-separated §-section refs (§2, §3, §6.NN-3), or '(none)'>   # used by dispatch pre-flight + review agent; see reference/architecture.md
    > Deployed: yes | no                          # default 'no'; 'yes' triggers runbook + observability gate at close
    > Runbook: runbook/<slug>.md                  # required ONLY when Deployed: yes; path must exist before close-task
    ```
@@ -117,8 +118,15 @@ If the task needs a working artifact from day one (checklist, design ladder, sub
 ### `close-task <id>`
 Reject if no evidence path provided.
 
-**Pre-close gate — `Deployed: yes` requires a runbook** (see `reference/runbooks.md § close-task gate`):
-1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. If header has `Deployed: yes`:
+**Pre-close gate 1 — `Touches architecture:` requires review agent PASS** (see `reference/architecture.md § close-task gate`):
+1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. If header has `Touches architecture:` non-empty:
+   - Find the latest dispatch evidence file for this task (`evidence/<YYYY-MM>/<TASK-ID>-dispatch-*.md`, latest mtime).
+   - Verify it contains an `## Architecture review` section ending with `PASS`. `FAIL` or missing → refuse close.
+2. **If review missing or FAIL**, use `AskUserQuestion` (header = TASK-ID, options): `Re-dispatch to fix (Recommended) | Override — close without arch review (NOT recommended) | Keep as review`. "Override" requires written reason; logged as `architecture-override: <reason>` in journal.
+3. `Touches architecture: (none)` or field absent → skip this gate.
+
+**Pre-close gate 2 — `Deployed: yes` requires a runbook** (see `reference/runbooks.md § close-task gate`):
+1. Open the spec. If header has `Deployed: yes`:
    - `Runbook:` field must be present AND point at an existing file.
    - The referenced runbook file must have all four mandatory sections (What / Healthy / Failures / Escalation), non-empty.
    - The spec must contain an `## Observability` section with non-empty Success signal / Failure diagnosis / Runbook path.

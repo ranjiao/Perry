@@ -21,7 +21,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/decisions.md` | `/pmo decide <topic>` and `--supersede` / `--expire` / `--archive` (ADR lifecycle + `decisions/` split + language rule) |
 | `reference/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
 | `reference/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
-| `reference/architecture.md` | `/pmo audit`, `/pmo invariant add/supersede/retire/check` (architecture invariants + drift detection) |
+| `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (monthly meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-month-review`, `end-month-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), monthly (`rollover`) |
@@ -71,7 +71,9 @@ Always run this before anything else, even if the user asked a specific question
    - `BOARD.md` (current open work — the working memory)
    - `PROJECT_STATE.md` (cross-monthly dashboard)
    - `DECISIONS.md` (index only — counts + most recent active ADR. Do NOT load per-decision files unless a current question requires one; see `reference/decisions.md § Standup integration`.)
+   - `ARCHITECTURE.md` if it exists at project root — read **header only** (Status, Version, Last reviewed, §-section titles) for the dashboard line. Full text is NOT loaded into context here; it gets injected only on dispatch (see `reference/architecture.md § Dispatch integration`). Do read the file if the user's current question references architecture, otherwise stay header-only.
    - **Sunset check**: scan `DECISIONS.md` Active section for ADRs with date-based sunset criteria that have passed today's date. If any: surface 🚨 in dashboard, suggest `/pmo decide --expire ADR-NNN`.
+   - **Architecture freshness check**: if `ARCHITECTURE.md` exists and `Status: draft` for >7 days, surface 🚨; if `Last reviewed:` >180 days ago, suggest `/pmo architecture review`.
    If any are missing, see Bootstrap.
 
 3. **Read recent history** — only the last 1–2 days of journal:
@@ -93,8 +95,8 @@ Always run this before anything else, even if the user asked a specific question
    - **Inputs / knowledge** (if `inputs/` or `knowledge/` exist):
      - Count files in `inputs/` (un-digested raw drops); note oldest mtime.
      - Read `knowledge/INDEX.md` header line for active / eternal / stale / archived counts (do NOT load digest contents — see `reference/digests.md § Standup integration`). On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
-   - **Architecture / runbooks / incidents** (each independent; only read if its directory exists):
-     - `architecture/INVARIANTS.md` header line → active count + latest `audit-history/<date>.md` for open violations count. Do NOT load full invariant bodies (see `reference/architecture.md § Standup integration`).
+   - **Architecture / runbooks / incidents** (each independent; only read if its file/directory exists):
+     - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
      - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
 
@@ -108,7 +110,7 @@ Always run this before anything else, even if the user asked a specific question
    🚀 In flight     : <count> dispatches running (— if 0)
    📥 Inputs        : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest    (omit row if 0)
    📚 Knowledge     : <active> active · <eternal> eternal · <stale> stale · <archived> archived (— if no knowledge/)
-   🏛 Invariants    : <active> active · <violations> open since last audit · <unchecked>   (omit row if no architecture/)
+   🏛 Architecture  : v<N> · last reviewed <days>d ago · §7 open: <count> · audit drift: <count>   (omit row if no ARCHITECTURE.md)
    📕 Runbooks      : <active> active · <stale> stale (≥90d) · <gaps>                       (omit row if no runbook/)
    🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
@@ -201,8 +203,8 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `mid-month-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midmonth-review.md` | `reference/subcommands.md` |
 | `end-month-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
 | `decide <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates `DECISIONS.md` index. `--supersede ADR-NNN` / `--expire ADR-NNN` / `--archive ADR-NNN` manage lifecycle. Content written in `.perry/config.md` § Document language. | `reference/decisions.md` |
-| `invariant add/supersede/retire/check` | Manage `architecture/INVARIANTS.md` hard/soft rules with checkable `Check:` field | `reference/architecture.md` |
-| `audit [--only INV-NNN] [--quiet]` | Run all invariant checks + cross-check runbook/ADR/spec; report → `architecture/audit-history/` | `reference/architecture.md` |
+| `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `reference/architecture.md` |
+| `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `reference/architecture.md` |
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
@@ -243,8 +245,8 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `inputs/<filename>` | (raw drop zone) | User puts external docs (PDFs, Excels, screenshots, pasted markdown) here for PMO to digest. PMO consumes via `/pmo digest`; ideally drained to 0 between sessions. | — |
 | `knowledge/<topic>/<source>` + `<source>-digest.md` | pmo | Topic-organized library of digested sources. Source moves here from `inputs/` on digest; digest is PMO's structured summary (TL;DR + Key facts + Open questions). Referenced by spec / journal / decisions to avoid re-reading source. | `state/digest_TEMPLATE.md` |
 | `knowledge/INDEX.md` | pmo | Auto-maintained catalog of all digests by status (active / eternal / archived) and topic | `state/knowledge_INDEX_TEMPLATE.md` |
-| `architecture/INVARIANTS.md` | pmo | **Optional, lazy-created.** Hard + soft architectural rules with checkable `Check:` field. Created on first `/pmo invariant add` or hook-driven bootstrap. | `state/INVARIANTS_TEMPLATE.md` |
-| `architecture/audit-history/<YYYY-MM-DD>.md` | pmo | Per-run audit reports (violations + cross-checks + decisions). Append-only. | (no template — generated by `/pmo audit`) |
+| `ARCHITECTURE.md` | **user** | **Optional, lazy-created. User-owned — agents never write to it.** Single source of truth for system design. Fixed 8-section structure (Mission / Components / Boundaries / Data flow / Contracts / Non-negotiables / Open questions / Change log). Injected into every dispatch's agent prompt; independent review agent verifies every code change against it. | `state/ARCHITECTURE_TEMPLATE.md` |
+| `architecture/audit-history/<YYYY-MM-DD>.md` | pmo | Per-run audit reports (mechanical §6 NN check results + LLM consistency scan findings). Append-only. | (no template — generated by `/pmo architecture-audit`) |
 | `runbook/<component>.md` | pmo | **Optional, lazy-created.** One file per deployed component: What it does / How to tell it's healthy / Common failures + canned ops / Escalation. Required when a task spec has `Deployed: yes`. | `state/runbook_TEMPLATE.md` |
 | `runbook/INDEX.md` | pmo | Auto-maintained catalog of all runbooks (active / stale / gaps). | `state/runbook_INDEX_TEMPLATE.md` |
 | `incidents/<YYYY-MM-DD>-<slug>.md` | pmo | **Optional, lazy-created.** One file per production incident with timeline / root cause / fix / derived changes. | `state/incident_TEMPLATE.md` |
@@ -273,7 +275,7 @@ If yes:
    - `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` (Type: Process, Status: active, records the bootstrap event). DECISIONS.md index gets the matching ADR-001 row added.
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
-   - **Do NOT create `architecture/`, `runbook/`, `incidents/` at bootstrap.** These are lazy-created on first use (first `/pmo invariant add`, first task spec with `Deployed: yes`, first `/pmo incident <slug>` respectively). Empty directories add noise to simple projects. If `.perry/hook.md` declares an `## Operational profile` or `## Architecture invariants` block, those drive eager creation — see `reference/runbooks.md` and `reference/architecture.md`.
+   - **Do NOT create `ARCHITECTURE.md` / `architecture/` / `runbook/` / `incidents/` at bootstrap.** These are lazy-created on first use (first `/pmo architecture init` or first task spec with `Touches architecture:`, first task spec with `Deployed: yes`, first `/pmo incident <slug>` respectively). If `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation — see `reference/architecture.md` and `reference/runbooks.md`.
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
 5. Run the standup.
