@@ -193,7 +193,7 @@ The recommended first-run order is:
 ```
 /okr init                       # interview: mission, Operating Principles,
                                 # 1–3 Objectives + KRs, Anti-Goals, version v1
-/okr plan-month <YYYY-MM>       # full monthly OKR (10 mandatory sections)
+/okr plan-phase <slug>           # full phase OKR (10 mandatory sections); auto-assigns #NNN
 /pmo                            # bootstraps execution files, runs first standup
 /okr plan-week                  # proposes first batch of weekly tasks
                                 # → /pmo writes them to BOARD.md + today's journal entry after approval

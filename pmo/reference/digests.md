@@ -113,7 +113,7 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 
 ## `knowledge/INDEX.md` — the catalog
 
-PMO maintains this file automatically. Updated on every `/pmo digest`, archive operation, and full rebuild during `end-month-retro`.
+PMO maintains this file automatically. Updated on every `/pmo digest`, archive operation, and full rebuild during `end-phase-retro`.
 
 ```markdown
 # Knowledge index — <project name>
@@ -162,7 +162,7 @@ Dashboard line:
 
 When `inputs/` count > 0: include "drain inputs/ via /pmo digest" in the suggested next actions.
 
-When stale ≥ 3: include "run /pmo end-month-retro to triage archive candidates" or `mid-month-review` (whichever is sooner).
+When stale ≥ 3: include "run /pmo end-phase-retro to triage archive candidates" or `mid-phase-review` (whichever is sooner).
 
 **Digests are NOT loaded into standup context** (per Q4). Only existence + counts. PMO Reads specific digests when the user's question or task makes them relevant.
 
@@ -183,14 +183,14 @@ Files **never move on archive** — only the header field changes. Avoids breaki
 
 ### Archive-candidate detection (Q7=a, Q8=one-shot)
 
-Triggered automatically inside `mid-month-review` and `end-month-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
+Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `subcommands.md`). PMO scans `knowledge/` for active digests matching:
 
 1. `Status: active` AND no reference to the digest path found in any of:
    - `BOARD.md`
    - `journal/<YYYY-MM>/*.md` for last 90 days
    - `evidence/<YYYY-MM>/**.md` for last 90 days
    - `DECISIONS.md`
-   - `monthly/<YYYY-MM>.md`
+   - `phase/<NNN>-<slug>.md` (current phase) and recent `phase/snapshots/`
    for ≥ `archive_inactive_days` (default **90 days**, override per-project hook)
 2. Source file no longer exists (orphaned digest)
 3. Header has `Superseded by:` filled in but `Status:` still `active`

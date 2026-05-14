@@ -4,7 +4,7 @@
 > **Period**: {{period_label}} (e.g., "lifetime", "Q2 2026", "6 months")
 > **Status**: {{Active | Closed}}
 
-This document is the long-term reference for the system. The `okr` skill uses it to derive monthly OKRs (`monthly/<YYYY-MM>.md`) and weekly task proposals (handed off to `pmo`). Versions are append-only — never overwrite an old version block.
+This document is the long-term reference for the system. The `okr` skill uses it to derive phase OKRs (`phase/<NNN>-<slug>.md`) and weekly task proposals (handed off to `pmo`). Versions are append-only — never overwrite an old version block.
 
 ## Mission
 

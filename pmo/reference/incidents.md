@@ -80,7 +80,7 @@ This is where the feedback loop lives. Refuse the close until all three question
 4. Flip incident status to `resolved`. Update `incidents/INDEX.md` with the derived-change ID(s).
 5. Append a `## Status changes` line to today's journal: `Incident <slug> resolved · root cause: <one-line> · derived: <list of changes>`.
 
-The 3-question gate is intentionally noisy. Skipping all three with reasons is allowed — but each skip is a recorded choice, which means a pattern of "skipped — too narrow" across many incidents becomes visible in `mid-month-review`.
+The 3-question gate is intentionally noisy. Skipping all three with reasons is allowed — but each skip is a recorded choice, which means a pattern of "skipped — too narrow" across many incidents becomes visible in `mid-phase-review`.
 
 ### `/pmo incident list [--open | --all]`
 
@@ -141,10 +141,10 @@ Filled at close-time by the 3-question gate:
 
 ## Integration with other PMO surfaces
 
-- **Standup dashboard**: when `incidents/` exists, the dashboard adds a line: `🔥 Incidents · <open> open · <this-week> this week · <month> this month`. Omit if directory missing.
+- **Standup dashboard**: when `incidents/` exists, the dashboard adds a line: `🔥 Incidents · <open> open · <this-week> this week · <phase> this phase`. Omit if directory missing.
 - **`triage`**: open incidents older than 3 days are surfaced as P0 attention items.
-- **`mid-month-review`**: pulls all incidents from the month, summarises by component, lists "derived-change skipped" rationales as a pattern check.
-- **`end-month-retro`**: same plus "of <N> incidents, <K> drove invariants / <K> drove runbook updates / <K> drove digests" — this number is the feedback-loop health metric.
+- **`mid-phase-review`**: pulls all incidents from the current phase, summarises by component, lists "derived-change skipped" rationales as a pattern check.
+- **`end-phase-retro`**: same plus "of <N> incidents this phase, <K> drove ARCHITECTURE.md edits / <K> drove runbook updates / <K> drove digests" — this number is the feedback-loop health metric.
 - **Hook integration**: project hooks can declare an `## Incident routing` block that maps known failure-mode keywords to specific runbooks or canned ops (the open-time flow surfaces them automatically when symptom text matches).
 
 ## Bootstrap
@@ -159,6 +159,6 @@ PMO does NOT create `incidents/` at project bootstrap. It's created lazily on fi
 
 An incident without derived changes is a fix-and-forget. Fix-and-forget is how the same incident recurs in 6 weeks under a different surface. The 3 questions force the user to make the trade-off explicitly:
 
-> "I'm closing this incident WITHOUT adding an invariant because <reason>."
+> "I'm closing this incident WITHOUT updating ARCHITECTURE.md because <reason>."
 
-That recorded "without" is what makes the next mid-month review honest. If the same root cause shows up 4 incidents in a row and the user keeps skipping invariants with "too narrow", the pattern is visible — and PMO will say so in the review.
+That recorded "without" is what makes the next mid-phase review honest. If the same root cause shows up 4 incidents in a row and the user keeps skipping ARCHITECTURE edits with "too narrow", the pattern is visible — and PMO will say so in the review.
