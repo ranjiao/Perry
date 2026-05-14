@@ -13,7 +13,7 @@ There is exactly **one** architecture document per project: `ARCHITECTURE.md` at
 | **Owner** | User. Agents never write. |
 | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
 | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
-| **Update cadence** | User-driven, plus mandatory review at `okr plan-month` and `end-month-retro`. |
+| **Update cadence** | User-driven, plus mandatory review at `okr plan-phase` and `end-phase-retro`. |
 | **Size budget** | Soft cap 800 lines, typical 200–500. If a project genuinely needs more, split into appendix files referenced from the main doc — but the main doc is still one file. |
 
 ## Document structure
@@ -211,16 +211,16 @@ Empty field → spec is malformed; `add-task` refuses to write.
 
 ## OKR integration
 
-`okr plan-month` (see `okr/SKILL.md § plan-month`) now reads:
+`okr plan-phase` (see `okr/SKILL.md § plan-phase`) now reads:
 1. Latest `architecture/audit-history/<date>.md`.
 2. `ARCHITECTURE.md § Open questions` (§7).
-3. `ARCHITECTURE.md § Change log` (§8) since previous month's plan-month.
+3. `ARCHITECTURE.md § Change log` (§8) since previous phase's `plan-phase`.
 
-For each unresolved audit drift, the new monthly OKR MUST include an explicit response: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
+For each unresolved audit drift, the new phase OKR MUST include an explicit response: a KR/Project that resolves it, an ARCHITECTURE.md edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. Refusal otherwise.
 
 For each §7 open question idle ≥30 days, surface as a User Input Queue candidate.
 
-For each §8 change-log entry in the past month, summarize as part of the monthly OKR's `Month Focus` narrative — what changed in the system's design.
+For each §8 change-log entry since the last `plan-phase`, summarize as part of the phase OKR's `Phase Focus` narrative — what changed in the system's design.
 
 ## Lazy bootstrap
 
@@ -244,7 +244,7 @@ When lazily created, `Status: draft` for the first 7 days. During draft window:
 | `/pmo audit` mechanical-only scan | **Replaced** by `/pmo architecture-audit` with the two-layer scan (mechanical §6 checks + LLM consistency scan). |
 | Spec field `Touches invariants:` | **Replaced** by `Touches architecture:` referencing §-sections. |
 | Dispatch invariant pre-check (severity-based AskUserQuestion) | **Replaced** by ARCHITECTURE.md prompt injection + agent attestation + independent review agent + hard NN gate. |
-| OKR `plan-month` reading audit-history | **Kept**, plus now also reads §7 and §8 of `ARCHITECTURE.md`. |
+| OKR `plan-month` reading audit-history | **Replaced** by `okr plan-phase`; now also reads §7 and §8 of `ARCHITECTURE.md`. |
 
 `runbooks.md` and `incidents.md` are NOT changed — they're orthogonal (operability ≠ design). The only cross-link change: the incident close 3-question gate's "Invariant" question becomes "Architecture section" (does this incident reveal that ARCHITECTURE.md is wrong/incomplete?).
 
@@ -265,7 +265,7 @@ Seed non-negotiables at bootstrap:
 - NN-2 (soft): <rule>
 
 Review agent executor preference: codex | claude-subagent | (auto)
-Audit cadence: monthly | quarterly | per-PR
+Audit cadence: per-phase | quarterly | per-PR
 ```
 
 If declared, `architecture init` pre-fills the relevant sections instead of starting blank.
@@ -274,7 +274,7 @@ If declared, `architecture init` pre-fills the relevant sections instead of star
 
 - **Standup dashboard**: when `ARCHITECTURE.md` exists, dashboard adds: `🏛 Architecture · v<N> · last reviewed <Nd ago> · §7 open: <count> · audit drift: <count>`. Omits row if the file doesn't exist.
 - **`triage`**: open audit drift items older than 7 days flagged.
-- **`mid-month-review`** / **`end-month-retro`**: invoke `architecture-audit --quiet` inline (via `health-check`).
+- **`mid-phase-review`** / **`end-phase-retro`**: invoke `architecture-audit --quiet` inline (via `health-check`).
 - **`incident close`**: 3-question gate's "Architecture section" question (replacing "Invariant") asks: *"Does this incident reveal that some section of `ARCHITECTURE.md` is wrong, missing, or out of date? If yes, which section, and what should change?"*
 
 ## Why this guarantees what /invariants couldn't

@@ -5,7 +5,7 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 ## Planning
 
 ### `plan-week`
-Generate this ISO week's plan. Reads `monthly/<current-YYYY-MM>.md` (if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user, updates `BOARD.md`, and writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user, updates `BOARD.md`, and writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
 Walk `BOARD.md` top-to-bottom. For each open row:
@@ -34,24 +34,24 @@ Run at start of week. Reads `BOARD.md` + last week's `weekly/<YYYY-WW>.md` if an
 ### `midweek-check`
 Mid-week pulse. Reads `BOARD.md` + journal entries since Monday. Output: P0 movement check, blocker escalations, cost-ceiling progress, tests/verification reminders. Write to today's journal.
 
-### `mid-month-review`
-Reads `BOARD.md` + ALL journal entries for the current month (one of the few legit cases for full-month reading). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Mid-Month Scope Reduction Rule** declared in `monthly/<YYYY-MM>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midmonth-review.md`.
+### `mid-phase-review`
+Triggered manually (or surfaced by the standup when ≥40–60% of phase day budget elapsed). Reads `BOARD.md` + journal entries since the current phase started (resolve start date from the phase file header). Mark each Objective `on_track | at_risk | off_track` based on KR progress. Apply any **Phase Scope Reduction Rule** declared in `phase/<NNN>-<slug>.md`. Recommend scope cuts. Save to `evidence/<YYYY-MM>/midphase-review-<NNN>-<slug>.md`.
 
-**Inline health-check** (added to mid-month-review): run `/pmo health-check` (see `reference/health-check.md`) and fold its findings — audit violations, runbook gaps, incident patterns — into the mid-month-review report. The detailed report lives at `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`; the mid-month-review summarises the top decision items inline.
+**Inline health-check** (added to mid-phase-review): run `/pmo health-check` (see `reference/health-check.md`) and fold its findings — audit violations, runbook gaps, incident patterns — into the mid-phase-review report. The detailed report lives at `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`; the mid-phase-review summarises the top decision items inline.
 
-**Digest archive review** (added to mid-month-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `monthly/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
+**Digest archive review** (added to mid-phase-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `phase/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
 
-### `end-month-retro`
-At month-end. Reads `BOARD.md` + ALL journal entries for the month + `evidence/<YYYY-MM>/`. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md`. This is OKR's input for `plan-month` of the next month.
+### `end-phase-retro`
+Triggered when OKR `score-phase` is about to run (or explicitly by the user). Reads `BOARD.md` + all journal entries since the current phase started + `evidence/<YYYY-MM>/` for the calendar months the phase spanned. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time). This is OKR's input for `plan-phase` of the next phase.
 
-**Inline health-check** (added to end-month-retro): run `/pmo health-check` (see `reference/health-check.md`). The retro additionally folds in:
-- **Incident feedback-loop ratio**: of all incidents resolved this month, how many produced derived changes (invariant / runbook / digest)? A low ratio + recurring components = a structural problem worth a KR in next month's OKR.
-- **Audit drift trend**: how many invariant violations from the last audit are still open at month-end? Carry them into next month's OKR as either resolution KRs, deferral ADRs, or `Not Doing` lines (see `okr/SKILL.md § plan-month`).
-- **Runbook coverage**: count of deployed components without runbook, vs same count at start of month. Drift in this number is a red flag.
+**Inline health-check** (added to end-phase-retro): run `/pmo health-check` (see `reference/health-check.md`). The retro additionally folds in:
+- **Incident feedback-loop ratio**: of all incidents resolved during this phase, how many produced derived changes (architecture / runbook / digest)? A low ratio + recurring components = a structural problem worth a KR in next phase's OKR.
+- **Audit drift trend**: how many `ARCHITECTURE.md`-vs-code drift items from the last audit are still open at phase-end? Carry them into next phase's OKR as either resolution KRs, deferral ADRs, doc edits, or `Not Doing` lines (see `okr/SKILL.md § plan-phase`).
+- **Runbook coverage**: count of deployed components without runbook, vs same count at phase start. Drift in this number is a red flag.
 
-These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" section so OKR's `plan-month` for next month can read them directly.
+These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" section so OKR's `plan-phase` for next phase can read them directly.
 
-**Digest archive review** (same procedure as `mid-month-review`; second monthly pass): re-scan archive candidates and process via `AskUserQuestion`. End-of-month is the safer gate — anything still un-referenced after a full month is more likely truly inactive. Also at end-of-month, **rebuild `knowledge/INDEX.md` fully** (not just incrementally): re-grep all references for `Last referenced` dates, recompute counts, alphabetize within topics. Cheap operation (~2-3 sec for 30 digests).
+**Digest archive review** (same procedure as `mid-phase-review`; second pass per phase): re-scan archive candidates and process via `AskUserQuestion`. Phase-end is the safer gate — anything still un-referenced after a full phase is more likely truly inactive. Also at phase-end, **rebuild `knowledge/INDEX.md` fully** (not just incrementally): re-grep all references for `Last referenced` dates, recompute counts, alphabetize within topics. Cheap operation (~2-3 sec for 30 digests).
 
 ## Decisions & risk
 
@@ -136,7 +136,7 @@ Reject if no evidence path provided.
 If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
 1. **Remove the row from `BOARD.md`**.
 2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path>`.
-3. If the task was a Must-Have item in `monthly/<YYYY-MM>.md`, tick it there too.
+3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, tick it there too.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
 5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).
 
@@ -165,17 +165,16 @@ Generate the **Day-N Status doc** — a single self-contained document a future 
 
 The first line of every PMO session after a handoff exists is: "Read `handoff/<latest>.md` and tell me your status." The handoff doc is the bridge.
 
-## Monthly transition
+## Phase transition
 
 ### `rollover`
-With the BOARD/journal split, rollover is nearly trivial — `BOARD.md` is already current, the previous month's journal entries already exist as the historical record. Steps:
+Runs when a phase has been scored via `okr score-phase` and the user is ready to start the next phase. With the BOARD/journal split, rollover is mostly informational — `BOARD.md` is already current; previous phase's journal entries are intact. Steps:
 
-1. Confirm `evidence/<previous-YYYY-MM>/retro.md` exists; if not, prompt for `end-month-retro` first.
-2. **Create `journal/<new-YYYY-MM>/`**. The first journal entry will be created the next time `add-task` / `triage` / `close-task` writes one.
-3. **Create `evidence/<new-YYYY-MM>/`**.
-4. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a month boundary in the first place. If a row's task ID convention encodes a month (e.g., `PAPER-007` from 2026-05), leave the ID untouched — it's the canonical handle.
-5. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `drop-task` which writes the close to `journal/<old-YYYY-MM>/<last-day>.md` AND removes from BOARD.
-6. Hand off to OKR: print "OKR `plan-month <new-YYYY-MM>` is needed". Do **not** create the new monthly OKR yourself — that's OKR's lane.
-7. Append a `## Notes` entry to the first day of the new month's journal: "rollover from <prev-YYYY-MM>; <n> rows carried; see evidence/<prev-YYYY-MM>/retro.md".
+1. Confirm `evidence/<YYYY-MM>/retro.md` exists (the phase score from OKR). If not, prompt to run `okr score-phase` first.
+2. **Calendar-month directories** — `journal/<YYYY-MM>/` and `evidence/<YYYY-MM>/` are calendar-bound; create new month dirs only if the calendar month rolled (most rollovers do NOT need this — phases can span multiple calendar months OR fit inside one).
+3. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
+4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `drop-task`.
+5. Hand off to OKR: print "OKR `plan-phase <new-slug>` is needed — pick the next phase's slug." Do **not** create the new phase file yourself — that's OKR's lane.
+6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 
-`git log -- journal/` shows the full history per day; `git log -- BOARD.md` shows the live board's evolution.
+`git log -- journal/` shows the full history per day; `git log -- BOARD.md` shows the live board's evolution; `git log -- phase/` shows phase progression.

@@ -62,7 +62,7 @@ The override path exists because there are legitimate edge cases (one-off script
 
 ## `/pmo runbook-check`
 
-Quick scan, intended to run inside `mid-month-review`, `end-month-retro`, and `health-check`. Can also be invoked standalone.
+Quick scan, intended to run inside `mid-phase-review`, `end-phase-retro`, and `health-check`. Can also be invoked standalone.
 
 Procedure:
 
@@ -151,7 +151,7 @@ When canned ops fail, the user does what:
 
 - **Standup dashboard**: when `runbook/` exists, the dashboard adds a line: `📕 Runbooks · <active> active · <stale> stale (≥90d) · <gaps> gaps`. Omit the row entirely if `runbook/` doesn't exist.
 - **`triage`**: any BOARD row whose spec has `Deployed: yes` AND status `review` AND no `Runbook:` field gets flagged in the triage table.
-- **`mid-month-review` / `end-month-retro`**: each calls `runbook-check` and folds the result into its report.
+- **`mid-phase-review` / `end-phase-retro`**: each calls `runbook-check` and folds the result into its report.
 - **`/pmo incident <slug>`** (see `incidents.md`): on incident close, the 3-question gate asks "update the runbook for this component?" — incidents are the cheapest signal that the runbook is incomplete.
 - **`/pmo architecture-audit`** (see `architecture.md`): treats "no runbook for deployed component" as a structural drift line item, surfaced alongside `ARCHITECTURE.md` violations.
 

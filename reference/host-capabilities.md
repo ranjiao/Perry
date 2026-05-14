@@ -81,7 +81,7 @@ For `multiSelect: true`, append: *"Reply with comma-separated numbers (e.g. 1,3)
 
 For `Other` follow-ups: take the user's free-text reply verbatim.
 
-The chosen value is the same; only the rendering differs. All downstream logic (writing to `BOARD.md`, `monthly/<YYYY-MM>.md`, `design/<id>-*.md`, etc.) is unchanged.
+The chosen value is the same; only the rendering differs. All downstream logic (writing to `BOARD.md`, `phase/<NNN>-<slug>.md`, `design/<id>-*.md`, etc.) is unchanged.
 
 ### `Agent` / `subagent_type` → refuse `claude-subagent` executor (codex-cli)
 

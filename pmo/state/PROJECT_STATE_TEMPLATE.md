@@ -1,21 +1,22 @@
 # PROJECT_STATE — {{project_name}}
 
 > Living dashboard. Edited by the `pmo` skill on every standup. Keep < 300 lines.
-> The Month-Level board lives in `TASKS.md`; this file is for cross-monthly state.
+> The live work board lives in `BOARD.md`; this file is for cross-phase state.
 
 ## Snapshot
 
-- **Phase**: {{phase}}                    <!-- e.g., Phase 1 system-build -->
-- **Current month**: {{YYYY-MM}}
+- **Current phase**: #{{NNN}} {{slug}}                    <!-- e.g., #002 cash-deployment -->
+- **Phase started**: {{phase_start_date}}    ·    **Phase day**: {{N}}
 - **Current ISO week**: {{YYYY-WW}}
-- **Started**: {{start_date}}
+- **Project started**: {{start_date}}
 - **Last standup**: {{last_standup_date}}
 - **Latest handoff**: {{handoff/<YYYY-MM-DD>.md if any, else —}}
 
 ## Active OKR pointer
 
-- Overall: `OKR.md` v{{N}}, period {{period}}, {{days_elapsed}}/{{days_total}}d.
-- Monthly: `monthly/{{YYYY-MM}}.md`, week {{n}}/{{weeks_in_month}}.
+- Overall: `OKR.md` v{{N}}.
+- Current phase: `phase/{{NNN}}-{{slug}}.md` (resolve via `phase/CURRENT`).
+- Last snapshot: `phase/snapshots/{{YYYY-MM-DD}}-{{NNN}}-{{slug}}.md`, {{Md ago}}.
 
 ## Risks
 
@@ -32,9 +33,9 @@
 
 ## Carry-over watch
 
-> Tasks that have rolled over from previous months. Each carry-over should also exist in `TASKS.md`.
+> Tasks that have rolled over from previous phases. Each carry-over should also exist in `BOARD.md`.
 
-- {{TASK-ID-from-previous-month}} → {{new TASK-ID}} · {{1-line reason for carry-over}}
+- {{TASK-ID-from-previous-phase}} → {{new TASK-ID}} · {{1-line reason for carry-over}}
 
 ## Notes
 

@@ -1,6 +1,6 @@
 ---
 name: design
-description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / monthly/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
+description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
 ---
 
 # design — Perry's design-doc steward
@@ -13,9 +13,9 @@ Voice: structured, decision-oriented, friction-friendly. The design skill refuse
 
 Pairs with **`pmo`** and **`okr`**. Hand-off rules:
 - `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`.
-- `design` reads `OKR.md` / `monthly/` for goal context (read-only) and reads `BOARD.md` to surface which implementation tasks reference each locked design.
+- `design` reads `OKR.md` / `phase/` for goal context (read-only) and reads `BOARD.md` to surface which implementation tasks reference each locked design.
 - Once a doc reaches **Design locked**, `design` hands off to `pmo`: print a list of proposed implementation tasks (each tagged with the design ID); user approves; `pmo add-task` writes them to `BOARD.md`. PMO's evidence files for those tasks back-reference the design ID in their first lines.
-- `design` never writes `BOARD.md`, `journal/`, `OKR.md`, `monthly/`, `evidence/`, or any other Perry-owned file.
+- `design` never writes `BOARD.md`, `journal/`, `OKR.md`, `phase/`, `evidence/`, or any other Perry-owned file.
 
 ## When this skill activates
 
@@ -181,7 +181,7 @@ Without an ID: print the snapshot. With an ID: print that doc's full status — 
 |------------|-------|---------|----------|
 | `design/<DESIGN-ID>-<slug>.md` | design | One design doc per ID | `state/design_TEMPLATE.md` |
 | `design/README.md` | design | Local DESIGN-ID convention + index | (written on `init`) |
-| `OKR.md`, `monthly/<YYYY-MM>.md` | okr | Read by design for goal context; never written | (in okr skill) |
+| `OKR.md`, `phase/<NNN>-<slug>.md` | okr | Read by design for goal context; never written | (in okr skill) |
 | `BOARD.md` | pmo | Read by design to count implementation rows; never written | (in pmo skill) |
 
 Design docs live in their own `design/` directory at the project root, parallel to `evidence/`, `weekly/`, etc. They are not stored under `evidence/` because they are decisions, not artifacts of completed work.
