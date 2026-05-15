@@ -2,7 +2,7 @@
 
 Markdown is the right format for **producing** state (agent edits + git diff + LLM prompt injection). It's the wrong format for **consuming** state past 100 lines (no filtering, no rich tables, no SVG diagrams, no folding). The fix is not to change the storage format — it's to add a generation step that produces consumption-grade HTML on demand.
 
-`/pmo render <view>` reads existing tier 1/2 markdown files and emits a single self-contained HTML file under `.perry/views/`. The HTML is **disposable** — regenerate any time, never edit by hand, never commit to git.
+`/pmo render <view>` reads existing tier 1/2 markdown files and emits a single self-contained HTML file under `perry-views/`. The HTML is **disposable** — regenerate any time, never edit by hand, never commit to git.
 
 ## The three-tier file model (read this first)
 
@@ -12,7 +12,7 @@ Perry's files split into three tiers by access pattern, not by content:
 |---|---|---|---|---|---|
 | **1 — User-read-and-edit** | Strategic, must read in raw form | markdown | user (mostly) + agent | YES (per file) | `OKR.md` ≤200, `ARCHITECTURE.md` ≤500, `phase/<NNN>-<slug>.md` ≤300, `runbook/<component>.md` ≤150, `.perry/{config,hook}.md` |
 | **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | agent (mostly) | NO (existing soft caps stay) | `BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/` |
-| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | nobody (auto-generated) | N/A (one-shot artifact) | `.perry/views/<YYYY-MM-DD>-<view>.html` |
+| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | nobody (auto-generated) | N/A (one-shot artifact) | `perry-views/<YYYY-MM-DD>-<view>.html` |
 
 Tier 1 has the hard caps because **the user actually has to read it**. If it's too long to read, it's not serving its purpose. Tier 2 has no user-read constraint — agent reads for its own purposes, user goes through tier 3 if they want to look. Tier 3 is the dedicated consumption layer.
 
@@ -34,7 +34,7 @@ Token cost is real (~1.5x markdown) but irrelevant — tier 3 HTML is generated 
 ## Storage and lifecycle
 
 ```
-<project_root>/.perry/views/
+<project_root>/perry-views/
 ├── 2026-05-15-dashboard.html               # whole-project overview
 ├── 2026-05-15-board.html                   # BOARD with filters
 ├── 2026-05-15-phase-002.html               # phase #002 OKR rendered
@@ -43,10 +43,86 @@ Token cost is real (~1.5x markdown) but irrelevant — tier 3 HTML is generated 
 └── ...
 ```
 
+- **Location rationale**: at project root (NOT under `.perry/`) so the directory is **visible in macOS Finder by default** — double-click navigation matters for tier-3 consumption. The `perry-` prefix avoids collision with project-owned `views/` directories.
 - **Filename**: `<YYYY-MM-DD>-<view>[-<arg>].html` — date prefix for sort + dedupe; if generated twice on the same day, append `-2`, `-3`.
-- **Gitignore**: `.perry/views/` MUST be in the project's `.gitignore`. PMO bootstrap appends this entry; on first `render`, PMO verifies the entry exists and prompts to add if missing.
-- **Lifetime**: indefinite, but conceptually disposable. User can `rm -rf .perry/views/` any time without losing source-of-truth state.
+- **Gitignore**: `/perry-views/` MUST be in the project's `.gitignore`. PMO bootstrap appends this entry; on first `render`, PMO verifies the entry exists and prompts to add if missing.
+- **Lifetime**: indefinite, but conceptually disposable. User can `rm -rf perry-views/` any time without losing source-of-truth state.
 - **No watcher, no daemon, no server**. One generation per command. Re-run to refresh.
+
+## The index hub (`perry-views/index.html`)
+
+Single navigation entry point at `perry-views/index.html`. **Auto-regenerated as a side effect of every `/pmo render <view>` call** — never goes stale relative to the latest renders, never requires its own command. The user's standard workflow is **double-click `perry-views/index.html` in Finder → see everything → click into a specific view**. No need to remember filenames, no need to enter terminal.
+
+### Content
+
+For each view in the catalog (whether ever rendered or not):
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Perry views — <project name>                                  │
+│  Index updated: <YYYY-MM-DD HH:MM:SS>                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  📊 dashboard       ✓ fresh                                     │
+│     latest: 2026-05-15-dashboard.html                  [open →] │
+│     versions: 3 ▼  (click to expand prior renders)              │
+│                                                                 │
+│  📋 board           ⚠ 2d behind (BOARD.md changed since render) │
+│     latest: 2026-05-13-board.html                       [open →]│
+│     refresh: /pmo render board                                  │
+│                                                                 │
+│  🌀 phase           ✓ fresh (#002 cash-deployment)              │
+│     latest: 2026-05-15-phase-002.html                   [open →]│
+│                                                                 │
+│  🏛 architecture    — never rendered                            │
+│     to render: /pmo render architecture                         │
+│                                                                 │
+│  📕 decisions       ✓ fresh                                     │
+│     latest: 2026-05-14-decisions.html                   [open →]│
+│                                                                 │
+│  🔥 incident <slug> — per-incident; latest renders shown:       │
+│     2026-05-12-incident-trader-stuck.html               [open →]│
+│                                                                 │
+│  ... (one row per catalog view)                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Per-view row contents:
+- **Status badge**: `✓ fresh` / `⚠ Nd behind (<changed-source>)` / `— never rendered`. Computed via the same fingerprint scan used at standup time (see § Staleness detection).
+- **Latest render filename + open link** (`<a href="<filename>" target="_blank">`).
+- **Older versions** (collapsed by default, expand to show prior dated renders for this view).
+- **Refresh hint** (text only, NOT a clickable button — refresh requires PMO subcommand which the browser can't trigger; the index is a passive surface).
+- **"to render" hint** for views with zero history.
+
+### Index regeneration rules
+
+1. **Triggered automatically** at the end of every `/pmo render <view>` call, after the per-view HTML is written. The render command's output mentions both files:
+   ```
+   Wrote perry-views/2026-05-15-dashboard.html
+   Updated perry-views/index.html
+   Open with: open perry-views/index.html       # macOS
+   ```
+2. **Always overwrites** — no version history of the index itself. The per-view files carry history; the index is a live mirror.
+3. **Index reads only directory listing + fingerprint comments**. Doesn't load source markdown. Cheap (<100ms).
+4. **Index doesn't require any source files to exist** — even on a brand-new project with one render done, the index lists "all-other-views: never rendered" with hints.
+5. **Self-contained HTML**, same rules as per-view (inline CSS/JS, mermaid CDN exception not needed here, no other CDNs).
+
+### What the index is NOT
+
+- **Not a project dashboard.** That's `/pmo render dashboard`. The index is a *navigation* hub for finding renders, not a content surface.
+- **Not interactive (beyond expand/collapse + open links).** No filtering, no buttons that mutate state. Click → opens HTML → that's where richness lives.
+- **Not a replacement for the standup `📊 Renders` line.** Standup nudge runs server-side (in PMO chat); the index is the user-facing browser surface. Both reflect the same fingerprint state.
+
+### Standup integration tweak
+
+The `📊 Renders` dashboard line gains a one-liner suffix:
+
+```
+📊 Renders : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)
+            (open perry-views/index.html for the navigator)
+```
+
+The hint only shows when `perry-views/` exists.
 
 ## The view catalog (first set)
 
@@ -69,11 +145,12 @@ Not exhaustive. New views are added by appending to this catalog when a real con
 1. **Pre-flight**:
    - Verify `<view>` is in the catalog. Unknown view → suggest closest match.
    - Read all source files listed for that view. Refuse with a clear error if mandatory ones are missing (e.g., `render phase` with no `phase/CURRENT`).
-   - Verify `.gitignore` contains `.perry/views/` (or `.perry/views/*.html`). Missing → AskUserQuestion (header `"Gitignore"`, options): `Add .perry/views/ to .gitignore (Recommended) | Render anyway — I'll handle gitignore manually`.
-2. **Compute output filename**: `.perry/views/<YYYY-MM-DD>-<view>[-<arg>].html`. If file exists for today, suffix `-2`, `-3`, ...
+   - Verify `.gitignore` contains `perry-views/` (or `perry-views/*.html`). Missing → AskUserQuestion (header `"Gitignore"`, options): `Add perry-views/ to .gitignore (Recommended) | Render anyway — I'll handle gitignore manually`.
+2. **Compute output filename**: `perry-views/<YYYY-MM-DD>-<view>[-<arg>].html`. If file exists for today, suffix `-2`, `-3`, ...
 3. **Generate the HTML**:
    - Read the design preset for this view from `pmo/state/render_presets/<view>.html.j2` if present (template-style preset). Otherwise, generate from scratch using the prompt convention below.
-   - Output is a **single self-contained HTML file** — inline CSS, inline JavaScript, no external CDN dependencies (so it works offline, opens directly from filesystem, doesn't break when shared via email).
+   - Output is a **single self-contained HTML file** — inline CSS, inline JavaScript, no external CDN dependencies for the core page (so it works offline, opens directly from filesystem, doesn't break when shared via email).
+   - **Diagram-rendering libraries (Mermaid, etc.) are an allowed CDN exception**. When the source markdown contains ```` ```mermaid ```` (or other diagram-DSL) blocks, the render MAY embed the library via CDN (e.g. `https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js`) so the user sees rendered SVG. Rules: (a) library MUST be loaded with a graceful fallback — if the CDN is unreachable, the original DSL source must still be visible as a `<pre>` code block (use `mermaid.initialize({startOnLoad: false})` + `try/catch` around `mermaid.run()`; on error keep the source visible); (b) NO other CDN dependencies (no Tailwind, no jQuery, no font CDNs — those still violate the rule); (c) prefer one CDN library per render. Rationale: the consumption value of seeing an SVG diagram beats the rare offline-share use case, and the fallback preserves the offline guarantee.
    - **Mandatory fingerprint banner** at the very top of `<body>` (sticky, visible without scrolling). Carries the source-file fingerprints needed for staleness detection; see § Staleness detection. Shape:
      ```html
      <div style="position: sticky; top: 0; z-index: 999; background: #fff7e0; border-bottom: 1px solid #d4a72c; padding: 8px 16px; font-family: ui-monospace, monospace; font-size: 12px; color: #6b4400;">
@@ -97,14 +174,17 @@ Not exhaustive. New views are added by appending to this catalog when a real con
      -->
      ```
      The standup staleness scan (see § Staleness detection) parses this comment, not the visible banner.
-4. **Open hint**: print the file path + an open command:
+4. **Regenerate the index hub** (`perry-views/index.html`) — see § The index hub. Always overwrites; cheap (<100ms). This step runs unconditionally after every per-view render so the navigator stays current.
+5. **Open hint**: print BOTH the per-view file AND the index, plus the recommended entry point:
    ```
-   Wrote .perry/views/2026-05-15-dashboard.html
-   Open with: open .perry/views/2026-05-15-dashboard.html       # macOS
-   Open with: xdg-open .perry/views/2026-05-15-dashboard.html   # linux
+   Wrote perry-views/2026-05-15-dashboard.html
+   Updated perry-views/index.html
+   Open the navigator: open perry-views/index.html       # macOS
+   Or this view directly: open perry-views/2026-05-15-dashboard.html
+   (linux: xdg-open; windows: start)
    ```
    Do NOT auto-open (PMO is sometimes invoked headless / in agent-context where opening a browser is wrong).
-5. **Don't write anywhere else**. Render is read-only against source files. Output goes ONLY to `.perry/views/`.
+6. **Don't write anywhere else**. Render is read-only against source files. Output goes ONLY to `perry-views/` (per-view file + index.html).
 
 ## The "design preset" mechanism (optional, additive)
 
@@ -118,7 +198,7 @@ Don't ship default presets in Perry. Each project's needs are different — Perr
 
 - **Does not modify any tier 1 or tier 2 file.** Read-only on source.
 - **Does not run a server, daemon, or watcher.** One render per command.
-- **Does not commit anything to git.** Output goes to gitignored `.perry/views/`.
+- **Does not commit anything to git.** Output goes to gitignored `perry-views/`.
 - **Does not auto-open a browser.** Prints the open command and stops.
 - **Does not enforce a visual style.** Each render is whatever Claude produces from the source. Optional presets are per-project.
 - **Does not cache.** Every render re-reads source files. Source changes between renders → next render reflects them. (Source files are typically <50KB total; re-read cost is negligible.)
@@ -138,8 +218,8 @@ This is passive — the banner doesn't auto-detect that source has moved on. It 
 
 The PMO standup ritual (see `pmo/SKILL.md § Mandatory first move`) gains one step:
 
-1. If `.perry/views/` doesn't exist → skip entirely (user hasn't rendered anything).
-2. Otherwise, for each `.perry/views/*.html`:
+1. If `perry-views/` doesn't exist → skip entirely (user hasn't rendered anything).
+2. Otherwise, for each `perry-views/*.html`:
    - Parse the `<!-- perry-render-fingerprint -->` comment (mandatory; missing → treat the file as foreign / hand-edited / corrupt and skip).
    - For each source-path → recorded-sha256 pair, compute `sha256(current file content)` and compare.
    - If any source SHA differs OR any listed source file no longer exists → mark this render as **stale**.
@@ -154,7 +234,7 @@ The scan is cheap — sha256 over the source files of typical render sets (~5–
 ### What staleness scan does NOT do
 
 - **No auto re-render.** Surfacing the stale list is the only action; user runs `/pmo render <view>` to refresh, by their own decision.
-- **No deletion of stale HTML.** They stay until the user removes them. Keep last N + auto-prune is out of scope (user's `.perry/views/` is gitignored anyway — `rm` is cheap).
+- **No deletion of stale HTML.** They stay until the user removes them. Keep last N + auto-prune is out of scope (user's `perry-views/` is gitignored anyway — `rm` is cheap).
 - **No mid-session re-scan.** Standup is the only trigger. If the user generates a render, immediately changes BOARD, then runs the standup again, the scan will flag it. That's fine.
 
 ### Why no daemon, no JS-side comparison

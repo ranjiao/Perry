@@ -60,13 +60,13 @@ EVERY Perry file falls into exactly one of three tiers based on who reads it. Ti
 |---|---|---|---|---|
 | **1** — User-read-and-edit | Strategic; user MUST read in raw form | markdown | YES (per file) | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
 | **2** — Agent-internal state | Live mutating state, agent reads/writes constantly; user mostly ignores raw | markdown | NO (existing soft caps stay) | `BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/` |
-| **3** — User-read-only HTML | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `.perry/views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+| **3** — User-read-only HTML | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `perry-views/<YYYY-MM-DD>-<view>.html` (gitignored) |
 
 **Tier 1 hard caps are non-negotiable.** When a write would push a tier 1 file past its cap, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
 
 **Tier 2 has no user-read constraint** — agent reads for its own purposes; users go through tier 3 if they want to look. This is why tier 2 has no hard cap (only the existing BOARD ≤200 / SKILL.md ~300 limits, which are agent-context-budget driven, not readability driven).
 
-**Tier 3 is the dedicated consumption layer.** `/pmo render <view>` generates HTML on demand from tier 1+2 sources. Output lives in `.perry/views/` (gitignored), is never edited by hand, never committed. Regenerate any time. See `reference/rendering.md`.
+**Tier 3 is the dedicated consumption layer.** `/pmo render <view>` generates HTML on demand from tier 1+2 sources. Output lives in `perry-views/` (gitignored), is never edited by hand, never committed. Regenerate any time. See `reference/rendering.md`.
 
 ## When this skill activates
 
@@ -120,8 +120,8 @@ Always run this before anything else, even if the user asked a specific question
      - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
      - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
-   - **Renders staleness scan** (only if `.perry/views/` exists; see `reference/rendering.md § Staleness detection`):
-     - For each `.perry/views/*.html`: parse the `<!-- perry-render-fingerprint -->` comment; for each recorded source path → sha256, compute current `sha256(file content)` and compare. Source SHA differs OR source file gone → mark render stale.
+   - **Renders staleness scan** (only if `perry-views/` exists; see `reference/rendering.md § Staleness detection`):
+     - For each `perry-views/*.html`: parse the `<!-- perry-render-fingerprint -->` comment; for each recorded source path → sha256, compute current `sha256(file content)` and compare. Source SHA differs OR source file gone → mark render stale.
      - Track stale count + oldest-stale view name + days behind. Omit `📊 Renders` line if 0 stale.
 
 6. **Render the dashboard** — fixed shape, no preamble:
@@ -137,7 +137,7 @@ Always run this before anything else, even if the user asked a specific question
    🏛 Architecture  : v<N> · last reviewed <days>d ago · §7 open: <count> · audit drift: <count>   (omit row if no ARCHITECTURE.md)
    📕 Runbooks      : <active> active · <stale> stale (≥90d) · <gaps>                       (omit row if no runbook/)
    🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
-   📊 Renders       : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)   (omit row if no .perry/views/ OR 0 stale)
+   📊 Renders       : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)   (omit row if no perry-views/ OR 0 stale)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
@@ -233,7 +233,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
-| `render <view> [<arg>]` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `.perry/views/` (gitignored). Views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff` | `reference/rendering.md` |
+| `render <view> [<arg>]` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `perry-views/` (gitignored). Views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff` | `reference/rendering.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
@@ -310,7 +310,7 @@ If yes:
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
    - **Do NOT create `ARCHITECTURE.md` / `architecture/` / `runbook/` / `incidents/` at bootstrap.** These are lazy-created on first use (first `/pmo architecture init` or first task spec with `Touches architecture:`, first task spec with `Deployed: yes`, first `/pmo incident <slug>` respectively). If `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation — see `reference/architecture.md` and `reference/runbooks.md`.
-   - **Append `.perry/views/` to `.gitignore`** — tier 3 HTML output lives there and is disposable, never tracked. If `.gitignore` already exists, append the line; if missing, create it with the entry (plus any other entries the project hook declares).
+   - **Append `perry-views/` to `.gitignore`** — tier 3 HTML output lives there and is disposable, never tracked. If `.gitignore` already exists, append the line; if missing, create it with the entry (plus any other entries the project hook declares).
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
 5. Run the standup.
