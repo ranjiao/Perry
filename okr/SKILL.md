@@ -119,7 +119,7 @@ Run when `OKR.md` doesn't exist. Conduct the interview:
    - Mark KRs as `commit` (must achieve) or `stretch` (welcome-to-overshoot)
 6. **Anti-Goals** — 4–8 things the project will NOT do during this period. Examples: "no production deploys until promotion gate", "no new paid API integrations", "no untested refactors".
 7. **Versioning** — assign `v1` and today's date. All future revisions are appended versions, not edits in place.
-8. Write `OKR.md` from `state/OKR_TEMPLATE.md`.
+8. Write `OKR.md` from `state/OKR_TEMPLATE.md`. Verify ≤200 lines (tier 1 hard cap); if template + user inputs already exceed, prompt user to trim Operating Principles / KR descriptions before write.
 9. Run `plan-phase` to create phase `#001`.
 
 #### `revise` — produce a new OKR version
@@ -165,7 +165,7 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
 9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
 10. **Process Note** — pointer to PMO's cadence work so phase Objectives don't waste slots on "do weekly status reports".
 
-Confirm with user; write `phase/<NNN>-<slug>.md` from `state/phase_TEMPLATE.md`. Write/update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>` for fast lookup). Optionally call `plan-week` for week 1 immediately.
+Confirm with user; write `phase/<NNN>-<slug>.md` from `state/phase_TEMPLATE.md`. **Verify ≤300 lines (tier 1 hard cap)** before writing — if drafted content exceeds, AskUserQuestion (header `"Phase cap"`, options): `Split — move Stretch / long narrative to evidence/<YYYY-MM>/phase-<NNN>-<topic>.md (Recommended) | Trim sections in place | Override with logged reason`. After write, update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>` for fast lookup). Optionally call `plan-week` for week 1 immediately.
 
 #### `score-phase [<NNN>]`
 Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and `BOARD.md` Done section.
@@ -254,6 +254,11 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
 - **Show the snapshot first.** No "Let me think about your goals…" preamble.
 - **KRs must be measurable.** Reject anything qualitative — push for number + unit + deadline.
 - **Cap phase KRs at 4 per Objective.** Solo project; more is dilution.
+- **Tier 1 hard size caps (REFUSE writes that exceed)** — see `pmo/SKILL.md § Two file models § Axis B`:
+  - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log only.
+  - `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`; main file references via link.
+  - `init` / `plan-phase` / `revise` MUST verify line count before write; if would exceed, AskUserQuestion (header `"Tier 1 cap"`, options): `Split — move section X to evidence file (Recommended) | Trim section X in place | Override — write past cap with reason logged`. Override path requires written reason in journal.
+  - Reading a tier 3 HTML render (`/pmo render dashboard` or similar) is the right consumption path when the user wants the "rich" view.
 - **Stretch ≠ commit.** Mark stretch KRs explicitly. Don't shame underdelivery on stretch.
 - **Cite evidence paths.** Every progress claim points to a `BOARD.md` row or `evidence/<YYYY-MM>/<file>.md`.
 - **Never write to PMO files.** Hand off via chat.

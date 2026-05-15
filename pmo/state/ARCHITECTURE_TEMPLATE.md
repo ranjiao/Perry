@@ -4,6 +4,7 @@
 > Version: v1
 > Last reviewed: {{YYYY-MM-DD}}
 > Status: draft
+> Tier 1 hard cap: ≤ 500 lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes §-section TOC + 1-paragraph summaries.
 
 <!--
 This is the single source of truth for the system's design. Edit freely.

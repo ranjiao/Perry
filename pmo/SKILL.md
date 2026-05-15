@@ -23,6 +23,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
 | `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
+| `reference/rendering.md` | `/pmo render <view>` (generate disposable HTML for human consumption; tier 3 of the file model) + tier 1 hard size caps |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
@@ -35,9 +36,13 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `phase/`.
 
-## The three-tier model (read this first)
+## Two file models (read both first)
 
-PMO state is split across three layers with different lifecycles. Mixing them in one file is what causes the "1000-line unreadable board" anti-pattern.
+Perry organises files along **two orthogonal axes**. Confusing them is what produces the "1000-line unreadable board" anti-pattern AND the "I have to render markdown in VSCode just to read my own OKR" anti-pattern.
+
+### Axis A — temporal layers (BOARD / journal / evidence)
+
+PMO **state** files split across three layers with different lifecycles:
 
 | Layer | File(s) | Lifetime | Read frequency | Write pattern |
 |---|---|---|---|---|
@@ -46,6 +51,22 @@ PMO state is split across three layers with different lifecycles. Mixing them in
 | **Artifact** | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | per task | only when verifying a `done` claim or writing a retro | one file per task deliverable (incl. `<TASK-ID>-spec.md` for P0/P1 — see `reference/subcommands.md` § add-task) |
 
 `BOARD.md` is the PMO's **working memory**. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
+
+### Axis B — audience tiers (markdown source vs HTML render)
+
+EVERY Perry file falls into exactly one of three tiers based on who reads it. Tier determines size cap, format, and edit pattern. See `reference/rendering.md § The three-tier file model` for the full table.
+
+| Tier | Purpose | Format | Hard cap | Examples |
+|---|---|---|---|---|
+| **1** — User-read-and-edit | Strategic; user MUST read in raw form | markdown | YES (per file) | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
+| **2** — Agent-internal state | Live mutating state, agent reads/writes constantly; user mostly ignores raw | markdown | NO (existing soft caps stay) | `BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/` |
+| **3** — User-read-only HTML | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `.perry/views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+
+**Tier 1 hard caps are non-negotiable.** When a write would push a tier 1 file past its cap, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
+
+**Tier 2 has no user-read constraint** — agent reads for its own purposes; users go through tier 3 if they want to look. This is why tier 2 has no hard cap (only the existing BOARD ≤200 / SKILL.md ~300 limits, which are agent-context-budget driven, not readability driven).
+
+**Tier 3 is the dedicated consumption layer.** `/pmo render <view>` generates HTML on demand from tier 1+2 sources. Output lives in `.perry/views/` (gitignored), is never edited by hand, never committed. Regenerate any time. See `reference/rendering.md`.
 
 ## When this skill activates
 
@@ -208,6 +229,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
+| `render <view> [<arg>]` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `.perry/views/` (gitignored). Views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff` | `reference/rendering.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
@@ -255,6 +277,14 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `design/<DESIGN-ID>-*.md` | design | Read by PMO to know which locked designs need implementation tasks; never written by PMO | (in design skill) |
 
 **Size discipline (non-negotiable)**:
+
+Tier 1 caps (PMO/OKR REFUSES to write past these — see also `reference/rendering.md § The three-tier file model`):
+- `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log.
+- `ARCHITECTURE.md` ≤ **500** lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file keeps §-section TOC + 1-paragraph summaries.
+- `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long narrative / Stretch trackers / project lists to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`.
+- `runbook/<component>.md` ≤ **150** lines. Overflow → split troubleshooting matrix to `runbook/<component>-troubleshooting.md` (still tier 1; just chaptered).
+
+Tier 2 caps (existing soft limits, agent-context-budget driven):
 - `BOARD.md` ≤ 200 lines. If it grows past, `triage` MUST cut it before the next standup ends.
 - `PROJECT_STATE.md` ≤ 200 lines.
 - `pmo/SKILL.md` itself ≤ ~300 lines. New features → write to `reference/<topic>.md` first, add a one-line pointer here. (See `## Extending PMO` below.)
@@ -276,6 +306,7 @@ If yes:
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
    - **Do NOT create `ARCHITECTURE.md` / `architecture/` / `runbook/` / `incidents/` at bootstrap.** These are lazy-created on first use (first `/pmo architecture init` or first task spec with `Touches architecture:`, first task spec with `Deployed: yes`, first `/pmo incident <slug>` respectively). If `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation — see `reference/architecture.md` and `reference/runbooks.md`.
+   - **Append `.perry/views/` to `.gitignore`** — tier 3 HTML output lives there and is disposable, never tracked. If `.gitignore` already exists, append the line; if missing, create it with the entry (plus any other entries the project hook declares).
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
 5. Run the standup.
