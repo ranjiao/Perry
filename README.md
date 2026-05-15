@@ -50,26 +50,23 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 ## How they cooperate
 
 ```
-   ┌────────────────────────┐    ┌──────────────────────────┐    ┌────────────────────────┐
-   │  OKR.md (versioned)    │ →  │ phase/<NNN>-<slug>.md     │ →  │ Weekly task proposals  │
-   │  Operating Principles  │    │  Phase Focus              │    │ tagged with KR ids,    │
-   │  Anti-Goals            │    │  Operating Rules          │    │ Owner, Priority, DoD   │
-   │  1–3 Objectives, KRs   │    │  Cost Ceiling             │    │                        │
-   │                        │    │  User Commitments         │    └─────────┬──────────────┘
-   └────────────────────────┘    │  Degradation rule         │              │ user approval
-                                  │  Scope Reduction rule    │              ▼
-                                  │  Definition of Done      │    ┌────────────────────────┐
-                                  │  Not Doing               │    │  PMO appends to        │
-                                  │  (NOT calendar-bound;    │    │  BOARD + journal entry │
-                                  │   phase ends on KRs hit) │    │                        │
-                                  └──────────────────────────┘    │
-                                                                  │  · runs standup        │
-                                                                  │  · triages weekly      │
-                                                                  │  · delegates to agents │
-                                                                  │  · writes evidence/    │
-                                                                  │  · publishes weekly/   │
-                                                                  │  · writes handoff/     │
-                                                                  └────────────────────────┘
+  ┌────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
+  │ OKR.md (versioned) │  ──▶ │ phase/<NNN>-<slug>.md   │  ──▶ │ Weekly task proposals   │
+  │  Mission           │      │  (current phase OKR)    │      │  tagged with KR ids,    │
+  │  Operating Princ.  │      │  Phase Focus            │      │  Owner, Priority, DoD   │
+  │  Anti-Goals        │      │  Operating Rules        │      └────────────┬────────────┘
+  │  1–3 O + KRs       │      │  Cost Ceiling           │                   │ user approval
+  └────────────────────┘      │  User Commitments       │                   ▼
+                               │  Degradation            │      ┌─────────────────────────┐
+                               │  Scope Reduction        │      │ PMO appends rows to     │
+                               │  Definition of Done     │      │ BOARD + writes journal  │
+                               │  Not Doing              │      │  · runs standup         │
+                               │  (NOT calendar-bound;   │      │  · triages weekly       │
+                               │   phase ends on KRs)    │      │  · delegates / dispatches│
+                               └─────────────────────────┘      │  · writes evidence/     │
+                                                                 │  · publishes weekly/    │
+                                                                 │  · writes handoff/      │
+                                                                 └─────────────────────────┘
 ```
 
 **The hand-off rule (the most important contract):**
@@ -77,6 +74,72 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 - `pmo` **writes** `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. **Reads** OKR and design files for context.
 - `design` **writes** `design/<DESIGN-ID>-<slug>.md`. **Proposes** implementation tasks on lock; never writes them.
 - Each skill reads the others' files freely; no skill writes outside its lane.
+
+## OKR phases — why no monthly cycle
+
+Perry's OKR has two layers and zero calendar bondage:
+
+1. **Overall OKR** (`OKR.md`) — versioned, no time bound. Mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals. Edited via `okr revise` (which appends a new `## v<N>` block; old versions stay readable for audit).
+2. **Current phase** (`phase/<NNN>-<slug>.md`) — the live tactical commitment. **NOT calendar-bound**. A phase ends when its KRs are largely hit, not when a date arrives.
+
+```
+phase/
+├── CURRENT                                       ← one-line pointer: "002-cash-deployment"
+├── 001-system-build.md                           ← scored (closed)
+├── 002-cash-deployment.md                        ← active (current; pointed to by CURRENT)
+└── snapshots/
+    ├── 2026-05-01-001-system-build-final.md     ← terminal snapshot, written at score-phase
+    ├── 2026-05-13-002-cash-deployment.md        ← heartbeat snapshot (mid-phase)
+    └── 2026-05-27-002-cash-deployment.md        ← another heartbeat
+```
+
+### Why phases instead of months
+
+Agent-paced projects finish month-scoped KRs in week 1, then spend three weeks doing busy-work to fill the calendar. The "month" is a unit of human team cadence; it's not a unit of project state. Perry replaces the monthly OKR with a **phase OKR** so:
+
+- **KRs end the phase, not the calendar.** No "month-end retro" theater when the work was done on day 5.
+- **Phase length is project-driven**, typically 2–6 weeks. Some phases are 3 days; some are 8 weeks. Both are fine.
+- **Phase snapshots preserve history** (manual + heartbeat) without forcing a rigid review cycle.
+- **Numbering keeps order and search clean** — `001`, `002`, ... auto-assigned by `plan-phase`. The user-chosen slug describes what the phase was about (`system-build`, `cash-deployment`, `paper-trading-baseline`).
+
+### What replaces calendar discipline
+
+Two soft prompts surface in OKR standup. Neither one enforces:
+
+- **KR-progress prompt** — when ≥80% of `commit` KRs are achieved → *"Ready to `/okr score-phase` and start the next?"*
+- **Heartbeat prompt** — when ≥`phase_heartbeat_days` (default 14, override in `.perry/config.md`) since the last snapshot → *"Run `/okr snapshot` to preserve current state."*
+
+The user can ignore either. The point isn't to enforce a cadence — it's to make sure no phase silently extends forever and no chunk of work goes unsnapshotted.
+
+### Phase lifecycle commands
+
+| Command | When | What it writes |
+|---|---|---|
+| `/okr plan-phase <slug>` | Start a new phase. Auto-assigns `#NNN = max + 1` | `phase/<NNN>-<slug>.md` (10 mandatory sections) + updates `phase/CURRENT` |
+| `/okr snapshot` | Heartbeat / pre-pivot / milestone preserve | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` (does NOT end the phase) |
+| `/okr score-phase` | Close current phase | Per-KR scoring → `phase/<NNN>-<slug>.md § Retro` + `evidence/<YYYY-MM>/retro.md` + auto-snapshot with `-final` suffix; clears `phase/CURRENT` |
+| `/pmo mid-phase-review` | Midpoint check (or any time the user wants) | `evidence/<YYYY-MM>/midphase-review-<NNN>-<slug>.md`; applies Phase Scope Reduction Rule if armed |
+| `/pmo end-phase-retro` | Phase wrap-up retro (often run right before `score-phase`) | `evidence/<YYYY-MM>/retro.md` (consumed by `okr score-phase`) |
+| `/pmo rollover` | After `score-phase`: clean BOARD carry-forwards | Hands off to OKR; user runs `plan-phase <next-slug>` |
+
+### Phase Scope Reduction Rule — two trigger types
+
+Inside the phase OKR, the `Phase Scope Reduction Rule` section declares **how the phase will auto-cut scope** if things slip. Pick one or both — whichever fires first cuts. **NO calendar-date triggers.**
+
+- **Phase-day trigger** — "If by phase day `N` (counting from the `plan-phase` write date) named USER-XXX are still open, Objective N collapses to its single Must-Have."
+- **KR-progress trigger** — "If at phase day `N`, commit KRs are <`X%` achieved, scope cuts to the named Must-Haves."
+
+### OKR cross-phase firewall
+
+`okr plan-phase` reads the latest `architecture/audit-history/<date>.md` and `ARCHITECTURE.md § Open questions` (if those files exist). It **refuses to write** the new phase OKR until every unresolved drift item is explicitly addressed — resolved as a KR, accepted by editing `ARCHITECTURE.md`, deferred with an ADR, or listed under `Not Doing` with rationale. The architecture doc is the lever; OKR `plan-phase` is the recurring forcing function that prevents silent drift accumulating across phases.
+
+### What stays calendar-bound (these are storage, not project state)
+
+A phase can span any number of journal months / evidence months / ISO weeks — they're orthogonal to phases:
+
+- `journal/<YYYY-MM>/<YYYY-MM-DD>.md` — daily diary; a phase day might be Mon May 5 in one journal entry and Fri Jun 13 in another
+- `evidence/<YYYY-MM>/<TASK-ID>-*.md` — month-bucketed for retrieval, not for scoping
+- `weekly/<YYYY-WW>.md` + `/okr plan-week` — week as task-batch granularity for tactical planning
 
 ## Key concepts
 
@@ -109,9 +172,7 @@ Both skills run a mandatory snapshot/standup the moment they're invoked, so you 
 - **`incidents/<YYYY-MM-DD>-<slug>.md`** — postmortem record per production failure. `/pmo incident close` enforces a 3-question gate (Knowledge / **Architecture** / Runbook): each question must produce a concrete artifact OR an explicit skip-with-reason. The "Architecture" question asks whether the incident reveals that `ARCHITECTURE.md` is wrong, missing, or out of date. See `pmo/reference/incidents.md`.
 - **`/pmo health-check`** — meta-runner that composes `architecture-audit` + `runbook-check` + digest stale + incident patterns into one report at `evidence/<YYYY-MM>/health-check-<date>.md`. Called inline by `mid-phase-review` and `end-phase-retro`. See `pmo/reference/health-check.md`.
 
-These four work together: `ARCHITECTURE.md` is the user-controlled spine; incidents reveal where the spine is wrong; runbooks keep the user able to operate without reading agent-written code; health-check is the periodic reality check. None of them is mandatory, but each is a contract Perry uses to keep an agent-built project under user control.
-
-**OKR cross-phase firewall:** `okr plan-phase` reads the latest `architecture/audit-history/<date>.md` and `ARCHITECTURE.md § Open questions`. It refuses to write the new phase's OKR until every unresolved drift item is explicitly addressed — resolve as a KR, accept by editing `ARCHITECTURE.md`, defer with an ADR, or list under `Not Doing` with rationale. The architecture doc is the lever; OKR is the recurring forcing function.
+These four work together: `ARCHITECTURE.md` is the user-controlled spine; incidents reveal where the spine is wrong; runbooks keep the user able to operate without reading agent-written code; health-check is the periodic reality check. None of them is mandatory, but each is a contract Perry uses to keep an agent-built project under user control. The cross-phase firewall in `okr plan-phase` (see § OKR phases) is what forces unresolved drift to be addressed when the next phase opens.
 
 ## Typical flow (first time, any project)
 
@@ -214,7 +275,3 @@ Perry was built so you can extend it without breaking the core. Some natural add
 - **`experiment-runner`** — coordinates batch jobs in a sub-session; reports KR-relevant numbers back to OKR.
 
 Rule for adding a new skill to the family: declare the files you own and the files you only read in your `description:` frontmatter, and never write to files owned by another skill. That single discipline is what makes the set scale past two members.
-
-## Origin
-
-Perry was abstracted from a real workflow: someone was using a single long-running Claude Code conversation as a "virtual PMO" for a personal project, accumulating an OKR doc, a monthly OKR, a TODO board, an evidence folder, and a daily handoff doc by hand. The pattern worked, but it relied entirely on the user remembering to feed the right files to each new session. Perry's standup ritual, evidence-required completion, agent owner model, cadence rituals, and handoff doc are the abstraction of what made that workflow work — packaged so anyone can adopt it without reverse-engineering the pattern.
