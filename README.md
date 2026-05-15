@@ -21,17 +21,21 @@ Steps:
 
 The agent's Bash tool isn't a TTY, so `setup` automatically switches to **auto-skip mode** — runs the dep check, surfaces what's missing, but won't block on Y/N prompts or sudo passwords. Adding `--yes-deps` opts into auto-installing what's installable non-interactively. Items that need GUI (Xcode CLT) or sudo (Homebrew) are listed as TODOs at the end for the user to handle.
 
+> **Where to clone**: `~/proj/Perry` in the example above is just a suggested default. Perry works from any location (e.g. `~/.claude/perry`, `~/code/perry`, `/opt/perry`) — the `setup` script resolves its own location via `$(dirname "$0")` and writes the host-side symlinks regardless. Replace the path in step 1 with whatever you prefer; all later commands in this README work the same way as long as you substitute consistently.
+
 > Already have Perry installed? Update with:
-> `cd ~/proj/Perry && git pull`
+> `cd <where-you-cloned-Perry> && git pull`
 
 ### Host selection
 
+The table below uses `~/proj/Perry/setup` as the canonical example — **substitute your clone path** if you put Perry somewhere else.
+
 | Command | What gets installed |
 |---|---|
-| `~/proj/Perry/setup` | Auto-detect: install for whichever of `claude` / `codex` is in PATH. Both → both. Neither → fail with options. |
-| `~/proj/Perry/setup --claude` | Force install for Claude Code only (`~/.claude/skills/`). |
-| `~/proj/Perry/setup --codex` | Force install for Codex CLI only (`~/.agents/skills/`). |
-| `~/proj/Perry/setup --claude --codex` | Install for both regardless of detection. |
+| `<perry-clone>/setup` | Auto-detect: install for whichever of `claude` / `codex` is in PATH. Both → both. Neither → fail with options. |
+| `<perry-clone>/setup --claude` | Force install for Claude Code only (`~/.claude/skills/`). |
+| `<perry-clone>/setup --codex` | Force install for Codex CLI only (`~/.agents/skills/`). |
+| `<perry-clone>/setup --claude --codex` | Install for both regardless of detection. |
 
 See **[INSTALL.md](INSTALL.md)** for the agent-driven install flow, the fresh-Mac dependency matrix (Xcode CLT / Homebrew / Node / etc.), and per-host fallbacks for Codex (free-text prompts replace `AskUserQuestion`, async dispatch uses shell `&`, etc.).
 
