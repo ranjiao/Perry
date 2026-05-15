@@ -14,7 +14,7 @@ There is exactly **one** architecture document per project: `ARCHITECTURE.md` at
 | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
 | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
 | **Update cadence** | User-driven, plus mandatory review at `okr plan-phase` and `end-phase-retro`. |
-| **Size budget** | Soft cap 800 lines, typical 200–500. If a project genuinely needs more, split into appendix files referenced from the main doc — but the main doc is still one file. |
+| **Size budget** | **HARD cap 500 lines** (tier 1; see `pmo/SKILL.md § Two file models`). PMO refuses writes that would exceed. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes a §-section TOC + 1-paragraph summaries per section. Typical clean ARCHITECTURE.md is 200–400 lines; 500 is the hard ceiling for "user can read in one sitting." |
 
 ## Document structure
 
@@ -85,8 +85,9 @@ Procedure:
 1. Detect `OKR.md` / existing code structure / `DECISIONS.md` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
 2. For each section, prompt the user with the section's question. Capture answers via free-text (no AskUserQuestion — these are essay answers, not multiple choice).
 3. Write the draft. Status starts as `draft`; doesn't gate dispatch yet.
-4. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. `Status: active` enables the dispatch compliance gate."
-5. Append journal entry `## Notes`: `architecture init — draft created`.
+4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.
+5. Print: "Edit `ARCHITECTURE.md` to finish. Flip `Status: active` when ready. `Status: active` enables the dispatch compliance gate."
+6. Append journal entry `## Notes`: `architecture init — draft created`.
 
 ### `/pmo architecture review`
 
@@ -94,6 +95,7 @@ User-triggered annual / quarterly / ad-hoc review. Procedure:
 1. Read `ARCHITECTURE.md`. Read all journal entries since `Last reviewed:` date and all entries in `architecture/audit-history/`.
 2. Pre-fill a `## Changes since last review` working note showing: ADRs landed, audit findings closed, components added (per change-log), open §7 items moved.
 3. User edits. On save, PMO bumps `Last reviewed:` and `Version:`, appends to `§8 Change log`, writes a journal entry.
+4. **Tier 1 cap check** — same 500-line cap as `init`. If user's edits push the file past, surface the same split/trim/override flow.
 
 ### `/pmo architecture-audit [--quiet]`
 

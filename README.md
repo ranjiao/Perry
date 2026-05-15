@@ -141,6 +141,22 @@ A phase can span any number of journal months / evidence months / ISO weeks — 
 - `evidence/<YYYY-MM>/<TASK-ID>-*.md` — month-bucketed for retrieval, not for scoping
 - `weekly/<YYYY-WW>.md` + `/okr plan-week` — week as task-batch granularity for tactical planning
 
+## File model — three tiers by audience
+
+Markdown is great for producing state (agent edits, git diff, LLM prompt injection); it's bad for consuming state past 100 lines. Perry resolves this by classifying every file into one of three tiers based on **who reads it**, and reserving HTML for the consumption layer only.
+
+| Tier | Purpose | Format | Hard cap | Examples |
+|---|---|---|---|---|
+| **1 — User-read-and-edit** | Strategic; user MUST read in raw form | markdown | YES per file | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
+| **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | NO (existing soft caps stay) | `BOARD.md` · `journal/` · `evidence/` · `decisions/` · `incidents/` · `weekly/` · `handoff/` · `PROJECT_STATE.md` · `phase/snapshots/` · `architecture/audit-history/` · `knowledge/` |
+| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `.perry/views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+
+**Tier 1 hard caps are non-negotiable.** When an OKR / PMO write would push a tier 1 file past its cap, the skill **refuses** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/...-appendix.md` or `architecture/sections/§<N>-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
+
+**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `.perry/views/` (gitignored), never edited by hand, never committed. Regenerate any time. No daemon, no watcher, no server — one render per command. See `pmo/reference/rendering.md`.
+
+The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and add HTML as the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, sharing). Don't fight markdown's weaknesses; route around them.
+
 ## Key concepts
 
 **Status model (PMO):** `not_started · blocked · in_progress · review · done · dropped`. A task may not be marked `done` without an evidence file under `evidence/<YYYY-MM>/<TASK-ID>-*.md` or a citable artifact (commit hash, command output, dashboard route).
@@ -205,7 +221,11 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 <project_root>/
 ├── .perry/
 │   ├── config.md                       ← language + repo layout (single | split)
-│   └── hook.md                         ← project-specific additions (optional)
+│   ├── hook.md                         ← project-specific additions (optional)
+│   └── views/                          ← tier 3 HTML output (gitignored, disposable)
+│       ├── 2026-05-15-dashboard.html
+│       ├── 2026-05-15-board.html
+│       └── 2026-05-13-architecture.html
 ├── OKR.md                              ← okr (overall, versioned)
 ├── phase/
 │   ├── CURRENT                          ← okr (one-line pointer: <NNN>-<slug> of current phase)
