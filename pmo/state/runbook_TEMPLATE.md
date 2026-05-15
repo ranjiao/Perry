@@ -3,6 +3,7 @@
 > Component: {{Display name}}
 > Owner: {{user | named agent | team}}
 > Status: active | deprecated | archived
+> Tier 1 hard cap: ≤ 150 lines. Overflow → split troubleshooting matrix to `runbook/{{component-slug}}-troubleshooting.md`. Keep this main file's four mandatory sections (What / Healthy / Failures / Escalation) in canonical short form.
 > Created: {{YYYY-MM-DD}}
 > Last verified: {{YYYY-MM-DD}}
 > Linked spec: evidence/{{YYYY-MM}}/{{TASK-ID}}-spec.md
