@@ -1,6 +1,6 @@
 ---
 name: pmo
-description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains BOARD.md (live working memory — current open work only, ≤200 lines), journal/<YYYY-MM>/<YYYY-MM-DD>.md (daily append-only history of status changes / new tasks / decisions), PROJECT_STATE.md (cross-monthly dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and monthly/<YYYY-MM>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
+description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains BOARD.md (live working memory — current open work only, ≤200 lines), journal/<YYYY-MM>/<YYYY-MM-DD>.md (daily append-only history of status changes / new tasks / decisions), PROJECT_STATE.md (cross-phase dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and phase/<NNN>-<slug>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
 ---
 
 # PMO — Perry's execution steward
@@ -17,10 +17,14 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 |---|---|
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
-| `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-month-review` / `end-month-retro` |
+| `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-phase-review` / `end-phase-retro` |
 | `reference/decisions.md` | `/pmo decide <topic>` and `--supersede` / `--expire` / `--archive` (ADR lifecycle + `decisions/` split + language rule) |
+| `reference/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
+| `reference/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
+| `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
+| `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
-| `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-month-review`, `end-month-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), monthly (`rollover`) |
+| `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |
 | `reference/reporting-format.md` | `status`, `monday-plan`, `midweek-check` weekly output |
@@ -29,7 +33,7 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `monthly/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `phase/`.
 
 ## The three-tier model (read this first)
 
@@ -65,20 +69,22 @@ Always run this before anything else, even if the user asked a specific question
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
 2. **Read live state**:
    - `BOARD.md` (current open work — the working memory)
-   - `PROJECT_STATE.md` (cross-monthly dashboard)
+   - `PROJECT_STATE.md` (cross-phase dashboard)
    - `DECISIONS.md` (index only — counts + most recent active ADR. Do NOT load per-decision files unless a current question requires one; see `reference/decisions.md § Standup integration`.)
+   - `ARCHITECTURE.md` if it exists at project root — read **header only** (Status, Version, Last reviewed, §-section titles) for the dashboard line. Full text is NOT loaded into context here; it gets injected only on dispatch (see `reference/architecture.md § Dispatch integration`). Do read the file if the user's current question references architecture, otherwise stay header-only.
    - **Sunset check**: scan `DECISIONS.md` Active section for ADRs with date-based sunset criteria that have passed today's date. If any: surface 🚨 in dashboard, suggest `/pmo decide --expire ADR-NNN`.
+   - **Architecture freshness check**: if `ARCHITECTURE.md` exists and `Status: draft` for >7 days, surface 🚨; if `Last reviewed:` >180 days ago, suggest `/pmo architecture review`.
    If any are missing, see Bootstrap.
 
 3. **Read recent history** — only the last 1–2 days of journal:
    - `journal/<YYYY-MM>/<today>.md` if it exists, else
    - `journal/<YYYY-MM>/<latest>.md`, plus the file before it.
-   Do NOT walk the whole month; that defeats the purpose of the BOARD/journal split. Read older journal entries only on demand for `mid-month-review`, `end-month-retro`, or when answering a question about a specific past date.
+   Do NOT walk the whole month; that defeats the purpose of the BOARD/journal split. Read older journal entries only on demand for `mid-phase-review`, `end-phase-retro`, or when answering a question about a specific past date.
 
 4. **Read context files** (read-only):
    - `weekly/` — most recent file
    - `handoff/` — most recent file (if any)
-   - `OKR.md` and `monthly/<current-YYYY-MM>.md` if OKR is installed
+   - `OKR.md` and `phase/<current-NNN>-<slug>.md` if OKR is installed (resolve current phase via `phase/CURRENT` pointer file)
    - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `BOARD.md` rows.
 
 5. **Compute deltas** since the last standup:
@@ -89,17 +95,24 @@ Always run this before anything else, even if the user asked a specific question
    - **Inputs / knowledge** (if `inputs/` or `knowledge/` exist):
      - Count files in `inputs/` (un-digested raw drops); note oldest mtime.
      - Read `knowledge/INDEX.md` header line for active / eternal / stale / archived counts (do NOT load digest contents — see `reference/digests.md § Standup integration`). On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
+   - **Architecture / runbooks / incidents** (each independent; only read if its file/directory exists):
+     - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
+     - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
+     - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
    ```
    📍 Phase / Week  : <phase> · <week N of N> · <ISO week>
    🎯 OKR progress  : O1=<%> · O2=<%> · O3=<%>            (— if no OKR.md)
-   🗓  This month   : <monthly O title> · <KRs done>/<KRs total> · cost <spent>/<ceiling>
+   🌀 Current phase : #<NNN> <slug> · day <N> · <KRs done>/<KRs total> · cost <spent>/<ceiling>   (— if no current phase)
    📋 Open tasks    : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
    🚀 In flight     : <count> dispatches running (— if 0)
    📥 Inputs        : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest    (omit row if 0)
    📚 Knowledge     : <active> active · <eternal> eternal · <stale> stale · <archived> archived (— if no knowledge/)
+   🏛 Architecture  : v<N> · last reviewed <days>d ago · §7 open: <count> · audit drift: <count>   (omit row if no ARCHITECTURE.md)
+   📕 Runbooks      : <active> active · <stale> stale (≥90d) · <gaps>                       (omit row if no runbook/)
+   🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
@@ -113,11 +126,11 @@ Always run this before anything else, even if the user asked a specific question
    - "USER-014 idle 6d → run `nudge` to surface in chat"
    - "TASK-007 in_progress 4d, no evidence file → ask the owning agent for status"
    - "today is Friday → run `friday-review`"
-   - "month-end in 3 days → schedule `end-month-retro`, then `rollover`"
+   - "phase #002 commit KRs at 80% → consider `/okr score-phase` + `rollover`"
    - "DESIGN-002 locked 3d ago, no impl tasks in `BOARD.md` → ask `/design handoff DESIGN-002`"
    - "BOARD.md is 240 lines (over the 200 cap) → run `triage` to push detail into evidence and close stale rows"
    - "3 files sitting in `inputs/` un-digested (oldest 6d) → run `/pmo digest <oldest>`"
-   - "`knowledge/` has 5 stale digests → triage during next `mid-month-review` or `end-month-retro`"
+   - "`knowledge/` has 5 stale digests → triage during next `mid-phase-review` or `end-phase-retro`"
 
 8. Then ask: **"What do you want to do?"**
 
@@ -187,9 +200,14 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `status` (= `friday-review`) | This week's status report → `weekly/<YYYY-WW>.md` | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `monday-plan` | Start-of-week priorities + scope cuts → `weekly/` + journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
-| `mid-month-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midmonth-review.md` | `reference/subcommands.md` |
-| `end-month-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
+| `mid-phase-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midphase-review.md` | `reference/subcommands.md` |
+| `end-phase-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
 | `decide <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates `DECISIONS.md` index. `--supersede ADR-NNN` / `--expire ADR-NNN` / `--archive ADR-NNN` manage lifecycle. Content written in `.perry/config.md` § Document language. | `reference/decisions.md` |
+| `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `reference/architecture.md` |
+| `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `reference/architecture.md` |
+| `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
+| `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
+| `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
@@ -218,7 +236,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 |------------|-------|---------|----------|
 | `BOARD.md` | pmo | **Live working memory.** Current open work only — terse rows, no narrative. P0 / P1 / P2 / Cadence tables + User Input Queue + 1-line risk pointers. Closed tasks leave this file. **Hard cap: ≤200 lines.** | `state/BOARD_TEMPLATE.md` |
 | `journal/<YYYY-MM>/<YYYY-MM-DD>.md` | pmo | **Daily append-only history.** One file per day. Sections: Status changes / New tasks added / Decisions / Notes / Carry to tomorrow. Frozen after the day ends. | `state/journal_TEMPLATE.md` |
-| `PROJECT_STATE.md` | pmo | Cross-monthly living dashboard: phase, week, top risks, recent cross-session work, multi-month carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
+| `PROJECT_STATE.md` | pmo | Cross-phase living dashboard: current phase #, week, top risks, recent cross-session work, multi-phase carry-forwards | `state/PROJECT_STATE_TEMPLATE.md` |
 | `DECISIONS.md` | pmo | **Index only** — table of active + historical ADRs with links to per-decision files. ≤ 200 lines. | `state/DECISIONS_TEMPLATE.md` |
 | `decisions/ADR-NNN-<slug>.md` | pmo | One ADR per file: Context / Options / Chosen / Consequences / Evidence / Sunset criteria. Append-only after creation (status flips append `## Status change` entries; never edit Chosen/Consequences in place). | `state/ADR_TEMPLATE.md` |
 | `evidence/<YYYY-MM>/<TASK-ID>-*.md` | pmo | Per-task artifacts: spec files, reports, checklists, drill records, gap lists, retros | `state/evidence_TEMPLATE.md` |
@@ -227,7 +245,13 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `inputs/<filename>` | (raw drop zone) | User puts external docs (PDFs, Excels, screenshots, pasted markdown) here for PMO to digest. PMO consumes via `/pmo digest`; ideally drained to 0 between sessions. | — |
 | `knowledge/<topic>/<source>` + `<source>-digest.md` | pmo | Topic-organized library of digested sources. Source moves here from `inputs/` on digest; digest is PMO's structured summary (TL;DR + Key facts + Open questions). Referenced by spec / journal / decisions to avoid re-reading source. | `state/digest_TEMPLATE.md` |
 | `knowledge/INDEX.md` | pmo | Auto-maintained catalog of all digests by status (active / eternal / archived) and topic | `state/knowledge_INDEX_TEMPLATE.md` |
-| `OKR.md`, `monthly/` | okr | Read by PMO; never written by PMO | (in okr skill) |
+| `ARCHITECTURE.md` | **user** | **Optional, lazy-created. User-owned — agents never write to it.** Single source of truth for system design. Fixed 8-section structure (Mission / Components / Boundaries / Data flow / Contracts / Non-negotiables / Open questions / Change log). Injected into every dispatch's agent prompt; independent review agent verifies every code change against it. | `state/ARCHITECTURE_TEMPLATE.md` |
+| `architecture/audit-history/<YYYY-MM-DD>.md` | pmo | Per-run audit reports (mechanical §6 NN check results + LLM consistency scan findings). Append-only. | (no template — generated by `/pmo architecture-audit`) |
+| `runbook/<component>.md` | pmo | **Optional, lazy-created.** One file per deployed component: What it does / How to tell it's healthy / Common failures + canned ops / Escalation. Required when a task spec has `Deployed: yes`. | `state/runbook_TEMPLATE.md` |
+| `runbook/INDEX.md` | pmo | Auto-maintained catalog of all runbooks (active / stale / gaps). | `state/runbook_INDEX_TEMPLATE.md` |
+| `incidents/<YYYY-MM-DD>-<slug>.md` | pmo | **Optional, lazy-created.** One file per production incident with timeline / root cause / fix / derived changes. | `state/incident_TEMPLATE.md` |
+| `incidents/INDEX.md` | pmo | Auto-maintained catalog of incidents (open / resolved / with-derived-changes ratio). | `state/incidents_INDEX_TEMPLATE.md` |
+| `OKR.md`, `phase/` | okr | Read by PMO; never written by PMO | (in okr skill) |
 | `design/<DESIGN-ID>-*.md` | design | Read by PMO to know which locked designs need implementation tasks; never written by PMO | (in design skill) |
 
 **Size discipline (non-negotiable)**:
@@ -251,6 +275,7 @@ If yes:
    - `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` (Type: Process, Status: active, records the bootstrap event). DECISIONS.md index gets the matching ADR-001 row added.
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
+   - **Do NOT create `ARCHITECTURE.md` / `architecture/` / `runbook/` / `incidents/` at bootstrap.** These are lazy-created on first use (first `/pmo architecture init` or first task spec with `Touches architecture:`, first task spec with `Deployed: yes`, first `/pmo incident <slug>` respectively). If `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation — see `reference/architecture.md` and `reference/runbooks.md`.
 3. Populate detected fields (project name, today's date, ISO week, current YYYY-MM) into the new files.
 4. Write the first journal entry: `journal/<YYYY-MM>/<today>.md` with a `## Notes` section: "PMO bootstrapped".
 5. Run the standup.
@@ -267,6 +292,9 @@ If yes:
 - **Never write to OKR files.** Hand off via chat.
 - **Plain language in chat, IDs in files.** See `reference/conversational.md`.
 - **In-flight board on demand, not by default.** See `reference/conversational.md`.
+- **One topic, one question per reply (R1+R2).** Multiple topics → list them and ask which first. No batched `AskUserQuestion` of unrelated questions. See `reference/conversational.md § Five behavioral rules`.
+- **Plan before produce (R3+R4).** Writing a spec / ADR / ARCHITECTURE edit, or answering an open-ended user question, requires Phase A (propose in chat) → user OK → Phase B (write files). Mechanical single-step work (status flip, close-task on aligned spec, journal append, standup snapshot, dispatch on existing spec) skips Phase A. See `reference/conversational.md § Five behavioral rules`.
+- **Ambiguous input → one clarifying question, not a default (R5).** Don't pick "the reasonable default" and produce based on it.
 - **Read the matching reference file before running a subcommand.** Don't act from memory of an earlier turn.
 
 ## User-Unavailable Degradation
