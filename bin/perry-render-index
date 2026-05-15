@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+"""
+perry-render-index — deterministic navigator generator for perry-views/index.html
+
+Scans <project_root>/perry-views/*.html, parses each render's machine-readable
+<!-- perry-render-fingerprint --> comment, recomputes source-file sha256, and
+writes perry-views/index.html — a navigator hub listing all renders grouped
+by view name, each with a freshness badge.
+
+No LLM. No external dependencies (stdlib only). <100ms on typical projects.
+
+Called by:
+  - End of every `/pmo render <view>` call (see pmo/reference/rendering.md)
+  - End of any PMO/OKR subcommand that writes a tier 1 or tier 2 file
+    (see pmo/SKILL.md § Style rules → "after any tier 1/2 write, run
+    perry-render-index")
+  - End of every standup ritual (see pmo/SKILL.md § Mandatory first move)
+
+Usage:
+  perry-render-index [--root <project_root>]
+
+Default: cwd as project root.
+Exit 0 always (idempotent; no-op if perry-views/ doesn't exist).
+"""
+
+from __future__ import annotations
+
+import datetime
+import hashlib
+import html as html_lib
+import os
+import re
+import sys
+from pathlib import Path
+
+# Catalog of known views — mirrors pmo/reference/rendering.md § The view catalog.
+# Order here is render-list display order. Each tuple: (view_name, emoji, blurb).
+VIEW_CATALOG: list[tuple[str, str, str]] = [
+    ("dashboard",    "📊", "Whole-project overview"),
+    ("board",        "📋", "BOARD with priority/status/owner filters"),
+    ("phase",        "🌀", "Current phase OKR with KR progress"),
+    ("architecture", "🏛", "ARCHITECTURE.md with TOC + diagrams"),
+    ("decisions",    "📕", "All ADRs as filterable list"),
+    ("incident",     "🔥", "Per-incident postmortem (one per slug)"),
+    ("retro",        "📈", "Phase retro (one per phase number)"),
+    ("weekly",       "📅", "Per-week status report"),
+    ("handoff",      "🤝", "Session handoff for resumption / sharing"),
+]
+CATALOG_NAMES = {name for name, _, _ in VIEW_CATALOG}
+
+FINGERPRINT_RE = re.compile(
+    r"<!--\s*perry-render-fingerprint\s*\n"
+    r"(?:\s*view:\s*(?P<view>\S+)\s*\n)?"
+    r"(?:\s*arg:\s*(?P<arg>.*?)\s*\n)?"
+    r"\s*generated_at:\s*(?P<ts>.*?)\s*\n"
+    r"\s*sources:\s*\n"
+    r"(?P<sources>(?:[ \t]+\S[^\n]*\n)+?)"
+    r"\s*-->",
+    re.MULTILINE,
+)
+
+
+def parse_fingerprint(path: Path) -> dict | None:
+    """Return {'view', 'arg', 'generated_at', 'sources': {path: sha256}} or None."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    m = FINGERPRINT_RE.search(text)
+    if not m:
+        return None
+    sources: dict[str, str] = {}
+    for line in m.group("sources").strip().splitlines():
+        line = line.strip()
+        if ":" not in line:
+            continue
+        sp, sha = line.split(":", 1)
+        sources[sp.strip()] = sha.strip()
+    return {
+        "view": (m.group("view") or "").strip() or guess_view_from_filename(path.name),
+        "arg": (m.group("arg") or "").strip(),
+        "generated_at": m.group("ts").strip(),
+        "sources": sources,
+    }
+
+
+def guess_view_from_filename(name: str) -> str:
+    """Fallback when fingerprint comment omits the view field.
+    Expected filename: <YYYY-MM-DD>-<view>[-<arg>].html
+    """
+    stem = name[:-5] if name.endswith(".html") else name
+    # strip date prefix YYYY-MM-DD-
+    parts = stem.split("-", 3)
+    if len(parts) >= 4 and len(parts[0]) == 4 and len(parts[1]) == 2:
+        rest = parts[3]
+        return rest.split("-")[0]
+    return "unknown"
+
+
+def sha256_of(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    h = hashlib.sha256()
+    try:
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
+def classify(fp: dict, root: Path) -> tuple[str, str]:
+    """Return ('fresh' | 'stale' | 'orphan', short detail)."""
+    if not fp["sources"]:
+        return ("orphan", "no source list")
+    for src, recorded in fp["sources"].items():
+        current = sha256_of(root / src)
+        if current is None:
+            return ("orphan", f"source missing: {src}")
+        if current != recorded:
+            return ("stale", f"{src} changed since render")
+    return ("fresh", "")
+
+
+def days_since(ts: str) -> int | None:
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.datetime.strptime(ts, fmt)
+            return (datetime.datetime.now() - dt).days
+        except ValueError:
+            continue
+    return None
+
+
+def collect_renders(views_dir: Path, root: Path) -> dict[str, list[dict]]:
+    """Returns view_name → [render dict] (sorted newest first)."""
+    grouped: dict[str, list[dict]] = {}
+    for html_file in sorted(views_dir.glob("*.html"), reverse=True):
+        if html_file.name == "index.html":
+            continue
+        fp = parse_fingerprint(html_file)
+        if fp is None:
+            # Unparseable — skip silently. Hand-edited or corrupted.
+            continue
+        status, detail = classify(fp, root)
+        age = days_since(fp["generated_at"])
+        view = fp["view"]
+        grouped.setdefault(view, []).append({
+            "filename": html_file.name,
+            "view": view,
+            "arg": fp["arg"],
+            "generated_at": fp["generated_at"],
+            "status": status,
+            "detail": detail,
+            "age_days": age,
+        })
+    return grouped
+
+
+def render_html(root: Path, grouped: dict[str, list[dict]]) -> str:
+    """Build the index HTML string. Pure templating, no external deps."""
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    project = html_lib.escape(root.name)
+    total_renders = sum(len(v) for v in grouped.values())
+    stale_count = sum(
+        1 for v in grouped.values() for r in v if r["status"] in ("stale", "orphan")
+    )
+
+    rows: list[str] = []
+    # Catalog views first (in fixed order)
+    for view_name, emoji, blurb in VIEW_CATALOG:
+        rows.append(view_row_html(view_name, emoji, blurb, grouped.get(view_name, [])))
+    # Other views encountered but not in catalog
+    other_names = sorted(set(grouped.keys()) - CATALOG_NAMES)
+    for view_name in other_names:
+        rows.append(view_row_html(view_name, "📄", "(uncatalogued view)", grouped[view_name]))
+
+    body_rows = "\n".join(rows)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Perry views — {project}</title>
+<style>
+  :root {{
+    --bg: #fdfdfb; --fg: #1a1a1a; --muted: #6b6b6b;
+    --fresh-bg: #e6f7e6; --fresh-fg: #1f6b1f;
+    --stale-bg: #fff7e0; --stale-fg: #8a5a00;
+    --orphan-bg: #ffe5e5; --orphan-fg: #a02020;
+    --never-bg: #f0f0f0; --never-fg: #888;
+    --border: #e0e0e0; --link: #1a5cb0;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    line-height: 1.5;
+  }}
+  .topbar {{
+    position: sticky; top: 0; z-index: 999;
+    background: #fff7e0; border-bottom: 1px solid #d4a72c;
+    padding: 8px 24px; font-family: ui-monospace, monospace;
+    font-size: 12px; color: #6b4400;
+  }}
+  .topbar strong {{ font-weight: 600; }}
+  .container {{ max-width: 920px; margin: 0 auto; padding: 32px 24px 64px; }}
+  h1 {{ margin: 0 0 8px; font-size: 26px; }}
+  .summary {{ color: var(--muted); margin-bottom: 32px; font-size: 14px; }}
+  .view-row {{
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 12px; background: #fff;
+  }}
+  .view-header {{ display: flex; align-items: center; gap: 12px; }}
+  .view-emoji {{ font-size: 22px; }}
+  .view-name {{ font-weight: 600; font-size: 16px; flex: 1; }}
+  .view-blurb {{ color: var(--muted); font-size: 13px; }}
+  .badge {{
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 500; font-family: ui-monospace, monospace;
+  }}
+  .badge.fresh  {{ background: var(--fresh-bg);  color: var(--fresh-fg); }}
+  .badge.stale  {{ background: var(--stale-bg);  color: var(--stale-fg); }}
+  .badge.orphan {{ background: var(--orphan-bg); color: var(--orphan-fg); }}
+  .badge.never  {{ background: var(--never-bg);  color: var(--never-fg); }}
+  .latest {{ margin-top: 10px; font-size: 13px; }}
+  .latest a {{ color: var(--link); text-decoration: none; font-family: ui-monospace, monospace; }}
+  .latest a:hover {{ text-decoration: underline; }}
+  .detail {{ color: var(--stale-fg); font-size: 12px; margin-left: 8px; }}
+  .refresh {{
+    color: var(--muted); font-size: 12px; margin-top: 6px;
+    font-family: ui-monospace, monospace;
+  }}
+  details {{ margin-top: 10px; font-size: 13px; }}
+  details summary {{ cursor: pointer; color: var(--muted); }}
+  details ul {{ margin: 6px 0 0; padding-left: 20px; }}
+  details li {{ font-family: ui-monospace, monospace; }}
+  details li a {{ color: var(--link); text-decoration: none; }}
+  .empty {{ color: var(--never-fg); font-style: italic; font-size: 13px; margin-top: 8px; }}
+  footer {{ margin-top: 32px; color: var(--muted); font-size: 12px; }}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <strong>Perry views index</strong> · project: {project} · generated: {now} ·
+  total: {total_renders} renders ({stale_count} stale) ·
+  refresh: <code>$PERRY_HOME/bin/perry-render-index</code> (auto-called by every render + standup)
+</div>
+<div class="container">
+  <h1>Perry views — {project}</h1>
+  <div class="summary">
+    Tier 3 HTML navigator. Each row is a view defined in
+    <code>pmo/reference/rendering.md § The view catalog</code>.
+    Double-click a render filename to open it. Freshness badges compare
+    current source sha256 to the recorded fingerprint at render time.
+  </div>
+  {body_rows}
+  <footer>
+    Generated by <code>$PERRY_HOME/bin/perry-render-index</code>.
+    Source: <code>perry-views/*.html</code> fingerprint comments.
+    This file is overwritten on every regeneration; do not hand-edit.
+  </footer>
+</div>
+</body>
+</html>
+"""
+
+
+def view_row_html(view_name: str, emoji: str, blurb: str, renders: list[dict]) -> str:
+    view_name_esc = html_lib.escape(view_name)
+    blurb_esc = html_lib.escape(blurb)
+    if not renders:
+        return f"""<div class="view-row">
+  <div class="view-header">
+    <span class="view-emoji">{emoji}</span>
+    <span class="view-name">{view_name_esc}</span>
+    <span class="badge never">never rendered</span>
+  </div>
+  <div class="view-blurb">{blurb_esc}</div>
+  <div class="empty">No renders yet. To create: <code>/pmo render {view_name_esc}</code></div>
+</div>"""
+
+    latest = renders[0]
+    older = renders[1:]
+    badge_class = latest["status"]  # fresh | stale | orphan
+    if latest["status"] == "fresh":
+        badge_text = "fresh"
+    elif latest["status"] == "stale":
+        ago = (f" · {latest['age_days']}d ago" if latest["age_days"] is not None else "")
+        badge_text = f"stale ({latest['detail']}){ago}"
+    else:  # orphan
+        badge_text = f"orphan ({latest['detail']})"
+    badge_text = html_lib.escape(badge_text)
+
+    fn_esc = html_lib.escape(latest["filename"])
+    arg_part = f" · arg: {html_lib.escape(latest['arg'])}" if latest["arg"] else ""
+    refresh_cmd_view = f"{view_name_esc}{(' ' + html_lib.escape(latest['arg'])) if latest['arg'] else ''}"
+
+    older_html = ""
+    if older:
+        items = "\n".join(
+            f'    <li><a href="{html_lib.escape(r["filename"])}">{html_lib.escape(r["filename"])}</a> '
+            f'<span class="detail">({r["status"]}'
+            f'{(", " + str(r["age_days"]) + "d ago") if r["age_days"] is not None else ""})</span></li>'
+            for r in older
+        )
+        older_html = f"""<details>
+    <summary>{len(older)} older render{'s' if len(older) != 1 else ''}</summary>
+    <ul>
+{items}
+    </ul>
+  </details>"""
+
+    return f"""<div class="view-row">
+  <div class="view-header">
+    <span class="view-emoji">{emoji}</span>
+    <span class="view-name">{view_name_esc}</span>
+    <span class="badge {badge_class}">{badge_text}</span>
+  </div>
+  <div class="view-blurb">{blurb_esc}{arg_part}</div>
+  <div class="latest">latest: <a href="{fn_esc}">{fn_esc}</a></div>
+  <div class="refresh">refresh: <code>/pmo render {refresh_cmd_view}</code></div>
+  {older_html}
+</div>"""
+
+
+def main() -> int:
+    root = Path.cwd()
+    if "--root" in sys.argv:
+        i = sys.argv.index("--root")
+        if i + 1 < len(sys.argv):
+            root = Path(sys.argv[i + 1]).resolve()
+    views_dir = root / "perry-views"
+    if not views_dir.exists() or not views_dir.is_dir():
+        # No-op when there's nothing to index.
+        return 0
+    grouped = collect_renders(views_dir, root)
+    out_path = views_dir / "index.html"
+    out_path.write_text(render_html(root, grouped), encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

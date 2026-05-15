@@ -12,6 +12,8 @@ A **deployed component** is anything that runs unattended after the dispatch clo
 
 A **runbook** is a markdown file at `runbook/<component>.md` that answers — at minimum — four questions, in this fixed order: **What it does · How to tell it's healthy · Common failures + canned ops · Escalation**. Template: `state/runbook_TEMPLATE.md`.
 
+**Tier 1 hard cap: ≤ 150 lines.** Runbooks live or die by being readable in a moment of crisis. PMO refuses writes that would exceed. Overflow → split troubleshooting matrix to `runbook/<component>-troubleshooting.md` (still tier 1, just chaptered). The main `runbook/<component>.md` keeps the four mandatory sections in their canonical short form; the companion `-troubleshooting.md` carries the long failure-mode reference. See `pmo/SKILL.md § Two file models § Axis B`.
+
 A one-off coding task that does not produce a deployed component does NOT need a runbook. The spec field `Deployed:` is what determines this — see § Spec contract.
 
 ## Directory layout

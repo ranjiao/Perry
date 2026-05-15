@@ -5,6 +5,7 @@
 > **Status**: active | scored
 > **Source**: `OKR.md` v{{N}}
 > **Predecessor**: phase/{{NNN-1}}-{{prev-slug}}.md (or '(none)' if first phase)
+> **Tier 1 hard cap**: ≤ 300 lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-{{NNN}}-<topic>.md` and reference via link.
 
 This file is a tactical commitment, not a smaller copy of the overall OKR. Every section below is mandatory. Phases end when KRs are largely hit, not when a date arrives — see `okr/SKILL.md § Why phases, not months`.
 
