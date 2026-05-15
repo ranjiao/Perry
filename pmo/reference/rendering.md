@@ -142,21 +142,42 @@ The `📊 Renders` dashboard line gains a one-liner suffix:
 
 The hint only shows when `perry-views/` exists.
 
+## Design principle: dashboard is the compass, every other view is a deep-dive
+
+The catalog below has exactly **one summary-style view (`dashboard`) and N deep-dive views (`board`, `phase`, `decisions`, `architecture`, `incident`, `retro`, `weekly`, `handoff`)**. Their roles are non-overlapping by design:
+
+- **`dashboard`** = "where is the project, in 30 seconds, with jump links". One screen, multi-axis. **Never embeds full content from a deep-dive view** — each dashboard section is at most: a count + the top-1-or-3 most relevant items (titles only) + a `→ <view> view` link. Reading time: short.
+- **deep-dive view** = "let me actually work with this one area". Full content for that one domain (the full BOARD, the full phase OKR, every ADR, etc.). Reading / interaction time: variable.
+
+If `dashboard` ever starts to embed actual rows from BOARD, or whole ADR bodies, or the full phase OKR — that's a design violation. The user can click through to the dedicated view; dashboard must stay a compass, not a content surface.
+
+Same principle in concrete cases:
+
+| dashboard section | shows | does NOT show | jump-link target |
+|---|---|---|---|
+| BOARD | `P0=3(1/3) · P1=5 · blocked=1` + top-3 P0 titles | full task rows, statuses, owners, dates | `→ board view` |
+| Phase | `#002 cash-deployment · day 14 · KRs 2/4 done` | KR progress bars, week-by-week, project list | `→ phase view` |
+| Decisions | last 1 ADR title + `<n> active total` | individual ADR bodies / index table | `→ decisions view` |
+| Architecture | `<n> drift open since last audit` + worst 1 | section bodies, audit detail | `→ architecture view` |
+| Runbooks | `<n> active · <n> stale · <n> gaps` | per-component runbook content | `→ /pmo render` per runbook (no aggregated runbook view exists yet) |
+| Incidents | open count + 1 most recent unresolved title | timeline / root cause / derived changes | `→ incident <slug> view` |
+| User Input Q | oldest USER-id + days idle + total count | per-USER thread / context | (no view; the BOARD's USER Input Queue section is the source) |
+
 ## The view catalog (first set)
 
 | View name | What it renders | Source files | Argument |
 |---|---|---|---|
-| `dashboard` | Whole-project overview: phase summary + open P0/P1 + USER input queue + recent decisions + audit drift + runbook gaps + recent incidents | `OKR.md`, `phase/CURRENT` + current phase file, `BOARD.md`, `PROJECT_STATE.md`, `DECISIONS.md`, `architecture/audit-history/<latest>.md`, `runbook/INDEX.md`, `incidents/INDEX.md` | none |
-| `board` | BOARD.md as interactive table with priority/status/owner filters + sort + per-row evidence-link | `BOARD.md`, plus per-row spec files for hover preview | none |
-| `phase` | Current phase OKR rendered with KR progress bars, Objective grouping, week-by-week table, linked task IDs to evidence | `phase/CURRENT` → current phase file; OR pass `<NNN>` for a specific phase | optional `<NNN>` |
-| `architecture` | ARCHITECTURE.md with TOC, §-section anchors, mermaid/SVG diagrams from §3 boundaries, embedded code blocks | `ARCHITECTURE.md` + `architecture/audit-history/<latest>.md` for drift annotations | none |
-| `decisions` | All ADRs as filterable list (by type, status, date), expand to full body inline | `DECISIONS.md` index + all `decisions/ADR-*.md` files | optional filter `--type=Architecture` etc. |
-| `incident <slug>` | One incident: timeline (visual), root cause, fix, derived changes, links to runbook + ARCHITECTURE.md sections | `incidents/<YYYY-MM-DD>-<slug>.md` + linked runbook | required `<slug>` |
-| `retro <NNN>` | One phase retro: KR scores as bars, before/after stretch tracker, lessons, carry-overs | `phase/<NNN>-<slug>.md` (must be `Status: scored`) + `evidence/<YYYY-MM>/retro.md` | required `<NNN>` |
-| `weekly <YYYY-WW>` | One week's status report rendered with task summary table, blocker callouts, KR-progress sparklines | `weekly/<YYYY-WW>.md` + week's journal entries | required `<YYYY-WW>` |
-| `handoff [<date>]` | Handoff doc rendered for sharing; includes BOARD snapshot table, USER input queue, "read these N files first when you resume" callouts | latest `handoff/*.md` (or specified date) + BOARD + recent journal | optional `<date>` |
+| `dashboard` | **Compass page.** One-screen orientation. Each section is a 1-line summary + top-1-or-3 items + jump link to the corresponding deep-dive view. NEVER embeds full content from another view. Mirrors the PMO chat-standup dashboard's row set (phase / OKR / BOARD counts / In-flight / Inputs / Knowledge / Architecture / Runbooks / Incidents / User Input Q / Top risk / Last decision / Locked designs / Last weekly) but rendered with cross-link navigation. | (read headers/counts only — do NOT load full content) `OKR.md`, `phase/CURRENT` + current phase header, `BOARD.md` (P0 top-3 + counts), `PROJECT_STATE.md`, `DECISIONS.md` (index), `architecture/audit-history/<latest>.md`, `runbook/INDEX.md`, `incidents/INDEX.md`, `weekly/<latest>.md` header | none |
+| `board` | The full BOARD as interactive table: every open row, priority / status / owner filters + sort, per-row evidence-link, per-row hover preview from the matching spec file (P0/P1 only). This IS the deep-dive that `dashboard`'s BOARD section links to. | `BOARD.md` (all rows), per-row `evidence/<YYYY-MM>/<TASK-ID>-spec.md` for hover preview | none |
+| `phase` | Current phase OKR rendered with KR progress bars, Objective grouping, week-by-week table, linked task IDs to evidence. This IS the deep-dive that `dashboard`'s Phase section links to. | `phase/CURRENT` → current phase file; OR pass `<NNN>` for a specific phase | optional `<NNN>` |
+| `architecture` | `ARCHITECTURE.md` with TOC, §-section anchors, Mermaid/SVG diagrams from §3 boundaries, embedded code blocks. This IS the deep-dive that `dashboard`'s Architecture section links to. | `ARCHITECTURE.md` + `architecture/audit-history/<latest>.md` for drift annotations | none |
+| `decisions` | All ADRs as filterable list (by type, status, date), expand to full body inline. This IS the deep-dive that `dashboard`'s "Last decision" section links to. | `DECISIONS.md` index + all `decisions/ADR-*.md` files | optional filter `--type=Architecture` etc. |
+| `incident <slug>` | One incident: timeline (visual), root cause, fix, derived changes, links to runbook + ARCHITECTURE.md sections. | `incidents/<YYYY-MM-DD>-<slug>.md` + linked runbook | required `<slug>` |
+| `retro <NNN>` | One phase retro: KR scores as bars, before/after stretch tracker, lessons, carry-overs. | `phase/<NNN>-<slug>.md` (must be `Status: scored`) + `evidence/<YYYY-MM>/retro.md` | required `<NNN>` |
+| `weekly <YYYY-WW>` | One week's status report with task summary table, blocker callouts, KR-progress sparklines. | `weekly/<YYYY-WW>.md` + week's journal entries | required `<YYYY-WW>` |
+| `handoff [<date>]` | Handoff doc for sharing; includes BOARD snapshot table, USER input queue, "read these N files first when you resume" callouts. (Handoff is one of the few exceptions where embedding content is the point — it's a self-contained briefing.) | latest `handoff/*.md` (or specified date) + BOARD + recent journal | optional `<date>` |
 
-Not exhaustive. New views are added by appending to this catalog when a real consumption need surfaces — don't over-design upfront.
+Not exhaustive. New views are added by appending to this catalog when a real consumption need surfaces — don't over-design upfront. **When adding a new view: confirm it is a deep-dive on one domain. If it would replicate `dashboard`'s summary-of-everything role, redesign — Perry has exactly one compass.**
 
 ## Procedure (the agent's job when `/pmo render <view>` fires)
 
