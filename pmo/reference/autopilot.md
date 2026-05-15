@@ -146,7 +146,7 @@ Repeat:
 - **Override hook safety**. If the spec's `Files in scope` / `Deliverable` matches a hook high-stakes pattern, refuse + skip + log; do not "rationalize" overrides.
 - **Auto-retry a failed task**. One attempt per autopilot run.
 - **Run `triage`** in a way that moves rows. Read-only "what's stale" reporting is OK; rewriting BOARD is not.
-- **Generate cadence reports requiring user input** (`mid-month-review`, `end-month-retro`). These pause autopilot to wait for user.
+- **Generate cadence reports requiring user input** (`mid-phase-review`, `end-phase-retro`). These pause autopilot to wait for user.
 - **Make ADRs**. `/pmo decide` is human.
 - **Reorder BOARD priority**. P0/P1/P2 reflect user intent.
 - **Issue `AskUserQuestion`** mid-run. The pre-flight confirmation is the single consent point. Inside the loop, autopilot only logs and proceeds; it never blocks waiting for user.
