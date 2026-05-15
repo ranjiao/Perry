@@ -153,7 +153,39 @@ Markdown is great for producing state (agent edits, git diff, LLM prompt injecti
 
 **Tier 1 hard caps are non-negotiable.** When an OKR / PMO write would push a tier 1 file past its cap, the skill **refuses** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/...-appendix.md` or `architecture/sections/§<N>-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
 
-**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `perry-views/` at the project root (Finder-visible, gitignored, never committed). Every render also regenerates `perry-views/index.html` — a **navigator hub** listing all views with freshness status; double-click in Finder to navigate Perry's HTML surface without ever entering the terminal. Regenerate any time. No daemon, no watcher, no server. See `pmo/reference/rendering.md`.
+**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `perry-views/` at the project root (Finder-visible, gitignored, never committed). Regenerate any time. No daemon, no watcher, no server. See `pmo/reference/rendering.md`.
+
+#### How `perry-views/` is organized
+
+```
+perry-views/
+├── index.html                              ← navigator hub (always regenerated)
+├── 2026-05-15-dashboard.html               ← per-view render
+├── 2026-05-15-board.html
+├── 2026-05-15-phase-002.html
+├── 2026-05-14-incident-trader-stuck.html   ← <view>-<arg> for slugged views
+└── ...
+```
+
+- **Per-view filename**: `<YYYY-MM-DD>-<view>[-<arg>].html`. Date prefix gives natural sort + dedupe (same-day re-render appends `-2`, `-3`).
+- **Self-contained HTML**: inline CSS / JS / no external dependencies (Mermaid diagrams allowed as the one CDN exception, with graceful fallback to the raw DSL source if offline). Each file works opened directly from filesystem and is shareable via email or S3.
+- **Sticky fingerprint banner**: at the top of every render's `<body>`. Shows `view · generated_at · sources: path1@sha8 + path2@sha8 + ... · refresh: /pmo render <view>`. Open any old HTML and you immediately see what it represents and whether it might still be current.
+- **`index.html` navigator hub**: lists every catalog view with a freshness badge — `✓ fresh` (sha matches) / `⚠ Nd behind (<source> changed)` / `🚨 orphan (source missing)` / `— never rendered`. Each row links to the latest render; older versions are collapsed under a `<details>`. Double-click `perry-views/index.html` in Finder = the standard entry point; no need to remember filenames or enter terminal.
+
+#### How freshness is detected (no daemon, no watcher)
+
+A small deterministic Python script (`$PERRY_HOME/bin/perry-render-index`) does all the work. It:
+- Scans `perry-views/*.html` and parses each file's machine-readable `<!-- perry-render-fingerprint -->` comment for source paths + recorded sha256s.
+- Recomputes `sha256(file content)` for each listed source file. Differs → mark render stale. Source missing → mark orphan.
+- Overwrites `perry-views/index.html` with the current state. ~100ms, no LLM.
+
+It runs at three trigger points (B3 model):
+
+1. **End of every `/pmo render <view>`** — catches new renders + immediate refresh.
+2. **End of any PMO/OKR write to a tier 1 or tier 2 file** — opportunistic; fires when the agent has `reference/rendering.md` loaded.
+3. **End of every PMO standup** — safety net; catches user-direct edits to tier 1 files (e.g., editor save on `ARCHITECTURE.md`) even when no PMO subcommand intermediated.
+
+Maximum staleness window: one PMO session. Trigger #3 closes the loop without needing a daemon.
 
 The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and add HTML as the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, sharing). Don't fight markdown's weaknesses; route around them.
 
