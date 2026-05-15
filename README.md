@@ -149,11 +149,11 @@ Markdown is great for producing state (agent edits, git diff, LLM prompt injecti
 |---|---|---|---|---|
 | **1 — User-read-and-edit** | Strategic; user MUST read in raw form | markdown | YES per file | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
 | **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | NO (existing soft caps stay) | `BOARD.md` · `journal/` · `evidence/` · `decisions/` · `incidents/` · `weekly/` · `handoff/` · `PROJECT_STATE.md` · `phase/snapshots/` · `architecture/audit-history/` · `knowledge/` |
-| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `.perry/views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `perry-views/<YYYY-MM-DD>-<view>.html` (gitignored) |
 
 **Tier 1 hard caps are non-negotiable.** When an OKR / PMO write would push a tier 1 file past its cap, the skill **refuses** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/...-appendix.md` or `architecture/sections/§<N>-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
 
-**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `.perry/views/` (gitignored), never edited by hand, never committed. Regenerate any time. No daemon, no watcher, no server — one render per command. See `pmo/reference/rendering.md`.
+**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `perry-views/` at the project root (Finder-visible, gitignored, never committed). Every render also regenerates `perry-views/index.html` — a **navigator hub** listing all views with freshness status; double-click in Finder to navigate Perry's HTML surface without ever entering the terminal. Regenerate any time. No daemon, no watcher, no server. See `pmo/reference/rendering.md`.
 
 The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and add HTML as the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, sharing). Don't fight markdown's weaknesses; route around them.
 
@@ -221,11 +221,12 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 <project_root>/
 ├── .perry/
 │   ├── config.md                       ← language + repo layout (single | split)
-│   ├── hook.md                         ← project-specific additions (optional)
-│   └── views/                          ← tier 3 HTML output (gitignored, disposable)
-│       ├── 2026-05-15-dashboard.html
-│       ├── 2026-05-15-board.html
-│       └── 2026-05-13-architecture.html
+│   └── hook.md                         ← project-specific additions (optional)
+├── perry-views/                        ← tier 3 HTML output (Finder-visible, gitignored, disposable)
+│   ├── index.html                              ← navigator hub (auto-regenerated on every render)
+│   ├── 2026-05-15-dashboard.html
+│   ├── 2026-05-15-board.html
+│   └── 2026-05-13-architecture.html
 ├── OKR.md                              ← okr (overall, versioned)
 ├── phase/
 │   ├── CURRENT                          ← okr (one-line pointer: <NNN>-<slug> of current phase)
