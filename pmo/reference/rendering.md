@@ -74,17 +74,29 @@ Not exhaustive. New views are added by appending to this catalog when a real con
 3. **Generate the HTML**:
    - Read the design preset for this view from `pmo/state/render_presets/<view>.html.j2` if present (template-style preset). Otherwise, generate from scratch using the prompt convention below.
    - Output is a **single self-contained HTML file** — inline CSS, inline JavaScript, no external CDN dependencies (so it works offline, opens directly from filesystem, doesn't break when shared via email).
-   - Mandatory header block at top of every rendered HTML:
+   - **Mandatory fingerprint banner** at the very top of `<body>` (sticky, visible without scrolling). Carries the source-file fingerprints needed for staleness detection; see § Staleness detection. Shape:
      ```html
-     <!-- Perry render
+     <div style="position: sticky; top: 0; z-index: 999; background: #fff7e0; border-bottom: 1px solid #d4a72c; padding: 8px 16px; font-family: ui-monospace, monospace; font-size: 12px; color: #6b4400;">
+       <strong>Perry render</strong>
+       · view: <view>[+arg]
+       · generated: <YYYY-MM-DD HH:MM:SS>
+       · sources: <path1>@<sha8> + <path2>@<sha8> + ...
+       · refresh: <code>/pmo render <view> [<arg>]</code>
+     </div>
+     ```
+     `<sha8>` = first 8 chars of `sha256(file content)`. Always content hash (NOT git SHA — uncommitted changes would lie; NOT mtime — unreliable across operations). Compute at render time over each source file's bytes.
+   - **Mandatory HTML comment** (machine-readable, complementary to the visible banner):
+     ```html
+     <!-- perry-render-fingerprint
           view: <view>
-          generated: <YYYY-MM-DD HH:MM:SS>
-          source files:
-            - <path>
-            - <path>
-          regenerate: /pmo render <view> [<arg>]
+          arg: <arg or "">
+          generated_at: <YYYY-MM-DD HH:MM:SS>
+          sources:
+            <path1>: <full sha256>
+            <path2>: <full sha256>
      -->
      ```
+     The standup staleness scan (see § Staleness detection) parses this comment, not the visible banner.
 4. **Open hint**: print the file path + an open command:
    ```
    Wrote .perry/views/2026-05-15-dashboard.html
@@ -112,18 +124,44 @@ Don't ship default presets in Perry. Each project's needs are different — Perr
 - **Does not cache.** Every render re-reads source files. Source changes between renders → next render reflects them. (Source files are typically <50KB total; re-read cost is negligible.)
 - **Does not version-track HTML output.** If the user wants archival snapshots, they should git-add a specific HTML file with a `--keep` flag (not implemented in v1; placeholder for later).
 
-## Standup integration
+## Staleness detection
 
-The dashboard's standup ritual gains one optional suggestion:
+Renders go stale the moment any source file changes. Two mechanisms make this visible without rebuilding the world.
 
-> "Last `/pmo render dashboard` was Nd ago. Want a fresh dashboard?"
+### Mechanism A — In-HTML fingerprint banner
 
-Surfaces only if:
-- `.perry/views/` exists (i.e., user has used render at least once)
-- Most recent dashboard render is ≥7 days old
-- BOARD or phase file has changed since last render
+Every render carries a sticky banner at the top showing what it was generated from. The user opens any old HTML in the browser and immediately sees the source paths + their content hashes (8-char prefix) at render time, plus the regenerate command. **No tooling required from the user side** — just look at the banner.
 
-Skip otherwise. Don't pollute standup with noise about a feature the user might not use.
+This is passive — the banner doesn't auto-detect that source has moved on. It tells the user "here's exactly what this represents" so they can judge or re-render.
+
+### Mechanism B — Standup staleness scan
+
+The PMO standup ritual (see `pmo/SKILL.md § Mandatory first move`) gains one step:
+
+1. If `.perry/views/` doesn't exist → skip entirely (user hasn't rendered anything).
+2. Otherwise, for each `.perry/views/*.html`:
+   - Parse the `<!-- perry-render-fingerprint -->` comment (mandatory; missing → treat the file as foreign / hand-edited / corrupt and skip).
+   - For each source-path → recorded-sha256 pair, compute `sha256(current file content)` and compare.
+   - If any source SHA differs OR any listed source file no longer exists → mark this render as **stale**.
+3. If any stale renders exist, dashboard adds a row:
+   ```
+   📊 Renders : <stale> stale of <total> · oldest stale: <view> (<Nd> behind, <changed-source>)
+   ```
+   Omit the row entirely when 0 stale.
+
+The scan is cheap — sha256 over the source files of typical render sets (~5–20 KB total) costs <50ms. It runs on every standup but doesn't load full file content into context (only computes hashes).
+
+### What staleness scan does NOT do
+
+- **No auto re-render.** Surfacing the stale list is the only action; user runs `/pmo render <view>` to refresh, by their own decision.
+- **No deletion of stale HTML.** They stay until the user removes them. Keep last N + auto-prune is out of scope (user's `.perry/views/` is gitignored anyway — `rm` is cheap).
+- **No mid-session re-scan.** Standup is the only trigger. If the user generates a render, immediately changes BOARD, then runs the standup again, the scan will flag it. That's fine.
+
+### Why no daemon, no JS-side comparison
+
+Earlier alternatives that were rejected:
+- **File watcher / `perry serve`**: violates the "no daemon" principle from earlier design rounds. The standup-time scan is sufficient.
+- **JS in HTML fetches source mtimes**: browsers from `file://` can't reliably read filesystem state; would break the "single self-contained HTML file, openable anywhere, shareable via email" property. Passive fingerprint > brittle live check.
 
 ## Why no `perry serve` / no daemon
 

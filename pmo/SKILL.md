@@ -120,6 +120,9 @@ Always run this before anything else, even if the user asked a specific question
      - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
      - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
+   - **Renders staleness scan** (only if `.perry/views/` exists; see `reference/rendering.md § Staleness detection`):
+     - For each `.perry/views/*.html`: parse the `<!-- perry-render-fingerprint -->` comment; for each recorded source path → sha256, compute current `sha256(file content)` and compare. Source SHA differs OR source file gone → mark render stale.
+     - Track stale count + oldest-stale view name + days behind. Omit `📊 Renders` line if 0 stale.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
@@ -134,6 +137,7 @@ Always run this before anything else, even if the user asked a specific question
    🏛 Architecture  : v<N> · last reviewed <days>d ago · §7 open: <count> · audit drift: <count>   (omit row if no ARCHITECTURE.md)
    📕 Runbooks      : <active> active · <stale> stale (≥90d) · <gaps>                       (omit row if no runbook/)
    🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
+   📊 Renders       : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)   (omit row if no .perry/views/ OR 0 stale)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
