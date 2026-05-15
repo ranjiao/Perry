@@ -107,7 +107,7 @@ Per-view row contents:
 `bin/perry-render-index` is called by Perry at three points so the index never lags behind reality more than one PMO interaction:
 
 1. **End of `/pmo render <view>`** — after the per-view HTML is written, before printing the open hint. Captures the new render in the index immediately.
-2. **End of any PMO/OKR subcommand that writes a tier 1 or tier 2 file** — `add-task`, `close-task`, `decide`, `plan-phase`, `score-phase`, `snapshot`, `architecture init/review`, `incident close`, etc. Source-file changes invalidate render freshness; re-running the index after each write keeps the freshness column accurate without a watcher daemon. See `pmo/SKILL.md § Style rules`.
+2. **Opportunistic: end of any PMO/OKR subcommand that writes a tier 1 or tier 2 file** — `add-task`, `close-task`, `decide`, `plan-phase`, `score-phase`, `architecture init/review`, `incident close`, `digest`, `rollover`, etc. **NOT** enforced via SKILL.md (would bloat the always-loaded core); fires when the agent happens to have loaded this reference file in the current turn. Worst case: a write happens without the index refreshing → next standup's trigger #3 catches it. Maximum staleness window: one session. Acceptable for a navigator hub whose role is "find the right HTML to look at," not "real-time dashboard".
 3. **End of every standup ritual** — catches the case where the user (not PMO) hand-edited a tier 1 file (e.g. opened ARCHITECTURE.md in their editor and saved). Standup is the next moment Perry runs anyway, so this is free.
 
 The render command's output mentions both files:
