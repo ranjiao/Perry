@@ -2,6 +2,12 @@
 
 Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** and **Codex CLI**. Both can coexist on the same machine.
 
+## Where to clone — Perry is location-agnostic
+
+`setup` and all `bin/` scripts resolve their own path via `$(dirname "$0")`, so you can clone Perry **anywhere** — `~/proj/Perry`, `~/.claude/perry`, `~/code/perry`, `/opt/perry`, an external SSD, doesn't matter. The host-side install (symlink under `~/.claude/skills/` or `~/.agents/skills/`) is what makes `/perry`, `/okr`, `/pmo`, `/design` discoverable to Claude Code and Codex CLI; the source location only matters for `git pull` updates.
+
+**This doc uses `~/proj/Perry` as the canonical example** in commands. If you cloned elsewhere, substitute your path. Skill-side references all use `$PERRY_HOME` (which `setup` recommends you `export` in your shell profile), not a hardcoded path.
+
 ## Host selection
 
 `setup` auto-detects which host(s) you have. No flag needed if you only use one of them.
