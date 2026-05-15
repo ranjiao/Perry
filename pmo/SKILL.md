@@ -120,9 +120,7 @@ Always run this before anything else, even if the user asked a specific question
      - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
      - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
-   - **Renders staleness scan + index regeneration** (only if `perry-views/` exists; see `reference/rendering.md § Staleness detection` + `§ The index hub`):
-     - Run `bash "$PERRY_HOME/bin/perry-render-index"` — deterministic Python script that re-scans renders, re-classifies fresh / stale / orphan, and overwrites `perry-views/index.html`. ~100ms. No LLM.
-     - Parse the script's output (or re-read `perry-views/index.html` once) to get stale-count + oldest-stale view + days behind for the dashboard `📊 Renders` line. Omit row if 0 stale.
+   - **Renders** (only if `perry-views/` exists): run `bash "$PERRY_HOME/bin/perry-render-index"` — deterministic, no LLM, no-op when nothing to index. Output feeds the dashboard `📊 Renders` row. See `reference/rendering.md § The index hub` for what the script does and when else it runs.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
@@ -331,7 +329,6 @@ If yes:
 - **Plan before produce (R3+R4).** Writing a spec / ADR / ARCHITECTURE edit, or answering an open-ended user question, requires Phase A (propose in chat) → user OK → Phase B (write files). Mechanical single-step work (status flip, close-task on aligned spec, journal append, standup snapshot, dispatch on existing spec) skips Phase A. See `reference/conversational.md § Five behavioral rules`.
 - **Ambiguous input → one clarifying question, not a default (R5).** Don't pick "the reasonable default" and produce based on it.
 - **Read the matching reference file before running a subcommand.** Don't act from memory of an earlier turn.
-- **After any subcommand that writes a tier 1 or tier 2 file, run `bash "$PERRY_HOME/bin/perry-render-index"`.** Deterministic Python script, ~100ms, no LLM. Keeps the navigator hub at `perry-views/index.html` accurate without a watcher daemon. Applies to: `add-task`, `close-task`, `drop-task`, `decide`, all `architecture` subcommands, `incident close`, `digest`, `triage` (when it mutates BOARD), `rollover`, `handoff`, `coordinate`, etc. Skip when `perry-views/` doesn't exist (script no-ops; fine to call regardless). See `reference/rendering.md § Index regeneration triggers`.
 
 ## User-Unavailable Degradation
 
