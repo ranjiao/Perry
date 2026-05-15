@@ -48,7 +48,8 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 ### Reading + drafting
 
 4. Read the full source. For long docs, read in chunks but produce ONE coherent digest.
-5. Draft the digest using the schema below (see `## Digest schema`). Save to a working file at `inputs/<basename>-digest.draft.md` so the user can see progress.
+4a. **Auto-classify document type** (see `## Document-type auto-detection` below). Two classes: `project-context` (default schema) vs `research-style` (academic paper / industry tech report — uses the extended schema). High-confidence classifications proceed silently; low-confidence cases ask the user once via `AskUserQuestion`.
+5. Draft the digest using the schema matching the detected type (see `## Digest schemas`). Save to a working file at `inputs/<basename>-digest.draft.md` so the user can see progress.
 
 ### Verification (Q6: b+c locked)
 
@@ -76,7 +77,47 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 - Per Q6c (user can hand-edit), respect any sections marked `<!-- user-edited -->` — do NOT overwrite without explicit AskUserQuestion confirmation.
 - Update `Source SHA-256` and `Last digested` fields.
 
-## Digest schema (template at `state/digest_TEMPLATE.md`)
+## Document-type auto-detection
+
+Every digest run classifies the source into one of **two** types. The classification controls which schema/template is used downstream. **NO user-facing flag** — the agent decides from signals in the document itself, asks the user only when uncertain.
+
+### The two types
+
+- **`project-context`** (default) — anything the user drops in to give PMO project background: term sheets, internal docs, constraints lists, screenshots, user notes, regulatory text. Uses `state/digest_TEMPLATE.md`. Typical length < 5000 words.
+- **`research-style`** — academic papers, industry tech reports, white papers, formal technical notes. Uses `state/digest_paper_TEMPLATE.md` (extended schema with Method / Results / Limitations / Reproducibility / Applicability / Followup citations). Typical length ≥ 8 pages.
+
+### Classification signals
+
+Compute weighted evidence from the source. **Each signal toward `research-style` = +1 point. ≥3 points → high-confidence `research-style`. 0–1 points → high-confidence `project-context`. 2 points → ambiguous, ask user.**
+
+| Signal | Counts toward `research-style` if … |
+|---|---|
+| Length | ≥ ~5000 words / ≥ 8 pages (PDF page count, or ≈ 30K chars in markdown/text) |
+| Structural markers | Source contains explicit "Abstract", "References" / "Bibliography", numbered figure captions ("Figure 1: …"), equation blocks, DOI string, arXiv ID (`arXiv:NNNN.NNNNN`) |
+| Citations density | ≥ 10 distinct external citations / bibliography entries |
+| File source / URL | Path or URL contains `arxiv` / `acm` / `ieee` / `nature` / `springer` / `ssrn` / `nber` / named research-org domains; or filename pattern `<author>-<year>-<topic>.pdf` / pure arXiv ID `NNNN.NNNNN.pdf` |
+| Writing style | First-person plural method narration ("We propose / We evaluate / Our results show"), hypothesis-testing language, defined notation introduced early |
+| Section structure | Has at minimum 3 of: Introduction / Background / Method (or Approach / Methodology) / Experiments / Results / Discussion / Conclusion / Limitations |
+
+### Behavior by confidence
+
+- **High-confidence `research-style`** (≥ 3 signals): proceed silently with `digest_paper_TEMPLATE.md`.
+- **High-confidence `project-context`** (≤ 1 signal): proceed silently with `digest_TEMPLATE.md`.
+- **Ambiguous** (2 signals, or specifically conflicting evidence): one `AskUserQuestion` call, header `"Doc type"`, options: `Research-style — paper / tech report (Recommended) | Project-context — internal doc / constraints / notes`. User picks once, no further prompts; chosen template applies through the rest of the digest run.
+
+The classification is logged in the digest's front-matter `Doc type:` field for audit. If the user disagrees later, they can manually flip the field and re-run `/pmo digest <existing-digest>.md --refresh` to regenerate with the alternative schema.
+
+### Why no flag
+
+The user already drops the source file at `inputs/<path>`. Adding `--paper` would force a decision the agent can make from the document's own structure — extra cognitive load with no upside. Auto-detect with explicit fallback to confirmation is the cleaner contract.
+
+## Digest schemas (two variants share lifecycle, differ in schema)
+
+Both schemas share: front-matter (Source / SHA / Status / Topics / Referenced by), placement under `knowledge/<topic>/`, the same `Status: active | archived | eternal | superseded` lifecycle, the same `archive_inactive_days` archive-candidate detection, the same `knowledge/INDEX.md` registration.
+
+They differ in **body sections** to match what's worth capturing about each type.
+
+### Project-context schema (template at `state/digest_TEMPLATE.md`)
 
 ```markdown
 # Digest — <source filename>
@@ -110,6 +151,35 @@ Argument: a path inside `inputs/` (relative or absolute), or a magic string `--p
 - §1 ...
 - §2 ...
 ```
+
+### Research-style schema (template at `state/digest_paper_TEMPLATE.md`)
+
+For academic papers and industry technical reports. Replaces the project-context body with sections that capture what's worth knowing about research:
+
+- **TL;DR** — paper's core claim in plain user-language (NOT the abstract verbatim).
+- **Method** — sample / dataset, setup, baseline, evaluation. Specific enough to judge soundness and transferability.
+- **Key results** — number + the context that makes it meaningful (not just the paper's claim).
+- **Limitations** — split: author-acknowledged + reader-observed (critical reading).
+- **Reproducibility** — data available? code available? method clarity? barriers to reuse?
+- **Applicable to this project?** — concrete verdict (`use` / `partially use` / `don't use`) + reason + landing point.
+- **Followup citations** — 2–3 max, with one-line reason each is worth pulling. NOT a dump of the references list.
+- **Open questions + What PMO must remember** — same as project-context schema; carried over because they're universal.
+
+Extra front-matter fields (`Authors`, `Published`, `Source venue` like `arXiv:NNNN.NNNNN`) are added so the bibliography surface in the digest is searchable + citeable.
+
+The rationale for each extra section is in `## Why a different schema for research` below.
+
+### Why a different schema for research
+
+Academic content has properties that the project-context schema underserves:
+
+- **Reuse value lives in the method, not the result.** A paper's "we got 92.4% on X" matters less than "they did Y, this is whether Y transfers." The Method section forces capture of what's actually reusable.
+- **Claims need critical reading, not bullet-point summarisation.** Limitations (both stated and observed) is mandatory because a digest without it sells the paper, doesn't evaluate it.
+- **Reproducibility is the engineering gate.** "Could I do this myself?" should be answered before the paper's results are believed at face value.
+- **Papers are nodes in a citation graph.** Followup citations capture the 2-3 worth-following edges so future-you knows where to read next.
+- **Generalised "Key facts" loses precision.** Numbers without dataset / cohort / baseline are decoration; the research-style schema forces context attached to each result.
+
+If a digest of a paper would fit comfortably into the project-context schema, that's a signal the paper wasn't worth a full digest in the first place — maybe a 3-line journal note + a saved URL is the right capture.
 
 ## `knowledge/INDEX.md` — the catalog
 
