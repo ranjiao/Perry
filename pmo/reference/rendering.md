@@ -192,7 +192,7 @@ Not exhaustive. New views are added by appending to this catalog when a real con
      -->
      ```
      The standup staleness scan (see § Staleness detection) parses this comment, not the visible banner.
-4. **Regenerate the index hub** (`perry-views/index.html`) — invoke `bash "$PERRY_HOME/bin/perry-render-index"` (or run the script directly with `python3`). Deterministic, ~100ms, no LLM. See § The index hub.
+4. **Regenerate the index hub** (`perry-views/index.html`) — invoke `"$PERRY_HOME/bin/perry-render-index"` directly (Python script via shebang — NOT `bash ...`; use `python3 "$PERRY_HOME/bin/perry-render-index"` as a fallback if the file isn't executable). Deterministic, ~100ms, no LLM. See § The index hub.
 5. **Open hint**: print BOTH the per-view file AND the index, plus the recommended entry point:
    ```
    Wrote perry-views/2026-05-15-dashboard.html

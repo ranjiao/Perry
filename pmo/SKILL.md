@@ -120,7 +120,7 @@ Always run this before anything else, even if the user asked a specific question
      - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
      - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
-   - **Renders** (only if `perry-views/` exists): run `bash "$PERRY_HOME/bin/perry-render-index"` — deterministic, no LLM, no-op when nothing to index. Output feeds the dashboard `📊 Renders` row. See `reference/rendering.md § The index hub` for what the script does and when else it runs.
+   - **Renders** (only if `perry-views/` exists): run `"$PERRY_HOME/bin/perry-render-index"` (Python script with shebang; executable directly — NOT `bash ...`). Deterministic, no LLM, no-op when nothing to index. Output feeds the dashboard `📊 Renders` row. See `reference/rendering.md § The index hub` for what the script does and when else it runs.
 
 6. **Render the dashboard** — fixed shape, no preamble:
 
