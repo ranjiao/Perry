@@ -24,11 +24,11 @@ Soft cap: 800 lines total. Typical: 200–500.
 What this system does, in 3 sentences. Who uses it. Where it runs. What it explicitly does NOT do.
 
 <!-- example:
-This project is a release-automation system for a single user
-(~10 engineers, deployed on a managed VPS). It runs on a managed VPS at
-home; agents access it via Slack canned ops. It deliberately does NOT
-attempt full unattended production deploys; live-account changes require user
-confirmation.
+This project is a release-automation system for a small SaaS engineering
+team (~10 engineers). It runs as a set of daemons on a managed VPS;
+engineers trigger deploys via Slack canned ops or a CLI. It deliberately
+does NOT attempt full unattended production deploys; any change touching
+production requires explicit user confirmation.
 -->
 
 ## §2. Components
@@ -65,7 +65,7 @@ Allowed call/import directions. Forbidden cross-cuts. Layer rules. Include an AS
 State origins → canonical points → sinks. Transformation paths. Transaction boundaries. What is sync vs async. Eventual-consistency rules.
 
 <!-- example:
-- Market data: vendor-api → ingest job → state/builds.db (canonical)
+- Vendor status: vendor-api → ingest job → state/builds.db (canonical)
 - Deploys: user via Slack → deploy-daemon → staging API; ack writes
   state/queue.db (canonical for deploy history).
 - Reports: state/builds.db + state/queue.db → daily-report → email out.

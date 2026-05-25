@@ -1,18 +1,18 @@
 # `/pmo digest` — read external documents, retain the gist
 
-PMO's mechanism for handling **external input documents** the user provides (PDFs, Excels, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / journal entries.
+PMO's mechanism for handling **external input documents** the user provides (PDFs, spreadsheets, screenshots, pasted markdown, research papers, vendor contracts, etc.). Goal: human-style "read once, take notes, cite later" — NOT vector RAG, NOT auto-retrieval. PMO writes a structured digest per source, stores both source and digest in a topic-organized library, and references the digest by path in subsequent specs / decisions / journal entries.
 
 ## Two directories — clear separation
 
 ```
 <project_root>/
 ├── inputs/                              # raw drop zone — user puts anything here
-│   ├── 2025-12-09-contract.pdf        # waiting to be digested
-│   ├── pasted-error-budget-thresholds.md          # user paste, not yet processed
+│   ├── 2025-12-09-vendor-acme-contract.pdf  # waiting to be digested
+│   ├── pasted-error-budget-thresholds.md    # user paste, not yet processed
 │   └── ...
 └── knowledge/                           # post-digest organized library
     ├── vendor-acme/
-    │   ├── 2025-12-09-contract.pdf    # moved from inputs/ on digest
+    │   ├── 2025-12-09-contract.pdf       # moved from inputs/ on digest
     │   └── 2025-12-09-contract-digest.md
     ├── deploy-platform/
     │   └── 2026-05-01-snapshot.md
@@ -123,7 +123,7 @@ PMO maintains this file automatically. Updated on every `/pmo digest`, archive o
 
 ## Eternal (project constitution; never archived)
 
-- _shared/USER-002-constraints-digest (R-1..R-5)
+- _shared/USER-002-constraints-digest (C-1..C-5)
 - _shared/OKR-anti-goals-digest
 
 ## Active by topic
@@ -142,7 +142,7 @@ PMO maintains this file automatically. Updated on every `/pmo digest`, archive o
 ## Archived (12)
 
 - 2024-Q3-old-vendor-acme-quarterly (archived 2026-08-15: superseded by 2026-05-07-deploy-platform-rollout-plan)
-- 2025-kubernetes-best-practices-paper (archived 2026-09-01: research direction pivoted)
+- 2024-old-kubernetes-paper (archived 2026-09-01: research direction pivoted)
 - ...
 ```
 
