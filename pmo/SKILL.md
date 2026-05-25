@@ -122,7 +122,16 @@ Always run this before anything else, even if the user asked a specific question
      - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
    - **Renders** (only if `perry-views/` exists): run `"$PERRY_HOME/bin/perry-render-index"` (Python script with shebang; executable directly — NOT `bash ...`). Deterministic, no LLM, no-op when nothing to index. Output feeds the dashboard `📊 Renders` row. See `reference/rendering.md § The index hub` for what the script does and when else it runs.
 
-6. **Render the dashboard** — fixed shape, no preamble:
+6. **Render the headline + dashboard.** Two parts, in order:
+
+   **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). Name the single most important thing for the user to look at right now in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. The TL;DR is your synthesis of the dashboard below, not a duplicate of it. Examples (note: IDs only as parenthetical refs, not as the subject):
+   - `TL;DR: BOARD is 240 lines, over the 200-line cap — triage before adding new work.`
+   - `TL;DR: The dashboard environment filter decision has been waiting on you for 6 days (USER-014).`
+   - `TL;DR: Phase commit KRs hit 80% — time to consider closing the phase (#002).`
+   - `TL;DR: A locked design from 3 days ago has no implementation tasks yet (DESIGN-002).`
+   - `TL;DR: Nothing urgent — pick from the suggestions below.`
+
+   **Part B — Dashboard** — fixed shape, no further preamble between TL;DR and the table:
 
    ```
    📍 Phase / Week  : <phase> · <week N of N> · <ISO week>
@@ -145,15 +154,15 @@ Always run this before anything else, even if the user asked a specific question
 
    If a field is empty, print `—`. Never fabricate.
 
-7. **Suggest 1–3 next actions** tailored to the deltas. Examples:
-   - "USER-014 idle 6d → run `nudge` to surface in chat"
-   - "TASK-007 in_progress 4d, no evidence file → ask the owning agent for status"
-   - "today is Friday → run `friday-review`"
-   - "phase #002 commit KRs at 80% → consider `/okr score-phase` + `rollover`"
-   - "DESIGN-002 locked 3d ago, no impl tasks in `BOARD.md` → ask `/design handoff DESIGN-002`"
-   - "BOARD.md is 240 lines (over the 200 cap) → run `triage` to push detail into evidence and close stale rows"
-   - "3 files sitting in `inputs/` un-digested (oldest 6d) → run `/pmo digest <oldest>`"
-   - "`knowledge/` has 5 stale digests → triage during next `mid-phase-review` or `end-phase-retro`"
+7. **Suggest 1–3 next actions** tailored to the deltas. **Each bullet must lead with the semantic meaning in plain language; IDs go in parens only.** This is the same rule as `reference/conversational.md § Restate decisions in plain language` — examples below model the required shape:
+   - "A decision has been waiting on you for 6 days — surface it in chat (USER-014) → run `nudge`"
+   - "Coding task in progress 4 days with no evidence file yet (TASK-007) → ask the owning agent for status"
+   - "Today is Friday → run `friday-review`"
+   - "Current phase commit KRs are at 80% (#002) → consider `/okr score-phase` + `rollover`"
+   - "A locked design from 3 days ago has no implementation tasks yet (DESIGN-002) → run `/design handoff DESIGN-002`"
+   - "BOARD.md is 240 lines, over the 200-line cap → run `triage` to push detail into evidence and close stale rows"
+   - "3 external docs sitting un-digested in `inputs/` (oldest 6d) → run `/pmo digest <oldest>`"
+   - "5 digests in `knowledge/` have gone stale → triage during next `mid-phase-review` or `end-phase-retro`"
 
 8. Then ask: **"What do you want to do?"**
 
