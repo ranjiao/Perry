@@ -165,7 +165,7 @@ Projects can declare an `## Operational profile` block in `.perry/hook.md`:
 ## Operational profile
 
 Known deployed components:
-- deploy-daemon (cron: every 5m during market hours, runs scheduled-deploy.py)
+- deploy-daemon (cron: every 5m during business hours, runs scheduled-deploy.py)
 - alert-bot (long-running daemon, ingest + notify)
 - daily-report (cron: 08:00 UTC)
 

@@ -79,7 +79,7 @@ For each view in the catalog (whether ever rendered or not):
 │     latest: 2026-05-13-board.html                       [open →]│
 │     refresh: /pmo render board                                  │
 │                                                                 │
-│  🌀 phase           ✓ fresh (#002 release-pipeline)              │
+│  🌀 phase           ✓ fresh (#002 release-pipeline)             │
 │     latest: 2026-05-15-phase-002.html                   [open →]│
 │                                                                 │
 │  🏛 architecture    — never rendered                            │

@@ -205,7 +205,7 @@ The **PMO hand-off**. Most-used subcommand.
    - Owner (`User`, `User + Agent`, `Coding Agent`, `Research Agent`, `Review Agent`, or `PMO Agent`)
    - Priority (`P0` if blocks Must-Have, `P1` if advances, `P2` otherwise)
    - Deliverable + Verification (1 line each)
-   - Out-of-scope notes if relevant (e.g., "do not enable production deploys", "no prod credentials")
+   - Out-of-scope notes if relevant (e.g., "do not touch production", "no access to prod credentials")
 3. Print 3–5 candidate tasks in a table.
 4. **If ≤ 4 candidates**: use `AskUserQuestion` with `multiSelect: true` (header `"Pick tasks"`) — each candidate is one option with the task title in `label` and the rationale + KR linkage in `description`. User clicks the subset they approve.
    **If 5 candidates**: use `AskUserQuestion` (single-select, header `"Subset"`) with options `Approve all 5 | Pick subset (Recommended) | Edit before approving | Skip this week`. If "Pick subset", follow up with a free-text "which IDs to include?" prompt.

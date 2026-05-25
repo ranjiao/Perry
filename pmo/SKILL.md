@@ -201,7 +201,7 @@ A status update of `done` requires evidence. Every status update line MUST inclu
 
 **Unacceptable evidence:**
 - "Looks good" / "Should work" / "Agent thinks it is done"
-- A benchmark result without assumptions and risk notes
+- A benchmark result without baseline and methodology notes
 - A recommendation without user constraints
 
 If a task moves to `done` without acceptable evidence, refuse the move and flag the gap.

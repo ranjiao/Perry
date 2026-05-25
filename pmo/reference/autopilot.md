@@ -173,7 +173,7 @@ Sections:
 
 ## Decisions made by autopilot
 - 2026-05-07 14:23 — picked codex executor for DATA-008-B (per spec)
-- 2026-05-07 14:31 — DATA-009 verification step `pytest tests/data/test_vendor-api_health.py` failed; marked review; did NOT retry per blacklist
+- 2026-05-07 14:31 — DATA-009 verification step `pytest tests/integration/test_vendor_api_health.py` failed; marked review; did NOT retry per blacklist
 - ...
 
 ## Stop reason

@@ -281,7 +281,7 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 ├── DECISIONS.md                         ← pmo (INDEX only, ≤200 lines)
 ├── decisions/
 │   ├── ADR-001-pmo-bootstrap.md         ← pmo (one file per decision; Context/Options/Chosen/Consequences)
-│   ├── ADR-002-error-budget-temp.md          ← Status: active | superseded | expired | archived (header field; files don't move)
+│   ├── ADR-002-cache-backend.md          ← Status: active | superseded | expired | archived (header field; files don't move)
 │   └── ...
 ├── design/
 │   └── DESIGN-001-process-mgmt.md       ← design (RFC)
@@ -295,14 +295,14 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 ├── handoff/
 │   └── 2026-05-01.md                    ← pmo (session bridge)
 ├── inputs/                              ← raw drop zone for external docs (ephemeral)
-│   └── 2026-05-07-vendor-acme-q1-report.pdf      ← waiting for /pmo digest
+│   └── 2026-05-07-vendor-acme-q1-report.pdf   ← waiting for /pmo digest
 ├── knowledge/                           ← post-digest organized library
 │   ├── INDEX.md                                ← pmo (auto-maintained catalog)
 │   ├── _shared/
 │   │   └── USER-002-constraints-digest.md     ← project-constitution (eternal)
 │   ├── vendor-acme/
-│   │   ├── 2025-12-09-contract.pdf          ← moved from inputs/
-│   │   └── 2025-12-09-contract-digest.md    ← PMO's structured summary
+│   │   ├── 2025-12-09-contract.pdf            ← moved from inputs/
+│   │   └── 2025-12-09-contract-digest.md      ← PMO's structured summary
 │   └── research/
 │       └── kubernetes-best-practices-2024-digest.md
 │

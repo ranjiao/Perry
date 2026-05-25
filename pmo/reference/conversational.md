@@ -67,7 +67,7 @@ When surfacing a decision, blocker, or open question to the user in chat, **lead
 - ❌ Don't write: "D-3 = USER-028 + DATA-005-E needs ratification."
 - ✅ Do write: "Decision D-3 — should we lock the error-rate threshold at 25%, and should the system auto-detect unstable releases? (refs: USER-028, DATA-005-E)"
 - ❌ Don't write: "TASK-007 blocked on USER-014."
-- ✅ Do write: "Coding task to add the dashboard environment filter is blocked — waiting on you to confirm whether the default scope is production-only or all-environments (TASK-007 / USER-014)."
+- ✅ Do write: "Coding task to add the dashboard environment filter is blocked — waiting on you to confirm whether the default is production-only or all-environments (TASK-007 / USER-014)."
 
 A user reading the chat without opening a single file should understand WHAT is being decided and WHY it matters. The IDs let them dig deeper afterward.
 

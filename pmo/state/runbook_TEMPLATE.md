@@ -13,7 +13,7 @@
 
 One paragraph. What this component is, what triggers it, what state it touches. Written for someone who didn't read the code — concrete and factual, no marketing.
 
-Example shape: "Runs as a cron job every 5 minutes during business hours (09:00–18:00 UTC, Mon–Fri). Reads pending orders from `state/queue.db`, submits to broker via `release/submit.py`, writes acknowledgements back to `state/queue.db`. Logs to `logs/deployer.log`."
+Example shape: "Runs as a cron job every 5 minutes during business hours (09:00–18:00 UTC, Mon–Fri). Reads pending deploys from `state/queue.db`, submits to staging via `release/submit.py`, writes acknowledgements back to `state/queue.db`. Logs to `logs/deployer.log`."
 
 ## How to tell it's healthy
 
