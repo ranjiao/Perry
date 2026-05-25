@@ -176,6 +176,7 @@ Same principle in concrete cases:
 | `retro <NNN>` | One phase retro: KR scores as bars, before/after stretch tracker, lessons, carry-overs. | `phase/<NNN>-<slug>.md` (must be `Status: scored`) + `evidence/<YYYY-MM>/retro.md` | required `<NNN>` |
 | `weekly <YYYY-WW>` | One week's status report with task summary table, blocker callouts, KR-progress sparklines. | `weekly/<YYYY-WW>.md` + week's journal entries | required `<YYYY-WW>` |
 | `handoff [<date>]` | Handoff doc for sharing; includes BOARD snapshot table, USER input queue, "read these N files first when you resume" callouts. (Handoff is one of the few exceptions where embedding content is the point — it's a self-contained briefing.) | latest `handoff/*.md` (or specified date) + BOARD + recent journal | optional `<date>` |
+| `all` | **Meta-form, not a single view.** Renders every catalog view that has source data, skipping ones already fresh. See § The `all` subcommand below for the full target-set rules and procedure. | (dynamic — computed per-invocation from project state) | none |
 
 Not exhaustive. New views are added by appending to this catalog when a real consumption need surfaces — don't over-design upfront. **When adding a new view: confirm it is a deep-dive on one domain. If it would replicate `dashboard`'s summary-of-everything role, redesign — Perry has exactly one compass.**
 
@@ -224,6 +225,56 @@ Not exhaustive. New views are added by appending to this catalog when a real con
    ```
    Do NOT auto-open (PMO is sometimes invoked headless / in agent-context where opening a browser is wrong).
 6. **Don't write anywhere else**. Render is read-only against source files. Output goes ONLY to `perry-views/` (per-view file + index.html).
+
+## The `all` subcommand
+
+`/pmo render all` is a meta-form that batches every applicable catalog view in one invocation. Use when you want a complete refresh of the consumption surface — e.g., starting a session, after a major BOARD / phase change, or when the standup flagged multiple stale renders.
+
+### Target view set
+
+`all` does NOT blindly run every catalog row. It computes a set tied to the project's CURRENT state. If a view's source data doesn't exist, the view is silently absent from the set (NOT logged as a failure — there's nothing to render).
+
+| View | Inclusion condition |
+|---|---|
+| `dashboard` | Always |
+| `board` | Always |
+| `decisions` | Always (`DECISIONS.md` always exists post-bootstrap) |
+| `phase` | `phase/CURRENT` resolves to an existing phase file |
+| `architecture` | `ARCHITECTURE.md` exists at project root |
+| `handoff` | `handoff/` non-empty → latest only |
+| `weekly <YYYY-WW>` | `weekly/` non-empty → most recent ISO week only |
+| `retro <NNN>` | Most recent phase with `Status: scored` (skipped if no scored phase yet) |
+| `incident <slug>` | One render per **open** incident in `incidents/INDEX.md`. **Resolved incidents are historical — not re-rendered by `all`.** |
+
+### Procedure
+
+1. **Compute the target set** using the rules above. Print it as a one-line preview so the user sees what's about to run:
+   ```
+   Target views (8): dashboard, board, decisions, phase, architecture, handoff, weekly 2026-W21, incident deploy-stuck-2026-05-12
+   ```
+2. **Classify each target's freshness** by invoking `"$PERRY_HOME/bin/perry-render-index"` once (the same script the standup uses; deterministic Python, no LLM). Parse its output to bucket each target as `fresh` / `stale` / `missing`.
+3. **For each target, sequentially**:
+   - `fresh` → skip; print `✓ fresh: <view>`.
+   - `stale` or `missing` → run the single-view procedure above (§ Procedure steps 1–3 — pre-flight, output filename, generate HTML). Print `🔄 rendered: <view>`.
+   - On any error → catch, log `✗ failed: <view> — <one-line reason>`, **continue** with the next view. Do NOT abort the batch.
+4. **Regenerate the index hub ONCE** at the end (`"$PERRY_HOME/bin/perry-render-index"`). Skipping the per-view regen saves N-1 redundant runs.
+5. **Print a summary table**:
+   ```
+   render all complete:
+     fresh    : 3 (dashboard, board, decisions)
+     rendered : 4 (phase, architecture, handoff, weekly 2026-W21)
+     failed   : 1 (incident deploy-stuck-2026-05-12 — source file missing)
+     index    : updated → perry-views/index.html
+     open: open perry-views/index.html
+   ```
+6. **No auto-open.** Same policy as single-view render.
+
+### What `all` does NOT do
+
+- **No `--force` flag.** Freshness check is `sha256(source bytes)` — if it says fresh, it IS fresh. A suspect "stale-but-marked-fresh" case is a bug in the staleness scan, not a flag to bypass.
+- **No history-spanning batch.** Doesn't render every historical incident, every old weekly, every scored phase retro. Just current / open / most-recent. To render an archive, invoke single-view forms.
+- **No parallelism.** Sequential. Keeps the summary output coherent and the agent's context-budget predictable.
+- **No partial-recovery resume.** If interrupted mid-batch, re-run `/pmo render all`; fresh ones will skip themselves automatically.
 
 ## The "design preset" mechanism (optional, additive)
 

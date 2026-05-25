@@ -240,7 +240,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
-| `render <view> [<arg>]` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `perry-views/` (gitignored). Views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff` | `reference/rendering.md` |
+| `render <view> [<arg>]` or `render all` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `perry-views/` (gitignored). Single views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. **`all`** = batch every applicable view (target set computed from project state; skips fresh ones; open incidents only). | `reference/rendering.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
