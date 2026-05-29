@@ -19,7 +19,7 @@ If `unknown`, default behavior to `claude-code` (the original target host) but m
 export PERRY_HOST=claude-code      # or codex-cli
 ```
 
-### Auto-detection details (verified 2026-05 against codex-cli 0.130.0 + Claude Code 2.1.137)
+### Auto-detection details (env-var sniffing; re-verify if detection misbehaves on a newer host build)
 
 The script uses env-var sniffing in this order:
 

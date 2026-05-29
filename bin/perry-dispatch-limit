@@ -52,6 +52,19 @@ mtime() {
   stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
 }
 
+# Task IDs become filenames + JSON values + glob patterns, so restrict them to
+# a safe charset. Perry task IDs (USER-034, PAPER-FILL-AUDIT-rest, DATA-008-B,
+# CHARTER-PAPER-PATHS-TEST, ...) all match this; anything with /, spaces, quotes,
+# or glob metacharacters is rejected before it can corrupt a marker path / JSON.
+validate_task_id() {
+  case "$1" in
+    *[!A-Za-z0-9_.-]*|"")
+      echo "❌ Invalid task-id '$1': only letters, digits, '_', '.', '-' allowed." >&2
+      exit 2
+      ;;
+  esac
+}
+
 clean_stale() {
   local now last age
   now=$(date +%s)
@@ -117,6 +130,7 @@ case "$cmd" in
       echo "Usage: register <task-id> <executor>" >&2
       exit 2
     fi
+    validate_task_id "$task_id"
     if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
       echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
       exit 2
@@ -158,6 +172,7 @@ EOF
       echo "Usage: release <task-id>" >&2
       exit 2
     fi
+    validate_task_id "$task_id"
     rm -f "$CACHE_DIR"/"${task_id}"-*.json 2>/dev/null
     echo "🟢 Released: $task_id"
     ;;

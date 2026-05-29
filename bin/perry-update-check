@@ -59,7 +59,11 @@ for candidate in \
   "$HOME/.agents/skills/perry"
 do
   [ -z "$candidate" ] && continue
-  if [ -e "$candidate" ]; then
+  # Require a real Perry install (SKILL.md present), not just any existing path.
+  # Matches the $0-fallback check below; prevents a stale empty
+  # ~/.claude/skills/perry from shadowing a real ~/.agents/skills/perry on a
+  # Codex-only box where PERRY_HOME is unset.
+  if [ -e "$candidate" ] && [ -f "$candidate/SKILL.md" ]; then
     PERRY_LINK="$candidate"
     break
   fi
