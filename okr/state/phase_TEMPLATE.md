@@ -39,7 +39,7 @@ This phase does not target {{long-term goal that is intentionally deferred}}; th
 
 > What the user must contribute during this phase. Each becomes a USER-id in PMO's User Input Queue.
 
-- {{commitment 1, e.g., "Provide latest position data at phase start"}}.
+- {{commitment 1, e.g., "Provide current release-pipeline config at phase start"}}.
 - {{commitment 2}}.
 - {{commitment 3}}.
 - Phase scope-reduction trigger review (decide whether to cut scope when the trigger fires).

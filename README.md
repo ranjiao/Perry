@@ -49,7 +49,7 @@ Perry pairs **goal-setting** with **execution stewardship** and **design-doc ste
 | **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md` (index) + `decisions/ADR-NNN-<slug>.md` (per-decision ADR files), `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` + `knowledge/<topic>/` (external-doc digests) | `OKR.md`, `phase/<NNN>-<slug>.md` |
 | **`design`** | The "decided" — RFC steward | `design/<DESIGN-ID>-<slug>.md` (Problem, Goals, Non-Goals, User Decisions, Architecture, Implementation plan, Risks, Changes) | `OKR.md`, `phase/<NNN>-<slug>.md`, `BOARD.md` |
 
-Both skills run a mandatory snapshot/standup the moment they're invoked, so you always start from the actual state of your files instead of vibes.
+All three skills run a mandatory snapshot/standup the moment they're invoked, so you always start from the actual state of your files instead of vibes.
 
 ## How they cooperate
 

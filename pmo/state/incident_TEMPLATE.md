@@ -1,6 +1,6 @@
 # Incident — {{YYYY-MM-DD}} — {{slug}}
 
-> Status: open | investigating | resolved | archived
+> Status: open | resolved | archived
 > Opened: {{YYYY-MM-DD HH:MM}} by {{user | pmo}}
 > Affected component: {{runbook slug, or 'unknown'}}
 > Severity: {{minor | major | critical}}

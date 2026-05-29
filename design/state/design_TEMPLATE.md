@@ -1,9 +1,9 @@
-# DESIGN-<id>: <Title>
+# DESIGN-{{id}}: {{Title}}
 
 > Status: draft
-> Date: <YYYY-MM-DD> · Locked: —
-> Author: <role or name>   · Implementation owner: <role or "TBD">
-> Linked OKR: <O-id / KR-id, or —>
+> Date: {{YYYY-MM-DD}} · Locked: —
+> Author: {{role or name}}   · Implementation owner: {{role or "TBD"}}
+> Linked OKR: {{O-id / KR-id, or —}}
 > Supersedes: —   · Superseded by: —
 
 ## 1. Problem
@@ -65,7 +65,7 @@ Non-blocking items deferred for later. Blocking questions belong in §4 User Dec
 
 ## 9. Changes (append-only after lock)
 
-- YYYY-MM-DD — <what changed> — <why>
+- YYYY-MM-DD — {{what changed}} — {{why}}
 
 ## 10. References
 

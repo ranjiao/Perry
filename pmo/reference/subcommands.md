@@ -151,7 +151,7 @@ Symmetric to `close-task`:
 ## Cross-session
 
 ### `coordinate`
-Pull a snapshot of work from other Claude sessions/terminals tagged for this project (`mcp__session_info__list_sessions` if available; otherwise ask user to paste summaries). Append a consolidated update to `PROJECT_STATE.md` under `## Recent cross-session work`. Distribute follow-ups by appending new tasks.
+Pull a snapshot of work from other Claude sessions/terminals tagged for this project (use a session-listing MCP tool if the project hook declares one; otherwise ask the user to paste summaries). Append a consolidated update to `PROJECT_STATE.md` under `## Recent cross-session work`. Distribute follow-ups by appending new tasks.
 
 ### `handoff`
 Generate the **Day-N Status doc** — a single self-contained document a future PMO session can read instead of re-walking the conversation. Save to `handoff/<YYYY-MM-DD>.md` from `state/handoff_TEMPLATE.md`. Always include:

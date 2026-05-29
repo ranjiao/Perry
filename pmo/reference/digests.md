@@ -221,13 +221,13 @@ PMO maintains this file automatically. Updated on every `/pmo digest`, archive o
 The standup ritual (in `SKILL.md § Mandatory first move`) gains:
 
 - A scan of `inputs/` for undigested files. Count + name of oldest. If ≥ 1, surface in dashboard + suggest `digest`.
-- A scan of `knowledge/INDEX.md` for active + stale + archived counts.
+- A scan of `knowledge/INDEX.md` for active + eternal + stale + archived counts.
 
 Dashboard line:
 
 ```
 📥 Inputs    : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest
-📚 Knowledge : <active> active · <stale> stale · <archived> archived
+📚 Knowledge : <active> active · <eternal> eternal · <stale> stale · <archived> archived
 ```
 
 When `inputs/` count > 0: include "drain inputs/ via /pmo digest" in the suggested next actions.
@@ -245,7 +245,7 @@ When stale ≥ 3: include "run /pmo end-phase-retro to triage archive candidates
 ```
 
 - **active** (default at creation): standup counts; INDEX shows in main section; PMO may reference; appears in archive-candidate scans
-- **eternal**: standup highlights; INDEX shows at top; **never** appears in archive candidates. Use for project-constitutional digests (USER-002 R-rules / OKR Operating Principles / risk frameworks). User explicitly marks; PMO never auto-promotes.
+- **eternal**: standup highlights; INDEX shows at top; **never** appears in archive candidates. Use for project-constitutional digests (USER-002 operating constraints / OKR Operating Principles / non-negotiable frameworks). User explicitly marks; PMO never auto-promotes.
 - **archived**: standup ignores; INDEX moves to bottom "Archived" section; PMO doesn't search by default but **may grep on demand** if active set returns nothing relevant
 - **superseded**: behaves like archived; header has `Superseded by: <newer-digest>` so the chain is traceable
 
@@ -287,7 +287,7 @@ Recognized in `.perry/hook.md` under `## Digest archive thresholds`:
 
 ```
 - Inactive days before archive candidate: 60      # tighter than 90
-- Auto-eternal topics: USER-002-constraints, OKR-anti-goals, R-rules
+- Auto-eternal topics: USER-002-constraints, OKR-anti-goals, operating-rules
 - Topics never to digest: scratch, temp           # PMO refuses /pmo digest on inputs/ tagged with these names
 ```
 

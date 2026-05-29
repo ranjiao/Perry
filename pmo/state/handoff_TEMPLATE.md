@@ -30,7 +30,7 @@ Commit status: {{committed / uncommitted / pushed / not pushed}}.
 |---|---|
 | **{{USER-ID}}** | {{1-line outcome}} |
 
-### External / financial decisions (if any)
+### External / cross-system decisions (if any)
 
 | Decision | Status |
 |---|---|
@@ -62,9 +62,9 @@ Commit status: {{committed / uncommitted / pushed / not pushed}}.
 
 | Item | Status |
 |---|---|
-| {{e.g., main account total}} | {{value}} |
-| {{e.g., paper account equity}} | {{value}} |
-| {{e.g., LLM monthly spend}} | {{value}} |
+| {{e.g., deploy queue depth}} | {{value}} |
+| {{e.g., staging build success rate}} | {{value}} |
+| {{e.g., monthly infra spend}} | {{value}} |
 
 ## 7. Board snapshot
 
@@ -88,7 +88,7 @@ User Input Queue: {{n}}/{{N}} done (剩 {{remaining USER-IDs}})
 
 When you (PMO Agent in a new session) resume tomorrow, **read these files first**, in this order:
 
-1. `TASKS.md` (the latest board)
+1. `BOARD.md` (the latest board)
 2. `evidence/{{YYYY-MM}}/{{the most active TASK-ID}}.md` (latest evidence)
 3. **This file** (`handoff/{{YYYY-MM-DD}}.md`)
 
@@ -97,4 +97,4 @@ Then have the user say: "已读今日总结, [{{key topic}}] 进展如何" — a
 ---
 
 **Generated**: {{YYYY-MM-DD}} by PMO Agent
-**Source files**: all `evidence/{{YYYY-MM}}/` + `TASKS.md` + today's conversation.
+**Source files**: all `evidence/{{YYYY-MM}}/` + `BOARD.md` + today's conversation.

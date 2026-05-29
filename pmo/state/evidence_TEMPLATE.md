@@ -1,7 +1,7 @@
 # {{TASK-ID}} — {{Title}}
 
 > Evidence file for {{TASK-ID}}. Lives at `evidence/{{YYYY-MM}}/{{TASK-ID}}-<short-slug>.md`.
-> The TASKS.md `Evidence` field points here. Long-form analysis lives in this file, not in the board.
+> The BOARD.md `Evidence` field points here. Long-form analysis lives in this file, not in the board.
 
 ## Linkage
 
@@ -34,7 +34,7 @@
 
 ## Constraints checked
 
-> If this is a recommendation, list the user-specific constraints (R-rules, risk tolerance, cash needs, etc.) that were verified before producing the recommendation.
+> If this is a recommendation, list the user-specific constraints (operating rules, tolerances, resource limits, etc.) that were verified before producing the recommendation.
 
 - {{constraint check 1}}
 - {{constraint check 2}}

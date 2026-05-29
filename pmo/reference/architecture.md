@@ -13,7 +13,7 @@ There is exactly **one** architecture document per project: `ARCHITECTURE.md` at
 | **Owner** | User. Agents never write. |
 | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
 | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
-| **Update cadence** | User-driven, plus mandatory review at `okr plan-phase` and `end-phase-retro`. |
+| **Update cadence** | User-driven and user-triggered (annual / quarterly / ad-hoc). `okr plan-phase` and `end-phase-retro` *prompt* for a review but never force one — see `### /pmo architecture review`. |
 | **Size budget** | **HARD cap 500 lines** (tier 1; see `pmo/SKILL.md § Two file models`). PMO refuses writes that would exceed. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes a §-section TOC + 1-paragraph summaries per section. Typical clean ARCHITECTURE.md is 200–400 lines; 500 is the hard ceiling for "user can read in one sitting." |
 
 ## Document structure

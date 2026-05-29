@@ -10,7 +10,7 @@
 - **Main progress**: {{one line}}
 - **Main risk**: {{one line}}
 - **User decisions needed**: {{count + USER-ids}}
-- **Cost ceiling status**: {{spent / ceiling}} ({{%}} of cap; soft fallback at {{soft%}}{{tripped/armed}})
+- **Cost ceiling status**: {{spent / ceiling}} ({{%}} of cap; soft fallback at {{soft%}} · {{tripped | armed}})
 
 ## P0
 

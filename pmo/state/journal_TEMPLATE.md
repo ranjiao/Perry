@@ -1,4 +1,4 @@
-# <YYYY-MM-DD> — PMO journal
+# {{YYYY-MM-DD}} — PMO journal
 
 > One file per day. Append-only after the day ends — don't retroactively edit.
 > Sections that have nothing for the day stay empty (`(none)`) so the structure stays predictable.
@@ -6,9 +6,9 @@
 ## Status changes
 
 - (none)
-<!-- Format: [TASK-ID] <prev-status> → <new-status> · <one-line> · evidence: <path or —>
+<!-- Format: [TASK-ID] {{prev-status}} → {{new-status}} · {{one-line}} · evidence: {{path or —}}
      Example:
-       [PAPER-009] in_progress → review · PR #75 merged commit 198e5c9 · evidence: evidence/2026-05/PAPER-009-fix.md
+       [TASK-009] in_progress → review · PR #75 merged commit 198e5c9 · evidence: evidence/2026-05/TASK-009-fix.md
        [USER-014] not_started → done · user picked option B · evidence: chat 14:23 BJT
 -->
 
@@ -19,16 +19,16 @@
 <!-- Each new task gets the full schema written here once. After today, the canonical
      scope lives in this entry; BOARD.md only carries enough to know it's open.
 
-### TASK-XXX — <title>
-- Owner: <User | PMO Agent | Coding Agent | Research Agent | Review Agent | User+Agent>
-- Priority: <P0 | P1 | P2>
-- Linked Objective/KR: <O-id / KR-id, or —>
-- Deliverable: <one line>
-- Verification: <one line>
-- Dependencies: <USER-id / TASK-id, or —>
-- Out of scope: <one line>
-- Next action: <one line>
-- Evidence path (planned): <evidence/<YYYY-MM>/<TASK-ID>-<slug>.md, or — if none yet>
+### TASK-XXX — {{title}}
+- Owner: {{User | PMO Agent | Coding Agent | Research Agent | Review Agent | User+Agent}}
+- Priority: {{P0 | P1 | P2}}
+- Linked Objective/KR: {{O-id / KR-id, or —}}
+- Deliverable: {{one line}}
+- Verification: {{one line}}
+- Dependencies: {{USER-id / TASK-id, or —}}
+- Out of scope: {{one line}}
+- Next action: {{one line}}
+- Evidence path (planned): evidence/{{YYYY-MM}}/{{TASK-ID}}-{{slug}}.md (or — if none yet)
 -->
 
 ## Decisions
@@ -37,7 +37,7 @@
 
 <!-- Each decision logged today, with a pointer to the ADR in DECISIONS.md.
      Example:
-       ADR-005 — chose option A for cash split (Type: Risk) · DECISIONS.md
+       ADR-005 — chose option A for rollback policy (Type: Operations) · DECISIONS.md
 -->
 
 ## Notes

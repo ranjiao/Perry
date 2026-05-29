@@ -95,7 +95,7 @@ Manually mark an incident `archived` (no longer relevant, e.g., the component it
 ```markdown
 # Incident — {{YYYY-MM-DD}} — {{slug}}
 
-> Status: open | investigating | resolved | archived
+> Status: open | resolved | archived
 > Opened: {{YYYY-MM-DD HH:MM}} by {{user | pmo}}
 > Affected component: {{runbook slug, or 'unknown'}}
 > Severity: {{minor | major | critical}}              # filled at close
@@ -141,7 +141,7 @@ Filled at close-time by the 3-question gate:
 
 ## Integration with other PMO surfaces
 
-- **Standup dashboard**: when `incidents/` exists, the dashboard adds a line: `🔥 Incidents · <open> open · <this-week> this week · <phase> this phase`. Omit if directory missing.
+- **Standup dashboard**: when `incidents/` exists, the dashboard adds a line: `🔥 Incidents · <open> open · <month> this month · <derived>/<total> w/ derived`. (Canonical format lives in `pmo/SKILL.md` standup dashboard — keep in sync.) Omit if directory missing.
 - **`triage`**: open incidents older than 3 days are surfaced as P0 attention items.
 - **`mid-phase-review`**: pulls all incidents from the current phase, summarises by component, lists "derived-change skipped" rationales as a pattern check.
 - **`end-phase-retro`**: same plus "of <N> incidents this phase, <K> drove ARCHITECTURE.md edits / <K> drove runbook updates / <K> drove digests" — this number is the feedback-loop health metric.

@@ -52,7 +52,7 @@ Single file: `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`. Sections:
 
 ## Decision flow
 
-After writing the report, run a single `AskUserQuestion` batch (multiSelect, header `"Address drift"`) listing the top 4 actionable items from "Drift to decide". Each option labelled with a verb: "Fix INV-007 violation" / "Write runbook for deploy-daemon" / etc.
+After writing the report, run a single `AskUserQuestion` batch (multiSelect, header `"Address drift"`) listing the top 4 actionable items from "Drift to decide". Each option labelled with a verb: "Fix NN-3 violation" / "Write runbook for deploy-daemon" / etc.
 
 For items not in the top 4, the user can act later from the file — they're not lost, just deprioritised.
 
@@ -76,8 +76,8 @@ The report is information. The decisions live with the user.
 
 Each underlying scan is useful on its own. The reason to compose them:
 
-1. **Cache warmth** — all four scans read overlapping files (spec/, BOARD, journal, INVARIANTS, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
-2. **Pattern surface** — drift in one area often correlates with drift in another. "Stale runbook for component X" + "3 incidents in X" + "no invariant added" is a stronger signal than any of those alone. Only a meta-runner sees the correlation.
+1. **Cache warmth** — all four scans read overlapping files (spec/, BOARD, journal, ARCHITECTURE.md, runbook/INDEX, knowledge/INDEX). Running them in one session amortises the read cost.
+2. **Pattern surface** — drift in one area often correlates with drift in another. "Stale runbook for component X" + "3 incidents in X" + "no §6 NN added" is a stronger signal than any of those alone. Only a meta-runner sees the correlation.
 3. **Single decision point** — the user gets one `AskUserQuestion` batch instead of four. The cost of "should I look at this?" drops.
 
 The output report is durable, citable, and small. A user 6 months from now can read `evidence/2026-05/health-check-2026-05-13.md` and reconstruct the project's state on that day without re-walking journal entries.

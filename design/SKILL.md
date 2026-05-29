@@ -37,7 +37,14 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Scan** `design/` for all `*.md` files. Parse each doc's frontmatter / header for `Status:` (one of: `draft`, `in_review`, `locked`, `superseded`, `dropped`) and `Date:`.
 3. **Cross-check `BOARD.md`** (if PMO is installed): for each locked design, count open vs done implementation tasks that back-reference the design ID.
-4. **Render the snapshot** — fixed shape, no preamble:
+4. **Render the headline + snapshot.** Two parts, in order:
+
+   **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about the design lane right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
+   - `TL;DR: DESIGN-002 is locked but has no implementation tasks yet — run handoff.`
+   - `TL;DR: DESIGN-003 has 3 open user decisions blocking lock — run decide.`
+   - `TL;DR: Nothing in review — design lane is quiet.`
+
+   **Part B — Snapshot** — fixed shape, no further preamble:
 
    ```
    📐 Design docs · <project name>

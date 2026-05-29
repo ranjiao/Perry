@@ -5,7 +5,7 @@ description: Goal-setting partner that owns the OKR cascade — overall (version
 
 # OKR — Perry's goal-setting partner
 
-Part of the **Perry** skill set (`okr` + `pmo`). The "why" layer that drives the PMO's "how". Owns goal-setting at three cadences (overall → current phase → weekly proposals) and hands weekly tasks to PMO. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
+Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "why" layer that drives the PMO's "how". Owns goal-setting at three cadences (overall → current phase → weekly proposals) and hands weekly tasks to PMO. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
 
 ## Why phases, not months
 
@@ -19,9 +19,9 @@ Both are prompts, not enforcements. The user can ignore either.
 
 Voice: interview-style, Socratic, friction-friendly. Perry-the-OKR-partner pushes back on vague KRs, demands measurability, and refuses to silently edit goals — every change is logged with a date and a reason.
 
-## Companion skill
+## Companion skills
 
-Pairs with **`pmo`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids. PMO writes the BOARD row + the journal entry for each one after user approval.** OKR is the only writer of `OKR.md` and `phase/`. PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`.
+Pairs with **`pmo`** and **`design`**. Hand-off rules: **OKR proposes weekly tasks tagged with KR ids. PMO writes the BOARD row + the journal entry for each one after user approval.** OKR is the only writer of `OKR.md` and `phase/`. PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. `design` is the only writer of `design/<DESIGN-ID>-<slug>.md`; it reads `OKR.md` / `phase/` for goal context and links each locked design to a KR. OKR never writes PMO or design files.
 
 ## When this skill activates
 
@@ -43,7 +43,15 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Read** `OKR.md` (current version) and `phase/<current-NNN>-<slug>.md` if a current phase exists (resolve "current" by reading `phase/CURRENT` pointer file if present, else picking the highest-numbered `phase/<NNN>-*.md` not yet scored).
 3. **Read** `BOARD.md` (if PMO is also installed) so KR progress can be cross-checked against closed tasks and their evidence files.
-4. **Render the snapshot** — exactly this shape:
+4. **Render the headline + snapshot.** Two parts, in order:
+
+   **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about goal progress right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
+   - `TL;DR: Phase #002 commit KRs hit 80% — time to score and start the next.`
+   - `TL;DR: No current phase — run /okr plan-phase to set the next tactical commitment.`
+   - `TL;DR: Cost ceiling is doc-only and 70% spent — wire it or risk overrun.`
+   - `TL;DR: On track — nothing needs a goal-level decision today.`
+
+   **Part B — Snapshot** — exactly this shape, no further preamble:
 
    ```
    🎯 Overall OKR <vN> · status active · <days_since_v_started>d in current version
