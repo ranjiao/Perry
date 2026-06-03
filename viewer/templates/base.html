@@ -1,0 +1,90 @@
+{% from "_macros.html" import icon %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}{{ snap.project_name }}{% endblock %}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='ds.css') }}">
+{% if auto_refresh %}<meta http-equiv="refresh" content="30">{% endif %}
+<style>
+  html, body { margin: 0; padding: 0; min-height: 100vh; }
+  body { background: var(--bg); color: var(--ink); }
+</style>
+<script>
+  // Apply theme BEFORE first paint to avoid a flash of the light theme.
+  // Class goes on <html> (documentElement) — it exists before <body> parses,
+  // and the CSS vars cascade to everything from there. This must stay an
+  // inline head script (not the bottom-of-body one) or large pages with a
+  // blocking CDN <script> (e.g. mermaid on /architecture) paint light first.
+  (function () {
+    try {
+      var s = localStorage.getItem('pmo-theme');
+      var dark = s ? s === 'dark'
+                   : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dark) document.documentElement.classList.add('theme-dark');
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<div id="app" class="app">
+
+<div class="nav">
+  <div class="nav-brand">
+    <span class="dot"></span>
+    <span>{{ snap.project_name }}</span>
+    {% if snap.phase %}
+    <span class="nav-phase">phase #{{ snap.phase.number }} · {{ snap.phase.slug }}</span>
+    {% endif %}
+  </div>
+  <div class="nav-links">
+    {% set routes = [
+      ('today', '/', 'Today'),
+      ('board', '/board', 'Board'),
+      ('okr', '/okr', 'OKR'),
+      ('phase', '/phase', 'Phase'),
+      ('risks', '/risks', 'Risks'),
+      ('atlas', '/atlas', 'Atlas'),
+      ('pulse', '/pulse', 'Pulse'),
+      ('architecture', '/architecture', 'Arch')
+    ] %}
+    {% for id, href, label in routes %}
+    <a href="{{ href }}" class="nav-link{% if active == id %} active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="nav-right">
+    <a href="/atlas" class="nav-search" style="text-decoration: none;">
+      {{ icon('search', 12) }}
+      <span>Search tasks, ADRs, evidence…</span>
+      <kbd>⌘K</kbd>
+    </a>
+    <span class="nav-meta">fetched {{ snap.fetched_at.strftime('%H:%M:%S') }}</span>
+    <button class="nav-icon-btn" id="theme-toggle" title="Toggle theme">
+      <span id="theme-icon">☾</span>
+    </button>
+  </div>
+</div>
+
+{% block content %}{% endblock %}
+
+</div>
+
+<script>
+  // Theme class is already on <html> (applied pre-paint in the head script).
+  // Here we only sync the toggle icon to current state and wire the button.
+  (function () {
+    var dark = document.documentElement.classList.contains('theme-dark');
+    document.getElementById('theme-icon').textContent = dark ? '☀' : '☾';
+  })();
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    var root = document.documentElement;
+    var nowDark = !root.classList.contains('theme-dark');
+    root.classList.toggle('theme-dark', nowDark);
+    document.getElementById('theme-icon').textContent = nowDark ? '☀' : '☾';
+    localStorage.setItem('pmo-theme', nowDark ? 'dark' : 'light');
+  });
+</script>
+</body>
+</html>

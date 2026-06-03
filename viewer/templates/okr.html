@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "_macros.html" import card_open, card_close, id_tag %}
+{% block title %}OKR · {{ snap.project_name }}{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">OKR</h1>
+      <div class="page-sub">
+        overall goals · {{ snap.okr.version or 'no version parsed' }}
+        · <a href="/file/OKR.md" style="color: var(--ink-3);">raw OKR.md →</a>
+      </div>
+    </div>
+    {% if snap.okr.version %}<span class="chip on">{{ snap.okr.version.split(':')[0] }}</span>{% endif %}
+  </div>
+
+  {% if not snap.okr.objectives and not snap.okr.operating_principles %}
+  <div class="card"><div class="t-muted">No OKR.md parsed at the project root.</div></div>
+  {% else %}
+
+  {# ── Mission ─────────────────────────────────────────────────────── #}
+  {% if snap.okr.mission %}
+  {{ card_open('Mission') }}
+  <div style="font-size: 13.5px; color: var(--ink-2); line-height: 1.6; white-space: pre-line;">{{ snap.okr.mission }}</div>
+  {{ card_close() }}
+  {% endif %}
+
+  {# ── Objectives + KRs ────────────────────────────────────────────── #}
+  {{ card_open('Objectives · ' ~ (snap.okr.objectives | length)) }}
+  {% if snap.okr.objectives %}
+  {% for o in snap.okr.objectives %}
+  <div style="padding: 14px 0; {% if not loop.last %}border-bottom: 1px solid var(--hairline);{% endif %}">
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;">
+      <span class="serif" style="font-size: 26px; line-height: 1; color: var(--accent-ink); flex: 0 0 auto;">O{{ loop.index }}</span>
+      <span style="font-size: 14.5px; font-weight: 600; color: var(--ink);">{{ o.title }}</span>
+      <span class="mono t-tiny t-muted" style="margin-left: auto; flex: 0 0 auto;">{{ o.krs | length }} KR</span>
+    </div>
+    {% if o.intro %}
+    <div class="t-small" style="color: var(--ink-3); line-height: 1.55; margin: 4px 0 10px;">{{ o.intro }}</div>
+    {% endif %}
+    {% if o.krs %}
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      {% for kr in o.krs %}
+      <div style="display: flex; gap: 10px; align-items: baseline;">
+        <span class="id-tag" style="flex: 0 0 auto; color: var(--accent-ink); font-weight: 500;">{{ kr.id }}</span>
+        <div style="flex: 1; min-width: 0;">
+          {% if kr.qualifier %}<span class="chip" style="margin-right: 4px;">{{ kr.qualifier | replace('(', '') | replace(')', '') }}</span>{% endif %}
+          <span class="t-small" style="color: var(--ink-2); line-height: 1.5;">{{ kr.text }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="t-muted">No objectives parsed from the current OKR version.</div>
+  {% endif %}
+  {{ card_close() }}
+
+  <div class="grid" style="grid-template-columns: 1fr 1fr;">
+
+    {# ── Operating Principles ──────────────────────────────────────── #}
+    {{ card_open('Operating Principles · ' ~ (snap.okr.operating_principles | length)) }}
+    {% if snap.okr.operating_principles %}
+    <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); line-height: 1.6;">
+      {% for p in snap.okr.operating_principles %}
+      <li style="margin-bottom: 6px;">{{ p }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="t-muted">None parsed.</div>
+    {% endif %}
+    {{ card_close() }}
+
+    {# ── Anti-Goals ────────────────────────────────────────────────── #}
+    {{ card_open('Anti-Goals · ' ~ (snap.okr.anti_goals | length)) }}
+    {% if snap.okr.anti_goals %}
+    <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); line-height: 1.6;">
+      {% for g in snap.okr.anti_goals %}
+      <li style="margin-bottom: 6px;">{{ g | replace('**', '') }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="t-muted">None parsed.</div>
+    {% endif %}
+    {{ card_close() }}
+
+  </div>
+
+  {# ── Version log ─────────────────────────────────────────────────── #}
+  {% if snap.okr.version_log %}
+  {{ card_open('Version history') }}
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    {% for ver, desc in snap.okr.version_log | reverse %}
+    <div style="display: flex; gap: 10px; align-items: baseline; font-size: 12.5px;">
+      <span class="id-tag" style="flex: 0 0 auto; font-weight: 500;">{{ ver }}</span>
+      <span style="color: var(--ink-2); line-height: 1.5;">{{ desc }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {{ card_close() }}
+  {% endif %}
+
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, status, id_tag, task_id, card_open, card_close %}
+{% set auto_refresh = true %}
+{% block title %}Board · {{ snap.project_name }}{% endblock %}
+
+{% macro lane(title, tasks, prio) %}
+{{ card_open(title ~ ' · ' ~ (tasks | length)) }}
+{% if tasks %}
+<table class="tbl">
+  <thead><tr><th>ID</th><th>Title</th><th>Owner</th><th>Status</th><th>Next action</th><th>Evidence</th></tr></thead>
+  <tbody>
+    {% for t in tasks %}
+    <tr>
+      <td>{{ task_id(t) }}</td>
+      <td style="max-width: 360px;">{{ t.title }}</td>
+      <td class="t-small t-muted">{{ t.owner }}</td>
+      <td>{{ status(t.status, t.status_note) }}</td>
+      <td class="t-tiny t-muted" style="max-width: 260px;">{{ t.next_action }}</td>
+      <td class="t-tiny">
+        {% set ev = t.evidence | evidence_path %}
+        {% if ev %}<a href="/file/{{ ev }}" style="color: var(--accent-ink); text-decoration: none;">open</a>
+        {% else %}<span class="t-faint">—</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="t-muted t-small">(empty)</div>
+{% endif %}
+{{ card_close() }}
+{% endmacro %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Board</h1>
+      <div class="page-sub">
+        live working memory · {{ snap.board.last_updated_header | strip_md_link | first_line | truncate(70, true, '…') }}
+        · <a href="/file/BOARD.md" style="color: var(--ink-3);">raw →</a>
+      </div>
+    </div>
+    {% set total = (snap.board.p0|length) + (snap.board.p1|length) + (snap.board.p2|length) %}
+    <span class="chip on">{{ total }} open · {{ snap.board.cadence|length }} cadence</span>
+  </div>
+
+  {# ── Priority lanes ──────────────────────────────────────────────── #}
+  {{ lane('P0 — must finish this period', snap.board.p0, 'P0') }}
+  {{ lane('P1', snap.board.p1, 'P1') }}
+  {{ lane('P2', snap.board.p2, 'P2') }}
+
+  {# ── User Input Queue ────────────────────────────────────────────── #}
+  {{ card_open('User Input Queue · ' ~ (snap.board.user_input_queue | length)) }}
+  {% if snap.board.user_input_queue %}
+  <table class="tbl">
+    <thead><tr><th>USER-id</th><th>Needed from user</th><th>Blocks</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for u in snap.board.user_input_queue %}
+      <tr>
+        <td>{% if u.id in id_evidence_map %}{{ id_tag(u.id, href='/file/' ~ id_evidence_map[u.id]) }}{% else %}{{ id_tag(u.id, href='/atlas?tab=tasks&q=' ~ u.id) }}{% endif %}</td>
+        <td style="max-width: 360px;">{{ u.needed_from_user }}</td>
+        <td class="t-small t-muted">{{ u.blocks }}</td>
+        <td><span class="t-small">{{ u.status }}{% if u.idle and u.idle != '—' %} · <span style="color: var(--amber-ink);">{{ u.idle }} idle</span>{% endif %}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="t-muted t-small">(queue empty)</div>
+  {% endif %}
+  {{ card_close() }}
+
+  {# ── Cadence ─────────────────────────────────────────────────────── #}
+  {{ card_open('Cadence · ' ~ (snap.board.cadence | length) ~ ' (recurring; off the P0 path)') }}
+  {% if snap.board.cadence %}
+  <table class="tbl">
+    <thead><tr><th>ID</th><th>Recurring task</th><th>Owner</th><th>Frequency</th><th>Next due</th></tr></thead>
+    <tbody>
+      {% for t in snap.board.cadence %}
+      <tr>
+        <td>{{ id_tag(t.id) }}</td>
+        <td style="max-width: 340px;">{{ t.title }}</td>
+        <td class="t-small t-muted">{{ t.owner }}</td>
+        <td class="t-small t-muted">{{ t.status }}</td>
+        <td class="t-tiny t-muted">{{ t.next_action }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="t-muted t-small">(none)</div>
+  {% endif %}
+  {{ card_close() }}
+
+  {# ── Backbone groups (only if structured tasks present) ──────────── #}
+  {% if snap.board.backbone_groups %}
+  {{ card_open('Backbone · ' ~ (snap.board.backbone_groups | map(attribute=1) | map('length') | sum) ~ ' (later-phase queue)') }}
+  {% for group_title, tasks in snap.board.backbone_groups %}
+  <h3 style="margin: 12px 0 4px;">{{ group_title }}</h3>
+  <table class="tbl">
+    <tbody>
+      {% for t in tasks %}
+      <tr><td>{{ id_tag(t.id) }}</td><td>{{ t.title }}</td><td><span class="pill priority-Backbone">BB</span></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+  {{ card_close() }}
+  {% endif %}
+
+  <div class="t-tiny t-muted" style="margin-top: 12px;">
+    Auto-refreshes every 30s. To find a specific task across all lanes + evidence, use <a href="/atlas?tab=tasks">Atlas</a>.
+  </div>
+
+</div>
+{% endblock %}

@@ -159,6 +159,8 @@ Markdown is great for producing state (agent edits, git diff, LLM prompt injecti
 
 **Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `perry-views/` at the project root (Finder-visible, gitignored, never committed). Regenerate any time. No daemon, no watcher, no server. See `pmo/reference/rendering.md`.
 
+**Optional live viewer (power users).** If `/pmo render`'s one-shot snapshots are too slow for repeated glancing during active work, run `bash "$PERRY_HOME/bin/perry-viewer"` from your project dir. It's an opt-in, read-only, localhost Flask console (Today / Board / OKR / Phase / Risks / Atlas / Pulse / Architecture) that re-reads your markdown on every request — always live, no LLM cost. First run auto-installs its own venv; stop it with Ctrl-C (no daemon). Lightweight users can ignore it entirely and carry zero extra dependencies. See `viewer/README.md`.
+
 #### How `perry-views/` is organized
 
 ```

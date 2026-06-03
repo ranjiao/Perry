@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, status, id_tag, task_id, icon %}
+{% block title %}Atlas · {{ snap.project_name }}{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Atlas</h1>
+      <div class="page-sub">unified browse · tasks · evidence · decisions · journal</div>
+    </div>
+  </div>
+
+  {# ── Search bar ──────────────────────────────────────────────────── #}
+  <form method="GET" action="/atlas" class="card" style="padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px;">
+    {{ icon('search', 16) }}
+    <input type="hidden" name="tab" value="{{ tab }}">
+    {% if priority_filter %}<input type="hidden" name="priority" value="{{ priority_filter }}">{% endif %}
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    <input name="q" value="{{ query }}" autofocus autocomplete="off"
+           placeholder="Search tasks, ADRs, evidence, journal…"
+           style="flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; color: var(--ink);">
+    {% if query or priority_filter or status_filter %}
+    <a href="/atlas?tab={{ tab }}" class="chip">clear</a>
+    {% endif %}
+    <button type="submit" class="chip on" style="cursor: pointer; border: 0;">search</button>
+  </form>
+
+  {# ── Tabs ───────────────────────────────────────────────────────── #}
+  {% set tabs = [
+    ('tasks', 'Tasks', counts.tasks),
+    ('evidence', 'Evidence', counts.evidence),
+    ('decisions', 'Decisions', counts.decisions),
+    ('journal', 'Journal', counts.journal),
+    ('handoff', 'Handoff', counts.handoff)
+  ] %}
+  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 0;">
+    {% for tid, tlabel, tcount in tabs %}
+    <a href="/atlas?tab={{ tid }}{% if query %}&q={{ query }}{% endif %}"
+       style="padding: 8px 14px; font-size: 13px; font-weight: 500; text-decoration: none;
+              color: {{ 'var(--ink)' if tab == tid else 'var(--ink-3)' }};
+              border-bottom: 2px solid {{ 'var(--accent)' if tab == tid else 'transparent' }};
+              margin-bottom: -1px;">
+      {{ tlabel }} <span class="mono t-tiny t-faint">{{ tcount }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {# ── Tasks tab: chip filters ─────────────────────────────────────── #}
+  {% if tab == 'tasks' %}
+  <div style="display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;">
+    <a href="/atlas?tab=tasks{% if query %}&q={{ query }}{% endif %}"
+       class="chip{% if not priority_filter %} on{% endif %}" style="text-decoration: none;">all priorities</a>
+    {% for p in ['P0', 'P1', 'P2', 'Cadence', 'Backbone'] %}
+    <a href="/atlas?tab=tasks&priority={{ p }}{% if query %}&q={{ query }}{% endif %}"
+       class="chip{% if priority_filter == p %} on{% endif %}" style="text-decoration: none;">{{ p }}</a>
+    {% endfor %}
+    <span style="width: 1px; background: var(--hairline); margin: 0 4px;"></span>
+    {% for s in ['not_started', 'in_progress', 'blocked', 'review', 'done', 'dropped'] %}
+    <a href="/atlas?tab=tasks{% if priority_filter %}&priority={{ priority_filter }}{% endif %}&status={{ s }}{% if query %}&q={{ query }}{% endif %}"
+       class="chip{% if status_filter == s %} on{% endif %}" style="text-decoration: none;">{{ s }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Body per tab ────────────────────────────────────────────────── #}
+  <div class="card" style="padding: 0; overflow: hidden;">
+
+  {% if tab == 'tasks' %}
+    <table class="tbl">
+      <thead><tr>
+        <th style="width: 80px;">Priority</th>
+        <th style="width: 220px;">ID</th>
+        <th>Title</th>
+        <th style="width: 120px;">Owner</th>
+        <th style="width: 130px;">Status</th>
+        <th>Next action</th>
+        <th style="width: 90px;">Evidence</th>
+      </tr></thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          <td>{{ pill(t.priority) }}</td>
+          <td>{{ task_id(t) }}</td>
+          <td style="max-width: 340px;">{{ t.title | truncate(90, true, '…') }}</td>
+          <td class="t-small t-muted">{{ t.owner }}</td>
+          <td>{{ status(t.status, t.status_note) }}</td>
+          <td class="t-tiny t-muted" style="max-width: 240px;">{{ t.next_action | truncate(70, true, '…') }}</td>
+          <td class="t-tiny">
+            {% if t.evidence and '.md' in t.evidence %}
+              {% set ev_path = t.evidence.split(' ')[0] %}
+              {% if ev_path.startswith('evidence/') or ev_path.startswith('docs/') %}
+              <a href="/file/{{ ev_path }}" style="color: var(--accent-ink); text-decoration: none;">open {{ icon('ext', 10) }}</a>
+              {% else %}
+              <span class="t-faint">{{ ev_path | truncate(20, true, '…') }}</span>
+              {% endif %}
+            {% else %}
+              <span class="t-faint">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="t-muted" style="text-align: right; padding: 20px;">No tasks match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif tab == 'evidence' %}
+    <table class="tbl">
+      <thead><tr><th>Month</th><th>File</th><th>Size</th></tr></thead>
+      <tbody>
+        {% for e in evidence[:300] %}
+        <tr>
+          <td class="t-small mono t-muted">{{ e.month }}</td>
+          <td><a href="/file/{{ e.rel }}" style="color: var(--accent-ink); text-decoration: none;">{{ e.name }}</a></td>
+          <td class="num t-tiny t-muted">{{ '%.1f' % (e.size / 1024) }} KB</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="t-muted" style="text-align: right; padding: 20px;">No evidence files match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if evidence | length > 300 %}
+    <div class="t-tiny t-muted" style="padding: 12px;">Showing first 300 of {{ evidence | length }}. Narrow with search.</div>
+    {% endif %}
+
+  {% elif tab == 'decisions' %}
+    <table class="tbl">
+      <thead><tr>
+        <th style="width: 100px;">ADR</th><th>Title</th>
+        <th style="width: 120px;">Type</th><th style="width: 110px;">Date</th>
+        <th>Sunset / notes</th>
+      </tr></thead>
+      <tbody>
+        {% for a in adrs %}
+        <tr>
+          <td>
+            {% if a.file_path %}{{ id_tag(a.id, href='/file/' ~ a.file_path) }}
+            {% else %}{{ id_tag(a.id) }}{% endif %}
+          </td>
+          <td>{{ a.title }}</td>
+          <td><span class="chip">{{ a.type | truncate(22, true) }}</span></td>
+          <td class="t-small mono t-muted">{{ a.date }}</td>
+          <td class="t-tiny t-muted" style="max-width: 280px;">{{ a.sunset_or_notes | truncate(100, true, '…') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="t-muted" style="text-align: right; padding: 20px;">No ADRs match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif tab == 'journal' %}
+    <table class="tbl">
+      <thead><tr><th style="width: 140px;">Date</th><th>Month</th></tr></thead>
+      <tbody>
+        {% for j in journal %}
+        <tr>
+          <td><a href="/file/{{ j.rel }}" style="color: var(--accent-ink); text-decoration: none;">{{ j.date }}</a></td>
+          <td class="t-small mono t-muted">{{ j.month }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="t-muted" style="text-align: right; padding: 20px;">No journal entries match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif tab == 'handoff' %}
+    <table class="tbl">
+      <thead><tr><th style="width: 140px;">Date</th><th>Session bridge — resume doc</th></tr></thead>
+      <tbody>
+        {% for h in handoff %}
+        <tr>
+          <td><a href="/file/{{ h.rel }}" style="color: var(--accent-ink); text-decoration: none;">{{ h.date }}</a></td>
+          <td class="t-small t-muted">{% if loop.first %}<span class="chip on">latest</span> {% endif %}handoff/{{ h.date }}.md</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="t-muted" style="text-align: right; padding: 20px;">No handoff docs match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  </div>
+
+</div>
+{% endblock %}

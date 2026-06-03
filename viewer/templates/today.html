@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% from "_macros.html" import pill, status, id_tag, task_id, card_open, card_close, risk_meter %}
+{% set auto_refresh = true %}
+{% block title %}Today · {{ snap.project_name }}{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ── Page head ───────────────────────────────────────────────────── #}
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">Today</h1>
+      <div class="page-sub">
+        {{ snap.fetched_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        {% if snap.phase %} · phase #{{ snap.phase.number }} · {{ snap.phase.slug }}{% endif %}
+      </div>
+    </div>
+    <span class="chip on">live · auto-refresh 30s</span>
+  </div>
+
+  {# ── KPI strip ───────────────────────────────────────────────────── #}
+  {% set p0_blocked = snap.board.p0 | selectattr('status', 'equalto', 'blocked') | list | length %}
+  {% set p0_new = snap.board.p0 | selectattr('status', 'equalto', 'not_started') | list | length %}
+  {% set kr_done = kpi.kr_done %}
+  {% set kr_total = kpi.kr_total %}
+  {% set user_q_idle = snap.board.user_input_queue | selectattr('idle', 'ne', '—') | list | length %}
+  <div class="grid" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 16px;">
+
+    {% set kpis = [
+      ('Phase day', kpi.phase_day, kpi.phase_day_sub, 'var(--accent-ink)', false),
+      ('P0 open', snap.board.p0 | length, p0_blocked ~ ' blocked · ' ~ p0_new ~ ' new', 'var(--rust-ink)', false),
+      ('Needs user', snap.board.user_input_queue | length, kpi.user_q_sub, 'var(--amber-ink)', false),
+      ('KR done', kr_done ~ '/' ~ kr_total, (((kr_done * 100) // (kr_total or 1)) | string) ~ '% complete', 'var(--moss-ink)', false),
+      ('Top risks', snap.top_risks | length, kpi.risks_sub, 'var(--ink)', false)
+    ] %}
+    {% for label, big, sub, color, sp in kpis %}
+    <div class="card card-tight">
+      <div class="card-title" style="margin-bottom: 8px;">{{ label }}</div>
+      <div style="display: flex; align-items: flex-end; gap: 8px;">
+        <span class="serif" style="font-size: 36px; line-height: 0.9; color: {{ color }};">{{ big }}</span>
+      </div>
+      <div class="t-tiny t-muted mono" style="margin-top: 6px;">{{ sub }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── P0 critical path + User input queue ─────────────────────────── #}
+  <div class="grid" style="grid-template-columns: 1.4fr 1fr;">
+
+    {{ card_open('Critical path · P0 (' ~ (snap.board.p0 | length) ~ ')', link='full board', link_href='/atlas?tab=tasks&priority=P0') }}
+    <table class="tbl">
+      <thead><tr>
+        <th style="width: 22px;"></th>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Owner</th>
+        <th>Status</th>
+        <th>Next</th>
+      </tr></thead>
+      <tbody>
+        {% for t in snap.board.p0 %}
+        <tr>
+          <td class="num t-faint">{{ loop.index }}</td>
+          <td>{{ task_id(t) }}</td>
+          <td style="max-width: 280px;">{{ t.title if t.title|length <= 80 else t.title[:78] ~ '…' }}</td>
+          <td class="t-small t-muted">{{ t.owner }}</td>
+          <td>{{ status(t.status, t.status_note) }}</td>
+          <td class="t-tiny t-muted" style="max-width: 220px;">{{ t.next_action if t.next_action|length <= 65 else t.next_action[:63] ~ '…' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="t-muted" style="text-align: right;">No P0 tasks.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {{ card_close() }}
+
+    {{ card_open('User input queue') }}
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      {% for u in snap.board.user_input_queue %}
+      <div style="padding-bottom: 12px; border-bottom: 1px solid var(--hairline);">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap;">
+          {{ pill(u.priority or 'P2') }}
+          {% if u.id in id_evidence_map %}
+            {{ id_tag(u.id, href='/file/' ~ id_evidence_map[u.id]) }}
+          {% else %}
+            {{ id_tag(u.id, href='/atlas?tab=tasks&q=' ~ u.id) }}
+          {% endif %}
+          <span style="margin-left: auto;">
+            {% if u.status %}<span class="chip">{{ u.status | first_line | truncate(30, true, '…') }}</span>{% endif %}
+            {% if u.idle and u.idle != '—' %}<span class="chip" style="color: var(--amber-ink);">{{ u.idle }}</span>{% endif %}
+          </span>
+        </div>
+        <div class="t-small" style="color: var(--ink-2);">{{ u.needed_from_user }}</div>
+        <div class="t-tiny t-faint mono" style="margin-top: 3px;">blocks · {{ u.blocks }}</div>
+      </div>
+      {% else %}
+      <div class="t-muted">No user input pending.</div>
+      {% endfor %}
+    </div>
+    {{ card_close() }}
+
+  </div>
+
+  {# ── Risk console row ────────────────────────────────────────────── #}
+  <div style="margin-top: 16px;">
+    {{ card_open('Risk console', link='full risks', link_href='/risks') }}
+    {% set risks_with_values = snap.top_risks | selectattr('value') | list %}
+    {% if risks_with_values %}
+    <div class="grid" style="grid-template-columns: repeat({{ [risks_with_values|length, 3]|min }}, 1fr); gap: 24px;">
+      {% for r in risks_with_values[:3] %}
+      {% set sev_color = 'var(--rust-ink)' if r.severity == 'top' else 'var(--amber-ink)' if r.severity == 'watch' else 'var(--moss-ink)' %}
+      <div>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px;">
+          {{ id_tag(r.id) }}
+          <span class="t-small t-muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title | truncate(40, true, '…') }}</span>
+          <span class="serif" style="font-size: 20px; margin-left: auto; color: {{ sev_color }};">{{ r.value }}%</span>
+        </div>
+        {{ risk_meter(r.value, scale=40, threshold=r.threshold or 8, max1=r.max1 or 30, max2=r.max2 or 40) }}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="t-muted">No risks with numeric values parsed from PROJECT_STATE.md.</div>
+    {% endif %}
+    {{ card_close() }}
+  </div>
+
+  {# ── Activity stream ─────────────────────────────────────────────── #}
+  <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px;">
+
+    {{ card_open('Recent decisions', link='ADR log', link_href='/atlas?tab=decisions') }}
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      {% for a in snap.adrs[:5] %}
+      <div style="display: flex; gap: 10px; font-size: 12px; align-items: baseline;">
+        {% if a.file_path %}{{ id_tag(a.id, href='/file/' ~ a.file_path) }}
+        {% else %}{{ id_tag(a.id) }}{% endif %}
+        {% if a.file_path %}
+        <a href="/file/{{ a.file_path }}" style="flex: 1; color: var(--ink-2); text-decoration: none;">{{ a.title | truncate(60, true, '…') }}</a>
+        {% else %}
+        <span style="flex: 1; color: var(--ink-2);">{{ a.title | truncate(60, true, '…') }}</span>
+        {% endif %}
+        <span class="chip">{{ a.type | truncate(18, true) }}</span>
+        <span class="mono t-tiny t-faint">{{ a.date[-5:] if a.date|length > 5 else a.date }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {{ card_close() }}
+
+    {{ card_open('Recent journal', link='all journal', link_href='/atlas?tab=journal') }}
+    <div style="display: flex; flex-direction: column; gap: 7px;">
+      {% for j in snap.journal[:5] %}
+      <div style="font-size: 12px;">
+        <a href="/file/{{ j.rel }}" style="color: var(--ink-3); text-decoration: none;">
+          <span class="mono t-faint">{{ j.date }}</span>
+        </a>
+        · <span style="color: var(--ink-2);">{{ j.month }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {{ card_close() }}
+
+  </div>
+
+</div>
+{% endblock %}

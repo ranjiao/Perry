@@ -333,12 +333,39 @@ Earlier alternatives that were rejected:
 - **File watcher / `perry serve`**: violates the "no daemon" principle from earlier design rounds. The standup-time scan is sufficient.
 - **JS in HTML fetches source mtimes**: browsers from `file://` can't reliably read filesystem state; would break the "single self-contained HTML file, openable anywhere, shareable via email" property. Passive fingerprint > brittle live check.
 
-## Why no `perry serve` / no daemon
+## Two consumption paths: disposable render (default) + optional live viewer
 
-Earlier proposals included a long-running web server. Dropped because:
-- A daemon adds operational surface (port, PID, watchdog) for marginal UX gain
-- File-based output means any browser, any sharing, no localhost
-- "Regenerate on file change" is solved by `/pmo render` — which user invokes when they actually want to look
-- One-shot HTML aligns with the "disposable" tier-3 framing
+Perry offers two ways to consume state as something richer than raw markdown.
+They serve different needs; pick per situation.
 
-The article that motivated this (Thariq's "Why I switched to HTML") emphasizes: don't build a `/html` skill, just prompt for HTML when needed. `/pmo render` is the minimum-viable structuring of that — preset views catalog so the agent knows what's worth rendering, source-file glue so the agent doesn't have to relearn project structure each time, gitignored output so the user doesn't have to think about state.
+### 1. `/pmo render <view>` — disposable, shareable snapshot (the default)
+
+LLM-generated one-shot HTML in `perry-views/` (gitignored). No dependencies,
+no server, no localhost. Right when you want to **share or archive** a
+point-in-time view (email a weekly, keep a retro, hand off an incident). The
+article that motivated this (Thariq's "Why I switched to HTML") emphasizes:
+don't build a `/html` skill, just prompt for HTML when needed. `/pmo render`
+is the minimum-viable structuring of that.
+
+### 2. `bin/perry-viewer` — live local console (optional, opt-in)
+
+A deterministic (no-LLM) Flask app that re-reads the project's markdown on
+every request and renders Today / Board / OKR / Phase / Risks / Atlas / Pulse
+/ Architecture. Right when you're **actively working** and want to glance at
+current state repeatedly without paying ~50s of LLM render each time.
+
+It is opt-in by construction, so it does NOT violate the "no always-on
+daemon" principle:
+- **Lightweight users never touch it** → zero extra dependencies, nothing
+  running. The skill ships the source under `viewer/`; it sits inert.
+- **Power users run `bash "$PERRY_HOME/bin/perry-viewer"`** from their project
+  dir. First run auto-creates a private venv (`~/.cache/perry/viewer-venv`),
+  installs Flask + markdown, and starts the server. Stop with Ctrl-C —
+  **nothing runs when you're not looking**. No watchdog, no PID file, no
+  boot-time daemon.
+- Localhost-only, read-only (never writes project files), gitignored venv.
+
+The earlier objection to a server was about making one the *required/default*
+path. As an explicit, user-launched, ephemeral tool that complements the
+disposable render, it's the right answer to "the LLM render is too slow for
+live glancing." See `viewer/README.md` for setup + page details.
