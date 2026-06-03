@@ -448,20 +448,23 @@ def _parse_okr_objectives(body: str) -> list[Objective]:
 
 
 def parse_phase(slug: str, text: str) -> Phase:
+    # Section labels are bilingual: a project's document language may be English
+    # or 中文 (per .perry/config.md), so the phase file can use either set of
+    # headers. Match both. Chinese uses a fullwidth colon （：）in some labels.
     phase = Phase(slug=slug, raw_text=text)
 
-    m = re.match(r"# Phase #(\d+)\s*[—-]\s*([^\n]*)", text)
+    m = re.match(r"#\s*(?:Phase|阶段)\s*#(\d+)\s*[—\-–]\s*([^\n（(]*)", text)
     if m:
         phase.number = m.group(1)
-    started = re.search(r"Started:\s*([^\n]+)", text)
+    started = re.search(r"(?:Started|启动)\s*\**\s*[:：]\s*\**\s*([^\n（(*]+)", text)
     if started:
         phase.started = started.group(1).strip()
 
-    focus = re.search(r"## Phase Focus\n(.+?)(?=\n## )", text, re.S)
+    focus = re.search(r"## (?:Phase Focus|阶段焦点)[^\n]*\n(.+?)(?=\n## )", text, re.S)
     if focus:
         phase.focus = focus.group(1).strip()
 
-    cc = re.search(r"## Cost Ceiling[^\n]*\n(.+?)(?=\n## )", text, re.S)
+    cc = re.search(r"## (?:Cost Ceiling|成本上限)[^\n]*\n(.+?)(?=\n## )", text, re.S)
     if cc:
         phase.cost_ceiling_raw = cc.group(1).strip()
         phase.cost_ceiling_lines = [
@@ -470,13 +473,13 @@ def parse_phase(slug: str, text: str) -> Phase:
             if line.strip().startswith("-")
         ]
 
-    tw = re.search(r"## Trip-wires\n(.+?)(?=\n## )", text, re.S)
+    tw = re.search(r"## (?:Trip-wires|触发线|触发条件)[^\n]*\n(.+?)(?=\n## )", text, re.S)
     if tw:
         phase.tripwires = _parse_tripwires(tw.group(1))
 
-    obj_chunks = re.split(r"\n(?=## Objective \d+)", text)
+    obj_chunks = re.split(r"\n(?=## (?:Objective|目标)\s*\d+)", text)
     for chunk in obj_chunks:
-        m = re.match(r"## Objective (\d+)[:：]?\s*([^\n]*)\n", chunk)
+        m = re.match(r"## (?:Objective|目标)\s*(\d+)\s*[:：]?\s*([^\n]*)\n", chunk)
         if not m:
             continue
         title = (m.group(2) or "").strip() or f"Objective {m.group(1)}"

@@ -62,14 +62,31 @@ def _kpi(snap) -> dict:
         kr_total = len(okr_objs) * 4
         kr_done = max(0, kr_total // 3)
 
+    phase_day, phase_day_sub = _phase_day(snap)
     return {
         "kr_done": kr_done,
         "kr_total": kr_total,
-        "phase_day": snap.phase.tripwires[0].when if (snap.phase and snap.phase.tripwires) else "—",
-        "phase_day_sub": (snap.phase.slug if snap.phase else "no phase"),
+        "phase_day": phase_day,
+        "phase_day_sub": phase_day_sub,
         "user_q_sub": _user_q_sub(snap),
         "risks_sub": _risks_sub(snap),
     }
+
+
+def _phase_day(snap) -> tuple[str, str]:
+    """Days elapsed since the phase started (day 1 = start date), from the
+    phase file's Started date. Falls back to '—' if no phase / no parseable date."""
+    if not snap.phase:
+        return "—", "no phase"
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", snap.phase.started or "")
+    if not m:
+        return "—", (snap.phase.slug or "no start date")
+    from datetime import date
+    start = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    elapsed = (date.today() - start).days + 1  # start date is day 1
+    if elapsed < 1:
+        return "—", f"starts {snap.phase.started}"
+    return str(elapsed), f"since {snap.phase.started}"
 
 
 def _user_q_sub(snap) -> str:
