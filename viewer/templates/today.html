@@ -112,7 +112,7 @@
       <div>
         <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px;">
           {{ id_tag(r.id) }}
-          <span class="t-small t-muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title | truncate(40, true, '…') }}</span>
+          <span class="t-small t-muted" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title | strip_md | truncate(40, true, '…') }}</span>
           <span class="serif" style="font-size: 20px; margin-left: auto; color: {{ sev_color }};">{{ r.value }}%</span>
         </div>
         {{ risk_meter(r.value, scale=40, threshold=r.threshold or 8, max1=r.max1 or 30, max2=r.max2 or 40) }}

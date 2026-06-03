@@ -366,18 +366,29 @@ def evidence_path(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+@app.template_filter("strip_md")
+def strip_md(text: str) -> str:
+    """Strip inline markdown emphasis markers so risk/meta text renders as clean
+    prose instead of showing literal **, ~~, ` to the user."""
+    if not text:
+        return ""
+    t = re.sub(r"\*\*([^*]*)\*\*", r"\1", text)   # **bold**
+    t = re.sub(r"~~([^~]*)~~", r"\1", t)           # ~~strike~~
+    t = re.sub(r"`([^`]*)`", r"\1", t)             # `code`
+    return t
+
+
 @app.template_filter("strip_leading_bold")
 def strip_leading_bold(text: str) -> str:
     """Remove the leading **bold** header from a risk meta line so it doesn't
-    duplicate the ID + title already shown above. Also strip stray ~~ markers."""
+    duplicate the ID + title already shown above, then strip any remaining
+    inline markdown markers from the rest."""
     if not text:
         return ""
     t = text.strip()
-    # Strip leading strikethrough wrapper
     t = re.sub(r"^~~([^~]*)~~", r"\1", t)
-    # Remove the first **bold** chunk (with surrounding whitespace) if at start
     t = re.sub(r"^\*\*[^*]+?\*\*\s*[—:·-]?\s*", "", t)
-    return t.strip()
+    return strip_md(t).strip()
 
 
 # ── Main ──────────────────────────────────────────────────────────────────

@@ -32,8 +32,8 @@
           {{ id_tag(r.id) }}
           <span class="pill" style="background: var(--rust); color: var(--surface);">TOP RISK</span>
         </div>
-        <div style="font-size: 16px; color: var(--ink); font-weight: 500; margin-bottom: 4px;">{{ r.title }}</div>
-        <div class="t-small" style="color: var(--ink-2); line-height: 1.5;">{{ r.meta | truncate(300, true, '…') }}</div>
+        <div style="font-size: 16px; color: var(--ink); font-weight: 500; margin-bottom: 4px;">{{ r.title | strip_md }}</div>
+        <div class="t-small" style="color: var(--ink-2); line-height: 1.5;">{{ r.meta | strip_leading_bold | truncate(300, true, '…') }}</div>
       </div>
     </div>
   </div>
@@ -56,7 +56,7 @@
         <span class="serif" style="font-size: 44px; line-height: 1; color: {{ color }}; letter-spacing: -0.02em;">
           {{ r.value }}<span style="font-size: 18px; color: var(--ink-4);">%</span>
         </span>
-        <span class="t-small" style="color: var(--ink-2); line-height: 1.4;">{{ r.title | truncate(80, true, '…') }}</span>
+        <span class="t-small" style="color: var(--ink-2); line-height: 1.4;">{{ r.title | strip_md | truncate(80, true, '…') }}</span>
       </div>
       {{ risk_meter(r.value, scale=40, threshold=r.threshold or (r.value * 0.85)|round(1), max1=r.max1 or (r.value * 1.05)|round(1), max2=r.max2 or 40) }}
       <div class="t-small" style="margin-top: 22px; color: var(--ink-2); line-height: 1.55;">
@@ -100,9 +100,9 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="color: var(--moss-ink);">{{ icon('check', 14, 2) }}</span>
           {{ id_tag(r.id) }}
-          <span class="t-small" style="flex: 1; color: var(--ink-3); text-decoration: line-through;">{{ r.title | truncate(60, true, '…') }}</span>
+          <span class="t-small" style="flex: 1; color: var(--ink-3); text-decoration: line-through;">{{ r.title | strip_md | truncate(60, true, '…') }}</span>
         </div>
-        <div class="t-tiny t-muted" style="margin-left: 22px; margin-top: 2px;">{{ r.meta | truncate(180, true, '…') }}</div>
+        <div class="t-tiny t-muted" style="margin-left: 22px; margin-top: 2px;">{{ r.meta | strip_leading_bold | truncate(180, true, '…') }}</div>
       </div>
       {% endfor %}
     </div>
