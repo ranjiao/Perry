@@ -241,6 +241,7 @@ def atlas():
     query = (request.args.get("q") or "").strip().lower()
     priority_filter = (request.args.get("priority") or "").strip()
     status_filter = (request.args.get("status") or "").strip()
+    type_filter = (request.args.get("type") or "").strip()
 
     tasks = snap.board.all_tasks
     if priority_filter:
@@ -261,6 +262,14 @@ def atlas():
         evidence = [e for e in evidence if query in e.name.lower() or query in e.rel.lower()]
 
     adrs = snap.adrs
+    # Distinct ADR type tokens (types are slash-compound, e.g. "Architecture /
+    # Trading") → individual chips. Filter by case-insensitive substring so a
+    # token chip matches any compound type containing it.
+    adr_types = sorted({
+        tok.strip() for a in snap.adrs for tok in (a.type or "").split("/") if tok.strip()
+    })
+    if type_filter:
+        adrs = [a for a in adrs if type_filter.lower() in (a.type or "").lower()]
     if query:
         adrs = [
             a for a in adrs
@@ -270,6 +279,13 @@ def atlas():
     journal = snap.journal
     if query:
         journal = [j for j in journal if query in j.date]
+    # Group journal entries by month, newest month first (entries already sorted
+    # date-desc), so the journal tab reads as month sections instead of a flat list.
+    journal_groups = []
+    for j in journal:
+        if not journal_groups or journal_groups[-1][0] != j.month:
+            journal_groups.append((j.month, []))
+        journal_groups[-1][1].append(j)
 
     handoff = snap.handoff
     if query:
@@ -291,10 +307,13 @@ def atlas():
         query=query,
         priority_filter=priority_filter,
         status_filter=status_filter,
+        type_filter=type_filter,
         tasks=tasks,
         evidence=evidence,
         adrs=adrs,
+        adr_types=adr_types,
         journal=journal,
+        journal_groups=journal_groups,
         handoff=handoff,
         counts=counts,
     )

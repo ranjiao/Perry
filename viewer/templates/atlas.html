@@ -18,10 +18,11 @@
     <input type="hidden" name="tab" value="{{ tab }}">
     {% if priority_filter %}<input type="hidden" name="priority" value="{{ priority_filter }}">{% endif %}
     {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    {% if type_filter %}<input type="hidden" name="type" value="{{ type_filter }}">{% endif %}
     <input name="q" value="{{ query }}" autofocus autocomplete="off"
            placeholder="Search tasks, ADRs, evidence, journal…"
            style="flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; color: var(--ink);">
-    {% if query or priority_filter or status_filter %}
+    {% if query or priority_filter or status_filter or type_filter %}
     <a href="/atlas?tab={{ tab }}" class="chip">clear</a>
     {% endif %}
     <button type="submit" class="chip on" style="cursor: pointer; border: 0;">search</button>
@@ -60,6 +61,18 @@
     {% for s in ['not_started', 'in_progress', 'blocked', 'review', 'done', 'dropped'] %}
     <a href="/atlas?tab=tasks{% if priority_filter %}&priority={{ priority_filter }}{% endif %}&status={{ s }}{% if query %}&q={{ query }}{% endif %}"
        class="chip{% if status_filter == s %} on{% endif %}" style="text-decoration: none;">{{ s }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ── Decisions tab: type chip filters ────────────────────────────── #}
+  {% if tab == 'decisions' and adr_types %}
+  <div style="display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap;">
+    <a href="/atlas?tab=decisions{% if query %}&q={{ query }}{% endif %}"
+       class="chip{% if not type_filter %} on{% endif %}" style="text-decoration: none;">all types</a>
+    {% for ty in adr_types %}
+    <a href="/atlas?tab=decisions&type={{ ty }}{% if query %}&q={{ query }}{% endif %}"
+       class="chip{% if type_filter == ty %} on{% endif %}" style="text-decoration: none;">{{ ty }}</a>
     {% endfor %}
   </div>
   {% endif %}
@@ -151,19 +164,24 @@
     </table>
 
   {% elif tab == 'journal' %}
+    {% for month, entries in journal_groups %}
+    <div style="display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; background: var(--bg-soft); border-bottom: 1px solid var(--border);">
+      <span class="mono" style="font-size: 12px; font-weight: 600; color: var(--ink-2);">{{ month }}</span>
+      <span class="t-tiny t-faint">{{ entries | length }} {{ 'entry' if entries | length == 1 else 'entries' }}</span>
+    </div>
     <table class="tbl">
-      <thead><tr><th style="width: 140px;">Date</th><th>Month</th></tr></thead>
       <tbody>
-        {% for j in journal %}
+        {% for j in entries %}
         <tr>
-          <td><a href="/file/{{ j.rel }}" style="color: var(--accent-ink); text-decoration: none;">{{ j.date }}</a></td>
-          <td class="t-small mono t-muted">{{ j.month }}</td>
+          <td style="width: 140px;"><a href="/file/{{ j.rel }}" style="color: var(--accent-ink); text-decoration: none;">{{ j.date }}</a></td>
+          <td class="t-tiny t-faint">{{ j.rel }}</td>
         </tr>
-        {% else %}
-        <tr><td colspan="2" class="t-muted" style="text-align: right; padding: 20px;">No journal entries match.</td></tr>
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    <div class="t-muted" style="text-align: right; padding: 20px;">No journal entries match.</div>
+    {% endfor %}
 
   {% elif tab == 'handoff' %}
     <table class="tbl">
