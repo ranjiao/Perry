@@ -234,6 +234,27 @@ def risks():
     return render_template("risks.html", snap=snap, active="risks")
 
 
+@app.route("/design")
+def design():
+    snap = load_snapshot()
+    status_filter = request.args.get("status", "").strip()
+    docs = snap.design
+    # Count per base-enum status (over the full set, before filtering).
+    order = ["in_review", "locked", "draft", "superseded", "dropped"]
+    counts = {s: sum(1 for d in docs if d.status == s) for s in order}
+    if status_filter:
+        docs = [d for d in docs if d.status == status_filter]
+    return render_template(
+        "design.html",
+        snap=snap,
+        active="design",
+        docs=docs,
+        counts=counts,
+        status_order=order,
+        status_filter=status_filter,
+    )
+
+
 @app.route("/atlas")
 def atlas():
     snap = load_snapshot()

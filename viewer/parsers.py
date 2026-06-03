@@ -197,6 +197,21 @@ class ArchMeta:
     mermaid_count: int = 0
 
 
+@dataclass
+class DesignDoc:
+    id: str                 # e.g. DESIGN-008 / INFRA-001
+    title: str
+    status: str             # normalized base enum: draft/in_review/locked/superseded/dropped
+    status_raw: str = ""    # original status line (qualifier / dates / prose)
+    date: str = ""
+    locked: str = ""
+    linked_okr: str = ""
+    rel: str = ""           # design/<file>.md
+    impl_refs: int = 0      # # of BOARD tasks referencing this design ID
+    section_count: int = 0
+    mermaid: bool = False
+
+
 # ── BOARD.md ──────────────────────────────────────────────────────────────
 
 
@@ -732,6 +747,129 @@ def walk_handoff(root: Path) -> list[JournalEntry]:
     return out
 
 
+# ── design/<DESIGN-ID>-<slug>.md (design-skill RFC docs) ──────────────────
+
+# Display + sort priority. Lower index = higher up the page.
+_DESIGN_STATUS_ORDER = {
+    "in_review": 0,   # needs decisions — surface first
+    "locked": 1,      # decided; may need impl tasks
+    "draft": 2,       # still being written
+    "superseded": 3,  # historical
+    "dropped": 4,     # historical
+}
+
+
+def _norm_design_status(text: str) -> str:
+    """The Status line is freeform prose ('Design locked（2026…）', 'locked',
+    'in_review', 'superseded by DESIGN-009'…). Normalize to the base enum by
+    keyword. Order matters: superseded/dropped before locked before review."""
+    t = (text or "").lower()
+    if "superseded" in t:
+        return "superseded"
+    if "dropped" in t or "abandoned" in t:
+        return "dropped"
+    if "lock" in t:
+        return "locked"
+    if "in_review" in t or "in review" in t or "review" in t:
+        return "in_review"
+    if "draft" in t:
+        return "draft"
+    return "draft"
+
+
+def walk_design(root: Path, board: BoardState | None = None) -> list[DesignDoc]:
+    """Parse design/<ID>-<slug>.md RFC docs. Headers are bilingual & freeform
+    (em-dash or colon title sep; '> Status:' value embedded in prose;
+    '> **Date**:' fullwidth colons), so all field extraction is lenient."""
+    out: list[DesignDoc] = []
+    base = root / "design"
+    if not base.is_dir():
+        return out
+
+    # Pre-index BOARD task text once for impl back-reference counting.
+    task_blobs: list[str] = []
+    if board is not None:
+        for t in board.all_tasks:
+            task_blobs.append(
+                " ".join([t.id or "", t.title or "", t.next_action or "", t.evidence or ""])
+            )
+
+    for md in sorted(base.glob("*.md")):
+        if md.name.upper() == "README.MD":
+            continue
+        text = md.read_text(errors="replace")
+
+        # ID from filename: leading <LETTERS>-<digits> (DESIGN-008, INFRA-001).
+        fm = re.match(r"([A-Za-z]+-\d+)", md.name)
+        doc_id = fm.group(1).upper() if fm else md.stem
+
+        # Header block = everything before the first '## ' section.
+        head = re.split(r"\n##\s", text, maxsplit=1)[0]
+
+        # Title: H1, strip the leading "<ID> — " / "<ID>: " prefix.
+        title = doc_id
+        h1 = re.search(r"^#\s+(.+)$", head, re.M)
+        if h1:
+            t = h1.group(1).strip()
+            t = re.sub(r"^[A-Za-z]+-\d+\s*[—\-–:：]\s*", "", t).strip()
+            title = t or doc_id
+
+        def field_line(label_pat: str) -> str:
+            m = re.search(
+                rf">?\s*\*{{0,2}}(?:{label_pat})\*{{0,2}}\s*[:：]\s*(.+)",
+                head, re.I,
+            )
+            return m.group(1).strip() if m else ""
+
+        status_raw = field_line(r"Status|状态")
+        status = _norm_design_status(status_raw)
+
+        date_raw = field_line(r"Date|日期")
+        dm = re.search(r"\d{4}-\d{2}-\d{2}", date_raw)
+        date = dm.group(0) if dm else ""
+
+        # Locked date: explicit "Locked:" field, else from status prose.
+        locked = ""
+        lm = re.search(r"Locked\*{0,2}\s*[:：]\s*\*{0,2}(\d{4}-\d{2}-\d{2})", head, re.I)
+        if lm:
+            locked = lm.group(1)
+        elif status == "locked":
+            slm = re.search(r"\d{4}-\d{2}-\d{2}", status_raw)
+            if slm:
+                locked = slm.group(0)
+
+        linked_okr = field_line(r"Linked OKR|关联\s*OKR|关联目标")
+
+        impl_refs = sum(1 for blob in task_blobs if doc_id in blob)
+
+        out.append(
+            DesignDoc(
+                id=doc_id,
+                title=title,
+                status=status,
+                status_raw=status_raw,
+                date=date,
+                locked=locked,
+                linked_okr=linked_okr,
+                rel=md.relative_to(root).as_posix(),
+                impl_refs=impl_refs,
+                section_count=len(re.findall(r"^##\s", text, re.M)),
+                mermaid="```mermaid" in text,
+            )
+        )
+
+    # Primary: status band (in_review → locked → draft → historical).
+    # Secondary: newer date first within each band.
+    out.sort(key=lambda d: (_DESIGN_STATUS_ORDER.get(d.status, 9), _date_desc_key(d.date), d.id))
+    return out
+
+
+def _date_desc_key(date: str) -> str:
+    """Sort key that orders dates descending while keeping the status band
+    (applied as the primary key by the caller). Empty dates sort last."""
+    return "0000-00-00" if not date else "".join(str(9 - int(c)) if c.isdigit() else c for c in date)
+
+
 # ── PROJECT_STATE.md (structured sections) ────────────────────────────────
 
 
@@ -836,6 +974,7 @@ class PMOSnapshot:
     evidence: list[EvidenceFile]
     journal: list[JournalEntry]
     handoff: list[JournalEntry]
+    design: list[DesignDoc]
     project_state: ProjectState
     arch_meta: ArchMeta
     project_root: Path
@@ -880,8 +1019,10 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
             seen.add(key)
             deduped.append(r)
 
+    board = parse_board(board_text) if board_text else BoardState()
+
     return PMOSnapshot(
-        board=parse_board(board_text) if board_text else BoardState(),
+        board=board,
         okr=parse_okr(okr_text) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
@@ -889,6 +1030,7 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),
+        design=walk_design(root, board),
         project_state=parse_project_state(project_state_text),
         arch_meta=parse_arch_meta(architecture_text),
         project_root=root,
@@ -910,3 +1052,6 @@ if __name__ == "__main__":
         print(f"  · tripwires: {len(s.phase.tripwires)}")
         print(f"  · cost-ceiling lines: {len(s.phase.cost_ceiling_lines)}")
     print(f"ADRs: {len(s.adrs)} · Evidence: {len(s.evidence)} · Journal: {len(s.journal)}")
+    print(f"Design docs: {len(s.design)}")
+    for d in s.design:
+        print(f"  · {d.id:<10} [{d.status:<10}] refs={d.impl_refs} {d.date or '----------'} {d.title[:50]}")
