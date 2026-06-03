@@ -361,12 +361,18 @@
   position: absolute; top: -2px; bottom: -2px;
   width: 1px; background: var(--ink-3);
 }
-.meter-tick::after {
-  content: attr(data-label);
-  position: absolute; top: calc(100% + 4px);
-  left: 50%; transform: translateX(-50%);
-  font-family: var(--mono); font-size: 9.5px; color: var(--ink-4);
-  white-space: nowrap;
+/* Zone boundaries are shown in a single caption row below the bar
+   (.meter-legend) instead of floating per-tick labels, which collided
+   whenever two ticks were close together. */
+.meter-legend {
+  margin-top: 8px;
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-4);
+}
+.meter-legend-mid {
+  flex: 1; text-align: center; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* ---- Section dividers ------------------------------------------------ */

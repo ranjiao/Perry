@@ -71,9 +71,9 @@
    value: current %  ·  threshold/max1/max2: zone boundaries
    max:  full scale  (e.g. 12 means meter spans 0..12)  #}
 {% macro risk_meter(value, scale=12, threshold=8, max1=8.5, max2=9.0) %}
-{% set pct = ((value or 0) / scale) * 100 %}
-{% set tPct = ((threshold or 0) / scale) * 100 %}
-{% set ePct = ((max1 or threshold) / scale) * 100 %}
+{% set pct = [[((value or 0) / scale) * 100, 0] | max, 100] | min %}
+{% set tPct = [[((threshold or 0) / scale) * 100, 0] | max, 100] | min %}
+{% set ePct = [[((max1 or threshold) / scale) * 100, 0] | max, 100] | min %}
 <div>
   <div class="meter"
        style="background: linear-gradient(to right,
@@ -81,13 +81,19 @@
               var(--amber-soft) {{ '%.1f' % tPct }}%, var(--amber-soft) {{ '%.1f' % ePct }}%,
               var(--rust-soft) {{ '%.1f' % ePct }}%, var(--rust-soft) 100%);">
     <span class="meter-pointer" style="left: {{ '%.1f' % pct }}%;"></span>
-    <span class="meter-tick" data-label="{{ threshold }}%" style="left: {{ '%.1f' % tPct }}%;"></span>
+    <span class="meter-tick" style="left: {{ '%.1f' % tPct }}%;"></span>
     {% if max1 and max1 != threshold %}
-    <span class="meter-tick" data-label="{{ max1 }}%" style="left: {{ '%.1f' % ePct }}%;"></span>
+    <span class="meter-tick" style="left: {{ '%.1f' % ePct }}%;"></span>
     {% endif %}
   </div>
-  <div style="margin-top: 18px; display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; color: var(--ink-4);">
-    <span>0</span><span>{{ scale }}%</span>
+  {# Zone boundaries live on one caption row (normal flow → never collide,
+     unlike floating per-tick labels). Endpoints anchor the scale. #}
+  <div class="meter-legend">
+    <span>0</span>
+    <span class="meter-legend-mid">
+      threshold {{ threshold }}%{% if max1 and max1 != threshold %} · alert {{ max1 }}%{% endif %}
+    </span>
+    <span>{{ scale }}%</span>
   </div>
 </div>
 {% endmacro %}
