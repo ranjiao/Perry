@@ -279,16 +279,23 @@ def _split_status(raw: str) -> tuple[str, str]:
     clean = (raw or "").replace("**", "").strip()
     if not clean:
         return "", ""
-    first, _, rest = clean.partition(" ")
-    note = rest.strip().strip("()（）").strip()
-    if first in _STATUS_ENUM:
-        return first, note
+    # Leading enum word, then anything else as the note — whether glued to a
+    # paren ("blocked(等 RW-BACKEND)") or space-separated ("review (dev done)").
+    m = re.match(r"^(not_started|in_progress|blocked|review|done|dropped)\b(.*)$", clean)
+    if m:
+        note = m.group(2).strip().strip("()（）").strip()
+        return m.group(1), note
     # First token isn't a known status word — keep the whole thing as base,
     # no note split (e.g. cadence "Frequency" cells never reach here).
     return clean, ""
 
 
 def _parse_task_table(section: str, priority: str) -> list[Task]:
+    """Collect task rows from EVERY markdown table inside the section, not just
+    the first. A priority section (## P0 …) may hold several tables split by
+    ### sub-headings (e.g. "### Web v2.0", "### Research Workbench"); all of
+    their rows belong to the same priority. The section text is already bounded
+    to a single ## block by the caller, so we won't bleed into the next one."""
     tasks: list[Task] = []
     lines = section.split("\n")
     in_table = False
@@ -298,8 +305,17 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             continue
         if not in_table:
             continue
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("###"):
+            # Blank line or ### sub-group label *inside* the table (e.g.
+            # "### Web v2.0", "### Research Workbench"). Rows resume after it
+            # with the same columns — stay in the table, don't stop.
+            continue
         if not line.startswith("|"):
-            break
+            # Genuine end of table (prose / blockquote). The chunk is bounded
+            # to one ## section, so a later |--- can still start a new table.
+            in_table = False
+            continue
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 4:
             continue
