@@ -52,7 +52,7 @@
 
   {# ── Doc table, banded by status (sorted in parser) ──────────────── #}
   <div class="card" style="padding: 0; overflow: hidden;">
-    <table class="tbl">
+    <table class="tbl" data-sortable>
       <thead><tr>
         <th style="width: 110px;">ID</th>
         <th>Title</th>
@@ -80,10 +80,10 @@
             <a href="/file/{{ d.rel }}" style="color: var(--ink); text-decoration: none;">{{ d.title | strip_md | truncate(72, true, '…') }}</a>
             {% if d.mermaid %}<span class="t-tiny t-faint" title="contains diagrams" style="margin-left: 6px;">◆ {{ d.section_count }}§</span>{% else %}<span class="t-tiny t-faint" style="margin-left: 6px;">{{ d.section_count }}§</span>{% endif %}
           </td>
-          <td>{{ design_badge(d.status) }}</td>
+          <td data-sort="{{ status_order.index(d.status) if d.status in status_order else 9 }}">{{ design_badge(d.status) }}</td>
           <td class="t-small mono t-muted">{{ d.locked or d.date or '—' }}</td>
           <td class="t-tiny t-muted" style="max-width: 150px;">{{ d.linked_okr | strip_md | truncate(40, true, '…') if d.linked_okr else '—' }}</td>
-          <td class="t-tiny">
+          <td class="t-tiny" data-sort="{{ d.impl_refs }}">
             {% if d.impl_refs %}
             <a href="/atlas?tab=tasks&q={{ d.id }}" style="color: var(--accent-ink); text-decoration: none;">{{ d.impl_refs }} task{{ '' if d.impl_refs == 1 else 's' }}</a>
             {% elif d.status == 'locked' %}

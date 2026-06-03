@@ -315,6 +315,27 @@
 .tbl tr:hover td { background: var(--bg-soft); }
 .tbl .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
+/* ---- Sortable headers ------------------------------------------------ */
+.tbl th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 0.12s ease;
+}
+.tbl th.sortable:hover { color: var(--ink-2); }
+.tbl th.sortable .sort-ind {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 9px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  vertical-align: baseline;
+}
+.tbl th.sortable:hover .sort-ind { opacity: 0.4; }
+.tbl th.sortable.sort-asc, .tbl th.sortable.sort-desc { color: var(--accent-ink); }
+.tbl th.sortable.sort-asc .sort-ind,
+.tbl th.sortable.sort-desc .sort-ind { opacity: 1; }
+
 /* ---- Progress bars --------------------------------------------------- */
 .bar {
   height: 6px; background: var(--bg-sunken);
