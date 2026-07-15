@@ -297,6 +297,8 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 
 - [README.md](../README.md) — full overview, file layout, design rationale.
 - [INSTALL.md](../INSTALL.md) — install instructions.
+- [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
+- [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
 - [okr/SKILL.md](okr/SKILL.md) — full goal-setting subcommands and templates.
 - [pmo/SKILL.md](pmo/SKILL.md) — full execution stewardship subcommands and templates.
 - [design/SKILL.md](design/SKILL.md) — full design-doc stewardship subcommands and templates.

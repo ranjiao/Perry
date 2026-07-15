@@ -71,6 +71,10 @@ For every User Input Queue item idle ≥5 days, surface a one-line reminder in c
 ### `add-task` (interactive)
 After OKR `plan-week` (or any other source) proposes a task and the user approves, PMO does THREE things — the third is conditional on priority.
 
+**First, an input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 4 Task`): check the task's Verification is falsifiable (not "looks good"), Deliverable is an artifact (not an activity), Owner is a single value from the Owner model, Priority is justified (P0 only if it blocks a Must-Have), and a `kr:` linkage is present when the task came from `plan-week`. Surface ≤3 issues, advisory + override — fix with the user or write as-is with a one-line journal reason. Never silently rewrite. (Tasks arriving already-clean from `plan-week`, which ran the same §4 pass, usually pass with `✓ Input quality: clean`.)
+
+**Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec; if the user confirms a new name is the same Project, hand the alias to `okr` to append to the registry (PMO never writes `phase/`). If the user is unavailable, write the row with `attribution: unlinked`, keep it out of KR roll-up, and let the standup surface it.
+
 1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path`.
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). Journal entry is the canonical historical record.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
@@ -152,6 +156,8 @@ Symmetric to `close-task`:
 
 ### `coordinate`
 Pull a snapshot of work from other Claude sessions/terminals tagged for this project (use a session-listing MCP tool if the project hook declares one; otherwise ask the user to paste summaries). Append a consolidated update to `PROJECT_STATE.md` under `## Recent cross-session work`. Distribute follow-ups by appending new tasks.
+
+When an incoming update references a Project by **name** (progress reports usually do, and the name may have drifted), resolve it to a KR **by ID through `phase/<NNN>-linkage.md`** before rolling any progress up — explicit `kr:` → Project ID → registered alias (`$PERRY_HOME/reference/okr-linkage.md`). Ambiguous or unmatched → ask the user which Project/KR it is; never attribute by fuzzy name. Unresolvable while the user is away → record it as `unlinked` rather than pinning it to a guessed KR.
 
 ### `handoff`
 Generate the **Day-N Status doc** — a single self-contained document a future PMO session can read instead of re-walking the conversation. Save to `handoff/<YYYY-MM-DD>.md` from `state/handoff_TEMPLATE.md`. Always include:

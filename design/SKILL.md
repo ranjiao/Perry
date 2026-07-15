@@ -150,6 +150,8 @@ Start a new design doc. Prompts:
 
 Writes `design/<DESIGN-ID>-<slug>.md` from `state/design_TEMPLATE.md` with `Status: draft`. Walks the user through Problem → Goals → Non-Goals as the first writing pass; leaves User Decisions / Architecture / etc. for follow-up sessions.
 
+**Input-quality pass** on that first writing pass: run `$PERRY_HOME/reference/input-quality.md § 3 Design doc` against Problem / Goals / Non-Goals (concrete problem, substantive Non-Goals, testable numbered Goals). Surface ≤3 issues, advisory + override. Catching a thin Non-Goals here means `lock` isn't the first time the user hears about it.
+
 ### `decide <DESIGN-ID>`
 Walk every unresolved row in the User Decisions table. For each: present the options, ask the user to pick (or to add an option), record the choice with today's date. Refuse to "decide on the user's behalf" — leave TBD if the user cannot decide now.
 
@@ -161,7 +163,7 @@ Move a doc from `in_review` → `locked`. Pre-flight checks:
 - User Decisions table has zero TBD / blank rows.
 - Implementation plan section has at least one proposed task.
 
-If any check fails, refuse the move and print the gap list. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
+If any check fails, refuse the move and print the gap list. **Then run the advisory input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 3`) over the whole doc — the hard checks above are the *floor* (empty section / open decision = refuse); the pass adds the softer coaching (alternatives considered, implications spelled out, risks name detection + mitigation) as ≤3 suggestions the user can fix or override. Advisory only — a clean-floor doc still locks even if the user overrides a suggestion. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
 
 ### `revise <DESIGN-ID>`
 For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Tells PMO to add a `DECISIONS.md` ADR (`Type: Design`).

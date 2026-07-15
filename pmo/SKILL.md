@@ -32,6 +32,8 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/state-files.md` | Full state-file inventory + tier 1 hard caps + tier 2 soft caps. Read on bootstrap, when introducing new files, or answering "where does this go?" |
 | `reference/bootstrap.md` | First-time PMO bootstrap procedure in a project with no `BOARD.md` |
 | `reference/extending.md` | Adding new subcommands + per-project hooks (`.perry/hook.md` format) |
+| `$PERRY_HOME/reference/input-quality.md` (shared, perry root — not `pmo/reference/`) | `add-task` input-quality pass (§ 4 Task) |
+| `$PERRY_HOME/reference/okr-linkage.md` (shared, perry root) | Resolving a Task/Project's KR attribution: standup roll-up, `add-task`, `digest`/`coordinate` progress ingest. The "never guess attribution — resolve by ID or ask" gate. |
 
 When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
@@ -109,6 +111,7 @@ Always run this before anything else, even if the user asked a specific question
    - `weekly/` — most recent file
    - `handoff/` — most recent file (if any)
    - `OKR.md` and `phase/<current-NNN>-<slug>.md` if OKR is installed (resolve current phase via `phase/CURRENT` pointer file)
+   - `phase/<current-NNN>-linkage.md` if present — the Project↔KR registry. Roll up KR progress by resolving each task's `kr:` through it (`$PERRY_HOME/reference/okr-linkage.md` resolution order); any task that does not resolve to exactly one KR is counted as `unlinked`, kept out of KR progress, and surfaced — never fuzzy-matched into a KR.
    - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `BOARD.md` rows.
 
 5. **Compute deltas** since the last standup:
@@ -149,6 +152,7 @@ Always run this before anything else, even if the user asked a specific question
    🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
    📊 Renders       : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)   (omit row if no perry-views/ OR 0 stale)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
+   🔗 Unlinked      : <n> tasks awaiting KR attribution (oldest <days>d)   (omit row if 0; these are excluded from KR progress, never guessed)
    🚧 Top risk      : <risk title, ≤80 chars>
    📝 Last decision : <ADR title> (<date>)
    📐 Locked designs : <count> · pending hand-off: <count>
@@ -164,6 +168,7 @@ Always run this before anything else, even if the user asked a specific question
    - "Current phase commit KRs are at 80% (#002) → consider `/okr score-phase` + `rollover`"
    - "A locked design from 3 days ago has no implementation tasks yet (DESIGN-002) → run `/design handoff DESIGN-002`"
    - "BOARD.md is 240 lines, over the 200-line cap → run `triage` to push detail into evidence and close stale rows"
+   - "3 tasks can't be attributed to a KR (names drifted / ambiguous) → surface the candidate KRs and ask the user; don't guess — see `$PERRY_HOME/reference/okr-linkage.md`"
    - "3 external docs sitting un-digested in `inputs/` (oldest 6d) → run `/pmo digest <oldest>`"
    - "5 digests in `knowledge/` have gone stale → triage during next `mid-phase-review` or `end-phase-retro`"
 
@@ -286,6 +291,8 @@ On yes → read `reference/bootstrap.md` and follow the procedure (creates initi
 - **Surface concerns honestly.** If P0 is slipping or User Input Q is stale, say so on line 1.
 - **Cite the file path.** Every claim points to a path the user can open.
 - **No `done` without evidence.** Refuse the move and flag the gap.
+- **Run the input-quality pass on `add-task`.** Before writing a new BOARD row, check it against `$PERRY_HOME/reference/input-quality.md § 4 Task` (verification falsifiable, deliverable is an artifact not an activity, single owner, priority justified). Advisory + override — surface ≤3 issues, never silently rewrite. This is the earlier, softer companion to the hard `done`-needs-evidence gate.
+- **Never guess a task's KR attribution — this is a hard gate.** Resolve every task/progress-report to a KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias; `$PERRY_HOME/reference/okr-linkage.md`). If it doesn't resolve to exactly one KR — because a name drifted, is ambiguous, or matches nothing — **ask the user** (`AskUserQuestion`, candidate KRs); if the user is unavailable, mark the task `attribution: unlinked`, keep it out of every KR roll-up, and surface it. Never fuzzy-match a name into a KR, and never fabricate a mapping to complete a number. New aliases confirmed by the user are handed to `okr` to record (PMO doesn't write `phase/`).
 - **Do not invent state.** Print `—` and ask, rather than guess.
 - **Do not duplicate state across files.** Each fact lives in one place. Boards reference, evidence stores.
 - **Never write to OKR files.** Hand off via chat.
