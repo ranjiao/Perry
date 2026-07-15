@@ -172,6 +172,7 @@ When the user types something inside a `/perry` session, route to the right chil
 - Task lifecycle · `add-task`, `close-task`, `drop-task`
 - Cadence rituals · `monday-plan`, `midweek-check`, `friday-review`, `mid-phase-review`, `end-phase-retro`
 - Cross-session work · `coordinate`, `delegate` (manual prompt), `dispatch` (auto end-to-end via claude-subagent or codex), `handoff`
+- Opening the project in a browser / live web console · `viewer` (= `browse`) — agent starts it and opens the browser for you
 - Decisions and risks · `decide`, `risk`, `nudge`
 - Phase transition · `rollover`
 

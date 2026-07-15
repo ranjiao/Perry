@@ -24,6 +24,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/rendering.md` | `/pmo render <view>` (generate disposable HTML for human consumption; tier 3 of the file model) + tier 1 hard size caps |
+| `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
@@ -81,6 +82,7 @@ Trigger on any of:
 - The user invokes `/pmo autopilot [flags]` — see `reference/autopilot.md`. The standup ritual still runs as part of autopilot's pre-flight (it's where the BOARD eligibility analysis comes from), but no other subcommand interleaves until autopilot exits.
 - The user invokes `/pmo digest <path>` or drops a file in `inputs/` and asks for digestion — see `reference/digests.md`. Digest is a focused subcommand and does not require the full standup before running.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
+- The user wants to open / view the project in a browser or web console — "打开看板", "在浏览器里看", "启动 viewer", "open the dashboard in a browser", "start the web view" → run `/pmo viewer` (see `reference/viewer.md`). Focused action; does not require the full standup first.
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
 - A new session opens in a project that contains a `BOARD.md` at the root.
 
@@ -249,6 +251,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
 | `render <view> [<arg>]` or `render all` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `perry-views/` (gitignored). Single views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. **`all`** = batch every applicable view (target set computed from project state; skips fresh ones; open incidents only). | `reference/rendering.md` |
+| `viewer` / `browse` [`stop`] [`--port N`] | Start the read-only **live web console** in the background and open it in the user's browser (one command, no venv/port/shell knowledge needed — for non-technical users). `stop` ends a viewer this session started. | `reference/viewer.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |

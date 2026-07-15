@@ -13,7 +13,14 @@ the disposable `/pmo render` HTML.
 
 ## Run
 
-From inside your project directory (the one containing `BOARD.md`):
+**Easiest (no shell needed):** just ask the agent — **`/pmo viewer`** (alias
+`/pmo browse`). It starts the server in the background, waits until it's up
+(first run installs deps, ~60s), and opens your browser at the address. Stop it
+with `/pmo viewer stop`. This is the recommended path for non-technical users;
+see `../pmo/reference/viewer.md`.
+
+Or run it yourself, from inside your project directory (the one containing
+`BOARD.md`):
 
 ```bash
 bash "$PERRY_HOME/bin/perry-viewer"
