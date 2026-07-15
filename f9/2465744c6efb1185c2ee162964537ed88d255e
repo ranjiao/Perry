@@ -1,0 +1,35 @@
+design/SKILL.md
+  s_bb6b9533381805::t_42dcf11ec20a48 153-154,166
+reference/input-quality.md
+  s_bb6b9533381805::t_ab8601bedbba3d 1-98
+SKILL.md
+  s_bb6b9533381805::t_767412b61af43d 300-301
+okr/SKILL.md
+  s_bb6b9533381805::t_914a8e5fbc3b86 44,70,131,178,181,211,214,219,250,266,275
+okr/state/linkage_TEMPLATE.md
+  s_bb6b9533381805::t_ce32e3689c9d93 1-26
+pmo/SKILL.md
+  s_bb6b9533381805::t_ce9444cdddeadf 35-36,114,155,171,294-295
+pmo/reference/subcommands.md
+  s_bb6b9533381805::t_9a5215fe66b093 74-77,160-161
+reference/okr-linkage.md
+  s_bb6b9533381805::t_2b2389880b3600 1-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f92465744c6efb1185c2ee162964537ed88d255e",
+  "prompts": {},
+  "sessions": {
+    "s_bb6b9533381805": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a863245a-a529-4f0b-995c-ec8492068762",
+        "model": "unknown"
+      },
+      "human_author": "Ran Jiao <ranjiao@gmail.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
