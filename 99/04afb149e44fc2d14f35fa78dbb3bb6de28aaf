@@ -1,0 +1,27 @@
+SKILL.md
+  s_bb6b9533381805::t_4090db95a7223b 175
+pmo/SKILL.md
+  s_bb6b9533381805::t_1b7d0cff22ee13 27,85,254
+viewer/README.md
+  s_bb6b9533381805::t_19fec4373ebf62 16-23
+pmo/reference/viewer.md
+  s_bb6b9533381805::t_7ec0e251470522 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9904afb149e44fc2d14f35fa78dbb3bb6de28aaf",
+  "prompts": {},
+  "sessions": {
+    "s_bb6b9533381805": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a863245a-a529-4f0b-995c-ec8492068762",
+        "model": "unknown"
+      },
+      "human_author": "Ran Jiao <ranjiao@gmail.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
