@@ -39,9 +39,9 @@
         <div class="t-tiny t-muted mono" style="margin-top: 2px;">from ## Objective sections</div>
       </div>
       <div>
-        <div class="card-title" style="margin-bottom: 6px;">Trip-wires</div>
-        <div class="serif" style="font-size: 22px; line-height: 1.1;">{{ snap.phase.tripwires | length }}</div>
-        <div class="t-tiny t-muted mono" style="margin-top: 2px;">{{ snap.phase.tripwires | selectattr('status', 'equalto', 'armed') | list | length }} armed</div>
+        <div class="card-title" style="margin-bottom: 6px;">Scope triggers</div>
+        <div class="serif" style="font-size: 22px; line-height: 1.1;">{{ snap.phase.scope_triggers | length }}</div>
+        <div class="t-tiny t-muted mono" style="margin-top: 2px;">{{ snap.phase.scope_triggers | selectattr('status', 'equalto', 'armed') | list | length }} armed</div>
       </div>
     </div>
     {% endif %}
@@ -66,11 +66,11 @@
     {% endif %}
     {{ card_close() }}
 
-    {# ── Trip-wires ────────────────────────────────────────────────── #}
-    {{ card_open('Trip-wires') }}
-    {% if snap.phase and snap.phase.tripwires %}
+    {# ── Scope-reduction triggers ────────────────────────────────────────────────── #}
+    {{ card_open('Scope-reduction triggers') }}
+    {% if snap.phase and snap.phase.scope_triggers %}
     <div style="display: flex; flex-direction: column; gap: 10px;">
-      {% for t in snap.phase.tripwires %}
+      {% for t in snap.phase.scope_triggers %}
       {% set fired = t.status.startswith('fired') %}
       <div style="display: flex; gap: 10px; align-items: flex-start;">
         <span style="font-family: var(--mono); font-size: 11px; font-weight: 600;
@@ -92,7 +92,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="t-muted">No tripwires parsed from current phase file.</div>
+    <div class="t-muted">No scope-reduction triggers parsed from the current phase file.</div>
     {% endif %}
     {{ card_close() }}
 

@@ -85,6 +85,27 @@ First-run protection:
 
 ## Pre-flight (every invocation, before AskUserQuestion confirm)
 
+0. **Safety-list gate — refuse if the high-stakes list is missing or empty.**
+   Autopilot's central safety property is "never auto-dispatch a task that
+   touches something dangerous". That property is implemented entirely by
+   matching spec fields against `.perry/hook.md § High-stakes operations`. With
+   no list, the scan matches nothing and every `Dispatch mode: auto` row looks
+   safe — the gate fails open, silently. So:
+
+   ```
+   "$PERRY_HOME/bin/perry-state" --section project
+   ```
+   If `project.hook.high_stakes_armed` is `false` → **refuse to run autopilot.**
+   Print:
+   > "Autopilot needs a high-stakes list to refuse against. `.perry/hook.md` has
+   > none, so the safety scan would pass everything. Run `/pmo` bootstrap to
+   > write the default list, or add a `## High-stakes operations` section, then
+   > re-run."
+
+   This is a hard refusal, not a warning, and it is not overridable by a flag.
+   `/pmo dispatch` on a single task stays available — one dispatch is a
+   deliberate act the user is watching; a 10-dispatch unattended loop is not.
+
 1. Run the standup ritual (per `SKILL.md § Mandatory first move`).
 2. Check stop signal: if `~/.cache/perry/autopilot.stop` exists, refuse and ask user to delete it.
 3. Read the BOARD top-to-bottom. For each open row, classify:

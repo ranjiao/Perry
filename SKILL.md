@@ -13,7 +13,7 @@ Perry is a coordinated **skill set** with three children that share a project's 
 
 This folder contains three child skills. They live under `$PERRY_HOME/<child>/SKILL.md` and are invocable on their own. Read each child's SKILL.md for full subcommand detail.
 
-> **Host portability**: Perry runs on **Claude Code** (default install at `~/.claude/skills/perry/`) and **Codex CLI** (default install at `~/.agents/skills/perry/`). Both hosts read SKILL.md frontmatter natively for skill discovery — no AGENTS.md or other routing file is needed. The standup ritual below sets `$PERRY_HOME` from the install location, detects which host is live, and reads `reference/host-capabilities.md` for the fallback rules (free-text prompts instead of `AskUserQuestion` on Codex, refusal of `Executor: claude-subagent` on Codex, etc.). Where this file or a child SKILL.md names a Claude-Code-specific tool (`AskUserQuestion`, `Agent()`, `Bash run_in_background`), that capability page owns the per-host translation; SKILL.md prose stays single-sourced.
+> **Host portability**: Perry runs on **Claude Code** (default install at `~/.claude/skills/perry/`) and **Codex CLI** (default install at `~/.agents/skills/perry/`). Both hosts read SKILL.md frontmatter natively for skill discovery — no AGENTS.md or other routing file is needed. The standup ritual below sets `$PERRY_HOME` from the install location, detects which host is live, and reads `$PERRY_HOME/reference/host-capabilities.md` for the fallback rules (free-text prompts instead of `AskUserQuestion` on Codex, refusal of `Executor: claude-subagent` on Codex, etc.). Where this file or a child SKILL.md names a Claude-Code-specific tool (`AskUserQuestion`, `Agent()`, `Bash run_in_background`), that capability page owns the per-host translation; SKILL.md prose stays single-sourced.
 
 | Child | Invoke as | Owns | What it does |
 |-------|-----------|------|--------------|
@@ -61,12 +61,13 @@ When `/perry` is invoked, always run this before doing anything else.
 
 1. **Read `.perry/config.md`** if present, to pick up document language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded.
 
-2. **Detect installation state**:
-   - `OKR.md` exists? `phase/CURRENT` exists (points at current phase)? `BOARD.md` exists? `journal/<current-YYYY-MM>/` non-empty? `evidence/<current-YYYY-MM>/` exists? `design/` non-empty? `handoff/` non-empty?
-   - If none of these exist → jump to **First-time setup** below.
-   - If only some exist → flag the missing pieces.
+2. **Compute the state — one call**:
+   ```
+   "$PERRY_HOME/bin/perry-state" --json
+   ```
+   Deterministic, read-only, stdlib-only. `installed: false` → jump to **First-time setup** below. Otherwise the payload carries everything the combined dashboard needs across all three children — OKR version + objectives, phase number / day / KR totals, board counts, User Input Queue, top risk, last ADR, locked designs and their hand-off status, plus a `warnings` array. **Every number below comes from this payload**; a field it doesn't carry prints `—`. Flag any child whose files are missing (no `OKR.md`, no `BOARD.md`, empty `design/`).
 
-2. **Render the combined dashboard** — exactly this shape, no preamble:
+3. **Render the combined dashboard** — exactly this shape, no preamble:
 
    ```
    🅿  Perry · <project name> · <today's date>
@@ -89,13 +90,13 @@ When `/perry` is invoked, always run this before doing anything else.
 
    Use `—` for empty fields. Never fabricate values.
 
-3. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
+4. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
    - "phase #002 commit KRs ≥80% → run `/pmo end-phase-retro`, `/okr score-phase`, `/pmo rollover`, `/okr plan-phase <new-slug>`"
    - "USER-014 idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
    - "no current phase → run `/okr plan-phase <slug>`, then `/okr plan-week`, then `/pmo` to add the tasks"
    - "DESIGN-002 in_review for 8d → run `/design lock` or `/design revise`"
 
-4. Then ask: **"What do you want to do?"**
+5. Then ask: **"What do you want to do?"**
 
 If the user picks an OKR-flavored action (plan, score, pivot, revise), invoke the `okr` skill. If a PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk), invoke `pmo`. If a design-flavored action (RFC, architecture, lock, supersede), invoke `design`. If unclear, ask which, then route.
 
@@ -239,7 +240,7 @@ With arg `okr`, `pmo`, or `design`: route to that child's `help` subcommand (the
 
 Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the `AskUserQuestion` tool over free-text "what do you want?" prompts. The Claude Code / Desktop UI renders `AskUserQuestion` as clickable button choices with an automatic "Other" free-text fallback — much faster for the user than typing.
 
-> **Codex host**: `AskUserQuestion` is not available. Render the same option set as a numbered free-text prompt per `reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. The chosen value, downstream writes, and conventions below are unchanged — only the rendering differs.
+> **Codex host**: `AskUserQuestion` is not available. Render the same option set as a numbered free-text prompt per `$PERRY_HOME/reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. The chosen value, downstream writes, and conventions below are unchanged — only the rendering differs.
 
 ### When to use it
 
@@ -296,8 +297,9 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 
 ## See also
 
-- [README.md](../README.md) — full overview, file layout, design rationale.
-- [INSTALL.md](../INSTALL.md) — install instructions.
+- [README.md](README.md) — full overview, file layout, design rationale.
+- [INSTALL.md](INSTALL.md) — install instructions.
+- [schema/README.md](schema/README.md) — the state-file contract every skill, template, and parser must agree with; validated by `bin/perry-lint`.
 - [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
 - [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
 - [okr/SKILL.md](okr/SKILL.md) — full goal-setting subcommands and templates.

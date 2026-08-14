@@ -147,53 +147,24 @@ A phase can span any number of journal months / evidence months / ISO weeks — 
 
 ## File model — three tiers by audience
 
-Markdown is great for producing state (agent edits, git diff, LLM prompt injection); it's bad for consuming state past 100 lines. Perry resolves this by classifying every file into one of three tiers based on **who reads it**, and reserving HTML for the consumption layer only.
+Markdown is great for producing state (agent edits, git diff, LLM prompt injection); it's bad for consuming state past 100 lines. Perry resolves this by classifying every file by **who reads it** — and by not trying to be the reader.
 
 | Tier | Purpose | Format | Hard cap | Examples |
 |---|---|---|---|---|
 | **1 — User-read-and-edit** | Strategic; user MUST read in raw form | markdown | YES per file | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
-| **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | NO (existing soft caps stay) | `BOARD.md` · `journal/` · `evidence/` · `decisions/` · `incidents/` · `weekly/` · `handoff/` · `PROJECT_STATE.md` · `phase/snapshots/` · `architecture/audit-history/` · `knowledge/` |
-| **3 — User-read-only HTML** | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `perry-views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+| **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | NO (existing soft caps stay) | `BOARD.md` · `journal/` · `evidence/` · `decisions/` · `incidents/` · `weekly/` · `handoff/` · `PROJECT_STATE.md` · `phase/snapshots/` · `phase/<NNN>-linkage.md` · `architecture/audit-history/` · `knowledge/` |
+| **3 — The consumption surface** | Reading state richly | (not Perry's output) | — | **aiMark** · `bin/perry-viewer` |
 
 **Tier 1 hard caps are non-negotiable.** When an OKR / PMO write would push a tier 1 file past its cap, the skill **refuses** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/...-appendix.md` or `architecture/sections/§<N>-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
 
-**Tier 3 = `/pmo render <view>`.** Generates a single self-contained HTML file from tier 1+2 sources for any of: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. Output lives in `perry-views/` at the project root (Finder-visible, gitignored, never committed). Regenerate any time. No daemon, no watcher, no server. See `pmo/reference/rendering.md`.
+**Perry does not write tier 3.** It used to — `/pmo render` generated disposable HTML into `perry-views/` — and that is gone. Rendering is a frontend's job, and doing it from a language model was slow, expensive, and inconsistent between runs.
 
-**Optional live viewer (power users).** If `/pmo render`'s one-shot snapshots are too slow for repeated glancing during active work, run `bash "$PERRY_HOME/bin/perry-viewer"` from your project dir. It's an opt-in, read-only, localhost Flask console (Today / Board / OKR / Phase / Risks / Atlas / Pulse / Architecture) that re-reads your markdown on every request — always live, no LLM cost. First run auto-installs its own venv; stop it with Ctrl-C (no daemon). Lightweight users can ignore it entirely and carry zero extra dependencies. See `viewer/README.md`.
+- **[aiMark](https://github.com/ranjiao/aimark)** is the primary surface: point it at the project folder and it watches every file, renders markdown live, and understands Perry's structure (OKR → KR → task → agent) natively. It reloads the instant a skill writes a file.
+- **`bin/perry-viewer`** stays as the zero-setup local fallback — an opt-in, read-only, localhost Flask console (Today / Board / OKR / Phase / Risks / Atlas / Pulse / Architecture) that re-reads your markdown on every request. First run auto-installs its own venv; Ctrl-C stops it; no daemon. Ignore it entirely and you carry zero extra dependencies. See `viewer/README.md`.
 
-#### How `perry-views/` is organized
+Perry's whole obligation to tier 3 is to write tier 1/2 **in the declared structure** so a reader can parse it without guessing. That structure is `schema/state-schema.json`, and `bin/perry-lint` is what enforces it — for Perry's own parsers and for any frontend reading the same files. See [schema/README.md](schema/README.md).
 
-```
-perry-views/
-├── index.html                              ← navigator hub (always regenerated)
-├── 2026-05-15-dashboard.html               ← per-view render
-├── 2026-05-15-board.html
-├── 2026-05-15-phase-002.html
-├── 2026-05-14-incident-deploy-stuck.html   ← <view>-<arg> for slugged views
-└── ...
-```
-
-- **Per-view filename**: `<YYYY-MM-DD>-<view>[-<arg>].html`. Date prefix gives natural sort + dedupe (same-day re-render appends `-2`, `-3`).
-- **Self-contained HTML**: inline CSS / JS / no external dependencies (Mermaid diagrams allowed as the one CDN exception, with graceful fallback to the raw DSL source if offline). Each file works opened directly from filesystem and is shareable via email or S3.
-- **Sticky fingerprint banner**: at the top of every render's `<body>`. Shows `view · generated_at · sources: path1@sha8 + path2@sha8 + ... · refresh: /pmo render <view>`. Open any old HTML and you immediately see what it represents and whether it might still be current.
-- **`index.html` navigator hub**: lists every catalog view with a freshness badge — `✓ fresh` (sha matches) / `⚠ Nd behind (<source> changed)` / `🚨 orphan (source missing)` / `— never rendered`. Each row links to the latest render; older versions are collapsed under a `<details>`. Double-click `perry-views/index.html` in Finder = the standard entry point; no need to remember filenames or enter terminal.
-
-#### How freshness is detected (no daemon, no watcher)
-
-A small deterministic Python script (`$PERRY_HOME/bin/perry-render-index`) does all the work. It:
-- Scans `perry-views/*.html` and parses each file's machine-readable `<!-- perry-render-fingerprint -->` comment for source paths + recorded sha256s.
-- Recomputes `sha256(file content)` for each listed source file. Differs → mark render stale. Source missing → mark orphan.
-- Overwrites `perry-views/index.html` with the current state. ~100ms, no LLM.
-
-It runs at three trigger points (B3 model):
-
-1. **End of every `/pmo render <view>`** — catches new renders + immediate refresh.
-2. **End of any PMO/OKR write to a tier 1 or tier 2 file** — opportunistic; fires when the agent has `reference/rendering.md` loaded.
-3. **End of every PMO standup** — safety net; catches user-direct edits to tier 1 files (e.g., editor save on `ARCHITECTURE.md`) even when no PMO subcommand intermediated.
-
-Maximum staleness window: one PMO session. Trigger #3 closes the loop without needing a daemon.
-
-The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and add HTML as the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, sharing). Don't fight markdown's weaknesses; route around them.
+The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and let a real frontend be the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, live reload). Don't fight markdown's weaknesses; route around them.
 
 ## Key concepts
 
@@ -260,7 +231,6 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 ├── .perry/
 │   ├── config.md                       ← language + repo layout (single | split)
 │   └── hook.md                         ← project-specific additions (optional)
-├── perry-views/                        ← tier 3 HTML output (Finder-visible, gitignored, disposable)
 │   ├── index.html                              ← navigator hub (auto-regenerated on every render)
 │   ├── 2026-05-15-dashboard.html
 │   ├── 2026-05-15-board.html
@@ -324,6 +294,32 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 │
 └── ... (your actual project files)
 ```
+
+## The deterministic layer (no LLM involved)
+
+Perry's state lives in markdown, but the *reading* of it is regular code. Three
+stdlib-only scripts do the work an LLM shouldn't:
+
+| Script | Does | Used by |
+|---|---|---|
+| `bin/perry-state` | Reads the whole project in one pass and emits the dashboard model (`--json`) or the pre-formatted rows (`--dashboard`). | The standup ritual of all four skills; any subcommand needing counts |
+| `bin/perry-lint` | Validates state files against `schema/state-schema.json` — sections, table columns, status vocabulary, ID patterns, cross-file linkage integrity. `--templates` validates Perry's own templates. | Bootstrap, after any structural write, CI |
+
+Why it matters: before this, every dashboard number was the agent reading a
+dozen files and counting by eye — which is both expensive and exactly the kind
+of thing that quietly goes wrong. Now the numbers are computed, the agent
+narrates them, and `—` means "genuinely unknown" rather than "didn't look".
+
+```bash
+bin/perry-state --dashboard        # what's the state, right now
+bin/perry-lint --root .            # is every state file well-formed
+bash tests/run                     # the whole suite (stdlib only, no venv)
+```
+
+`schema/state-schema.json` is the single contract that SKILL.md prose,
+`state/*_TEMPLATE.md`, and `viewer/parsers.py` must all agree with — see
+[schema/README.md](schema/README.md). `tests/` pins that agreement; the
+`--templates` check is what fails when a template and a parser drift apart.
 
 ## Designing your own skills on top
 

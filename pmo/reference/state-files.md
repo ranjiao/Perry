@@ -29,6 +29,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 | `runbook/INDEX.md` | pmo | Auto-maintained catalog of all runbooks (active / stale / gaps). | `state/runbook_INDEX_TEMPLATE.md` |
 | `incidents/<YYYY-MM-DD>-<slug>.md` | pmo | **Optional, lazy-created.** One file per production incident with timeline / root cause / fix / derived changes. | `state/incident_TEMPLATE.md` |
 | `incidents/INDEX.md` | pmo | Auto-maintained catalog of incidents (open / resolved / with-derived-changes ratio). | `state/incidents_INDEX_TEMPLATE.md` |
+| `.perry/hook.md` | **user** (written once at bootstrap) | Per-project additions. Its `## High-stakes operations` list is a **safety gate**: `dispatch` refuses specs that match it and `autopilot` refuses to run without it. Written at bootstrap with a conservative default, then user-owned. Tier 1. | `state/hook_TEMPLATE.md` |
 | `OKR.md`, `phase/` | okr | Read by PMO; never written by PMO | (in okr skill) |
 | `design/<DESIGN-ID>-*.md` | design | Read by PMO to know which locked designs need implementation tasks; never written by PMO | (in design skill) |
 
@@ -36,7 +37,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 ### Tier 1 caps (PMO/OKR REFUSES to write past these)
 
-See also `reference/rendering.md § The three-tier file model` for the user-facing vs agent-state vs disposable-HTML tier split.
+Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `pmo/SKILL.md § Two file models` and `$PERRY_HOME/schema/README.md`.
 
 - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log.
 - `ARCHITECTURE.md` ≤ **500** lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file keeps §-section TOC + 1-paragraph summaries.

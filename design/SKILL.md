@@ -35,8 +35,8 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
-2. **Scan** `design/` for all `*.md` files. Parse each doc's frontmatter / header for `Status:` (one of: `draft`, `in_review`, `locked`, `superseded`, `dropped`) and `Date:`.
-3. **Cross-check `BOARD.md`** (if PMO is installed): for each locked design, count open vs done implementation tasks that back-reference the design ID.
+2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --section design`. Deterministic, read-only. It scans `design/` for every `*.md`, normalises each `Status:` (`draft` | `in_review` | `locked` | `superseded` | `dropped`) and `Date:`, and cross-checks `BOARD.md` for implementation rows that back-reference each design ID — so `pending_handoff` lists exactly the locked docs PMO hasn't opened tasks from. Every count in the snapshot comes from this payload.
+3. **Read a doc's full text** only when the conversation is about its content (`decide`, `lock`, `revise`, or a question about one doc). The payload answers "how many, which status, how stale" without loading them all.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about the design lane right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:

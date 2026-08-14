@@ -74,13 +74,18 @@ class TopRisk:
 
 
 @dataclass
-class Tripwire:
-    """Phase tripwire (from phase/<NNN>.md `## Trip-wires` table)."""
-    id: str  # synthesized e.g. "#1"
-    when: str  # the Day column
+class ScopeTrigger:
+    """One trigger from a phase file's `## Phase Scope Reduction Rule` section.
+
+    The skill vocabulary is "scope-reduction trigger" (see okr/SKILL.md
+    § plan-phase step 6). Legacy projects that still carry a `## Trip-wires`
+    table are parsed into the same shape."""
+    id: str        # synthesized, e.g. "#1"
+    when: str      # phase day, if the trigger names one
     condition: str
     response: str
-    status: str = "armed"  # 'armed' | 'fired-resolved' (best-effort)
+    kind: str = ""  # 'phase-day' | 'kr-progress' | '' (legacy table rows)
+    status: str = "armed"  # 'armed' | 'disarmed' | 'tripped'
 
 
 @dataclass
@@ -104,9 +109,12 @@ class BoardState:
 
 @dataclass
 class KR:
-    id: str            # e.g. "KR1"
-    text: str          # the key-result statement
+    id: str              # e.g. "KR-O1.1" (OKR.md) or "P-O1.2" (phase file)
+    text: str            # the key-result statement
     qualifier: str = ""  # optional parenthetical, e.g. "(Phase 1, 系统建设期)"
+    metric: str = ""     # 'Metric / Target' column, when the KR came from a table
+    linked: str = ""     # phase KR → overall KR id ('Linked overall KR' column)
+    stretch: bool = False
 
 
 @dataclass
@@ -132,12 +140,109 @@ class Phase:
     slug: str = ""
     number: str = ""
     started: str = ""
+    status: str = ""          # 'active' | 'scored' (from the header block)
     focus: str = ""
     objectives: list[Objective] = field(default_factory=list)
     cost_ceiling_raw: str = ""
     cost_ceiling_lines: list[str] = field(default_factory=list)
-    tripwires: list[Tripwire] = field(default_factory=list)
+    scope_triggers: list[ScopeTrigger] = field(default_factory=list)
     raw_text: str = ""
+
+    @property
+    def day(self) -> int | None:
+        """Phase day = calendar days since `Started:`, 1-indexed (start = day 1).
+
+        None when the header carries no parseable date — callers render '—'
+        rather than a wrong number."""
+        m = re.search(r"\d{4}-\d{2}-\d{2}", self.started or "")
+        if not m:
+            return None
+        try:
+            start = datetime.strptime(m.group(0), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+        return (datetime.now().date() - start).days + 1
+
+    @property
+    def krs(self) -> list[KR]:
+        return [kr for o in self.objectives for kr in o.krs]
+
+
+@dataclass
+class LinkageProject:
+    """One `projects:` entry in `phase/<NNN>-linkage.md` — the Project↔KR
+    registry that keeps attribution from being guessed."""
+    project_id: str
+    serves_kr: str
+    objective: str
+    name: str
+    aliases: list[str] = field(default_factory=list)
+    status: str = "active"   # active | done | dropped | unlinked
+
+
+@dataclass
+class LinkageKR:
+    id: str
+    title: str
+    metric: str = ""
+    target: float | None = None
+    current: float | None = None
+    due: str = ""
+    stretch: bool = False
+    tasks: list[str] = field(default_factory=list)
+
+
+@dataclass
+class LinkageObjective:
+    id: str
+    title: str
+    krs: list[LinkageKR] = field(default_factory=list)
+
+
+@dataclass
+class LinkageAgent:
+    id: str
+    tasks: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Linkage:
+    """`phase/<NNN>-linkage.md` — the O→KR→task→agent graph.
+
+    Machine-written by `okr plan-phase` / `plan-week`, machine-read by Perry
+    (attribution) and by the frontend (the chain view). YAML frontmatter, spec
+    version 1 — see $PERRY_HOME/schema/README.md § The linkage contract."""
+    spec: int = 0
+    phase: str = ""
+    updated: str = ""
+    objectives: list[LinkageObjective] = field(default_factory=list)
+    unlinked: list[str] = field(default_factory=list)
+    agents: list[LinkageAgent] = field(default_factory=list)
+    projects: list[LinkageProject] = field(default_factory=list)
+    error: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.spec > 0 and not self.error
+
+    def kr_for_task(self, task_id: str) -> str:
+        """Direct task→KR edge, when the graph declares one."""
+        for obj in self.objectives:
+            for kr in obj.krs:
+                if task_id in kr.tasks:
+                    return kr.id
+        return ""
+
+
+@dataclass
+class OpsCounts:
+    """Cheap directory / INDEX-header counts used by the standup dashboard."""
+    inputs: int = 0
+    inputs_oldest: str = ""
+    inputs_oldest_days: int | None = None
+    knowledge_index: str = ""     # raw header line from knowledge/INDEX.md
+    runbook_index: str = ""
+    incidents_index: str = ""
 
 
 @dataclass
@@ -404,24 +509,142 @@ def _parse_backbone(section: str) -> list[tuple[str, list[Task]]]:
 # ── OKR.md ────────────────────────────────────────────────────────────────
 
 
-_RE_KR = re.compile(r"^-\s*(KR\d+)([^:：]*)[:：]\s*(.+)$")
+# KR ids as written by the templates: "KR-O1.1" (OKR.md), "P-O1.2" (phase file).
+# The legacy bullet form ("- KR1: text") is still accepted for hand-written files.
+_RE_KR_ID = re.compile(r"^(?:KR|P)[-\w.]*\d$")
+_RE_KR_BULLET = re.compile(
+    r"^-\s*\**((?:KR|P-O)[\w.\-]*\d)\**([^:：]*)[:：]\s*(.+)$"
+)
+
+
+def _table_rows(section: str) -> list[dict[str, str]]:
+    """Parse every markdown table in `section` into header-keyed row dicts.
+
+    Header keys are lowercased and stripped. Rows shorter than the header are
+    padded; longer rows are truncated. Returns [] when no table is present."""
+    rows: list[dict[str, str]] = []
+    header: list[str] = []
+    prev_cells: list[str] = []
+    for line in section.split("\n"):
+        stripped = line.strip()
+        if re.match(r"^\|\s*:?-{2,}", stripped):
+            header = [c.strip().lower() for c in prev_cells]
+            continue
+        if not stripped.startswith("|"):
+            prev_cells = []
+            if not stripped:
+                continue
+            header = []
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if not header:
+            prev_cells = cells
+            continue
+        row = {}
+        for i, key in enumerate(header):
+            row[key] = cells[i] if i < len(cells) else ""
+        rows.append(row)
+    return rows
+
+
+def _col(row: dict[str, str], *names: str) -> str:
+    """First non-empty value among `names`, else the first column whose header
+    starts with one of them (tolerates 'kr text' vs 'kr')."""
+    for n in names:
+        if row.get(n):
+            return row[n]
+    for key, val in row.items():
+        if val and any(key.startswith(n) for n in names):
+            return val
+    return ""
+
+
+def _parse_krs(section: str) -> list[KR]:
+    """KRs from a template-style table first, falling back to bullet lines."""
+    krs: list[KR] = []
+    for row in _table_rows(section):
+        kid = _col(row, "id", "kr id")
+        if not _RE_KR_ID.match(kid.replace("*", "").strip()):
+            continue
+        kid = kid.replace("*", "").strip()
+        stretch_cell = _col(row, "stretch?", "stretch").lower()
+        krs.append(KR(
+            id=kid,
+            text=_col(row, "kr text", "kr", "key result"),
+            metric=_col(row, "metric / target", "metric", "target"),
+            linked=_col(row, "linked overall kr", "linked"),
+            stretch=stretch_cell.startswith("y") or stretch_cell == "stretch",
+        ))
+    if krs:
+        return krs
+    for line in section.split("\n"):
+        km = _RE_KR_BULLET.match(line.strip())
+        if km:
+            krs.append(KR(
+                id=km.group(1),
+                qualifier=km.group(2).strip(),
+                text=km.group(3).strip(),
+            ))
+    return krs
+
+
+def _clean_heading_title(raw: str, fallback: str) -> str:
+    """'— Ship the pipeline' / ': Ship the pipeline' -> 'Ship the pipeline'."""
+    return re.sub(r"^[—\-–:：]\s*", "", (raw or "").strip()).strip() or fallback
+
+
+def _section(text: str, *heading_alternatives: str, level: str = "## ") -> str:
+    """Body of the first heading matching any alternative, up to the next
+    heading of the same level. Heading text may carry a suffix ('## Versioning
+    log' matches 'Versioning')."""
+    alt = "|".join(heading_alternatives)
+    m = re.search(
+        rf"^{re.escape(level)}(?:{alt})[^\n]*\n(.+?)(?=^{re.escape(level)}|\Z)",
+        text, re.S | re.M,
+    )
+    return m.group(1) if m else ""
+
+
+_RE_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+_RE_HRULE = re.compile(r"^\s*(?:-{3,}|\*{3,}|_{3,})\s*$")
+
+
+def _strip_comments(text: str) -> str:
+    """Drop HTML comments. Templates park example blocks (`## v2: …`) inside
+    comments; parsing them would shadow the real current version."""
+    return _RE_HTML_COMMENT.sub("", text)
+
+
+def _bullets(section: str) -> list[str]:
+    out: list[str] = []
+    for line in section.split("\n"):
+        s = line.strip()
+        if not s.startswith("-") or _RE_HRULE.match(s):
+            continue
+        out.append(s.lstrip("-").strip())
+    return out
 
 
 def parse_okr(text: str) -> OKR:
     okr = OKR()
+    text = _strip_comments(text)
 
-    # Mission: prose between the H1 title and the first ## section.
-    mission_match = re.search(r"^#\s+[^\n]+\n(.*?)(?=\n## )", text, re.S)
-    if mission_match:
-        okr.mission = mission_match.group(1).strip()
+    # Mission: the `## Mission` section (template shape). Older hand-written
+    # files put the mission as prose between the H1 and the first ## — fall
+    # back to that.
+    mission = _section(text, "Mission", "使命")
+    if not mission:
+        m = re.search(r"^#\s+[^\n]+\n(.*?)(?=\n## )", text, re.S)
+        mission = m.group(1) if m else ""
+    okr.mission = mission.strip()
 
-    op_match = re.search(r"## Operating Principles\n(.+?)(?=\n## )", text, re.S)
-    if op_match:
-        okr.operating_principles = [
-            line.lstrip("- ").strip()
-            for line in op_match.group(1).split("\n")
-            if line.strip().startswith("-")
-        ]
+    okr.operating_principles = _bullets(
+        _section(text, "Operating Principles", "运行原则")
+    )
+
+    # Anti-Goals live at the top level in the template; some files nest them
+    # inside the current version block instead.
+    anti = _section(text, "Anti-Goals", "反目标")
 
     versions = re.findall(r"\n## v(\d+):\s*([^\n]+)\n(.*?)(?=\n## |\Z)", text, re.S)
     if versions:
@@ -429,43 +652,36 @@ def parse_okr(text: str) -> OKR:
         n, label, body = versions[0]
         okr.version = f"v{n}: {label.strip()}"
         okr.objectives = _parse_okr_objectives(body)
-        ag_match = re.search(r"### Anti-Goals\n(.+?)(?=\n### |\n## |\Z)", body, re.S)
-        if ag_match:
-            okr.anti_goals = [
-                line.lstrip("- ").strip()
-                for line in ag_match.group(1).split("\n")
-                if line.strip().startswith("-")
-            ]
+        if not anti:
+            anti = _section(body, "Anti-Goals", "反目标", level="### ")
+    okr.anti_goals = _bullets(anti)
 
-    # Version log: the ## Versioning section's bullets (vN: description).
-    vlog_match = re.search(r"## Versioning\n(.+?)(?=\n## |\Z)", text, re.S)
-    if vlog_match:
-        for line in vlog_match.group(1).split("\n"):
-            vm = re.match(r"-\s*(v\d+)[:：]\s*(.+)$", line.strip())
-            if vm:
-                okr.version_log.append((vm.group(1), vm.group(2).strip()))
+    # Version log: bullets under `## Versioning log` (template) / `## Versioning`.
+    for line in _section(text, "Versioning").split("\n"):
+        vm = re.match(r"-\s*\**(v\d+)\**[:：]\s*(.+)$", line.strip())
+        if vm:
+            okr.version_log.append((vm.group(1), vm.group(2).strip()))
 
     return okr
 
 
 def _parse_okr_objectives(body: str) -> list[Objective]:
     objs: list[Objective] = []
-    chunks = re.split(r"\n(?=### Objective \d+)", body)
+    chunks = re.split(r"\n(?=### (?:Objective|目标) \d+)", body)
     for chunk in chunks:
-        m = re.match(r"### Objective (\d+)[:：]?\s*([^\n]*)\n", chunk)
+        m = re.match(r"### (?:Objective|目标) (\d+)\s*([^\n]*)\n", chunk)
         if not m:
             continue
-        title = (m.group(2) or "").strip() or f"Objective {m.group(1)}"
-        krs: list[KR] = []
-        intro_lines: list[str] = []
-        seen_kr = False
-        for line in chunk.split("\n")[1:]:  # skip the heading line
-            km = _RE_KR.match(line.strip())
-            if km:
-                seen_kr = True
-                krs.append(KR(id=km.group(1), qualifier=km.group(2).strip(), text=km.group(3).strip()))
-            elif not seen_kr and line.strip():
-                intro_lines.append(line.strip())
+        title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
+        krs = _parse_krs(chunk)
+        intro_lines = [
+            line.strip()
+            for line in chunk.split("\n")[1:]
+            if line.strip()
+            and not line.strip().startswith("|")
+            and not line.strip().startswith("#")
+            and not _RE_KR_BULLET.match(line.strip())
+        ]
         objs.append(Objective(
             title=title,
             raw_body=chunk,
@@ -483,6 +699,7 @@ def parse_phase(slug: str, text: str) -> Phase:
     # or 中文 (per .perry/config.md), so the phase file can use either set of
     # headers. Match both. Chinese uses a fullwidth colon （：）in some labels.
     phase = Phase(slug=slug, raw_text=text)
+    text = _strip_comments(text)
 
     m = re.match(r"#\s*(?:Phase|阶段)\s*#(\d+)\s*[—\-–]\s*([^\n（(]*)", text)
     if m:
@@ -490,38 +707,109 @@ def parse_phase(slug: str, text: str) -> Phase:
     started = re.search(r"(?:Started|启动)\s*\**\s*[:：]\s*\**\s*([^\n（(*]+)", text)
     if started:
         phase.started = started.group(1).strip()
+    st = re.search(r"(?:Status|状态)\s*\**\s*[:：]\s*\**\s*([^\n（(*]+)", text)
+    if st:
+        phase.status = st.group(1).strip().split("|")[0].strip()
 
-    focus = re.search(r"## (?:Phase Focus|阶段焦点)[^\n]*\n(.+?)(?=\n## )", text, re.S)
-    if focus:
-        phase.focus = focus.group(1).strip()
+    phase.focus = _section(text, "Phase Focus", "阶段焦点").strip()
 
-    cc = re.search(r"## (?:Cost Ceiling|成本上限)[^\n]*\n(.+?)(?=\n## )", text, re.S)
+    cc = _section(text, "Cost Ceiling", "成本上限")
     if cc:
-        phase.cost_ceiling_raw = cc.group(1).strip()
-        phase.cost_ceiling_lines = [
-            line.lstrip("- ").strip()
-            for line in phase.cost_ceiling_raw.split("\n")
-            if line.strip().startswith("-")
-        ]
+        phase.cost_ceiling_raw = cc.strip()
+        phase.cost_ceiling_lines = _bullets(cc)
 
-    tw = re.search(r"## (?:Trip-wires|触发线|触发条件)[^\n]*\n(.+?)(?=\n## )", text, re.S)
-    if tw:
-        phase.tripwires = _parse_tripwires(tw.group(1))
+    # Scope-reduction triggers. The template section is
+    # `## Phase Scope Reduction Rule` (bullet form); legacy projects may carry
+    # a `## Trip-wires` table instead — both land in the same shape.
+    srr = _section(text, "Phase Scope Reduction Rule", "阶段缩圈规则", "缩圈规则")
+    if srr:
+        phase.scope_triggers = _parse_scope_triggers(srr)
+    else:
+        legacy = _section(text, "Trip-wires", "Tripwires", "触发线", "触发条件")
+        if legacy:
+            phase.scope_triggers = _parse_legacy_tripwire_table(legacy)
+
+    # Status of the rule, when the mid-phase check has recorded one.
+    mp = _section(text, "Mid-phase check", "期中检查")
+    sm = re.search(
+        r"(?:Scope-reduction rule status|缩圈规则状态)\s*\**\s*[:：]\s*\**\s*([^\n]+)",
+        mp, re.I,
+    )
+    if sm:
+        raw = sm.group(1).lower()
+        # Only a single unambiguous word counts — the template ships the literal
+        # placeholder "{{armed / disarmed / tripped}}", which must NOT be read
+        # as a real status.
+        found = {w for w in ("tripped", "disarmed", "armed") if re.search(rf"\b{w}\b", raw)}
+        found |= {"tripped" if "已触发" in raw else "", "disarmed" if "已解除" in raw else ""}
+        found.discard("")
+        if len(found) == 1:
+            status = found.pop()
+            for t in phase.scope_triggers:
+                t.status = status
 
     obj_chunks = re.split(r"\n(?=## (?:Objective|目标)\s*\d+)", text)
     for chunk in obj_chunks:
-        m = re.match(r"## (?:Objective|目标)\s*(\d+)\s*[:：]?\s*([^\n]*)\n", chunk)
+        m = re.match(r"## (?:Objective|目标)\s*(\d+)\s*([^\n]*)\n", chunk)
         if not m:
             continue
-        title = (m.group(2) or "").strip() or f"Objective {m.group(1)}"
-        phase.objectives.append(Objective(title=title, raw_body=chunk))
+        title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
+        phase.objectives.append(
+            Objective(title=title, raw_body=chunk, krs=_parse_krs(chunk))
+        )
 
     return phase
 
 
-def _parse_tripwires(section: str) -> list[Tripwire]:
-    """Phase tripwires are a markdown table: | Day | Condition | Response |."""
-    tw: list[Tripwire] = []
+def _parse_scope_triggers(section: str) -> list[ScopeTrigger]:
+    """`## Phase Scope Reduction Rule` is a bullet list, one per trigger:
+
+        - **Phase-day trigger** (optional): If by phase day 14 USER-003 is
+          still open, O2 collapses to its Must-Have.
+        - **KR-progress trigger**: If commit KRs are <50% at phase day 14, …
+
+    Condition = text up to the first comma/`,`; response = the remainder."""
+    triggers: list[ScopeTrigger] = []
+    for idx, body in enumerate(_bullets(section), start=1):
+        label = ""
+        lm = re.match(r"\*\*([^*]+)\*\*\s*(?:\([^)]*\))?\s*[:：]?\s*(.*)$", body, re.S)
+        if lm:
+            label = lm.group(1).strip()
+            body = lm.group(2).strip()
+        if not body:
+            continue
+        kind = ""
+        low = label.lower()
+        if "day" in low or "阶段日" in label:
+            kind = "phase-day"
+        elif "kr" in low or "进度" in label:
+            kind = "kr-progress"
+        when = ""
+        wm = re.search(r"(?:phase day|阶段第?)\s*\**\s*(\d+)", body, re.I)
+        if wm:
+            when = wm.group(1)
+        # "If <condition>, <consequence>" — split at the LAST comma, so a
+        # multi-clause condition ("If at day 14, commit KRs are <50%, cut …")
+        # keeps its clauses together instead of splitting after the first one.
+        cut = max(body.rfind(", "), body.rfind("，"))
+        if cut == -1:
+            condition, response = body.strip(), ""
+        else:
+            condition = body[:cut].strip().rstrip(",，")
+            response = body[cut + 1:].strip()
+        triggers.append(ScopeTrigger(
+            id=f"#{idx}",
+            when=when,
+            condition=condition,
+            response=response,
+            kind=kind,
+        ))
+    return triggers
+
+
+def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
+    """Legacy `## Trip-wires` markdown table: | Day | Condition | Response |."""
+    tw: list[ScopeTrigger] = []
     lines = section.split("\n")
     in_table = False
     idx = 0
@@ -545,9 +833,9 @@ def _parse_tripwires(section: str) -> list[Tripwire]:
         response = cells[2]
         status = "armed"
         if re.search(r"\b(resolved|fired-resolved|done|closed)\b", response, re.I):
-            status = "fired-resolved"
+            status = "tripped"
         tw.append(
-            Tripwire(
+            ScopeTrigger(
                 id=f"#{idx}",
                 when=cells[0].replace("**", "").strip(),
                 condition=cells[1],
@@ -604,10 +892,19 @@ def parse_top_risks(text: str) -> list[TopRisk]:
             first = heading.split()[0] if heading else "?"
             short_id = first.rstrip(":,.")
             title = heading[len(first):].strip()
-            # If title is empty (e.g. "**R-2** 33.16%"), pull text after the bold.
-            if not title:
-                after = clean[id_match.end():].strip()
-                title = after.split(" — ")[0].split("·")[0].strip()
+            # If the title is empty or carries no words (e.g. "**R-2** 33.16%",
+            # "**DEPLOY-FLAKE 4.2%**"), pull the prose after the bold instead —
+            # a bare number is not a risk title.
+            if not re.search(r"[A-Za-z一-鿿]{2,}", title):
+                after = clean[id_match.end():].strip().lstrip("—-–·:： ")
+                # Drop a leading severity marker — "TOP RISK", "ACCEPT until …"
+                # is a label, not the title. The prose after it is the title.
+                after = re.sub(
+                    r"^\(?\s*(?:NEW\s+)?(?:TOP RISK|ACCEPT|APPROVE|WATCH|REJECTED)\b[^—·]*",
+                    "", after, flags=re.I,
+                ).strip().lstrip("—-–·:： ")
+                after = after.split(" — ")[0].split("·")[0].strip()
+                title = after or title
         else:
             # No useful bold: fall back to first space-separated token.
             first_word = re.match(r"(\S+)", clean)
@@ -755,6 +1052,27 @@ def walk_handoff(root: Path) -> list[JournalEntry]:
             JournalEntry(
                 date=md.stem,
                 month=md.stem[:7],
+                path=md.as_posix(),
+                rel=md.relative_to(root).as_posix(),
+            )
+        )
+    out.sort(key=lambda j: j.date, reverse=True)
+    return out
+
+
+def walk_weekly(root: Path) -> list[JournalEntry]:
+    """Weekly reports: weekly/<YYYY-WW>.md. `date` carries the ISO week label."""
+    out: list[JournalEntry] = []
+    base = root / "weekly"
+    if not base.is_dir():
+        return out
+    for md in base.glob("*.md"):
+        if not re.match(r"\d{4}-W?\d{2}\.md", md.name):
+            continue
+        out.append(
+            JournalEntry(
+                date=md.stem,
+                month=md.stem[:4],
                 path=md.as_posix(),
                 rel=md.relative_to(root).as_posix(),
             )
@@ -977,6 +1295,288 @@ def parse_arch_meta(text: str) -> ArchMeta:
     return meta
 
 
+# ── phase/<NNN>-linkage.md (Project ↔ KR registry) ────────────────────────
+
+
+_RE_FRONTMATTER = re.compile(r"\A﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+
+
+def split_frontmatter(text: str) -> tuple[str, str]:
+    """(frontmatter, body). Empty frontmatter when the file has none.
+
+    Matches the frontend's `splitFrontmatter` so both sides agree on what
+    counts as a fenced block."""
+    m = _RE_FRONTMATTER.match(text)
+    if not m:
+        return "", text
+    return m.group(1), text[m.end():]
+
+
+def parse_yaml_subset(text: str):
+    """A deliberately small YAML reader — enough for machine-written Perry
+    frontmatter, and nothing more.
+
+    Perry ships with zero dependencies, so PyYAML isn't available. That's
+    acceptable here only because these files are *written by Perry* to a
+    declared shape: nested maps, lists of maps, scalars, and inline flow lists.
+    Anything outside that raises ValueError rather than returning a half-parsed
+    structure — a linkage graph that silently loses an objective would report
+    committed work as nonexistent.
+
+    Not supported (by design): anchors, multi-line scalars, multi-document
+    files, nested flow maps, tags."""
+    lines = []
+    for n, raw in enumerate(text.split("\n"), start=1):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        # YAML forbids tabs for indentation, and silently treating one as
+        # zero-indent would misplace a whole objective.
+        if "\t" in raw[: len(raw) - len(raw.lstrip())]:
+            raise ValueError(f"line {n}: tab used for indentation (YAML requires spaces)")
+        lines.append(raw.rstrip())
+    pos = 0
+
+    def indent_of(line: str) -> int:
+        return len(line) - len(line.lstrip(" "))
+
+    def scalar(tok: str):
+        tok = tok.strip()
+        if not tok:
+            return None
+        if tok[0] in "\"'" and len(tok) > 1 and tok[-1] == tok[0]:
+            return tok[1:-1]
+        if tok.startswith("[") and tok.endswith("]"):
+            inner = tok[1:-1].strip()
+            return [scalar(p) for p in _split_flow(inner)] if inner else []
+        low = tok.lower()
+        if low in {"true", "yes"}:
+            return True
+        if low in {"false", "no"}:
+            return False
+        if low in {"null", "~", ""}:
+            return None
+        try:
+            return int(tok)
+        except ValueError:
+            pass
+        try:
+            return float(tok)
+        except ValueError:
+            pass
+        return tok
+
+    def parse_block(level: int):
+        nonlocal pos
+        if pos >= len(lines):
+            return None
+        if lines[pos].lstrip().startswith("- "):
+            return parse_list(level)
+        return parse_map(level)
+
+    def parse_map(level: int) -> dict:
+        nonlocal pos
+        out: dict = {}
+        while pos < len(lines):
+            line = lines[pos]
+            ind = indent_of(line)
+            if ind < level:
+                break
+            if ind > level:
+                raise ValueError(f"unexpected indent at: {line.strip()!r}")
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                break
+            if ":" not in stripped:
+                raise ValueError(f"expected 'key: value' at: {stripped!r}")
+            key, _, rest = stripped.partition(":")
+            key = key.strip().strip("\"'")
+            rest = rest.strip()
+            pos += 1
+            if rest:
+                out[key] = scalar(rest)
+                continue
+            if pos < len(lines) and indent_of(lines[pos]) > level:
+                out[key] = parse_block(indent_of(lines[pos]))
+            elif pos < len(lines) and lines[pos].strip().startswith("- ") \
+                    and indent_of(lines[pos]) == level:
+                out[key] = parse_list(level)   # list at the key's own indent
+            else:
+                out[key] = None
+        return out
+
+    def parse_list(level: int) -> list:
+        nonlocal pos
+        out: list = []
+        while pos < len(lines):
+            line = lines[pos]
+            ind = indent_of(line)
+            if ind < level or not line.strip().startswith("- "):
+                break
+            if ind > level:
+                raise ValueError(f"unexpected indent at: {line.strip()!r}")
+            item = line.strip()[2:].strip()
+            pos += 1
+            if not item:
+                out.append(parse_block(indent_of(lines[pos])) if pos < len(lines) else None)
+                continue
+            if ":" in item and not item.startswith(("[", "\"", "'")):
+                # "- key: value" starts a map whose remaining keys are indented
+                # to just past the dash.
+                child_indent = ind + 2
+                key, _, rest = item.partition(":")
+                entry: dict = {}
+                rest = rest.strip()
+                if rest:
+                    entry[key.strip()] = scalar(rest)
+                else:
+                    if pos < len(lines) and indent_of(lines[pos]) > child_indent:
+                        entry[key.strip()] = parse_block(indent_of(lines[pos]))
+                    else:
+                        entry[key.strip()] = None
+                while pos < len(lines) and indent_of(lines[pos]) == child_indent \
+                        and not lines[pos].strip().startswith("- "):
+                    entry.update(parse_map(child_indent))
+                out.append(entry)
+            else:
+                out.append(scalar(item))
+        return out
+
+    result = parse_block(0) if lines else {}
+    if pos < len(lines):
+        raise ValueError(f"could not parse from: {lines[pos].strip()!r}")
+    return result if result is not None else {}
+
+
+def _split_flow(inner: str) -> list[str]:
+    """Split an inline `[a, b, "c, d"]` body on top-level commas."""
+    parts, buf, quote = [], "", ""
+    for ch in inner:
+        if quote:
+            buf += ch
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+            buf += ch
+        elif ch == ",":
+            parts.append(buf)
+            buf = ""
+        else:
+            buf += ch
+    if buf.strip():
+        parts.append(buf)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _as_list(value) -> list:
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _num(value) -> float | None:
+    """Numbers only. A target of '≤ 15%' has no numeric value, and parsing the
+    15 out of it would render a ceiling as two-thirds complete."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def parse_linkage(text: str) -> Linkage:
+    """`phase/<NNN>-linkage.md` — YAML frontmatter, spec version 1.
+
+    All-or-nothing: a file that half-parses would render a chain missing
+    objectives the user committed to, which reads as "nothing is being done
+    about that". On any error the returned Linkage carries `error` and no data.
+    See $PERRY_HOME/reference/okr-linkage.md."""
+    front, _ = split_frontmatter(text)
+    if not front.strip():
+        return Linkage(error="no YAML frontmatter (expected `---` fenced block at the top)")
+    try:
+        data = parse_yaml_subset(front)
+    except ValueError as exc:
+        return Linkage(error=str(exc))
+    if not isinstance(data, dict):
+        return Linkage(error="frontmatter is not a mapping")
+    if "{{" in front:
+        return Linkage(error="unfilled template placeholders")
+
+    spec = data.get("linkage")
+    if spec != 1:
+        return Linkage(error=f"unsupported linkage spec version: {spec!r} (expected 1)")
+
+    link = Linkage(
+        spec=1,
+        phase=str(data.get("phase") or ""),
+        updated=str(data.get("updated") or ""),
+        unlinked=[str(t) for t in _as_list(data.get("unlinked"))],
+    )
+    for obj in _as_list(data.get("objectives")):
+        if not isinstance(obj, dict):
+            continue
+        krs = []
+        for kr in _as_list(obj.get("krs")):
+            if not isinstance(kr, dict) or not kr.get("id"):
+                continue
+            krs.append(LinkageKR(
+                id=str(kr["id"]),
+                title=str(kr.get("title") or ""),
+                metric=str(kr.get("metric") or ""),
+                target=_num(kr.get("target")),
+                current=_num(kr.get("current")),
+                due=str(kr.get("due") or ""),
+                stretch=bool(kr.get("stretch")),
+                tasks=[str(t) for t in _as_list(kr.get("tasks"))],
+            ))
+        link.objectives.append(LinkageObjective(
+            id=str(obj.get("id") or ""), title=str(obj.get("title") or ""), krs=krs))
+    for ag in _as_list(data.get("agents")):
+        if isinstance(ag, dict) and ag.get("id"):
+            link.agents.append(LinkageAgent(
+                id=str(ag["id"]), tasks=[str(t) for t in _as_list(ag.get("tasks"))]))
+    for pr in _as_list(data.get("projects")):
+        if not isinstance(pr, dict) or not pr.get("id"):
+            continue
+        link.projects.append(LinkageProject(
+            project_id=str(pr["id"]),
+            serves_kr=str(pr.get("serves") or pr.get("serves_kr") or ""),
+            objective=str(pr.get("objective") or ""),
+            name=str(pr.get("name") or ""),
+            aliases=[str(a) for a in _as_list(pr.get("aliases"))],
+            status=str(pr.get("status") or "active").lower(),
+        ))
+    return link
+
+
+def _load_ops_counts(root: Path) -> OpsCounts:
+    ops = OpsCounts()
+
+    inputs = root / "inputs"
+    if inputs.is_dir():
+        files = [p for p in inputs.iterdir() if p.is_file() and not p.name.startswith(".")]
+        ops.inputs = len(files)
+        if files:
+            oldest = min(files, key=lambda p: p.stat().st_mtime)
+            ops.inputs_oldest = oldest.name
+            age = datetime.now() - datetime.fromtimestamp(oldest.stat().st_mtime)
+            ops.inputs_oldest_days = age.days
+
+    def index_header(path: Path) -> str:
+        if not path.exists():
+            return ""
+        for line in path.read_text().split("\n"):
+            s = line.strip().lstrip(">").strip()
+            # The INDEX templates put the counts line right under the H1.
+            if s and not s.startswith("#") and re.search(r"\d", s):
+                return s
+        return ""
+
+    ops.knowledge_index = index_header(root / "knowledge" / "INDEX.md")
+    ops.runbook_index = index_header(root / "runbook" / "INDEX.md")
+    ops.incidents_index = index_header(root / "incidents" / "INDEX.md")
+
+    return ops
+
+
+
 # ── Top-level snapshot ────────────────────────────────────────────────────
 
 
@@ -996,6 +1596,9 @@ class PMOSnapshot:
     project_root: Path
     project_name: str
     fetched_at: datetime
+    linkage: Linkage = field(default_factory=Linkage)
+    ops: OpsCounts = field(default_factory=OpsCounts)
+    weekly: list[JournalEntry] = field(default_factory=list)
 
 
 def _resolve_project_name(root: Path, board_text: str) -> str:
@@ -1017,12 +1620,19 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
     architecture_text = read(root / "ARCHITECTURE.md")
 
     phase = None
+    linkage = Linkage()
     cur_pointer = root / "phase" / "CURRENT"
     if cur_pointer.exists():
         slug = cur_pointer.read_text().strip()
-        phase_file = root / "phase" / f"{slug}.md"
-        if phase_file.exists():
-            phase = parse_phase(slug, phase_file.read_text())
+        if slug and slug not in {"(none)", "none", "—"}:
+            phase_file = root / "phase" / f"{slug}.md"
+            if phase_file.exists():
+                phase = parse_phase(slug, phase_file.read_text())
+            # Linkage registry is named by phase number: phase/<NNN>-linkage.md
+            number = (phase.number if phase else "") or slug.split("-")[0]
+            linkage_file = root / "phase" / f"{number}-linkage.md"
+            if linkage_file.exists():
+                linkage = parse_linkage(linkage_file.read_text())
 
     # Merge top risks from BOARD.md (most-recent, often holds the acute "TOP"
     # entry) and PROJECT_STATE.md (cross-monthly, more structured). Dedupe by ID.
@@ -1052,6 +1662,9 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         project_root=root,
         project_name=_resolve_project_name(root, board_text),
         fetched_at=datetime.now(),
+        linkage=linkage,
+        ops=_load_ops_counts(root),
+        weekly=walk_weekly(root),
     )
 
 
@@ -1065,7 +1678,9 @@ if __name__ == "__main__":
     print(f"OKR version: {s.okr.version}, objectives: {len(s.okr.objectives)}")
     print(f"Phase: {s.phase.slug if s.phase else '(none)'} #{s.phase.number if s.phase else ''}")
     if s.phase:
-        print(f"  · tripwires: {len(s.phase.tripwires)}")
+        print(f"  · day: {s.phase.day if s.phase.day is not None else '—'}")
+        print(f"  · objectives: {len(s.phase.objectives)} · KRs: {len(s.phase.krs)}")
+        print(f"  · scope triggers: {len(s.phase.scope_triggers)}")
         print(f"  · cost-ceiling lines: {len(s.phase.cost_ceiling_lines)}")
     print(f"ADRs: {len(s.adrs)} · Evidence: {len(s.evidence)} · Journal: {len(s.journal)}")
     print(f"Design docs: {len(s.design)}")

@@ -6,9 +6,13 @@ the local service in the background, waits until it answers, and opens the user'
 browser at the address. `/pmo browse` is an alias.
 
 The viewer itself is documented in `viewer/README.md` (pages, design, what it does
-NOT do) and its relation to disposable `/pmo render` HTML in
-`reference/rendering.md § Two consumption paths`. This file is only about
-**launching** it for the user.
+NOT do). This file is only about **launching** it for the user.
+
+The viewer is the *local, zero-setup* consumption surface. The primary one is
+**aiMark** (`~/proj/aimark`), which watches the project directory and renders it
+live. Reach for the viewer when aiMark isn't running or isn't wanted; reach for
+aiMark otherwise. Both read the same tier 1/2 markdown — neither is authoritative
+over the other, and neither writes to the project.
 
 ## Sub-actions
 
@@ -32,7 +36,7 @@ Run from the project directory (where `BOARD.md` lives — the standup's CWD).
      bash "$PERRY_HOME/bin/perry-viewer" --port <PORT>
      ```
      Remember the returned background task id for `stop`.
-   - **Codex / no background tool** (`$HOST = codex-cli`, see `reference/host-capabilities.md`):
+   - **Codex / no background tool** (`$HOST = codex-cli`, see `$PERRY_HOME/reference/host-capabilities.md`):
      ```
      mkdir -p ~/.cache/perry
      nohup bash "$PERRY_HOME/bin/perry-viewer" --port <PORT> > ~/.cache/perry/viewer.log 2>&1 &

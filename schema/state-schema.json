@@ -1,0 +1,634 @@
+{
+  "schema_version": 1,
+  "description": "Structural contract for Perry state files. The single source of truth that SKILL.md prose, state/*_TEMPLATE.md, and viewer/parsers.py must all agree with. Validated by bin/perry-lint (against a project) and by tests/ (against the templates themselves).",
+  "enums": {
+    "task_status": [
+      "not_started",
+      "blocked",
+      "in_progress",
+      "review",
+      "done",
+      "dropped"
+    ],
+    "priority": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "owner": [
+      "User",
+      "PMO Agent",
+      "Coding Agent",
+      "Research Agent",
+      "Review Agent",
+      "User + Agent"
+    ],
+    "design_status": [
+      "draft",
+      "in_review",
+      "locked",
+      "superseded",
+      "dropped"
+    ],
+    "linkage_status": [
+      "active",
+      "done",
+      "dropped",
+      "unlinked"
+    ],
+    "phase_status": [
+      "active",
+      "scored"
+    ],
+    "kr_score": [
+      "achieved",
+      "partial",
+      "missed",
+      "dropped"
+    ]
+  },
+  "files": [
+    {
+      "id": "board",
+      "path": "BOARD.md",
+      "template": "pmo/state/BOARD_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": true,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^P0\\b",
+          "label": "## P0"
+        },
+        {
+          "level": 2,
+          "match": "^P1\\b",
+          "label": "## P1"
+        },
+        {
+          "level": 2,
+          "match": "^P2\\b",
+          "label": "## P2"
+        },
+        {
+          "level": 2,
+          "match": "^Cadence\\b",
+          "label": "## Cadence"
+        },
+        {
+          "level": 2,
+          "match": "^User Input Queue\\b",
+          "label": "## User Input Queue"
+        },
+        {
+          "level": 2,
+          "match": "^Top risks\\b",
+          "label": "## Top risks"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^P[012]\\b",
+          "columns": [
+            "ID",
+            "Title",
+            "Owner",
+            "Status",
+            "Next action",
+            "Evidence"
+          ],
+          "enum_columns": {
+            "Status": "task_status"
+          }
+        },
+        {
+          "under": "^User Input Queue\\b",
+          "columns": [
+            "USER-id",
+            "Needed from user",
+            "Blocks",
+            "Idle",
+            "Status"
+          ]
+        },
+        {
+          "under": "^Cadence\\b",
+          "columns": [
+            "ID",
+            "Recurring task",
+            "Owner",
+            "Frequency",
+            "Next due",
+            "Last evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "okr",
+      "path": "OKR.md",
+      "template": "okr/state/OKR_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 1,
+      "cap": 200,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Mission\\b|^使命",
+          "label": "## Mission"
+        },
+        {
+          "level": 2,
+          "match": "^Operating Principles\\b|^运行原则",
+          "label": "## Operating Principles"
+        },
+        {
+          "level": 2,
+          "match": "^Anti-Goals\\b|^反目标",
+          "label": "## Anti-Goals"
+        },
+        {
+          "level": 2,
+          "match": "^v\\d+:",
+          "label": "## v<N>: <date>  (at least one version block)"
+        },
+        {
+          "level": 2,
+          "match": "^Versioning",
+          "label": "## Versioning log"
+        },
+        {
+          "level": 3,
+          "match": "^(Objective|目标) \\d+",
+          "label": "### Objective <N> — <title>"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^(Objective|目标) \\d+",
+          "under_level": 3,
+          "columns": [
+            "Id",
+            "KR",
+            "Metric / Target",
+            "Stretch?",
+            "Deadline"
+          ],
+          "id_column": "Id",
+          "id_pattern": "^KR-O\\d+\\.\\d+$"
+        }
+      ]
+    },
+    {
+      "id": "phase",
+      "path": "phase/[0-9][0-9][0-9]-*.md",
+      "exclude": "phase/*-linkage.md",
+      "template": "okr/state/phase_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 1,
+      "cap": 300,
+      "cap_kind": "hard",
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Started",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}",
+          "note": "phase day is computed from this"
+        },
+        {
+          "name": "Status",
+          "enum": "phase_status"
+        }
+      ],
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Phase Focus\\b|^阶段焦点",
+          "label": "## Phase Focus"
+        },
+        {
+          "level": 2,
+          "match": "^Operating Rules\\b",
+          "label": "## Operating Rules"
+        },
+        {
+          "level": 2,
+          "match": "^Cost Ceiling\\b|^成本上限",
+          "label": "## Cost Ceiling"
+        },
+        {
+          "level": 2,
+          "match": "^User Commitments\\b",
+          "label": "## User Commitments"
+        },
+        {
+          "level": 2,
+          "match": "^User-Unavailable Degradation\\b",
+          "label": "## User-Unavailable Degradation"
+        },
+        {
+          "level": 2,
+          "match": "^Phase Scope Reduction Rule\\b|^阶段缩圈规则",
+          "label": "## Phase Scope Reduction Rule"
+        },
+        {
+          "level": 2,
+          "match": "^(Objective|目标) \\d+",
+          "label": "## Objective <N> — <title>"
+        },
+        {
+          "level": 2,
+          "match": "^Definition of Done\\b",
+          "label": "## Definition of Done"
+        },
+        {
+          "level": 2,
+          "match": "^Not Doing in this phase\\b",
+          "label": "## Not Doing in this phase"
+        },
+        {
+          "level": 2,
+          "match": "^Process Note\\b",
+          "label": "## Process Note"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^(Objective|目标) \\d+",
+          "under_level": 2,
+          "columns": [
+            "Id",
+            "KR text",
+            "Metric / Target",
+            "Linked overall KR"
+          ],
+          "id_column": "Id",
+          "id_pattern": "^P-O\\d+\\.\\d+$"
+        }
+      ]
+    },
+    {
+      "id": "linkage",
+      "path": "phase/[0-9][0-9][0-9]-linkage.md",
+      "template": "okr/state/linkage_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "linkage",
+        "spec_version": 1,
+        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
+        "fields": {
+          "linkage": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "phase": {
+            "type": "string",
+            "required": false,
+            "note": "<NNN>-<slug>"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime",
+            "note": "full datetime; a day-only value is dropped, not guessed"
+          },
+          "objectives": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^O\\d+$"
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              },
+              "krs": {
+                "type": "array",
+                "required": false,
+                "items": {
+                  "id": {
+                    "type": "string",
+                    "required": true,
+                    "pattern": "^P-O\\d+\\.\\d+$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "required": true
+                  },
+                  "metric": {
+                    "type": "string",
+                    "required": false,
+                    "note": "prose; always safe to display"
+                  },
+                  "target": {
+                    "type": "number",
+                    "required": false,
+                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
+                  },
+                  "current": {
+                    "type": "number",
+                    "required": false
+                  },
+                  "due": {
+                    "type": "string",
+                    "required": false
+                  },
+                  "stretch": {
+                    "type": "boolean",
+                    "required": false
+                  },
+                  "tasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "required": false,
+                    "note": "BOARD task ids. This is the task->KR edge; a task listed here needs no inference."
+                  }
+                }
+              }
+            }
+          },
+          "unlinked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false,
+            "note": "DECLARED, never inferred. Set arithmetic over the board would report the whole un-triaged backlog as drift."
+          },
+          "agents": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": false
+              }
+            }
+          },
+          "projects": {
+            "type": "array",
+            "required": false,
+            "note": "Perry's attribution registry. Extra key beyond the frontend's schema; the frontend ignores it.",
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true
+              },
+              "serves": {
+                "type": "string",
+                "required": true,
+                "pattern": "^P-O\\d+\\.\\d+$"
+              },
+              "objective": {
+                "type": "string",
+                "required": false,
+                "pattern": "^O\\d+$"
+              },
+              "name": {
+                "type": "string",
+                "required": false
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": false
+              },
+              "status": {
+                "type": "string",
+                "required": false,
+                "enum": "linkage_status"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "design",
+      "path": "design/*.md",
+      "exclude": "design/README.md",
+      "template": "design/state/design_TEMPLATE.md",
+      "owner": "design",
+      "tier": 2,
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Status",
+          "enum": "design_status"
+        },
+        {
+          "name": "Date",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}|—"
+        }
+      ],
+      "headings": [
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Problem\\b",
+          "label": "## Problem"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Goals\\b",
+          "label": "## Goals"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b",
+          "label": "## Non-Goals"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b",
+          "label": "## User Decisions"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Architecture\\b",
+          "label": "## Architecture"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b",
+          "label": "## Implementation plan"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Risks",
+          "label": "## Risks & mitigations"
+        }
+      ],
+      "required_at_status": {
+        "field": "Status",
+        "values": [
+          "locked"
+        ]
+      }
+    },
+    {
+      "id": "decisions",
+      "path": "DECISIONS.md",
+      "template": "pmo/state/DECISIONS_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Active\\b|^进行中",
+          "label": "## Active"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^Active\\b|^进行中",
+          "columns": [
+            "ADR",
+            "Title",
+            "Type",
+            "Date"
+          ],
+          "column_match": "prefix"
+        }
+      ]
+    },
+    {
+      "id": "project_state",
+      "path": "PROJECT_STATE.md",
+      "template": "pmo/state/PROJECT_STATE_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": false,
+      "headings": []
+    },
+    {
+      "id": "architecture",
+      "path": "ARCHITECTURE.md",
+      "template": "pmo/state/ARCHITECTURE_TEMPLATE.md",
+      "owner": "user",
+      "tier": 1,
+      "cap": 500,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^§[1-8]\\b",
+          "label": "## §1 … §8 (eight fixed sections)"
+        }
+      ]
+    },
+    {
+      "id": "runbook",
+      "path": "runbook/*.md",
+      "exclude": "runbook/INDEX.md",
+      "template": "pmo/state/runbook_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 1,
+      "cap": 150,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": []
+    },
+    {
+      "id": "config",
+      "path": ".perry/config.md",
+      "owner": "perry",
+      "tier": 1,
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Document language"
+        },
+        {
+          "name": "Repo layout",
+          "pattern": "single|split"
+        }
+      ]
+    },
+    {
+      "id": "hook",
+      "path": ".perry/hook.md",
+      "template": "pmo/state/hook_TEMPLATE.md",
+      "owner": "user",
+      "tier": 1,
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^High-stakes",
+          "label": "## High-stakes operations"
+        }
+      ]
+    }
+  ],
+  "cross_file": [
+    {
+      "id": "current-phase-resolves",
+      "severity": "error",
+      "description": "phase/CURRENT must name an existing phase file (or be absent / '(none)')."
+    },
+    {
+      "id": "linkage-objective-agrees",
+      "severity": "error",
+      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P-O1.2 -> O1)."
+    },
+    {
+      "id": "linkage-kr-exists",
+      "severity": "warn",
+      "description": "Each linkage row's Serves KR should exist in the current phase file's KR set."
+    },
+    {
+      "id": "locked-design-has-plan",
+      "severity": "error",
+      "description": "A design doc with Status: locked must have a non-empty Implementation plan."
+    },
+    {
+      "id": "done-needs-evidence",
+      "severity": "warn",
+      "description": "A BOARD row at status done must carry an Evidence path."
+    },
+    {
+      "id": "hook-high-stakes-armed",
+      "severity": "warn",
+      "description": ".perry/hook.md should declare a high-stakes list; dispatch and autopilot match specs against it."
+    },
+    {
+      "id": "linkage-names-unique",
+      "severity": "error",
+      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
+    },
+    {
+      "id": "linkage-task-single-kr",
+      "severity": "error",
+      "description": "A task id may appear under at most one KR's tasks[]; two would make its attribution ambiguous."
+    }
+  ]
+}

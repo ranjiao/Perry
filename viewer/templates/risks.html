@@ -67,11 +67,11 @@
   </div>
   {% endif %}
 
-  {# ── Trip-wires + resolved ──────────────────────────────────────── #}
+  {# ── Scope-reduction triggers + resolved ──────────────────────────────────────── #}
   <div class="grid" style="grid-template-columns: 1.2fr 1fr; gap: 16px;">
 
-    {{ card_open('Trip-wires · armed') }}
-    {% set armed = snap.phase.tripwires | selectattr('status', 'equalto', 'armed') | list if snap.phase else [] %}
+    {{ card_open('Scope triggers · armed') }}
+    {% set armed = snap.phase.scope_triggers | selectattr('status', 'equalto', 'armed') | list if snap.phase else [] %}
     {% if armed %}
     <div style="display: flex; flex-direction: column;">
       {% for t in armed %}
@@ -87,7 +87,7 @@
       {% endfor %}
     </div>
     {% else %}
-    <div class="t-muted">No armed tripwires (or no phase parsed).</div>
+    <div class="t-muted">No armed scope triggers (or no phase parsed).</div>
     {% endif %}
     {{ card_close() }}
 

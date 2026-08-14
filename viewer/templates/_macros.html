@@ -147,7 +147,7 @@
   {% set next_num = '%03d' % ((num | int) + 1) if num else '' %}
   {% set items = [
     ('done', prev_num, 'previous phase', ''),
-    ('current', num, slug, 'day ' ~ (snap.phase.tripwires | length) ~ ' · in progress' if snap.phase else ''),
+    ('current', num, slug, (('day ' ~ snap.phase.day) if snap.phase.day is not none else 'day —') ~ ' · in progress' if snap.phase else ''),
     ('future', next_num, '(unscoped)', '')
   ] %}
   {% for state, n, name, sub in items %}

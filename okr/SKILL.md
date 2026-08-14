@@ -7,6 +7,23 @@ description: Goal-setting partner that owns the OKR cascade — overall (version
 
 Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "why" layer that drives the PMO's "how". Owns goal-setting at three cadences (overall → current phase → weekly proposals) and hands weekly tasks to PMO. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
 
+## How this file is organized
+
+This `SKILL.md` is intentionally lean: it holds what runs on **every** invocation — the snapshot ritual, the subcommand index, state-file ownership, and the style rules. Each subcommand's full procedure lives under `reference/`, loaded only when that subcommand fires.
+
+| Reference file | Loaded when running |
+|---|---|
+| `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
+| `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
+| `reference/weekly.md` | `plan-week` (the PMO hand-off) |
+| `reference/pivots.md` | `pivot`, `dashboard` |
+| `reference/hooks.md` | Configuring `.perry/hook.md` for a project |
+| `$PERRY_HOME/reference/input-quality.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
+| `$PERRY_HOME/reference/okr-linkage.md` (shared) | Any attribution question. The "never guess — resolve by ID or ask" gate |
+| `$PERRY_HOME/reference/host-capabilities.md` (shared) | Per-host tool fallbacks (Codex has no `AskUserQuestion`) |
+
+When a subcommand fires, **read the matching reference file first**, then act.
+
 ## Why phases, not months
 
 Agent-paced projects finish month-scoped KRs in week 1, then spend three weeks doing busy-work to fill the calendar. The "month" is a unit of human team cadence, not of project state. Perry's OKR replaces the monthly OKR with a **current phase OKR**: a tactical commitment scoped to a coherent piece of work, ended when its KRs are largely hit (not when a date arrives). Phases are numbered (`#001`, `#002`, ...) with a user-chosen slug for sortability + searchability.
@@ -41,8 +58,8 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
-2. **Read** `OKR.md` (current version) and `phase/<current-NNN>-<slug>.md` if a current phase exists (resolve "current" by reading `phase/CURRENT` pointer file if present, else picking the highest-numbered `phase/<NNN>-*.md` not yet scored). Also read `phase/<current-NNN>-linkage.md` if present — the Project↔KR registry used to resolve task attribution and count `unlinked` tasks for the snapshot.
-3. **Read** `BOARD.md` (if PMO is also installed) so KR progress can be cross-checked against closed tasks and their evidence files.
+2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `phase/<NNN>-linkage.md`, cross-checks `BOARD.md`, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.
+3. **Read the source text** only when the conversation is about its content — the phase narrative, an Objective's wording, an Operating Principle. The payload answers "how many / how far / what's unlinked" without loading it.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about goal progress right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:
@@ -90,17 +107,17 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
 For navigation help: `/okr help` prints this index; `/okr help <subcommand>` prints just that row plus the matching section below.
 
-| Subcommand | One-line | Section |
+| Subcommand | One-line | Reference |
 |---|---|---|
-| `init` | First-time bootstrap of overall `OKR.md` (interview) | Setup & cadence |
-| `revise` | Append a new version to `OKR.md` (material goal change) | Setup & cadence |
-| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections | Phase cadence |
-| `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | Phase cadence |
-| `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | Phase cadence |
-| `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | Weekly cadence |
-| `pivot <reason>` | Mid-phase goal change (high-friction by design) | Pivots & dashboards |
-| `dashboard` | Detailed view per Objective (computes status, projection) | Pivots & dashboards |
-| `help [<subcommand>]` | Print this index; with arg, print + read matching section | (handled here) |
+| `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
+| `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
+| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph | `reference/phases.md` |
+| `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
+| `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
+| `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
+| `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
+| `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
+| `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |
 
 Peer skills: `/pmo help` (execution) · `/design help` (RFCs) · `/perry help` (combined overview)
 
@@ -108,137 +125,9 @@ Peer skills: `/pmo help` (execution) · `/design help` (RFCs) · `/perry help` (
 
 Without arg: print the **Subcommand index** table above plus a short pointer to peer skills.
 
-With arg: locate the row for `<subcommand>`, print it, then read the matching `### <subcommand>` section below so the full procedure is in context for follow-up. If the user types a subcommand that doesn't exist, suggest the closest match.
+With arg: locate the row for `<subcommand>`, print it, then **read the matching reference file** so the full procedure is in context for follow-up. If the user types a subcommand that doesn't exist, suggest the closest match.
 
 `help` does NOT trigger the OKR Snapshot (it's a navigation command). The user can still type `/okr` directly for the snapshot.
-
-## Subcommands
-
-### Setup & cadence
-
-#### `init` — first-time bootstrap of overall OKR
-Run when `OKR.md` doesn't exist. Conduct the interview:
-1. **Period** — overall horizon? (3 months / 6 months / 1 year). Default to project-lifetime if known.
-2. **Mission** — one sentence: why this project exists.
-3. **Operating Principles** — 5–10 invariants the system must hold across all Objectives. Examples: "X must never be done without Y", "cost must stay below Z", "auditability before performance". These survive across versions.
-4. **Tracks → Objectives** — propose 1–3 Objective tracks. Generic defaults: *Learn*, *Build*, *Validate*. Rename freely.
-5. **For each Objective**:
-   - Title (action-oriented, qualitative)
-   - 3–5 Key Results, each measurable (number + unit + deadline)
-   - Mark KRs as `commit` (must achieve) or `stretch` (welcome-to-overshoot)
-6. **Anti-Goals** — 4–8 things the project will NOT do during this period. Examples: "no production deploys until promotion gate", "no new paid API integrations", "no untested refactors".
-7. **Versioning** — assign `v1` and today's date. All future revisions are appended versions, not edits in place.
-7.5. **Input-quality pass** — before writing, run the pass in `$PERRY_HOME/reference/input-quality.md § 1 Overall OKR` against the drafted Mission / Objectives / KRs / Anti-Goals. Surface ≤3 issues (advisory + override, never silent rewrite); on override, log the one-line reason. This is the systematic form of "push back on vague KRs".
-8. Write `OKR.md` from `state/OKR_TEMPLATE.md`. Verify ≤200 lines (tier 1 hard cap); if template + user inputs already exceed, prompt user to trim Operating Principles / KR descriptions before write.
-9. Run `plan-phase` to create phase `#001`.
-
-#### `revise` — produce a new OKR version
-Used when goals materially change between versions (new constraints, new mission, big learnings). Soft fork:
-1. Show current `OKR.md` summary.
-2. Walk through what's changing per Objective / KR.
-3. Increment version number, set new date.
-4. Append the new version under `## v<N>: YYYY-MM-DD`. Old versions stay readable for historical audit.
-5. Re-check the current phase OKR — does it still serve the new overall? If not, suggest `/okr score-phase` (close current) + `/okr plan-phase` (start new aligned with revised goals).
-6. Tell PMO to append a `DECISIONS.md` ADR (`Type: Process`).
-
-### Phase cadence
-
-#### `plan-phase <slug>`
-Start a new phase. `<slug>` is user-chosen (short, hyphenated). PMO assigns `#<NNN>` automatically: `NNN = (max existing phase number) + 1`, zero-padded to 3 digits. The new file is `phase/<NNN>-<slug>.md` (e.g., `phase/002-release-pipeline.md`).
-
-Read before drafting:
-- `OKR.md` (current version).
-- **Latest scored phase** — `phase/<NNN-1>-*.md § Retro` (if exists) + `evidence/<YYYY-MM>/retro.md` from the calendar month in which that phase was scored.
-- **`ARCHITECTURE.md`** (if it exists at project root) — full text, with focus on:
-  - `§7 Open questions` — surface any idle ≥30 days as User Input Queue candidates the new phase OKR should resolve.
-  - `§8 Change log` since the last `plan-phase` — summarise as part of `Phase Focus` narrative (what changed in system design).
-- **`architecture/audit-history/<latest>.md`** (if exists) — see `pmo/reference/architecture.md § OKR integration`. Every unresolved drift item must appear in the new phase OKR as one of: a KR/Project that resolves it, an `ARCHITECTURE.md` edit that accepts the drift, a `Not Doing` line acknowledging deferral, or a pending ADR ID covering it. If none of these covers an open item → refuse to write the phase file until the user picks a response.
-- **Carry-forward metrics from prior phase** (if present in `evidence/<YYYY-MM>/retro.md § Health metrics`): incident feedback-loop ratio, audit drift trend, runbook coverage gap. These inform whether the new phase needs an operability-focused Objective.
-
-The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical commitment with these mandatory sections:
-
-1. **Phase Focus** — narrative paragraph. What is this phase *primarily* about? What state should the project reach by phase-end? Phase end is defined by KR-completion, not a date.
-2. **Operating Rules** — phase-scoped invariants (subset / extension of overall Operating Principles). Often: agent autonomy boundaries, what requires user authorization, evidence requirements for promotions.
-3. **Cost Ceiling** — explicit dollar (or token / time) caps on the phase's spend, with a soft-fallback threshold (typically 80%). Mark whether the ceiling is *wired* (enforced by code) or *doc-only*. If the cost ceiling is set at the overall OKR level (lifetime cap), reference it here instead of redefining.
-4. **User Commitments** — bullet list of what the user must contribute during this phase. These become USER-ids in PMO's User Input Queue.
-5. **User-Unavailable Degradation** — if user input is missing for >5 days, what work continues, in what order. Names the specific task ids that don't depend on missing inputs.
-6. **Phase Scope Reduction Rule** — automatic scope cut, triggered by *one of two* conditions (spec writer picks):
-   - **Phase-day trigger**: "If by phase day <N> (counting from `plan-phase` write date) named USER-ids are still open, Objective N collapses to its single Must-Have deliverable; remaining items defer to next phase."
-   - **KR-progress trigger**: "If commit KRs are <X% achieved at phase day <N>, scope cuts to the named Must-Haves."
-   Either form (or both, whichever fires first). NO calendar-date triggers.
-7. **Objectives** — 2–4 phase Objectives. For each:
-   - Title
-   - Goal (1–2 sentences)
-   - 3–5 Key Results (measurable; deadline is phase-end, not a calendar date)
-   - Linked Projects: each Project has Owner / User role / Deliverable / Verification — these become PMO task seeds with TASK-IDs.
-8. **Definition of Done** — split into **Must-Have** (failure = phase missed) and **Nice-to-Have** (failure allowed but explained in retro).
-9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
-10. **Process Note** — pointer to PMO's cadence work so phase Objectives don't waste slots on "do weekly status reports".
-
-**Input-quality pass** before confirming: run `$PERRY_HOME/reference/input-quality.md § 2 Phase OKR` against the drafted Phase Focus / KRs / DoD / Cost Ceiling / scope-reduction trigger; surface ≤3 issues (advisory + override). Then confirm with user; write `phase/<NNN>-<slug>.md` from `state/phase_TEMPLATE.md`. **Verify ≤300 lines (tier 1 hard cap)** before writing — if drafted content exceeds, AskUserQuestion (header `"Phase cap"`, options): `Split — move Stretch / long narrative to evidence/<YYYY-MM>/phase-<NNN>-<topic>.md (Recommended) | Trim sections in place | Override with logged reason`. After write, update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>` for fast lookup). **Then seed the linkage registry**: write `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — one row per Project defined above (`Project ID | Serves KR | Objective | Current name | Aliases (empty) | active`). This is the stable-ID source of truth that keeps every Project's KR attribution from being guessed later; see `$PERRY_HOME/reference/okr-linkage.md`. Optionally call `plan-week` for week 1 immediately.
-
-#### `score-phase [<NNN>]`
-Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross-reference `evidence/<YYYY-MM>/` (for the calendar months the phase spanned) and `BOARD.md` Done section. Attribute each done task to its KR **by ID through `phase/<NNN>-linkage.md`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to.
-1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"KR-P-1.2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
-2. Compute KR score 0.0–1.0 (overshot caps at 1.0; record stretch overshoot separately).
-3. Aggregate to Objective score (mean of KRs).
-4. Write **Retro** section in `phase/<NNN>-<slug>.md`:
-   - What went well (KRs ≥1.0 or with surprising wins)
-   - What underperformed (<0.7) and why
-   - Lessons for next phase
-   - Carry-overs proposed (with rationale)
-5. Write a parallel summary to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time) so PMO can consume it. Append `Phase: #<NNN>-<slug> · started <start-date> · scored <today>` header.
-6. **Auto-snapshot before closing**: copy `phase/<NNN>-<slug>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md` (the `-final` suffix marks this as the terminal snapshot for the phase).
-7. Clear `phase/CURRENT` (delete the file or write `(none)` until the next `plan-phase`).
-8. If the overall period closed: append **Retro** to `OKR.md` for the relevant version.
-9. Suggest `/okr plan-phase <new-slug>` for the next phase.
-
-#### `snapshot`
-Preserve the current state of `phase/<current>.md` without ending the phase.
-1. Read `phase/CURRENT`; resolve to `<NNN>-<slug>`. If no current phase → refuse and tell user to run `plan-phase` first.
-2. Compute filename: `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`. If a snapshot already exists for today, append `-2`, `-3`, etc.
-3. Copy the current phase file verbatim. Write a one-line header on top: `> Snapshot taken: <YYYY-MM-DD HH:MM> · phase day <N> · KR progress <K-done>/<K-total> commit`.
-4. Print: "Snapshot written: `phase/snapshots/<filename>`."
-
-Use cases: manual heartbeat (user runs ad-hoc); end-of-week milestone; before a risky pivot; before `okr revise` that might invalidate phase assumptions.
-
-### Weekly cadence
-
-#### `plan-week`
-The **PMO hand-off**. Most-used subcommand.
-
-1. Read `phase/<current-NNN>-<slug>.md` (via `phase/CURRENT`). Identify the current ISO week's row in the week-by-week breakdown.
-2. Translate each commitment into 1–2 concrete tasks. **Resolve each task's KR by ID through `phase/<NNN>-linkage.md`, never by guessing from the Project name** (resolution order + the ask in `$PERRY_HOME/reference/okr-linkage.md`). If the phase-file Project name differs from what the user says now, confirm they're the same Project and append the alias to the registry before tagging. If the KR can't be resolved to exactly one → `AskUserQuestion` (candidate KRs); never fuzzy-match. Each task gets:
-   - Short slug id (e.g., `migrate_user_table_v2`)
-   - Title
-   - Linked Objective/KR (e.g., `kr:M-O1.2`) — the resolved ID, from the registry
-   - Owner (`User`, `User + Agent`, `Coding Agent`, `Research Agent`, `Review Agent`, or `PMO Agent`)
-   - Priority (`P0` if blocks Must-Have, `P1` if advances, `P2` otherwise)
-   - Deliverable + Verification (1 line each)
-   - Out-of-scope notes if relevant (e.g., "do not touch production", "no access to prod credentials")
-3. Print 3–5 candidate tasks in a table. Before printing, run `$PERRY_HOME/reference/input-quality.md § 4 Task` over each candidate (verification falsifiable, deliverable is an artifact, single owner, priority justified, `kr:` linked); fix or flag inline — don't hand PMO a task with "verify it works".
-4. **If ≤ 4 candidates**: use `AskUserQuestion` with `multiSelect: true` (header `"Pick tasks"`) — each candidate is one option with the task title in `label` and the rationale + KR linkage in `description`. User clicks the subset they approve.
-   **If 5 candidates**: use `AskUserQuestion` (single-select, header `"Subset"`) with options `Approve all 5 | Pick subset (Recommended) | Edit before approving | Skip this week`. If "Pick subset", follow up with a free-text "which IDs to include?" prompt.
-5. On approval, **hand off to PMO**: print the exact task block list. PMO `add-task` writes the BOARD row and the journal definition. OKR never writes `BOARD.md` or `journal/` directly.
-6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs, so KR-to-task linkage is visible from both sides.
-
-### Pivots & dashboards
-
-#### `pivot <reason>`
-For mid-phase goal changes (market shift, big learning, capital change). High-friction by design — pivots should be rare.
-1. Restate the affected O / KR.
-2. Walk through: change title? change metric? drop entirely? add a new one? **Use `AskUserQuestion`** (header `"Pivot kind"`, options = `Change title | Change metric (Recommended) | Drop entirely | Add new KR`) for each affected KR.
-3. If pivoting overall OKR → run `revise` to bump version. If only the current phase → first run `/okr snapshot` to preserve the pre-pivot state, then write a `## Changes` line in `phase/<NNN>-<slug>.md` with `YYYY-MM-DD — <what> — <reason>`. Old text stays as strikethrough.
-4. Hand off to PMO: append a `DECISIONS.md` ADR (`Type: Process`) capturing the pivot rationale and which Operating Principle (if any) it tested.
-
-#### `dashboard`
-Detailed view, not just the snapshot. For each Objective:
-- Title, status (`on_track | at_risk | off_track`) computed from elapsed-time vs progress
-- All KRs with current/target, evidence path, ≤2-line note
-- Open tasks grouped by KR (read from `BOARD.md`)
-- Cost ceiling burn-down chart (if cost ceiling is set)
-- Linear-projection end-of-period score
-- Operating Principles still in force, Anti-Goals still in force
 
 ## State files
 
@@ -247,7 +136,7 @@ Detailed view, not just the snapshot. For each Objective:
 | `OKR.md` | okr | Versioned overall OKR with Operating Principles + Anti-Goals | `state/OKR_TEMPLATE.md` |
 | `phase/<NNN>-<slug>.md` | okr | Phase OKR with Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing | `state/phase_TEMPLATE.md` |
 | `phase/CURRENT` | okr | One-line pointer to current phase (`<NNN>-<slug>`). Empty / missing = no current phase | (plain text) |
-| `phase/<NNN>-linkage.md` | okr | O→KR→Project linkage registry (tier 2): stable Project ID ↔ KR ↔ aliases. The source of truth that stops Project→KR attribution from being guessed. PMO reads, never writes. | `state/linkage_TEMPLATE.md` |
+| `phase/<NNN>-linkage.md` | okr | **The O→KR→task→agent graph** (tier 2, YAML frontmatter, spec `linkage: 1`). Declares task→KR edges, numeric KR progress, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written; read by Perry *and* the frontend. PMO reads, never writes. | `state/linkage_TEMPLATE.md` |
 | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` | okr | Frozen point-in-time copies of phase OKR. Auto-written on `score-phase` (with `-final` suffix) or `snapshot` (no suffix) | — |
 | `BOARD.md` | pmo | Read by OKR for cross-check; never written | (in pmo skill) |
 | `evidence/<YYYY-MM>/retro.md` | pmo | Read by OKR `score-phase` after PMO writes it; never written | (in pmo skill) |
@@ -269,10 +158,12 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
   - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log only.
   - `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`; main file references via link.
   - `init` / `plan-phase` / `revise` MUST verify line count before write; if would exceed, AskUserQuestion (header `"Tier 1 cap"`, options): `Split — move section X to evidence file (Recommended) | Trim section X in place | Override — write past cap with reason logged`. Override path requires written reason in journal.
-  - Reading a tier 3 HTML render (`/pmo render dashboard` or similar) is the right consumption path when the user wants the "rich" view.
+  - When the user wants the "rich" view, point them at the frontend (aiMark, or `/pmo viewer`) — Perry's job is the well-formed markdown underneath, not the presentation.
+- **Write the declared structure, not an approximation of it.** `OKR.md` and `phase/<NNN>-<slug>.md` have a contract in `$PERRY_HOME/schema/state-schema.json`: named sections, KR ids matching `KR-O<n>.<m>` / `P-O<n>.<m>`, KRs in tables with the declared columns, `Started:` as a real date. Everything downstream — the standup's numbers, attribution, the viewer — reads that structure; a KR written as a prose bullet is invisible to all of it. After any write to a tier 1 file, run `"$PERRY_HOME/bin/perry-lint" --root .` and fix what it reports.
 - **Stretch ≠ commit.** Mark stretch KRs explicitly. Don't shame underdelivery on stretch.
 - **Cite evidence paths.** Every progress claim points to a `BOARD.md` row or `evidence/<YYYY-MM>/<file>.md`.
-- **Never guess a Project's KR/Objective.** Resolve by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias); if it doesn't resolve to exactly one KR, ask via `AskUserQuestion` — never fuzzy-match a name. Unresolved → `unlinked`, excluded from KR roll-up, surfaced. Full rule: `$PERRY_HOME/reference/okr-linkage.md`. This is a hard gate, not advisory.
+- **Never guess a Project's KR/Objective.** Resolve through `phase/<NNN>-linkage.md` in order: declared `tasks[]` edge → Project ID → registered alias. If it doesn't resolve to exactly one KR, ask via `AskUserQuestion` — never fuzzy-match a name. Unresolved → `unlinked`, excluded from KR roll-up, surfaced. Full rule: `$PERRY_HOME/reference/okr-linkage.md`. This is a hard gate, not advisory.
+- **A KR's `target` / `current` are numbers or absent.** Never coerce a prose target ("≤ 15% drawdown") into a number to fill the field — the frontend draws a progress bar from it, and a ceiling shown as progress is a lie about a risk limit. Put the prose in `metric`.
 - **Never write to PMO files.** Hand off via chat.
 - **Pivot is paid in friction.** Force the `pivot` interview; never silently edit `OKR.md`.
 - **Versions are append-only.** Never overwrite `## v<N>` blocks; add new ones.
@@ -281,43 +172,4 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
 
 ## Per-project hooks (optional)
 
-Generic by default; hooks are pure additions, not overrides.
-
-### Block format
-
-```
-If the project is **<name>**:
-- Default overall period: <e.g., 3 months>.
-- Canonical Objective tracks: <list, with one-line descriptions>.
-- Roadmap source-of-truth: <file>.
-- Operating Principles to seed: <list>.
-- Anti-Goals to seed: <list>.
-- Cost ceiling defaults: <amount + soft threshold + wiring>.
-- For KR metrics, prefer MCP tools: <list>.
-- KR examples: <2–3 examples>.
-```
-
-### Skeleton example (fill in with your own project's specifics)
-
-```
-If the project is **<your project name>**:
-- Default overall period: <e.g., 3 months / 6 months / 1 year>.
-- Canonical Objective tracks: <2–3 named tracks with one-line descriptions
-  that fit your domain; e.g., "Learn / Build / Validate" or any other set>.
-- Roadmap source-of-truth: <file that anchors phase/week mapping, if any>.
-- Operating Principles to seed (drop these into `OKR.md` Operating Principles
-  on `okr init`):
-  - <invariant the system must hold>
-  - <invariant the system must hold>
-- Anti-Goals to seed:
-  - <thing the project will NOT do>
-  - <thing the project will NOT do>
-- Cost ceiling defaults: <amount / period> · soft fallback at <%> · hard cap
-  at <%> · check via <command or dashboard> · wiring status: <wired | doc-only>.
-- For KR metrics, prefer MCP tools: <list>.
-- KR examples that fit this domain:
-  - <metric + target + deadline>
-  - <metric + target + deadline>
-```
-
-For projects without a hook block, the generic interview in `init` works fine.
+Generic by default; hooks are pure additions, never overrides. Block format, skeleton, and the one hook section that is a safety gate rather than configuration: see `reference/hooks.md`. For projects without a hook, the generic interview in `init` works fine.
