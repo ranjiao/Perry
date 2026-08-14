@@ -57,7 +57,7 @@ Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_T
 
 After write:
 1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now), one `projects[]` entry per Project defined above (`serves`, `objective`, `name`, `aliases: []`, `status: active`). Set `updated` to a full ISO datetime.
+2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now), one `projects[]` entry per Project defined above (`serves`, `objective`, `name`, `aliases: []`, `status: active`). Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at.
 
    Two things to get right, because a reader can't recover from either:
    - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved.
@@ -82,7 +82,9 @@ Attribute each done task to its KR **by ID through `phase/<NNN>-linkage.md`**, p
    - Lessons for next phase
    - Carry-overs proposed (with rationale)
 5. Write a parallel summary to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time) so PMO can consume it. Append `Phase: #<NNN>-<slug> · started <start-date> · scored <today>` header.
-6. **Auto-snapshot before closing**: copy `phase/<NNN>-<slug>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md` (the `-final` suffix marks this as the terminal snapshot for the phase).
+6. **Auto-snapshot before closing**: copy `phase/<NNN>-<slug>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>-final.md` (the `-final` suffix marks this as the terminal snapshot for the phase). **Snapshot the linkage graph alongside it** — `phase/<NNN>-linkage.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-linkage-final.md`. The graph is how a future reader tells which task served which KR; a retro without it can only say *that* a KR scored, not *what* moved it.
+
+   The live `phase/<NNN>-linkage.md` stays where it is. It is named by phase number, so the next `plan-phase` writes its own file and nothing is overwritten. **Carry forward** into the new graph: any Project still `active` (as a `projects[]` entry, with its aliases intact — a carried-over Project's old names must keep resolving), and any task the retro moved to the next phase, appended to whichever new KR it now serves. Do **not** carry `unlinked[]` forward blindly: re-declare it against the new phase's KRs, since work that served no KR last phase may well serve one now.
 7. Flip the phase header to `**Status**: scored`, then clear `phase/CURRENT` (delete the file or write `(none)` until the next `plan-phase`).
 8. If the overall period closed: append **Retro** to `OKR.md` for the relevant version.
 9. Suggest `/okr plan-phase <new-slug>` for the next phase.

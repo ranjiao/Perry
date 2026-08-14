@@ -16,6 +16,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | `reference/setup.md` | `init`, `revise` (overall `OKR.md` creation + versioning) |
 | `reference/phases.md` | `plan-phase`, `score-phase`, `snapshot` (the phase cadence + the ten mandatory sections) |
 | `reference/weekly.md` | `plan-week` (the PMO hand-off) |
+| `reference/linkage.md` | `link` — owning `phase/<NNN>-linkage.md`: accepting PMO's attribution hand-off, aliases, unlinked |
 | `reference/pivots.md` | `pivot`, `dashboard` |
 | `reference/hooks.md` | Configuring `.perry/hook.md` for a project |
 | `$PERRY_HOME/reference/input-quality.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
@@ -115,6 +116,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
+| `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `phase/<NNN>-linkage.md` (the only writer) | `reference/linkage.md` |
 | `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
 | `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
 | `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |

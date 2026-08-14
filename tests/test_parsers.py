@@ -150,6 +150,28 @@ class FixtureProject(unittest.TestCase):
         self.assertIsNone(krs["P-O2.1"].target)
         self.assertEqual(krs["P-O2.1"].metric, "flaky runs <= 1%")
 
+    def test_unlinked_survives_a_round_trip(self):
+        """`unlinked` is declared, never inferred — so it has to come back out
+        exactly as written, including when it is the only key present."""
+        link = P.parse_linkage(
+            "---\nlinkage: 1\nunlinked: [A-1, B-2]\n---\n")
+        self.assertTrue(link.ok, link.error)
+        self.assertEqual(link.unlinked, ["A-1", "B-2"])
+        block = P.parse_linkage(
+            "---\nlinkage: 1\nunlinked:\n  - A-1\n  - B-2\n---\n")
+        self.assertEqual(block.unlinked, ["A-1", "B-2"])
+
+    def test_a_prose_target_is_never_coerced(self):
+        """The linter rejects it, but the reader must not invent one either."""
+        link = P.parse_linkage(
+            '---\nlinkage: 1\nobjectives:\n  - id: O1\n    title: t\n'
+            '    krs:\n      - id: P-O1.1\n        title: t\n'
+            '        metric: "max drawdown <= 15%"\n        target: "<= 15%"\n---\n')
+        self.assertTrue(link.ok, link.error)
+        kr = link.objectives[0].krs[0]
+        self.assertIsNone(kr.target, "a prose target must stay absent, not become 15")
+        self.assertEqual(kr.metric, "max drawdown <= 15%")
+
     def test_linkage_is_all_or_nothing(self):
         link = P.parse_linkage("---\nlinkage: 1\nobjectives:\n\t- id: O1\n---\n")
         self.assertFalse(link.ok)
