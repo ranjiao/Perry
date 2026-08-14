@@ -110,12 +110,29 @@ When `/perry` is run in a project with no Perry state files at all:
    - **Repo layout** (header `"Repo layout"`): options = `Single repo (Recommended for non-code projects) | Split repo (PMO ↔ code; only if both exist and you've seen branch contention)`. See **Repo layout options** below for the trade-off explanation that goes into each option's `description`.
 
    All subsequent skill output (snapshots, dashboards, generated docs, delegation prompts) uses the configured language. If the user mixes languages later, keep using the configured language for written artifacts but mirror the user's language in chat replies.
-3. Recommend the order:
+3. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
+
+   For a new project, recommend the order below.
+4. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
    - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
    - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
-4. Ask: "Run `/okr init` now?" — if yes, invoke the `okr` skill. If no, stop and let the user proceed at their own pace.
+5. Ask: "Run `/okr init` now?" — if yes, invoke the `okr` skill. If no, stop and let the user proceed at their own pace.
+
+## `/perry adopt` — converting an existing project
+
+For a project that already exists — code, docs, git history, an issue tracker — the blank-slate `init` chain above throws away the answers the project already contains. `/perry adopt` reads them instead.
+
+```
+/perry adopt [--depth=quick|standard|deep] [--only=okr,board,design,knowledge,arch] [--resume] [--recheck]
+```
+
+**Read `reference/adoption.md` before running it.** The one rule that governs the whole pipeline: **evidence proposes, the user declares.** Adoption writes exactly one file of its own — `.perry/adoption/<YYYY-MM-DD>-dossier.md` — and everything that reaches `OKR.md` / `BOARD.md` / `design/` gets there through the normal subcommands after the user accepted it. File ownership is unchanged: adoption is an orchestrator, not a fourth writer.
+
+Five stages, each resumable: **scan** (read-only report) → **harvest** (cited evidence) → **infer** (candidates, clustered) → **confirm** (goals authored by the user from a strawman; tasks triaged by cluster; designs/ADRs transcribed only where a source doc exists) → **commit** (materialize, then `perry-lint` must pass). `--recheck` re-runs the harvest against an adopted project and reports drift — work that landed in the repo but never on the board.
+
+Sources, trust tiers, and the depth matrix (including non-code projects) are in `reference/adoption-sources.md`.
 
 ## Repo layout options
 
@@ -183,6 +200,7 @@ When the user types something inside a `/perry` session, route to the right chil
 
 **Handle here in `/perry` (without routing):**
 - The combined snapshot itself.
+- `adopt` — converting an existing project into Perry state. It spans all three lanes, so it is orchestrated here and materialized through the children's own subcommands (`reference/adoption.md`).
 - "Explain Perry" / "what is this skill" — short pointer to README.
 - Recommending the next action when the choice spans more than one child.
 - Confirming or updating `.perry/config.md` (document language, repo layout).
@@ -218,9 +236,16 @@ Perry — virtual project office (3 invocable skills)
   /perry    This skill — combined snapshot across all three.
             Use when: starting a fresh session, one-stop "where are we",
             unsure which child you want.
-            Common: /perry, /perry help
+            Common: /perry, /perry help, /perry adopt
 
-First-time setup: /perry in a new project → confirms language + repo layout.
+  /perry adopt   Convert an EXISTING project into Perry state.
+            Use when: the project already has code, docs, git history, or a
+            tracker, and starting from a blank OKR would throw that away.
+            Evidence proposes; you declare. Nothing is written until you accept.
+            Common: /perry adopt, --depth=quick, --recheck
+
+First-time setup: /perry in a new project → confirms language + repo layout,
+then asks new-vs-existing and routes to /perry adopt for existing projects.
 Read more: $PERRY_HOME/README.md
 ```
 
@@ -300,6 +325,8 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 - [README.md](README.md) — full overview, file layout, design rationale.
 - [INSTALL.md](INSTALL.md) — install instructions.
 - [schema/README.md](schema/README.md) — the state-file contract every skill, template, and parser must agree with; validated by `bin/perry-lint`.
+- [reference/adoption.md](reference/adoption.md) — `/perry adopt`: the five-stage pipeline that converts an existing project into Perry state. The governing rule (**evidence proposes, the user declares**), the asymmetry between what may be inferred and what may not, cluster triage, the cluster→KR attribution pass, and the list of things adoption never does.
+- [reference/adoption-sources.md](reference/adoption-sources.md) — the harvest catalog: source detectors, A/B/C trust tiers (which cap derived confidence), the depth matrix, scale limits, non-code projects, and the citation forms every piece of evidence must produce.
 - [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
 - [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
 - [okr/SKILL.md](okr/SKILL.md) — full goal-setting subcommands and templates.

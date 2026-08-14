@@ -45,6 +45,51 @@
       "partial",
       "missed",
       "dropped"
+    ],
+    "adoption_stage": [
+      "scan",
+      "harvest",
+      "infer",
+      "confirm",
+      "commit",
+      "done"
+    ],
+    "adoption_depth": [
+      "quick",
+      "standard",
+      "deep"
+    ],
+    "adoption_mode": [
+      "fresh",
+      "merge"
+    ],
+    "source_tier": [
+      "A",
+      "B",
+      "C"
+    ],
+    "candidate_kind": [
+      "objective",
+      "kr",
+      "phase",
+      "task",
+      "design",
+      "decision",
+      "knowledge",
+      "arch",
+      "risk"
+    ],
+    "candidate_confidence": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "candidate_status": [
+      "pending",
+      "accepted",
+      "edited",
+      "rejected",
+      "deferred"
     ]
   },
   "files": [
@@ -420,6 +465,188 @@
                 "type": "string",
                 "required": false,
                 "enum": "linkage_status"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "adoption",
+      "path": ".perry/adoption/*.md",
+      "template": "state/adoption_dossier_TEMPLATE.md",
+      "owner": "perry",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "adoption",
+        "spec_version": 1,
+        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 — state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
+        "fields": {
+          "adoption": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "project": {
+            "type": "string",
+            "required": true
+          },
+          "root": {
+            "type": "string",
+            "required": false,
+            "note": "absolute path to the adopted project root"
+          },
+          "depth": {
+            "type": "string",
+            "required": false,
+            "enum": "adoption_depth"
+          },
+          "mode": {
+            "type": "string",
+            "required": false,
+            "enum": "adoption_mode",
+            "note": "merge = Perry state already exists; duplicates are surfaced to the user, never auto-dropped"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false
+          },
+          "started": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "stage": {
+            "type": "string",
+            "required": true,
+            "enum": "adoption_stage",
+            "note": "the only field --resume reads; advanced only after the stage's writes are durable"
+          },
+          "sources": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^SRC-\\d{3}$"
+              },
+              "kind": {
+                "type": "string",
+                "required": true,
+                "note": "a source id from reference/adoption-sources.md"
+              },
+              "tier": {
+                "type": "string",
+                "required": true,
+                "enum": "source_tier",
+                "note": "caps the confidence of every candidate derived from this source"
+              },
+              "path": {
+                "type": "string",
+                "required": false
+              },
+              "read": {
+                "type": "boolean",
+                "required": false,
+                "note": "scan writes false; harvest flips it. The difference is what --resume needs."
+              }
+            }
+          },
+          "clusters": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^CL-\\d{2}$"
+              },
+              "name": {
+                "type": "string",
+                "required": true,
+                "note": "named after the work, not the source"
+              },
+              "seed": {
+                "type": "string",
+                "required": false,
+                "note": "commit_scope | module | issue_label | fs_timeline | misc"
+              },
+              "kr": {
+                "type": "string",
+                "required": false,
+                "pattern": "^P-O\\d+\\.\\d+$",
+                "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
+              }
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^CAND-\\d{3}$"
+              },
+              "kind": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_kind"
+              },
+              "confidence": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_confidence",
+                "note": "Perry's reading of the evidence, NOT whether the candidate is a good idea"
+              },
+              "cluster": {
+                "type": "string",
+                "required": false,
+                "pattern": "^CL-\\d{2}$"
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": true,
+                "note": "citations in the declared forms (path#Lx-y, git:sha, gh#id, fs:path@mtime). A candidate that cannot cite is dropped, not softened."
+              },
+              "proposal": {
+                "type": "string",
+                "required": true
+              },
+              "target": {
+                "type": "string",
+                "required": false,
+                "note": "which state file it would land in, and therefore which skill writes it"
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_status",
+                "note": "rejected entries are KEPT — they are the don't-ask-me-again record"
+              },
+              "resolution": {
+                "type": "string",
+                "required": false,
+                "note": "one line: why rejected / what the user edited it to"
+              },
+              "materialized_as": {
+                "type": "string",
+                "required": false,
+                "note": "the real id it became at stage 4 (TASK-007, DESIGN-002, ADR-004)"
               }
             }
           }
