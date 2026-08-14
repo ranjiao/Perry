@@ -580,7 +580,7 @@
               "seed": {
                 "type": "string",
                 "required": false,
-                "note": "commit_scope | module | issue_label | fs_timeline | misc"
+                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc — in preference order; see reference/adoption.md § Clustering"
               },
               "kr": {
                 "type": "string",

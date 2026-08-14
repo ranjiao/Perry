@@ -75,6 +75,12 @@ they will reject. Emit at `low` unless the marker is corroborated by a tier A/B
 source (named in the roadmap, touched by a recent commit, referenced by an
 issue) — in which case promote to `medium`.
 
+**`markers` is a fallback, not a primary source.** A project disciplined enough to
+be worth adopting usually keeps its TODOs in a roadmap file rather than in code
+comments — the first real adoption test found **zero** markers across 62 modules
+while `TODOS.md` carried 18 tasks. Expect this source to earn its keep only on
+repos with no roadmap at all.
+
 ## Depth matrix
 
 Depth controls which sources run, and the window on the windowed ones.

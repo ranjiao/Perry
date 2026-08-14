@@ -42,7 +42,21 @@ means. So the three layers are authored differently, and this is not negotiable:
 | `BOARD.md` tasks | **Evidence**, user-triaged in bulk | "what is unfinished" is genuinely legible from TODOs, open issues, and stale branches. High volume, reliable inference. |
 | `design/`, `decisions/`, `knowledge/` | **Transcribed only** | Converted where a real source document exists. Never invented. |
 
-The third row is the one that gets violated under pressure. A project with
+### Declared is not inferred
+
+The rule bites on goals **derived** from evidence. A goal the user *wrote down* in
+a tier-A source — an `objective:` field in a native manifest, a "Mission" heading
+in the README, a stated phase — is a **transcription**, and forcing it through a
+strawman interview is pointless friction. Transcribe it, show the citation, and
+let the user correct it.
+
+The distinction survives contact with reality because the two almost never come
+together: projects state their purpose and almost never state a measurable KR.
+On the first real adoption test the objective and the current phase were both
+declared outright, and there was **not one KR anywhere in the repo** — so the
+strawman rule still applied to every single KR. That is the normal shape.
+
+The third row of the table is the one that gets violated under pressure. A project with
 undocumented decisions is *not* a project that needs Perry to write ADRs for
 them — inventing an ADR for a decision nobody recorded manufactures history and
 gives the rationale a false provenance. Surface it as a **task** ("capture why we
@@ -192,13 +206,18 @@ Cluster-batch triage is what makes stage 3 survivable: a real project yields
 makes cluster *quality* load-bearing, so the method is declared rather than
 improvised.
 
-**Seed from three signals that already exist in most repos:**
+**Seed from four signals that already exist in most repos, in this order:**
 
-1. **Conventional-commit scopes** — `feat(okr):`, `fix(viewer):`. Where a project
-   uses them, the scope *is* the cluster, authored by the developer, free.
-2. **Module / directory boundaries** — candidates whose evidence paths share a
+1. **The roadmap file's own headings** — a project that keeps a `TODOS.md` /
+   `ROADMAP.md` has usually already grouped its own work, and those groups beat
+   anything Perry would derive. Free, authored by the user, and semantic.
+2. **Conventional-commit scopes** — `feat(okr):`, `fix(viewer):`. Only useful when
+   the project actually uses them consistently; measure before relying on it (on
+   the first real adoption test, 11 of 113 commits carried a scope, spread across
+   6 scopes — useless as a seed).
+3. **Module / directory boundaries** — candidates whose evidence paths share a
    top-level module.
-3. **Issue labels / milestone names** — where a tracker exists.
+4. **Issue labels / milestone names** — where a tracker exists.
 
 **Rules:**
 
