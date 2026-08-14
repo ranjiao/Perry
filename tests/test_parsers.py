@@ -435,6 +435,55 @@ class Linter(unittest.TestCase):
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertTrue({"missing-section", "locked-design-has-plan"} & rules)
 
+    def test_judges_nothing_outside_dot_perry_before_adoption(self):
+        """A folder that is not a Perry project cannot hold malformed Perry
+        state. Reporting someone's own design/ doc as a broken design doc is the
+        linter claiming a namespace nobody gave it."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "theirs"
+            (proj / "design").mkdir(parents=True)
+            (proj / "design" / "global-search.md").write_text(
+                "# Design: search\n\n**Status:** implemented in v0.7.0\n")
+            res = self._run("--root", str(proj), "--json")
+            out = json.loads(res.stdout)
+            self.assertEqual(out["errors"], 0, out["findings"])
+            self.assertEqual(out["warnings"], 0, out["findings"])
+
+    def test_state_root_relocates_every_file_but_dot_perry(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "p"
+            proj.mkdir()
+            shutil.copytree(FIXTURE, proj / "pm")
+            # .perry is the anchor: it stays at the project root, and the copy
+            # that rode along under the state root would be read from nowhere.
+            shutil.move(str(proj / "pm" / ".perry"), str(proj / ".perry"))
+            cfg = proj / ".perry" / "config.md"
+            cfg.write_text(cfg.read_text().rstrip()
+                           + "\n- State root: pm\n")
+            (proj / "design").mkdir()
+            (proj / "design" / "not-perrys.md").write_text("# theirs\n")
+            res = self._run("--root", str(proj), "--json")
+            out = json.loads(res.stdout)
+            self.assertEqual(out["errors"], 0, out["findings"])
+            # the project's own design/ is out of Perry's lane entirely
+            self.assertNotIn("design/not-perrys.md",
+                             {f["file"] for f in out["findings"]})
+
+    def test_state_root_escaping_the_project_is_ignored(self):
+        """Two readers silently pointed outside the project is worse than one
+        ignored field."""
+        import parsers as P
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "p"
+            (proj / ".perry").mkdir(parents=True)
+            (proj / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: ../elsewhere\n")
+            self.assertEqual(P.resolve_state_root(proj), proj)
+
 
 if __name__ == "__main__":
     unittest.main()

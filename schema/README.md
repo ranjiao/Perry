@@ -92,6 +92,33 @@ anything outside the subset raises rather than half-parsing, and `perry-lint`
 uses the *same* reader, so "the linter passed" and "Perry can read it" cannot
 diverge.
 
+## Where the files are
+
+Paths in `files[]` are relative to the **state root**, not necessarily the
+project root. A project declares `State root:` in `.perry/config.md` when it
+already uses a directory Perry claims (`design/` is the usual collision), and
+Perry's whole tree moves under it.
+
+Two rules make this safe for every reader:
+
+1. **`.perry/` is anchored at the project root.** It holds the pointer, so it
+   cannot sit behind the pointer. Schema entries declare this with
+   `"anchor": "project"`; everything else is `"anchor": "state"`.
+2. **One resolver.** `viewer/parsers.py § resolve_state_root` is the single
+   implementation, used by `bin/perry-state`, `bin/perry-lint` and the viewer. A
+   state root that escapes the project is ignored rather than honoured — two
+   readers silently pointed outside the project is worse than one ignored field.
+
+**aiMark must implement the same resolution**: read `.perry/config.md` at the
+project root, take `State root:` (default `.`), resolve everything else beneath
+it. A project whose state lives in `perry/` is otherwise invisible to it.
+
+The related rule: **`perry-lint` judges nothing outside `.perry/` until a project
+is adopted** (no `.perry/config.md`, no `BOARD.md`, no `OKR.md`, no `phase/`). A
+folder that is not a Perry project cannot contain malformed Perry state, and
+reporting someone's own `design/` doc as a broken design doc is the tool claiming
+a namespace nobody gave it.
+
 ## Changing the format
 
 Change the schema **first**, then the template, then the parser, then the

@@ -170,7 +170,8 @@
             "Last evidence"
           ]
         }
-      ]
+      ],
+      "anchor": "state"
     },
     {
       "id": "okr",
@@ -227,7 +228,8 @@
           "id_column": "Id",
           "id_pattern": "^KR-O\\d+\\.\\d+$"
         }
-      ]
+      ],
+      "anchor": "state"
     },
     {
       "id": "phase",
@@ -315,7 +317,8 @@
           "id_column": "Id",
           "id_pattern": "^P-O\\d+\\.\\d+$"
         }
-      ]
+      ],
+      "anchor": "state"
     },
     {
       "id": "linkage",
@@ -469,7 +472,8 @@
             }
           }
         }
-      }
+      },
+      "anchor": "state"
     },
     {
       "id": "adoption",
@@ -651,7 +655,8 @@
             }
           }
         }
-      }
+      },
+      "anchor": "project"
     },
     {
       "id": "design",
@@ -713,7 +718,8 @@
         "values": [
           "locked"
         ]
-      }
+      },
+      "anchor": "state"
     },
     {
       "id": "decisions",
@@ -742,7 +748,8 @@
           ],
           "column_match": "prefix"
         }
-      ]
+      ],
+      "anchor": "state"
     },
     {
       "id": "project_state",
@@ -753,7 +760,8 @@
       "cap": 200,
       "cap_kind": "soft",
       "required": false,
-      "headings": []
+      "headings": [],
+      "anchor": "state"
     },
     {
       "id": "architecture",
@@ -770,7 +778,8 @@
           "match": "^§[1-8]\\b",
           "label": "## §1 … §8 (eight fixed sections)"
         }
-      ]
+      ],
+      "anchor": "state"
     },
     {
       "id": "runbook",
@@ -782,7 +791,8 @@
       "cap": 150,
       "cap_kind": "hard",
       "required": false,
-      "headings": []
+      "headings": [],
+      "anchor": "state"
     },
     {
       "id": "config",
@@ -797,8 +807,14 @@
         {
           "name": "Repo layout",
           "pattern": "single|split"
+        },
+        {
+          "name": "State root",
+          "required": false,
+          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
         }
-      ]
+      ],
+      "anchor": "project"
     },
     {
       "id": "hook",
@@ -813,7 +829,8 @@
           "match": "^High-stakes",
           "label": "## High-stakes operations"
         }
-      ]
+      ],
+      "anchor": "project"
     }
   ],
   "cross_file": [

@@ -134,6 +134,21 @@ that `--resume` picks up a stable grouping.
 
 Ordering matters and is fixed, because attribution depends on goals existing:
 
+0. **Where Perry's files go.** Before any goal talk, check whether the project
+   already uses a directory Perry claims — `design/` is the common one, and
+   `OKR.md` / `BOARD.md` / `phase/` / `journal/` are the rest. If anything
+   collides, **ask** (`AskUserQuestion`, header `"State root"`, options:
+   `Put Perry's files under perry/ (Recommended) | Use the project root anyway |
+   Another directory`) and record the answer as `State root:` in
+   `.perry/config.md`.
+
+   Perry must not claim a namespace it was not given. An existing
+   `design/global-search.md` is its author's document, not a malformed Perry
+   design doc, and adopting on top of it would make every future lint run report
+   the user's own file as broken. `bin/perry-lint` now refuses to judge anything
+   outside `.perry/` until the project is actually adopted, but that only covers
+   the before; the state root is what covers the after.
+
 1. **Goals first.** Render the strawman OKR — Objectives and KRs drawn from
    evidence, each showing its citation — then run the *normal* `okr init`
    interview with those as the starting draft. The user rewrites freely. The

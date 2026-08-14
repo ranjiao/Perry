@@ -28,6 +28,36 @@ def _resolve_project_root() -> Path:
 PROJECT_ROOT = _resolve_project_root()
 
 
+def resolve_state_root(project_root: Path) -> Path:
+    """Where this project's Perry state files live.
+
+    Defaults to the project root, which is what every project written before
+    this field existed assumes. A project that already uses a name Perry claims
+    — `design/` is the common one — declares `State root: <relpath>` in
+    `.perry/config.md` and Perry's whole tree moves under it.
+
+    `.perry/` itself never moves: it is the anchor that says "this is a Perry
+    project" and it is where the pointer lives, so it cannot be behind the
+    pointer. Every reader must resolve the root the same way, which is why this
+    lives here and not in a caller."""
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return project_root
+    m = re.search(r"State root\s*[:：]\s*([^\n]+)", cfg.read_text(errors="replace"), re.I)
+    if not m:
+        return project_root
+    raw = m.group(1).strip().strip("*`  ")
+    if not raw or raw in {".", "./", "—", "-"}:
+        return project_root
+    root = (project_root / raw).resolve()
+    # A state root outside the project is a misconfiguration, not a feature:
+    # every path Perry writes and every path the frontend reads is relative to
+    # the project, and escaping it would silently point two readers elsewhere.
+    if project_root not in root.parents and root != project_root:
+        return project_root
+    return root
+
+
 # ── Data classes ──────────────────────────────────────────────────────────
 
 @dataclass

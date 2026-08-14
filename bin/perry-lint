@@ -289,6 +289,10 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
         name = field["name"]
         m = re.search(rf"{re.escape(name)}\s*\**\s*[:：]\s*\**\s*([^\n]+)", text)
         if not m:
+            # A field declared `required: false` is a pointer with a default —
+            # absent means "use the default", not "malformed".
+            if field.get("required") is False:
+                continue
             findings.append(Finding("error", rel, "missing-header-field",
                                     f"header field `{name}:` not found"))
             continue
@@ -379,8 +383,11 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     return findings
 
 
-def check_cross_file(root: Path, enums: dict) -> list[Finding]:
+def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) -> list[Finding]:
     findings: list[Finding] = []
+    # `.perry/` is anchored at the project root even when state lives in a
+    # subdirectory — it is the pointer, so it cannot sit behind the pointer.
+    perry_dir = (project_root or root) / ".perry"
 
     # phase/CURRENT resolves
     cur = root / "phase" / "CURRENT"
@@ -456,7 +463,7 @@ def check_cross_file(root: Path, enums: dict) -> list[Finding]:
                         ))
 
     # hook safety list
-    hook = root / ".perry" / "hook.md"
+    hook = perry_dir / "hook.md"
     armed = False
     if hook.exists():
         body = section_body(strip_comments(hook.read_text()), 2,
@@ -475,6 +482,19 @@ def check_cross_file(root: Path, enums: dict) -> list[Finding]:
 
 
 # ── main ──────────────────────────────────────────────────────────────────
+
+
+def is_adopted(project_root: Path, state_root: Path) -> bool:
+    """Has this project any Perry state at all?
+
+    Linting a folder that has never been adopted used to report every required
+    file as missing — noise on someone else's project, and unusable as the
+    stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
+    files adoption wrote are malformed" from "adoption hasn't run"."""
+    return ((project_root / ".perry" / "config.md").exists()
+            or (state_root / "BOARD.md").exists()
+            or (state_root / "OKR.md").exists()
+            or (state_root / "phase").is_dir())
 
 
 def iter_targets(root: Path, spec: dict) -> list[Path]:
@@ -537,24 +557,46 @@ def main(argv: list[str]) -> int:
             findings.extend(check_file(path, tpl, spec, enums, is_template=True))
         label = f"templates in {PERRY_HOME}"
     else:
-        root = Path(root_arg).expanduser().resolve() if root_arg else Path.cwd().resolve()
+        project_root = Path(root_arg).expanduser().resolve() if root_arg else Path.cwd().resolve()
         if not root_arg:
-            for d in [root, *root.parents]:
-                if (d / "BOARD.md").exists() or (d / "OKR.md").exists():
-                    root = d
+            for d in [project_root, *project_root.parents]:
+                if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
+                        or (d / ".perry" / "config.md").exists()):
+                    project_root = d
                     break
+        # State may live in a subdirectory when the project already uses a name
+        # Perry claims; `.perry/` stays at the project root either way.
+        root = P.resolve_state_root(project_root)
+        adopted = is_adopted(project_root, root)
         for spec in schema["files"]:
-            targets = iter_targets(root, spec)
+            base = project_root if spec.get("anchor") == "project" else root
+            # Nothing outside `.perry/` can be malformed Perry state before the
+            # project is a Perry project: a pre-existing `design/` belongs to
+            # whoever built it, and reporting their file as a broken design doc
+            # is Perry claiming a namespace it was never given.
+            if not adopted and spec.get("anchor") != "project":
+                continue
+            targets = iter_targets(base, spec)
             if not targets:
-                if spec.get("required"):
+                # "required" means required OF A PERRY PROJECT. On a folder that
+                # has never been adopted it is not a finding, it is the answer.
+                if spec.get("required") and adopted:
                     findings.append(Finding("error", spec["path"], "missing-file",
                                             "required state file not found"))
                 continue
             for path in targets:
-                rel = path.relative_to(root).as_posix()
+                try:
+                    rel = path.relative_to(project_root).as_posix()
+                except ValueError:
+                    rel = path.as_posix()
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
-        findings.extend(check_cross_file(root, enums))
-        label = str(root)
+        if adopted:
+            findings.extend(check_cross_file(root, enums, project_root))
+        label = str(project_root)
+        if root != project_root:
+            label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
+        if not adopted:
+            label += " — not a Perry project yet"
 
     errors = [f for f in findings if f.severity == "error"]
     warns = [f for f in findings if f.severity == "warn"]

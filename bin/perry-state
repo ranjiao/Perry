@@ -68,8 +68,9 @@ def days_since(value: str) -> int | None:
 
 
 def parse_config(root: Path) -> dict:
-    """`.perry/config.md` — document language + repo layout."""
-    cfg = {"present": False, "language": "", "layout": "", "pmo_repo": "", "code_repo": ""}
+    """`.perry/config.md` — document language, repo layout, state root."""
+    cfg = {"present": False, "language": "", "layout": "", "pmo_repo": "", "code_repo": "",
+           "state_root": ""}
     path = root / ".perry" / "config.md"
     if not path.exists():
         return cfg
@@ -80,6 +81,7 @@ def parse_config(root: Path) -> dict:
         "layout": r"Repo layout",
         "pmo_repo": r"PMO repo path",
         "code_repo": r"Code repo path",
+        "state_root": r"State root",
     }
     for key, label in fields.items():
         m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
@@ -194,10 +196,17 @@ def encode(obj):
 # ── payload ───────────────────────────────────────────────────────────────
 
 
-def build(root: Path) -> dict:
-    installed = any(
-        (root / f).exists() for f in ("BOARD.md", "OKR.md")
-    ) or (root / "design").is_dir()
+def build(root: Path, project_root: Path | None = None) -> dict:
+    # `.perry/` is anchored at the project root even when state lives in a
+    # subdirectory, so config/hook are read from there, not from `root`.
+    perry_root = project_root or root
+    installed = (
+        any((root / f).exists() for f in ("BOARD.md", "OKR.md"))
+        or (perry_root / ".perry" / "config.md").exists()
+        # A bare `design/` is not evidence: plenty of projects have one that has
+        # nothing to do with Perry. Require a doc named the way `design` writes.
+        or bool(list((root / "design").glob("DESIGN-*.md")) if (root / "design").is_dir() else [])
+    )
     if not installed:
         return {
             "schema": 1,
@@ -260,7 +269,7 @@ def build(root: Path) -> dict:
     if cur_pointer.exists() and not snap.phase:
         warnings.append("phase/CURRENT points at a phase file that does not exist.")
 
-    hook = hook_profile(root)
+    hook = hook_profile(perry_root)
     if not hook["high_stakes_armed"]:
         warnings.append(
             "No high-stakes list in .perry/hook.md — /pmo dispatch and /pmo autopilot "
@@ -285,7 +294,7 @@ def build(root: Path) -> dict:
         "project": {
             "root": root.as_posix(),
             "name": snap.project_name,
-            "config": parse_config(root),
+            "config": parse_config(perry_root),
             "hook": hook,
         },
         "okr": {
@@ -481,7 +490,8 @@ def resolve_root(explicit: str | None) -> Path:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
     for d in [cur, *cur.parents]:
-        if (d / "BOARD.md").exists() or (d / "OKR.md").exists():
+        if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
+                or (d / ".perry" / "config.md").exists()):
             return d
     return cur
 
@@ -511,11 +521,15 @@ def main(argv: list[str]) -> int:
             return 2
         i += 1
 
-    root = resolve_root(root_arg)
+    project_root = resolve_root(root_arg)
+    # State may live in a subdirectory (`.perry/config.md § State root`) when the
+    # project already uses a directory name Perry claims. `.perry/` stays at the
+    # project root — it holds the pointer, so it can't sit behind it.
+    root = P.resolve_state_root(project_root)
     # parsers.py resolves PROJECT_ROOT at import time from cwd; override it so
     # --root works regardless of where the script was invoked from.
     P.PROJECT_ROOT = root
-    payload = build(root)
+    payload = build(root, project_root)
 
     if mode == "dashboard":
         print(dash(payload))

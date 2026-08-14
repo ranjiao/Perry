@@ -168,12 +168,21 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 
 - Document language: <English | 中文 | ...>
 - Repo layout: <single | split>
+- State root: <. | relative path>
 - PMO repo path: <absolute path>
 - Code repo path: <absolute path or — if single>
 - Last updated: <YYYY-MM-DD>
 ```
 
 Children read this file before any output. If the file is missing, prompt the user to run first-time setup.
+
+### `State root` — where Perry's files live
+
+Default `.` (the project root), which is what every Perry project written before this field existed assumes. **Ask the user** when the project already uses a directory Perry claims — `design/` is the usual collision, and a project's own design docs are not Perry design docs. Setting `State root: perry` puts `OKR.md`, `BOARD.md`, `phase/`, `design/`, `journal/` and the rest under `perry/`, leaving the project's own tree untouched.
+
+`.perry/` itself **never moves**: it is the anchor that marks the folder as a Perry project and it holds this pointer, so it cannot sit behind the pointer. Every reader resolves the root the same way — `viewer/parsers.py § resolve_state_root` is the one implementation, and `schema/state-schema.json` declares which files are anchored at the project root (`anchor: project`) rather than the state root.
+
+Adoption asks this question during `confirm`, before anything is materialized (`reference/adoption.md`).
 
 ## Routing reference
 
