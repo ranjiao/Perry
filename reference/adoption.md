@@ -56,6 +56,23 @@ On the first real adoption test the objective and the current phase were both
 declared outright, and there was **not one KR anywhere in the repo** — so the
 strawman rule still applied to every single KR. That is the normal shape.
 
+### Transcribe to convert, not to copy
+
+The third row has a second clause that only shows up on a real project: **if the
+source document is already in the repo and readable where it is, do not
+transcribe it.** Copying `design/global-search.md` into `design/DESIGN-001-*.md`
+produces two copies of one document, which is the duplication
+`pmo/SKILL.md § Style rules` forbids outright — and the copy starts rotting
+immediately.
+
+Transcribe when Perry's structure adds something the source cannot provide: an
+ADR log that gives a decision an audit trail and a supersession chain, a design
+doc that needs the lock gate. Otherwise **reference it** and move on. On the
+first real adoption run this killed two of the three transcription candidates —
+a design doc that was fine where it was, and a digest of the project's own
+`SIGNING.md`. `knowledge/` is for **external** material dropped in `inputs/`; a
+document already in the repo is not external.
+
 The third row of the table is the one that gets violated under pressure. A project with
 undocumented decisions is *not* a project that needs Perry to write ADRs for
 them — inventing an ADR for a decision nobody recorded manufactures history and
