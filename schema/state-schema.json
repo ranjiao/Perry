@@ -90,6 +90,41 @@
       "edited",
       "rejected",
       "deferred"
+    ],
+    "diagnosis_stage": [
+      "scan",
+      "read",
+      "interview",
+      "prescribe",
+      "execute",
+      "done"
+    ],
+    "diagnosis_depth": [
+      "quick",
+      "standard",
+      "deep"
+    ],
+    "finding_severity": [
+      "error",
+      "warn",
+      "info"
+    ],
+    "finding_source": [
+      "scan",
+      "interview"
+    ],
+    "finding_status": [
+      "open",
+      "closed",
+      "accepted-risk",
+      "disputed"
+    ],
+    "prescription_status": [
+      "proposed",
+      "accepted",
+      "done",
+      "declined",
+      "deferred"
     ]
   },
   "files": [
@@ -185,17 +220,17 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Mission\\b|^使命",
+          "match": "^Mission\\b|^\u4f7f\u547d",
           "label": "## Mission"
         },
         {
           "level": 2,
-          "match": "^Operating Principles\\b|^运行原则",
+          "match": "^Operating Principles\\b|^\u8fd0\u884c\u539f\u5219",
           "label": "## Operating Principles"
         },
         {
           "level": 2,
-          "match": "^Anti-Goals\\b|^反目标",
+          "match": "^Anti-Goals\\b|^\u53cd\u76ee\u6807",
           "label": "## Anti-Goals"
         },
         {
@@ -210,13 +245,13 @@
         },
         {
           "level": 3,
-          "match": "^(Objective|目标) \\d+",
-          "label": "### Objective <N> — <title>"
+          "match": "^(Objective|\u76ee\u6807) \\d+",
+          "label": "### Objective <N> \u2014 <title>"
         }
       ],
       "tables": [
         {
-          "under": "^(Objective|目标) \\d+",
+          "under": "^(Objective|\u76ee\u6807) \\d+",
           "under_level": 3,
           "columns": [
             "Id",
@@ -255,7 +290,7 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Phase Focus\\b|^阶段焦点",
+          "match": "^Phase Focus\\b|^\u9636\u6bb5\u7126\u70b9",
           "label": "## Phase Focus"
         },
         {
@@ -265,7 +300,7 @@
         },
         {
           "level": 2,
-          "match": "^Cost Ceiling\\b|^成本上限",
+          "match": "^Cost Ceiling\\b|^\u6210\u672c\u4e0a\u9650",
           "label": "## Cost Ceiling"
         },
         {
@@ -280,13 +315,13 @@
         },
         {
           "level": 2,
-          "match": "^Phase Scope Reduction Rule\\b|^阶段缩圈规则",
+          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
           "label": "## Phase Scope Reduction Rule"
         },
         {
           "level": 2,
-          "match": "^(Objective|目标) \\d+",
-          "label": "## Objective <N> — <title>"
+          "match": "^(Objective|\u76ee\u6807) \\d+",
+          "label": "## Objective <N> \u2014 <title>"
         },
         {
           "level": 2,
@@ -306,7 +341,7 @@
       ],
       "tables": [
         {
-          "under": "^(Objective|目标) \\d+",
+          "under": "^(Objective|\u76ee\u6807) \\d+",
           "under_level": 2,
           "columns": [
             "Id",
@@ -331,7 +366,7 @@
       "frontmatter": {
         "spec_key": "linkage",
         "spec_version": 1,
-        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
+        "description": "The O\u2192KR\u2192task\u2192agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
         "fields": {
           "linkage": {
             "type": "integer",
@@ -383,7 +418,7 @@
                   "target": {
                     "type": "number",
                     "required": false,
-                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
+                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') \u2014 rendering a ceiling as completion is worse than rendering nothing."
                   },
                   "current": {
                     "type": "number",
@@ -486,7 +521,7 @@
       "frontmatter": {
         "spec_key": "adoption",
         "spec_version": 1,
-        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 — state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
+        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 \u2014 state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
         "fields": {
           "adoption": {
             "type": "integer",
@@ -584,7 +619,7 @@
               "seed": {
                 "type": "string",
                 "required": false,
-                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc — in preference order; see reference/adoption.md § Clustering"
+                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc \u2014 in preference order; see reference/adoption.md \u00a7 Clustering"
               },
               "kr": {
                 "type": "string",
@@ -640,7 +675,7 @@
                 "type": "string",
                 "required": true,
                 "enum": "candidate_status",
-                "note": "rejected entries are KEPT — they are the don't-ask-me-again record"
+                "note": "rejected entries are KEPT \u2014 they are the don't-ask-me-again record"
               },
               "resolution": {
                 "type": "string",
@@ -653,6 +688,213 @@
                 "note": "the real id it became at stage 4 (TASK-007, DESIGN-002, ADR-004)"
               }
             }
+          }
+        }
+      },
+      "anchor": "project"
+    },
+    {
+      "id": "diagnosis",
+      "path": ".perry/diagnose/*.md",
+      "template": "state/diagnosis_TEMPLATE.md",
+      "owner": "perry",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "diagnosis",
+        "spec_version": 1,
+        "description": "The diagnosis record: how a project is structured for agent work, what was measured, what the user said, and what was prescribed. The ONLY file /perry diagnose writes. Works on any folder, Perry-adopted or not. Also the durable record of declined prescriptions, so --recheck does not re-propose them forever.",
+        "fields": {
+          "diagnosis": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "project": {
+            "type": "string",
+            "required": true
+          },
+          "root": {
+            "type": "string",
+            "required": false,
+            "note": "absolute path to the diagnosed project root"
+          },
+          "depth": {
+            "type": "string",
+            "required": false,
+            "enum": "diagnosis_depth"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false,
+            "note": "context | docs | concurrency | tracking"
+          },
+          "started": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "stage": {
+            "type": "string",
+            "required": true,
+            "enum": "diagnosis_stage",
+            "note": "the only field a resumed run reads; advanced only after the stage's writes are durable"
+          },
+          "archetype": {
+            "type": "object",
+            "required": false,
+            "fields": {
+              "scanned": {
+                "type": "string",
+                "required": false,
+                "note": "what bin/perry-diagnose inferred from folder shapes; may be null, which is an honest answer"
+              },
+              "scanned_confidence": {
+                "type": "string",
+                "required": false,
+                "note": "high | medium | low | none"
+              },
+              "confirmed": {
+                "type": "string",
+                "required": false,
+                "note": "what the user said. OVERRIDES scanned unconditionally."
+              }
+            }
+          },
+          "maintenance_ceiling": {
+            "type": "string",
+            "required": false,
+            "note": "the Q6 answer. A HARD CAP on the prescription, not a factor to weigh."
+          },
+          "measurements": {
+            "type": "object",
+            "required": false,
+            "note": "copied from the bin/perry-diagnose payload. Every number in the report comes from here; absent fields print '-' rather than being estimated."
+          },
+          "restore_point": {
+            "type": "string",
+            "required": false,
+            "note": "branch name or backup dir created before the first change. Stage execute may not begin while this is null."
+          },
+          "findings": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^[A-Z]{3}-\\d{2}$",
+                "note": "stable id from bin/perry-diagnose (CTX/DOC/CON/TRK/FIT) or assigned for an interview finding"
+              },
+              "severity": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_severity"
+              },
+              "source": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_source",
+                "note": "measured, or reported by the user. Nothing else may be a finding."
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_status",
+                "note": "disputed is real - thresholds are calibrated defaults, not laws, and the user may reject one"
+              }
+            }
+          },
+          "interview": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "q": {
+                "type": "string",
+                "required": true,
+                "note": "Q1-Q6 or a situational id"
+              },
+              "asked": {
+                "type": "string",
+                "required": false
+              },
+              "answer": {
+                "type": "string",
+                "required": true,
+                "note": "verbatim; prescriptions cite it"
+              }
+            }
+          },
+          "prescription": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^RX-\\d+$"
+              },
+              "change": {
+                "type": "string",
+                "required": true,
+                "note": "one line - what actually changes on disk"
+              },
+              "closes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": true,
+                "note": "finding ids. An item that closes nothing does not belong on the list."
+              },
+              "cost": {
+                "type": "string",
+                "required": false
+              },
+              "reversible": {
+                "type": "boolean",
+                "required": false
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "prescription_status",
+                "note": "declined entries are KEPT - they are the don't-ask-me-again record"
+              }
+            }
+          },
+          "moves": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "from": {
+                "type": "string",
+                "required": true
+              },
+              "to": {
+                "type": "string",
+                "required": true
+              },
+              "rx": {
+                "type": "string",
+                "required": false,
+                "pattern": "^RX-\\d+$"
+              }
+            },
+            "note": "every file relocation. This is what makes the run reversible by hand, so it is written as each move happens, not batched."
           }
         }
       },
@@ -673,7 +915,7 @@
         },
         {
           "name": "Date",
-          "pattern": "\\d{4}-\\d{2}-\\d{2}|—"
+          "pattern": "\\d{4}-\\d{2}-\\d{2}|\u2014"
         }
       ],
       "headings": [
@@ -733,13 +975,13 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Active\\b|^进行中",
+          "match": "^Active\\b|^\u8fdb\u884c\u4e2d",
           "label": "## Active"
         }
       ],
       "tables": [
         {
-          "under": "^Active\\b|^进行中",
+          "under": "^Active\\b|^\u8fdb\u884c\u4e2d",
           "columns": [
             "ADR",
             "Title",
@@ -775,8 +1017,8 @@
       "headings": [
         {
           "level": 2,
-          "match": "^§[1-8]\\b",
-          "label": "## §1 … §8 (eight fixed sections)"
+          "match": "^\u00a7[1-8]\\b",
+          "label": "## \u00a71 \u2026 \u00a78 (eight fixed sections)"
         }
       ],
       "anchor": "state"
@@ -811,7 +1053,7 @@
         {
           "name": "State root",
           "required": false,
-          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
+          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves \u2014 it is the anchor that holds this pointer."
         }
       ],
       "anchor": "project"
@@ -867,7 +1109,7 @@
     {
       "id": "linkage-names-unique",
       "severity": "error",
-      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
+      "description": "No two linkage projects may share a name or an alias \u2014 that ambiguity is exactly what the registry exists to prevent."
     },
     {
       "id": "linkage-task-single-kr",

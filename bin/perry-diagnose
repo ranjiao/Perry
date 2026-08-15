@@ -1,0 +1,1109 @@
+#!/usr/bin/env python3
+"""
+perry-diagnose — the deterministic read of how a project is *structured* for
+agent work, as opposed to what its Perry state says.
+
+`perry-state` answers "what does this project's board say?" and only works on
+an adopted project. This script answers "is this project's working structure
+sound?" and works on any folder, including one that has never heard of Perry.
+
+It measures three things, matching the three failure modes in
+`reference/project-archetypes.md`:
+
+  1. context load  — what is loaded into every session, and whether it fits
+     the budget;
+  2. document graph — what exists, what is reachable, what duplicates what;
+  3. tracking spine — whether goals, decisions, and a runnable check exist.
+
+Plus the archetype signals, so the interview starts from evidence instead of
+from a blank slate.
+
+No LLM, no external dependencies (stdlib only), read-only, never writes.
+Exit 0 always, even on an empty folder — an absent signal is a finding, not an
+error.
+
+Usage:
+  perry-diagnose [--root <project_root>] [--json | --text] [--max-files N]
+
+  --json        full payload (default)
+  --text        human-readable summary
+  --root        project root; default $PERRY_PROJECT, else cwd
+  --max-files   walk cap, default 20000 (guards against a vendored monorepo)
+
+Every threshold this script applies is a *calibrated default*, not a measured
+law — see `reference/project-archetypes.md § Part 5`. They are emitted in the
+payload under `thresholds` so the caller can show the user what it judged by.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import date, datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+
+# ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
+
+THRESHOLDS = {
+    "tier0_total_lines": 200,       # all always-loaded files combined
+    "single_doc_lines": 500,        # one doc that big is a tier problem
+    "stale_spine_days": 30,         # goal spine untouched this long
+    "orphan_ratio_warn": 0.30,      # share of docs reachable from nothing
+    "doc_count_index_required": 12, # past this, an index is not optional
+    "moc_note_threshold": 200,      # KB: add Maps of Content past this
+}
+
+# Files an agent host loads unconditionally at the project root.
+TIER0_NAMES = [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "AGENT.md",
+    "GEMINI.md",
+    "CONVENTIONS.md",
+    ".cursorrules",
+    ".clinerules",
+    ".windsurfrules",
+]
+TIER0_GLOBS = [
+    ".github/copilot-instructions.md",
+    ".cursor/rules/*.md",
+    ".cursor/rules/*.mdc",
+]
+
+SKIP_DIRS = {
+    ".git", "node_modules", ".venv", "venv", "env", "__pycache__", "dist",
+    "build", "target", ".next", ".nuxt", ".cache", "vendor", "site-packages",
+    ".pytest_cache", ".mypy_cache", ".ruff_cache", "coverage", ".tox",
+    ".gradle", "Pods", "DerivedData", ".terraform", "bower_components",
+}
+
+CODE_EXT = {
+    ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".kt", ".rb",
+    ".php", ".c", ".h", ".cc", ".cpp", ".hpp", ".cs", ".swift", ".m", ".mm",
+    ".scala", ".ex", ".exs", ".sh", ".bash", ".zsh", ".lua", ".r", ".jl",
+}
+
+MANIFESTS = [
+    "package.json", "pyproject.toml", "setup.py", "requirements.txt",
+    "go.mod", "Cargo.toml", "Gemfile", "pom.xml", "build.gradle",
+    "composer.json", "Makefile", "CMakeLists.txt",
+]
+
+SPINE_NAMES = [
+    "OKR.md", "GOALS.md", "OBJECTIVES.md", "ROADMAP.md", "PLAN.md",
+    "STATE.md", "PROJECT_STATE.md", "STATUS.md", "BOARD.md", "TASKS.md",
+    "TODO.md", "TODOS.md", "BACKLOG.md", "index.md", "INDEX.md",
+]
+SPINE_DIRS = ["phase", "phases", "specs", "sprints", "milestones"]
+
+DECISION_NAMES = ["DECISIONS.md", "ADR.md", "CHANGELOG.md"]
+DECISION_DIRS = ["decisions", "adr", "adrs", "docs/adr", "docs/decisions", "rfcs"]
+
+INDEX_NAMES = {"index.md", "readme.md", "index", "_index.md", "moc.md", "map.md"}
+
+APPEND_ONLY_HINTS = ["journal", "log.md", "logs", "daily", "diary", "weekly"]
+
+RAW_DIR_HINTS = ["raw", "sources", "clippings", "inbox", "imports", "attachments"]
+KB_DIR_HINTS = ["wiki", "notes", "vault", "zettel", "permanent", "literature",
+                "areas", "resources", "projects", "knowledge"]
+OPS_DIR_HINTS = ["runbooks", "runbook", "incidents", "playbooks", "briefs",
+                 "drafts", "posts", "content", "reports", "meetings"]
+
+# A path-ish token: has a separator or a known doc/code extension.
+PATHISH = re.compile(r"^[\w.@+-]+(?:/[\w.@+-]+)+/?$")
+MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+BACKTICK = re.compile(r"`([^`\n]{2,120})`")
+WIKILINK = re.compile(r"\[\[([^\]|#]+)")
+H1 = re.compile(r"^#\s+(.+?)\s*$", re.M)
+
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+
+def run_git(root: Path, *args: str) -> str:
+    try:
+        out = subprocess.run(
+            ["git", *args],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        return out.stdout if out.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def is_script(path: Path) -> bool:
+    try:
+        with path.open("rb") as fh:
+            return fh.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def line_count(path: Path) -> int:
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
+def read_text(path: Path, cap: int = 400_000) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")[:cap]
+    except OSError:
+        return ""
+
+
+def days_since_mtime(path: Path) -> int | None:
+    try:
+        then = datetime.fromtimestamp(path.stat().st_mtime).date()
+    except OSError:
+        return None
+    return (date.today() - then).days
+
+
+def norm_title(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+ROUTED_DIRS = ("skills", "agents", "commands", "prompts")
+
+
+def is_routed(root: Path, rel: str) -> bool:
+    """True for a tier-1 document the host discovers on its own.
+
+    A `SKILL.md` is reached through its frontmatter `description`, not through
+    a link from an index. Progressive disclosure IS its routing, so it is
+    reachable by construction — and it is the *fix* for document sprawl rather
+    than a case of it."""
+    p = Path(rel)
+    if p.name.upper() == "SKILL.MD":
+        return True
+    if any(part.lower() in ROUTED_DIRS for part in p.parts[:-1]):
+        head = read_text(root / rel, cap=600).lstrip()
+        if head.startswith("---") and re.search(
+                r"^\s*description\s*:", head, re.M):
+            return True
+    return False
+
+
+def perry_owned_globs() -> list[str]:
+    """Paths Perry itself declares as state files, read from the schema so this
+    script does not carry a second copy of that list.
+
+    They matter twice over: a Perry state file is reachable *by convention*
+    rather than by a link, so it is not an orphan; and Perry's own directory
+    names (`knowledge/`, `design/`, `phase/`) must not be read as evidence of
+    what kind of project this is."""
+    globs = [
+        # Fallback, used when the schema is unreadable (tarball install, etc).
+        "BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md",
+        "ARCHITECTURE.md", "phase/*", "design/*", "runbook/*", ".perry/*",
+    ]
+    schema = PERRY_HOME / "schema" / "state-schema.json"
+    try:
+        declared = json.loads(read_text(schema)).get("files", [])
+        found = [f["path"] for f in declared if f.get("path")]
+        if found:
+            globs = found
+    except Exception:
+        pass
+    # Directories Perry writes into that the schema does not enumerate as a
+    # single file glob.
+    globs += [
+        "journal/*", "journal/*/*", "evidence/*", "evidence/*/*", "weekly/*",
+        "handoff/*", "knowledge/*", "knowledge/*/*", "inputs/*", "decisions/*",
+        "phase/snapshots/*", ".perry/*", ".perry/*/*",
+    ]
+    return globs
+
+
+PERRY_DIR_NAMES = {
+    "phase", "journal", "evidence", "weekly", "handoff", "knowledge",
+    "inputs", "decisions", "design", "runbook", "snapshots",
+}
+
+# Directories whose contents describe what a project *ships* rather than what
+# it *is*. A repo with `templates/knowledge-base/raw/` is not a knowledge base;
+# it is a tool that scaffolds one. Perry misread itself exactly this way.
+EXAMPLE_DIR_NAMES = {
+    "templates", "template", "examples", "example", "fixtures", "fixture",
+    "samples", "sample", "scaffold", "scaffolds", "boilerplate", "testdata",
+    "__fixtures__", "stubs",
+}
+
+
+def resolve_state_root(root: Path) -> Path:
+    """Mirror of viewer/parsers.py § resolve_state_root, kept minimal so this
+    script has no import dependency on the viewer. A state root that escapes
+    the project is ignored rather than honoured."""
+    cfg = root / ".perry" / "config.md"
+    if not cfg.is_file():
+        return root
+    m = re.search(r"^\s*[-*]?\s*State root:\s*(.+?)\s*$", read_text(cfg), re.M | re.I)
+    if not m:
+        return root
+    raw = m.group(1).strip().strip("`")
+    if not raw or raw == ".":
+        return root
+    try:
+        cand = (root / raw).resolve()
+        cand.relative_to(root.resolve())
+    except (ValueError, OSError):
+        return root
+    return cand if cand.is_dir() else root
+
+
+# ── the walk ──────────────────────────────────────────────────────────────
+
+
+def walk(root: Path, max_files: int) -> dict:
+    md, code, other, dirs = [], {}, 0, set()
+    seen = 0
+    truncated = False
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".claude-")]
+        rel_dir = Path(dirpath).relative_to(root)
+        if str(rel_dir) != ".":
+            dirs.add(str(rel_dir))
+        for fn in filenames:
+            seen += 1
+            if seen > max_files:
+                truncated = True
+                break
+            p = Path(dirpath) / fn
+            rel = str(p.relative_to(root))
+            suf = p.suffix.lower()
+            if suf in (".md", ".markdown", ".mdc"):
+                md.append(rel)
+            elif suf in CODE_EXT:
+                code[suf] = code.get(suf, 0) + 1
+            elif not suf and is_script(p):
+                # Extensionless executables with a shebang — a CLI-tool repo's
+                # source is invisible without this, and the archetype guess
+                # then reads it as a docs pile.
+                code["(script)"] = code.get("(script)", 0) + 1
+            else:
+                other += 1
+        if truncated:
+            break
+    return {
+        "md": sorted(md),
+        "code_by_ext": code,
+        "code_total": sum(code.values()),
+        "other_files": other,
+        "dirs": sorted(dirs),
+        "truncated": truncated,
+    }
+
+
+# ── context load (tier 0) ─────────────────────────────────────────────────
+
+
+def scan_context_load(root: Path, inventory: dict) -> dict:
+    files, conditional = [], []
+    for name in TIER0_NAMES:
+        p = root / name
+        if p.is_file():
+            files.append({
+                "path": name,
+                "lines": line_count(p),
+                "symlink": p.is_symlink(),
+                "target": os.readlink(p) if p.is_symlink() else None,
+            })
+    for pattern in TIER0_GLOBS:
+        for p in sorted(root.glob(pattern)):
+            if p.is_file():
+                files.append({
+                    "path": str(p.relative_to(root)),
+                    "lines": line_count(p),
+                    "symlink": p.is_symlink(),
+                    "target": os.readlink(p) if p.is_symlink() else None,
+                })
+    # Nested host files load only when work touches their directory.
+    for rel in inventory["md"]:
+        base = Path(rel).name
+        if base in ("CLAUDE.md", "AGENTS.md") and "/" in rel:
+            conditional.append({"path": rel, "lines": line_count(root / rel)})
+
+    total = sum(f["lines"] for f in files)
+    return {
+        "always_loaded": files,
+        "always_loaded_lines": total,
+        "budget_lines": THRESHOLDS["tier0_total_lines"],
+        "over_budget_by": max(0, total - THRESHOLDS["tier0_total_lines"]),
+        "conditional": conditional,
+    }
+
+
+def broken_refs(root: Path, rel: str) -> list[str]:
+    """Path-like tokens in a doc that no longer resolve.
+
+    Deliberately conservative, because a false positive here is expensive: a
+    diagnostic that cries wolf trains the user to ignore it, which is the
+    failure mode this whole skill exists to prevent. Two restrictions do most
+    of the work:
+
+      - **Markdown link targets** are always checked. A link is a promise that
+        the target is there.
+      - **Backticked tokens** are checked only when they carry a file
+        extension. Backticked prose routinely names paths *illustratively* —
+        a schema doc describing `phase/CURRENT` in someone else's project, a
+        template showing a folder that does not exist yet — and treating those
+        as broken references makes every documentation repo look broken.
+    """
+    text = read_text(root / rel)
+    base = (root / rel).parent
+    cands: set[str] = set()
+    for m in MD_LINK.finditer(text):
+        cands.add(m.group(1))
+    for m in BACKTICK.finditer(text):
+        tok = m.group(1).strip()
+        if Path(tok).suffix and not tok.endswith("/"):
+            cands.add(tok)
+    bad = []
+    for tok in cands:
+        tok = tok.strip()
+        if not tok or tok.startswith(("http://", "https://", "#", "mailto:", "<")):
+            continue
+        tok = tok.split("#", 1)[0].split("?", 1)[0]
+        if not tok or " " in tok:
+            continue
+        if not PATHISH.match(tok):
+            continue
+        if any(ch in tok for ch in "*$<>{}|"):
+            continue
+        if (base / tok).exists() or (root / tok.lstrip("/")).exists():
+            continue
+        bad.append(tok)
+    return sorted(set(bad))[:12]
+
+
+# ── document graph ────────────────────────────────────────────────────────
+
+
+def scan_docs(root: Path, inventory: dict, tier0_paths: set[str],
+              perry_owned: set[str]) -> dict:
+    docs = []
+    for rel in inventory["md"]:
+        p = root / rel
+        text = read_text(p)
+        h1 = H1.search(text)
+        docs.append({
+            "path": rel,
+            "lines": line_count(p),
+            "title": h1.group(1).strip() if h1 else None,
+            "age_days": days_since_mtime(p),
+            "wikilinks": len(WIKILINK.findall(text)),
+            "_text": text,
+        })
+
+    # Reference graph: which docs are named by which other docs.
+    by_path = {d["path"] for d in docs}
+    stems: dict[str, list[str]] = {}
+    for d in docs:
+        stems.setdefault(Path(d["path"]).name.lower(), []).append(d["path"])
+
+    referenced: set[str] = set()
+    for d in docs:
+        base = Path(d["path"]).parent
+        toks: set[str] = set()
+        for m in MD_LINK.finditer(d["_text"]):
+            toks.add(m.group(1))
+        for m in BACKTICK.finditer(d["_text"]):
+            toks.add(m.group(1))
+        for m in WIKILINK.finditer(d["_text"]):
+            toks.add(m.group(1).strip() + ".md")
+        for tok in toks:
+            tok = tok.split("#", 1)[0].strip()
+            if not tok or tok.startswith(("http://", "https://")):
+                continue
+            try:
+                resolved = str((base / tok).resolve().relative_to(root.resolve()))
+            except (ValueError, OSError):
+                resolved = None
+            if resolved and resolved in by_path:
+                referenced.add(resolved)
+                continue
+            if tok.lstrip("./") in by_path:
+                referenced.add(tok.lstrip("./"))
+                continue
+            hit = stems.get(Path(tok).name.lower())
+            if hit and len(hit) == 1:
+                referenced.add(hit[0])
+
+    # An index is any doc whose name says so, or the project README. On a
+    # Perry project the board and the dashboard already do the routing job, so
+    # they count — otherwise every correctly-adopted project is told to add an
+    # index it already has under a different name.
+    indexes = [
+        d["path"] for d in docs
+        if Path(d["path"]).name.lower() in INDEX_NAMES
+        or (d["path"] in perry_owned
+            and Path(d["path"]).name in ("BOARD.md", "PROJECT_STATE.md"))
+    ]
+
+    # Two classes of document are reachable without a link, and calling either
+    # an orphan reports a correctly-structured project as broken — the one
+    # thing a diagnostic may not do.
+    #
+    #   - Perry's own state files: every skill knows where BOARD.md is.
+    #   - Tier-1 routed documents: a SKILL.md, subagent, or slash command is
+    #     found by its frontmatter description, which IS the routing mechanism.
+    #     They are the answer to doc sprawl, not an instance of it.
+    routed = {d["path"] for d in docs if is_routed(root, d["path"])}
+    entry_points = (
+        set(tier0_paths) | set(indexes) | perry_owned | routed
+        | {"README.md", "readme.md"}
+    )
+    orphans = [
+        d["path"] for d in docs
+        if d["path"] not in referenced and d["path"] not in entry_points
+    ]
+
+    # Duplicate signals: same normalized H1, or same filename in two places.
+    # Duplicate titles are evidence of an accidentally-copied document, and
+    # only when the match is specific. Three exclusions, each one learned from
+    # a real repo where the naive check produced pure noise:
+    #   - a title that normalizes to one word (or none) is usually the project
+    #     name or an emoji heading, not a subject;
+    #   - a title shared by more than four documents is a naming convention
+    #     ("byteworker digest" across ten reference files), not duplication;
+    #   - real accidental duplication is two or three files.
+    project_name = norm_title(root.name)
+    by_title: dict[str, list[str]] = {}
+    for d in docs:
+        key = norm_title(d["title"] or "")
+        if len(key.split()) < 2 or key == project_name:
+            continue
+        by_title.setdefault(key, []).append(d["path"])
+    dup_titles = {k: v for k, v in by_title.items() if 1 < len(v) <= 4}
+    dup_names = {k: v for k, v in stems.items() if len(v) > 1 and k not in INDEX_NAMES}
+
+    oversized = sorted(
+        [
+            {"path": d["path"], "lines": d["lines"]}
+            for d in docs if d["lines"] > THRESHOLDS["single_doc_lines"]
+        ],
+        key=lambda d: -d["lines"],
+    )
+
+    # Only tier-0 files. A stale path in an always-loaded rules file misroutes
+    # every session; a stale path in a reference doc is read by whoever opened
+    # it deliberately and costs far less.
+    broken: dict[str, list[str]] = {}
+    for d in docs:
+        if d["path"] in tier0_paths:
+            bad = broken_refs(root, d["path"])
+            if bad:
+                broken[d["path"]] = bad
+
+    total_lines = sum(d["lines"] for d in docs)
+    for d in docs:
+        d.pop("_text", None)
+
+    return {
+        "total": len(docs),
+        "total_lines": total_lines,
+        "indexes": indexes,
+        "orphans": orphans,
+        "orphan_ratio": round(len(orphans) / len(docs), 3) if docs else 0.0,
+        "duplicate_titles": dup_titles,
+        "duplicate_filenames": dup_names,
+        "oversized": oversized[:10],
+        "broken_refs": broken,
+        "largest": sorted(
+            [{"path": d["path"], "lines": d["lines"]} for d in docs],
+            key=lambda d: -d["lines"],
+        )[:10],
+        "wikilink_total": sum(d["wikilinks"] for d in docs),
+    }
+
+
+# ── concurrency ───────────────────────────────────────────────────────────
+
+
+def scan_concurrency(root: Path, inventory: dict, tier0_paths: set[str]) -> dict:
+    is_repo = bool(run_git(root, "rev-parse", "--is-inside-work-tree").strip())
+    worktrees, branches, hot = [], [], []
+    if is_repo:
+        wt = run_git(root, "worktree", "list", "--porcelain")
+        worktrees = [ln.split(" ", 1)[1] for ln in wt.splitlines() if ln.startswith("worktree ")]
+        branches = [
+            b.strip().lstrip("* ").strip()
+            for b in run_git(root, "branch", "--format=%(refname:short)").splitlines()
+            if b.strip()
+        ]
+        log = run_git(root, "log", "--since=90.days", "--name-only", "--pretty=format:")
+        counts: dict[str, int] = {}
+        for ln in log.splitlines():
+            ln = ln.strip()
+            if ln:
+                counts[ln] = counts.get(ln, 0) + 1
+        hot = [
+            {"path": p, "commits_90d": c}
+            for p, c in sorted(counts.items(), key=lambda kv: -kv[1])[:10]
+        ]
+
+    # Does anything declare how concurrent sessions stay out of each other's way?
+    declared, terms = [], (
+        "worktree", "parallel session", "ownership", "owns ", "lane",
+        "one writer", "concurrent", "multi-agent", "append-only",
+    )
+    for rel in sorted(tier0_paths):
+        low = read_text(root / rel).lower()
+        for t in terms:
+            if t in low:
+                declared.append({"path": rel, "term": t.strip()})
+                break
+
+    append_only = [
+        d for d in inventory["dirs"] + inventory["md"]
+        if any(h in d.lower() for h in APPEND_ONLY_HINTS)
+    ][:20]
+
+    return {
+        "is_git_repo": is_repo,
+        "worktrees": worktrees,
+        "worktree_count": len(worktrees),
+        "branches": branches[:40],
+        "branch_count": len(branches),
+        "hot_files_90d": hot,
+        "isolation_declared": declared,
+        "append_only_surfaces": append_only,
+    }
+
+
+# ── tracking spine ────────────────────────────────────────────────────────
+
+
+def scan_tracking(root: Path, state_root: Path, inventory: dict) -> dict:
+    spine = []
+    for name in SPINE_NAMES:
+        for base in {root, state_root}:
+            p = base / name
+            if p.is_file():
+                rel = str(p.relative_to(root))
+                if not any(s["path"] == rel for s in spine):
+                    spine.append({
+                        "path": rel,
+                        "lines": line_count(p),
+                        "age_days": days_since_mtime(p),
+                    })
+    spine_dirs = [
+        d for d in inventory["dirs"]
+        if Path(d).name.lower() in SPINE_DIRS
+    ]
+
+    decisions = []
+    for name in DECISION_NAMES:
+        for base in {root, state_root}:
+            p = base / name
+            if p.is_file():
+                rel = str(p.relative_to(root))
+                if rel not in decisions:
+                    decisions.append(rel)
+    for d in DECISION_DIRS:
+        for base in {root, state_root}:
+            if (base / d).is_dir():
+                rel = str((base / d).relative_to(root))
+                if rel not in decisions:
+                    decisions.append(rel)
+
+    # A check the agent can run.
+    checks = []
+    pkg = root / "package.json"
+    if pkg.is_file():
+        try:
+            scripts = json.loads(read_text(pkg)).get("scripts", {}) or {}
+        except Exception:
+            scripts = {}
+        for k in ("test", "lint", "typecheck", "build", "check"):
+            if k in scripts:
+                checks.append({"kind": "npm-script", "name": k, "cmd": f"npm run {k}"})
+    for f, kind in [
+        ("Makefile", "make"), ("justfile", "just"), ("Justfile", "just"),
+        ("noxfile.py", "nox"), ("tox.ini", "tox"), ("pyproject.toml", "python"),
+        ("Cargo.toml", "cargo"), ("go.mod", "go"),
+    ]:
+        if (root / f).is_file():
+            checks.append({"kind": kind, "name": f, "cmd": None})
+    for d in ("tests", "test", "spec", "__tests__", "e2e"):
+        if (root / d).is_dir():
+            checks.append({"kind": "test-dir", "name": d, "cmd": None})
+    if (root / ".github" / "workflows").is_dir():
+        wf = sorted((root / ".github" / "workflows").glob("*.y*ml"))
+        if wf:
+            checks.append({"kind": "ci", "name": f"{len(wf)} workflow(s)", "cmd": None})
+    # Project-local lint/check scripts (the constructed loop for non-code work).
+    for d in ("bin", "scripts", "tools"):
+        if (root / d).is_dir():
+            for p in sorted((root / d).iterdir()):
+                if p.is_file() and re.search(r"(lint|check|verify|validate)", p.name, re.I):
+                    checks.append({"kind": "script", "name": str(p.relative_to(root)), "cmd": None})
+
+    perry = {
+        "config": (root / ".perry" / "config.md").is_file(),
+        "okr": (state_root / "OKR.md").is_file(),
+        "board": (state_root / "BOARD.md").is_file(),
+        "phase": (state_root / "phase").is_dir(),
+        "state_root": str(state_root.relative_to(root)) if state_root != root else ".",
+    }
+    perry["installed"] = perry["config"] or (perry["okr"] and perry["board"])
+
+    return {
+        "spine_files": spine,
+        "spine_dirs": spine_dirs,
+        "has_spine": bool(spine or spine_dirs),
+        "decision_log": decisions,
+        "has_decision_log": bool(decisions),
+        "checks": checks,
+        "has_check": bool(checks),
+        "perry": perry,
+    }
+
+
+# ── archetype signals ─────────────────────────────────────────────────────
+
+
+def scan_archetype(inventory: dict, docs: dict, root: Path, is_perry: bool,
+                   perry_owned: set[str]) -> dict:
+    def is_example(rel: str) -> bool:
+        return any(part.lower() in EXAMPLE_DIR_NAMES for part in Path(rel).parts)
+
+    dirs_low = [d.lower() for d in inventory["dirs"] if not is_example(d)]
+    subject_md = [m for m in inventory["md"] if not is_example(m)]
+    if is_perry:
+        # Perry's own folders and state files say what tooling the project
+        # uses, not what kind of project it is. `knowledge/` is a digest store,
+        # not a note vault, and 19 board/journal files are not a wiki.
+        dirs_low = [
+            d for d in dirs_low
+            if not any(part in PERRY_DIR_NAMES for part in Path(d).parts)
+        ]
+        subject_md = [m for m in subject_md if m not in perry_owned]
+
+    md_n = max(1, len(subject_md))
+    code_n = inventory["code_total"]
+
+    manifests = [m for m in MANIFESTS if (root / m).is_file()]
+    kb_dirs = [d for d in dirs_low if any(h == Path(d).name for h in KB_DIR_HINTS)]
+    raw_dirs = [d for d in dirs_low if any(h == Path(d).name for h in RAW_DIR_HINTS)]
+    ops_dirs = [d for d in dirs_low if any(h == Path(d).name for h in OPS_DIR_HINTS)]
+
+    scores = {"software": 0, "knowledge-base": 0, "ops": 0}
+    why: dict[str, list[str]] = {"software": [], "knowledge-base": [], "ops": []}
+
+    if manifests:
+        scores["software"] += 3
+        why["software"].append(f"manifests: {', '.join(manifests[:4])}")
+    if code_n >= 20:
+        scores["software"] += 3
+        why["software"].append(f"{code_n} source files")
+    elif code_n >= 3:
+        scores["software"] += 1
+        why["software"].append(f"{code_n} source files")
+    if (root / ".github" / "workflows").is_dir():
+        scores["software"] += 1
+        why["software"].append("CI workflows")
+
+    if docs["wikilink_total"] >= 10:
+        scores["knowledge-base"] += 3
+        why["knowledge-base"].append(f"{docs['wikilink_total']} wikilinks")
+    if (root / ".obsidian").is_dir():
+        scores["knowledge-base"] += 4
+        why["knowledge-base"].append(".obsidian/ vault")
+    if raw_dirs:
+        scores["knowledge-base"] += 2
+        why["knowledge-base"].append(f"raw/source dirs: {', '.join(raw_dirs[:3])}")
+    if kb_dirs:
+        scores["knowledge-base"] += 2
+        why["knowledge-base"].append(f"note dirs: {', '.join(kb_dirs[:3])}")
+    if code_n == 0 and len(subject_md) >= 15:
+        scores["knowledge-base"] += 2
+        why["knowledge-base"].append(f"{len(subject_md)} docs, no source files")
+
+    if ops_dirs:
+        scores["ops"] += 3
+        why["ops"].append(f"ops dirs: {', '.join(ops_dirs[:3])}")
+    if code_n < 5 and docs["wikilink_total"] < 5 and len(subject_md) >= 8:
+        scores["ops"] += 2
+        why["ops"].append("doc-heavy, no code, no wikilink graph")
+
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+    top, second = ranked[0], ranked[1]
+    if top[1] == 0:
+        guess, conf = None, "none"
+    elif top[1] - second[1] >= 3:
+        guess, conf = top[0], "high"
+    elif top[1] - second[1] >= 1:
+        guess, conf = top[0], "medium"
+    else:
+        guess, conf = top[0], "low"
+
+    return {
+        "scores": scores,
+        "evidence": why,
+        "guess": guess,
+        "confidence": conf,
+        "md_to_code_ratio": round(md_n / code_n, 2) if code_n else None,
+        "manifests": manifests,
+    }
+
+
+# ── findings ──────────────────────────────────────────────────────────────
+
+
+def finding(fid, severity, title, detail, evidence=None):
+    return {
+        "id": fid,
+        "severity": severity,
+        "title": title,
+        "detail": detail,
+        "evidence": evidence or [],
+    }
+
+
+def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
+    out = []
+
+    # ── context load ──
+    if not ctx["always_loaded"]:
+        out.append(finding(
+            "CTX-04", "warn",
+            "No always-loaded instruction file",
+            "Nothing tells an agent this project's rules at session start; every "
+            "session re-derives them or guesses. Add one tier-0 file.",
+        ))
+    empty = [f["path"] for f in ctx["always_loaded"] if f["lines"] == 0]
+    if empty and len(empty) == len(ctx["always_loaded"]):
+        out.append(finding(
+            "CTX-05", "warn",
+            "The always-loaded instruction file is empty",
+            "A placeholder reads as 'this project has no rules', which is the "
+            "same outcome as having no file — with the added cost that it looks "
+            "handled.",
+            empty,
+        ))
+    if ctx["over_budget_by"] > 0:
+        out.append(finding(
+            "CTX-01", "error",
+            f"Always-loaded context is {ctx['always_loaded_lines']} lines "
+            f"(budget {ctx['budget_lines']})",
+            "Past the budget the agent starts ignoring individual rules rather "
+            "than failing loudly. Demote: keep only lines that change behavior, "
+            "move the rest to routed skills and retrievable references.",
+            [f"{f['path']} — {f['lines']} lines" for f in ctx["always_loaded"]],
+        ))
+    names = {Path(f["path"]).name for f in ctx["always_loaded"]}
+    linked = any(f["symlink"] for f in ctx["always_loaded"])
+    if {"CLAUDE.md", "AGENTS.md"} <= names and not linked:
+        out.append(finding(
+            "CTX-02", "warn",
+            "CLAUDE.md and AGENTS.md both exist and neither is a symlink",
+            "Two always-loaded rule files drift apart, and the agent obeys "
+            "whichever it happened to read. Keep one; symlink the other to it.",
+        ))
+    for path, bad in docs["broken_refs"].items():
+        out.append(finding(
+            "CTX-03", "error",
+            f"{path} names paths that no longer exist",
+            "A rule file that points at a moved file actively misroutes the "
+            "agent — it looks in the wrong place with full confidence. Stale "
+            "routing is worse than no routing.",
+            bad,
+        ))
+
+    # ── document graph ──
+    if docs["total"] >= THRESHOLDS["doc_count_index_required"] and not docs["indexes"]:
+        out.append(finding(
+            "DOC-02", "error",
+            f"{docs['total']} documents and no index",
+            "Past a dozen docs, nothing reachable-by-name means the agent "
+            "either reads everything or finds nothing. Add one index that names "
+            "each doc and what it is for, and have every session read it first.",
+        ))
+    # Orphanhood only means something once there is enough material to get lost
+    # in. A three-file project where STATE.md is not linked from AGENTS.md has
+    # no navigation problem, and telling it so is the kind of noise that gets
+    # the whole report discounted.
+    if (docs["total"] >= THRESHOLDS["doc_count_index_required"]
+            and docs["orphans"]
+            and docs["orphan_ratio"] >= THRESHOLDS["orphan_ratio_warn"]):
+        out.append(finding(
+            "DOC-01", "warn",
+            f"{len(docs['orphans'])} of {docs['total']} docs "
+            f"({int(docs['orphan_ratio'] * 100)}%) are reachable from nothing",
+            "An unreferenced doc costs nothing to load and delivers nothing. "
+            "This is where contradictions breed. Either link it from the index "
+            "or delete it.",
+            docs["orphans"][:15],
+        ))
+    if docs["duplicate_titles"]:
+        out.append(finding(
+            "DOC-03", "warn",
+            f"{len(docs['duplicate_titles'])} title(s) appear in more than one doc",
+            "Two copies of one document both look authoritative and one starts "
+            "rotting immediately. Keep one, reference it from the other place.",
+            [f"{k or '(untitled)'} → {', '.join(v)}" for k, v in
+             list(docs["duplicate_titles"].items())[:8]],
+        ))
+    if docs["oversized"]:
+        out.append(finding(
+            "DOC-05", "info",
+            f"{len(docs['oversized'])} doc(s) over "
+            f"{THRESHOLDS['single_doc_lines']} lines",
+            "Large is fine for a tier-2 reference the agent opens deliberately. "
+            "It is a problem if anything loads it unconditionally.",
+            [f"{d['path']} — {d['lines']} lines" for d in docs["oversized"][:6]],
+        ))
+
+    # ── concurrency ──
+    parallel_evidence = con["worktree_count"] > 1 or con["branch_count"] > 3
+    if parallel_evidence and not con["isolation_declared"]:
+        out.append(finding(
+            "CON-01", "warn",
+            "Parallel work is happening and no isolation rule is written down",
+            f"{con['worktree_count']} worktree(s), {con['branch_count']} branch(es), "
+            "but no tier-0 file says how concurrent sessions stay out of each "
+            "other's way. Declare the rung: serial, ownership partition, or "
+            "worktree isolation.",
+        ))
+    if con["worktree_count"] > 1 and not any(
+        "merge" in d["term"] or "integrat" in d["term"] for d in con["isolation_declared"]
+    ):
+        out.append(finding(
+            "CON-03", "info",
+            f"{con['worktree_count']} worktrees with no named integration step",
+            "Split-and-merge without a reviewer that reads the combined result "
+            "is where 'each agent was right, the whole is broken' lives.",
+            con["worktrees"][:6],
+        ))
+    hot = [h for h in con["hot_files_90d"] if h["commits_90d"] >= 15]
+    if hot:
+        out.append(finding(
+            "CON-02", "info",
+            "High-churn shared files",
+            "Files many sessions rewrite are the contention surface. If any is "
+            "a live state file, consider splitting it into a small live file "
+            "plus an append-only dated history.",
+            [f"{h['path']} — {h['commits_90d']} commits/90d" for h in hot[:6]],
+        ))
+
+    # ── tracking ──
+    if not trk["has_spine"]:
+        out.append(finding(
+            "TRK-01", "error",
+            "No goal spine",
+            "Goals held only in conversation get summarized, re-summarized, and "
+            "diluted until work stops advancing them. Externalize into one "
+            "durable file small enough to re-read every session.",
+        ))
+    else:
+        stale = [
+            s for s in trk["spine_files"]
+            if s["age_days"] is not None and s["age_days"] > THRESHOLDS["stale_spine_days"]
+        ]
+        if stale and len(stale) == len(trk["spine_files"]):
+            out.append(finding(
+                "TRK-02", "warn",
+                "The goal spine is stale",
+                "Every goal file is older than "
+                f"{THRESHOLDS['stale_spine_days']} days. A spine nobody updates "
+                "is a spine nobody reads.",
+                [f"{s['path']} — {s['age_days']}d" for s in stale],
+            ))
+    if not trk["has_check"]:
+        out.append(finding(
+            "TRK-03", "error",
+            "No check the agent can run",
+            "Without a runnable check, 'looks done' is the only stop signal the "
+            "agent has, and you are the verification loop. Code projects: tests "
+            "or a build. Everything else: a structural linter, a fresh-context "
+            "reviewer against written criteria, or a recorded human sign-off.",
+        ))
+    if not trk["has_decision_log"]:
+        out.append(finding(
+            "TRK-04", "warn",
+            "No decision log",
+            "Without one, each new session re-litigates settled calls and slowly "
+            "reverses them. Append-only: decision, date, why, what it supersedes.",
+        ))
+
+    # ── fit ──
+    doc_lines = docs["total_lines"]
+    if arch["guess"] == "software" and inv["code_total"] < 10 and docs["total"] > 25:
+        out.append(finding(
+            "FIT-01", "info",
+            "More process than work",
+            f"{docs['total']} docs ({doc_lines} lines) against "
+            f"{inv['code_total']} source files. Structure should be the smallest "
+            "thing that survives the contention you actually observe.",
+        ))
+    if docs["total"] <= 3 and not trk["has_spine"]:
+        out.append(finding(
+            "FIT-02", "info",
+            "Below the minimum viable spine",
+            "Three files would cover this: a rules file, a what-is-true-now "
+            "file, and an append-only decisions file. Nothing heavier is "
+            "warranted yet.",
+        ))
+
+    order = {"error": 0, "warn": 1, "info": 2}
+    return sorted(out, key=lambda f: (order[f["severity"]], f["id"]))
+
+
+# ── assembly ──────────────────────────────────────────────────────────────
+
+
+def diagnose(root: Path, max_files: int) -> dict:
+    state_root = resolve_state_root(root)
+    inv = walk(root, max_files)
+    ctx = scan_context_load(root, inv)
+    tier0_paths = {f["path"] for f in ctx["always_loaded"]}
+
+    is_perry = (root / ".perry" / "config.md").is_file() or (
+        (state_root / "OKR.md").is_file() and (state_root / "BOARD.md").is_file()
+    )
+    perry_owned: set[str] = set()
+    if is_perry:
+        prefix = "" if state_root == root else f"{state_root.relative_to(root)}/"
+        for g in perry_owned_globs():
+            pattern = g if g.startswith(".perry") else f"{prefix}{g}"
+            perry_owned |= {m for m in inv["md"] if fnmatch.fnmatch(m, pattern)}
+
+    docs = scan_docs(root, inv, tier0_paths, perry_owned)
+    con = scan_concurrency(root, inv, tier0_paths)
+    trk = scan_tracking(root, state_root, inv)
+    arch = scan_archetype(inv, docs, root, is_perry, perry_owned)
+    findings = derive_findings(ctx, docs, con, trk, arch, inv)
+
+    return {
+        "schema": "diagnose/1",
+        "root": str(root),
+        "generated": date.today().isoformat(),
+        "thresholds": THRESHOLDS,
+        "inventory": {
+            "md_files": len(inv["md"]),
+            "code_files": inv["code_total"],
+            "code_by_ext": inv["code_by_ext"],
+            "other_files": inv["other_files"],
+            "dir_count": len(inv["dirs"]),
+            "walk_truncated": inv["truncated"],
+        },
+        "context_load": ctx,
+        "documents": docs,
+        "concurrency": con,
+        "tracking": trk,
+        "archetype": arch,
+        "findings": findings,
+        "counts": {
+            "error": sum(1 for f in findings if f["severity"] == "error"),
+            "warn": sum(1 for f in findings if f["severity"] == "warn"),
+            "info": sum(1 for f in findings if f["severity"] == "info"),
+        },
+    }
+
+
+def render_text(d: dict) -> str:
+    L = []
+    A = L.append
+    inv, ctx, docs, con, trk, arch = (
+        d["inventory"], d["context_load"], d["documents"],
+        d["concurrency"], d["tracking"], d["archetype"],
+    )
+    A(f"🩺 Perry diagnose · {Path(d['root']).name} · {d['generated']}")
+    A("")
+    guess = arch["guess"] or "—"
+    A(f"   Looks like     : {guess} ({arch['confidence']} confidence)")
+    for k, v in arch["evidence"].items():
+        if v and k == arch["guess"]:
+            A(f"                    {'; '.join(v[:3])}")
+    A(f"   Inventory      : {inv['md_files']} md · {inv['code_files']} source · "
+      f"{inv['dir_count']} dirs")
+    over = f" ⚠ over by {ctx['over_budget_by']}" if ctx["over_budget_by"] else " ok"
+    A(f"   Always loaded  : {ctx['always_loaded_lines']}/{ctx['budget_lines']} lines"
+      f"{over}"
+      + (f" ({', '.join(f['path'] for f in ctx['always_loaded'])})"
+         if ctx["always_loaded"] else " (none)"))
+    A(f"   Doc graph      : {docs['total']} docs · {len(docs['indexes'])} index · "
+      f"{len(docs['orphans'])} orphaned ({int(docs['orphan_ratio'] * 100)}%)")
+    A(f"   Concurrency    : {max(0, con['worktree_count'] - 1)} extra worktree · "
+      f"{con['branch_count']} branch · isolation declared: "
+      f"{'yes' if con['isolation_declared'] else 'no'}")
+    A(f"   Spine          : {'yes' if trk['has_spine'] else 'NO'} · "
+      f"decisions: {'yes' if trk['has_decision_log'] else 'NO'} · "
+      f"runnable check: {'yes' if trk['has_check'] else 'NO'}")
+    if trk["perry"]["installed"]:
+        A(f"   Perry state    : installed (state root {trk['perry']['state_root']})")
+    A("")
+    c = d["counts"]
+    A(f"   Findings       : {c['error']} error · {c['warn']} warn · {c['info']} info")
+    A("")
+    for f in d["findings"]:
+        mark = {"error": "✗", "warn": "!", "info": "·"}[f["severity"]]
+        A(f"   {mark} [{f['id']}] {f['title']}")
+        A(f"       {f['detail']}")
+        for e in f["evidence"][:6]:
+            A(f"       · {e}")
+        A("")
+    if not d["findings"]:
+        A("   ✓ no structural findings — the invariants hold.")
+        A("")
+    return "\n".join(L)
+
+
+def main(argv: list[str]) -> int:
+    if "--help" in argv or "-h" in argv:
+        print(__doc__.strip())
+        return 0
+    root = os.environ.get("PERRY_PROJECT") or os.getcwd()
+    fmt = "json"
+    max_files = 20000
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--root" and i + 1 < len(argv):
+            root = argv[i + 1]
+            i += 1
+        elif a == "--max-files" and i + 1 < len(argv):
+            try:
+                max_files = int(argv[i + 1])
+            except ValueError:
+                pass
+            i += 1
+        elif a == "--json":
+            fmt = "json"
+        elif a == "--text":
+            fmt = "text"
+        i += 1
+
+    p = Path(root).expanduser()
+    if not p.is_dir():
+        print(json.dumps({"schema": "diagnose/1", "error": f"not a directory: {root}"}))
+        return 0
+    p = p.resolve()
+
+    try:
+        payload = diagnose(p, max_files)
+    except Exception as exc:  # never block a standup on a scan failure
+        payload = {"schema": "diagnose/1", "root": str(p), "error": f"{type(exc).__name__}: {exc}"}
+        print(json.dumps(payload, indent=2) if fmt == "json" else f"perry-diagnose: {payload['error']}")
+        return 0
+
+    print(json.dumps(payload, indent=2) if fmt == "json" else render_text(payload))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

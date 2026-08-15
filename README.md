@@ -304,6 +304,7 @@ stdlib-only scripts do the work an LLM shouldn't:
 |---|---|---|
 | `bin/perry-state` | Reads the whole project in one pass and emits the dashboard model (`--json`) or the pre-formatted rows (`--dashboard`). | The standup ritual of all four skills; any subcommand needing counts |
 | `bin/perry-lint` | Validates state files against `schema/state-schema.json` — sections, table columns, status vocabulary, ID patterns, cross-file linkage integrity. `--templates` validates Perry's own templates. | Bootstrap, after any structural write, CI |
+| `bin/perry-diagnose` | Measures how a project is *structured for agent work* — context load against budget, the document reference graph, concurrency signals, tracking spine — and emits findings with stable IDs. Runs on **any** folder, Perry or not. | `/perry diagnose` stage 0 |
 
 Why it matters: before this, every dashboard number was the agent reading a
 dozen files and counting by eye — which is both expensive and exactly the kind
@@ -313,6 +314,7 @@ narrates them, and `—` means "genuinely unknown" rather than "didn't look".
 ```bash
 bin/perry-state --dashboard        # what's the state, right now
 bin/perry-lint --root .            # is every state file well-formed
+bin/perry-diagnose --root . --text # is this project's structure sound at all
 bash tests/run                     # the whole suite (stdlib only, no venv)
 ```
 
@@ -320,6 +322,41 @@ bash tests/run                     # the whole suite (stdlib only, no venv)
 `state/*_TEMPLATE.md`, and `viewer/parsers.py` must all agree with — see
 [schema/README.md](schema/README.md). `tests/` pins that agreement; the
 `--templates` check is what fails when a template and a parser drift apart.
+
+## `/perry diagnose` — is this project even set up right?
+
+Everything above assumes the project should be run Perry's way. `/perry diagnose`
+asks the prior question, on **any** folder — including one that has never
+installed Perry, and including projects where the honest answer is "leave it
+alone" or "you need three files, not a PMO".
+
+It targets the three ways agent-run projects actually fall apart:
+
+| Failure | Looks like | What fixes it |
+|---|---|---|
+| **Session interference** | Two sessions edit one file; one's work vanishes. Git `index.lock` errors. | The lowest rung of the isolation ladder that survives the contention you *actually observe* — often just "one at a time" |
+| **The document jungle** | 40 markdown files, half stale, two contradicting, nobody can find the right one. | A tier discipline with a hard budget on what loads every session, plus an index the agent reads first |
+| **Goal drift** | Plenty of activity, no way to say what's done or whether it mattered. | An externalized goal spine, a decision log, and a check the agent can actually run |
+
+```bash
+/perry diagnose              # scan → interview → prescribe → execute, gated
+/perry diagnose --dry-run    # stop after the prescription, change nothing
+/perry diagnose --recheck    # what drifted since last time
+```
+
+Six stages, and the governing rule is that **every prescription traces to a
+finding, and every finding traces to a measurement or something you said.**
+Nothing gets prescribed because Perry likes it. Two outcomes stay first-class:
+zero findings, and a prescription of pure subtraction.
+
+The research behind it — the isolation ladder, the tier budget, the three
+archetypes (software, knowledge base, ops/content), and an explicit account of
+where the evidence is thin — is in
+[reference/project-archetypes.md](reference/project-archetypes.md). The
+procedure is [reference/diagnose.md](reference/diagnose.md). Runnable scaffolds
+for each archetype are in [templates/](templates/), including a real
+verification loop for the two archetypes that have none natively
+(`kb-lint` for a knowledge base, `deliverable-lint` for ops/content work).
 
 ## Designing your own skills on top
 

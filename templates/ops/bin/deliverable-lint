@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""
+deliverable-lint — the verification loop for work that does not compile.
+
+Ops, content, and process projects have no test suite, so the only stop signal
+an agent has is "it looks finished". This script replaces that with something
+that returns pass or fail, built out of the three gates that actually work when
+nothing can be executed:
+
+  1. structure   — the deliverable has every section its kind requires
+  2. completion  — no unresolved {{placeholders}} and no TODO markers left
+  3. sign-off    — anything outward-facing carries a human name and a date
+
+Gate 3 is the one that matters. An agent may draft, revise, and check its own
+work; it may not decide that something is ready to leave the building. That
+call is a person's, and this script is where the requirement is enforced rather
+than hoped for.
+
+Usage:
+  bin/deliverable-lint [PATH ...] [--kind KIND] [--json] [--quiet]
+
+  PATH      files or directories to check (default: deliverables/)
+  --kind    force a kind instead of inferring from the parent directory
+
+Exit code is 1 when anything fails:
+  bin/deliverable-lint && echo "safe to publish"
+
+Python 3 standard library only. Read-only.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+# Edit this to match the kinds of work this project produces. The key is the
+# directory name; anything not listed falls back to "default".
+KINDS = {
+    "default": {
+        "sections": ["Summary", "Detail"],
+        "needs_signoff": False,
+    },
+    "deliverables": {
+        "sections": ["Summary", "Detail", "Sources"],
+        "needs_signoff": True,
+    },
+    "incidents": {
+        "sections": ["Impact", "Timeline", "Root cause", "Follow-ups"],
+        "needs_signoff": True,
+    },
+    "runbooks": {
+        "sections": ["When to use", "Steps", "Verification", "Rollback"],
+        "needs_signoff": False,
+    },
+}
+
+DEFAULT_TARGETS = ["deliverables", "incidents", "runbooks"]
+
+HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.M)
+PLACEHOLDER = re.compile(r"\{\{[^}]{0,80}\}\}")
+TODO = re.compile(r"\b(TODO|TBD|FIXME|XXX)\b")
+SIGNOFF = re.compile(
+    r"^\s*(?:[-*]\s*)?(?:\*\*)?sign(?:ed)?[- ]off(?:\*\*)?\s*:\s*(.+)$",
+    re.I | re.M,
+)
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def check(path: Path, root: Path, kind: str) -> list[dict]:
+    spec = KINDS.get(kind, KINDS["default"])
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [{"kind": "unreadable", "path": str(path), "detail": str(exc)}]
+
+    rel = str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+    out = []
+    present = {norm(m.group(1)) for m in HEADING.finditer(text)}
+
+    for want in spec["sections"]:
+        if norm(want) not in present:
+            out.append({
+                "kind": "missing-section", "path": rel,
+                "detail": f"required section '{want}' is absent "
+                          f"(kind: {kind})",
+            })
+
+    holes = PLACEHOLDER.findall(text)
+    if holes:
+        out.append({
+            "kind": "unfilled", "path": rel,
+            "detail": f"{len(holes)} unresolved placeholder(s): "
+                      f"{', '.join(sorted(set(holes))[:4])}",
+        })
+
+    marks = TODO.findall(text)
+    if marks:
+        out.append({
+            "kind": "open-marker", "path": rel,
+            "detail": f"{len(marks)} unresolved marker(s) "
+                      f"({', '.join(sorted(set(marks)))}) — finished work has none",
+        })
+
+    if spec["needs_signoff"]:
+        m = SIGNOFF.search(text)
+        if not m:
+            out.append({
+                "kind": "no-signoff", "path": rel,
+                "detail": "no 'Sign-off:' line. Outward-facing work needs a "
+                          "person's name against it — an agent may draft and "
+                          "revise, but may not decide this is ready to send",
+            })
+        elif not DATE.search(m.group(1)):
+            out.append({
+                "kind": "signoff-undated", "path": rel,
+                "detail": f"sign-off '{m.group(1).strip()[:50]}' carries no "
+                          "YYYY-MM-DD date, so it cannot be tied to a version",
+            })
+    return out
+
+
+def main(argv: list[str]) -> int:
+    paths, forced_kind, as_json, quiet = [], None, False, False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--help", "-h"):
+            print(__doc__.strip())
+            return 0
+        if a == "--kind" and i + 1 < len(argv):
+            forced_kind = argv[i + 1]
+            i += 1
+        elif a == "--json":
+            as_json = True
+        elif a in ("--quiet", "-q"):
+            quiet = True
+        elif not a.startswith("-"):
+            paths.append(a)
+        i += 1
+
+    root = Path(".").resolve()
+    if not paths:
+        paths = [p for p in DEFAULT_TARGETS if (root / p).is_dir()]
+        if not paths:
+            if not quiet:
+                print("deliverable-lint: nothing to check "
+                      f"(looked for {', '.join(DEFAULT_TARGETS)})")
+            return 0
+
+    files: list[tuple[Path, str]] = []
+    for raw in paths:
+        p = (root / raw).resolve() if not Path(raw).is_absolute() else Path(raw)
+        if p.is_dir():
+            for f in sorted(p.rglob("*.md")):
+                if f.name.upper() in ("README.MD", "INDEX.MD"):
+                    continue
+                files.append((f, forced_kind or p.name))
+        elif p.is_file():
+            files.append((p, forced_kind or p.parent.name))
+
+    findings: list[dict] = []
+    for f, kind in files:
+        findings.extend(check(f, root, kind))
+
+    ok = not findings
+    if as_json:
+        print(json.dumps(
+            {"ok": ok, "checked": len(files), "findings": findings}, indent=2))
+    elif not quiet:
+        if ok:
+            print(f"✓ deliverable-lint clean — {len(files)} document(s)")
+        else:
+            print(f"✗ deliverable-lint — {len(findings)} finding(s) across "
+                  f"{len(files)} document(s)\n")
+            for x in findings:
+                print(f"  [{x['kind']}] {x['path']}")
+                print(f"      {x['detail']}")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

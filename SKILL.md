@@ -134,6 +134,22 @@ Five stages, each resumable: **scan** (read-only report) → **harvest** (cited 
 
 Sources, trust tiers, and the depth matrix (including non-code projects) are in `reference/adoption-sources.md`.
 
+## `/perry diagnose` — auditing how a project works with agents
+
+`adopt` converts a project **into** Perry. `diagnose` asks the prior question: **is this project's working structure sound at all?** It runs on any folder, including one that has never heard of Perry, and the right answer is often "leave it alone" or "you need three files" rather than "adopt Perry".
+
+```
+/perry diagnose [--depth=quick|standard|deep] [--only=<lanes>] [--dry-run] [--recheck]
+```
+
+**Read `reference/diagnose.md` before running it.** The governing rule: **every prescription traces to a finding, and every finding traces to a measurement or an answer the user gave.** Nothing may be prescribed because Perry prefers it — diagnosis is inherently judgmental, and without that gate this subcommand becomes a machine that converts every project into a heavier project. It writes exactly one file of its own — `.perry/diagnose/<YYYY-MM-DD>-diagnosis.md` — and changes to Perry state still go through the owning child skill.
+
+Six stages: **scan** (`bin/perry-diagnose`, deterministic and read-only) → **read** (what a script can't measure — the gap between what the docs say and what `git log` shows) → **interview** (≤6 outcome-framed questions; the user's answers override the scan) → **prescribe** (the smallest change set, hard-capped by the user's stated maintenance tolerance) → **execute** (gated per item, restore point first, moves and never deletes) → **recheck** (drift, with declined items remembered rather than re-proposed).
+
+It targets the three ways agent projects actually fail — concurrent sessions interfering, documents growing past the budget where they stop being obeyed, and goals drifting with no runnable check to say what is done. The research behind each, the isolation ladder, and the three archetypes are in `reference/project-archetypes.md`; runnable scaffolds are in `templates/`.
+
+Two outcomes are first-class and must stay available: **zero findings**, and a prescription of pure **subtraction**. A diagnostic that has to find something to justify the run is one the user stops reading by the third invocation.
+
 ## Repo layout options
 
 Perry supports two layouts. Pick one at first-time setup; record the choice in `.perry/config.md`.
@@ -210,6 +226,7 @@ When the user types something inside a `/perry` session, route to the right chil
 **Handle here in `/perry` (without routing):**
 - The combined snapshot itself.
 - `adopt` — converting an existing project into Perry state. It spans all three lanes, so it is orchestrated here and materialized through the children's own subcommands (`reference/adoption.md`).
+- `diagnose` — auditing and refactoring how a project works with agents. Also an orchestrator, and the one subcommand that must be able to conclude the project needs *less* structure, or none of Perry's (`reference/diagnose.md`).
 - "Explain Perry" / "what is this skill" — short pointer to README.
 - Recommending the next action when the choice spans more than one child.
 - Confirming or updating `.perry/config.md` (document language, repo layout).
@@ -252,6 +269,14 @@ Perry — virtual project office (3 invocable skills)
             tracker, and starting from a blank OKR would throw that away.
             Evidence proposes; you declare. Nothing is written until you accept.
             Common: /perry adopt, --depth=quick, --recheck
+
+  /perry diagnose  Audit how a project works with agents, then refactor it.
+            Use when: sessions keep interfering, the md files have become a
+            jungle nobody can navigate, or there's no way to say what's done.
+            Works on ANY folder — Perry not required, and "your structure is
+            fine" is a valid result. Measures, interviews, prescribes the
+            smallest fix, then executes it with your approval per item.
+            Common: /perry diagnose, --dry-run, --recheck
 
 First-time setup: /perry in a new project → confirms language + repo layout,
 then asks new-vs-existing and routes to /perry adopt for existing projects.
@@ -335,6 +360,9 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 - [INSTALL.md](INSTALL.md) — install instructions.
 - [schema/README.md](schema/README.md) — the state-file contract every skill, template, and parser must agree with; validated by `bin/perry-lint`.
 - [reference/adoption.md](reference/adoption.md) — `/perry adopt`: the five-stage pipeline that converts an existing project into Perry state. The governing rule (**evidence proposes, the user declares**), the asymmetry between what may be inferred and what may not, cluster triage, the cluster→KR attribution pass, and the list of things adoption never does.
+- [reference/diagnose.md](reference/diagnose.md) — `/perry diagnose`: the six-stage pipeline that audits and refactors how a project works with agents. The governing rule (**every prescription traces to a finding**), the six-question interview, the prescription patterns, and the execution safety rules.
+- [reference/project-archetypes.md](reference/project-archetypes.md) — the research diagnose applies: the three failure modes of agent projects, the isolation ladder, the tier discipline for documents, the minimum viable spine, three archetypes, and an explicit account of where the evidence is thin.
+- [templates/](templates/) — runnable scaffolds for the three archetypes, including a verification loop for the two that have none natively (`kb-lint`, `deliverable-lint`).
 - [reference/adoption-sources.md](reference/adoption-sources.md) — the harvest catalog: source detectors, A/B/C trust tiers (which cap derived confidence), the depth matrix, scale limits, non-code projects, and the citation forms every piece of evidence must produce.
 - [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
 - [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
