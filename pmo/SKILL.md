@@ -28,9 +28,9 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-phase-review` / `end-phase-retro` |
 | `reference/decisions.md` | `/pmo decide <topic>` and `--supersede` / `--expire` / `--archive` (ADR lifecycle + `decisions/` split + language rule) |
-| `reference/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
-| `reference/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
-| `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
+| `$PERRY_HOME/packs/software-ops/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
+| `$PERRY_HOME/packs/software-ops/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
+| `$PERRY_HOME/packs/software-ops/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
@@ -115,7 +115,7 @@ Always run this before anything else, even if the user asked a specific question
 
 4. **Read full text only when the current question needs it.** The payload already answers "how many / how stale / what's blocked". Open the actual file when the user asks about its content:
    - `OKR.md` / `phase/<NNN>-<slug>.md` — for goal-level discussion.
-   - `ARCHITECTURE.md` — header data is in the payload; full text is loaded only on dispatch (`reference/architecture.md § Dispatch integration`) or when the question is about architecture.
+   - `ARCHITECTURE.md` — header data is in the payload; full text is loaded only on dispatch (`$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`) or when the question is about architecture.
    - `design/<DESIGN-ID>-*.md`, `decisions/ADR-NNN-*.md`, `weekly/`, `handoff/` — on demand.
    The attribution rule still governs anything you roll up: a task's KR is resolved by stable ID through `phase/<NNN>-linkage.md` (`$PERRY_HOME/reference/okr-linkage.md`). `perry-state` applies exactly that rule — anything it reports as `unlinked` must be **asked about, never fuzzy-matched**.
 
@@ -239,10 +239,10 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `mid-phase-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midphase-review.md` | `reference/subcommands.md` |
 | `end-phase-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
 | `decide <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates `DECISIONS.md` index. `--supersede ADR-NNN` / `--expire ADR-NNN` / `--archive ADR-NNN` manage lifecycle. Content written in `.perry/config.md` § Document language. | `reference/decisions.md` |
-| `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `reference/architecture.md` |
-| `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `reference/architecture.md` |
-| `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
-| `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
+| `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `$PERRY_HOME/packs/software-ops/architecture.md` |
+| `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `$PERRY_HOME/packs/software-ops/architecture.md` |
+| `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `$PERRY_HOME/packs/software-ops/runbooks.md` |
+| `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `$PERRY_HOME/packs/software-ops/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |

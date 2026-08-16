@@ -1,6 +1,7 @@
 # Perry configuration
 
 - Document language: English
+- Chat language: 中文
 - Repo layout: single
 - State root: perry
 - PMO repo path: /Users/bytedance/proj/Perry

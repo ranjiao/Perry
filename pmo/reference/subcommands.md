@@ -23,10 +23,10 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 - `done` claim without evidence file in `evidence/<YYYY-MM>/` → revert to `review`
 - Owner is an agent but no recent delegation prompt in chat? → flag
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
-- Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `reference/runbooks.md`).
-- Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `reference/architecture.md`).
+- Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `$PERRY_HOME/packs/software-ops/runbooks.md`).
+- Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `$PERRY_HOME/packs/software-ops/architecture.md`).
 - Latest `architecture/audit-history/<date>.md` has open drift items older than 7 days → flag with "audit drift open" annotation; not blocking but visible.
-- Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `reference/incidents.md`).
+- Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `$PERRY_HOME/packs/software-ops/incidents.md`).
 - Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
 
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`). Read the mode file for any track you are triaging.
@@ -103,12 +103,12 @@ Print the exact command; don't edit `phase/` yourself.
    > Executor: claude-subagent | codex | manual # only consulted when Dispatch mode = auto
    > Estimated cycle: small | medium | large    # informs sync vs async + cycle-time tracking
    > Subjective verification: <list, or '(none)'>
-   > Touches architecture: <comma-separated §-section refs (§2, §3, §6.NN-3), or '(none)'>   # used by dispatch pre-flight + review agent; see reference/architecture.md
+   > Touches architecture: <comma-separated §-section refs (§2, §3, §6.NN-3), or '(none)'>   # used by dispatch pre-flight + review agent; see $PERRY_HOME/packs/software-ops/architecture.md
    > Deployed: yes | no                          # default 'no'; 'yes' triggers runbook + observability gate at close
    > Runbook: runbook/<slug>.md                  # required ONLY when Deployed: yes; path must exist before close-task
    ```
 
-   **When `Deployed: yes`, the spec ALSO requires an `## Observability` section** with three sub-fields (see `reference/runbooks.md § Spec contract`):
+   **When `Deployed: yes`, the spec ALSO requires an `## Observability` section** with three sub-fields (see `$PERRY_HOME/packs/software-ops/runbooks.md § Spec contract`):
    ```
    ## Observability
    - Success signal:   <log line / metric / endpoint / `command` output that proves it's working>
@@ -140,14 +140,14 @@ If the task needs a working artifact from day one (checklist, design ladder, sub
 ### `close-task <id>`
 Reject if no evidence path provided.
 
-**Pre-close gate 1 — `Touches architecture:` requires review agent PASS** (see `reference/architecture.md § close-task gate`):
+**Pre-close gate 1 — `Touches architecture:` requires review agent PASS** (see `$PERRY_HOME/packs/software-ops/architecture.md § close-task gate`):
 1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. If header has `Touches architecture:` non-empty:
    - Find the latest dispatch evidence file for this task (`evidence/<YYYY-MM>/<TASK-ID>-dispatch-*.md`, latest mtime).
    - Verify it contains an `## Architecture review` section ending with `PASS`. `FAIL` or missing → refuse close.
 2. **If review missing or FAIL**, use `AskUserQuestion` (header = TASK-ID, options): `Re-dispatch to fix (Recommended) | Override — close without arch review (NOT recommended) | Keep as review`. "Override" requires written reason; logged as `architecture-override: <reason>` in journal.
 3. `Touches architecture: (none)` or field absent → skip this gate.
 
-**Pre-close gate 2 — `Deployed: yes` requires a runbook** (see `reference/runbooks.md § close-task gate`):
+**Pre-close gate 2 — `Deployed: yes` requires a runbook** (see `$PERRY_HOME/packs/software-ops/runbooks.md § close-task gate`):
 1. Open the spec. If header has `Deployed: yes`:
    - `Runbook:` field must be present AND point at an existing file.
    - The referenced runbook file must have all four mandatory sections (What / Healthy / Failures / Escalation), non-empty.

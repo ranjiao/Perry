@@ -151,4 +151,4 @@ Ordered:
   the intake/recurrence/commitments decisions.
 - `modes/pipeline.md` — for the committed, date-bound deliverables a queue often
   feeds.
-- `pmo/reference/incidents.md` — the incident record a queue-mode track uses.
+- `$PERRY_HOME/packs/software-ops/incidents.md` — the incident record a queue-mode track uses.

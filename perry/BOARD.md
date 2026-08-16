@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (11th pass — phase D authored; TASK-019/020 at review pending V4)
+> Last updated: 2026-08-16 (12th pass — phase F: pack extraction passed its own test)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -24,7 +24,6 @@
 |---|---|---|---|---|---|---|
 | TASK-019 | `modes/pipeline.md` | Coding Agent | review | Written. **V4 needs a fresh-context reviewer** who has not seen the authoring session — I cannot be it, so this cannot self-close | `evidence/2026-08/TASK-019-spec.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | Written; intake shape verified end-to-end. **V4 needs a fresh-context reviewer** — same gate as TASK-019 | `evidence/2026-08/TASK-020-spec.md` | V4 |
-| TASK-024 | Extract `packs/software-ops/` from `pmo/reference/` | Coding Agent | not_started | DESIGN-003 phase F — the pack-abstraction test; a failed extraction is a design finding, not a bug | `evidence/2026-08/TASK-024-spec.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — blocked-by TASK-026 | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
@@ -34,7 +33,7 @@
 | TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — | V4 |
 | TASK-022 | `modes/inquiry.md` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-018 | — | V4 |
 | TASK-023 | `SRC-` ids in digests + `perry-lint --provenance` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-022 | — | V3 |
-| TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — blocked-by TASK-024 | — | V4 |
+| TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — unblocked (TASK-024 closed; the abstraction held) | — | V4 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
@@ -66,6 +65,7 @@
 | TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
 | TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 | TASK-015 | Schema: `mode` + `verification_rung` enums, `work_modes`/`verification` blocks, optional `## Tracks` + `## Intake` table specs, i18n columns — **V3** | `schema/state-schema.json`, `tests/test_work_modes.py`; lint output on all 3 fixtures byte-identical to the pre-change baseline, no fixture edited |
+| TASK-024 | `packs/software-ops/` — architecture/runbooks/incidents extracted, **0 content edits**; `git-boundaries.md` kept in core; OKR phase gate made pack-conditional — **V3** (rung lowered from V4, see journal) | `packs/software-ops/`, `packs/software-ops/pack.md`, `okr/reference/phases.md`; `git diff` vs pre-move = 0 lines on all three, 0 stale refs, lint clean |
 | TASK-018 | `modes/project.md` + router step 3b + `perry-state.parse_tracks` — **V3** | `modes/project.md`, `SKILL.md § Mandatory first move` step 3b, `bin/perry-state`; `perry-state --dashboard` byte-identical on all 3 fixtures before/after |
 | TASK-016 | `perry-lint --verification` — missing rung, unsatisfiable rung, and high-stakes rows closed below V5 — **V3** | `bin/perry-lint`, `tests/test_work_modes.py::TestVerificationLint` (11 tests incl. the empty-scan case) |
 | TASK-017 | Rung capture at `close-task` + `board.verification` distribution + standup row — **V3** | `viewer/parsers.py`, `bin/perry-state`, `pmo/reference/subcommands.md § close-task` gate 3, `pmo/SKILL.md`; `tests/…::TestRungDistribution` (5 tests) |

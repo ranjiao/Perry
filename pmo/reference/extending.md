@@ -53,8 +53,8 @@ For projects without a hook, the generic standup + subcommands work fine. Most s
 
 Beyond the generic block above, two more-specific profile blocks are recognized by other reference files:
 
-- `## Architecture profile` block — see `reference/architecture.md`. Drives eager creation of `ARCHITECTURE.md` at bootstrap.
-- `## Operational profile` block — see `reference/runbooks.md`. Drives eager creation of `runbook/` at bootstrap.
+- `## Architecture profile` block — see `$PERRY_HOME/packs/software-ops/architecture.md`. Drives eager creation of `ARCHITECTURE.md` at bootstrap.
+- `## Operational profile` block — see `$PERRY_HOME/packs/software-ops/runbooks.md`. Drives eager creation of `runbook/` at bootstrap.
 - `## ADR conventions` block — see `reference/decisions.md`. Overrides the default ADR type list.
 
 All hook blocks are optional and additive.

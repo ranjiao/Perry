@@ -35,7 +35,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
    - `runbook/` → first task spec with `Deployed: yes`
    - `incidents/` → first `/pmo incident <slug>`
 
-   **Exception**: if `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation. See `reference/architecture.md` and `reference/runbooks.md`.
+   **Exception**: if `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation. See `$PERRY_HOME/packs/software-ops/architecture.md` and `$PERRY_HOME/packs/software-ops/runbooks.md`.
 
 4. **Check `.gitignore`** — add any entries the project hook declares. Perry itself writes nothing that needs ignoring; the consumption layer (aiMark, or `bin/perry-viewer`) reads the tracked files directly and generates nothing into the project.
 
