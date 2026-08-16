@@ -1,7 +1,7 @@
 # DESIGN-003: Work modes — generalizing Perry past the software project
 
-> Status: draft
-> Date: 2026-08-16 · Locked: —
+> Status: locked
+> Date: 2026-08-16 · Locked: 2026-08-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
 > Supersedes: —   · Superseded by: —
@@ -265,6 +265,32 @@ A project declares 1..N tracks. One track, mode `project`, is the default and
 reproduces today's Perry exactly. `BOARD.md` gains a `Track` column; every
 other file is unchanged in shape.
 
+**Alternatives considered.** Three, all rejected, and the reasons are the
+argument for the track:
+
+- **(a) Mode as a property of the whole project.** One folder, one mode.
+  Simplest possible change — a single line in `.perry/config.md` and no `Track`
+  column. Rejected because it is empirically wrong: this very repo is product
+  work *and* a docs pipeline *and* an inbound-issues queue, and B2's consultant
+  is five engagements. A per-project mode forces the user to pick the shape
+  that fits most of their work and mis-handle the rest, which is what Perry
+  does today with the shape hard-coded.
+- **(b) One Perry root per shape** — separate folders, each with its own
+  `BOARD.md`. Needs no new concept at all; tracks fall out of the filesystem.
+  Rejected because it multiplies the state files rather than the semantics: the
+  user gets three boards, three journals and three standups for one week of
+  work, and nothing rolls up. It also converts the portfolio question (§8) from
+  deferred to mandatory on day one.
+- **(c) Sub-project directories inside one root** (`projects/<name>/BOARD.md`).
+  Matches the field pattern in `02-Projects/active/` [9]. Rejected on
+  DESIGN-002's rule: it claims a new directory tree in the user's namespace to
+  express something that is configuration, and it still gives every sub-project
+  the same software-shaped office — the actual defect.
+
+The track is the cheapest object that separates *which work* from *what shape
+it has*, and it costs zero new paths because it lives in a file Perry already
+owns.
+
 Per-mode semantics, which is the whole payload of this design:
 
 | | **project** | **pipeline** | **queue** | **inquiry** |
@@ -424,6 +450,30 @@ This answers B7 at near-zero structural cost, and does not touch
 - **adopt**: proposes a track table before it proposes goals. Getting the shape
   wrong makes every downstream proposal wrong, so it is the first question.
 
+### 5.9 · Blast radius
+
+What this design changes outside its own new files, so review and phase
+sequencing can see it. Decisions 5 and 6 compound, and their combination is the
+largest single edit in the plan.
+
+| Surface | Change | Driven by |
+|---|---|---|
+| **`SKILL.md § The hand-off contract`** | **Rewritten.** The three-line ownership contract becomes four-ish: `decide` gains `DECISIONS.md` + `decisions/`, and all three lanes are renamed. This is the rule the router itself calls *"the most important rule"* and the one thing that survived the collapse from three skills to one entrance. | #5 + #6 |
+| `SKILL.md` lane table + routing reference | Lane names, `Owns` column, and every `Route to the … lane for:` bullet | #5 + #6 |
+| `pmo/SKILL.md` | Loses `decide`, `DECISIONS.md`, `decisions/` from its state-file inventory and subcommand index; loses four `reference/` rows to the pack | #6 + #7 |
+| `design/SKILL.md` | Gains ADR lifecycle (`reference/decisions.md` moves in), renamed to `decide` | #5 + #6 |
+| `schema/state-schema.json` | `tracks[]`, `mode` enum, `track:` column, `verification:` rung, `SRC-` ids, `claims[]` entry for `BOARD.md § Intake` | #1 #2 #3 #4 |
+| `bin/perry-lint` | `--verification`, `--provenance` | #4 |
+| `bin/perry-state` | Per-track dashboard blocks, rung distribution | #1 #4 |
+| `viewer/`, `schema/README.md`, aiMark | Read the schema, so they follow it — but they are downstream readers and lag is a bug | #1 #4 |
+| `reference/project-archetypes.md` | A/B/C remap to the four modes; becomes mode-selection research rather than audit-only input | #1 |
+| `README.md` / `README_cn.md` / `INSTALL.md` | Lane names, the "three lanes" framing, the file-layout tree | #5 |
+
+**Unchanged, deliberately:** `reference/i18n.md` (the vocabulary layer is a
+third axis on its existing mechanism, not a replacement), `reference/user-load.md`,
+`reference/adoption-sources.md`, and every host-capability rule — decision 8
+kept the matrix at two columns.
+
 ## 6. Implementation plan
 
 Sequenced so each phase ships something usable and nothing is blocked on the
@@ -438,7 +488,7 @@ TASK-010).
 | D | `modes/pipeline.md` + `modes/queue.md`; `## Intake` + `## Commitments` + recurrence register; `triage` per-mode branches | TASK-019, TASK-020, TASK-021 | Coding Agent |
 | E | `modes/inquiry.md`; `SRC-` ids in digests; `perry-lint --provenance` | TASK-022, TASK-023 | Coding Agent |
 | F | `packs/software-ops/` extraction from `pmo/reference/`; pack loader; display glossary | TASK-024, TASK-025 | Coding Agent |
-| G | Lane rename + aliases; ADR ownership move; diagnose/adopt mode detection; README rewrite | TASK-026, TASK-027, TASK-028 | Coding Agent |
+| G | **Rewrite `SKILL.md § The hand-off contract`** for the renamed lanes + ADR ownership move, then lane aliases; diagnose/adopt mode detection; README rewrite. Per §5.9 this is the riskiest phase in the plan, not the cleanup it looks like — sequence it as such | TASK-026, TASK-027, TASK-028 | Coding Agent |
 
 Verification for this design's own tasks: A–C at V3 (fixtures + `perry-lint`
 green on all four `tests/fixtures/` shapes), D–F at V4 (fresh-context reviewer
@@ -453,6 +503,7 @@ against the mode table in §5.1), G at V5.
 | Verification ladder becomes bureaucracy and users route around it | Rung distribution collapses to V1 in `perry-state` | Advisory first release (decision #4). Default rung comes from the mode, so the common case requires zero user input. |
 | Pack abstraction is wrong | `software-ops` extraction (phase F) doesn't come out clean | Phase F is deliberately the test. If it fights, drop packs and keep §5.7's glossary, which stands alone. |
 | Lane rename churns every `reference/` file's shorthand | Grep for `/pmo `, `/okr ` after phase G | Aliases at the router; shorthand inside lane docs is already declared as agent routing vocabulary (`SKILL.md:29`), so it can lag. |
+| **The hand-off contract is rewritten and gets it wrong** — decisions 5+6 touch the one rule that keeps lanes composable, and a bad edit shows up as silent cross-lane writes, not as a lint error | `perry-lint` cannot see this. Detection is a fresh-context reviewer reading the new contract against §5.9's table, plus a fixture where each lane attempts a write outside its ownership and must refuse | Phase G lands the contract rewrite **first and alone**, before aliases or docs, so it can be reverted as one commit. V5 sign-off on that task specifically, not on phase G as a whole. |
 | Generalizing weakens the software path Perry is good at | Existing fixtures regress | Phase C is explicitly a proven no-op: `modes/project.md` is today's behavior moved, not rewritten. |
 | New paths re-open DESIGN-002's collision surface | `perry-lint --claims` | Zero new paths in the user's project (decisions #2, #3). `packs/` lives in `$PERRY_HOME`. Phase A still registers the new `BOARD.md` section in the claims registry TASK-010 builds. |
 | `BOARD.md § Intake` competes with the 200-line cap (the cost of decision #3) | `perry-state` board line count; intake row count + age | `triage` drains intake as its first step. A persistently overflowing intake is reported as a finding, not absorbed silently — if it recurs, revisit #3 rather than raising the cap. |
@@ -481,6 +532,14 @@ against the mode table in §5.1), G at V5.
 ## 9. Changes (append-only after lock)
 
 - 2026-08-16 — created — research pass on cross-domain local-harness usage.
+- 2026-08-16 — all 8 User Decisions resolved (`decide`) — #8 chosen against the
+  doc's own recommendation; reasoning and revisit trigger recorded in §4 notes.
+  Goal 5 tightened to zero new claimed paths, and a risk row added for the
+  `BOARD.md § Intake` cap pressure that decision 3 buys.
+- 2026-08-16 — §5.1 alternatives + §5.9 blast radius added at `lock` pre-flight
+  (input-quality §3.3, §3.6) — phase G re-scoped from cleanup to the plan's
+  riskiest phase, with its own risk row and a first-and-alone landing rule.
+- 2026-08-16 — locked.
 
 ## 10. References
 

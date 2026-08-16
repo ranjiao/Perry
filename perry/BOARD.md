@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (7th pass — all 11 hand-off tasks closed)
+> Last updated: 2026-08-16 (8th pass — DESIGN-003 hand-off, 14 tasks added)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,17 +16,30 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-|  |  |  |  |  |  |
+| TASK-015 | Schema: tracks, modes, `track:` / `verification:` fields | Coding Agent | not_started | DESIGN-003 phase A — blocks all 13 others | `evidence/2026-08/TASK-015-spec.md` |
+| TASK-018 | `modes/project.md` — the proven no-op | Coding Agent | not_started | DESIGN-003 phase C — the don't-break-what-works gate; blocked-by TASK-015 | `evidence/2026-08/TASK-018-spec.md` |
+| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — lands **first and alone**, revertible as one commit; blocked-by TASK-015 | `evidence/2026-08/TASK-026-spec.md` |
+
 ## P1
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-|  |  |  |  |  |  |
+| TASK-016 | `perry-lint --verification` (advisory) | Coding Agent | not_started | DESIGN-003 phase B — blocked-by TASK-015 | `evidence/2026-08/TASK-016-spec.md` |
+| TASK-017 | Rung capture at `close-task` + distribution in `perry-state` | Coding Agent | not_started | DESIGN-003 phase B — blocked-by TASK-016 | `evidence/2026-08/TASK-017-spec.md` |
+| TASK-019 | `modes/pipeline.md` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-019-spec.md` |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-020-spec.md` |
+| TASK-024 | Extract `packs/software-ops/` from `pmo/reference/` | Coding Agent | not_started | DESIGN-003 phase F — the pack-abstraction test; a failed extraction is a design finding, not a bug | `evidence/2026-08/TASK-024-spec.md` |
+| TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — blocked-by TASK-026 | `evidence/2026-08/TASK-027-spec.md` |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
+| TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — |
+| TASK-022 | `modes/inquiry.md` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-018 | — |
+| TASK-023 | `SRC-` ids in digests + `perry-lint --provenance` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-022 | — |
+| TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — blocked-by TASK-024 | — |
+| TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -60,4 +73,5 @@
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 
 - Perry is half-adopted: `.perry/config.md` exists and flips `is_adopted()`, so lint demands a full state tree it does not have yet. Recorded in ADR-001 as a candidate finding for DESIGN-002.
-- Perry trips its own `LOAD-03` (10 decisions queued on the user): 8 unresolved rows in DESIGN-003 plus USER-001/USER-002. The finding is correct; `tests/test_diagnose.py::test_perry_itself_passes_its_own_id_checks` fails until those are decided.
+- ~~`LOAD-03` (10 decisions queued on the user)~~ — cleared 2026-08-16 when DESIGN-003's 8 rows were decided and USER-001/002 were answered. `bin/perry-diagnose --root .` now reports 0 errors and no `LOAD-*` finding.
+- DESIGN-003 phase G rewrites `SKILL.md § The hand-off contract` — the one rule that keeps lanes composable, and `perry-lint` cannot see a bad edit to it. Mitigation is in DESIGN-003 §7: TASK-026 lands first and alone, with V5 sign-off and an ownership-refusal fixture.
