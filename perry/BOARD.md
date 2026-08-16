@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (10th pass — phase B closed; rows now carry a target rung)
+> Last updated: 2026-08-16 (11th pass — phase D authored; TASK-019/020 at review pending V4)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -22,8 +22,8 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-019 | `modes/pipeline.md` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-019-spec.md` | V4 |
-| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-020-spec.md` | V4 |
+| TASK-019 | `modes/pipeline.md` | Coding Agent | review | Written. **V4 needs a fresh-context reviewer** who has not seen the authoring session — I cannot be it, so this cannot self-close | `evidence/2026-08/TASK-019-spec.md` | V4 |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | Written; intake shape verified end-to-end. **V4 needs a fresh-context reviewer** — same gate as TASK-019 | `evidence/2026-08/TASK-020-spec.md` | V4 |
 | TASK-024 | Extract `packs/software-ops/` from `pmo/reference/` | Coding Agent | not_started | DESIGN-003 phase F — the pack-abstraction test; a failed extraction is a design finding, not a bug | `evidence/2026-08/TASK-024-spec.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — blocked-by TASK-026 | `evidence/2026-08/TASK-027-spec.md` | V4 |
 

@@ -8,7 +8,16 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user, updates `BOARD.md`, and writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
-Walk `BOARD.md` top-to-bottom. For each open row:
+
+**Step 0 — drain `BOARD.md § Intake`, before anything else.** Only applies when the section exists (queue-mode tracks; `modes/queue.md`). Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
+
+- **Routed** to a track → becomes a normal board row with an owner, a priority and a target rung.
+- **Dropped**, with a reason written down. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked.
+- **Deferred**, with a **named condition** — never a bare "later".
+
+A row still sitting in intake after two triages is reported by age. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
+
+Then walk `BOARD.md` top-to-bottom. For each open row:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d) → flag
 - Same dependency cited in ≥2 rows? → structural blocker
 - `done` claim without evidence file in `evidence/<YYYY-MM>/` → revert to `review`
@@ -18,6 +27,9 @@ Walk `BOARD.md` top-to-bottom. For each open row:
 - Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `reference/architecture.md`).
 - Latest `architecture/audit-history/<date>.md` has open drift items older than 7 days → flag with "audit drift open" annotation; not blocking but visible.
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `reference/incidents.md`).
+- Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
+
+**Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`). Read the mode file for any track you are triaging.
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Update `BOARD.md`, write a `## Status changes` block in today's journal entry summarizing what moved.
 
