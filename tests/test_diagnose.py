@@ -312,6 +312,89 @@ class TestDeliverableLint(unittest.TestCase):
         self.assertIn("signoff-undated", kinds)
 
 
+class TestFindingsExplainThemselves(unittest.TestCase):
+    """The reader of a finding has usually read none of the research. A finding
+    they cannot evaluate gets either obeyed blindly or ignored, so the scanner
+    owes every one of them a plain-language mechanism."""
+
+    def all_findings(self) -> list[dict]:
+        """Provoke as many distinct findings as one project can carry."""
+        collected: dict[str, dict] = {}
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "CLAUDE.md",
+                  "\n".join(f"- rule {i}" for i in range(300))
+                  + "\nSee [gone](src/missing/file.ts).\n")
+            write(root, "AGENTS.md", "# other\ndifferent rules\n")
+            for i in range(20):
+                write(root, f"docs/n{i}.md", f"# Note {i}\nbody\n")
+            write(root, "docs/dup-a.md", "# Caching strategy\nx\n")
+            write(root, "docs/dup-b.md", "# Caching Strategy\ny\n")
+            write(root, "docs/huge.md", "\n".join(["line"] * 900))
+            for f in scan(root)["findings"]:
+                collected[f["id"]] = f
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "only.md", "# one\n")
+            for f in scan(root)["findings"]:
+                collected.setdefault(f["id"], f)
+        return list(collected.values())
+
+    def test_every_emitted_finding_carries_a_why(self):
+        found = self.all_findings()
+        self.assertGreaterEqual(len(found), 8, "provoke more findings")
+        for f in found:
+            self.assertTrue(f.get("why"), f"{f['id']} has no 'why'")
+            self.assertGreater(len(f["why"]), 60, f"{f['id']} why is too thin")
+
+    def test_the_why_table_covers_every_id_the_scanner_can_emit(self):
+        src = DIAGNOSE.read_text()
+        import re as _re
+        emitted = set(_re.findall(r'"([A-Z]{3}-\d{2})", "(?:error|warn|info)"', src))
+        declared = set(_re.findall(r'^    "([A-Z]{3}-\d{2})":', src, _re.M))
+        self.assertTrue(emitted, "no findings parsed out of the scanner")
+        self.assertEqual(emitted - declared, set(),
+                         "emitted findings with no entry in WHY")
+
+    def test_user_facing_text_avoids_perry_jargon(self):
+        """`tier 0`, `rung`, `spine` are our words for these ideas, not the
+        reader's. They belong in the reference docs, not in a report handed to
+        someone who has never opened them."""
+        jargon = ["tier 0", "tier-0", "rung", "spine", "archetype",
+                  "progressive disclosure", "context rot", "orchestrat"]
+        for f in self.all_findings():
+            blob = f"{f['title']} {f['why']} {f['detail']}".lower()
+            for word in jargon:
+                self.assertNotIn(word, blob,
+                                 f"{f['id']} uses Perry jargon: '{word}'")
+
+    def test_text_mode_shows_the_why_above_the_remedy(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "CLAUDE.md", "\n".join(f"- rule {i}" for i in range(300)))
+            out = subprocess.run(
+                [sys.executable, str(DIAGNOSE), "--root", str(root), "--text"],
+                capture_output=True, text=True, timeout=120,
+            ).stdout
+        self.assertIn("why it bites", out)
+        self.assertIn("what to do", out)
+        self.assertLess(out.index("why it bites"), out.index("what to do"))
+        self.assertIn("calibrated", out, "thresholds must be flagged as arguable")
+
+    def test_a_clean_project_says_so_in_plain_language(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "AGENTS.md", "# Rules\n- Test with `pytest`.\n")
+            write(root, "STATE.md", "# State\nGoal: ship it.\n")
+            write(root, "DECISIONS.md", "# Decisions\n- 2026-01-01 chose X\n")
+            write(root, "Makefile", "test:\n\tpytest\n")
+            out = subprocess.run(
+                [sys.executable, str(DIAGNOSE), "--root", str(root), "--text"],
+                capture_output=True, text=True, timeout=120,
+            ).stdout
+        self.assertIn("Nothing to fix", out)
+
+
 class TestSchemaAgreement(unittest.TestCase):
     def test_diagnosis_entry_and_template_agree(self):
         schema = json.loads(

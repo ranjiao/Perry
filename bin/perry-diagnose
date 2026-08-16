@@ -43,6 +43,7 @@ import os
 import re
 import subprocess
 import sys
+import textwrap
 from datetime import date, datetime
 from pathlib import Path
 
@@ -764,11 +765,113 @@ def scan_archetype(inventory: dict, docs: dict, root: Path, is_perry: bool,
 # ── findings ──────────────────────────────────────────────────────────────
 
 
+# ── why each check exists ─────────────────────────────────────────────────
+#
+# The person reading a finding has usually not read the research, and a
+# finding they cannot evaluate is one they either obey blindly or ignore —
+# both bad. So every ID carries a plain-language mechanism: what actually goes
+# wrong, phrased as something the reader may have already experienced.
+#
+# Rules for writing one, because they rot in a predictable direction:
+#   - describe the mechanism, never cite authority. "The agent starts ignoring
+#     rules" beats "this violates the recommended budget."
+#   - no Perry vocabulary. No "tier 0", no "rung", no "spine" — those are our
+#     words for it, not the reader's.
+#   - two sentences. Anything longer is a lecture, and the reader came here
+#     with a broken project, not for a seminar.
+
+WHY = {
+    "CTX-01":
+        "Files like CLAUDE.md load in full at the start of every single "
+        "session, and the more instructions there are, the less reliably any "
+        "one of them is followed. It doesn't fail loudly — the agent just "
+        "quietly stops obeying some rules, and you can't tell which.",
+    "CTX-02":
+        "Two rule files that say slightly different things will drift further "
+        "apart every month, and the agent obeys whichever one it happened to "
+        "read. You get inconsistent behaviour that looks random.",
+    "CTX-03":
+        "The agent trusts these paths completely. When one points somewhere "
+        "that no longer exists, it doesn't error — it goes looking in the "
+        "wrong place with full confidence, which costs more than having said "
+        "nothing at all.",
+    "CTX-04":
+        "With no rules file, every session starts by guessing your "
+        "conventions, or by re-deriving them from the code. You end up "
+        "repeating the same corrections in every conversation.",
+    "CTX-05":
+        "An empty rules file behaves exactly like no rules file, except it "
+        "looks handled — so nobody notices the gap.",
+    "DOC-01":
+        "These documents aren't linked from anywhere, so nothing will lead an "
+        "agent to them. They cost nothing to keep and deliver nothing, and "
+        "because nobody reads them they're where contradictions quietly "
+        "accumulate.",
+    "DOC-02":
+        "With this many documents and no list of what they are, an agent "
+        "either reads everything (expensive, and it crowds out the actual "
+        "work) or finds nothing. A one-line-per-document index is the "
+        "cheapest fix in this whole report.",
+    "DOC-03":
+        "When one document exists in two places, both look authoritative and "
+        "one starts going stale immediately. Whoever reads the stale copy has "
+        "no way to know.",
+    "DOC-05":
+        "Large documents are fine when something opens them deliberately. "
+        "They're only a problem if they get loaded on every session, where "
+        "they crowd out everything else.",
+    "CON-01":
+        "You're running work in parallel, but nothing writes down how two "
+        "sessions stay out of each other's way. That's the setup where one "
+        "session's edits silently overwrite another's, and the work looks "
+        "fine until you notice something you built is gone.",
+    "CON-02":
+        "Files that many sessions rewrite are where collisions happen. If one "
+        "of these holds current status, splitting it into a small live file "
+        "plus a dated history that only gets appended to removes the "
+        "collision entirely.",
+    "CON-03":
+        "Separate checkouts stop agents colliding while they work, but the "
+        "conflicts don't disappear — they move to the moment you combine the "
+        "branches. Without someone reviewing the combined result, each piece "
+        "is correct and the whole is broken.",
+    "TRK-01":
+        "Goals that live only in the conversation get summarized, then "
+        "summarized again, until the agent is doing work that's related to "
+        "the goal but no longer advances it. Writing them in a file small "
+        "enough to re-read every session is what stops the slide.",
+    "TRK-02":
+        "A goal file nobody has updated in a month is one nobody is reading "
+        "either, so it stops steering anything while still looking like it "
+        "does.",
+    "TRK-03":
+        "An agent stops when the work looks finished. With nothing it can run "
+        "to check, 'looks finished' is the only signal it has — which makes "
+        "you the one who catches every mistake, and only when you happen to "
+        "notice.",
+    "TRK-04":
+        "Without a record of what was decided and why, each new session "
+        "re-opens settled questions and gradually reverses them. Nothing "
+        "errors when this happens, which is why it goes unnoticed for months.",
+    "FIT-01":
+        "There's more process here than work for it to manage. Every file "
+        "that has to be kept current is ongoing cost, and one that goes stale "
+        "is worse than one that never existed.",
+    "FIT-02":
+        "This project is small enough that three files would cover it: the "
+        "rules, what's true right now, and what you've decided. Anything "
+        "heavier would cost more to maintain than it returns.",
+}
+
+
 def finding(fid, severity, title, detail, evidence=None):
     return {
         "id": fid,
         "severity": severity,
         "title": title,
+        # `why` is the mechanism, for a reader who has read no research.
+        # `detail` is what to do about it.
+        "why": WHY.get(fid, ""),
         "detail": detail,
         "evidence": evidence or [],
     }
@@ -781,28 +884,31 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
     if not ctx["always_loaded"]:
         out.append(finding(
             "CTX-04", "warn",
-            "No always-loaded instruction file",
-            "Nothing tells an agent this project's rules at session start; every "
-            "session re-derives them or guesses. Add one tier-0 file.",
+            "No file tells the agent this project's rules",
+            "Create AGENTS.md (symlink CLAUDE.md to it). Put in only what an "
+            "agent cannot work out by reading the project: the build and test "
+            "commands, conventions that differ from the language default, and "
+            "any setup quirk. Aim for under 60 lines.",
         ))
     empty = [f["path"] for f in ctx["always_loaded"] if f["lines"] == 0]
     if empty and len(empty) == len(ctx["always_loaded"]):
         out.append(finding(
             "CTX-05", "warn",
-            "The always-loaded instruction file is empty",
-            "A placeholder reads as 'this project has no rules', which is the "
-            "same outcome as having no file — with the added cost that it looks "
-            "handled.",
+            "The rules file is empty",
+            "Either fill it with the handful of rules that would change what "
+            "an agent does here, or delete it so the gap is visible.",
             empty,
         ))
     if ctx["over_budget_by"] > 0:
         out.append(finding(
             "CTX-01", "error",
-            f"Always-loaded context is {ctx['always_loaded_lines']} lines "
-            f"(budget {ctx['budget_lines']})",
-            "Past the budget the agent starts ignoring individual rules rather "
-            "than failing loudly. Demote: keep only lines that change behavior, "
-            "move the rest to routed skills and retrievable references.",
+            f"{ctx['always_loaded_lines']} lines load into every session "
+            f"(guideline: {ctx['budget_lines']})",
+            "Go through it line by line and sort into three piles. Rules that "
+            "change what the agent does: keep. Step-by-step procedures for "
+            "recurring tasks: move to a skill, which loads only when relevant. "
+            "Everything else is reference: move to its own file and link it "
+            "from an index. Typical result is 30-50 lines kept.",
             [f"{f['path']} — {f['lines']} lines" for f in ctx["always_loaded"]],
         ))
     names = {Path(f["path"]).name for f in ctx["always_loaded"]}
@@ -811,16 +917,17 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
         out.append(finding(
             "CTX-02", "warn",
             "CLAUDE.md and AGENTS.md both exist and neither is a symlink",
-            "Two always-loaded rule files drift apart, and the agent obeys "
-            "whichever it happened to read. Keep one; symlink the other to it.",
+            "Merge them into whichever is more complete, then replace the "
+            "other with a symlink: `ln -s AGENTS.md CLAUDE.md`.",
         ))
     for path, bad in docs["broken_refs"].items():
         out.append(finding(
             "CTX-03", "error",
-            f"{path} names paths that no longer exist",
-            "A rule file that points at a moved file actively misroutes the "
-            "agent — it looks in the wrong place with full confidence. Stale "
-            "routing is worse than no routing.",
+            f"{path} points at files that no longer exist",
+            "Update each path to where the file actually is, or drop the "
+            "sentence. In general, describe fewer file locations in prose — "
+            "that is what the agent's own search is for, and prose goes stale "
+            "while the filesystem cannot.",
             bad,
         ))
 
@@ -828,10 +935,10 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
     if docs["total"] >= THRESHOLDS["doc_count_index_required"] and not docs["indexes"]:
         out.append(finding(
             "DOC-02", "error",
-            f"{docs['total']} documents and no index",
-            "Past a dozen docs, nothing reachable-by-name means the agent "
-            "either reads everything or finds nothing. Add one index that names "
-            "each doc and what it is for, and have every session read it first.",
+            f"{docs['total']} documents and no list of what they are",
+            "Create one index file listing every document with a one-line "
+            "description of what it answers, then add a line to your rules file "
+            "telling the agent to read the index first.",
         ))
     # Orphanhood only means something once there is enough material to get lost
     # in. A three-file project where STATE.md is not linked from AGENTS.md has
@@ -842,19 +949,19 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
             and docs["orphan_ratio"] >= THRESHOLDS["orphan_ratio_warn"]):
         out.append(finding(
             "DOC-01", "warn",
-            f"{len(docs['orphans'])} of {docs['total']} docs "
-            f"({int(docs['orphan_ratio'] * 100)}%) are reachable from nothing",
-            "An unreferenced doc costs nothing to load and delivers nothing. "
-            "This is where contradictions breed. Either link it from the index "
-            "or delete it.",
+            f"{len(docs['orphans'])} of {docs['total']} documents "
+            f"({int(docs['orphan_ratio'] * 100)}%) aren't linked from anywhere",
+            "Go through them in batches. Each one gets linked from the index, "
+            "moved to an archive folder, or deleted. Deciding is the work; the "
+            "outcome matters less than the pile shrinking.",
             docs["orphans"][:15],
         ))
     if docs["duplicate_titles"]:
         out.append(finding(
             "DOC-03", "warn",
-            f"{len(docs['duplicate_titles'])} title(s) appear in more than one doc",
-            "Two copies of one document both look authoritative and one starts "
-            "rotting immediately. Keep one, reference it from the other place.",
+            f"{len(docs['duplicate_titles'])} document title(s) appear in more than one file",
+            "Pick the copy that should survive, then replace the other with a "
+            "link to it. If both have content worth keeping, merge first.",
             [f"{k or '(untitled)'} → {', '.join(v)}" for k, v in
              list(docs["duplicate_titles"].items())[:8]],
         ))
@@ -863,8 +970,8 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
             "DOC-05", "info",
             f"{len(docs['oversized'])} doc(s) over "
             f"{THRESHOLDS['single_doc_lines']} lines",
-            "Large is fine for a tier-2 reference the agent opens deliberately. "
-            "It is a problem if anything loads it unconditionally.",
+            "No action needed unless one of these is loaded every session — "
+            "check whether your rules file pulls it in. If it does, split it.",
             [f"{d['path']} — {d['lines']} lines" for d in docs["oversized"][:6]],
         ))
 
@@ -873,30 +980,32 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
     if parallel_evidence and not con["isolation_declared"]:
         out.append(finding(
             "CON-01", "warn",
-            "Parallel work is happening and no isolation rule is written down",
-            f"{con['worktree_count']} worktree(s), {con['branch_count']} branch(es), "
-            "but no tier-0 file says how concurrent sessions stay out of each "
-            "other's way. Declare the rung: serial, ownership partition, or "
-            "worktree isolation.",
+            "Work runs in parallel and nothing says how sessions avoid each other",
+            f"Found {con['worktree_count']} checkout(s) and "
+            f"{con['branch_count']} branch(es). Add a short section to your "
+            "rules file naming which approach you use: one session at a time; "
+            "several sessions each owning a listed set of files; or a separate "
+            "checkout per session. Pick the simplest one that has survived the "
+            "collisions you have actually had.",
         ))
     if con["worktree_count"] > 1 and not any(
         "merge" in d["term"] or "integrat" in d["term"] for d in con["isolation_declared"]
     ):
         out.append(finding(
             "CON-03", "info",
-            f"{con['worktree_count']} worktrees with no named integration step",
-            "Split-and-merge without a reviewer that reads the combined result "
-            "is where 'each agent was right, the whole is broken' lives.",
+            f"{con['worktree_count']} separate checkouts, but nobody reviews the combined result",
+            "Write down who or what reviews the combined result before it "
+            "lands, and in what order branches merge.",
             con["worktrees"][:6],
         ))
     hot = [h for h in con["hot_files_90d"] if h["commits_90d"] >= 15]
     if hot:
         out.append(finding(
             "CON-02", "info",
-            "High-churn shared files",
-            "Files many sessions rewrite are the contention surface. If any is "
-            "a live state file, consider splitting it into a small live file "
-            "plus an append-only dated history.",
+            "Some files are rewritten by many sessions",
+            "Informational. If one of these holds current status, split it: a "
+            "short live file for what is true now, plus a dated file that only "
+            "ever gets appended to. Appending never conflicts.",
             [f"{h['path']} — {h['commits_90d']} commits/90d" for h in hot[:6]],
         ))
 
@@ -904,10 +1013,10 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
     if not trk["has_spine"]:
         out.append(finding(
             "TRK-01", "error",
-            "No goal spine",
-            "Goals held only in conversation get summarized, re-summarized, and "
-            "diluted until work stops advancing them. Externalize into one "
-            "durable file small enough to re-read every session.",
+            "Nothing records what this project is trying to achieve",
+            "Create STATE.md and keep it to one screen: the current goal, what "
+            "is in flight, what is blocked, what you have ruled out, and the "
+            "single next thing. Update it at the end of each session.",
         ))
     else:
         stale = [
@@ -917,27 +1026,29 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
         if stale and len(stale) == len(trk["spine_files"]):
             out.append(finding(
                 "TRK-02", "warn",
-                "The goal spine is stale",
-                "Every goal file is older than "
-                f"{THRESHOLDS['stale_spine_days']} days. A spine nobody updates "
-                "is a spine nobody reads.",
+                "The goal file hasn't been touched in a month",
+                "Bring it up to date in one pass, or retire it and rely on "
+                "whatever you are actually using instead. A file in between "
+                "misleads.",
                 [f"{s['path']} — {s['age_days']}d" for s in stale],
             ))
     if not trk["has_check"]:
         out.append(finding(
             "TRK-03", "error",
             "No check the agent can run",
-            "Without a runnable check, 'looks done' is the only stop signal the "
-            "agent has, and you are the verification loop. Code projects: tests "
-            "or a build. Everything else: a structural linter, a fresh-context "
-            "reviewer against written criteria, or a recorded human sign-off.",
+            "Give the agent one command that returns pass or fail, and tell it "
+            "to run that before claiming anything is done. Code: the test suite "
+            "or the build. No code: a script checking the output has its "
+            "required parts, a second agent reviewing against written criteria "
+            "in a fresh session, or a recorded human sign-off. One is enough.",
         ))
     if not trk["has_decision_log"]:
         out.append(finding(
             "TRK-04", "warn",
             "No decision log",
-            "Without one, each new session re-litigates settled calls and slowly "
-            "reverses them. Append-only: decision, date, why, what it supersedes.",
+            "Create DECISIONS.md and add to the bottom of it whenever you "
+            "settle something durable: the date, what was decided, why, and "
+            "what it replaces. Only real decisions — not every choice.",
         ))
 
     # ── fit ──
@@ -946,17 +1057,19 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
         out.append(finding(
             "FIT-01", "info",
             "More process than work",
-            f"{docs['total']} docs ({doc_lines} lines) against "
-            f"{inv['code_total']} source files. Structure should be the smallest "
-            "thing that survives the contention you actually observe.",
+            f"{docs['total']} documents ({doc_lines} lines) against "
+            f"{inv['code_total']} source files. Worth asking of each one: when "
+            "did this last change a decision? Anything unused for a few months "
+            "is a candidate for the archive.",
         ))
     if docs["total"] <= 3 and not trk["has_spine"]:
         out.append(finding(
             "FIT-02", "info",
-            "Below the minimum viable spine",
-            "Three files would cover this: a rules file, a what-is-true-now "
-            "file, and an append-only decisions file. Nothing heavier is "
-            "warranted yet.",
+            "Fewer files than this project needs",
+            "Add AGENTS.md (rules), STATE.md (what is true now), and "
+            "DECISIONS.md (settled calls, append-only). Stop there until "
+            "something actually goes wrong that a fourth file would have "
+            "prevented.",
         ))
 
     order = {"error": 0, "warn": 1, "info": 2}
@@ -1050,15 +1163,36 @@ def render_text(d: dict) -> str:
     c = d["counts"]
     A(f"   Findings       : {c['error']} error · {c['warn']} warn · {c['info']} info")
     A("")
+    def block(label: str, text: str) -> None:
+        if not text:
+            return
+        lines = textwrap.wrap(text, width=72) or [""]
+        A(f"       {label:<14} {lines[0]}")
+        for ln in lines[1:]:
+            A(f"       {'':<14} {ln}")
+
     for f in d["findings"]:
         mark = {"error": "✗", "warn": "!", "info": "·"}[f["severity"]]
         A(f"   {mark} [{f['id']}] {f['title']}")
-        A(f"       {f['detail']}")
-        for e in f["evidence"][:6]:
-            A(f"       · {e}")
+        # Mechanism before remedy: a reader who cannot evaluate a finding will
+        # either obey it blindly or ignore it, and both are worse than being
+        # told plainly what goes wrong.
+        block("why it bites", f.get("why", ""))
+        block("what to do", f["detail"])
+        if f["evidence"]:
+            A(f"       {'evidence':<14} {f['evidence'][0]}")
+            for e in f["evidence"][1:6]:
+                A(f"       {'':<14} {e}")
+            if len(f["evidence"]) > 6:
+                A(f"       {'':<14} … and {len(f['evidence']) - 6} more")
         A("")
     if not d["findings"]:
-        A("   ✓ no structural findings — the invariants hold.")
+        A("   ✓ Nothing to fix. Every structural check passed — this project is")
+        A("     set up in a way that holds up under agent work.")
+        A("")
+    else:
+        A("   Thresholds (line budgets, doc counts, staleness) are calibrated")
+        A("   defaults, not laws. Disagree with one and it stops being a finding.")
         A("")
     return "\n".join(L)
 

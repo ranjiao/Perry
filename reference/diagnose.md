@@ -37,6 +37,88 @@ Two corollaries:
   worse than an absent one — it reports stale state that everything downstream
   believes.
 
+## The second rule: explain the mechanism, every time
+
+**Assume the user has read none of this.** They have not read
+`project-archetypes.md`, they did not choose the thresholds, and they may never
+have heard of a worktree or a context budget. A finding they cannot evaluate is
+one they will either obey blindly or ignore, and both are worse outcomes than
+having said nothing.
+
+So every finding and every prescription arrives with **why it bites** — the
+mechanism, in terms of something the user has plausibly already experienced.
+`bin/perry-diagnose` carries one per finding ID in its `WHY` table and prints
+it above the remedy; the interview and the prescription stages owe the user the
+same, in the agent's own words.
+
+**Four rules for writing one:**
+
+1. **Mechanism, never authority.** "The agent starts quietly ignoring some of
+   your rules, and you can't tell which" is useful. "This exceeds the
+   recommended budget" tells the user only that a document they've never read
+   disagrees with them.
+2. **Their vocabulary, not Perry's.** Never say tier 0, rung, spine, archetype,
+   progressive disclosure, or context rot to a user who hasn't used those words
+   first. Say "the file that gets loaded at the start of every session".
+3. **Two sentences inline.** Depth on request, never by default. The user came
+   with a broken project, not for a seminar — and a report that lectures gets
+   skimmed, which loses the findings too.
+4. **Lead with the symptom they've felt.** "You've probably had the experience
+   of telling the agent something twice and it still doing the old thing" earns
+   attention that "instruction adherence decays past ~200 lines" does not.
+
+**Calibrate from evidence, never by asking.** Do not ask the user how
+experienced they are — it is an awkward question and the answer is unreliable.
+Read it from what is already in front of you: their own words in the interview,
+whether the project already uses worktrees or skills, whether the docs use the
+vocabulary. Someone who says "I just open two terminals and hope" needs the
+mechanism spelled out; someone who says "we tried worktrees but merging got
+messy" needs you to skip straight to the integration step. Adjust silently.
+
+**Say what a number means before you use it.** A threshold stated bare reads as
+arbitrary and invites dismissal. One clause is enough: "roughly 200 lines, which
+is about where models start following instructions unreliably". Then add that it
+is a default they can argue with — see the honesty note in stage 0.
+
+### Plain-language glossary
+
+When a term genuinely has to be introduced, introduce it this way and move on.
+Never define more than one per exchange.
+
+| Term | Say this |
+|---|---|
+| Always-loaded file | "The file the agent reads at the start of every session, before it knows what you want." |
+| Context window | "How much the agent can hold in mind at once. It gets less reliable well before it's full, not just at the end." |
+| Skill | "A folder of instructions the agent only opens when the task matches its description — so it costs nothing until it's relevant." |
+| Worktree | "A second checkout of the same repo in a different folder, so two sessions can work without touching the same files." |
+| Append-only | "A file where you only ever add to the bottom, never edit. Two sessions can write to one at the same time without clobbering each other." |
+| Verification loop | "One command the agent can run to find out whether the work is actually done, instead of deciding for itself that it looks done." |
+| Evidence | "A link to the thing that proves it — the test output, the file, the sign-off. Not a claim that it's finished." |
+| Goal drift | "The agent stays busy but slowly stops working on what you actually wanted, because the goal got summarized away." |
+| Orphaned document | "A file nothing links to, so nothing will ever lead the agent to it." |
+
+### Where explanation goes in each stage
+
+- **Stage 0, opening the report.** Before the finding list, one short paragraph
+  in plain language: what was measured, and the single thing that matters most
+  here. Not a summary of the research.
+- **Stage 2, the interview.** Questions are already outcome-framed, so they
+  need no preamble. But when an answer reveals a mechanism the user hasn't
+  seen — "we just both edit and fix it after" — name it in one sentence and
+  move on. Do not stack up teaching moments.
+- **Stage 3, each prescription.** Two lines: what changes, and what stops going
+  wrong once it has. A user who cannot see the second line has no basis to
+  approve the first.
+- **Stage 4, on completion.** Say what should now be different in their
+  day-to-day, concretely. "The agent should stop needing the same correction
+  twice" beats "always-loaded context reduced to 44 lines" — though give the
+  number too, since it is the evidence.
+
+**Offer the depth, don't deliver it unasked.** Close the report with one line
+pointing at `reference/project-archetypes.md` for anyone who wants the
+reasoning and the sources. Most users never will, and the report has to work
+completely for them.
+
 ## Command surface
 
 ```
@@ -232,6 +314,10 @@ Every ID `bin/perry-diagnose` can emit. A stable ID with nowhere to look it up
 is a worse experience than prose, so this table is the lookup, and the test
 suite fails if the scanner gains an ID that is not listed here.
 
+Each ID also carries a plain-language **why it bites** in the scanner's `WHY`
+table, printed above the remedy in `--text` and available as `findings[].why`
+in the payload. Use it, or better it — but never present a finding without one.
+
 | ID | Severity | Fires when | Usual prescription |
 |---|---|---|---|
 | `CTX-01` | error | Always-loaded files exceed the line budget. | The demotion |
@@ -310,6 +396,11 @@ This prescription is uncomfortable to give and is frequently the right one.
   stays inside it.
 - **Never reports a correctly-structured project as broken** to justify the
   run. Zero findings is a valid, and good, result.
+- **Never states a finding the user has no way to evaluate.** No jargon without
+  a gloss, no threshold without what it means, no prescription without what
+  stops going wrong once it lands.
+- **Never lectures.** Two sentences of mechanism, then the remedy. The research
+  is offered as a link, not delivered unasked.
 
 ## See also
 
