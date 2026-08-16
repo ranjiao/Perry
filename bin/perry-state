@@ -100,8 +100,27 @@ def parse_config(root: Path) -> dict:
 # heard of tracks reports exactly one, named `main`, mode `project` — which is
 # today's Perry. Callers never have to special-case "no tracks declared",
 # because there is no such state.
-DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "",
-                 "stages": "", "default_rung": "", "declared": False}
+DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
+                 "wip": "", "sla": "", "cycle": "", "default_rung": "",
+                 "declared": False}
+
+
+# Column name → payload key, with the Chinese aliases from
+# `schema/state-schema.json § i18n.columns`. Resolved BY NAME, never by
+# position: only `Track` and `Mode` are required, so any of the others may be
+# absent, and a positional read would silently attribute one column's value to
+# another the moment a project omits one. (A V4 review caught exactly this bug
+# in the board-row parser; the same shape was here.)
+TRACK_COLUMNS = {
+    "track": ("track", "轨道"),
+    "mode": ("mode", "模式"),
+    "spine": ("spine", "主线"),
+    "stages": ("stages", "阶段序列"),
+    "wip": ("wip", "在制上限"),
+    "sla": ("sla", "时限"),
+    "cycle": ("cycle", "周期"),
+    "default_rung": ("default rung", "默认验证级"),
+}
 
 
 def parse_tracks(text: str) -> list[dict]:
@@ -110,23 +129,47 @@ def parse_tracks(text: str) -> list[dict]:
                      text, re.M | re.S)
     if not body:
         return [dict(DEFAULT_TRACK)]
+
+    def cells_of(line: str) -> list[str]:
+        return [c.strip().strip("*` ") for c in line.strip().strip("|").split("|")]
+
+    header: dict[str, int] = {}
     rows = []
     for line in body.group(1).splitlines():
-        line = line.strip()
-        if not line.startswith("|") or set(line) <= set("|- :"):
+        s = line.strip()
+        if not s.startswith("|"):
             continue
-        cells = [c.strip().strip("*` ") for c in line.strip("|").split("|")]
-        if not cells or not cells[0] or cells[0].lower() in ("track", "轨道"):
+        if set(s) <= set("|- :"):
             continue
+        cells = cells_of(s)
+        low = [c.lower() for c in cells]
+        if not header:
+            # First table row is the header — that is what declares the layout.
+            if any(a in low for a in TRACK_COLUMNS["track"]):
+                header = {key: next((low.index(a) for a in aliases if a in low), -1)
+                          for key, aliases in TRACK_COLUMNS.items()}
+                continue
+            # A table with no recognizable header cannot be read safely.
+            break
+        if not cells or not cells[0]:
+            continue
+
+        def col(key: str, default: str = "") -> str:
+            i = header.get(key, -1)
+            return cells[i] if 0 <= i < len(cells) else default
+
         rows.append({
-            "track": cells[0],
-            "mode": (cells[1].lower() if len(cells) > 1 else "project") or "project",
-            "spine": cells[2] if len(cells) > 2 else "",
-            "stages": cells[3] if len(cells) > 3 else "",
-            "default_rung": cells[4] if len(cells) > 4 else "",
+            "track": col("track"),
+            "mode": (col("mode").lower() or "project"),
+            "spine": col("spine"),
+            "stages": col("stages"),
+            "wip": col("wip"),
+            "sla": col("sla"),
+            "cycle": col("cycle"),
+            "default_rung": col("default_rung"),
             "declared": True,
         })
-    return rows or [dict(DEFAULT_TRACK)]
+    return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
 
 
 def verification_distribution(tasks) -> dict:

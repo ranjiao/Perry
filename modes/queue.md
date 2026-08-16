@@ -9,18 +9,24 @@ Carries rules rather than references.
 
 ## The mode contract
 
-| Slot | Value |
-|---|---|
-| **Ends when** | It doesn't. Steady state, reviewed on a period |
-| **Unit that gets an ID** | The request — or the incident |
-| **Spine** | Standing commitments + an SLA. No objectives cascade |
-| **Horizon** | A review period, which reports rather than closes |
-| **Calendar** | **Binding** — arrival date + SLA |
-| **Item states** | `new → triaged → in_progress → resolved` |
-| **WIP control** | Queue depth and age |
-| **Triage asks** | What breached SLA, what recurs, what should become a runbook? |
-| **Default rung** | **V2** + a resolution note |
-| **Signature failure** | The board shows intentions while the real work arrives and completes in chat |
+| Slot | Value | Where it is written |
+|---|---|---|
+| **Ends when** | It doesn't. Steady state, reviewed on a period | — |
+| **Unit that gets an ID** | The request — or the incident | `BOARD.md` row |
+| **Spine** | `OKR.md § Commitments` — standing promises + an SLA. No objectives cascade | Written by the **goals** lane |
+| **Horizon** | A review period, which reports rather than closes | `.perry/config.md § Tracks` → `Cycle` |
+| **Calendar** | **Binding** — arrival date + SLA. Same meaning as `modes/pipeline.md § What "binding" does and does not mean`; read it there, it is one argument for both modes | — |
+| **Item states** | `Status` (the global enum, unchanged) and `Stage` — default `new → triaged → in_progress → resolved` | `BOARD.md` → `Status`, `Stage` |
+| **Arrival** | The date it came in, carried from intake and **never lost** | `BOARD.md` → `Arrived` |
+| **SLA** | Response/turnaround time for the track | `.perry/config.md § Tracks` → `SLA` |
+| **WIP control** | Queue depth and age | derived from `Arrived` |
+| **Triage asks** | What breached SLA, what recurs, what should become a runbook? | — |
+| **Default rung** | **V2** + a resolution note | `BOARD.md` → `Verification` |
+| **Signature failure** | The board shows intentions while the real work arrives and completes in chat | — |
+
+`Status` and `Stage` are orthogonal here for the same reason as in pipeline
+mode — `Status` stays the global lifecycle enum and `Stage` carries this
+track's vocabulary. See `modes/pipeline.md § Status and Stage are orthogonal`.
 
 ## Work arrives; it is not planned
 
@@ -38,11 +44,16 @@ Untriaged external requests, one line each, with the date they arrived:
 ```markdown
 ## Intake
 
-| Arrived | Request |
-|---|---|
-| 2026-08-14 | Finance wants the Q3 vendor spend reconciled against the PO log |
-| 2026-08-16 | Someone asked for the onboarding checklist to cover contractors |
+| Arrived | Request | Outcome |
+|---|---|---|
+| 2026-08-14 | Finance wants the Q3 vendor spend reconciled against the PO log | — |
+| 2026-08-16 | Onboarding checklist should cover contractors | dropped 2026-08-16 — covered by the HR handbook |
+| 2026-08-16 | Quarterly access review automation | deferred until the SSO migration lands |
 ```
+
+`Outcome` is where a drop reason or a defer condition is written. Without it the
+mode mandated recording something and shipped a table with nowhere to put it —
+which is what an independent review of this file found.
 
 It lives inside `BOARD.md` rather than a separate `INTAKE.md` because
 DESIGN-003 decision 3 chose zero new claimed paths, and `BOARD.md` is already a
@@ -59,15 +70,20 @@ unnoticed. If it recurs, revisit decision 3 — do not quietly relax it.
 Before anything else — before stale rows, before priorities — `triage` walks the
 intake section top to bottom. Each row gets exactly one outcome:
 
-- **Routed** to a track, becoming a normal row with an owner and a rung.
-- **Dropped**, with a reason recorded. "We are not doing this" is a real
-  answer and it must be written down, because an undropped request is one that
-  gets re-asked.
-- **Deferred**, with a named condition — never a bare "later".
+- **Routed** to a track, becoming a normal board row. **The `Arrived` date moves
+  with it** — that is not optional bookkeeping. Age-since-arrival is the number
+  every SLA check measures, so a routing that drops it makes triage step 2
+  uncomputable, and the row is silently exempt from the only clock that governs
+  it. Carry `Arrived`, set `Stage: triaged`, set `Commitment` if one applies.
+- **Dropped**, with the reason in the `Outcome` cell. "We are not doing this" is
+  a real answer and it must be written down, because an undropped request is one
+  that gets re-asked. The row stays in intake with its outcome recorded.
+- **Deferred**, with a named condition in `Outcome` — never a bare "later".
 
 An intake row that survives triage untouched is the failure this whole organ
-exists to prevent, so a row still sitting there after two triages is reported by
-age.
+exists to prevent. **Report it by elapsed time, not by triage count**: `Arrived`
+is recorded and there is no triage counter, so "still here after 14 days" is
+computable and "still here after two triages" is not.
 
 ## Standing commitments, not objectives
 
@@ -76,12 +92,29 @@ is a short list of **standing commitments** — what this track promises to keep
 true — and an SLA against which arrivals are measured.
 
 ```markdown
-## Commitments      (in OKR.md)
+## Commitments      (in OKR.md — written by the goals lane)
 
-| Promise | To whom | By when | Status |
-|---|---|---|---|
-| Vendor invoices reconciled | Finance | 5 working days from arrival | active |
+| Track | Promise | To whom | By when | Status | Discharged by |
+|---|---|---|---|---|---|
+| ops | Vendor invoices reconciled | Finance | 5 working days from arrival | active | the board rows carrying `Commitment: ops/1` |
 ```
+
+The link is written from the **board** side — each row's `Commitment` cell names
+the commitment it discharges — so the commitments table never accumulates a list
+of IDs that rot as rows close. Triage reads it in the direction it actually
+needs: given a commitment due this week, which rows carry it, and how far along
+are they.
+
+**The goals lane owns this section**, like every other section of `OKR.md`. The
+modes read it and never write it — the same one-writer-per-file rule that
+governs everything else (`SKILL.md § The hand-off contract`). A commitment to a
+named party *is* a goal; DESIGN-003 already frames a KR as the special case
+where the party is the project itself. What these modes disclaim is the
+objectives→KRs *cascade*, not the goals file.
+
+`Track` is what keeps two tracks' promises apart in one table. `Discharged by`
+is what lets triage answer "are this commitment's items far enough along" —
+without it, the question is unanswerable and the column's absence is silent.
 
 Forcing an objectives cascade onto this produces goals nobody set and a phase
 that never legitimately closes. Perry's `phase/` machinery is not used by this
@@ -93,7 +126,23 @@ period starts.
 Most queue work is not novel. Month-end close, the weekly report, the quarterly
 access review and the daily backup check are the same object: a thing that
 repeats on a trigger, has an owner, has a procedure, has a last-run and a
-next-due. `BOARD.md § Cadence` is that register.
+next-due. `BOARD.md § Cadence` is that register, and it already exists:
+
+```markdown
+## Cadence (recurring; doesn't consume P0 slots)
+
+| ID | Recurring task | Owner | Frequency | Next due | Last evidence |
+|---|---|---|---|---|---|
+| CAD-01 | Month-end vendor reconciliation | User + Agent | monthly | 2026-09-01 | runbook/month-end-close.md |
+```
+
+The **procedure** goes in `runbook/<slug>.md` — an existing claimed path
+(`schema/state-schema.json § claims[]`), so converting a recurring request into
+a runbook adds no new claim. `Last evidence` points at it. The runbook's four
+mandatory sections and its staleness rules live in
+`$PERRY_HOME/packs/software-ops/runbooks.md`; a queue-mode track that is not
+software still uses the same file shape, since "what it does, what healthy looks
+like, what failure looks like, who to escalate to" is not a software question.
 
 The triage question that matters most in this mode is **"what recurs?"** —
 because a request that has arrived three times is not a request, it is a
@@ -114,8 +163,11 @@ was actually done. Two escalations override it:
 - **The consequence rule.** Anything outward-facing, irreversible, or touching
   money, legal exposure or personal data needs **V5** regardless — and in an
   operations queue that is a *lot* of items, because operations is where the
-  outward-facing actions live. `perry-lint --verification` matches each closure
-  against `.perry/hook.md § High-stakes operations` and reports the gap.
+  outward-facing actions live. This is the one rung rule that is **enforced**:
+  `perry-lint --verification` matches each closure against
+  `.perry/hook.md § High-stakes operations` — the single canonical name for that
+  list — and reports `consequence-needs-signoff`. The V2 default above is
+  pre-selected at close, not enforced.
 - **Incidents.** An incident resolved without a written cause is not resolved;
   it is paused. Those close at V3 minimum with the evidence that the cause was
   found, not merely that the symptom stopped.
@@ -125,14 +177,25 @@ was actually done. Two escalations override it:
 Ordered:
 
 1. **Drain intake** (above). Nothing else happens first.
-2. **SLA breaches** — items past their promised turnaround, oldest first, with
-   the age and the commitment they breach.
-3. **Queue depth and trend.** Arriving faster than discharging is the finding;
-   a single number without the trend hides it.
+2. **SLA breaches** — rows whose `today − Arrived` exceeds the track's `SLA`,
+   oldest first, each named with its age and the `Commitment` it breaches.
+   Both inputs are columns: this is arithmetic, not judgment.
+3. **Queue depth and trend.** Depth is the count of rows in this track not at
+   `Status: done`. The trend is that count against the same count at the last
+   triage, which the journal's status-change lines carry — arrivals and
+   resolutions are both dated, so the series is recoverable without a new file.
+   Arriving faster than discharging is the finding; a single number hides it.
+   **Default cap: none.** A queue is not throttled by refusing arrivals, it is
+   throttled by discharging faster or promising less — so depth is reported,
+   never enforced.
 4. **What recurs** — anything seen three times becomes a Cadence row with a
    runbook, or is explicitly declined.
 5. **Overdue recurrences** — Cadence rows past `Next due`, surfaced exactly the
    way a stale User Input Queue item is.
+
+**The review period** is the track's `Cycle` cell (`.perry/config.md § Tracks`)
+— `monthly`, `2026-W34`, whatever fits. It reports throughput, breaches and
+depth trend, and then the next period starts. Nothing closes.
 
 ## What this mode does not assume
 

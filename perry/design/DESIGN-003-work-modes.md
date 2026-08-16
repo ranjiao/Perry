@@ -540,6 +540,19 @@ against the mode table in §5.1), G at V5.
   (input-quality §3.3, §3.6) — phase G re-scoped from cleanup to the plan's
   riskiest phase, with its own risk row and a first-and-alone landing rule.
 - 2026-08-16 — locked.
+- 2026-08-16 — **V4 review of TASK-019/020 FAILED; four blocking findings, all
+  accepted.** Recorded here because three of them correct §5.1/§5.2 rather than
+  just the mode files. (a) §5.1's "Item states" slot needed a *location*: a new
+  optional `Stage` column on `BOARD.md`, orthogonal to `Status`, which keeps its
+  global enum. (b) §5.2's example folded `(WIP 3)` into the `Stages` cell as one
+  per-track number while the mode needed per-stage limits — the register now has
+  explicit `Stages` / `WIP` / `SLA` / `Cycle` columns, and §5.1's claim that the
+  tier-0 cost is "one line in `.perry/config.md`" is a per-track row, not a
+  line. (c) §5.5's Commitments table needed `Track` and `Discharged by`, and an
+  owner: **the goals lane**, resolved 2026-08-16. (d) queue mode was destroying
+  `Arrived` on routing, making its own SLA triage uncomputable; `Arrived` is now
+  a carried column. None of these change the design's shape, which is why this
+  is a `## Changes` entry rather than a `revise`.
 
 ## 10. References
 

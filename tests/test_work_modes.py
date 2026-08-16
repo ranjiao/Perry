@@ -455,6 +455,129 @@ class TestRungDistribution(unittest.TestCase):
         self.assertEqual(v["unrated"], 1)
 
 
+class TestV4Corrections(unittest.TestCase):
+    """Regressions for the four blocking findings of the TASK-019/020 V4 review.
+
+    Each of these is a control that a mode file *described* while its data had
+    nowhere to live. That class of defect is invisible to the author and cheap
+    to reintroduce, so each finding gets a test rather than a paragraph.
+    Evidence: `perry/evidence/2026-08/TASK-019-020-v4-review.md`.
+    """
+
+    def board_table(self, fid: str, under: str) -> dict:
+        return table_spec(fid, under)
+
+    # B1 — stages had no recording location
+    def test_stage_is_a_board_column_and_is_not_the_status_enum(self):
+        t = self.board_table("board", "P[012]")
+        self.assertIn("Stage", t["optional_columns"])
+        self.assertNotIn("Stage", t["columns"])
+        self.assertNotIn(
+            "Stage", t["enum_columns"],
+            "Stage must NOT be enum-checked — the vocabulary is per-track, "
+            "declared in .perry/config.md, not global",
+        )
+        self.assertEqual(t["enum_columns"]["Status"], "task_status",
+                         "Status keeps its global lifecycle enum in every mode")
+
+    # B2 — the arrival date was destroyed on routing
+    def test_arrived_survives_routing_out_of_intake(self):
+        board = self.board_table("board", "P[012]")
+        intake = self.board_table("board", "Intake")
+        self.assertIn("Arrived", intake["columns"])
+        self.assertIn("Arrived", board["optional_columns"],
+                      "queue triage measures today − Arrived; a routed row "
+                      "without it is exempt from the only clock governing it")
+
+    def test_intake_can_record_a_drop_reason_or_defer_condition(self):
+        intake = self.board_table("board", "Intake")
+        self.assertIn("Outcome", intake["columns"] + list(
+            (intake.get("optional_columns") or {}).keys()),
+            "triage mandates dropped-with-a-reason and deferred-with-a-"
+            "condition; the table must have somewhere to put them")
+
+    # B3 — the WIP limit had no home and no default
+    def test_track_register_declares_wip_sla_and_cycle(self):
+        t = table_spec("config", "Tracks")
+        opt = t["optional_columns"]
+        for col in ("Stages", "WIP", "SLA", "Cycle"):
+            self.assertIn(col, opt, f"{col} has no declaration site")
+        self.assertEqual(t["columns"], ["Track", "Mode"],
+                         "only Track and Mode may be required, or every "
+                         "partial register becomes a lint error")
+
+    # B4 — Commitments had no track key, no item link, no owner
+    def test_commitments_table_is_track_keyed_and_owned_by_the_goals_lane(self):
+        okr = file_spec("okr")
+        t = next(x for x in okr["tables"] if "Commitments" in x["under"])
+        self.assertEqual(okr["owner"], "okr",
+                         "OKR.md has one writer; Commitments is a section of it")
+        self.assertIn("Track", t["columns"],
+                      "two tracks in one table need a key or the promises merge")
+        self.assertIn("Promise", t["columns"])
+        self.assertIn("By when", t["columns"])
+
+    def test_commitments_is_optional_so_no_existing_okr_breaks(self):
+        okr = file_spec("okr")
+        self.assertNotIn("Commitments", json.dumps(okr.get("headings", [])))
+
+
+class TestTrackColumnsResolveByName(unittest.TestCase):
+    """The register is read by header name, never by position.
+
+    Only `Track` and `Mode` are required, so any other column may be absent —
+    and a positional read would attribute one column's value to another the
+    moment a project omits one. The same defect existed in the board-row parser
+    and was caught by the V4 review; this pins the config-side fix.
+    """
+
+    def setUp(self):
+        import importlib.util
+        spec = importlib.util.spec_from_loader(
+            "perry_state",
+            importlib.machinery.SourceFileLoader(
+                "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
+        self.ps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.ps)
+
+    def test_full_register_maps_every_column(self):
+        got = self.ps.parse_tracks(
+            "## Tracks\n\n"
+            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| blog | pipeline | commitments | a→b→c | b:2 | 5d | 2026-W34 | V5 |\n")[0]
+        self.assertEqual(got["stages"], "a→b→c")
+        self.assertEqual(got["wip"], "b:2")
+        self.assertEqual(got["sla"], "5d")
+        self.assertEqual(got["cycle"], "2026-W34")
+        self.assertEqual(got["default_rung"], "V5")
+
+    def test_omitted_columns_do_not_shift_the_others(self):
+        """The whole point: a minimal register must not read `V3` as a stage."""
+        got = self.ps.parse_tracks(
+            "## Tracks\n\n| Track | Mode | Default rung |\n|---|---|---|\n"
+            "| core | project | V3 |\n")[0]
+        self.assertEqual(got["default_rung"], "V3")
+        self.assertEqual(got["stages"], "")
+        self.assertEqual(got["wip"], "")
+        self.assertEqual(got["sla"], "")
+
+    def test_reordered_columns_still_resolve(self):
+        got = self.ps.parse_tracks(
+            "## Tracks\n\n| Mode | Default rung | Track | SLA |\n|---|---|---|---|\n"
+            "| queue | V2 | ops | 3d |\n")[0]
+        self.assertEqual(got["track"], "ops")
+        self.assertEqual(got["mode"], "queue")
+        self.assertEqual(got["default_rung"], "V2")
+        self.assertEqual(got["sla"], "3d")
+
+    def test_a_table_with_no_recognizable_header_is_refused_not_guessed(self):
+        got = self.ps.parse_tracks(
+            "## Tracks\n\n| a | b |\n|---|---|\n| core | project |\n")
+        self.assertEqual(got[0]["track"], "main")
+        self.assertFalse(got[0]["declared"])
+
+
 class TestI18n(unittest.TestCase):
     def test_new_columns_have_a_chinese_alias(self):
         """A column with no glossary entry silently zeroes its dashboard row in

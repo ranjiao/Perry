@@ -222,7 +222,7 @@
     ]
   },
   "i18n": {
-    "description": "Which text in a state file may be written in the project's document language (.perry/config.md \u00a7 Document language) and which may not. Section headings and table column headers are localizable: every reader MUST accept the canonical English form and every alias listed here. Everything in `invariant` stays ASCII/English in every language, because it is matched, joined, or dereferenced by machines. Adding a language means adding its aliases here and widening the `match` regexes in `files[].headings` \u2014 nothing else in the schema changes. A language with no glossary block is still fully supported for prose; its documents keep the English headings.",
+    "description": "Which text in a state file may be written in the project's document language (.perry/config.md § Document language) and which may not. Section headings and table column headers are localizable: every reader MUST accept the canonical English form and every alias listed here. Everything in `invariant` stays ASCII/English in every language, because it is matched, joined, or dereferenced by machines. Adding a language means adding its aliases here and widening the `match` regexes in `files[].headings` — nothing else in the schema changes. A language with no glossary block is still fully supported for prose; its documents keep the English headings.",
     "languages": [
       "en",
       "zh"
@@ -233,7 +233,7 @@
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
       "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
-      "priority section names (P0, P1, P2) and architecture section markers (\u00a71\u2026\u00a78)",
+      "priority section names (P0, P1, P2) and architecture section markers (§1…§8)",
       "dates (YYYY-MM-DD), ISO weeks (YYYY-WW), commit SHAs, file paths",
       "command and subcommand names (/perry okr plan-phase)",
       "header field names in .perry/config.md (the file that declares the language cannot be written in it)"
@@ -241,328 +241,388 @@
     "headings": {
       "Mission": {
         "zh": [
-          "\u4f7f\u547d"
+          "使命"
         ]
       },
       "Operating Principles": {
         "zh": [
-          "\u8fd0\u884c\u539f\u5219"
+          "运行原则"
         ]
       },
       "Anti-Goals": {
         "zh": [
-          "\u53cd\u76ee\u6807"
+          "反目标"
         ]
       },
       "Versioning log": {
         "zh": [
-          "\u7248\u672c\u8bb0\u5f55"
+          "版本记录"
         ]
       },
       "Objective": {
         "zh": [
-          "\u76ee\u6807"
+          "目标"
         ]
       },
       "Phase Focus": {
         "zh": [
-          "\u9636\u6bb5\u7126\u70b9"
+          "阶段焦点"
         ]
       },
       "Operating Rules": {
         "zh": [
-          "\u8fd0\u884c\u89c4\u5219"
+          "运行规则"
         ]
       },
       "Cost Ceiling": {
         "zh": [
-          "\u6210\u672c\u4e0a\u9650"
+          "成本上限"
         ]
       },
       "User Commitments": {
         "zh": [
-          "\u7528\u6237\u627f\u8bfa"
+          "用户承诺"
         ]
       },
       "User-Unavailable Degradation": {
         "zh": [
-          "\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7"
+          "用户缺席降级"
         ]
       },
       "Phase Scope Reduction Rule": {
         "zh": [
-          "\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
-          "\u7f29\u5708\u89c4\u5219"
+          "阶段缩圈规则",
+          "缩圈规则"
         ]
       },
       "Definition of Done": {
         "zh": [
-          "\u5b8c\u6210\u5b9a\u4e49"
+          "完成定义"
         ]
       },
       "Not Doing in this phase": {
         "zh": [
-          "\u672c\u9636\u6bb5\u4e0d\u505a"
+          "本阶段不做"
         ]
       },
       "Process Note": {
         "zh": [
-          "\u6d41\u7a0b\u8bf4\u660e"
+          "流程说明"
         ]
       },
       "Cadence": {
         "zh": [
-          "\u4f8b\u884c\u8282\u594f"
+          "例行节奏"
         ]
       },
       "User Input Queue": {
         "zh": [
-          "\u7528\u6237\u8f93\u5165\u961f\u5217"
+          "用户输入队列"
         ]
       },
       "Top risks": {
         "zh": [
-          "\u4e3b\u8981\u98ce\u9669"
+          "主要风险"
         ]
       },
       "Problem": {
         "zh": [
-          "\u95ee\u9898"
+          "问题"
         ]
       },
       "Goals": {
         "zh": [
-          "\u76ee\u6807"
+          "目标"
         ]
       },
       "Non-Goals": {
         "zh": [
-          "\u975e\u76ee\u6807"
+          "非目标"
         ]
       },
       "User Decisions": {
         "zh": [
-          "\u7528\u6237\u51b3\u7b56"
+          "用户决策"
         ]
       },
       "Architecture": {
         "zh": [
-          "\u67b6\u6784"
+          "架构"
         ]
       },
       "Implementation plan": {
         "zh": [
-          "\u5b9e\u65bd\u8ba1\u5212"
+          "实施计划"
         ]
       },
       "Risks & mitigations": {
         "zh": [
-          "\u98ce\u9669\u4e0e\u7f13\u89e3"
+          "风险与缓解"
         ]
       },
       "Active": {
         "zh": [
-          "\u8fdb\u884c\u4e2d"
+          "进行中"
         ]
       },
       "High-stakes operations": {
         "zh": [
-          "\u9ad8\u98ce\u9669\u64cd\u4f5c"
+          "高风险操作"
         ]
       },
       "Phase": {
         "zh": [
-          "\u9636\u6bb5"
+          "阶段"
         ]
       },
       "Cross-monthly carry-forwards": {
         "zh": [
-          "\u8de8\u6708\u5ef6\u7eed\u9879"
+          "跨月延续项"
         ]
       },
       "Recent cross-session work": {
         "zh": [
-          "\u8fd1\u671f\u8de8\u4f1a\u8bdd\u5de5\u4f5c"
+          "近期跨会话工作"
         ]
       },
       "Key external dependencies": {
         "zh": [
-          "\u5173\u952e\u5916\u90e8\u4f9d\u8d56"
+          "关键外部依赖"
         ]
       },
       "Backbone": {
         "zh": [
-          "\u4e3b\u5e72"
+          "主干"
         ]
       },
       "Retro": {
         "zh": [
-          "\u590d\u76d8"
+          "复盘"
         ]
       },
       "Mid-phase check": {
         "zh": [
-          "\u671f\u4e2d\u68c0\u67e5"
+          "期中检查"
         ]
       }
     },
     "fields": {
       "Started": {
         "zh": [
-          "\u542f\u52a8"
+          "启动"
         ]
       },
       "Status": {
         "zh": [
-          "\u72b6\u6001"
+          "状态"
         ]
       },
       "Date": {
         "zh": [
-          "\u65e5\u671f"
+          "日期"
         ]
       }
     },
     "columns": {
       "ID": {
         "zh": [
-          "\u7f16\u53f7"
+          "编号"
         ]
       },
       "Id": {
         "zh": [
-          "\u7f16\u53f7"
+          "编号"
         ]
       },
       "Title": {
         "zh": [
-          "\u6807\u9898"
+          "标题"
         ]
       },
       "Owner": {
         "zh": [
-          "\u8d1f\u8d23\u4eba"
+          "负责人"
         ]
       },
       "Status": {
         "zh": [
-          "\u72b6\u6001"
+          "状态"
         ]
       },
       "Next action": {
         "zh": [
-          "\u4e0b\u4e00\u6b65"
+          "下一步"
         ]
       },
       "Evidence": {
         "zh": [
-          "\u8bc1\u636e"
+          "证据"
         ]
       },
       "Track": {
         "zh": [
-          "\u8f68\u9053"
+          "轨道"
         ]
       },
       "Mode": {
         "zh": [
-          "\u6a21\u5f0f"
+          "模式"
         ]
       },
       "Verification": {
         "zh": [
-          "\u9a8c\u8bc1"
+          "验证"
         ]
       },
       "Default rung": {
         "zh": [
-          "\u9ed8\u8ba4\u9a8c\u8bc1\u7ea7"
+          "默认验证级"
         ]
       },
       "Arrived": {
         "zh": [
-          "\u5230\u8fbe"
+          "到达"
         ]
       },
       "Request": {
         "zh": [
-          "\u8bf7\u6c42"
+          "请求"
         ]
       },
       "USER-id": {
         "zh": [
-          "\u7528\u6237\u8f93\u5165\u7f16\u53f7"
+          "用户输入编号"
         ]
       },
       "Needed from user": {
         "zh": [
-          "\u9700\u8981\u7528\u6237\u63d0\u4f9b"
+          "需要用户提供"
         ]
       },
       "Blocks": {
         "zh": [
-          "\u963b\u585e"
+          "阻塞"
         ]
       },
       "Idle": {
         "zh": [
-          "\u95f2\u7f6e"
+          "闲置"
         ]
       },
       "Recurring task": {
         "zh": [
-          "\u4f8b\u884c\u4efb\u52a1"
+          "例行任务"
         ]
       },
       "Frequency": {
         "zh": [
-          "\u9891\u7387"
+          "频率"
         ]
       },
       "Next due": {
         "zh": [
-          "\u4e0b\u6b21\u5230\u671f"
+          "下次到期"
         ]
       },
       "Last evidence": {
         "zh": [
-          "\u6700\u8fd1\u8bc1\u636e"
+          "最近证据"
         ]
       },
       "Metric / Target": {
         "zh": [
-          "\u6307\u6807 / \u76ee\u6807\u503c"
+          "指标 / 目标值"
         ]
       },
       "Stretch?": {
         "zh": [
-          "\u6311\u6218\u9879?",
-          "\u6311\u6218\u9879\uff1f"
+          "挑战项?",
+          "挑战项？"
         ]
       },
       "Deadline": {
         "zh": [
-          "\u622a\u6b62"
+          "截止"
         ]
       },
       "KR text": {
         "zh": [
-          "KR \u63cf\u8ff0"
+          "KR 描述"
         ]
       },
       "Linked overall KR": {
         "zh": [
-          "\u5173\u8054\u603b\u4f53 KR"
+          "关联总体 KR"
         ]
       },
       "Type": {
         "zh": [
-          "\u7c7b\u578b"
+          "类型"
         ]
       },
       "Date": {
         "zh": [
-          "\u65e5\u671f"
+          "日期"
+        ]
+      },
+      "Stage": {
+        "zh": [
+          "阶段"
+        ]
+      },
+      "Commitment": {
+        "zh": [
+          "承诺"
+        ]
+      },
+      "Promise": {
+        "zh": [
+          "承诺内容"
+        ]
+      },
+      "To whom": {
+        "zh": [
+          "承诺对象"
+        ]
+      },
+      "By when": {
+        "zh": [
+          "截止"
+        ]
+      },
+      "Discharged by": {
+        "zh": [
+          "由谁完成"
+        ]
+      },
+      "Stages": {
+        "zh": [
+          "阶段序列"
+        ]
+      },
+      "WIP": {
+        "zh": [
+          "在制上限"
+        ]
+      },
+      "SLA": {
+        "zh": [
+          "时限"
+        ]
+      },
+      "Cycle": {
+        "zh": [
+          "周期"
+        ]
+      },
+      "Spine": {
+        "zh": [
+          "主线"
+        ]
+      },
+      "Outcome": {
+        "zh": [
+          "处理结果"
         ]
       }
     }
@@ -570,7 +630,10 @@
   "thresholds": {
     "stale_run_days": {
       "value": 30,
-      "applies_to": ["adoption", "diagnosis"],
+      "applies_to": [
+        "adoption",
+        "diagnosis"
+      ],
       "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number."
     }
   },
@@ -716,17 +779,17 @@
         },
         {
           "level": 2,
-          "match": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
+          "match": "^Cadence\\b|^例行节奏",
           "label": "## Cadence"
         },
         {
           "level": 2,
-          "match": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
+          "match": "^User Input Queue\\b|^用户输入队列",
           "label": "## User Input Queue"
         },
         {
           "level": 2,
-          "match": "^Top risks\\b|^\u4e3b\u8981\u98ce\u9669",
+          "match": "^Top risks\\b|^主要风险",
           "label": "## Top risks"
         }
       ],
@@ -747,19 +810,23 @@
           },
           "optional_columns": {
             "Track": "Which declared track this row belongs to. Absent = the implicit `main` track, mode `project`.",
-            "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated."
+            "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated.",
+            "Stage": "For pipeline- and queue-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
+            "Arrived": "The date an item entered the system from outside. Carried forward from `BOARD.md` Intake when a queue-mode row is routed, and REQUIRED to survive that move - V4 finding B2: age-since-arrival is what SLA triage measures, and destroying it at routing made the mode's second triage step uncomputable.",
+            "Commitment": "The promise this row discharges, by its row position or Promise text in `OKR.md` Commitments. V4 finding B4: without it, 'are this commitment's items far enough along' cannot be answered."
           }
         },
         {
-          "under": "^Intake\\b|^\u6536\u4ef6",
-          "note": "Untriaged external requests, for queue-mode tracks (DESIGN-003 decision 3). OPTIONAL: skipped entirely when the section is absent. Lives inside BOARD.md rather than a new INTAKE.md so the refactor claims no new path \u2014 BOARD.md is already in claims[]. `triage` drains this section as its first step.",
+          "under": "^Intake\\b|^收件",
+          "note": "Untriaged external requests, for queue-mode tracks (DESIGN-003 decision 3). OPTIONAL: skipped entirely when the section is absent. Lives inside BOARD.md rather than a new INTAKE.md so the refactor claims no new path — BOARD.md is already in claims[]. `triage` drains this section as its first step. `Outcome` is required because triage mandates that every row be routed, dropped WITH A REASON, or deferred WITH A NAMED CONDITION - a table with nowhere to write the reason turns that rule into a suggestion. Empty cells are fine; the column is not.",
           "columns": [
             "Arrived",
-            "Request"
+            "Request",
+            "Outcome"
           ]
         },
         {
-          "under": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
+          "under": "^User Input Queue\\b|^用户输入队列",
           "columns": [
             "USER-id",
             "Needed from user",
@@ -769,7 +836,7 @@
           ]
         },
         {
-          "under": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
+          "under": "^Cadence\\b|^例行节奏",
           "columns": [
             "ID",
             "Recurring task",
@@ -794,17 +861,17 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Mission\\b|^\u4f7f\u547d",
+          "match": "^Mission\\b|^使命",
           "label": "## Mission"
         },
         {
           "level": 2,
-          "match": "^Operating Principles\\b|^\u8fd0\u884c\u539f\u5219",
+          "match": "^Operating Principles\\b|^运行原则",
           "label": "## Operating Principles"
         },
         {
           "level": 2,
-          "match": "^Anti-Goals\\b|^\u53cd\u76ee\u6807",
+          "match": "^Anti-Goals\\b|^反目标",
           "label": "## Anti-Goals"
         },
         {
@@ -814,18 +881,18 @@
         },
         {
           "level": 2,
-          "match": "^Versioning|^\u7248\u672c\u8bb0\u5f55",
+          "match": "^Versioning|^版本记录",
           "label": "## Versioning log"
         },
         {
           "level": 3,
-          "match": "^(Objective|\u76ee\u6807) \\d+",
-          "label": "### Objective <N> \u2014 <title>"
+          "match": "^(Objective|目标) \\d+",
+          "label": "### Objective <N> — <title>"
         }
       ],
       "tables": [
         {
-          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under": "^(Objective|目标) \\d+",
           "under_level": 3,
           "columns": [
             "Id",
@@ -836,6 +903,20 @@
           ],
           "id_column": "Id",
           "id_pattern": "^KR-O\\d+\\.\\d+$"
+        },
+        {
+          "under": "^Commitments\\b|^承诺",
+          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it.",
+          "columns": [
+            "Track",
+            "Promise",
+            "To whom",
+            "By when",
+            "Status"
+          ],
+          "optional_columns": {
+            "Discharged by": "How the commitment is satisfied. The authoritative link runs the OTHER way - each BOARD.md row's `Commitment` cell names the commitment it discharges - so this cell describes rather than enumerates. A list of row IDs here rots as rows close and leave the board, and Perry's own LOAD-02 check fires on IDs referenced with nothing defining them."
+          }
         }
       ],
       "anchor": "state"
@@ -864,58 +945,58 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Phase Focus\\b|^\u9636\u6bb5\u7126\u70b9",
+          "match": "^Phase Focus\\b|^阶段焦点",
           "label": "## Phase Focus"
         },
         {
           "level": 2,
-          "match": "^Operating Rules\\b|^\u8fd0\u884c\u89c4\u5219",
+          "match": "^Operating Rules\\b|^运行规则",
           "label": "## Operating Rules"
         },
         {
           "level": 2,
-          "match": "^Cost Ceiling\\b|^\u6210\u672c\u4e0a\u9650",
+          "match": "^Cost Ceiling\\b|^成本上限",
           "label": "## Cost Ceiling"
         },
         {
           "level": 2,
-          "match": "^User Commitments\\b|^\u7528\u6237\u627f\u8bfa",
+          "match": "^User Commitments\\b|^用户承诺",
           "label": "## User Commitments"
         },
         {
           "level": 2,
-          "match": "^User-Unavailable Degradation\\b|^\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7",
+          "match": "^User-Unavailable Degradation\\b|^用户缺席降级",
           "label": "## User-Unavailable Degradation"
         },
         {
           "level": 2,
-          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219|^\u7f29\u5708\u89c4\u5219",
+          "match": "^Phase Scope Reduction Rule\\b|^阶段缩圈规则|^缩圈规则",
           "label": "## Phase Scope Reduction Rule"
         },
         {
           "level": 2,
-          "match": "^(Objective|\u76ee\u6807) \\d+",
-          "label": "## Objective <N> \u2014 <title>"
+          "match": "^(Objective|目标) \\d+",
+          "label": "## Objective <N> — <title>"
         },
         {
           "level": 2,
-          "match": "^Definition of Done\\b|^\u5b8c\u6210\u5b9a\u4e49",
+          "match": "^Definition of Done\\b|^完成定义",
           "label": "## Definition of Done"
         },
         {
           "level": 2,
-          "match": "^Not Doing in this phase\\b|^\u672c\u9636\u6bb5\u4e0d\u505a",
+          "match": "^Not Doing in this phase\\b|^本阶段不做",
           "label": "## Not Doing in this phase"
         },
         {
           "level": 2,
-          "match": "^Process Note\\b|^\u6d41\u7a0b\u8bf4\u660e",
+          "match": "^Process Note\\b|^流程说明",
           "label": "## Process Note"
         }
       ],
       "tables": [
         {
-          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under": "^(Objective|目标) \\d+",
           "under_level": 2,
           "columns": [
             "Id",
@@ -940,7 +1021,7 @@
       "frontmatter": {
         "spec_key": "linkage",
         "spec_version": 1,
-        "description": "The O\u2192KR\u2192task\u2192agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
+        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
         "fields": {
           "linkage": {
             "type": "integer",
@@ -992,7 +1073,7 @@
                   "target": {
                     "type": "number",
                     "required": false,
-                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') \u2014 rendering a ceiling as completion is worse than rendering nothing."
+                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
                   },
                   "current": {
                     "type": "number",
@@ -1095,7 +1176,7 @@
       "frontmatter": {
         "spec_key": "adoption",
         "spec_version": 1,
-        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 \u2014 state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
+        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 — state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
         "fields": {
           "adoption": {
             "type": "integer",
@@ -1230,7 +1311,7 @@
               "seed": {
                 "type": "string",
                 "required": false,
-                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc \u2014 in preference order; see reference/adoption.md \u00a7 Clustering"
+                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc — in preference order; see reference/adoption.md § Clustering"
               },
               "kr": {
                 "type": "string",
@@ -1286,7 +1367,7 @@
                 "type": "string",
                 "required": true,
                 "enum": "candidate_status",
-                "note": "rejected entries are KEPT \u2014 they are the don't-ask-me-again record"
+                "note": "rejected entries are KEPT — they are the don't-ask-me-again record"
               },
               "resolution": {
                 "type": "string",
@@ -1537,43 +1618,43 @@
         },
         {
           "name": "Date",
-          "pattern": "\\d{4}-\\d{2}-\\d{2}|\u2014"
+          "pattern": "\\d{4}-\\d{2}-\\d{2}|—"
         }
       ],
       "headings": [
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Problem\\b|^(?:\\d+\\.\\s*)?\u95ee\u9898",
+          "match": "^(?:\\d+\\.\\s*)?Problem\\b|^(?:\\d+\\.\\s*)?问题",
           "label": "## Problem"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Goals\\b|^(?:\\d+\\.\\s*)?\u76ee\u6807",
+          "match": "^(?:\\d+\\.\\s*)?Goals\\b|^(?:\\d+\\.\\s*)?目标",
           "label": "## Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b|^(?:\\d+\\.\\s*)?\u975e\u76ee\u6807",
+          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b|^(?:\\d+\\.\\s*)?非目标",
           "label": "## Non-Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b|^(?:\\d+\\.\\s*)?\u7528\u6237\u51b3\u7b56",
+          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b|^(?:\\d+\\.\\s*)?用户决策",
           "label": "## User Decisions"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Architecture\\b|^(?:\\d+\\.\\s*)?\u67b6\u6784",
+          "match": "^(?:\\d+\\.\\s*)?Architecture\\b|^(?:\\d+\\.\\s*)?架构",
           "label": "## Architecture"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b|^(?:\\d+\\.\\s*)?\u5b9e\u65bd\u8ba1\u5212",
+          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b|^(?:\\d+\\.\\s*)?实施计划",
           "label": "## Implementation plan"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Risks|^(?:\\d+\\.\\s*)?\u98ce\u9669",
+          "match": "^(?:\\d+\\.\\s*)?Risks|^(?:\\d+\\.\\s*)?风险",
           "label": "## Risks & mitigations"
         }
       ],
@@ -1597,13 +1678,13 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "match": "^Active\\b|^进行中",
           "label": "## Active"
         }
       ],
       "tables": [
         {
-          "under": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "under": "^Active\\b|^进行中",
           "columns": [
             "ADR",
             "Title",
@@ -1639,8 +1720,8 @@
       "headings": [
         {
           "level": 2,
-          "match": "^\u00a7[1-8]\\b",
-          "label": "## \u00a71 \u2026 \u00a78 (eight fixed sections)"
+          "match": "^§[1-8]\\b",
+          "label": "## §1 … §8 (eight fixed sections)"
         }
       ],
       "anchor": "state"
@@ -1680,13 +1761,13 @@
         {
           "name": "State root",
           "required": false,
-          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves \u2014 it is the anchor that holds this pointer."
+          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
         }
       ],
       "tables": [
         {
-          "under": "^Tracks\\b|^\u8f68\u9053",
-          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file.",
+          "under": "^Tracks\\b|^轨道",
+          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file. Only Track and Mode are required; the rest are per-mode and absent columns take the mode default.",
           "columns": [
             "Track",
             "Mode"
@@ -1694,6 +1775,14 @@
           "enum_columns": {
             "Mode": "mode",
             "Default rung": "verification_rung"
+          },
+          "optional_columns": {
+            "Spine": "Free text: where this track's goals/commitments live.",
+            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline and queue modes only. Absent = the mode's default vocabulary.",
+            "WIP": "Per-stage limits for the Stages vocabulary, e.g. `-/3/2/-/-` positionally, or `review:2` by name. `-` means no limit. V4 finding B3: the mode file made WIP its central control and never said where the numbers lived, which made the rule decorative. DESIGN-003 section 5.2's original example folded a single `(WIP 3)` into the Stages cell; splitting it out is the correction, recorded in that document's Changes.",
+            "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
+            "Cycle": "For pipeline mode: what bounds the current horizon, e.g. `2026-W34` or `until 2026-09-30`. V4 finding S6: 'the set of items due in this stretch' is circular and left the horizon unable to close.",
+            "Default rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
           }
         }
       ],
@@ -1709,7 +1798,7 @@
       "headings": [
         {
           "level": 2,
-          "match": "^High-stakes|^\u9ad8\u98ce\u9669\u64cd\u4f5c",
+          "match": "^High-stakes|^高风险操作",
           "label": "## High-stakes operations"
         }
       ],
@@ -1750,7 +1839,7 @@
     {
       "id": "linkage-names-unique",
       "severity": "error",
-      "description": "No two linkage projects may share a name or an alias \u2014 that ambiguity is exactly what the registry exists to prevent."
+      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
     },
     {
       "id": "linkage-task-single-kr",
