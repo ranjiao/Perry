@@ -325,9 +325,67 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         self.assertTrue((PERRY_HOME / tmpl).exists(), f"{tmpl} does not exist")
 
     def test_only_one_lane_bootstraps_the_decision_files(self):
+        """The regex used to be anchored to the file bullet — `DECISIONS.md
+        (from …)` — so it read one line of the step and was blind to the rest.
+        `work/reference/bootstrap.md` refused to create `decisions/` in one
+        bullet and then listed it among the directories to create three lines
+        below, and this test was green throughout.
+
+        Now it checks the whole step: neither decide-owned path may appear in
+        any *creating* instruction, whichever bullet carries it.
+        """
         work_bootstrap = (PERRY_HOME / "work" / "reference" / "bootstrap.md").read_text()
-        self.assertNotRegex(
-            work_bootstrap, r"^\s*-\s+`DECISIONS\.md` \(from",
-            "the work lane still bootstraps DECISIONS.md, and so does decide — "
-            "two lanes creating one pair of files is the state the contract ends",
-        )
+        step = re.search(r"^2\.\s+\*\*Create state files.*?(?=^\d+\.\s)",
+                         work_bootstrap, re.M | re.S)
+        self.assertIsNotNone(step, "bootstrap.md's create-state-files step moved")
+
+        # Read the paths OUT of the instruction rather than scanning the line
+        # for a forbidden substring. A first attempt skipped any line
+        # containing `**not**` — and the mutation that put `decisions/` back
+        # into the create-list left the disclaimer on the same line, so the
+        # whole line was skipped and the test stayed green on the bug it names.
+        # Everything up to the first em dash is the list; the rest is prose.
+        created: list[str] = []
+        for line in step.group(0).splitlines():
+            body = re.sub(r"^\s*-\s*", "", line).split(" — ")[0]
+            if re.match(r"\*\*not\*\*", body.strip()):
+                continue  # the bullet that forbids, in full
+            created += re.findall(r"`([^`]+)`", body)
+
+        for path in ("DECISIONS.md", "decisions/", "design/"):
+            self.assertNotIn(
+                path, created,
+                f"work's bootstrap creates `{path}`, which the contract gives "
+                f"to `decide`. Created here: {created}")
+
+    def test_no_other_lane_claims_the_moved_files_in_its_own_prose(self):
+        """Every lane SKILL.md states the contract in its own words, and
+        `goals/SKILL.md` kept the pre-move sentence — "PMO is the only writer
+        of … `DECISIONS.md` …" — long after the move.
+
+        This module's docstring says the contract is written in five places and
+        that copies drifting apart is the failure that has actually happened.
+        The existing tests checked the router table, the schema and `decide/`.
+        The prose copies in the *other two lanes* were the unchecked pair, and
+        that is where the stale claim was.
+        """
+        for lane in ("goals", "work"):
+            text = (PERRY_HOME / lane / "SKILL.md").read_text()
+            self.assertIn("only writer of", text,
+                          f"{lane}/SKILL.md no longer states the contract at "
+                          f"all — this test would pass vacuously")
+            # Capture the LIST, not a span of characters. Two earlier attempts
+            # failed for opposite reasons: `[^.]*` stopped inside "`BOARD.md`"
+            # because every path here contains a dot, and end-of-line ran past
+            # several claims into the sentence that corrects them. The list is
+            # backticked items joined by commas and "and", and it ends at the
+            # first token that is neither — which is exactly what this matches.
+            claims = re.findall(r"only writer of ((?:\s*(?:and|,)?\s*`[^`]+`)+)",
+                                text)
+            self.assertTrue(claims, f"{lane}/SKILL.md: no claim list parsed")
+            for claim in claims:
+                for path in ("DECISIONS.md", "decisions/"):
+                    self.assertNotIn(
+                        path, claim,
+                        f"{lane}/SKILL.md still claims `{path}`, which moved to "
+                        f"`decide` on 2026-08-16:\n  …only writer of{claim}")

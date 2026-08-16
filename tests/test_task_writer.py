@@ -24,6 +24,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -139,7 +140,16 @@ class TestFormatIsMechanized(unittest.TestCase):
 
 
 class TestAtomicThreeWayWrite(unittest.TestCase):
-    """Board, journal and event — or none of them."""
+    """The two canonical files together; the derived event may fail alone.
+
+    The class used to be named for a stronger guarantee — "board, journal and
+    event, or none of them" — that four surfaces stated and the code never
+    provided, and every test in it exercised a *pre-write validation refusal*.
+    An assertion satisfied by the setup cannot fail on the behavior it names:
+    `add` with no `--title` never reaches `commit()`, so nothing here touched
+    the ordering the claim was about. `test_the_event_may_be_lost_but_never_the_row`
+    is the one that goes through `commit()`.
+    """
 
     def test_add_writes_all_three(self):
         p = Project()
@@ -167,6 +177,153 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(p.board(), before)
         self.assertEqual(p.events(), [])
+
+    def test_the_event_may_be_lost_but_never_the_row(self):
+        """Reaches `commit()` and makes the event append fail, which is the
+        only path where the ordering matters.
+
+        Before this, an unwritable `.perry/` produced an uncaught
+        `PermissionError` — a traceback, exit 1, and board + journal already on
+        disk. Exit 1 is documented as "nothing was written", so a caller
+        following the docs would retry and raise a second row for work already
+        recorded. The loss is allowed to run in exactly one direction: the
+        canonical files land together or not at all, and the derived event is
+        reported when it goes missing.
+        """
+        p = Project()
+        ev_dir = p.root / ".perry"
+        (ev_dir / "events.jsonl").write_text("")
+        mode = ev_dir.stat().st_mode
+        os.chmod(ev_dir / "events.jsonl", 0o444)
+        os.chmod(ev_dir, 0o555)
+        try:
+            code, out = p.run("add", "--title", "atomicity probe", "--priority", "P0")
+        finally:
+            os.chmod(ev_dir, mode)
+            os.chmod(ev_dir / "events.jsonl", 0o644)
+
+        self.assertNotIn("Traceback", str(out),
+                         "an unwritable event log crashed instead of reporting")
+        self.assertEqual(code, 0,
+                         "the canonical write succeeded; exit 1 would tell the "
+                         "caller to retry and duplicate the row")
+        self.assertIn("atomicity probe", p.board(), "the row was lost")
+        self.assertIn("TASK-001", p.journal(), "the journal line was lost")
+        self.assertEqual(p.events(), [], "the event should not have been written")
+
+        # And the row is honestly reported as having no creating event.
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["board"]["drift"]["unrecorded"], 1)
+
+
+ZH_BOARD = """# BOARD
+
+## P0
+| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |
+|---|---|---|---|---|---|
+
+## P1
+| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |
+|---|---|---|---|---|---|
+
+## P2
+| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |
+|---|---|---|---|---|---|
+"""
+
+
+class TestALocalizedBoard(unittest.TestCase):
+    """`perry-task` was the only component in the stack that never read
+    `schema § i18n.columns`.
+
+    `perry-state`, `perry-lint` and the viewer all resolve headers through it;
+    the writer keyed rows on hardcoded English. TASK-033 then routed *every*
+    board write through the writer — so the migration handed the one component
+    that could corrupt a localized board responsibility for all of them.
+
+    The failures were silent and exit 0. `add` wrote a row of empty cells while
+    the journal line and the event both asserted the task existed; `start` and
+    `status` were board no-ops that still recorded the transition. The tool
+    built to eliminate board-vs-history divergence produced it on its first
+    write, on any project using the document language Perry advertises.
+
+    No test in the suite had ever run the tool against a localized board, and
+    Perry's own board is English — so neither dogfooding nor three review
+    rounds could see it.
+    """
+
+    def zh(self) -> "Project":
+        p = Project(board=ZH_BOARD)
+        (p.root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- Document language: 中文\n"
+            "- Repo layout: single\n- State root: .\n")
+        return p
+
+    def row(self, p: "Project") -> list[str]:
+        line = next(l for l in p.board().split("\n") if l.startswith("| TASK-001 |"))
+        return [c.strip() for c in line.strip().strip("|").split("|")]
+
+    def test_add_populates_the_row_rather_than_emptying_it(self):
+        p = self.zh()
+        code, out = p.run("add", "--title", "本地化测试", "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        cells = self.row(p)
+        self.assertEqual(cells[0], "TASK-001")
+        self.assertEqual(cells[1], "本地化测试", "the title did not reach 标题")
+        self.assertEqual(cells[3], "not_started", "the status did not reach 状态")
+        self.assertNotEqual(cells, [""] * len(cells))
+
+    def test_a_transition_actually_moves_the_cell(self):
+        """`start` rebuilt the row from Chinese-keyed cells, matched no English
+        header, and wrote it back byte-identical — while the event recorded
+        `to: in_progress`. A board no-op that reports success is worse than a
+        refusal: it is the divergence, manufactured by the tool."""
+        p = self.zh()
+        p.run("add", "--title", "任务", "--priority", "P0")
+        code, out = p.run("start", "TASK-001")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.row(p)[3], "in_progress",
+                         "the event says in_progress and the board does not")
+
+    def test_a_new_column_joins_in_the_boards_own_language(self):
+        """Appending `Stage` beside `阶段序列` would leave a header in two
+        languages, which `perry-lint`'s localized match regexes then disagree
+        about."""
+        p = self.zh()
+        (p.root / ".perry" / "config.md").write_text(
+            (p.root / ".perry" / "config.md").read_text()
+            + "\n## Tracks\n\n"
+            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| blog | pipeline | commitments | brief->draft | — | — | — | V5 |\n")
+        code, out = p.run("add", "--title", "文章", "--track", "blog", "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        header = next(l for l in p.board().split("\n") if l.startswith("| 编号 |"))
+        self.assertIn("阶段", header, "the new column was added in English")
+        self.assertNotIn("Stage", header)
+
+    def test_an_unreadable_header_is_refused_not_blanked(self):
+        """A refusal names the header it could not read. A blank row names
+        nothing, and exits 0."""
+        p = Project(board=ZH_BOARD.replace("| 编号 | 标题 |", "| 甲 | 乙 |"))
+        code, out = p.run("add", "--title", "X", "--priority", "P0")
+        self.assertEqual(code, 1, f"an unresolvable header was written to: {out}")
+        self.assertIn("i18n.columns", str(out))
+        self.assertNotIn("TASK-001", p.board())
+
+    def test_drift_is_clean_on_a_board_the_tool_wrote_in_chinese(self):
+        """The end-to-end statement: the localized path produces no false
+        signal in the detector either."""
+        p = self.zh()
+        p.run("add", "--title", "甲任务", "--priority", "P0")
+        p.run("add", "--title", "乙任务", "--priority", "P1")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        d = json.loads(r.stdout)["board"]["drift"]
+        self.assertEqual((d["drift"], d["unrecorded"]), (0, 0), d)
 
 
 class TestWhatTheToolComputes(unittest.TestCase):
@@ -325,10 +482,6 @@ class TestLifecycle(unittest.TestCase):
         self.assertEqual(p.board(), board_before)
         code, _ = p.run("add", "--title", "Y")
         self.assertEqual(code, 0, "the tool could not write without its own log")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestJournalAppendsChronologically(unittest.TestCase):
@@ -590,6 +743,37 @@ class TestDriftReconciliation(unittest.TestCase):
         self.assertIn(r["id"], d["orphaned"],
                       "a routed row deleted by hand went undetected")
 
+    def test_cadence_rows_are_not_counted_as_predating_the_log(self):
+        """Round-3 finding B2 — the row set left one round behind the tuple.
+
+        `board.all_tasks` includes `## Cadence`, and `perry-task` has no
+        cadence subcommand: `Board.find()` iterates P0/P1/P2 and cannot even
+        locate one. So a cadence row was counted `unrecorded` on a board the
+        tool wrote entirely — a number no project could ever drive to zero,
+        firing at every standup of every board that uses the section the
+        template, the schema headings and `work/SKILL.md` all prescribe.
+
+        Unlike the `route` case, this one is unfixable from the user's side,
+        which makes it precisely the "a check people learn to ignore is worse
+        than no check" failure `reconcile_drift`'s docstring names as its own
+        reason for existing.
+
+        Perry's own board ships an EMPTY cadence placeholder, which the
+        `if t.id` filter drops — so dogfooding could not surface it. The row
+        here is populated on purpose.
+        """
+        p = Project(board=BOARD + (
+            "\n## Cadence\n"
+            "| ID | Recurring task | Frequency | Next due | Owner | Last evidence |\n"
+            "|---|---|---|---|---|---|\n"
+            "| CAD-01 | weekly review | weekly | 2026-08-20 | User | — |\n"))
+        p.run("add", "--title", "tool written", "--priority", "P0")
+        d = self._drift(p)
+        self.assertEqual(
+            d["unrecorded"], 0,
+            f"a cadence row was reported as predating the log on a board the "
+            f"tool wrote entirely, and no user action could ever clear it: {d}")
+
     def test_drift_is_reported_never_refused(self):
         """A user editing their own markdown is legitimate. Perry notices; it
         does not object, and nothing exits non-zero."""
@@ -666,6 +850,33 @@ class TestModeAwareWrites(unittest.TestCase):
         code, out = p.run("stage", a["id"], "--stage", "shipped")
         self.assertEqual(code, 1)
         self.assertIn("vocabulary", str(out))
+
+    def test_a_commitment_reaches_the_board(self):
+        """Round-3 finding B3, and round-4's B2 (`Arrived` dropped at routing)
+        one column further out.
+
+        `mode_columns` was a hand-maintained per-mode list that omitted
+        `Commitment`. `--commitment` was accepted, stored into `values`, and
+        then dropped by `append_row`, which maps values onto headers and had no
+        header to map it to — exit 0, success message, no cell. That silently
+        emptied the scan `modes/queue.md` is built on: "given a commitment due
+        this week, which board rows carry its id."
+
+        The list of columns and the list of values were written down
+        separately, so they drifted. `columns_for(values)` derives one from the
+        other, which is why this cannot recur for a seventh column.
+        """
+        p = Project(tracks=self.TRACKS)
+        code, out = p.run("add", "--title", "Q3 post", "--track", "blog",
+                          "--priority", "P0", "--commitment", "blog/1")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.cells(p, "TASK-001").get("commitment"), "blog/1",
+                         "--commitment was accepted and silently discarded")
+
+        p.run("intake", "--title", "vendor spend")
+        code, out = p.run("route", "1", "--track", "ops", "--commitment", "ops/1")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.cells(p, out["id"]).get("commitment"), "ops/1")
 
     def test_a_bad_stage_is_refused_at_creation_too(self):
         """`stage` validated the vocabulary from the day it shipped; `add` and
@@ -816,7 +1027,11 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
     def test_the_procedures_say_what_a_refusal_means(self):
         """A tool that exits 1 without the procedure saying so invites the
         agent to treat a refusal as a failure and fall back to editing."""
-        s = self.section("add-task")
+        # Whitespace-collapsed: these assertions are about prose, and prose
+        # reflows. An earlier version matched raw text, so adding one refusal
+        # to the sentence re-wrapped the line and broke a test that had no
+        # opinion about the change.
+        s = re.sub(r"\s+", " ", self.section("add-task"))
         self.assertIn("Refusals are outcomes", s)
         self.assertIn("do not fall back to editing", s)
 
@@ -844,8 +1059,18 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
     STATUSES = ["not_started", "blocked", "in_progress", "review", "done", "dropped"]
 
     def test_the_schema_enum_is_what_the_tool_accepts(self):
+        """Named for a check it did not perform: it compared the schema to a
+        hardcoded list and never invoked anything. Now it asks the tool."""
         schema = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
         self.assertEqual(schema["enums"]["task_status"], self.STATUSES)
+
+        p = Project()
+        p.run("add", "--title", "X")
+        code, out = p.run("status", "TASK-001", "--status", "nonesuch")
+        self.assertEqual(code, 1)
+        for want in self.STATUSES:
+            self.assertIn(want, str(out),
+                          f"the tool's refusal does not offer {want!r}")
 
     def test_blocked_and_review_have_a_tool_path(self):
         p = Project()
@@ -886,6 +1111,13 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
         Reached through the CLI, not by importing the dict: what matters is
         that a name a user can type is a name that runs, and only invoking the
         process can show that.
+
+        The "expected one of" half is deliberately weak — that message is
+        literally `' / '.join(COMMANDS)`, so asserting it lists every command
+        is a tautology. The check that carries weight is against the module
+        **docstring**, which is a hand-maintained fourth copy that nothing kept
+        in step: `--arrived`, `--owner`, `--commitment` and `--actor` had all
+        shipped without it noticing.
         """
         for name in PT.COMMANDS:
             r = subprocess.run(
@@ -902,9 +1134,16 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
             ["python3", str(PERRY_HOME / "bin" / "perry-task"), "nonesuch"],
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
-        for name in PT.COMMANDS:
-            self.assertIn(name, r.stderr,
-                          f"{name!r} is accepted but not advertised")
+
+        usage = re.search(r"^Usage:\n(.*?)\n\n", PT.__doc__ or "", re.M | re.S)
+        self.assertIsNotNone(usage, "the docstring's Usage block moved")
+        documented = set(re.findall(r"^\s*perry-task\s+([a-z-]+)",
+                                    usage.group(1), re.M))
+        self.assertEqual(
+            documented, set(PT.COMMANDS),
+            f"the docstring and COMMANDS disagree — only in docstring: "
+            f"{documented - set(PT.COMMANDS)}; missing from it: "
+            f"{set(PT.COMMANDS) - documented}")
 
     def test_drop_requires_a_reason_and_leaves_no_orphan(self):
         """A hand-removed row leaves its `add` event with no row and no close —
@@ -957,3 +1196,18 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
             text = (PERRY_HOME / "work" / "reference" / f"{name}.md").read_text()
             self.assertIn("perry-task", text,
                           f"{name}.md never names the tool it must use")
+            # Naming it once in a header would satisfy the line above while the
+            # body instructed hand-edits throughout. Both files move rows, so
+            # both must reach the subcommands that move them.
+            for sub in ("start", "status"):
+                self.assertRegex(
+                    text, rf"perry-task[^\n]*\b{sub}\b|`{sub}`",
+                    f"{name}.md moves rows but never reaches `perry-task {sub}`")
+
+
+if __name__ == "__main__":
+    # At the END of the file, not the middle. It used to sit after the fifth of
+    # thirteen classes, so `python3 tests/test_task_writer.py` ran five and
+    # exited 0 — every drift, localization, mode-aware-write, status-coverage
+    # and lane-procedure test silently skipped, with a passing report.
+    unittest.main()

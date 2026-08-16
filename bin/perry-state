@@ -304,7 +304,23 @@ def reconcile_drift(project_root: Path, board, events: dict) -> dict:
     out["checked"] = True
     out["baseline"] = baseline
 
-    rows = {t.id: t for t in board.all_tasks if getattr(t, "id", "")}
+    # Only the rows a writer can reach. `board.all_tasks` also carries
+    # `## Cadence`, and `perry-task` has no cadence subcommand — `Board.find()`
+    # iterates P0/P1/P2 and cannot even locate one. Counting them made
+    # `unrecorded` a number no project could ever drive to zero: every board
+    # that uses `## Cadence` (which the template, the schema headings and
+    # `work/SKILL.md` all prescribe) would show the Drift row at every standup,
+    # forever, describing rows that neither predate the log nor were hand-edited
+    # in any sense the agent can act on. That is precisely the "a check people
+    # learn to ignore is worse than no check" failure this function's docstring
+    # names as its own reason for existing.
+    #
+    # Perry's own board ships an EMPTY cadence placeholder, which the `if t.id`
+    # filter drops — so dogfooding could never surface this and three review
+    # rounds did not. Round 2 fixed the event tuple below and left the row set
+    # describing the world one round earlier.
+    rows = {t.id: t for t in (list(board.p0) + list(board.p1) + list(board.p2))
+            if getattr(t, "id", "")}
 
     # Two events create a row: `add` raises one directly, `route` promotes one
     # out of `## Intake`. Recognizing only `add` would report every routed row

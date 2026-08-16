@@ -53,6 +53,26 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 
 It re-stamps `Stage since` in the same write and refuses a stage outside the track's declared vocabulary. The rule applies wherever `Stage` changes. `close-task` is in this same file and does load it; `dispatch` and `autopilot` are not, so the invariant is restated in `reference/dispatch.md` and `reference/autopilot.md` rather than relying on this one. Hand-editing the cell leaves the clock reading from whenever the row was created, and pipeline triage's first question then measures nothing. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
 
+**Every status change that is not a close goes through the tool too.**
+
+```
+"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status blocked|review|not_started|in_progress \
+    [--reason "<why>"] [--next "<next action>"]
+```
+
+Three refusals, each protecting something a general status setter would walk past:
+
+| Refuses | Because |
+|---|---|
+| `--status done` / `dropped` | Those close a row. `done` requires `--evidence` and validates the rung; `drop` requires `--reason`. Reaching either through `status` would route around both gates, so it points you at the right subcommand instead. |
+| `blocked` with no `--reason` | A blocked row with no named dependency is one nobody can unblock. The reason also becomes the row's `Next action` (`blocked on <reason>`) when you don't supply one. |
+| a status already set | A no-op transition writes a journal line asserting a change that did not happen. |
+
+`review` is the one `dispatch` and `autopilot` use on every completion, which is
+why the gap here was never cosmetic: for as long as `review` had no tool path,
+every dispatch produced a post-tool board edit and buried the drift signal under
+noise the lane generated itself.
+
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then update `BOARD.md` or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.
@@ -155,7 +175,8 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    gapped), stamps the timestamp at call time, sets `Stage` / `Stage since` /
    `Arrived` for the track's mode, **creates any column or section the mode
    needs and the board lacks**, and writes the board row, the journal line and
-   the event atomically — none of the three if any would fail.
+   the event — the row and the journal line atomically with each other, the
+   event appended after and reported if it fails.
 
    Do not hand-write the row. Every field above was one an agent supplied and
    got wrong at least once: malformed pipes, a reused ID, a timestamp that was
@@ -165,9 +186,10 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    the point.
 
    **Refusals are outcomes, not errors.** The tool exits 1 and writes nothing on
-   a missing title, an undeclared track, or a stage outside a track's
-   vocabulary. Read the message and fix the call; do not fall back to editing
-   the file.
+   a missing title, an undeclared track, a priority outside `P0`/`P1`/`P2`, a
+   stage outside a track's vocabulary, or a `--stage` on a `project`-mode track
+   (which has none). Read the message and fix the call; do not fall back to
+   editing the file.
 
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The tool writes the one-line status change; this block is the rich record and is still written by hand.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.

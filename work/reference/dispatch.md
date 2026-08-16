@@ -25,8 +25,8 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 > **Stage moves and status changes go through `bin/perry-task`.** This file is
 > loaded on its own, so the invariant stated in `reference/subcommands.md` does
 > not reach it — restated here rather than assumed: `perry-task start` /
-> `status` / `stage` write the board row, the journal line and the event
-> atomically. Hand-editing a row here shows up at the next standup as a
+> `status` / `stage` write the board row and the journal line atomically with
+> each other, then append the event. Hand-editing a row here shows up at the next standup as a
 > post-tool edit, and dispatch runs often enough that doing so would bury the
 > signal in noise dispatch itself created. — per executor
 
@@ -162,7 +162,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
    - Subjective verification items (copied from spec, marked `[user-verify]`)
    - PR URL + branch + commit SHA
 6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
-8. Surface to user: pass/fail summary + 1-line subjective verification ask.
+7. Surface to user: pass/fail summary + 1-line subjective verification ask.
 
 ## Failure handling (mark `review`, no auto-retry)
 

@@ -77,7 +77,12 @@ intake section top to bottom. Each row gets exactly one outcome:
   with it** — that is not optional bookkeeping. Age-since-arrival is the number
   every SLA check measures, so a routing that drops it makes triage step 2
   uncomputable, and the row is silently exempt from the only clock that governs
-  it. Carry `Arrived`, set `Stage: triaged`, set `Commitment` if one applies.
+  it. The row carries `Arrived`, enters at the first post-intake stage, and
+  takes a `Commitment` if one applies — all three set structurally by
+  `perry-task route`, which is how the `work` lane performs this
+  (`work/reference/subcommands.md § triage`). Stated here as what the mode
+  requires, not as steps to type: this file is declarative, and a queue triage
+  reads it in the same session as the procedure that executes it.
 - **Dropped**, with the reason in the `Outcome` cell. "We are not doing this" is
   a real answer and it must be written down, because an undropped request is one
   that gets re-asked. The row stays in intake with its outcome recorded.

@@ -7,15 +7,22 @@ row, status change, journal line and ID was produced by an agent typing markdown
 by hand — so the law that governs state ("never compute a number by reading
 files and eyeballing it") protected the way out and not the way in.
 
-Every mutating call does three things ATOMICALLY:
+Every mutating call writes three things:
 
   1. the `BOARD.md` row, rendered from schema/state-schema.json's column order
   2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
   3. one JSON object appended to .perry/events.jsonl
 
-If any of the three cannot be written, none are. A partial write produces
-exactly the board-vs-history divergence this tool exists to remove, which makes
-it strictly worse than a refusal.
+**(1) and (2) are atomic with each other**: both are staged and renamed, so
+either both land or neither does. That is the pair that matters — a board row
+without its journal line is exactly the board-vs-history divergence this tool
+exists to remove, which makes a partial write there strictly worse than a
+refusal.
+
+**(3) is appended after and can fail alone.** It is reported, not raised: the
+canonical state is already correct, and the row simply shows as `unrecorded`
+until the log is writable. This is the direction the loss is allowed to run,
+never the reverse. See `commit()`.
 
 What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
 IDs are minted from max(board ∪ events), never reused; timestamps are taken at
@@ -97,22 +104,32 @@ def board_table_spec(schema: dict) -> dict:
     return next(t for t in board["tables"] if "P[012]" in t["under"])
 
 
-def mode_columns(schema: dict, mode: str) -> list[str]:
-    """Columns a track in this mode needs beyond the six every board has.
+def columns_for(values: dict) -> list[str]:
+    """Every column this row actually sets, beyond the six every board has.
 
-    Derived from the mode's own declared semantics rather than hard-coded, so a
-    fifth mode added to `work_modes` does not silently get the project-mode set.
+    Derived from the row rather than from a per-mode table. The table version
+    listed `Track`/`Stage`/`Stage since`/`Arrived`/`Parent` and omitted
+    `Commitment` — so `--commitment` was accepted, stored into `values`, and
+    then dropped by `append_row`, which maps values onto headers and had no
+    header to map it to. Exit 0, success message, no cell. That silently
+    emptied the scan `modes/queue.md` builds on ("given a commitment due this
+    week, which board rows carry its id") and reproduced, for the one column
+    the earlier review did not enumerate, the same defect that lost `Arrived`
+    at routing a round before.
+
+    A list of columns and a list of values written down separately will drift;
+    one derived from the other cannot.
     """
-    if mode == "project":
-        return []
-    cols = ["Track", "Stage"]
-    if mode == "queue":
-        cols.append("Arrived")
-    else:
-        cols.append("Stage since")
-    if mode == "inquiry":
-        cols.append("Parent")
-    return cols
+    return [display for key, display in
+            ((norm(k), canonical_column(k)) for k in values)
+            if key not in REQUIRED_KEYS]
+
+
+def canonical_column(key: str) -> str:
+    """`"stage since"` → `"Stage since"` — the schema's own spelling."""
+    if _ALIASES is None:
+        _build_column_maps()
+    return (_DISPLAY.get(norm(key)) or {}).get("en", key.title())
 
 
 # ── board ─────────────────────────────────────────────────────────────────
@@ -225,6 +242,12 @@ class Board:
                    if not any(norm(h) == norm(c) for h in header)]
         if not missing:
             return header
+        # A column joining a localized table is written in that table's
+        # language. Appending `Stage` beside `阶段序列` would produce a header
+        # in two languages and a column `perry-lint`'s localized `match`
+        # regexes would then disagree about.
+        lang = header_language(header)
+        missing = [display_name(c, lang) for c in missing]
         header = header + missing
         self.lines[hdr_i] = render_row(header)
         self.lines[sep_i] = "|" + "|".join(["---"] * len(header)) + "|"
@@ -296,12 +319,14 @@ class Board:
 
     def append_row(self, priority: str, values: dict) -> str:
         _, _, header = self.table(priority)
+        check_header(header)
         cells = [values.get(norm(h), "") for h in header]
         line = render_row(cells)
         self.lines.insert(self.last_row(priority) + 1, line)
         return line
 
     def replace_row(self, index: int, header: list[str], values: dict) -> str:
+        check_header(header)
         cells = [values.get(norm(h), "") for h in header]
         self.lines[index] = render_row(cells)
         return self.lines[index]
@@ -322,8 +347,110 @@ def render_row(cells: list[str]) -> str:
     return "| " + " | ".join(c.strip() for c in cells) + " |"
 
 
-def norm(s: str) -> str:
+def squash(s: str) -> str:
+    """Whitespace/decoration only — no language knowledge."""
     return re.sub(r"[\s`*]+", " ", s).strip().lower()
+
+
+_ALIASES: dict[str, str] | None = None
+_DISPLAY: dict[str, dict[str, str]] | None = None
+
+
+def _build_column_maps() -> None:
+    """Read `schema § i18n.columns` once — every spelling of every header.
+
+    `perry-task` was the single component in this stack that never consulted
+    this table. `perry-state`, `perry-lint` and the viewer all resolve headers
+    through it; the writer keyed rows on hardcoded English. Because TASK-033
+    routed *every* board write through this tool, that made it the one
+    component able to corrupt a board written in the document language Perry
+    advertises — and it did, silently, at exit 0: `add` wrote a row of empty
+    cells on a `编号 | 标题 | …` board while the journal line and the event
+    both asserted the task existed. The tool built to eliminate board-vs-history
+    divergence produced it on its first write.
+
+    Perry's own board is English, so no amount of dogfooding could surface
+    this. Three review rounds read the migration and missed it for the same
+    reason.
+    """
+    global _ALIASES, _DISPLAY
+    aliases: dict[str, str] = {}
+    display: dict[str, dict[str, str]] = {}
+    try:
+        columns = load_schema()["i18n"]["columns"]
+    except Exception:
+        columns = {}
+    for canon, langs in columns.items():
+        key = squash(canon)
+        # First spelling wins: the table maps two English columns onto one
+        # Chinese word in at least one case (`Deadline` / `By when` → 截止),
+        # and an arbitrary-but-stable choice beats one that depends on dict
+        # ordering. Neither is a board column, so no board write is affected.
+        aliases.setdefault(key, key)
+        display.setdefault(key, {"en": canon})
+        for lang, names in (langs or {}).items():
+            for name in names:
+                aliases.setdefault(squash(name), key)
+                display[key].setdefault(lang, name)
+    _ALIASES, _DISPLAY = aliases, display
+
+
+def norm(s: str) -> str:
+    """A header cell → the canonical key rows are stored under.
+
+    Applied to header cells and to canonical English column names, which is
+    every use: a localized header and its English name resolve to one key, so
+    `values["status"]` lands in `状态` without any call site knowing that.
+    """
+    if _ALIASES is None:
+        _build_column_maps()
+    k = squash(s)
+    return _ALIASES.get(k, k)
+
+
+def header_language(header: list[str]) -> str:
+    """Which language this table's headers are already written in.
+
+    Read off the board rather than out of `.perry/config.md`: a new column has
+    to match the row it is joining, and the header is the only thing that
+    states that without a second file being right.
+    """
+    if _ALIASES is None:
+        _build_column_maps()
+    for cell in header:
+        key = norm(cell)
+        for lang, name in (_DISPLAY.get(key) or {}).items():
+            if lang != "en" and squash(name) == squash(cell):
+                return lang
+    return "en"
+
+
+def display_name(canonical: str, lang: str) -> str:
+    """The spelling a column gets when this board is missing it."""
+    if _ALIASES is None:
+        _build_column_maps()
+    return (_DISPLAY.get(norm(canonical)) or {}).get(lang, canonical)
+
+
+REQUIRED_KEYS = ("id", "title", "owner", "status", "next action", "evidence")
+
+
+def check_header(header: list[str]) -> None:
+    """Refuse to write against a header whose columns we cannot place.
+
+    Without this the failure is a row of blank cells and exit 0 — the tool
+    reporting success while writing nothing the row means. A refusal names the
+    header it could not read; a blank row names nothing.
+    """
+    keys = {norm(h) for h in header}
+    missing = [k for k in REQUIRED_KEYS if k not in keys]
+    if missing:
+        raise Refused(
+            f"BOARD.md's columns cannot be resolved: no header matches "
+            f"{missing}. Found {header}. Column headers may be written in the "
+            f"document language, but only spellings listed in "
+            f"`schema/state-schema.json § i18n.columns` are recognized — "
+            f"nothing was written")
 
 
 # ── ids ───────────────────────────────────────────────────────────────────
@@ -373,12 +500,25 @@ def read_events(project_root: Path) -> list[dict]:
 
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool) -> dict:
-    """Write board, journal and event — or write none of them.
+    """Write the two canonical files together, then the derived event.
 
-    Ordering is deliberate. Board and journal are staged to temp files and
-    renamed (atomic on POSIX); the event is appended last, so a crash between
-    them loses the derived record rather than the canonical one. Losing an event
-    costs history resolution. Losing a board write costs the truth.
+    **The guarantee, stated exactly.** `BOARD.md` and the journal are staged to
+    temp files and renamed (atomic on POSIX), so either both land or neither
+    does — that pair is what "atomic" covers, and it is the pair that matters,
+    because a board row without its journal line is the divergence this tool
+    exists to remove. The event is appended *after*, and can fail on its own.
+
+    So the honest claim is: **the canonical files never disagree with each
+    other; the derived record may be missing.** Four surfaces used to say "none
+    of the three if any would fail", which is stronger and false — an
+    unwritable `.perry/` left the row and the journal line on disk and the
+    event absent, as an uncaught traceback. A guarantee overstated in prose is
+    the same defect as one asserted in a row nothing implements.
+
+    That direction of failure is chosen, not tolerated: DESIGN-004 declares the
+    event log derived and disposable, and a missing event is exactly the
+    `unrecorded` condition drift reconciliation reports. Losing an event costs
+    history resolution. Losing a board write costs the truth.
     """
     jpath = state_root / "journal" / f"{date.today():%Y-%m}" / f"{date.today():%Y-%m-%d}.md"
     plan = {
@@ -399,7 +539,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
     jtext = append_status_change(jtext, journal_line)
 
     # Stage both canonical files before renaming either.
-    staged = []
+    staged: list[tuple[str, Path]] = []
     try:
         for path, text in ((board.path, board.text()), (jpath, jtext)):
             fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
@@ -408,9 +548,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 fh.flush()
                 os.fsync(fh.fileno())
             staged.append((tmp, path))
-        for tmp, path in staged:
+        while staged:
+            # Pop as we go. Clearing the whole list inside the loop meant a
+            # failure on the second rename left the first temp file orphaned
+            # beside BOARD.md with nothing to clean it up.
+            tmp, path = staged.pop(0)
             os.replace(tmp, path)
-            staged = []
     finally:
         for tmp, _ in staged:
             try:
@@ -418,10 +561,22 @@ def commit(project_root: Path, state_root: Path, board: Board,
             except OSError:
                 pass
 
+    plan["event_written"] = True
     ev = events_path(project_root)
-    ev.parent.mkdir(parents=True, exist_ok=True)
-    with open(ev, "a") as fh:
-        fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+    try:
+        ev.parent.mkdir(parents=True, exist_ok=True)
+        with open(ev, "a") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except OSError as exc:
+        # The canonical write already landed and is correct. Report the loss
+        # instead of crashing: a traceback here would suggest the whole call
+        # failed, and the caller would be right to retry it — producing a
+        # second row for work already recorded.
+        plan["event_written"] = False
+        print(f"perry-task: warning — {board.path.name} and the journal were "
+              f"written, but the event could not be appended to {ev}: {exc}. "
+              f"State is correct; this row will show as `unrecorded` at the "
+              f"next standup until the log is writable again.", file=sys.stderr)
     return plan
 
 
@@ -503,14 +658,14 @@ def cmd_add(args, ctx) -> dict:
     if priority not in ("P0", "P1", "P2"):
         raise Refused(f"priority {priority!r} is not one of P0/P1/P2")
 
-    needed = mode_columns(ctx["schema"], mode)
-    if not args.dry_run:
-        ctx["board"].ensure_columns(priority, needed)
-        if mode == "queue":
-            # The section `triage` step 0 walks. Nothing created it before, so
-            # step 0's "only applies when the section exists" gate no-opped
-            # forever for every queue track ever made.
-            ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
+    if mode == "project" and args.stage:
+        # Project mode has no stages at all, so there is no vocabulary to check
+        # the value against and nowhere for it to land. Swallowing it is the
+        # same silent discard `--commitment` used to perform: the caller
+        # believes they set something.
+        raise Refused(
+            f"track {track['track']!r} is mode `project`, which has no stages "
+            f"(`modes/project.md`); --stage has nowhere to go")
 
     today = f"{date.today():%Y-%m-%d}"
     values = {
@@ -538,6 +693,14 @@ def cmd_add(args, ctx) -> dict:
             values["parent"] = args.parent
     if args.commitment:
         values["commitment"] = args.commitment
+
+    if not args.dry_run:
+        ctx["board"].ensure_columns(priority, columns_for(values))
+        if mode == "queue":
+            # The section `triage` step 0 walks. Nothing created it before, so
+            # step 0's "only applies when the section exists" gate no-opped
+            # forever for every queue track ever made.
+            ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
 
     line = ctx["board"].append_row(priority, values) if not args.dry_run else render_row(
         [values.get(k, "") for k in ("id", "title", "owner", "status", "next action", "evidence")])
@@ -807,14 +970,15 @@ def cmd_route(args, ctx) -> dict:
     check_stage(track, stages, args.stage)
     stage = args.stage or (stages[1] if len(stages) > 1 else (stages[0] if stages else ""))
 
-    if not args.dry_run:
-        ctx["board"].ensure_columns(priority, mode_columns(ctx["schema"], track["mode"]))
     values = {"id": tid, "title": intake.get("request", ""),
               "owner": args.owner or "Coding Agent", "status": "not_started",
               "next action": "—", "evidence": "—",
               "track": track["track"], "stage": stage,
-              "arrived": intake.get("arrived", ""),
-              "commitment": args.commitment or ""}
+              "arrived": intake.get("arrived", "")}
+    if args.commitment:
+        values["commitment"] = args.commitment
+    if not args.dry_run:
+        ctx["board"].ensure_columns(priority, columns_for(values))
     if args.dry_run:
         line = render_row(list(values.values()))
     else:

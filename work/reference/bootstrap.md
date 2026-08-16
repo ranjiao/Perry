@@ -18,7 +18,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
    - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
    - `PROJECT_STATE.md` (from template)
    - **not** `DECISIONS.md` or `decisions/` — those belong to the `decide` lane (`$PERRY_HOME/SKILL.md § The hand-off contract`). `decide`'s own bootstrap creates them, including the ADR that records the bootstrap event. Two lanes writing one pair of files was the state this contract exists to end.
-   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
+   - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `inputs/`, `knowledge/` — **not** `decisions/` and **not** `design/`, for the reason in the bullet above: both belong to `decide`, and `decide`'s own bootstrap creates them. This list used to contain both, three lines under the sentence forbidding one of them.
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
    - **`.perry/hook.md` from `state/hook_TEMPLATE.md`** — do NOT skip this, and do NOT write it empty. Its `## High-stakes operations` list is the only thing `/pmo dispatch`'s safety re-validation and `/pmo autopilot`'s safety scan match specs against; with no list, both gates have nothing to catch and autopilot refuses to run. The template ships a conservative default list (prod deploys, credentials, infra, money, destructive data ops, outbound messages, history rewrites).
 
