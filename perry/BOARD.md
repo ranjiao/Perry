@@ -24,8 +24,7 @@
 | TASK-019 | `modes/pipeline.md` | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; WIP limit has no home or default; Commitments has no track key/owner). Fix B1+B3, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; `Arrived` is destroyed on routing so SLA triage is uncomputable; Commitments ownership). Fix B1+B2, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
-| TASK-035 | perry-decide: writer + missing bootstrap + list contract | Coding Agent | not_started | DESIGN-005 step 1 — DECISIONS.md is created by nothing today; decide/SKILL.md init explicitly creates no docs | — |  |
-| TASK-036 | perry-goals/list/1.0 read contract | Coding Agent | not_started | DESIGN-005 step 2 — additive; perry-state already parses objectives/KRs/phase/linkage | — |  |
+| TASK-036 | perry-goals/list/1.0 read contract | Coding Agent | in_progress | perry-goals list --json: objectives, KRs, phase, linkage edges, attribution state | — |  |
 
 ## P2
 

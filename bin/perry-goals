@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""
+perry-goals — the deterministic read of a project's goals.
+
+DESIGN-005 step 2. The third of Perry's read contracts, after
+`perry-task/list/*` and `perry-decide/list/*`, and the last one needed before a
+front-end can show a whole project without opening a single markdown file.
+
+**It parses nothing itself.** Every field below comes from
+`viewer/parsers.py § load_snapshot`, the same code `perry-state` and the viewer
+use. That is not laziness — a second parser of one file is the defect this
+project has now hit twice: `perry-task` placed board cells by resolved header
+name while `viewer/parsers.py` read them by position, and on a board with one
+extra column every task's owner was reported as its track with the linter
+calling it clean. A fourth reader of `OKR.md` would be a fourth chance at the
+same shape. This tool composes and reshapes; it does not read.
+
+What it adds over `perry-state --json`, which already carries the nested
+structures: a **flat `krs` array**. A front-end wants "every KR, with where it
+sits and how far along it is" — walking objectives→krs and re-deriving progress
+is exactly the estimating `schema/README.md` forbids, done in a repo Perry's
+tests cannot reach.
+
+Usage:
+  perry-goals list [--json] [--level overall|phase]
+
+  --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
+  --json          machine-readable result
+
+Exit codes:
+  0  read
+  1  refused — the reason is printed
+  2  bad invocation
+
+Read-only. No LLM, no external dependencies (stdlib only). DESIGN-005.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import re
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+import parsers as P  # noqa: E402
+
+
+class Refused(Exception):
+    """A refusal is a first-class outcome, not a crash."""
+
+
+# Versioned independently of the other two (DESIGN-005 § 4 decision 5). Goals
+# move on a different clock from tasks; tying the versions together would make
+# a consumer re-check code for a change in a domain it does not read.
+LIST_CONTRACT = "perry-goals/list/1.0"
+
+
+def plain(x):
+    return asdict(x) if is_dataclass(x) else x
+
+
+def kr_rows(snap) -> list[dict]:
+    """Every KR, flat, with its level and objective attached.
+
+    Three sources, deliberately merged in one pass rather than three shapes:
+    `OKR.md`'s overall KRs, the current phase file's KRs, and — where the
+    linkage register carries them — `target` / `current` / `tasks`. A KR that
+    appears in both the phase file and the register is one KR; the register's
+    numbers win, because they are the ones a task edge actually updated.
+    """
+    reg: dict[str, dict] = {}
+    lk = getattr(snap, "linkage", None)
+    for o in (getattr(lk, "objectives", None) or []):
+        for k in (getattr(o, "krs", None) or []):
+            reg[k.id] = {"target": k.target, "current": k.current,
+                         "due": k.due, "tasks": list(k.tasks or [])}
+
+    out = []
+    for level, src in (("overall", getattr(snap, "okr", None)),
+                       ("phase", getattr(snap, "phase", None))):
+        for o in (getattr(src, "objectives", None) or []):
+            for k in (getattr(o, "krs", None) or []):
+                r = reg.get(k.id, {})
+                target, current = r.get("target"), r.get("current")
+                progress = None
+                if isinstance(target, (int, float)) and target:
+                    if isinstance(current, (int, float)):
+                        progress = round(current / target, 4)
+                out.append({
+                    "id": k.id,
+                    "level": level,
+                    "objective": getattr(o, "title", ""),
+                    "text": getattr(k, "text", "") or getattr(k, "title", ""),
+                    "metric": getattr(k, "metric", ""),
+                    "qualifier": getattr(k, "qualifier", ""),
+                    "linked_to": getattr(k, "linked", "") or "",
+                    "stretch": bool(getattr(k, "stretch", False)),
+                    "target": target,
+                    "current": current,
+                    "progress": progress,
+                    "tasks": r.get("tasks", []),
+                })
+    return out
+
+
+def days_since(value: str) -> int | None:
+    m = re.search(r"\d{4}-\d{2}-\d{2}", value or "")
+    if not m:
+        return None
+    try:
+        return (date.today() - datetime.strptime(m.group(0), "%Y-%m-%d").date()).days
+    except ValueError:
+        return None
+
+
+def build(project_root: Path, state_root: Path, level: str | None) -> dict:
+    snap = P.load_snapshot(project_root)
+    okr, ph, lk = snap.okr, snap.phase, getattr(snap, "linkage", None)
+
+    # `present`, `day` and `kr_total` are NOT fields on the parser dataclasses —
+    # `perry-state` derives them in its own builder. Reading them with
+    # `getattr(x, "present", False)` returned the default on every project and
+    # said so to nobody: a live OKR reported `okr_present: false`. Derived here
+    # explicitly, from fields that do exist.
+    okr_present = bool(okr and (okr.version or okr.mission or okr.objectives))
+    phase_day = days_since(ph.started) if ph else None
+    phase_krs = sum(len(o.krs or []) for o in (ph.objectives or [])) if ph else None
+
+    krs = kr_rows(snap)
+    if level:
+        krs = [k for k in krs if k["level"] == level]
+
+    # Every one of these is a real state a project can be in, and none of them
+    # is an error. A project may run goals with no phase, a phase with no
+    # linkage register, or an OKR whose KRs carry no metric at all. Reported so
+    # a consumer can say which, instead of rendering an empty panel that looks
+    # like a failure.
+    conformance = {
+        "okr_present": okr_present,
+        "phase_present": ph is not None,
+        "linkage_present": bool(getattr(lk, "objectives", None)),
+        "krs_without_metric": [k["id"] for k in krs if not k["metric"]],
+        "krs_without_progress": [k["id"] for k in krs if k["progress"] is None],
+        "krs_not_in_linkage": [k["id"] for k in krs
+                               if k["level"] == "phase" and not k["tasks"]
+                               and k["target"] is None],
+        "duplicate_kr_ids": sorted(
+            {k["id"] for k in krs if [x["id"] for x in krs].count(k["id"]) > 1}),
+    }
+
+    # Task→KR attribution is deliberately NOT here. It is a derived join over
+    # the board, and `perry-state --json § attribution` already computes it from
+    # the same snapshot. Recomputing it in a second place is how the two would
+    # disagree; a consumer that needs it reads it there, and `krs[].tasks`
+    # carries the edges this file can state from the register alone.
+    return {
+        "contract": LIST_CONTRACT,
+        "project_root": str(project_root),
+        "state_root": str(state_root),
+        "conformance": conformance,
+        "okr": {
+            "present": okr_present,
+            "version": (okr.version if okr else "") or "",
+            "mission": (okr.mission if okr else "") or "",
+            "operating_principles": list(getattr(okr, "operating_principles", []) or []),
+            "anti_goals": list(getattr(okr, "anti_goals", []) or []),
+            "objectives": [{"title": getattr(o, "title", ""),
+                            "krs": [k.id for k in (getattr(o, "krs", None) or [])]}
+                           for o in (getattr(okr, "objectives", None) or [])],
+        },
+        "phase": None if ph is None else {
+            "number": getattr(ph, "number", ""),
+            "slug": getattr(ph, "slug", ""),
+            "status": getattr(ph, "status", ""),
+            "started": getattr(ph, "started", ""),
+            "day": phase_day,
+            "kr_total": phase_krs,
+            "cost_ceiling": getattr(ph, "cost_ceiling_raw", "") or "",
+            "objectives": [{"title": getattr(o, "title", ""),
+                            "krs": [k.id for k in (getattr(o, "krs", None) or [])]}
+                           for o in (getattr(ph, "objectives", None) or [])],
+        },
+        "krs": krs,
+        "linkage": {
+            "present": bool(getattr(lk, "objectives", None)),
+            "phase": getattr(lk, "phase", "") or "",
+            "updated": getattr(lk, "updated", "") or "",
+            "error": getattr(lk, "error", "") or "",
+        },
+        "counts": {
+            "objectives": len(getattr(okr, "objectives", None) or []),
+            "krs": len(krs),
+            "stretch": sum(1 for k in krs if k["stretch"]),
+        },
+    }
+
+
+class Args:
+    pass
+
+
+def parse(argv: list[str]) -> Args:
+    a = Args()
+    a.cmd = a.root = a.level = None
+    a.as_json = False
+    i = 0
+    while i < len(argv):
+        t = argv[i]
+        if t in ("-h", "--help"):
+            print(__doc__.strip())
+            sys.exit(0)
+        elif t == "--json":
+            a.as_json = True
+        elif t in ("--root", "--level"):
+            i += 1
+            setattr(a, t[2:], argv[i] if i < len(argv) else None)
+        elif a.cmd is None:
+            a.cmd = t
+        i += 1
+    return a
+
+
+def main(argv: list[str]) -> int:
+    args = parse(argv)
+    if args.cmd != "list":
+        print("perry-goals: expected `list` (try --help)", file=sys.stderr)
+        return 2
+    try:
+        if args.level and args.level not in ("overall", "phase"):
+            raise Refused(f"--level {args.level!r} is not `overall` or `phase`")
+        project_root = (Path(args.root).expanduser().resolve() if args.root
+                        else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+        state_root = P.resolve_state_root(project_root)
+        result = build(project_root, state_root, args.level)
+    except Refused as exc:
+        if args.as_json:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-goals: refused — {exc}", file=sys.stderr)
+        return 1
+
+    if args.as_json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        o = result["okr"]
+        print(f"  OKR {o['version'] or '—'} · {o['mission'][:60] or '—'}")
+        ph = result["phase"]
+        if ph:
+            print(f"  phase #{ph['number']} {ph['slug']} · day {ph['day']}")
+        for k in result["krs"]:
+            pct = "—" if k["progress"] is None else f"{k['progress'] * 100:.0f}%"
+            print(f"  {k['id']:10} {k['level']:8} {pct:>5}  {k['text'][:48]}")
+        c = result["conformance"]
+        print(f"\n  {result['counts']['krs']} KR(s) · "
+              f"{len(c['krs_without_progress'])} with no measurable progress")
+        if not c["linkage_present"]:
+            print("  ⚠ no linkage register — no KR carries task edges or a target")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Refused as exc:
+        print(f"perry-goals: refused — {exc}", file=sys.stderr)
+        sys.exit(1)
