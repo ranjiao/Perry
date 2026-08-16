@@ -199,6 +199,122 @@ def encode(obj):
 # ── payload ───────────────────────────────────────────────────────────────
 
 
+TERMINAL_STAGES = {"done", "abandoned"}
+
+
+def stale_run_days() -> int | None:
+    """The one declared threshold, read from the schema rather than hardcoded
+    here — `perry-lint` reports the same number, and two readers disagreeing
+    about when a run is stale is worse than neither reporting it."""
+    try:
+        schema = json.loads(
+            (Path(__file__).resolve().parent.parent / "schema" / "state-schema.json").read_text())
+    except (OSError, ValueError):
+        return None
+    return ((schema.get("thresholds") or {}).get("stale_run_days") or {}).get("value")
+
+
+def scan_interrupted(perry_root: Path) -> list[dict]:
+    """Pipelines someone walked away from mid-run.
+
+    `/perry adopt` stages 0-3 and `/perry diagnose` stages 0-3 deliberately
+    write no state file, so an abandoned run reports `installed: false` exactly
+    like a folder that has never heard of Perry. That is why this is computed
+    on BOTH payload branches and why `SKILL.md` step 2 reads it before the
+    state read: the entrance used to route an abandoned adoption straight into
+    First-time setup, re-ask every preference, and start a second dossier
+    beside the first.
+
+    Returned even when the run is finished? No — terminal stages are dropped
+    here rather than by the caller, so no reader has to know which values are
+    terminal."""
+    out: list[dict] = []
+    limit = stale_run_days()
+    for kind, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
+        d = perry_root / ".perry" / sub
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.md")):
+            fm = read_frontmatter(f)
+            stage = (fm.get("stage") or "").strip()
+            if not stage or stage in TERMINAL_STAGES:
+                continue
+            out.append({
+                "pipeline": kind,
+                "path": f.relative_to(perry_root).as_posix(),
+                "stage": stage,
+                "step": (fm.get("step") or "").strip() or None,
+                "started": fm.get("started"),
+                "updated": fm.get("updated"),
+                "depth": fm.get("depth"),
+                "lanes": fm.get("lanes"),
+                "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
+                # The card offers "Abandon" on every run; on a stale one it
+                # should lead with it. Computed here so the card never has to
+                # decide what "stale" means.
+                "stale": bool(limit and idle is not None and idle >= limit),
+                "stale_after_days": limit,
+                # What the user has already banked. The card needs both numbers:
+                # they are being asked to spend an hour or throw one away.
+                "declarations": count_list_items(f, "declarations"),
+                "interview_answers": count_list_items(f, "interview"),
+                "candidates_pending": count_status(f, "pending"),
+                "candidates_settled": sum(count_status(f, k) for k in
+                                          ("accepted", "edited", "rejected", "deferred")),
+            })
+    return out
+
+
+def read_frontmatter(path: Path) -> dict:
+    """Top-level `key: value` pairs from a `---` fenced block. Stdlib only."""
+    out: dict = {}
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return out
+    if not lines or lines[0].strip() != "---":
+        return out
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
+        if m:
+            # Strip the quoting YAML allows on scalars. Leaving it on turned
+            # `updated` into `"2026-08-10T…` and silently nulled idle_days,
+            # which is the one number the interrupted-run card needs most.
+            out[m.group(1)] = m.group(2).strip().strip('"\'')
+    return out
+
+
+def count_list_items(path: Path, key: str) -> int:
+    """How many `- ` entries sit under a top-level frontmatter list."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return 0
+    n, inside = 0, False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if re.match(rf"^{re.escape(key)}:\s*$", line):
+            inside = True
+            continue
+        if inside:
+            if re.match(r"^\s*-\s+\S", line):
+                n += 1
+            elif line and not line[0].isspace():
+                inside = False
+    return n
+
+
+def count_status(path: Path, value: str) -> int:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0
+    return len(re.findall(rf"^\s*status:\s*{re.escape(value)}\s*$", text, re.M))
+
+
 def build(root: Path, project_root: Path | None = None) -> dict:
     # `.perry/` is anchored at the project root even when state lives in a
     # subdirectory, so config/hook are read from there, not from `root`.
@@ -216,6 +332,10 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "project": {"root": root.as_posix(), "name": root.name},
             "installed": False,
+            # Computed even here — especially here. An abandoned adoption looks
+            # exactly like a virgin folder to `installed`, and routing it to
+            # First-time setup is the bug this field exists to prevent.
+            "interrupted": scan_interrupted(perry_root),
             "warnings": ["No Perry state found — run /perry for first-time setup."],
         }
 
@@ -294,6 +414,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         "schema": 1,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "installed": True,
+        "interrupted": scan_interrupted(perry_root),
         "project": {
             "root": root.as_posix(),
             "name": snap.project_name,

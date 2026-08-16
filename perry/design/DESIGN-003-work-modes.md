@@ -177,11 +177,13 @@ in every shape.
    `done` on anything below a recorded human sign-off.
 4. **Claims cite sources.** Inquiry-shaped work has a lintable claim→source
    contract built on `inputs/` + `knowledge/`, not a new subsystem.
-5. **Zero-to-one new claimed paths.** DESIGN-002 established that every path
-   Perry writes is a claim on a namespace it doesn't own. This design folds
-   tracks into `.perry/config.md`, recurrence into the existing `## Cadence`
-   section, commitments into `OKR.md`, and provenance into `knowledge/` —
-   leaving at most one new path, which is §4 decision 3.
+5. **Zero new claimed paths.** DESIGN-002 established that every path Perry
+   writes is a claim on a namespace it doesn't own. Decisions 2 and 3 settled
+   this at zero: tracks fold into `.perry/config.md`, intake into a `BOARD.md`
+   section, recurrence into the existing `## Cadence` section, commitments into
+   `OKR.md`, and provenance into `knowledge/`. The only new directory is
+   `packs/`, which lives in `$PERRY_HOME` — the skill's own tree, not the
+   user's project.
 6. **Domain knowledge stays outside the core.** Perry supplies the office;
    packs supply the practice. No `legal` lane, ever.
 7. **Existing Perry projects see no behavior change until they opt in.** Absent
@@ -216,11 +218,11 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 1 | How many shapes ship | Four: project/pipeline/queue/inquiry (Recommended) / Three: pipeline+queue merged / Two: project + generic flow | **Four: project/pipeline/queue/inquiry** | 2026-08-16 |
 | 2 | Where the track register lives | `.perry/config.md` section (Recommended) / New `TRACKS.md` / `PROJECT_STATE.md` section | **`.perry/config.md` section** | 2026-08-16 |
 | 3 | Where inbound requests land | `BOARD.md § Intake` (Recommended) / New `INTAKE.md` / Queue-mode projects only get `INTAKE.md` | **`BOARD.md § Intake`** | 2026-08-16 |
-| 4 | Verification ladder enforcement | Advisory first release, hard gate next (Recommended) / Hard gate immediately / Advisory permanently | TBD | — |
-| 5 | Rename the lanes | Keep okr/pmo/design + aliases / Rename to goals/work/decide with aliases (Recommended) / Keep names, change display only | TBD | — |
-| 6 | Move ADR ownership out of PMO | Yes — decisions join the design lane (Recommended) / No — keep in PMO / Split: ADRs PMO, RFCs design | TBD | — |
-| 7 | Software-ops references | Move to a bundled `packs/software-ops/` (Recommended) / Leave in `pmo/reference/` / Move to a separate repo | TBD | — |
-| 8 | Third+ host support | Add OpenCode next (Recommended) / Claude Code + Codex only / Any SKILL.md-reading host, untested | TBD | — |
+| 4 | Verification ladder enforcement | Advisory first release, hard gate next (Recommended) / Hard gate immediately / Advisory permanently | **Advisory first release, hard gate next** | 2026-08-16 |
+| 5 | Rename the lanes | Rename to goals/work/decide with aliases (Recommended) / Keep names, change display only / Keep okr/pmo/design as-is | **Rename to goals/work/decide with aliases** | 2026-08-16 |
+| 6 | Move ADR ownership out of PMO | Yes — decisions join the design lane (Recommended) / No — keep in PMO / Split: ADRs PMO, RFCs design | **Yes — decisions join the design lane** | 2026-08-16 |
+| 7 | Software-ops references | Move to a bundled `packs/software-ops/` (Recommended) / Leave in `pmo/reference/` / Move to a separate repo | **Bundled `packs/software-ops/`** | 2026-08-16 |
+| 8 | Third+ host support | Add OpenCode next (Recommended) / Claude Code + Codex only / Any SKILL.md-reading host, untested | **Claude Code + Codex only** | 2026-08-16 |
 
 Notes on the non-obvious rows:
 
@@ -238,6 +240,14 @@ Notes on the non-obvious rows:
 - **#7** — this is the honest test of whether packs work. If the software-ops
   material can't be extracted into a pack cleanly, the pack abstraction is
   wrong and should be dropped rather than shipped half-built.
+- **#8 — decided against the recommendation, deliberately.** The doc argued for
+  adding OpenCode; the call is to stay on Claude Code + Codex. The reasoning
+  that survives: this design already spends its budget on going *wider in work
+  shapes*, and widening hosts at the same time doubles the untested surface —
+  `reference/host-capabilities.md` is only worth having if every cell in it has
+  been run. §1.2's observation stands as an observation, not a mandate.
+  **Revisit trigger:** a third host is added when a user reports Perry failing
+  on one, or when §5.3's lint work is done and the matrix is cheap to extend.
 
 ## 5. Architecture
 
@@ -444,7 +454,8 @@ against the mode table in §5.1), G at V5.
 | Pack abstraction is wrong | `software-ops` extraction (phase F) doesn't come out clean | Phase F is deliberately the test. If it fights, drop packs and keep §5.7's glossary, which stands alone. |
 | Lane rename churns every `reference/` file's shorthand | Grep for `/pmo `, `/okr ` after phase G | Aliases at the router; shorthand inside lane docs is already declared as agent routing vocabulary (`SKILL.md:29`), so it can lag. |
 | Generalizing weakens the software path Perry is good at | Existing fixtures regress | Phase C is explicitly a proven no-op: `modes/project.md` is today's behavior moved, not rewritten. |
-| New paths re-open DESIGN-002's collision surface | `perry-lint --claims` | At most one new path (decision #3), and it goes through the claims registry TASK-010 builds. |
+| New paths re-open DESIGN-002's collision surface | `perry-lint --claims` | Zero new paths in the user's project (decisions #2, #3). `packs/` lives in `$PERRY_HOME`. Phase A still registers the new `BOARD.md` section in the claims registry TASK-010 builds. |
+| `BOARD.md § Intake` competes with the 200-line cap (the cost of decision #3) | `perry-state` board line count; intake row count + age | `triage` drains intake as its first step. A persistently overflowing intake is reported as a finding, not absorbed silently — if it recurs, revisit #3 rather than raising the cap. |
 
 ## 8. Open questions
 
@@ -464,9 +475,8 @@ against the mode table in §5.1), G at V5.
   concern in every legal-tooling source [5]. Perry has no model for "this track
   must never leave this folder" and probably needs one before pipeline mode is
   recommended for legal work.
-- **Third host.** OpenCode is provider-agnostic and reads `SKILL.md` [4][7].
-  `reference/host-capabilities.md` is a two-column matrix; adding a third is
-  mechanical but the fallback rules need testing, not assuming.
+- ~~**Third host.**~~ Closed by §4 decision 8: Claude Code + Codex only. Not
+  reopened by this design. The revisit trigger is recorded under §4's notes.
 
 ## 9. Changes (append-only after lock)
 

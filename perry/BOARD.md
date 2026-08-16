@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (4th pass — 6 tasks closed)
+> Last updated: 2026-08-16 (7th pass — all 11 hand-off tasks closed)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,21 +16,17 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-004 | `reference/diagnose.md`: add `--resume`, sub-steps, restore-point re-validation | Coding Agent | not_started | DESIGN-001 phase D — the entry gate already offers Resume on an interrupted diagnosis, but diagnose has no procedure for it. Closing a hole opened by TASK-002. | — |
-
+|  |  |  |  |  |  |
 ## P1
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
+|  |  |  |  |  |  |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-005 | `perry-lint`: validate `step:` against its stage enum; stale-run warning | Coding Agent | not_started | DESIGN-001 phase E — needs the N threshold from DESIGN-001 §8 | — |
-| TASK-006 | Fixtures + tests for resume at `confirm/goals` and `commit/board` | Coding Agent | not_started | DESIGN-001 phase F | — |
-| TASK-013 | `NS-01` finding: emitter, catalog row, `WHY` entry | Coding Agent | not_started | DESIGN-002 phase D | — |
-| TASK-014 | `/perry relocate <path>` subcommand | Coding Agent | not_started | DESIGN-002 phase E — the only remedy now that #2 was taken strictly | — |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -42,8 +38,8 @@
 
 | USER-id | Needed from user | Blocks | Idle | Status |
 |---|---|---|---|---|
-| USER-001 | Staleness threshold N for the stale-run lint warning (DESIGN-001 §8 — 14d is a guess with no evidence) | TASK-005 | 0d | open |
-| USER-002 | Should `--claims` be exempt from `--strict`? (DESIGN-002 §8) | TASK-011 | 0d | open |
+| USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |
+| USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |
 
 ## Done this period (leaves the board at next triage)
 
@@ -55,6 +51,11 @@
 | TASK-002 | Entry gate: interrupted-run detection, the card, three-way choice; both routes around it guarded | `SKILL.md § Mandatory first move` step 2 |
 | TASK-003 | Resume contract (DISCOVERABLE/POSITIONED/LOSSLESS), confirm sub-step table, commit idempotency, one-dossier-per-run | `reference/adoption.md`, `tests/test_resume.py` (17 tests) |
 | TASK-012 | Claim check wired into First-time setup as a conditional 3rd question; both prose path lists deleted | `SKILL.md § First-time setup` step 2, `tests/test_claims.py` (13 tests) |
+| TASK-004 | `diagnose --resume`, interview/execute sub-steps, restore-point re-validation, re-scan on resume | `reference/diagnose.md`, `tests/test_resume.py` |
+| TASK-006 | `perry-state --section interrupted` + two fixtures; the gate now reads a payload instead of eyeballing frontmatter | `bin/perry-state`, `tests/fixtures/interrupted-adoption/`, `tests/test_resume.py` (30 tests) |
+| TASK-013 | `NS-01` — scanner, emitter, catalog row, `WHY` entry | `bin/perry-diagnose`, `reference/diagnose.md` |
+| TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
+| TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

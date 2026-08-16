@@ -475,6 +475,13 @@
       }
     }
   },
+  "thresholds": {
+    "stale_run_days": {
+      "value": 30,
+      "applies_to": ["adoption", "diagnosis"],
+      "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number."
+    }
+  },
   "claims": [
     {
       "path": ".perry/",

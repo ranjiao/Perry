@@ -295,13 +295,20 @@ remedy, so it is not optional polish.
 - Is `NS-01` a diagnose finding, a lint finding, or both? Decision #4 puts it
   in lint; whether `bin/perry-diagnose` should also emit it is still open.
   Leaning both, with lint as the one that catches it early.
-- Should `--claims` be exempt from `--strict`? A collision is a warning by
-  design, but `--strict` promotes warnings to failures, which would break CI for
-  every project that knowingly lives with one.
+- ~~Should `--claims` be exempt from `--strict`?~~ **Resolved 2026-08-16: yes,
+  exempt.** Decision #2 was taken strictly, so there is no per-path opt-out — a
+  project that knowingly keeps one file in a claimed folder would otherwise have
+  permanently red CI and no way to accept it. Same reasoning that keeps `NS-01`
+  at `warn`. Callers branch on the `collisions` count in `--json` instead.
 
 ## 9. Changes (append-only after lock)
 
-- —
+- 2026-08-16 — `--claims` exempted from `--strict` (§8 open question) —
+  USER-002 answered. A collision never sets a non-zero exit.
+- 2026-08-16 — `claims[]` shipped with **18** paths, not the sixteen this
+  document counted. `tests/test_claims.py` caught `architecture/` and
+  `incidents/` on its first run — both written by PMO, both missing from the
+  count in §1. The drift guard found drift in the document that specified it.
 
 ## 10. References
 

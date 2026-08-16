@@ -306,12 +306,28 @@ Phases A–C are the minimum that fixes the reported scenario. D–F can follow.
 - Is there a case for `declarations[]` on `diagnosis` too, or is
   `interview[].answer` already sufficient there? Its prescriptions are Perry's,
   not the user's, so probably sufficient.
-- N for the stale-run lint warning. 14 days is a guess with no evidence behind
-  it; per `reference/diagnose.md`, a threshold stated bare invites dismissal.
+- ~~N for the stale-run lint warning.~~ **Resolved 2026-08-16: 30 days.** Long
+  enough that a genuinely paused adoption is not nagged, short enough to catch
+  one that is actually dead. Declared once, in
+  `schema/state-schema.json § thresholds.stale_run_days`, so `perry-lint` and
+  the entry card cannot disagree about when a run is stale. It remains a
+  calibrated default, not a law — the finding says so in its own text.
 
 ## 9. Changes (append-only after lock)
 
-- —
+- 2026-08-16 — Stale-run threshold set to **30 days** (§8 open question) —
+  USER-001 answered; declared in `schema/state-schema.json § thresholds` rather
+  than hardcoded in either reader.
+- 2026-08-16 — Detection moved from a prose `ls` to
+  `perry-state --section interrupted` — the gate was telling the agent to read
+  `stage:` by eye, which is the estimating `schema/README.md` forbids
+  everywhere else, and here it would have been estimating how much of the
+  user's own work survived.
+- 2026-08-16 — `parse_yaml_subset` gained block-scalar support. Not anticipated
+  by this design and load-bearing for it: `declarations[].content` is specified
+  as verbatim multi-line, but the reader rejected block scalars outright, so
+  every real dossier would have failed lint — and `reference/adoption.md § 4`
+  makes a clean lint the gate on adoption completing at all.
 
 ## 10. References
 
