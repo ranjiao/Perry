@@ -358,6 +358,64 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                 f"work's bootstrap creates `{path}`, which the contract gives "
                 f"to `decide`. Created here: {created}")
 
+    # Which lane owns what, as a set of paths each OTHER lane must not be
+    # instructed to write. Derived from the signed contract table, not restated.
+    FOREIGN_WRITES = {
+        "goals": ("BOARD.md", "journal/", "evidence/", "weekly/", "handoff/",
+                  "DECISIONS.md", "decisions/"),
+        "work": ("OKR.md", "phase/", "DECISIONS.md", "decisions/"),
+        "decide": ("BOARD.md", "journal/", "OKR.md", "phase/", "evidence/"),
+    }
+
+    # Verbs that make a sentence an instruction to write rather than to read.
+    WRITE_VERBS = re.compile(
+        r"\b(append|write|add a row|tick|update|create|edit|record)\b", re.I)
+
+    def test_no_lane_reference_page_instructs_a_write_it_may_not_perform(self):
+        """The reviewers kept finding these, and the tests kept missing them
+        because every ownership check scanned `<lane>/SKILL.md` only.
+
+        The stale instructions were all one level down: `goals/reference/
+        setup.md` and `pivots.md` told PMO to append a `DECISIONS.md` ADR
+        months after those files moved to `decide`; `goals/reference/phases.md`
+        wrote into `evidence/`, which `goals/SKILL.md` forbids two files away;
+        `decide/reference/decisions.md` step 8 appended to `journal/`, which
+        the router names as one of three cases that must refuse.
+
+        `*/reference/*.md` is where procedures actually live. A contract test
+        that reads only the summary pages is checking the wrong documents.
+        """
+        offenders = []
+        for lane, forbidden in self.FOREIGN_WRITES.items():
+            for page in sorted((PERRY_HOME / lane / "reference").glob("*.md")):
+                for n, line in enumerate(page.read_text().splitlines(), 1):
+                    if not self.WRITE_VERBS.search(line):
+                        continue
+                    # A line that forbids, hands off, or narrates history is
+                    # the fix, not the defect.
+                    if re.search(r"\bnot\b|\bdon'?t\b|\bdoesn'?t\b|never|belong|"
+                                 r"hand (it |the |off)|owned by|moved to|refuse|"
+                                 r"instead of|used to|for a release|read(s)? ",
+                                 line, re.I):
+                        continue
+                    # Match any backticked span that STARTS with the forbidden
+                    # path, not the bare path alone. The first version compared
+                    # `f"`{path}`" in line`, so it saw `` `evidence/` `` and
+                    # missed `` `evidence/<YYYY-MM>/retro.md` `` — which is how
+                    # every one of these is actually written. Proved by
+                    # mutation: restoring the real defect left the test green.
+                    for span in re.findall(r"`([^`]+)`", line):
+                        for path in forbidden:
+                            if span == path or span.startswith(path):
+                                offenders.append(
+                                    f"{lane}/reference/{page.name}:{n} → writes "
+                                    f"`{span}`\n      {line.strip()[:110]}")
+                                break
+        self.assertFalse(
+            offenders,
+            "a lane's reference page instructs a write the signed contract "
+            "forbids:\n    " + "\n    ".join(offenders))
+
     def test_no_other_lane_claims_the_moved_files_in_its_own_prose(self):
         """Every lane SKILL.md states the contract in its own words, and
         `goals/SKILL.md` kept the pre-move sentence — "PMO is the only writer

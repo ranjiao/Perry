@@ -124,10 +124,10 @@ For navigation help: `/design help` prints this index; `/design help <subcommand
 
 | Subcommand | One-line | Section |
 |---|---|---|
-| `init` | First-time bootstrap of the `design/` lane (write README) | Subcommands |
+| `init` | First-time bootstrap of the lane: `design/` + README, **and** `DECISIONS.md` + `decisions/` via `perry-decide bootstrap` | Subcommands |
 | `new <slug>` | Start a new design doc (interactive: title, ID, KR linkage) | Subcommands |
 | `resolve <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion | Subcommands |
-| `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates the `DECISIONS.md` index. `--supersede` / `--expire` / `--archive` manage lifecycle | `reference/decisions.md` |
+| `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; re-renders the `DECISIONS.md` index. Written by `perry-decide new` / `supersede` / `status`, never by hand | `reference/decisions.md` |
 | `lock <DESIGN-ID>` | Move `in_review` → `locked`; print impl tasks for PMO `add-task` | Subcommands |
 | `revise <DESIGN-ID>` | Material change after lock; appends `## Changes` | Subcommands |
 | `supersede <OLD-ID> <NEW-slug>` | Replace one doc with a successor | Subcommands |
@@ -148,8 +148,20 @@ With arg: locate the row for `<subcommand>`, print it, then read the matching `#
 
 ## Subcommands
 
-### `init` — first-time bootstrap of the `design/` lane
-Run once per project. Creates `design/` directory and writes `design/README.md` documenting the local DESIGN-ID convention (default: `DESIGN-NNN` zero-padded; projects may override in their hook to use domain prefixes like `INFRA-NNN`, `API-NNN`, etc.). Does not create any docs.
+### `init` — first-time bootstrap of the whole lane
+Run once per project. Two halves, and **both are required** — `init` used to do only the first:
+
+1. **`design/`** — create the directory and write `design/README.md` documenting the local DESIGN-ID convention (default: `DESIGN-NNN` zero-padded; projects may override in their hook to use domain prefixes like `INFRA-NNN`, `API-NNN`, etc.). No design docs are created.
+
+2. **`DECISIONS.md` + `decisions/`** — created by the tool, not by hand:
+
+   ```
+   "$PERRY_HOME/bin/perry-decide" bootstrap
+   ```
+
+   It refuses if either already exists, so it is safe to run on an existing project and useless to run twice.
+
+> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s "update the `DECISIONS.md` index" step ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17.
 
 ### `new <slug>` (interactive)
 Start a new design doc. Prompts:
@@ -216,6 +228,11 @@ Design docs live in their own `design/` directory at the project root, parallel 
 
 If `design/` doesn't exist:
 > "No design lane in `<project>`. Run `init` to create `design/` and the local convention? (yes/no)"
+
+If `DECISIONS.md` doesn't exist — which is a **separate** check, because a project can have one and not the other:
+> "No decision record in `<project>`. Run `perry-decide bootstrap` to create `DECISIONS.md` and `decisions/`? (yes/no)"
+
+Check both. They were one question for a release, and the half nobody ran is the half that never got created.
 
 If `design/` exists but contains no docs:
 > "Design lane exists, no docs yet. Run `new <slug>` to start one?"

@@ -1,6 +1,6 @@
 # `/pmo decide <topic>` and the `decisions/` library
 
-PMO's ADR (Architecture Decision Record) machinery. One file per decision under `decisions/<ADR-ID>-<slug>.md`. `DECISIONS.md` at the project root is **an index only** — it lists which ADRs exist and their current status, but does not hold the decision content itself. Same split rationale as BOARD.md vs journal/: keep the always-loaded file small; one decision per file scales.
+The `decide` lane's ADR (Architecture Decision Record) machinery. One file per decision under `decisions/<ADR-ID>-<slug>.md`. `DECISIONS.md` at the project root is **an index only** — it lists which ADRs exist and their current status, but does not hold the decision content itself. Same split rationale as BOARD.md vs journal/: keep the always-loaded file small; one decision per file scales.
 
 ## Two-file split
 
@@ -16,7 +16,7 @@ PMO's ADR (Architecture Decision Record) machinery. One file per decision under 
 
 | File | Purpose | Lifetime | Read frequency |
 |---|---|---|---|
-| `DECISIONS.md` | Index table: ADR ID / Title / Type / Date / Status + link to the per-ADR file | Auto-maintained by PMO on every `decide` / status change | Every standup (light scan of recent active entries) |
+| `DECISIONS.md` | Index table: ADR ID / Title / Type / Date / Status + link to the per-ADR file | **Rendered by `bin/perry-decide` from the ADR files** on every write — never hand-edited, never appended to | Every standup (light scan of recent active entries) |
 | `decisions/<ADR-ID>-<slug>.md` | One file per decision: Context / Options / Chosen / Consequences / Evidence / Sunset criteria | Append-only after creation; status field flips on supersede/expire/archive | On demand when the user or PMO needs the full reasoning |
 
 The index keeps PMO's standup-time decision awareness cheap (single ≤200-line file, no per-ADR content); the per-ADR files preserve the full reasoning indefinitely and grow with project age.
@@ -93,7 +93,7 @@ Files **never move** on status change — only the `Status:` header field flips.
 ```markdown
 # Decisions index — <project name>
 
-> Auto-maintained by PMO on every `/pmo decide` / status flip.
+> Rendered by `bin/perry-decide` from `decisions/ADR-*.md` on every write.
 > Active: <count> · Superseded: <count> · Expired: <count> · Archived: <count>
 > Last updated: <YYYY-MM-DD>
 
@@ -127,7 +127,16 @@ Files **never move** on status change — only the `Status:` header field flips.
 5. **Slug the title**: `<short-kebab>` (5-8 words max), lowercase, hyphenated. Final filename: `decisions/ADR-NNN-<slug>.md`.
 6. **Write the ADR file** from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with all fields filled.
 7. **Update `DECISIONS.md` index**: add a row in the Active section.
-8. **Append journal entry** to `journal/<YYYY-MM>/<today>.md` under `## Decisions`: `ADR-NNN — <title> (Type: <type>) · decisions/ADR-NNN-<slug>.md`.
+8. **Do not write the journal.** `journal/` is the `work` lane's file, and
+   `$PERRY_HOME/SKILL.md § The hand-off contract` names *"`decide` writing
+   `journal/`"* as one of three cases that must refuse. This step used to
+   instruct it as a numbered instruction in the lane's primary procedure — the
+   instruction was the bug, not the contract.
+
+   If the decision deserves a line in today's journal, print the hand-off and
+   stop: *"`ADR-NNN` recorded; if today's journal should note it, that is
+   `/perry work`'s to write."* Asking and stopping is the contract; writing and
+   apologising is the thing it forbids.
 9. **Reply with the ADR path** + 1-line summary.
 
 ### `/pmo decide --supersede ADR-NNN` — new ADR replacing an old one
@@ -193,7 +202,7 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 2. For each ADR: extract content; parse Type / Status / Date / Supersedes from the header section; slug the title (≤8 words, lowercase, hyphenated).
 3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`).
 4. Rewrite `DECISIONS.md` as the index per `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md`. Active section + Superseded / Expired / Archived sections.
-5. Append journal entry: `Migrated N ADRs from monolithic DECISIONS.md to decisions/ split.`
+5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 8 above.
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
 When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), surface the migration suggestion in the standup's "next actions" list; user kicks off the migration in chat. PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.
@@ -222,4 +231,4 @@ The `ADR types` line replaces the default type list when present.
 What it doesn't change:
 - ADR content is still append-only after creation (status flips append `## Status change` entries, never edit Chosen/Consequences in place)
 - Format is still Context → Options → Chosen → Consequences → Evidence (the classic ADR shape)
-- Decisions are still PMO-owned files (design / okr never write here)
+- `DECISIONS.md` and `decisions/` are **`decide`-owned** — moved from `work` on 2026-08-16 by the signed hand-off contract, so that a settled decision and the document that settles it have one owner. `work` and `goals` read them freely and never write them. (This line said the opposite for a release; it was the concluding sentence of the moved lane's own reference.)
