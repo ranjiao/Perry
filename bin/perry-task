@@ -78,6 +78,7 @@ from __future__ import annotations
 
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -1271,19 +1272,30 @@ def project_lock(state_root: Path, timeout: float = 10.0):
     here and not inside `commit()`: a lock around the write alone would still
     let both processes mint the same id from the same stale board.
 
-    **It lives beside `BOARD.md`, not in `.perry/`, because that is what it
-    protects.** Put in `.perry/`, an unwritable `.perry/` made the lock
-    uncreatable and refused the whole call — even though `BOARD.md` and the
-    journal were both perfectly writable, and the design's entire claim is that
-    `.perry/` is derived and must never be able to make Perry wrong. It is also
-    not flock on `BOARD.md` itself: `commit()` renames a temp file over it, so
-    every writer after the first would hold a lock on a replaced inode and
-    exclusion would quietly stop working.
+    **It lives outside the project entirely**, in the temp dir, keyed by a hash
+    of the state root. Two earlier placements each broke something real:
 
-    A dedicated file that is never renamed is the one shape that survives both.
+    - in `.perry/` — an unwritable `.perry/` made the lock uncreatable and
+      refused the whole call, even though `BOARD.md` and the journal were both
+      writable. The design's entire claim is that `.perry/` is derived and can
+      never make Perry *wrong*.
+    - beside `BOARD.md` — it then appears in the project, and a consumer repo
+      does not inherit Perry's own `.gitignore`. Checked on a real Perry project
+      the same night it shipped: `?? .board.lock`, untracked and unignored. A
+      tool that makes every user edit their `.gitignore` to stay clean has
+      pushed its own bookkeeping onto them.
+
+    It is also not flock on `BOARD.md` itself: `commit()` renames a temp file
+    over it, so every writer after the first would hold a lock on a replaced
+    inode and exclusion would quietly stop working.
+
+    A file outside the tree, never renamed, keyed by the path it guards, is the
+    one shape that survives all three. It is pure runtime state — losing it
+    between reboots costs nothing, because it only ever means "no one is writing
+    right now", which is true after a reboot.
     """
-    lock_path = state_root / ".board.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
+    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
     fh = open(lock_path, "w")
     deadline = time.monotonic() + timeout
     try:

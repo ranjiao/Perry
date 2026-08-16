@@ -211,6 +211,30 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         self.assertEqual(len(set(ids)), n, f"an id was issued twice: {ids}")
         self.assertEqual(len(p.events()), n)
 
+    def test_locking_leaves_nothing_in_the_project(self):
+        """The lock is Perry's only piece of pure runtime state, and it must
+        not become the user's problem.
+
+        Its first placement was `state_root/.board.lock`, which showed up as
+        `?? .board.lock` in a real Perry project the same night it shipped —
+        untracked and unignored, because a consumer repo does not inherit
+        Perry's own `.gitignore`. A tool that makes every user edit their
+        ignore file to stay clean has pushed its bookkeeping onto them.
+
+        It now lives in the temp dir, keyed by a hash of the state root.
+        """
+        p = Project()
+        before = {x.name for x in p.root.iterdir()}
+        p.run("add", "--title", "X", "--priority", "P0")
+        after = {x.name for x in p.root.iterdir()}
+        self.assertEqual(
+            after - before, {"journal"},
+            f"a write left files in the project beyond the journal: "
+            f"{sorted(after - before - {'journal'})}")
+        self.assertFalse(
+            list(p.root.rglob("*.lock")),
+            "a lock file was written into the project tree")
+
     def test_the_event_may_be_lost_but_never_the_row(self):
         """Reaches `commit()` and makes the event append fail, which is the
         only path where the ordering matters.
