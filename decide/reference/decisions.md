@@ -40,7 +40,7 @@ Every ADR carries a `Status:` field. Four values:
 
 Files **never move** on status change — only the `Status:` header field flips. This avoids breaking inbound links from journal entries / specs / other ADRs.
 
-## ADR file schema (template at `state/ADR_TEMPLATE.md`)
+## ADR file schema (template at `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`)
 
 ```markdown
 # ADR-NNN — <Title in configured language>
@@ -88,7 +88,7 @@ Files **never move** on status change — only the `Status:` header field flips.
 - Any trigger firing → file moves to `Status: expired` and the user is alerted in the next standup.
 ```
 
-## `DECISIONS.md` index schema (template at `state/DECISIONS_TEMPLATE.md`)
+## `DECISIONS.md` index schema (template at `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md`)
 
 ```markdown
 # Decisions index — <project name>
@@ -125,7 +125,7 @@ Files **never move** on status change — only the `Status:` header field flips.
    - Free-text prompt for Context, Options, Chosen rationale, Consequences.
 4. **If time-bound**: ask for Sunset criteria explicitly (`AskUserQuestion` header `"Sunset"`, options): `Date-based (Recommended for documented exceptions) | Metric-threshold | Event-triggered | None — permanent decision`. Capture the actual triggers.
 5. **Slug the title**: `<short-kebab>` (5-8 words max), lowercase, hyphenated. Final filename: `decisions/ADR-NNN-<slug>.md`.
-6. **Write the ADR file** from `state/ADR_TEMPLATE.md` with all fields filled.
+6. **Write the ADR file** from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with all fields filled.
 7. **Update `DECISIONS.md` index**: add a row in the Active section.
 8. **Append journal entry** to `journal/<YYYY-MM>/<today>.md` under `## Decisions`: `ADR-NNN — <title> (Type: <type>) · decisions/ADR-NNN-<slug>.md`.
 9. **Reply with the ADR path** + 1-line summary.
@@ -175,8 +175,8 @@ PMO reads specific `decisions/ADR-NNN-*.md` files only when needed — e.g., whe
 
 On `/pmo` bootstrap (per `SKILL.md § Bootstrap`):
 1. Create `decisions/` directory.
-2. Write `DECISIONS.md` from `state/DECISIONS_TEMPLATE.md` (empty index).
-3. Write `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` with:
+2. Write `DECISIONS.md` from `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md` (empty index).
+3. Write `decisions/ADR-001-pmo-bootstrap.md` from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with:
    - Type: Process
    - Title: "Bootstrap PMO state for this project"
    - Status: active
@@ -191,8 +191,8 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 
 1. PMO reads the old `DECISIONS.md` top-to-bottom; identifies ADR boundaries (lines matching `^## ADR-NNN — `).
 2. For each ADR: extract content; parse Type / Status / Date / Supersedes from the header section; slug the title (≤8 words, lowercase, hyphenated).
-3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `state/ADR_TEMPLATE.md`).
-4. Rewrite `DECISIONS.md` as the index per `state/DECISIONS_TEMPLATE.md`. Active section + Superseded / Expired / Archived sections.
+3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`).
+4. Rewrite `DECISIONS.md` as the index per `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md`. Active section + Superseded / Expired / Archived sections.
 5. Append journal entry: `Migrated N ADRs from monolithic DECISIONS.md to decisions/ split.`
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 

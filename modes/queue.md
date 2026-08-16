@@ -57,7 +57,10 @@ which is what an independent review of this file found.
 
 It lives inside `BOARD.md` rather than a separate `INTAKE.md` because
 DESIGN-003 decision 3 chose zero new claimed paths, and `BOARD.md` is already a
-path Perry claims. The cost of that choice is real and named in the design's
+path Perry claims. (Perry does ship a standalone `templates/ops/INTAKE.md` with
+different columns — that is the scaffold `/perry diagnose` hands to a project
+which should *not* adopt Perry, where there is no board for the section to live
+in. Adopting Perry moves that list into this section.) The cost of that choice is real and named in the design's
 risk table: untriaged requests compete with the 200-line board cap.
 
 **That cost is the feature.** An intake that overflows the board is a project

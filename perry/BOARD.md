@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (19th pass — round-3 review's 5 blocking findings fixed; 4th review pending)
+> Last updated: 2026-08-16 (20th pass — round-4 review's 17 findings all closed)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both

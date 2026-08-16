@@ -241,10 +241,93 @@ class TestLaneAliases(unittest.TestCase):
         would look for links named `goals`/`work`/`decide`, which no installer
         ever created, and would never find an upgrading user's real leftovers."""
         setup = (PERRY_HOME / "setup").read_text()
-        m = re.search(r"legacy_children=\(([^)]*)\)", setup)
+        m = re.search(r"PERRY_LEGACY_CHILDREN=\(([^)]*)\)", setup)
         self.assertTrue(m, "setup no longer declares an explicit legacy list")
+        self.assertEqual(setup.count("PERRY_LEGACY_CHILDREN=("), 1,
+                         "the legacy list is declared more than once — a two-copy "
+                         "invariant with nothing checking the copies agree")
         names = m.group(1).split()
         for old in self.ALIASES:
             self.assertIn(old, names,
                           f"`{old}` would never be cleaned off an upgrading "
                           f"user's machine")
+
+
+class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
+    """The check the V5 signature block claims exists.
+
+    The signed note under `SKILL.md § The hand-off contract` says
+    `tests/test_ownership.py` covers the schema/contract agreement mechanically.
+    It did not: the suite asserted only that every file has exactly one owner
+    and that the owner is a known lane. Both held while the schema said
+    `DECISIONS.md` belonged to `work` and the contract said `decide` — a
+    contract violation stayed green through 268 passing tests, and the
+    signature cited a check that was not being performed.
+
+    That is worse than the violation. A V5 note is a record of what was
+    verified; if it names a check that does not run, the rung is decoration and
+    the user signed something on a false premise. This class is what makes the
+    sentence true. Found by the fourth independent review, finding 6.
+    """
+
+    # Every file the contract table assigns, parsed from the contract itself so
+    # the table and this list cannot drift apart silently.
+    def contract_rows(self) -> dict[str, set[str]]:
+        rows: dict[str, set[str]] = {}
+        for line in contract_section().split("\n"):
+            m = re.match(r"\|\s*\*\*`(\w+)`\*\*[^|]*\|([^|]*)\|", line)
+            if m:
+                lane, owned = m.group(1), m.group(2)
+                rows[lane] = set(re.findall(r"`([^`]+)`", owned))
+        return rows
+
+    def test_the_contract_table_parses(self):
+        rows = self.contract_rows()
+        self.assertEqual(set(rows), {"goals", "work", "decide"},
+                         "the ownership table no longer has three lane rows")
+
+    def test_every_schema_file_owner_matches_the_contract(self):
+        """The specific failure this catches: schema says one lane, the signed
+        contract says another, and nothing notices."""
+        rows = self.contract_rows()
+        for f in SCHEMA["files"]:
+            owner = f["owner"]
+            if owner in ("perry", "user"):
+                continue
+            path = f["path"]
+            claimed_by = {lane for lane, owned in rows.items()
+                          if any(path.startswith(o.rstrip("*/")) or o.rstrip("*/") in path
+                                 for o in owned)}
+            if not claimed_by:
+                continue  # not named in the contract table; other tests cover it
+            self.assertIn(
+                owner, claimed_by,
+                f"schema says `{path}` is owned by `{owner}`, the signed "
+                f"contract assigns it to {claimed_by}",
+            )
+
+    def test_decisions_specifically_is_owned_by_decide_everywhere(self):
+        """The file the contract moved, checked in every place it is declared —
+        this is the one that was green while broken."""
+        f = next(x for x in SCHEMA["files"] if x["id"] == "decisions")
+        self.assertEqual(f["owner"], "decide")
+        for path in ("DECISIONS.md", "decisions/"):
+            c = next(x for x in SCHEMA["claims"] if x["path"] == path)
+            self.assertEqual(c["owner"], "decide", f"claims[] still gives {path} to {c['owner']}")
+        self.assertIn("DECISIONS.md", self.contract_rows()["decide"])
+
+    def test_a_moved_files_template_moves_with_it(self):
+        """`decide/reference/decisions.md` sourced templates from `work/state/`
+        after the move — a lane reaching into another lane's tree."""
+        f = next(x for x in SCHEMA["files"] if x["id"] == "decisions")
+        tmpl = f.get("template", "")
+        self.assertTrue(tmpl.startswith("decide/"), f"template still at {tmpl}")
+        self.assertTrue((PERRY_HOME / tmpl).exists(), f"{tmpl} does not exist")
+
+    def test_only_one_lane_bootstraps_the_decision_files(self):
+        work_bootstrap = (PERRY_HOME / "work" / "reference" / "bootstrap.md").read_text()
+        self.assertNotRegex(
+            work_bootstrap, r"^\s*-\s+`DECISIONS\.md` \(from",
+            "the work lane still bootstraps DECISIONS.md, and so does decide — "
+            "two lanes creating one pair of files is the state the contract ends",
+        )

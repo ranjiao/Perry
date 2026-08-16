@@ -2,8 +2,8 @@
 # Perry setup — install perry/ into the host's skills directory (Claude Code
 # at ~/.claude/skills/, Codex CLI at ~/.agents/skills/) so it surfaces /perry.
 #
-# ONE skill is registered. okr, pmo and design are lanes inside it, reached as
-# `/perry okr …`, and loaded on demand by the router. Earlier versions also
+# ONE skill is registered. goals, work and decide are lanes inside it, reached as
+# `/perry goals …`, and loaded on demand by the router. Earlier versions also
 # symlinked them as sibling skills; this script now removes those links,
 # because `design` and `okr` are common words in a shared namespace and Perry
 # should not claim them (see install_at for the full reasoning).
@@ -501,30 +501,6 @@ install_at() {
   # the same rule the state root already follows. Users reached Perry through
   # `/perry` and let it route anyway, so the siblings cost a namespace and
   # bought nothing.
-  # The names to clean up are HISTORICAL, so they are listed literally rather
-  # than derived from the current directories. TASK-027 renamed the lanes to
-  # goals/work/decide; deriving the list from `$perry_target/*/` would make this
-  # loop look for links named after the NEW directories, which no installer ever
-  # created — and the real leftovers on an upgrading user's machine
-  # (`~/.claude/skills/okr` and friends) would never be found again. A cleanup
-  # routine that reads current state cannot remove what current state forgot.
-  local legacy_children=(okr pmo design goals work decide)
-  local removed=()
-  for name in "${legacy_children[@]}"; do
-    local target="$host_dir/$name"
-
-    # Only ever remove a link this installer created. Anything else at that
-    # path belongs to someone else.
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "perry/$name" ]; then
-      rm -f "$target"
-      removed+=("$name")
-    fi
-  done
-
-  if [ ${#removed[@]} -gt 0 ]; then
-    log "  [$label] removed legacy child skill links: ${removed[*]}"
-    log "  [$label] these are now lanes inside /perry — use '/perry <lane> <subcommand>'"
-  fi
   return 0
 }
 
@@ -533,26 +509,47 @@ log "── Phase 1: skill symlink ───────────────
 
 # Claude Code install
 CC_DIR=""
-# Legacy sibling links are swept from BOTH host directories regardless of which
-# host this run installs. They are leftovers from an older Perry, not artifacts
-# of this install, so scoping their removal to the selected host means a user
-# who installed both and later re-runs `setup --claude` keeps the codex-side
-# leftovers forever — and never sees them, because nothing else looks there.
-# Cleanup follows the mess, not the invocation.
-sweep_legacy_everywhere() {
-  local d
-  for d in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+# Legacy sibling links, swept once from every directory Perry could have
+# installed into — including the --local one, which the per-host cleanup never
+# reached.
+#
+# The list is HISTORICAL and therefore literal. Deriving it from the current
+# `$PERRY_HOME/*/` would make the loop look for links named after the lanes as
+# they are named TODAY, which no installer ever created, while the real
+# leftovers on an upgrading machine (`~/.claude/skills/okr` and friends) became
+# invisible. A cleanup routine that reads current state cannot remove what
+# current state forgot. `goals work decide` are in the list not because any
+# installer made them, but because a future rename would otherwise inherit the
+# same blind spot — the list is the record of every name Perry has ever put in
+# a host's namespace.
+#
+# One function, one list, called once per directory: an earlier version had a
+# second copy inside install_at, byte-identical and unreachable on any
+# non---local run, so its user-facing message was dead code and the two arrays
+# were a silent two-copy invariant.
+PERRY_LEGACY_CHILDREN=(okr pmo design goals work decide)
+
+sweep_legacy_links() {
+  local dirs=("$HOME/.claude/skills" "$HOME/.agents/skills")
+  [ "$LOCAL" -eq 1 ] && dirs+=("$(pwd)/.claude/skills")
+  local removed=() d name
+  for d in "${dirs[@]}"; do
     [ -d "$d" ] || continue
-    local name
-    for name in okr pmo design goals work decide; do
+    for name in "${PERRY_LEGACY_CHILDREN[@]}"; do
+      # Only ever remove a link this installer created. Anything else at that
+      # path belongs to someone else.
       if [ -L "$d/$name" ] && [ "$(readlink "$d/$name")" = "perry/$name" ]; then
         rm -f "$d/$name"
-        log "  [sweep] removed legacy link $d/$name"
+        removed+=("$d/$name")
       fi
     done
   done
+  if [ ${#removed[@]} -gt 0 ]; then
+    log "  removed legacy child skill links: ${removed[*]}"
+    log "  these are lanes inside /perry now — use '/perry <lane> <subcommand>'"
+  fi
 }
-sweep_legacy_everywhere
+sweep_legacy_links
 
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$LOCAL" -eq 1 ]; then
@@ -560,7 +557,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   else
     CC_DIR="$HOME/.claude/skills"
   fi
-  install_at "$CC_DIR" "claude-code"
+  install_at "$CC_DIR" "claude-code" || warn "  [claude-code] install step failed; continuing so other hosts and the summary still run."
 fi
 
 # Codex install
@@ -571,7 +568,7 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
     log "  Note: --local applies to Claude Code only; Codex install always goes to global ~/.agents/skills/"
   fi
   CODEX_DIR="$HOME/.agents/skills"
-  install_at "$CODEX_DIR" "codex"
+  install_at "$CODEX_DIR" "codex" || warn "  [codex] install step failed; continuing so the summary still runs."
 
   if [ -z "${PERRY_HOME:-}" ] || [ -z "${PERRY_HOST:-}" ]; then
     log ""

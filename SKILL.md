@@ -26,7 +26,17 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 /perry relocate <path> | help   handled here, not in a lane
 ```
 
-Subcommand names are unique across the three lanes, so `/perry plan-phase` resolves without the lane. Name the lane when a request is ambiguous or the user is new.
+**Most** subcommand names are unique across the three lanes, so `/perry plan-phase` resolves without one. **Five are not**, and a bare invocation of these must ask rather than guess:
+
+| Ambiguous | Lanes |
+|---|---|
+| `plan-week` | goals (proposes) · work (writes) |
+| `handoff` | work (session handoff) · decide (design → implementation) |
+| `status` | work (weekly report) · decide (design doc status) |
+| `revise` | goals (OKR version) · decide (design doc) |
+| `init` | goals (OKR) · decide (design lane bootstrap) |
+
+Name the lane when a request is ambiguous or the user is new.
 
 > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` and everything under `*/reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Inside a Perry session that shorthand is unambiguous routing vocabulary for the agent, not a command the user can type, so it is left as-is — including where it still uses the pre-rename lane names. Only translate it when quoting a command back to the user.
 
@@ -228,7 +238,12 @@ When `/perry` is invoked, always run this before doing anything else.
 
 3b. **Load the mode file for each declared track** — `project.config.tracks[]`
    in the payload above. For each distinct `mode` in that list, read
-   `$PERRY_HOME/modes/<mode>.md` in full, once. That file declares what the
+   `$PERRY_HOME/modes/<mode>.md` in full, once. **A mode that is not one of the
+   four** (a typo in the register — `perry-state` passes the cell through
+   verbatim) has no file: say so in one line, fall back to `project` for that
+   track, and point at `perry-lint`, which reports it as a `bad-enum`. Do not
+   silently skip the track — a track with no mode loaded is a track with no
+   rules. That file declares what the
    track's spine is, what closes its horizon, whether its calendar is binding,
    what its item states are, what `triage` asks of it, and its default
    verification rung.
@@ -306,7 +321,7 @@ When `/perry` is invoked, always run this before doing anything else.
 
 6. Then ask: **"What do you want to do?"**
 
-If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk) → `$PERRY_HOME/work/SKILL.md`. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
+If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A work-flavored action (triage, status, delegate, handoff, rollover, risk) → `$PERRY_HOME/work/SKILL.md`. Recording a decision (`adr`) is the `decide` lane, not this one. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
 
 ## First-time setup
 
@@ -358,11 +373,21 @@ supposed to protect.
    Document language governs **files**; chat language governs **replies**; they are allowed to differ, and often should. `reference/i18n.md` is the contract — the three layers of text, the glossary that localizes headings and column headers, what stays English in every language, and how to switch later.
 4. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
 
+   **Then offer tracks, once, and only when it would change something.** If the
+   folder shows a shape other than software — a `clients/` or `deliverables/`
+   tree, a mail or ticket export, a `sources/`-shaped folder — ask one
+   `AskUserQuestion` (header `"Work shape"`, options drawn from
+   `$PERRY_HOME/modes/`: `One kind of work (Recommended if unsure) | Several
+   kinds — set up tracks | Tell me the difference`). On the second, write a
+   `## Tracks` table. On a plain software project, **skip the question
+   entirely** — the implicit `main` track is right and asking costs a decision
+   for nothing.
+
    For a new project, recommend the order below.
 5. Recommend the order:
    - First, run `/perry goals init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/perry goals plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
-   - Then, run `/perry work` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
+   - Then, run `/perry work` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`; `DECISIONS.md` and `decisions/` are the `decide` lane's) and runs the first standup.
    - Finally, run `/perry goals plan-week` — proposes the first batch of weekly tasks, which `/perry work` then writes as BOARD rows + a journal entry under `## New tasks added`.
 6. Ask: "Run `/perry goals init` now?" — if yes, read `$PERRY_HOME/goals/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
 
@@ -480,10 +505,23 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 - Chat language: <follow user | English | 中文 | ...>
 - Repo layout: <single | split>
 - State root: <. | relative path>
+- Packs: <comma-separated pack names, or absent for software-ops>
 - PMO repo path: <absolute path>
 - Code repo path: <absolute path or — if single>
 - Last updated: <YYYY-MM-DD>
+
+## Tracks            (optional; absent = one implicit `main` track, mode `project`)
+
+| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+| main | project | phase/ | — | — | — | — | V3 |
 ```
+
+`## Tracks` is what turns on `pipeline` / `queue` / `inquiry` mode. A project
+that never writes it behaves exactly as Perry did before DESIGN-003 — that is
+the point — but a user who never hears the section exists cannot reach three of
+the four modes at all, so **first-time setup offers it** (below) and `adopt`
+proposes one before it proposes goals.
 
 Children read this file before any output. If the file is missing, prompt the user to run first-time setup.
 

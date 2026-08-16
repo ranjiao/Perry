@@ -22,6 +22,23 @@ This document is the long-term reference for the system. The `okr` skill uses it
 - {{principle 4}}
 - {{principle 5}}
 
+## Commitments
+
+> Promises to a named party by a date — the spine for `pipeline`- and
+> `queue`-mode tracks (`modes/pipeline.md`, `modes/queue.md`). Omit this
+> section entirely on a project whose tracks are all `project` mode; a KR is
+> the special case where the party is the project itself.
+>
+> `By when` is a **date** for pipeline rows, which triage compares against, and
+> may be prose for queue rows ("within the track SLA") whose real clock is the
+> register's `SLA`. Board rows point here by putting this table's `Id` in their
+> `Commitment` cell — the link runs from the board side, so this table never
+> accumulates ids that rot as rows close.
+
+| Id | Track | Promise | To whom | By when | Status | Discharged by |
+|---|---|---|---|---|---|---|
+| {{track}}/1 | {{track}} | {{what was promised}} | {{who is waiting}} | {{YYYY-MM-DD or prose}} | active | {{how, in prose}} |
+
 ## Anti-Goals
 
 > Things this project will NOT do. First-class commitments — checked at every retro.

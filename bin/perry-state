@@ -132,7 +132,23 @@ def load_packs(names: list[str]) -> list[dict]:
 # heard of tracks reports exactly one, named `main`, mode `project` — which is
 # today's Perry. Callers never have to special-case "no tracks declared",
 # because there is no such state.
+def split_stages(cell: str) -> list[str]:
+    """`brief->draft->review` or `brief→draft→review` → ["brief","draft","review"].
+
+    Normalizes before splitting because three spellings of the separator were in
+    circulation — `->` in the schema, `→` in the mode file's example, `→` with
+    spaces in the design — while nothing split the cell at all. "The first stage"
+    and "the terminal stage" are both load-bearing rules, and both were being
+    computed by an agent guessing which separator this project used.
+    """
+    s = (cell or "").replace("→", "->").strip()
+    if not s or s == "—":
+        return []
+    return [p.strip() for p in s.split("->") if p.strip()]
+
+
 DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
+                 "stage_list": [],
                  "wip": "", "sla": "", "cycle": "", "default_rung": "",
                  "declared": False}
 
@@ -195,6 +211,7 @@ def parse_tracks(text: str) -> list[dict]:
             "mode": (col("mode").lower() or "project"),
             "spine": col("spine"),
             "stages": col("stages"),
+            "stage_list": split_stages(col("stages")),
             "wip": col("wip"),
             "sla": col("sla"),
             "cycle": col("cycle"),

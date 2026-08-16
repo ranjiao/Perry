@@ -54,7 +54,7 @@
         "spine": "question tree -> findings ledger",
         "calendar": "advisory",
         "default_rung": "V4",
-        "default_stages": "",
+        "default_stages": "open->researching->answered",
         "default_wip": "open:5",
         "default_sla": "",
         "default_cycle": "",
@@ -719,7 +719,7 @@
     {
       "path": "DECISIONS.md",
       "kind": "file",
-      "owner": "work",
+      "owner": "decide",
       "anchor": "state"
     },
     {
@@ -746,7 +746,7 @@
     {
       "path": "decisions/",
       "kind": "dir",
-      "owner": "work",
+      "owner": "decide",
       "anchor": "state"
     },
     {
@@ -858,7 +858,7 @@
           "optional_columns": {
             "Track": "Which declared track this row belongs to. Absent = the implicit `main` track, mode `project`.",
             "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated.",
-            "Stage": "For pipeline- and queue-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
+            "Stage": "For pipeline-, queue- and inquiry-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
             "Arrived": "The date an item entered the system from outside. Carried forward from `BOARD.md` Intake when a queue-mode row is routed, and REQUIRED to survive that move - V4 finding B2: age-since-arrival is what SLA triage measures, and destroying it at routing made the mode's second triage step uncomputable.",
             "Commitment": "The `Id` of the row in `OKR.md` Commitments that this row discharges - that id and nothing else. Never row position, never Promise text (V4 re-review finding N9).",
             "Stage since": "The date the row entered its current `Stage`. Mirrors `Arrived`, and exists for the same reason: dwell time is what pipeline triage measures first, and the journal records STATUS changes - so a `draft`->`review` move produces no journal line at all, because this design's own argument is that Status and Stage are orthogonal. V4 re-review finding N1: the Stage column closed B1 and left the clock with no source.",
@@ -1719,8 +1719,8 @@
     {
       "id": "decisions",
       "path": "DECISIONS.md",
-      "template": "work/state/DECISIONS_TEMPLATE.md",
-      "owner": "work",
+      "template": "decide/state/DECISIONS_TEMPLATE.md",
+      "owner": "decide",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -1833,7 +1833,7 @@
           },
           "optional_columns": {
             "Spine": "Free text: where this track's goals/commitments live.",
-            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline and queue modes only. Absent = the mode's default vocabulary.",
+            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
             "WIP": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
             "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
             "Cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",

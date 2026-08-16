@@ -9,7 +9,7 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 
 ### `triage`
 
-**Step 0 — drain `BOARD.md § Intake`, before anything else.** Only applies when the section exists (queue-mode tracks; `modes/queue.md`). Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
+**Step 0 — drain `BOARD.md § Intake`, before anything else.** Applies to every queue-mode track. If the track exists and the section does not, **create it** rather than skipping — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
 - **Routed** to a track → becomes a normal board row with an owner, a priority and a target rung. **Carry `Arrived` onto the new row, and set `Stage` to the track's first post-intake stage** (`triaged` in the default queue vocabulary). This is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`).
 - **Dropped**, with the reason in the intake row's `Outcome` cell. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked.
@@ -29,9 +29,9 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `$PERRY_HOME/packs/software-ops/incidents.md`).
 - Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
 
-**Every stage move stamps the clock.** Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
+**Every stage move stamps the clock — this is a global invariant, not a triage rule.** It applies wherever `Stage` changes, including `close-task` and `dispatch`, both of which move stages and neither of which loads this section. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
 
-**Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`). Read the mode file for any track you are triaging.
+**Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Update `BOARD.md`, write a `## Status changes` block in today's journal entry summarizing what moved.
 
@@ -98,11 +98,11 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 
 **Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`goals/reference/linkage.md`):
 
-- resolved → `/okr link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`)
-- a name confirmed as an existing Project → `/okr link --alias <PROJECT-ID> "<name>"`
-- unresolved, or the user is unavailable → `/okr link --unlinked <TASK-ID>`, and write the BOARD row with `attribution: unlinked` so it stays out of every KR roll-up until the standup surfaces it
+- resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`)
+- a name confirmed as an existing Project → `/perry goals link --alias <PROJECT-ID> "<name>"`
+- unresolved, or the user is unavailable → `/perry goals link --unlinked <TASK-ID>`, and write the BOARD row with `attribution: unlinked` so it stays out of every KR roll-up until the standup surfaces it
 
-Print the exact command; don't edit `phase/` yourself.
+Print the exact command — **in its `/perry <lane> …` form**, since this string is quoted to the user and `/okr` is a withdrawn host command that `setup` deletes and that collides with `lark-okr`. Don't edit `phase/` yourself.
 
 **Mode columns — the write path, not just the column.** A column nobody writes is not a control. For a row on a track whose mode is not `project`, `add-task` sets these in the same edit that creates the row:
 
@@ -113,7 +113,11 @@ Print the exact command; don't edit `phase/` yourself.
 | `inquiry` | `Track`, `Stage` = `open`, `Stage since` = today, `Parent` = the question this was split from, or blank for a root |
 | `project` | nothing extra — this is today's behavior, unchanged |
 
+**Add the column if the board has none.** You cannot set a cell in a column with no header, and `BOARD_TEMPLATE.md` ships six columns — so the first non-`project` row on a board also adds the headers it needs, in the same edit. Same clause `close-task` already has for `Verification`, applied to the five columns that were given a home and no creator.
+
 A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
+
+**Creating a queue-mode row also creates `BOARD.md § Intake` if it is absent**, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a section nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
 
 1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path`.
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). Journal entry is the canonical historical record.
@@ -187,6 +191,11 @@ Two rules override the default, and neither is optional:
 - **V4 needs a rubric, V5 needs a signature.** A `V4` close must cite the acceptance-criteria file the reviewer scored against, and that reviewer must not have seen the reasoning that produced the artifact. A `V5` close must record **name, date, and what was checked** — "reviewed" is not what was checked.
 
 Write the chosen rung into the BOARD row's `Verification` column (add the column if the board has none) and into the journal status-change line. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
+
+**Pre-close gate 4 — inquiry mode** (`modes/inquiry.md`). On an inquiry-mode track:
+1. `evidence/<YYYY-MM>/<ID>-answer.md` must exist — the question restated, the answer, the claims with their `[SRC-n]` citations, and what would change the answer. The mode's signature failure is re-deriving the same synthesis every session, and its one cause is the answer living in chat.
+2. `perry-lint --provenance --root .` must report no `citation-dangling` for that file. This is the half of the bar `modes/inquiry.md` calls the mode's test suite; the rung is the other half, and shipping only the rung leaves the script unrun.
+3. **A parent may not close before its children.** Any row whose `Parent` is this ID must be `done` or `dropped` first. An answered parent over an open child means either the child was not load-bearing — drop it and say why — or the answer is premature.
 
 If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
 1. **Remove the row from `BOARD.md`**. On a pipeline track, the row must have reached the terminal stage of its `Stages` first — `approved` is not `published`, and closing short of the last stage is the mode's signature failure wearing a green checkmark.

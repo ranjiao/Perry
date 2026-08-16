@@ -121,7 +121,8 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 |---|---|---|
 | `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
-| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph | `reference/phases.md` |
+| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. Mints the next `Id` for the track, asks who the promise is to and by when, and refuses a `By when` that is neither a date nor prose naming the SLA. `--close <Id>` / `--miss <Id> <reason>` end one; a missed commitment is recorded, never silently re-dated | `reference/phases.md` |
+| `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |

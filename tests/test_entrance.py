@@ -36,10 +36,10 @@ class TestSetupRegistersOneSkill(unittest.TestCase):
 
     def test_setup_removes_stale_sibling_links_on_upgrade(self):
         setup = read("setup")
-        self.assertIn('rm -f "$target"', setup,
+        self.assertIn('rm -f "$d/$name"', setup,
                       "setup must clean up sibling links from older installs")
         # …but only ones it created itself.
-        self.assertIn('[ "$(readlink "$target")" = "perry/$name" ]', setup,
+        self.assertIn('[ "$(readlink "$d/$name")" = "perry/$name" ]', setup,
                       "cleanup must only remove links this installer created")
 
     def test_setup_no_longer_advertises_four_commands(self):

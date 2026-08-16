@@ -8,7 +8,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 |---|---|---|---|---|
 | **Coding Agent** | Code + tests on a **feature branch** | ✓ | ✓ (own work) | ✗ |
 | **Research Agent** | Generated reports / evidence files | ✓ | ✓ (own work) | ✗ |
-| **PMO Agent** | PMO docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
+| **PMO Agent** | work docs (`BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`) — **not** `DECISIONS.md`/`decisions/`, which belong to `decide` | ✓ | direct push to main acceptable for low-risk doc updates | ✓ for own PMO doc commits only |
 | **Review Agent** | Review notes / approval comments | ✓ | — | reviews; does not merge |
 | **User** | Anything on the user's behalf | ✓ | ✓ | ✓ for code PRs |
 

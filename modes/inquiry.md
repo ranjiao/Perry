@@ -25,7 +25,7 @@ data has nowhere to live.* Nothing below is a control unless it has a column.
 | **Question clock** | How long it has sat in its current stage | `BOARD.md` → `Stage since` |
 | **WIP control** | A cap on open questions, `open:n` | `.perry/config.md § Tracks` → `WIP` |
 | **The answer** | One file per answered question | `evidence/<YYYY-MM>/<ID>-answer.md` |
-| **Sources** | One digest per source, with a stable citation id | `knowledge/<topic>/*.md` → `Id: SRC-<n>` |
+| **Sources** | One digest per source: `Id: SRC-<n>`, `Source:` (origin), `Received:` (fetch date) | `knowledge/<topic>/*.md` |
 | **Claim → source** | `[SRC-n]` inline in the answer | checked by `perry-lint --provenance` |
 | **Default rung** | **V4** — fresh-context review — **plus** clean provenance | `BOARD.md` → `Verification` |
 | **Signature failure** | Re-deriving the same synthesis every session, because nothing was written back | — |
@@ -45,12 +45,15 @@ inquiry-mode close needs both:
    answer).
 2. **`perry-lint --provenance` clean** for the answer file: every `SRC-n` it
    cites resolves to a digest under `knowledge/`, and every digest cited carries
-   an origin and a fetch date.
+   a `Source:` (its origin) and a `Received:` (its fetch date) — those are the
+   field names, not paraphrases of them.
 
-The second is a script, so it is cheap and it does not get tired. It checks four
-things and none of them is a matter of judgment: an id that resolves to nothing,
-a digest with no id, a digest missing its origin or date, and an id defined
-twice. That last one matters more than it looks — **ids are minted once and
+The second is a script, so it is cheap and it does not get tired. It checks five
+things and none of them is a matter of judgment: an id that resolves to nothing
+(`citation-dangling`), a digest with no id (`source-has-no-id`), an id that is
+not of the form `SRC-<n>` (`source-id-malformed`), a digest missing `Source:` or
+`Received:` (`source-missing-field`), and an id defined twice
+(`source-id-reused`). That last one matters more than it looks — **ids are minted once and
 never reused**, because a finding written a year ago that cites `[SRC-n]` has to
 still resolve to the same source. An id that gets recycled does not dangle; it
 silently re-points, which is worse.

@@ -182,7 +182,7 @@ Move a doc from `in_review` → `locked`. Pre-flight checks:
 If any check fails, refuse the move and print the gap list. **Then run the advisory input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 3`) over the whole doc — the hard checks above are the *floor* (empty section / open decision = refuse); the pass adds the softer coaching (alternatives considered, implications spelled out, risks name detection + mitigation) as ≤3 suggestions the user can fix or override. Advisory only — a clean-floor doc still locks even if the user overrides a suggestion. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
 
 ### `revise <DESIGN-ID>`
-For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Tells PMO to add a `DECISIONS.md` ADR (`Type: Design`).
+For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Writes the accompanying ADR itself — `DECISIONS.md` and `decisions/` are this lane's files (`$PERRY_HOME/SKILL.md § The hand-off contract`). Use `adr <topic>` with `Type: Design`.
 
 **First step**: use `AskUserQuestion` (header `"Revise scope"`, options = `Decision update | Architecture refinement | Implementation re-sequence | Use supersede instead (Recommended if structural)`) to gauge the change kind. If the user picks `Use supersede instead`, route to `supersede` and stop here.
 
@@ -190,7 +190,7 @@ For material changes after lock that don't warrant a new doc (small architecture
 Mark `OLD-ID` as `superseded`, point its header to a new doc, and run `new` to create the successor. The successor's References section must cite the predecessor and explain what changed at the framing level.
 
 ### `drop <DESIGN-ID> <reason>`
-Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Append to PMO's `DECISIONS.md` (`Type: Design`).
+Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Append to this lane's `DECISIONS.md` (`Type: Design`) via `adr`.
 
 If the user invokes `drop` without a reason, **use `AskUserQuestion`** (header `"Drop reason"`, options = `Problem went away | Pivoted past it | Replaced by other work (Recommended if you saw it in another spec) | Other`) to nudge a categorization; require free-text elaboration after the bucket selection. Reason is mandatory — refuse to drop without one.
 

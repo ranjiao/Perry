@@ -1,5 +1,13 @@
 # Intake
 
+> **This is the standalone scaffold, not the Perry form.** `/perry diagnose`
+> hands this file to a project that should *not* adopt Perry — the
+> three-files-and-no-tooling floor. A project that later adopts Perry moves
+> this list into `BOARD.md § Intake`, whose columns are `Arrived | Request |
+> Outcome`, because DESIGN-003 decision 3 chose zero new claimed paths and
+> `BOARD.md` is already claimed. The two shapes are deliberately different —
+> this one has no board to live in — and neither is a misspelling of the other.
+
 > Everything that arrived and has not yet been routed. Triage before starting
 > new work.
 >

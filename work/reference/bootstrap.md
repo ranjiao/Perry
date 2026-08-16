@@ -17,8 +17,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
 2. **Create state files at the project root**:
    - `BOARD.md` (from `state/BOARD_TEMPLATE.md`, empty tables)
    - `PROJECT_STATE.md` (from template)
-   - `DECISIONS.md` (from `state/DECISIONS_TEMPLATE.md` — index only)
-   - `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` (Type: Process, Status: active, records the bootstrap event). DECISIONS.md index gets the matching ADR-001 row added.
+   - **not** `DECISIONS.md` or `decisions/` — those belong to the `decide` lane (`$PERRY_HOME/SKILL.md § The hand-off contract`). `decide`'s own bootstrap creates them, including the ADR that records the bootstrap event. Two lanes writing one pair of files was the state this contract exists to end.
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
    - **`.perry/hook.md` from `state/hook_TEMPLATE.md`** — do NOT skip this, and do NOT write it empty. Its `## High-stakes operations` list is the only thing `/pmo dispatch`'s safety re-validation and `/pmo autopilot`'s safety scan match specs against; with no list, both gates have nothing to catch and autopilot refuses to run. The template ships a conservative default list (prod deploys, credentials, infra, money, destructive data ops, outbound messages, history rewrites).
