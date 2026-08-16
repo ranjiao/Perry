@@ -700,3 +700,75 @@ class TestModeAwareWrites(unittest.TestCase):
              "--root", str(p.root)], capture_output=True, text=True)
         self.assertNotIn("error", r.stdout.split("\n")[-2].lower().replace("0 error", ""),
                          f"the tool wrote a board its own linter rejects:\n{r.stdout}")
+
+
+class TestLaneProceduresCallTheTool(unittest.TestCase):
+    """TASK-033 — the riskiest migration in DESIGN-004's plan.
+
+    Its failure mode is not a crash. It is a lane that still tells the agent to
+    hand-write a row while the tool exists — two written paths to one piece of
+    state, with drift reported against a procedure that *instructed* the agent
+    to create it. The drift number would then report a documentation defect as
+    if it were an agent's indiscipline, which is worse than no signal.
+
+    §5.7 made this hard-blocked on TASK-031 for that reason: detection has to be
+    watching before the procedures change, or a migration and a regression look
+    identical.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+
+    def section(self, name: str) -> str:
+        i = self.proc.index(f"### `{name}")
+        j = self.proc.find("\n### ", i + 1)
+        return self.proc[i:j if j > 0 else len(self.proc)]
+
+    def test_add_task_calls_the_tool(self):
+        s = self.section("add-task")
+        self.assertIn("perry-task", s)
+        self.assertIn("add --title", s)
+
+    def test_close_task_calls_the_tool(self):
+        s = self.section("close-task")
+        self.assertIn("perry-task", s)
+        self.assertIn("done", s)
+
+    def test_no_migrated_procedure_still_describes_the_hand_edit(self):
+        """The exact failure this task creates: a procedure that says both."""
+        for name, banned in (
+            ("add-task", "Add a row to `BOARD.md`** — terse"),
+            ("close-task", "**Remove the row from `BOARD.md`**."),
+        ):
+            self.assertNotIn(
+                banned, self.section(name),
+                f"`{name}` still instructs a hand-edit for state the tool "
+                f"now writes — two written paths to one piece of state")
+
+    def test_routing_goes_through_the_tool(self):
+        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
+        self.assertIn("perry-task", step0)
+        self.assertIn("route", step0)
+
+    def test_the_stage_invariant_names_the_tool(self):
+        i = self.proc.index("Every stage move")
+        self.assertIn("perry-task", self.proc[i:i + 400])
+
+    def test_the_procedures_say_what_a_refusal_means(self):
+        """A tool that exits 1 without the procedure saying so invites the
+        agent to treat a refusal as a failure and fall back to editing."""
+        s = self.section("add-task")
+        self.assertIn("Refusals are outcomes", s)
+        self.assertIn("do not fall back to editing", s)
+
+    def test_every_command_the_procedures_quote_actually_runs(self):
+        """A migrated procedure naming a subcommand the tool does not have
+        would be the same unbacked-index defect five reviews kept finding."""
+        quoted = set(re.findall(r'perry-task"?\s+(\w+)', self.proc))
+        r = subprocess.run(["python3", str(TOOL), "--help"],
+                           capture_output=True, text=True)
+        for cmd in quoted:
+            self.assertIn(f"perry-task {cmd}", r.stdout,
+                          f"the procedures call `perry-task {cmd}`, which the "
+                          f"tool's own usage does not list")

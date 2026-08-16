@@ -11,7 +11,7 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 
 **Step 0 — drain `BOARD.md § Intake`, before anything else.** Applies to every queue-mode track. If the track exists and the section does not, **create it** rather than skipping — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
-- **Routed** to a track → becomes a normal board row with an owner, a priority and a target rung. **Carry `Arrived` onto the new row, and set `Stage` to the track's first post-intake stage** (`triaged` in the default queue vocabulary). This is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`).
+- **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1]`, where `<n>` is the intake row's position. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
 - **Dropped**, with the reason in the intake row's `Outcome` cell. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked.
 - **Deferred**, with a **named condition** in `Outcome` — never a bare "later".
 
@@ -29,7 +29,13 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `$PERRY_HOME/packs/software-ops/incidents.md`).
 - Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
 
-**Every stage move stamps the clock — this is a global invariant, not a triage rule.** It applies wherever `Stage` changes, including `close-task` and `dispatch`, both of which move stages and neither of which loads this section. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
+**Every stage move goes through the tool — this is a global invariant, not a triage rule.**
+
+```
+"$PERRY_HOME/bin/perry-task" stage <TASK-ID> --stage <name>
+```
+
+It re-stamps `Stage since` in the same write and refuses a stage outside the track's declared vocabulary. The rule applies wherever `Stage` changes, including `close-task` and `dispatch`, neither of which loads this section — which is why it is stated as an invariant rather than a step. Hand-editing the cell leaves the clock reading from whenever the row was created, and pipeline triage's first question then measures nothing. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
 
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
@@ -119,8 +125,33 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
 
 **Creating a queue-mode row also creates `BOARD.md § Intake` if it is absent**, with its three columns (`Arrived`, `Request`, `Outcome`). Intake is the organ queue mode is built on and the first thing `triage` walks; a section nothing creates means step 0 no-ops forever, and `modes/queue.md`'s warning about a track "whose intake is always empty while work is clearly happening" would describe the guaranteed default rather than a risk.
 
-1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path`.
-2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). Journal entry is the canonical historical record.
+1. **Create the row with the tool, not by hand.**
+
+   ```
+   "$PERRY_HOME/bin/perry-task" add --title "<title>" --owner "<owner>" \
+       --priority <P0|P1|P2> [--track <track>] [--next "<next action>"] \
+       [--parent <ID>] [--commitment <Id>]
+   ```
+
+   It mints the ID from board ∪ events (never reused, never accidentally
+   gapped), stamps the timestamp at call time, sets `Stage` / `Stage since` /
+   `Arrived` for the track's mode, **creates any column or section the mode
+   needs and the board lacks**, and writes the board row, the journal line and
+   the event atomically — none of the three if any would fail.
+
+   Do not hand-write the row. Every field above was one an agent supplied and
+   got wrong at least once: malformed pipes, a reused ID, a timestamp that was
+   an assertion, a clock nobody wound. `perry-state` reports a hand-written row
+   as `unrecorded` at the next standup — reported, not refused, because editing
+   your own markdown is legitimate; but it is visible, and that visibility is
+   the point.
+
+   **Refusals are outcomes, not errors.** The tool exits 1 and writes nothing on
+   a missing title, an undeclared track, or a stage outside a track's
+   vocabulary. Read the message and fix the call; do not fall back to editing
+   the file.
+
+2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The tool writes the one-line status change; this block is the rich record and is still written by hand.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
 
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):
@@ -198,8 +229,28 @@ Write the chosen rung into the BOARD row's `Verification` column (add the column
 3. **A parent may not close before its children.** Any row whose `Parent` is this ID must be `done` or `dropped` first. An answered parent over an open child means either the child was not load-bearing — drop it and say why — or the answer is premature.
 
 If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
-1. **Remove the row from `BOARD.md`**. On a pipeline track, the row must have reached the terminal stage of its `Stages` first — `approved` is not `published`, and closing short of the last stage is the mode's signature failure wearing a green checkmark.
-2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path> · verification: <V0-V6>`.
+1. **Close it with the tool, not by hand.**
+
+   ```
+   "$PERRY_HOME/bin/perry-task" done <TASK-ID> --evidence "<path or citation>" --rung <V1..V6>
+   ```
+
+   It removes the board row, writes the journal status-change line with the rung
+   in it, and records the close event — atomically. `--rung` defaults to the
+   track's `Default rung`, then the mode default, so the ordinary case needs no
+   flag. **`--evidence` is required and the tool refuses without it**: Perry's
+   oldest rule, enforced at write time rather than reported afterwards.
+
+   `V0` is refused by name — it is what is being rejected, never a rung a row
+   may carry.
+
+   On a pipeline track, check the row reached the terminal stage of its `Stages`
+   first: `approved` is not `published`, and closing short of the last stage is
+   that mode's signature failure wearing a green checkmark.
+
+2. The tool wrote the status-change line. Anything more the close deserves — a
+   paragraph of what was learned, a correction, a finding — goes in today's
+   `## Notes` by hand.
 3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, tick it there too.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
 5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).

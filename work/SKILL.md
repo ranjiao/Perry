@@ -44,7 +44,17 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `$PERRY_HOME/reference/okr-linkage.md` (shared, perry root) | Resolving a Task/Project's KR attribution: standup roll-up, `add-task`, `digest`/`coordinate` progress ingest. The "never guess attribution — resolve by ID or ask" gate. |
 | `$PERRY_HOME/schema/README.md` (shared, perry root) | "What shape must this file be?" — the declared contract behind every state file, checked by `bin/perry-lint` |
 
-Two deterministic scripts back this file and are worth knowing before anything else: **`bin/perry-state`** computes the whole dashboard in one read (standup step 2), and **`bin/perry-lint`** validates state files against `schema/state-schema.json`. Both are stdlib-only, read-only, and never call an LLM — use them instead of re-deriving state by hand.
+Three deterministic scripts back this file and are worth knowing before anything else. All are stdlib-only and never call an LLM.
+
+| Script | Direction | Use it instead of |
+|---|---|---|
+| **`bin/perry-state`** | read | re-deriving the dashboard by opening files (standup step 2) |
+| **`bin/perry-lint`** | read | judging by eye whether a file matches `schema/state-schema.json` |
+| **`bin/perry-task`** | **write** | hand-typing a board row, an ID, a timestamp or a status change |
+
+`perry-task` is the newest and the one that changes how this lane works. Perry had nine read tools and no writer, so the rule "never compute a number by reading files and eyeballing it" protected the way out and not the way in. Every board row, ID and timestamp was typed. Now `add`, `start`, `stage`, `done`, `intake` and `route` write the board row, the journal line and an event **atomically** — none of the three if any would fail — and compute the fields an agent used to supply and get wrong.
+
+**Hand-editing still works and is still legitimate.** It is reported, not refused: `perry-state` counts a row with no creating event as `unrecorded` and shows it in the standup's `🔀 Drift` row. That visibility is the whole mechanism — see `perry/design/DESIGN-004-deterministic-writes.md § 5.4`.
 
 When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
