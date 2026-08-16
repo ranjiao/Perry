@@ -75,7 +75,7 @@ When `/perry` is invoked, always run this before doing anything else.
    ```
    The script throttles itself to once per 7 days; most invocations exit immediately with no output. When it does run, output is one line (or zero). Surface its output to the user verbatim if non-empty (the user wants to know about updates), then continue with the snapshot.
 
-1. **Read `.perry/config.md`** if present, to pick up document language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded.
+1. **Read `.perry/config.md`** if present, to pick up document language, chat language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded. **Everything rendered from here on — the dashboard, the TL;DR, the suggested next actions, every `AskUserQuestion` label — is written in the chat language** (`Chat language`, or the user's own language when unset). Everything written to a file uses `Document language`, which may be a different one. The full contract, including what never gets translated, is `reference/i18n.md` — read it before the first localized write in a session.
 
 2. **Compute the state — one call**:
    ```
@@ -127,11 +127,13 @@ If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PE
 When `/perry` is run in a project with no Perry state files at all:
 
 1. Briefly explain Perry (≤3 sentences).
-2. **Confirm two project-wide preferences before any file is written** — record both in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask both via a single `AskUserQuestion` tool call (two questions, structured options):
-   - **Document language** (header `"Language"`): options = `English (Recommended if user typed English) | 中文 (Recommended if user typed 中文) | other`. The "Recommended" tag goes on whichever matches the user's recent chat language.
+2. **Confirm two project-wide preferences before any file is written** — record them in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask both via a single `AskUserQuestion` tool call (two questions, structured options):
+   - **Document language** (header `"Language"`): options = `English (Recommended if user typed English) | 中文 (Recommended if user typed 中文) | other`. The "Recommended" tag goes on whichever matches the language the user has been typing. Each option's `description` says what it changes in consequences: *"OKR, board titles, decisions and design docs get written in this language. IDs, file names and status words stay English so tools can still read them."*
    - **Repo layout** (header `"Repo layout"`): options = `Single repo (Recommended for non-code projects) | Split repo (PMO ↔ code; only if both exist and you've seen branch contention)`. See **Repo layout options** below for the trade-off explanation that goes into each option's `description`.
 
-   All subsequent skill output (snapshots, dashboards, generated docs, delegation prompts) uses the configured language. If the user mixes languages later, keep using the configured language for written artifacts but mirror the user's language in chat replies.
+   **Don't ask about chat language here.** Write `Chat language: follow user` and mirror whatever the user types — that is right for nearly everyone and costs them no decision. Only pin it (and only when the user asks, e.g. "reply in Chinese even when I type English") by writing a named language into that field.
+
+   Document language governs **files**; chat language governs **replies**; they are allowed to differ, and often should. `reference/i18n.md` is the contract — the three layers of text, the glossary that localizes headings and column headers, what stays English in every language, and how to switch later.
 3. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
 
    For a new project, recommend the order below.
@@ -205,6 +207,7 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 # Perry configuration
 
 - Document language: <English | 中文 | ...>
+- Chat language: <follow user | English | 中文 | ...>
 - Repo layout: <single | split>
 - State root: <. | relative path>
 - PMO repo path: <absolute path>
@@ -213,6 +216,8 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 ```
 
 Children read this file before any output. If the file is missing, prompt the user to run first-time setup.
+
+The field **names** above stay English in every language — this is the file that declares the language, so it has to be readable before the language is known. `Chat language` is optional; absent means `follow user`. See `reference/i18n.md`.
 
 ### `State root` — where Perry's files live
 
@@ -321,6 +326,7 @@ With arg `okr`, `pmo`, or `design`: read that lane's SKILL.md and render its `he
 - **Never ask a question the user cannot evaluate.** Before offering options, check whether the user can predict what will be different for them under each. If not, reframe in consequences, or decide it yourself and say so, or narrow to two — see `reference/user-load.md § The three exits`. Depth of analysis and usefulness of a question come apart completely once the subject leaves the user's expertise, and this gets *worse* as the agent gets better.
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
+- **Write in the configured languages, and don't mix them.** Chat replies follow `Chat language` (or the user's own language when unset); files follow `Document language`. IDs, enum values, file paths, slugs and command names stay English in every language, so a Chinese dashboard line reads `REL-002（"抖动检测器"）blocked，等 USER-014`. Never translate a quoted artifact — a path, a command, an error message, or the user's own words. Full contract in `reference/i18n.md`.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
 
 ## User-prompt convention (AskUserQuestion)
@@ -345,7 +351,7 @@ Whenever a Perry skill (top-level or any child) needs the user to make a choice 
 ### Conventions
 
 - **2–4 options per question.** No more, no fewer.
-- **Label ≤ 5 words.** The tool enforces this; long descriptions go in the `description` field, not `label`.
+- **Label ≤ 5 words.** The tool enforces this; long descriptions go in the `description` field, not `label`. Labels and descriptions are written in the **chat** language; an option whose value lands in a file (a status, an executor, an enum) shows the invariant token alongside the localized wording — `跳过 (skip)` — so the user can connect the button they pressed to the word that appears in the file.
 - **Recommended option first.** Append `(Recommended)` to the label so the user sees which one Perry suggests.
 - **Header chip ≤ 12 chars** (e.g., "Executor", "Status", "KR-1.2").
 - **Each option's `description` carries the trade-off** — what happens, what it implies, what's lost. Don't make the user guess.
@@ -392,6 +398,7 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 - [INSTALL.md](INSTALL.md) — install instructions.
 - [schema/README.md](schema/README.md) — the state-file contract every skill, template, and parser must agree with; validated by `bin/perry-lint`.
 - [reference/adoption.md](reference/adoption.md) — `/perry adopt`: the five-stage pipeline that converts an existing project into Perry state. The governing rule (**evidence proposes, the user declares**), the asymmetry between what may be inferred and what may not, cluster triage, the cluster→KR attribution pass, and the list of things adoption never does.
+- [reference/i18n.md](reference/i18n.md) — the localization contract: `Document language` (files) vs `Chat language` (replies), the three layers of text and which one never gets translated, the heading/column glossary in `schema/state-schema.json § i18n` that lets a Chinese project lint and parse exactly like an English one, why templates stay English source, why `bin/` scripts speak English and the agent translates on relay, and how to switch language or add a new one.
 - [reference/user-load.md](reference/user-load.md) — the shared contract for all four skills on **how much a human can carry**: never ask a question the user cannot evaluate (and the three exits when the honest answer is that they can't), cap open decisions, log what was decided on their behalf, and the rule that **an ID never travels alone**. Perry mints nine ID families; this is what stops them becoming a private vocabulary.
 - [reference/diagnose.md](reference/diagnose.md) — `/perry diagnose`: the six-stage pipeline that audits and refactors how a project works with agents. The governing rule (**every prescription traces to a finding**), the six-question interview, the prescription patterns, and the execution safety rules.
 - [reference/project-archetypes.md](reference/project-archetypes.md) — the research diagnose applies: the three failure modes of agent projects, the isolation ladder, the tier discipline for documents, the minimum viable spine, three archetypes, and an explicit account of where the evidence is thin.

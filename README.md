@@ -2,6 +2,8 @@
 
 > *Perry runs the office. You run the project.*
 
+**[中文文档 →](README_cn.md)**
+
 A single skill for **Claude Code** and **Codex CLI** that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session. **One command: `/perry`.** Goals, execution and design docs are lanes inside it, reached as `/perry okr …`, `/perry pmo …`, `/perry design …` — Perry deliberately does not claim `/okr` or `/design` in your skill namespace, because those are common words other tools use too.
 
 ## 🚀 One-paste install
@@ -201,6 +203,38 @@ The point: keep markdown as the **producer-friendly** source of truth (where it 
 
 These four work together: `ARCHITECTURE.md` is the user-controlled spine; incidents reveal where the spine is wrong; runbooks keep the user able to operate without reading agent-written code; health-check is the periodic reality check. None of them is mandatory, but each is a contract Perry uses to keep an agent-built project under user control. The cross-phase firewall in `okr plan-phase` (see § OKR phases) is what forces unresolved drift to be addressed when the next phase opens.
 
+## Working in another language
+
+Perry is written in English; your project doesn't have to be. First-time setup
+writes two independent settings into `.perry/config.md`:
+
+| Setting | Governs | Default |
+|---|---|---|
+| `Document language` | Everything written to a file — OKR prose, board titles, journal entries, ADR reasoning, design docs, delegation prompts | English |
+| `Chat language` | Everything said in the conversation — the dashboard, TL;DRs, suggested actions, the option labels on every question | `follow user` (mirror whatever you type) |
+
+They're separate because the common case wants them apart: an English-language
+open-source project you think about in Chinese, or an internal project whose
+docs are Chinese but whose status lines you're happy reading in English.
+
+What never gets translated, in any language: IDs (`REL-002`, `KR-O1.2`), enum
+values (`in_progress`, `blocked`), file names and phase slugs, `P0`/`P1`/`P2`,
+dates, paths, and command names. So a Chinese board row still reads
+`| REL-002 | 抖动检测器 | Coding Agent | blocked | 等 USER-014 | evidence/… |` —
+prose and column headers localized, machine tokens untouched. Section headings
+and column headers resolve through a glossary declared once in
+`schema/state-schema.json § i18n`, which `bin/perry-lint`, `viewer/parsers.py`
+and any external frontend all read; **a Chinese project lints clean and
+produces the same dashboard payload as an English one**, and
+`tests/fixtures/sample-project-zh/` is the fixture that keeps it that way.
+
+A language with no glossary is still fully supported for prose — set
+`Document language: Français` and every title and narrative is French, with
+English headings. Teaching Perry to localize a new language's structure is a
+schema edit plus a fixture: see
+[reference/i18n.md](reference/i18n.md), which is also where the rules live for
+switching a project's language later (Perry does not retro-translate, and why).
+
 ## Typical flow (first time, any project)
 
 ```
@@ -231,7 +265,7 @@ These four work together: `ARCHITECTURE.md` is the user-controlled spine; incide
 ```
 <project_root>/
 ├── .perry/
-│   ├── config.md                       ← language + repo layout (single | split)
+│   ├── config.md                       ← document + chat language, repo layout (single | split), state root
 │   └── hook.md                         ← project-specific additions (optional)
 │   ├── index.html                              ← navigator hub (auto-regenerated on every render)
 │   ├── 2026-05-15-dashboard.html

@@ -12,6 +12,9 @@
 #      tests/test_diagnose.py — bin/perry-diagnose (findings fire AND don't
 #      false-positive), the two template linters actually gate, and the
 #      diagnosis schema entry matches its template.
+#      tests/test_i18n.py — the same fixture project written in Chinese lints
+#      clean and yields the same payload shape, and the schema's i18n glossary
+#      stays consistent with the heading matchers.
 #   3. Every shipped script compiles and answers --help.
 set -e
 
@@ -43,8 +46,9 @@ for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
 done
 [ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"
 
-step "4. sample project lints clean"
+step "4. sample projects lint clean (English and Chinese)"
 python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1
+python3 bin/perry-lint --root tests/fixtures/sample-project-zh || fail=1
 
 if [ "$fail" = 0 ]; then
   printf '\n\033[32m✓ all green\033[0m\n'

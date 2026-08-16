@@ -85,6 +85,16 @@ is a default they can argue with — see the honesty note in stage 0.
 When a term genuinely has to be introduced, introduce it this way and move on.
 Never define more than one per exchange.
 
+The table below is written in English because this file is; **say each one in
+the chat language.** `bin/perry-diagnose` also emits English — it is a
+deterministic tool whose output is read by CI and by external readers, so it is
+not localized. Translate its findings on relay and keep the stable parts
+verbatim: the finding ID (`LOAD-003`), the file path, the line number, and the
+exact command to re-run. A translated finding ID is one the user cannot search
+for. The diagnosis file written at the end follows `Document language` like
+every other Perry artifact. Full rule: `reference/i18n.md § Scripts speak
+English; the agent relays`.
+
 | Term | Say this |
 |---|---|
 | Always-loaded file | "The file the agent reads at the start of every session, before it knows what you want." |

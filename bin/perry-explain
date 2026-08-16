@@ -73,8 +73,13 @@ ILLUSTRATIVE_PARTS = {
     "samples", "sample", "tests", "test", "reference", "references",
     "scaffold", "boilerplate",
 }
-ILLUSTRATIVE_NAMES = {"SKILL.MD", "README.MD", "AGENTS.MD", "CLAUDE.MD",
-                      "CONTRIBUTING.MD", "CHANGELOG.MD", "INSTALL.MD"}
+# Matched against the FIRST token of the file stem, so a translated or
+# suffixed variant counts too: README_cn.md, README.zh.md, INSTALL-fr.md are
+# all still documents whose job is to explain. Matching the whole filename
+# instead meant a project's Chinese README had its example IDs counted as
+# real references, and every one of them reported as dangling.
+ILLUSTRATIVE_STEMS = {"SKILL", "README", "AGENTS", "CLAUDE",
+                      "CONTRIBUTING", "CHANGELOG", "INSTALL"}
 
 
 def is_real_id(token: str) -> bool:
@@ -88,7 +93,7 @@ def is_real_id(token: str) -> bool:
 def is_illustrative(rel: str) -> bool:
     """True for a path whose job is to explain, not to track."""
     p = Path(rel)
-    if p.name.upper() in ILLUSTRATIVE_NAMES:
+    if re.split(r"[._-]", p.stem, maxsplit=1)[0].upper() in ILLUSTRATIVE_STEMS:
         return True
     # A template's placeholder rows are the clearest case of an ID that is an
     # example: `| TASK-009 | … |` inside journal_TEMPLATE.md refers to nothing

@@ -68,9 +68,9 @@ def days_since(value: str) -> int | None:
 
 
 def parse_config(root: Path) -> dict:
-    """`.perry/config.md` — document language, repo layout, state root."""
-    cfg = {"present": False, "language": "", "layout": "", "pmo_repo": "", "code_repo": "",
-           "state_root": ""}
+    """`.perry/config.md` — document + chat language, repo layout, state root."""
+    cfg = {"present": False, "language": "", "chat_language": "", "layout": "",
+           "pmo_repo": "", "code_repo": "", "state_root": ""}
     path = root / ".perry" / "config.md"
     if not path.exists():
         return cfg
@@ -78,6 +78,9 @@ def parse_config(root: Path) -> dict:
     text = path.read_text(errors="replace")
     fields = {
         "language": r"Document language",
+        # Absent means "follow user" — mirror whatever the user typed. Written
+        # files always use `language`, never this one. See reference/i18n.md.
+        "chat_language": r"Chat language",
         "layout": r"Repo layout",
         "pmo_repo": r"PMO repo path",
         "code_repo": r"Code repo path",

@@ -17,12 +17,44 @@ with, and `bin/perry-lint` is what checks it.
 ## What the schema declares
 
 Per state file: the path (glob), owning skill, tier, line cap and whether the
-cap is hard or soft, required headings (with 中文 alternatives), required
-header fields, and the column set of each table plus which columns carry
-enums or stable IDs.
+cap is hard or soft, required headings, required header fields, and the column
+set of each table plus which columns carry enums or stable IDs.
 
-Plus `enums` (the canonical status / priority / owner vocabularies) and
-`cross_file` rules — the integrity checks that span more than one file.
+Plus `enums` (the canonical status / priority / owner vocabularies),
+`cross_file` rules — the integrity checks that span more than one file — and
+`i18n`, below.
+
+## `i18n` — the localization glossary
+
+A project writes its state files in the language declared by
+`.perry/config.md § Document language`, so the same board section is `## Top
+risks` in one project and `## 主要风险` in another. `i18n` is what stops that
+from being a guessing game:
+
+- `languages` — the codes with a glossary (`en`, `zh` today).
+- `invariant` — text that stays ASCII/English in **every** language, because
+  it is matched, joined or dereferenced: IDs, enum values, file names, slugs,
+  `P0`/`P1`/`P2`, dates, paths, `.perry/config.md` field names, linkage
+  frontmatter.
+- `headings` / `fields` / `columns` — canonical English name → its accepted
+  spellings per language.
+
+Each localizable heading additionally carries its alternatives inside its own
+`match` regex, so a reader that only walks `files[].headings` still works.
+`bin/perry-lint` loads `columns` and `fields` at startup; `viewer/parsers.py`
+loads the same block lazily. **Neither has a language hard-coded** — adding a
+language is a schema edit plus a fixture, nothing more.
+
+A language with no glossary block is still fully supported for prose; its
+documents keep English headings. The user-facing contract, including the rules
+for switching language mid-project, is
+[`reference/i18n.md`](../reference/i18n.md).
+
+> **`schema_version: 2`** introduced this block and widened the heading
+> matchers. A v1 reader still parses every English project correctly but will
+> silently find nothing in a localized one — which is exactly the failure mode
+> `bin/perry-lint` exists to prevent, so external readers should treat v2 as a
+> required upgrade rather than an optional one.
 
 ## How it's used
 

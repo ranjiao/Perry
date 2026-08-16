@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "description": "Structural contract for Perry state files. The single source of truth that SKILL.md prose, state/*_TEMPLATE.md, and viewer/parsers.py must all agree with. Validated by bin/perry-lint (against a project) and by tests/ (against the templates themselves).",
   "enums": {
     "task_status": [
@@ -127,6 +127,322 @@
       "deferred"
     ]
   },
+  "i18n": {
+    "description": "Which text in a state file may be written in the project's document language (.perry/config.md \u00a7 Document language) and which may not. Section headings and table column headers are localizable: every reader MUST accept the canonical English form and every alias listed here. Everything in `invariant` stays ASCII/English in every language, because it is matched, joined, or dereferenced by machines. Adding a language means adding its aliases here and widening the `match` regexes in `files[].headings` \u2014 nothing else in the schema changes. A language with no glossary block is still fully supported for prose; its documents keep the English headings.",
+    "languages": [
+      "en",
+      "zh"
+    ],
+    "invariant": [
+      "file and directory names (BOARD.md, phase/, evidence/<YYYY-MM>/)",
+      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P-O1.2, USER-014)",
+      "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
+      "header field names in .perry/config.md and .perry/hook.md",
+      "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
+      "priority section names (P0, P1, P2) and architecture section markers (\u00a71\u2026\u00a78)",
+      "dates (YYYY-MM-DD), ISO weeks (YYYY-WW), commit SHAs, file paths",
+      "command and subcommand names (/perry okr plan-phase)",
+      "header field names in .perry/config.md (the file that declares the language cannot be written in it)"
+    ],
+    "headings": {
+      "Mission": {
+        "zh": [
+          "\u4f7f\u547d"
+        ]
+      },
+      "Operating Principles": {
+        "zh": [
+          "\u8fd0\u884c\u539f\u5219"
+        ]
+      },
+      "Anti-Goals": {
+        "zh": [
+          "\u53cd\u76ee\u6807"
+        ]
+      },
+      "Versioning log": {
+        "zh": [
+          "\u7248\u672c\u8bb0\u5f55"
+        ]
+      },
+      "Objective": {
+        "zh": [
+          "\u76ee\u6807"
+        ]
+      },
+      "Phase Focus": {
+        "zh": [
+          "\u9636\u6bb5\u7126\u70b9"
+        ]
+      },
+      "Operating Rules": {
+        "zh": [
+          "\u8fd0\u884c\u89c4\u5219"
+        ]
+      },
+      "Cost Ceiling": {
+        "zh": [
+          "\u6210\u672c\u4e0a\u9650"
+        ]
+      },
+      "User Commitments": {
+        "zh": [
+          "\u7528\u6237\u627f\u8bfa"
+        ]
+      },
+      "User-Unavailable Degradation": {
+        "zh": [
+          "\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7"
+        ]
+      },
+      "Phase Scope Reduction Rule": {
+        "zh": [
+          "\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
+          "\u7f29\u5708\u89c4\u5219"
+        ]
+      },
+      "Definition of Done": {
+        "zh": [
+          "\u5b8c\u6210\u5b9a\u4e49"
+        ]
+      },
+      "Not Doing in this phase": {
+        "zh": [
+          "\u672c\u9636\u6bb5\u4e0d\u505a"
+        ]
+      },
+      "Process Note": {
+        "zh": [
+          "\u6d41\u7a0b\u8bf4\u660e"
+        ]
+      },
+      "Cadence": {
+        "zh": [
+          "\u4f8b\u884c\u8282\u594f"
+        ]
+      },
+      "User Input Queue": {
+        "zh": [
+          "\u7528\u6237\u8f93\u5165\u961f\u5217"
+        ]
+      },
+      "Top risks": {
+        "zh": [
+          "\u4e3b\u8981\u98ce\u9669"
+        ]
+      },
+      "Problem": {
+        "zh": [
+          "\u95ee\u9898"
+        ]
+      },
+      "Goals": {
+        "zh": [
+          "\u76ee\u6807"
+        ]
+      },
+      "Non-Goals": {
+        "zh": [
+          "\u975e\u76ee\u6807"
+        ]
+      },
+      "User Decisions": {
+        "zh": [
+          "\u7528\u6237\u51b3\u7b56"
+        ]
+      },
+      "Architecture": {
+        "zh": [
+          "\u67b6\u6784"
+        ]
+      },
+      "Implementation plan": {
+        "zh": [
+          "\u5b9e\u65bd\u8ba1\u5212"
+        ]
+      },
+      "Risks & mitigations": {
+        "zh": [
+          "\u98ce\u9669\u4e0e\u7f13\u89e3"
+        ]
+      },
+      "Active": {
+        "zh": [
+          "\u8fdb\u884c\u4e2d"
+        ]
+      },
+      "High-stakes operations": {
+        "zh": [
+          "\u9ad8\u98ce\u9669\u64cd\u4f5c"
+        ]
+      },
+      "Phase": {
+        "zh": [
+          "\u9636\u6bb5"
+        ]
+      },
+      "Cross-monthly carry-forwards": {
+        "zh": [
+          "\u8de8\u6708\u5ef6\u7eed\u9879"
+        ]
+      },
+      "Recent cross-session work": {
+        "zh": [
+          "\u8fd1\u671f\u8de8\u4f1a\u8bdd\u5de5\u4f5c"
+        ]
+      },
+      "Key external dependencies": {
+        "zh": [
+          "\u5173\u952e\u5916\u90e8\u4f9d\u8d56"
+        ]
+      },
+      "Backbone": {
+        "zh": [
+          "\u4e3b\u5e72"
+        ]
+      },
+      "Retro": {
+        "zh": [
+          "\u590d\u76d8"
+        ]
+      },
+      "Mid-phase check": {
+        "zh": [
+          "\u671f\u4e2d\u68c0\u67e5"
+        ]
+      }
+    },
+    "fields": {
+      "Started": {
+        "zh": [
+          "\u542f\u52a8"
+        ]
+      },
+      "Status": {
+        "zh": [
+          "\u72b6\u6001"
+        ]
+      },
+      "Date": {
+        "zh": [
+          "\u65e5\u671f"
+        ]
+      }
+    },
+    "columns": {
+      "ID": {
+        "zh": [
+          "\u7f16\u53f7"
+        ]
+      },
+      "Id": {
+        "zh": [
+          "\u7f16\u53f7"
+        ]
+      },
+      "Title": {
+        "zh": [
+          "\u6807\u9898"
+        ]
+      },
+      "Owner": {
+        "zh": [
+          "\u8d1f\u8d23\u4eba"
+        ]
+      },
+      "Status": {
+        "zh": [
+          "\u72b6\u6001"
+        ]
+      },
+      "Next action": {
+        "zh": [
+          "\u4e0b\u4e00\u6b65"
+        ]
+      },
+      "Evidence": {
+        "zh": [
+          "\u8bc1\u636e"
+        ]
+      },
+      "USER-id": {
+        "zh": [
+          "\u7528\u6237\u8f93\u5165\u7f16\u53f7"
+        ]
+      },
+      "Needed from user": {
+        "zh": [
+          "\u9700\u8981\u7528\u6237\u63d0\u4f9b"
+        ]
+      },
+      "Blocks": {
+        "zh": [
+          "\u963b\u585e"
+        ]
+      },
+      "Idle": {
+        "zh": [
+          "\u95f2\u7f6e"
+        ]
+      },
+      "Recurring task": {
+        "zh": [
+          "\u4f8b\u884c\u4efb\u52a1"
+        ]
+      },
+      "Frequency": {
+        "zh": [
+          "\u9891\u7387"
+        ]
+      },
+      "Next due": {
+        "zh": [
+          "\u4e0b\u6b21\u5230\u671f"
+        ]
+      },
+      "Last evidence": {
+        "zh": [
+          "\u6700\u8fd1\u8bc1\u636e"
+        ]
+      },
+      "Metric / Target": {
+        "zh": [
+          "\u6307\u6807 / \u76ee\u6807\u503c"
+        ]
+      },
+      "Stretch?": {
+        "zh": [
+          "\u6311\u6218\u9879?",
+          "\u6311\u6218\u9879\uff1f"
+        ]
+      },
+      "Deadline": {
+        "zh": [
+          "\u622a\u6b62"
+        ]
+      },
+      "KR text": {
+        "zh": [
+          "KR \u63cf\u8ff0"
+        ]
+      },
+      "Linked overall KR": {
+        "zh": [
+          "\u5173\u8054\u603b\u4f53 KR"
+        ]
+      },
+      "Type": {
+        "zh": [
+          "\u7c7b\u578b"
+        ]
+      },
+      "Date": {
+        "zh": [
+          "\u65e5\u671f"
+        ]
+      }
+    }
+  },
   "files": [
     {
       "id": "board",
@@ -155,17 +471,17 @@
         },
         {
           "level": 2,
-          "match": "^Cadence\\b",
+          "match": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
           "label": "## Cadence"
         },
         {
           "level": 2,
-          "match": "^User Input Queue\\b",
+          "match": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
           "label": "## User Input Queue"
         },
         {
           "level": 2,
-          "match": "^Top risks\\b",
+          "match": "^Top risks\\b|^\u4e3b\u8981\u98ce\u9669",
           "label": "## Top risks"
         }
       ],
@@ -185,7 +501,7 @@
           }
         },
         {
-          "under": "^User Input Queue\\b",
+          "under": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
           "columns": [
             "USER-id",
             "Needed from user",
@@ -195,7 +511,7 @@
           ]
         },
         {
-          "under": "^Cadence\\b",
+          "under": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
           "columns": [
             "ID",
             "Recurring task",
@@ -240,7 +556,7 @@
         },
         {
           "level": 2,
-          "match": "^Versioning",
+          "match": "^Versioning|^\u7248\u672c\u8bb0\u5f55",
           "label": "## Versioning log"
         },
         {
@@ -295,7 +611,7 @@
         },
         {
           "level": 2,
-          "match": "^Operating Rules\\b",
+          "match": "^Operating Rules\\b|^\u8fd0\u884c\u89c4\u5219",
           "label": "## Operating Rules"
         },
         {
@@ -305,17 +621,17 @@
         },
         {
           "level": 2,
-          "match": "^User Commitments\\b",
+          "match": "^User Commitments\\b|^\u7528\u6237\u627f\u8bfa",
           "label": "## User Commitments"
         },
         {
           "level": 2,
-          "match": "^User-Unavailable Degradation\\b",
+          "match": "^User-Unavailable Degradation\\b|^\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7",
           "label": "## User-Unavailable Degradation"
         },
         {
           "level": 2,
-          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
+          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219|^\u7f29\u5708\u89c4\u5219",
           "label": "## Phase Scope Reduction Rule"
         },
         {
@@ -325,17 +641,17 @@
         },
         {
           "level": 2,
-          "match": "^Definition of Done\\b",
+          "match": "^Definition of Done\\b|^\u5b8c\u6210\u5b9a\u4e49",
           "label": "## Definition of Done"
         },
         {
           "level": 2,
-          "match": "^Not Doing in this phase\\b",
+          "match": "^Not Doing in this phase\\b|^\u672c\u9636\u6bb5\u4e0d\u505a",
           "label": "## Not Doing in this phase"
         },
         {
           "level": 2,
-          "match": "^Process Note\\b",
+          "match": "^Process Note\\b|^\u6d41\u7a0b\u8bf4\u660e",
           "label": "## Process Note"
         }
       ],
@@ -921,37 +1237,37 @@
       "headings": [
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Problem\\b",
+          "match": "^(?:\\d+\\.\\s*)?Problem\\b|^(?:\\d+\\.\\s*)?\u95ee\u9898",
           "label": "## Problem"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Goals\\b",
+          "match": "^(?:\\d+\\.\\s*)?Goals\\b|^(?:\\d+\\.\\s*)?\u76ee\u6807",
           "label": "## Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b",
+          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b|^(?:\\d+\\.\\s*)?\u975e\u76ee\u6807",
           "label": "## Non-Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b",
+          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b|^(?:\\d+\\.\\s*)?\u7528\u6237\u51b3\u7b56",
           "label": "## User Decisions"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Architecture\\b",
+          "match": "^(?:\\d+\\.\\s*)?Architecture\\b|^(?:\\d+\\.\\s*)?\u67b6\u6784",
           "label": "## Architecture"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b",
+          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b|^(?:\\d+\\.\\s*)?\u5b9e\u65bd\u8ba1\u5212",
           "label": "## Implementation plan"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Risks",
+          "match": "^(?:\\d+\\.\\s*)?Risks|^(?:\\d+\\.\\s*)?\u98ce\u9669",
           "label": "## Risks & mitigations"
         }
       ],
@@ -1047,6 +1363,11 @@
           "name": "Document language"
         },
         {
+          "name": "Chat language",
+          "required": false,
+          "note": "language of the agent's conversational replies. Absent (or 'follow user') means mirror whatever language the user typed; a named language pins replies to it regardless. Written state files always follow `Document language`, never this field."
+        },
+        {
           "name": "Repo layout",
           "pattern": "single|split"
         },
@@ -1068,7 +1389,7 @@
       "headings": [
         {
           "level": 2,
-          "match": "^High-stakes",
+          "match": "^High-stakes|^\u9ad8\u98ce\u9669\u64cd\u4f5c",
           "label": "## High-stakes operations"
         }
       ],
