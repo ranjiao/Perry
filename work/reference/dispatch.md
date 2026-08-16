@@ -20,7 +20,15 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 5b. **Deployed-task pre-check**: if spec has `Deployed: yes`, verify the spec contains a non-empty `## Observability` section (Success signal / Failure diagnosis / Runbook path). If missing → refuse and ask user to fix the spec first. The runbook file itself is not required to exist yet at dispatch time (often the dispatched task creates it) — only the observability spec field is mandatory.
 6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, ask the user via `AskUserQuestion` (header `"Dispatch full"`, options): `Wait — show in-flight (Recommended) | Switch to other executor (if it has slots) | Fall back to /pmo delegate (manual paste)`. Default limits: 2 codex, 2 claude-subagent, 3 total — overridable via env (`PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_TOTAL`). On Codex the cap is advisory across separate sessions — see `../../reference/host-capabilities.md § perry-dispatch-limit`.
 
-## Dispatch — per executor
+## Dispatch
+
+> **Stage moves and status changes go through `bin/perry-task`.** This file is
+> loaded on its own, so the invariant stated in `reference/subcommands.md` does
+> not reach it — restated here rather than assumed: `perry-task start` /
+> `status` / `stage` write the board row, the journal line and the event
+> atomically. Hand-editing a row here shows up at the next standup as a
+> post-tool edit, and dispatch runs often enough that doing so would bury the
+> signal in noise dispatch itself created. — per executor
 
 ### `Executor: claude-subagent` (Claude Code only)
 
@@ -130,8 +138,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 ## Common (post-dispatch, before completion)
 
-- Append `## Status changes` line to today's journal: `[TASK-X] not_started → in_progress · dispatched HH:MM · executor=<name> · async=<bool>`.
-- Update BOARD row: status → `in_progress`; Next action → "dispatched <time>; awaiting completion".
+- `"$PERRY_HOME/bin/perry-task" start <TASK-ID> --next "dispatched <time>; awaiting completion"` — writes the BOARD row, the journal status-change line and the event in one atomic call. Add the executor and async flag to today's `## Notes` by hand; they are context, not state.
 - Reply to user: `Dispatched <TASK-X> via <executor>. Will report when done.` Do NOT block waiting for sync; rely on runtime notification.
 
 ## On completion (notification arrives)
@@ -154,8 +161,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
    - Objective verification commands + their outputs
    - Subjective verification items (copied from spec, marked `[user-verify]`)
    - PR URL + branch + commit SHA
-6. Update BOARD row: status → `review`; Next action → "user verifies subjective items: <…>"; Evidence → path of dispatch file.
-7. Append `## Status changes` to today's journal: `[TASK-X] in_progress → review · executor=<name> · cycle=<min> · evidence: <path>`.
+6. `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review --next "user verifies subjective items: <…>"` — row, journal line and event together. Then record the evidence path, executor and cycle time in the dispatch evidence file, which is where per-run detail belongs.
 8. Surface to user: pass/fail summary + 1-line subjective verification ask.
 
 ## Failure handling (mark `review`, no auto-retry)

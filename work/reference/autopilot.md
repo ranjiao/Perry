@@ -1,5 +1,13 @@
 # `/pmo autopilot` — autonomous BOARD-driving loop
 
+> **Status changes go through `bin/perry-task`.** Autopilot always lands a row
+> at `review`, never at `done` — that is `perry-task status <ID> --status
+> review`, not a hand edit. This file is loaded on its own, so the invariant in
+> `reference/subcommands.md` does not reach it; a loop that hand-edits rows
+> would generate one post-tool edit per dispatch and drown the drift signal in
+> output it produced itself.
+
+
 Walks the BOARD top-to-bottom and dispatches every task that's safe to dispatch without user input, until budget exhausts or no actionable tasks remain. Designed for "user goes to lunch / sleep / out for the day, comes back to a wall of `review` rows".
 
 **Autopilot does NOT close tasks.** Per the project's standing rule (subjective verification = human), every successfully-completed dispatch lands at `review`, not `done`. The user reviews on return.

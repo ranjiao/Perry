@@ -50,9 +50,11 @@ Three deterministic scripts back this file and are worth knowing before anything
 |---|---|---|
 | **`bin/perry-state`** | read | re-deriving the dashboard by opening files (standup step 2) |
 | **`bin/perry-lint`** | read | judging by eye whether a file matches `schema/state-schema.json` |
-| **`bin/perry-task`** | **write** | hand-typing a board row, an ID, a timestamp or a status change |
+| **`bin/perry-task`** | **write** | hand-typing a board row, an ID, a timestamp, or the transitions it covers |
 
-`perry-task` is the newest and the one that changes how this lane works. Perry had nine read tools and no writer, so the rule "never compute a number by reading files and eyeballing it" protected the way out and not the way in. Every board row, ID and timestamp was typed. Now `add`, `start`, `stage`, `done`, `intake` and `route` write the board row, the journal line and an event **atomically** — none of the three if any would fail — and compute the fields an agent used to supply and get wrong.
+`perry-task` is the newest and the one that changes how this lane works. Perry had nine read tools and no writer, so the rule "never compute a number by reading files and eyeballing it" protected the way out and not the way in. Every board row, ID and timestamp was typed. Now `add`, `start`, `stage`, `done`, `drop`, `intake`, `route` and `resolve-intake` write the board row, the journal line and an event **atomically** — none of the three if any would fail — and compute the fields an agent used to supply and get wrong.
+
+**It covers four of the six statuses, and says so.** `not_started` (`add`, `route`), `in_progress` (`start`), `done` and `dropped` have tool paths. `blocked` and `review` do not — those transitions are still written by hand, and a row moved into them shows up as a post-tool edit at the next standup. That gap is real and named rather than papered over; closing it is a `status` subcommand nobody has written yet.
 
 **Hand-editing still works and is still legitimate.** It is reported, not refused: `perry-state` counts a row with no creating event as `unrecorded` and shows it in the standup's `🔀 Drift` row. That visibility is the whole mechanism — see `perry/design/DESIGN-004-deterministic-writes.md § 5.4`.
 
@@ -150,6 +152,7 @@ Always run this before anything else, even if the user asked a specific question
    🌀 Current phase : #<NNN> <slug> · day <N> · <KRs done>/<KRs total> · cost <spent>/<ceiling>   (— if no current phase)
    📋 Open tasks    : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
    🔬 Verification  : V3=<n> · V5=<n> · unrated=<n> (<closures> closures)   (omit row if nothing has closed)
+   🔀 Drift         : <n> event(s) with no row · <n> row(s) edited after close · <n> row(s) predate the log (since <date>)   (omit row entirely if the tool wrote everything)
    🚀 In flight     : <count> dispatches running (— if 0)
    📥 Inputs        : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest    (omit row if 0)
    📚 Knowledge     : <active> active · <eternal> eternal · <stale> stale · <archived> archived (— if no knowledge/)
@@ -174,6 +177,8 @@ Always run this before anything else, even if the user asked a specific question
    - "A locked design from 3 days ago has no implementation tasks yet (DESIGN-002) → run `/design handoff DESIGN-002`"
    - "BOARD.md is 240 lines, over the 200-line cap → run `triage` to push detail into evidence and close stale rows"
    - "3 tasks can't be attributed to a KR (names drifted / ambiguous) → surface the candidate KRs and ask the user; don't guess — see `$PERRY_HOME/reference/okr-linkage.md`"
+   - "2 board rows were written by hand since the tool landed → they are `unrecorded`; nothing is wrong, but the record of how they got there is missing"
+   - "1 event opened a task that has no row and no close → the mutation did not land in `BOARD.md`; check what happened to it"
    - "3 external docs sitting un-digested in `inputs/` (oldest 6d) → run `/pmo digest <oldest>`"
    - "5 digests in `knowledge/` have gone stale → triage during next `mid-phase-review` or `end-phase-retro`"
 
@@ -272,6 +277,8 @@ Without arg: print the **Subcommand index** table above verbatim, plus a pointer
 ## State files & size discipline
 
 PMO writes a fixed set of state files at the project root: `BOARD.md` (live), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
+
+**Which writes are tool-mediated.** `BOARD.md` rows and the `## Status changes` lines that accompany them go through `bin/perry-task`; so does `## Intake`. Everything else in the list above — `journal/` prose, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` — is still written directly, and deliberately: decision 3 scoped the first release to the task lifecycle, and those files carry judgment rather than state transitions.
 
 Size discipline is non-negotiable: tier 1 files have hard caps PMO/OKR **refuse to write past**; tier 2 have soft caps `triage` enforces. **Full inventory + ownership + templates + caps**: `reference/state-files.md`. **Structural contract** (sections, columns, enums): `$PERRY_HOME/schema/state-schema.json`.
 

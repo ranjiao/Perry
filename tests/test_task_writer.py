@@ -772,3 +772,97 @@ class TestLaneProceduresCallTheTool(unittest.TestCase):
             self.assertIn(f"perry-task {cmd}", r.stdout,
                           f"the procedures call `perry-task {cmd}`, which the "
                           f"tool's own usage does not list")
+
+
+class TestEveryStatusHasAToolPath(unittest.TestCase):
+    """A gap in coverage becomes a permanent false signal once detection exists.
+
+    `dispatch` moves rows into `review` on every run and the tool could not
+    write `review`, so every dispatch manufactured a post-tool edit that drift
+    detection would report forever — the same self-inflicted-drift shape that
+    an unmigrated `drop-task` produced, found by a review one level out.
+    """
+
+    STATUSES = ["not_started", "blocked", "in_progress", "review", "done", "dropped"]
+
+    def test_the_schema_enum_is_what_the_tool_accepts(self):
+        schema = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
+        self.assertEqual(schema["enums"]["task_status"], self.STATUSES)
+
+    def test_blocked_and_review_have_a_tool_path(self):
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        for want, extra in (("review", []), ("blocked", ["--reason", "waiting on USER-001"])):
+            code, out = p.run("status", a["id"], "--status", want, *extra)
+            self.assertEqual(code, 0, f"{want}: {out}")
+            self.assertIn(want, p.board())
+
+    def test_blocked_without_a_named_dependency_is_refused(self):
+        """A blocked row with no named dependency is a row nobody can unblock."""
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        code, out = p.run("status", a["id"], "--status", "blocked")
+        self.assertEqual(code, 1)
+        self.assertIn("reason", str(out))
+
+    def test_status_refuses_the_closing_transitions(self):
+        """`done` needs evidence and `dropped` needs a reason; letting `status`
+        write them would route around both gates."""
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        for want in ("done", "dropped"):
+            code, out = p.run("status", a["id"], "--status", want)
+            self.assertEqual(code, 1, want)
+            self.assertIn("perry-task", str(out))
+
+    def test_drop_requires_a_reason_and_leaves_no_orphan(self):
+        """A hand-removed row leaves its `add` event with no row and no close —
+        drift's second condition — so every hand drop manufactured false drift
+        forever. `drop` was in the argument guard and missing from the dispatch
+        table, crashing with a bare KeyError."""
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        code, _ = p.run("drop", a["id"])
+        self.assertEqual(code, 1, "drop without a reason should refuse")
+        code, out = p.run("drop", a["id"], "--reason", "superseded")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn(a["id"], p.board())
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        d = json.loads(r.stdout)["board"]["drift"]
+        self.assertEqual(d["drift"], 0, f"a tool-executed drop produced drift: {d}")
+
+    def test_resolve_intake_covers_the_other_two_outcomes(self):
+        p = Project(tracks=TestModeAwareWrites.TRACKS)
+        p.run("intake", "--title", "a request")
+        code, out = p.run("resolve-intake", "1", "--outcome", "dropped",
+                          "--reason", "covered by the handbook")
+        self.assertEqual(code, 0, out)
+        row = next(l for l in p.board().split("\n") if "a request" in l)
+        self.assertIn("dropped", row)
+        self.assertIn("handbook", row)
+
+    def test_a_queue_add_creates_the_intake_section(self):
+        """`triage` step 0 gated itself on the section existing, and only
+        `intake` created it — so the gate no-opped for every queue track."""
+        p = Project(tracks=TestModeAwareWrites.TRACKS)
+        p.run("add", "--title", "X", "--track", "ops", "--priority", "P0")
+        self.assertIn("## Intake", p.board())
+
+    def test_add_honours_arrived_rather_than_silently_ignoring_it(self):
+        """The flag was accepted and overwritten with today, writing a wrong
+        SLA clock without complaint."""
+        p = Project(tracks=TestModeAwareWrites.TRACKS)
+        p.run("add", "--title", "X", "--track", "ops", "--priority", "P0",
+              "--arrived", "2026-08-01")
+        row = next(l for l in p.board().split("\n") if l.startswith("| TASK-001 |"))
+        self.assertIn("2026-08-01", row)
+
+    def test_dispatch_and_autopilot_carry_the_invariant(self):
+        """Both are loaded on their own, so the rule stated in subcommands.md
+        never reaches them — it has to be restated where they are read."""
+        for name in ("dispatch", "autopilot"):
+            text = (PERRY_HOME / "work" / "reference" / f"{name}.md").read_text()
+            self.assertIn("perry-task", text,
+                          f"{name}.md never names the tool it must use")

@@ -35,7 +35,11 @@ Usage:
   perry-task stage <ID> --stage <name>
   perry-task intake --title "…" [--arrived YYYY-MM-DD]
   perry-task route <n> --track T [--priority P1] [--stage S]
-  perry-task done  <ID> --evidence <path> [--rung V0..V6]
+  perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
+  perry-task drop  <ID> --reason "…"
+  perry-task status <ID> --status blocked|review|not_started|in_progress
+                    [--reason "…"] [--next "…"]
+  perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
@@ -475,6 +479,11 @@ def cmd_add(args, ctx) -> dict:
     needed = mode_columns(ctx["schema"], mode)
     if not args.dry_run:
         ctx["board"].ensure_columns(priority, needed)
+        if mode == "queue":
+            # The section `triage` step 0 walks. Nothing created it before, so
+            # step 0's "only applies when the section exists" gate no-opped
+            # forever for every queue track ever made.
+            ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
 
     today = f"{date.today():%Y-%m-%d}"
     values = {
@@ -487,9 +496,14 @@ def cmd_add(args, ctx) -> dict:
     if mode != "project":
         values["track"] = track["track"]
         stages = split_stages(track.get("stages", "")) or default_stages(ctx["schema"], mode)
-        values["stage"] = args.stage or (stages[0] if stages else "")
+        # Queue rows raised directly skip intake, so they start at the first
+        # POST-intake stage — the same one `route` assigns. `new` means "sitting
+        # in intake", and a row that never was there should not claim it.
+        first = (stages[1] if mode == "queue" and len(stages) > 1
+                 else (stages[0] if stages else ""))
+        values["stage"] = args.stage or first
         if mode == "queue":
-            values["arrived"] = today
+            values["arrived"] = args.arrived or today
         else:
             values["stage since"] = today
         if args.parent:
@@ -601,6 +615,120 @@ def cmd_stage(args, ctx) -> dict:
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": tid, "stage": stage, "row": line, **plan}
+
+
+def cmd_status(args, ctx) -> dict:
+    """Any status transition the named subcommands do not cover.
+
+    `add`/`route`, `start`, `done` and `drop` cover four of the six statuses.
+    `blocked` and `review` had no tool path at all — and `dispatch` moves rows
+    into `review` on every run, so every dispatch manufactured a post-tool edit
+    that drift detection would report forever. A gap in coverage becomes a
+    permanent false signal the moment detection exists, which is why this is not
+    a nice-to-have.
+    """
+    tid, want = args.id, args.status
+    allowed = ctx["schema"]["enums"]["task_status"]
+    if not want:
+        raise Refused(f"--status is required, one of {allowed}")
+    if want not in allowed:
+        raise Refused(f"status {want!r} is not one of {allowed}")
+    if want in ("done", "dropped"):
+        raise Refused(
+            f"use `perry-task {'done' if want == 'done' else 'drop'}` — those "
+            f"close a row and need evidence or a reason, which this does not take")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("status", "")
+    if prev == want:
+        raise Refused(f"{tid} is already {want}")
+    if want == "blocked" and not args.reason:
+        raise Refused(
+            f"{tid}: blocked needs --reason naming what it waits on. A blocked "
+            f"row with no named dependency is a row nobody can unblock")
+    values["status"] = want
+    if args.next:
+        values["next action"] = args.next
+    elif want == "blocked":
+        values["next action"] = f"blocked on {args.reason}"
+    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    tail = f" · {args.reason}" if args.reason else ""
+    jline = f"- [{tid}] {prev or '—'} → {want}{tail}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "status",
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"), "actor": args.actor,
+             "from": prev, "to": want, "reason": args.reason or ""}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "status": want, "row": line, **plan}
+
+
+def cmd_drop(args, ctx) -> dict:
+    """Remove a row deliberately, with a reason, and record why.
+
+    Missing until a review found it: `drop` was in the accepted-subcommand
+    guard and absent from the dispatch table, so it raised a bare KeyError.
+    Worse than the crash was the consequence — a hand-removed row leaves its
+    `add` event with no row and no close, which is drift's second condition, so
+    every drop done by hand permanently manufactured the exact false drift
+    § 5.7 exists to prevent.
+    """
+    tid = args.id
+    if not args.reason:
+        raise Refused(
+            f"{tid}: --reason is required. A row that leaves the board without "
+            f"one is indistinguishable from a row that was lost")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("status", "")
+    line = ctx["board"].remove_row(idx) if not args.dry_run else ""
+    jline = f"- [{tid}] {prev or '—'} → dropped · reason: {args.reason}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "drop",
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"), "actor": args.actor,
+             "from": prev, "to": "dropped", "reason": args.reason}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "reason": args.reason, "removed": line, **plan}
+
+
+def cmd_resolve_intake(args, ctx) -> dict:
+    """Discharge an intake row without routing it — dropped or deferred.
+
+    `triage` mandates that every intake row leave as routed, dropped-with-a-
+    reason, or deferred-with-a-named-condition. Only the first had a tool, so
+    two of three outcomes were still hand-written and invisible to every count
+    and to drift detection.
+    """
+    if not args.reason:
+        raise Refused("--reason carries the drop reason or the defer condition")
+    rows = ctx["board"].section_rows("Intake")
+    try:
+        n = int(args.id or "0")
+    except ValueError:
+        raise Refused("resolve-intake takes the intake row number")
+    if not 1 <= n <= len(rows):
+        raise Refused(f"intake row {n} does not exist (there are {len(rows)})")
+    idx, cells = rows[n - 1]
+    sep, header = ctx["board"].section_table("Intake")
+    keys = [norm(h) for h in header]
+    intake = dict(zip(keys, cells))
+    outcome = args.outcome or "dropped"
+    if outcome not in ("dropped", "deferred"):
+        raise Refused("--outcome is `dropped` or `deferred`; routing uses `route`")
+    text = f"{outcome} {date.today():%Y-%m-%d} — {args.reason}"
+    if not args.dry_run:
+        ctx["board"].lines[idx] = render_row(
+            [intake.get(k, "") if k != "outcome" else text for k in keys])
+    jline = f"- [intake] {intake.get('request', '')[:48]} → {text}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "resolve-intake", "id": "",
+             "title": intake.get("request", ""),
+             "arrived": intake.get("arrived", ""), "actor": args.actor,
+             "from": "intake", "to": outcome, "reason": args.reason}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"outcome": outcome, **plan}
 
 
 def cmd_intake(args, ctx) -> dict:
@@ -765,14 +893,15 @@ def parse(argv: list[str]) -> Args:
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
     a.actor = "agent"
-    a.arrived = None
+    a.arrived = a.reason = a.outcome = a.status = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
              "--commitment": "commitment", "--stage": "stage",
              "--evidence": "evidence", "--rung": "rung", "--root": "root",
-             "--arrived": "arrived",
+             "--arrived": "arrived", "--reason": "reason",
+             "--outcome": "outcome", "--status": "status",
              "--actor": "actor"}
     while i < len(argv):
         t = argv[i]
@@ -802,7 +931,7 @@ def parse(argv: list[str]) -> Args:
 def main(argv: list[str]) -> int:
     args = parse(argv)
     if args.cmd not in ("add", "start", "stage", "done", "drop",
-                        "intake", "route", "list"):
+                        "intake", "route", "resolve-intake", "status", "list"):
         print("perry-task: expected one of add / start / stage / done / "
               "intake / route / list "
               "(try --help)", file=sys.stderr)
@@ -829,8 +958,9 @@ def main(argv: list[str]) -> int:
                "board": Board(state_root / "BOARD.md"),
                "events": read_events(project_root)}
         result = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
-                  "done": cmd_done, "intake": cmd_intake, "route": cmd_route,
-                  "list": cmd_list}[args.cmd](args, ctx)
+                  "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
+                  "route": cmd_route, "resolve-intake": cmd_resolve_intake,
+                  "status": cmd_status, "list": cmd_list}[args.cmd](args, ctx)
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
