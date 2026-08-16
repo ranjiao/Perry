@@ -7,11 +7,77 @@ to the nearest ancestor containing BOARD.md or OKR.md."""
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
+
+# ── localization glossary ─────────────────────────────────────────────────
+#
+# A project writes its state files in the language declared by
+# `.perry/config.md § Document language`, so a section heading may read
+# `## Top risks` or `## 主要风险` and a column header `Owner` or `负责人`.
+# Which spellings count is declared once, in `schema/state-schema.json §
+# i18n`, so this reader, `bin/perry-lint` and any external frontend agree.
+# See `reference/i18n.md` for the contract.
+
+_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "state-schema.json"
+
+
+@lru_cache(maxsize=1)
+def _i18n() -> dict:
+    """The schema's i18n block, or {} when the schema isn't readable.
+
+    Missing glossary degrades to English-only matching rather than raising —
+    the parsers must keep working against a bare checkout."""
+    try:
+        return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8")).get("i18n", {}) or {}
+    except Exception:
+        return {}
+
+
+@lru_cache(maxsize=256)
+def alias(kind: str, canonical: str) -> tuple[str, ...]:
+    """Canonical English name plus every localized spelling declared for it.
+
+    `kind` is "headings" or "columns". Unknown names return just the
+    canonical form, which is what an un-glossaried language should get."""
+    entry = ((_i18n().get(kind) or {}).get(canonical)) or {}
+    out = [canonical]
+    for spellings in entry.values():
+        for s in spellings:
+            if s not in out:
+                out.append(s)
+    return tuple(out)
+
+
+def heading_is(head: str, canonical: str) -> bool:
+    """True when `head` opens the section named `canonical`, in any language."""
+    return any(head.startswith(a) for a in alias("headings", canonical))
+
+
+@lru_cache(maxsize=1)
+def _column_index() -> dict[str, tuple[str, ...]]:
+    """Lowered column spelling -> every lowered spelling of the same column.
+
+    Keyed by alias as well as by canonical name so a lookup succeeds whichever
+    spelling the caller happens to hold."""
+    idx: dict[str, tuple[str, ...]] = {}
+    for canonical, per_lang in (_i18n().get("columns") or {}).items():
+        spellings = [canonical, *[s for v in per_lang.values() for s in v]]
+        lowered = tuple(dict.fromkeys(s.strip().lower() for s in spellings))
+        for s in lowered:
+            idx[s] = lowered
+    return idx
+
+
+def _column_keys(canonical: str) -> tuple[str, ...]:
+    """Lowercased header keys that satisfy `canonical`, in any language."""
+    key = canonical.strip().lower()
+    return _column_index().get(key, (key,))
 
 
 def _resolve_project_root() -> Path:
@@ -365,17 +431,19 @@ def parse_board(text: str) -> BoardState:
             continue
         head = head_match.group(1).strip()
 
+        # P0/P1/P2 are priority enum values, invariant across languages; the
+        # prose headings below resolve through the schema glossary.
         if head.startswith("P0"):
             state.p0 = _parse_task_table(chunk, "P0")
         elif head.startswith("P1"):
             state.p1 = _parse_task_table(chunk, "P1")
         elif head.startswith("P2"):
             state.p2 = _parse_task_table(chunk, "P2")
-        elif head.startswith("Cadence"):
+        elif heading_is(head, "Cadence"):
             state.cadence = _parse_task_table(chunk, "Cadence")
-        elif head.startswith("User Input Queue"):
+        elif heading_is(head, "User Input Queue"):
             state.user_input_queue = _parse_user_input(chunk)
-        elif head.startswith("Top risks"):
+        elif heading_is(head, "Top risks"):
             state.risks = _parse_risks(chunk)
         elif head.startswith("Backbone"):
             backbone_chunk = chunk
@@ -455,7 +523,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
         if len(cells) < 4:
             continue
         tid = cells[0]
-        if not tid or tid.lower() == "id":
+        if not tid or tid.strip().lower() in _column_keys("ID"):
             continue
         base_status, status_note = _split_status(cells[3] if len(cells) > 3 else "")
         tasks.append(
@@ -490,7 +558,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
         # and 4-col (USER-id | Needed | Blocks | Status — no Idle) BOARD formats.
         if len(cells) < 4:
             continue
-        if cells[0].lower() in {"user-id", ""}:
+        if cells[0].strip().lower() in {"", *_column_keys("USER-id")}:
             continue
         if len(cells) >= 5:
             items.append(
@@ -579,12 +647,21 @@ def _table_rows(section: str) -> list[dict[str, str]]:
 
 def _col(row: dict[str, str], *names: str) -> str:
     """First non-empty value among `names`, else the first column whose header
-    starts with one of them (tolerates 'kr text' vs 'kr')."""
+    starts with one of them (tolerates 'kr text' vs 'kr').
+
+    Each name is expanded through the schema glossary first, so a table
+    written in the project's document language resolves the same way — `_col(
+    row, "owner")` also matches a `负责人` header."""
+    wanted: list[str] = []
     for n in names:
+        for a in _column_keys(n):
+            if a not in wanted:
+                wanted.append(a)
+    for n in wanted:
         if row.get(n):
             return row[n]
     for key, val in row.items():
-        if val and any(key.startswith(n) for n in names):
+        if val and any(key.startswith(n) for n in wanted):
             return val
     return ""
 
@@ -889,7 +966,8 @@ _RE_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 def parse_top_risks(text: str) -> list[TopRisk]:
     risks: list[TopRisk] = []
-    m = re.search(r"## Top risks[^\n]*\n(.+?)(?=\n## |\Z)", text, re.S)
+    heads = "|".join(re.escape(a) for a in alias("headings", "Top risks"))
+    m = re.search(rf"## (?:{heads})[^\n]*\n(.+?)(?=\n## |\Z)", text, re.S)
     if not m:
         return risks
     section = m.group(1)
@@ -977,7 +1055,7 @@ def parse_decisions(text: str) -> list[ADR]:
     in_table = False
     for line in text.split("\n"):
         if line.startswith("## "):
-            in_active = "Active" in line or "进行中" in line
+            in_active = heading_is(line[3:].strip(), "Active")
             in_table = False
             continue
         if not in_active:

@@ -191,7 +191,7 @@ In Claude Code, from inside any project directory:
 ```
 
 If this is a new project (no `OKR.md` / `BOARD.md` yet), `/perry` will run first-time setup, which:
-1. Confirms your **document language** (English / 中文 / other) and writes it to `.perry/config.md`.
+1. Confirms your **document language** (English / 中文 / other) and writes it to `.perry/config.md`. This is the language your OKR, board, decisions and design docs get written in; IDs, status words, file names and paths stay English so the tooling can still read them. Conversational replies are governed by a separate `Chat language` field, which defaults to mirroring whatever you type — see [reference/i18n.md](reference/i18n.md).
 2. Confirms your **repo layout** — single repo (default for non-code projects) or split (PMO docs ↔ code) — and writes it to `.perry/config.md`.
 
 The recommended first-run order is:

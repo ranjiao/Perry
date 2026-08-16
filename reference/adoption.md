@@ -23,13 +23,23 @@ down.* Adoption is inference by nature, so without this rule a freshly adopted
 project's dashboard is a pile of plausible guesses that nobody can distinguish
 from fact ever again.
 
-Two corollaries, both load-bearing:
+Three corollaries, all load-bearing:
 
 - **One writer per file survives adoption.** Adoption is an orchestrator. `okr`
   still writes `OKR.md`, `pmo` still writes `BOARD.md`, `design` still writes
   `design/`. Adoption owns only `.perry/adoption/`.
 - **Nothing is materialized mid-pipeline.** Stages 0–3 write only the dossier. A
   user who abandons adoption halfway has an untouched project.
+- **Harvested evidence is quoted, never translated.** The dossier and everything
+  materialized from it are written in `Document language` — but a citation is a
+  claim about what a source *says*, so a README line, a commit subject, an issue
+  title or a TODO comment is reproduced in the language it was written in, with
+  the paraphrase alongside if one helps. Translating a quote and then citing it
+  turns evidence into assertion, which is the one thing this pipeline exists to
+  prevent. Adoption also asks for `Document language` during `confirm`, next to
+  `State root`, when `.perry/config.md` does not exist yet — an existing
+  project's own docs are the best available evidence for which language it
+  should be. See `reference/i18n.md`.
 
 ## The asymmetry: what may be inferred, and what may not
 

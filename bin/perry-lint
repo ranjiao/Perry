@@ -141,6 +141,56 @@ def norm(s: str) -> str:
     return re.sub(r"[\s`*]+", " ", s).strip().lower()
 
 
+# ── localized column headers ──────────────────────────────────────────────
+#
+# A project writes its state files in the language declared by
+# `.perry/config.md § Document language`. Section headings are handled by the
+# `match` regexes in the schema (each carries its localized alternatives);
+# table column headers are exact strings, so they resolve through the
+# `i18n.columns` glossary instead. Populated once from the schema in main();
+# empty means "English only", which is the correct behaviour for a schema
+# that declares no glossary.
+COLUMN_ALIASES: dict[str, list[str]] = {}
+FIELD_ALIASES: dict[str, list[str]] = {}
+HEADING_ALIASES: dict[str, list[str]] = {}
+
+
+def accepted(column: str) -> list[str]:
+    """Every normalized header spelling that satisfies this schema column."""
+    names = [column, *COLUMN_ALIASES.get(column, [])]
+    out: list[str] = []
+    for n in names:
+        v = norm(n)
+        if v not in out:
+            out.append(v)
+    return out
+
+
+def column_index(got: list[str], column: str) -> int:
+    """Position of `column` in a table's normalized header row, or -1."""
+    for alias in accepted(column):
+        if alias in got:
+            return got.index(alias)
+    return -1
+
+
+def field_re(name: str) -> str:
+    """Alternation matching a header field name in any accepted language."""
+    names = [name, *FIELD_ALIASES.get(name, [])]
+    return "(?:" + "|".join(re.escape(n) for n in names) + ")"
+
+
+def heading_re(name: str) -> re.Pattern:
+    """Matcher for a section heading in any accepted language.
+
+    For the cross-file checks, which look up a section by name rather than
+    walking `files[].headings`. Both paths must agree — a safety gate the
+    linter reports as unarmed while `bin/perry-state` reads it as armed is
+    worse than either answer alone."""
+    names = [name, *HEADING_ALIASES.get(name, [])]
+    return re.compile("|".join("^" + re.escape(n) for n in names))
+
+
 # ── checks ────────────────────────────────────────────────────────────────
 
 
@@ -267,7 +317,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     gate = spec.get("required_at_status")
     doc_status = ""
     if gate:
-        sm = re.search(rf"{re.escape(gate['field'])}\s*\**\s*[:：]\s*\**\s*(\w+)", text)
+        sm = re.search(rf"{field_re(gate['field'])}\s*\**\s*[:：]\s*\**\s*(\w+)", text)
         doc_status = sm.group(1).lower() if sm else ""
     sections_are_hard = not gate or doc_status in gate["values"]
 
@@ -287,7 +337,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
 
     for field in spec.get("header_fields", []):
         name = field["name"]
-        m = re.search(rf"{re.escape(name)}\s*\**\s*[:：]\s*\**\s*([^\n]+)", text)
+        m = re.search(rf"{field_re(name)}\s*\**\s*[:：]\s*\**\s*([^\n]+)", text)
         if not m:
             # A field declared `required: false` is a pointer with a default —
             # absent means "use the default", not "malformed".
@@ -319,25 +369,24 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
         bodies = section_body(text, level, matcher)
         if not bodies:
             continue
-        want = [norm(c) for c in tspec["columns"]]
         prefix_match = tspec.get("column_match") == "prefix"
         found_any = False
+
+        def satisfied(col: str, got: list[str]) -> bool:
+            """A column is present under its English name or any localized alias."""
+            return any(
+                any(g.startswith(a) for g in got) if prefix_match else a in got
+                for a in accepted(col)
+            )
+
         for body, start in bodies:
             for header, rows in tables(body):
                 got = [norm(c) for c in header]
                 if not got:
                     continue
                 found_any = True
-                ok = (
-                    all(any(g.startswith(w) for g in got) for w in want)
-                    if prefix_match else
-                    all(w in got for w in want)
-                )
-                if not ok:
-                    missing = [
-                        c for c, w in zip(tspec["columns"], want)
-                        if not (any(g.startswith(w) for g in got) if prefix_match else w in got)
-                    ]
+                missing = [c for c in tspec["columns"] if not satisfied(c, got)]
+                if missing:
                     findings.append(Finding(
                         "error", rel, "table-columns", line=start,
                         message=f"table under section at line {start} is missing column(s) "
@@ -345,9 +394,9 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                     ))
                     continue
                 for col, enum_name in (tspec.get("enum_columns") or {}).items():
-                    if norm(col) not in got:
+                    ci = column_index(got, col)
+                    if ci < 0:
                         continue
-                    ci = got.index(norm(col))
                     for row in rows:
                         if ci >= len(row):
                             continue
@@ -360,8 +409,8 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 "error", rel, "bad-enum",
                                 f"{col} = {val!r} is not one of {enums[enum_name]}",
                             ))
-                if tspec.get("id_column") and norm(tspec["id_column"]) in got:
-                    ci = got.index(norm(tspec["id_column"]))
+                ci = column_index(got, tspec["id_column"]) if tspec.get("id_column") else -1
+                if ci >= 0:
                     pat = re.compile(tspec["id_pattern"])
                     for row in rows:
                         if ci >= len(row):
@@ -467,7 +516,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     armed = False
     if hook.exists():
         body = section_body(strip_comments(hook.read_text()), 2,
-                            re.compile(r"^High-stakes"))
+                            heading_re("High-stakes operations"))
         armed = bool(body and [
             b for b in body[0][0].split("\n")
             if b.strip().startswith("-") and "{{" not in b
@@ -540,6 +589,17 @@ def main(argv: list[str]) -> int:
         return 2
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
+
+    # Localized column headers are legal in whatever the project's document
+    # language is; the glossary that says which spellings count lives in the
+    # schema so every reader (this linter, viewer/parsers.py, aiMark) agrees.
+    i18n = schema.get("i18n") or {}
+    for col, per_lang in (i18n.get("columns") or {}).items():
+        COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
+    for fld, per_lang in (i18n.get("fields") or {}).items():
+        FIELD_ALIASES[fld] = [a for aliases in per_lang.values() for a in aliases]
+    for head, per_lang in (i18n.get("headings") or {}).items():
+        HEADING_ALIASES[head] = [a for aliases in per_lang.values() for a in aliases]
 
     findings: list[Finding] = []
 
