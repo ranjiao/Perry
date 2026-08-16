@@ -1,0 +1,1120 @@
+{
+  "schema_version": 1,
+  "description": "Structural contract for Perry state files. The single source of truth that SKILL.md prose, state/*_TEMPLATE.md, and viewer/parsers.py must all agree with. Validated by bin/perry-lint (against a project) and by tests/ (against the templates themselves).",
+  "enums": {
+    "task_status": [
+      "not_started",
+      "blocked",
+      "in_progress",
+      "review",
+      "done",
+      "dropped"
+    ],
+    "priority": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "owner": [
+      "User",
+      "PMO Agent",
+      "Coding Agent",
+      "Research Agent",
+      "Review Agent",
+      "User + Agent"
+    ],
+    "design_status": [
+      "draft",
+      "in_review",
+      "locked",
+      "superseded",
+      "dropped"
+    ],
+    "linkage_status": [
+      "active",
+      "done",
+      "dropped",
+      "unlinked"
+    ],
+    "phase_status": [
+      "active",
+      "scored"
+    ],
+    "kr_score": [
+      "achieved",
+      "partial",
+      "missed",
+      "dropped"
+    ],
+    "adoption_stage": [
+      "scan",
+      "harvest",
+      "infer",
+      "confirm",
+      "commit",
+      "done"
+    ],
+    "adoption_depth": [
+      "quick",
+      "standard",
+      "deep"
+    ],
+    "adoption_mode": [
+      "fresh",
+      "merge"
+    ],
+    "source_tier": [
+      "A",
+      "B",
+      "C"
+    ],
+    "candidate_kind": [
+      "objective",
+      "kr",
+      "phase",
+      "task",
+      "design",
+      "decision",
+      "knowledge",
+      "arch",
+      "risk"
+    ],
+    "candidate_confidence": [
+      "high",
+      "medium",
+      "low"
+    ],
+    "candidate_status": [
+      "pending",
+      "accepted",
+      "edited",
+      "rejected",
+      "deferred"
+    ],
+    "diagnosis_stage": [
+      "scan",
+      "read",
+      "interview",
+      "prescribe",
+      "execute",
+      "done"
+    ],
+    "diagnosis_depth": [
+      "quick",
+      "standard",
+      "deep"
+    ],
+    "finding_severity": [
+      "error",
+      "warn",
+      "info"
+    ],
+    "finding_source": [
+      "scan",
+      "interview"
+    ],
+    "finding_status": [
+      "open",
+      "closed",
+      "accepted-risk",
+      "disputed"
+    ],
+    "prescription_status": [
+      "proposed",
+      "accepted",
+      "done",
+      "declined",
+      "deferred"
+    ]
+  },
+  "files": [
+    {
+      "id": "board",
+      "path": "BOARD.md",
+      "template": "pmo/state/BOARD_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": true,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^P0\\b",
+          "label": "## P0"
+        },
+        {
+          "level": 2,
+          "match": "^P1\\b",
+          "label": "## P1"
+        },
+        {
+          "level": 2,
+          "match": "^P2\\b",
+          "label": "## P2"
+        },
+        {
+          "level": 2,
+          "match": "^Cadence\\b",
+          "label": "## Cadence"
+        },
+        {
+          "level": 2,
+          "match": "^User Input Queue\\b",
+          "label": "## User Input Queue"
+        },
+        {
+          "level": 2,
+          "match": "^Top risks\\b",
+          "label": "## Top risks"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^P[012]\\b",
+          "columns": [
+            "ID",
+            "Title",
+            "Owner",
+            "Status",
+            "Next action",
+            "Evidence"
+          ],
+          "enum_columns": {
+            "Status": "task_status"
+          }
+        },
+        {
+          "under": "^User Input Queue\\b",
+          "columns": [
+            "USER-id",
+            "Needed from user",
+            "Blocks",
+            "Idle",
+            "Status"
+          ]
+        },
+        {
+          "under": "^Cadence\\b",
+          "columns": [
+            "ID",
+            "Recurring task",
+            "Owner",
+            "Frequency",
+            "Next due",
+            "Last evidence"
+          ]
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "okr",
+      "path": "OKR.md",
+      "template": "okr/state/OKR_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 1,
+      "cap": 200,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Mission\\b|^\u4f7f\u547d",
+          "label": "## Mission"
+        },
+        {
+          "level": 2,
+          "match": "^Operating Principles\\b|^\u8fd0\u884c\u539f\u5219",
+          "label": "## Operating Principles"
+        },
+        {
+          "level": 2,
+          "match": "^Anti-Goals\\b|^\u53cd\u76ee\u6807",
+          "label": "## Anti-Goals"
+        },
+        {
+          "level": 2,
+          "match": "^v\\d+:",
+          "label": "## v<N>: <date>  (at least one version block)"
+        },
+        {
+          "level": 2,
+          "match": "^Versioning",
+          "label": "## Versioning log"
+        },
+        {
+          "level": 3,
+          "match": "^(Objective|\u76ee\u6807) \\d+",
+          "label": "### Objective <N> \u2014 <title>"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under_level": 3,
+          "columns": [
+            "Id",
+            "KR",
+            "Metric / Target",
+            "Stretch?",
+            "Deadline"
+          ],
+          "id_column": "Id",
+          "id_pattern": "^KR-O\\d+\\.\\d+$"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "phase",
+      "path": "phase/[0-9][0-9][0-9]-*.md",
+      "exclude": "phase/*-linkage.md",
+      "template": "okr/state/phase_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 1,
+      "cap": 300,
+      "cap_kind": "hard",
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Started",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}",
+          "note": "phase day is computed from this"
+        },
+        {
+          "name": "Status",
+          "enum": "phase_status"
+        }
+      ],
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Phase Focus\\b|^\u9636\u6bb5\u7126\u70b9",
+          "label": "## Phase Focus"
+        },
+        {
+          "level": 2,
+          "match": "^Operating Rules\\b",
+          "label": "## Operating Rules"
+        },
+        {
+          "level": 2,
+          "match": "^Cost Ceiling\\b|^\u6210\u672c\u4e0a\u9650",
+          "label": "## Cost Ceiling"
+        },
+        {
+          "level": 2,
+          "match": "^User Commitments\\b",
+          "label": "## User Commitments"
+        },
+        {
+          "level": 2,
+          "match": "^User-Unavailable Degradation\\b",
+          "label": "## User-Unavailable Degradation"
+        },
+        {
+          "level": 2,
+          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
+          "label": "## Phase Scope Reduction Rule"
+        },
+        {
+          "level": 2,
+          "match": "^(Objective|\u76ee\u6807) \\d+",
+          "label": "## Objective <N> \u2014 <title>"
+        },
+        {
+          "level": 2,
+          "match": "^Definition of Done\\b",
+          "label": "## Definition of Done"
+        },
+        {
+          "level": 2,
+          "match": "^Not Doing in this phase\\b",
+          "label": "## Not Doing in this phase"
+        },
+        {
+          "level": 2,
+          "match": "^Process Note\\b",
+          "label": "## Process Note"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under_level": 2,
+          "columns": [
+            "Id",
+            "KR text",
+            "Metric / Target",
+            "Linked overall KR"
+          ],
+          "id_column": "Id",
+          "id_pattern": "^P-O\\d+\\.\\d+$"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "linkage",
+      "path": "phase/[0-9][0-9][0-9]-linkage.md",
+      "template": "okr/state/linkage_TEMPLATE.md",
+      "owner": "okr",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "linkage",
+        "spec_version": 1,
+        "description": "The O\u2192KR\u2192task\u2192agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
+        "fields": {
+          "linkage": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "phase": {
+            "type": "string",
+            "required": false,
+            "note": "<NNN>-<slug>"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime",
+            "note": "full datetime; a day-only value is dropped, not guessed"
+          },
+          "objectives": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^O\\d+$"
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              },
+              "krs": {
+                "type": "array",
+                "required": false,
+                "items": {
+                  "id": {
+                    "type": "string",
+                    "required": true,
+                    "pattern": "^P-O\\d+\\.\\d+$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "required": true
+                  },
+                  "metric": {
+                    "type": "string",
+                    "required": false,
+                    "note": "prose; always safe to display"
+                  },
+                  "target": {
+                    "type": "number",
+                    "required": false,
+                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') \u2014 rendering a ceiling as completion is worse than rendering nothing."
+                  },
+                  "current": {
+                    "type": "number",
+                    "required": false
+                  },
+                  "due": {
+                    "type": "string",
+                    "required": false
+                  },
+                  "stretch": {
+                    "type": "boolean",
+                    "required": false
+                  },
+                  "tasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "required": false,
+                    "note": "BOARD task ids. This is the task->KR edge; a task listed here needs no inference."
+                  }
+                }
+              }
+            }
+          },
+          "unlinked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false,
+            "note": "DECLARED, never inferred. Set arithmetic over the board would report the whole un-triaged backlog as drift."
+          },
+          "agents": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": false
+              }
+            }
+          },
+          "projects": {
+            "type": "array",
+            "required": false,
+            "note": "Perry's attribution registry. Extra key beyond the frontend's schema; the frontend ignores it.",
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true
+              },
+              "serves": {
+                "type": "string",
+                "required": true,
+                "pattern": "^P-O\\d+\\.\\d+$"
+              },
+              "objective": {
+                "type": "string",
+                "required": false,
+                "pattern": "^O\\d+$"
+              },
+              "name": {
+                "type": "string",
+                "required": false
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": false
+              },
+              "status": {
+                "type": "string",
+                "required": false,
+                "enum": "linkage_status"
+              }
+            }
+          }
+        }
+      },
+      "anchor": "state"
+    },
+    {
+      "id": "adoption",
+      "path": ".perry/adoption/*.md",
+      "template": "state/adoption_dossier_TEMPLATE.md",
+      "owner": "perry",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "adoption",
+        "spec_version": 1,
+        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 \u2014 state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
+        "fields": {
+          "adoption": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "project": {
+            "type": "string",
+            "required": true
+          },
+          "root": {
+            "type": "string",
+            "required": false,
+            "note": "absolute path to the adopted project root"
+          },
+          "depth": {
+            "type": "string",
+            "required": false,
+            "enum": "adoption_depth"
+          },
+          "mode": {
+            "type": "string",
+            "required": false,
+            "enum": "adoption_mode",
+            "note": "merge = Perry state already exists; duplicates are surfaced to the user, never auto-dropped"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false
+          },
+          "started": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "stage": {
+            "type": "string",
+            "required": true,
+            "enum": "adoption_stage",
+            "note": "the only field --resume reads; advanced only after the stage's writes are durable"
+          },
+          "sources": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^SRC-\\d{3}$"
+              },
+              "kind": {
+                "type": "string",
+                "required": true,
+                "note": "a source id from reference/adoption-sources.md"
+              },
+              "tier": {
+                "type": "string",
+                "required": true,
+                "enum": "source_tier",
+                "note": "caps the confidence of every candidate derived from this source"
+              },
+              "path": {
+                "type": "string",
+                "required": false
+              },
+              "read": {
+                "type": "boolean",
+                "required": false,
+                "note": "scan writes false; harvest flips it. The difference is what --resume needs."
+              }
+            }
+          },
+          "clusters": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^CL-\\d{2}$"
+              },
+              "name": {
+                "type": "string",
+                "required": true,
+                "note": "named after the work, not the source"
+              },
+              "seed": {
+                "type": "string",
+                "required": false,
+                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc \u2014 in preference order; see reference/adoption.md \u00a7 Clustering"
+              },
+              "kr": {
+                "type": "string",
+                "required": false,
+                "pattern": "^P-O\\d+\\.\\d+$",
+                "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
+              }
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^CAND-\\d{3}$"
+              },
+              "kind": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_kind"
+              },
+              "confidence": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_confidence",
+                "note": "Perry's reading of the evidence, NOT whether the candidate is a good idea"
+              },
+              "cluster": {
+                "type": "string",
+                "required": false,
+                "pattern": "^CL-\\d{2}$"
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": true,
+                "note": "citations in the declared forms (path#Lx-y, git:sha, gh#id, fs:path@mtime). A candidate that cannot cite is dropped, not softened."
+              },
+              "proposal": {
+                "type": "string",
+                "required": true
+              },
+              "target": {
+                "type": "string",
+                "required": false,
+                "note": "which state file it would land in, and therefore which skill writes it"
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "candidate_status",
+                "note": "rejected entries are KEPT \u2014 they are the don't-ask-me-again record"
+              },
+              "resolution": {
+                "type": "string",
+                "required": false,
+                "note": "one line: why rejected / what the user edited it to"
+              },
+              "materialized_as": {
+                "type": "string",
+                "required": false,
+                "note": "the real id it became at stage 4 (TASK-007, DESIGN-002, ADR-004)"
+              }
+            }
+          }
+        }
+      },
+      "anchor": "project"
+    },
+    {
+      "id": "diagnosis",
+      "path": ".perry/diagnose/*.md",
+      "template": "state/diagnosis_TEMPLATE.md",
+      "owner": "perry",
+      "tier": 2,
+      "required": false,
+      "format": "yaml-frontmatter",
+      "frontmatter": {
+        "spec_key": "diagnosis",
+        "spec_version": 1,
+        "description": "The diagnosis record: how a project is structured for agent work, what was measured, what the user said, and what was prescribed. The ONLY file /perry diagnose writes. Works on any folder, Perry-adopted or not. Also the durable record of declined prescriptions, so --recheck does not re-propose them forever.",
+        "fields": {
+          "diagnosis": {
+            "type": "integer",
+            "const": 1,
+            "required": true
+          },
+          "project": {
+            "type": "string",
+            "required": true
+          },
+          "root": {
+            "type": "string",
+            "required": false,
+            "note": "absolute path to the diagnosed project root"
+          },
+          "depth": {
+            "type": "string",
+            "required": false,
+            "enum": "diagnosis_depth"
+          },
+          "lanes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "required": false,
+            "note": "context | docs | concurrency | tracking"
+          },
+          "started": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "updated": {
+            "type": "string",
+            "required": false,
+            "format": "iso-datetime"
+          },
+          "stage": {
+            "type": "string",
+            "required": true,
+            "enum": "diagnosis_stage",
+            "note": "the only field a resumed run reads; advanced only after the stage's writes are durable"
+          },
+          "archetype": {
+            "type": "object",
+            "required": false,
+            "fields": {
+              "scanned": {
+                "type": "string",
+                "required": false,
+                "note": "what bin/perry-diagnose inferred from folder shapes; may be null, which is an honest answer"
+              },
+              "scanned_confidence": {
+                "type": "string",
+                "required": false,
+                "note": "high | medium | low | none"
+              },
+              "confirmed": {
+                "type": "string",
+                "required": false,
+                "note": "what the user said. OVERRIDES scanned unconditionally."
+              }
+            }
+          },
+          "maintenance_ceiling": {
+            "type": "string",
+            "required": false,
+            "note": "the Q6 answer. A HARD CAP on the prescription, not a factor to weigh."
+          },
+          "measurements": {
+            "type": "object",
+            "required": false,
+            "note": "copied from the bin/perry-diagnose payload. Every number in the report comes from here; absent fields print '-' rather than being estimated."
+          },
+          "restore_point": {
+            "type": "string",
+            "required": false,
+            "note": "branch name or backup dir created before the first change. Stage execute may not begin while this is null."
+          },
+          "findings": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^[A-Z]{3}-\\d{2}$",
+                "note": "stable id from bin/perry-diagnose (CTX/DOC/CON/TRK/FIT) or assigned for an interview finding"
+              },
+              "severity": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_severity"
+              },
+              "source": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_source",
+                "note": "measured, or reported by the user. Nothing else may be a finding."
+              },
+              "title": {
+                "type": "string",
+                "required": true
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "finding_status",
+                "note": "disputed is real - thresholds are calibrated defaults, not laws, and the user may reject one"
+              }
+            }
+          },
+          "interview": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "q": {
+                "type": "string",
+                "required": true,
+                "note": "Q1-Q6 or a situational id"
+              },
+              "asked": {
+                "type": "string",
+                "required": false
+              },
+              "answer": {
+                "type": "string",
+                "required": true,
+                "note": "verbatim; prescriptions cite it"
+              }
+            }
+          },
+          "prescription": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "id": {
+                "type": "string",
+                "required": true,
+                "pattern": "^RX-\\d+$"
+              },
+              "change": {
+                "type": "string",
+                "required": true,
+                "note": "one line - what actually changes on disk"
+              },
+              "closes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "required": true,
+                "note": "finding ids. An item that closes nothing does not belong on the list."
+              },
+              "cost": {
+                "type": "string",
+                "required": false
+              },
+              "reversible": {
+                "type": "boolean",
+                "required": false
+              },
+              "status": {
+                "type": "string",
+                "required": true,
+                "enum": "prescription_status",
+                "note": "declined entries are KEPT - they are the don't-ask-me-again record"
+              }
+            }
+          },
+          "moves": {
+            "type": "array",
+            "required": false,
+            "items": {
+              "from": {
+                "type": "string",
+                "required": true
+              },
+              "to": {
+                "type": "string",
+                "required": true
+              },
+              "rx": {
+                "type": "string",
+                "required": false,
+                "pattern": "^RX-\\d+$"
+              }
+            },
+            "note": "every file relocation. This is what makes the run reversible by hand, so it is written as each move happens, not batched."
+          }
+        }
+      },
+      "anchor": "project"
+    },
+    {
+      "id": "design",
+      "path": "design/*.md",
+      "exclude": "design/README.md",
+      "template": "design/state/design_TEMPLATE.md",
+      "owner": "design",
+      "tier": 2,
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Status",
+          "enum": "design_status"
+        },
+        {
+          "name": "Date",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}|\u2014"
+        }
+      ],
+      "headings": [
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Problem\\b",
+          "label": "## Problem"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Goals\\b",
+          "label": "## Goals"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b",
+          "label": "## Non-Goals"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b",
+          "label": "## User Decisions"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Architecture\\b",
+          "label": "## Architecture"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b",
+          "label": "## Implementation plan"
+        },
+        {
+          "level": 2,
+          "match": "^(?:\\d+\\.\\s*)?Risks",
+          "label": "## Risks & mitigations"
+        }
+      ],
+      "required_at_status": {
+        "field": "Status",
+        "values": [
+          "locked"
+        ]
+      },
+      "anchor": "state"
+    },
+    {
+      "id": "decisions",
+      "path": "DECISIONS.md",
+      "template": "pmo/state/DECISIONS_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "label": "## Active"
+        }
+      ],
+      "tables": [
+        {
+          "under": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "columns": [
+            "ADR",
+            "Title",
+            "Type",
+            "Date"
+          ],
+          "column_match": "prefix"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "project_state",
+      "path": "PROJECT_STATE.md",
+      "template": "pmo/state/PROJECT_STATE_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 2,
+      "cap": 200,
+      "cap_kind": "soft",
+      "required": false,
+      "headings": [],
+      "anchor": "state"
+    },
+    {
+      "id": "architecture",
+      "path": "ARCHITECTURE.md",
+      "template": "pmo/state/ARCHITECTURE_TEMPLATE.md",
+      "owner": "user",
+      "tier": 1,
+      "cap": 500,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^\u00a7[1-8]\\b",
+          "label": "## \u00a71 \u2026 \u00a78 (eight fixed sections)"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "runbook",
+      "path": "runbook/*.md",
+      "exclude": "runbook/INDEX.md",
+      "template": "pmo/state/runbook_TEMPLATE.md",
+      "owner": "pmo",
+      "tier": 1,
+      "cap": 150,
+      "cap_kind": "hard",
+      "required": false,
+      "headings": [],
+      "anchor": "state"
+    },
+    {
+      "id": "config",
+      "path": ".perry/config.md",
+      "owner": "perry",
+      "tier": 1,
+      "required": false,
+      "header_fields": [
+        {
+          "name": "Document language"
+        },
+        {
+          "name": "Repo layout",
+          "pattern": "single|split"
+        },
+        {
+          "name": "State root",
+          "required": false,
+          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves \u2014 it is the anchor that holds this pointer."
+        }
+      ],
+      "anchor": "project"
+    },
+    {
+      "id": "hook",
+      "path": ".perry/hook.md",
+      "template": "pmo/state/hook_TEMPLATE.md",
+      "owner": "user",
+      "tier": 1,
+      "required": false,
+      "headings": [
+        {
+          "level": 2,
+          "match": "^High-stakes",
+          "label": "## High-stakes operations"
+        }
+      ],
+      "anchor": "project"
+    }
+  ],
+  "cross_file": [
+    {
+      "id": "current-phase-resolves",
+      "severity": "error",
+      "description": "phase/CURRENT must name an existing phase file (or be absent / '(none)')."
+    },
+    {
+      "id": "linkage-objective-agrees",
+      "severity": "error",
+      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P-O1.2 -> O1)."
+    },
+    {
+      "id": "linkage-kr-exists",
+      "severity": "warn",
+      "description": "Each linkage row's Serves KR should exist in the current phase file's KR set."
+    },
+    {
+      "id": "locked-design-has-plan",
+      "severity": "error",
+      "description": "A design doc with Status: locked must have a non-empty Implementation plan."
+    },
+    {
+      "id": "done-needs-evidence",
+      "severity": "warn",
+      "description": "A BOARD row at status done must carry an Evidence path."
+    },
+    {
+      "id": "hook-high-stakes-armed",
+      "severity": "warn",
+      "description": ".perry/hook.md should declare a high-stakes list; dispatch and autopilot match specs against it."
+    },
+    {
+      "id": "linkage-names-unique",
+      "severity": "error",
+      "description": "No two linkage projects may share a name or an alias \u2014 that ambiguity is exactly what the registry exists to prevent."
+    },
+    {
+      "id": "linkage-task-single-kr",
+      "severity": "error",
+      "description": "A task id may appear under at most one KR's tasks[]; two would make its attribution ambiguous."
+    }
+  ]
+}

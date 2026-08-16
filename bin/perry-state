@@ -1,0 +1,551 @@
+#!/usr/bin/env python3
+"""
+perry-state — the single deterministic read of a Perry project's state.
+
+One extractor, two consumers:
+  - the standup ritual (`/perry`, `/pmo`, `/okr`, `/design`) reads `--json`
+    instead of opening a dozen files, so dashboard numbers are computed, never
+    eyeballed;
+  - `viewer/serve.py` imports the same `parsers.py` this script does.
+
+The frontend (aiMark) does NOT call this script — it parses the same files
+in-process from `schema/state-schema.json`. The schema, not this payload, is
+the cross-repo contract; `bin/perry-lint` is the conformance test both sides
+run. See `schema/README.md § Consumers`.
+
+No LLM, no external dependencies (stdlib only), read-only. Exit 0 even when the
+project has no Perry state at all — `installed: false` says so in the payload.
+
+Usage:
+  perry-state [--root <project_root>] [--json | --dashboard] [--section <name>]
+
+  --json        full state payload (default)
+  --dashboard   the standup dashboard rows as plain text, pre-computed
+  --section     emit one top-level key only (board / phase / okr / design / …)
+  --root        project root; default $PERRY_PROJECT, else walk up from cwd
+
+Attribution rule (reference/okr-linkage.md): a task resolves to a KR only by
+exact Project ID, exact current name, or registered alias. Anything else is
+reported as `unlinked` — this script never fuzzy-matches a name into a KR.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+
+try:
+    import parsers as P  # noqa: E402
+except ImportError as exc:  # pragma: no cover - install-shape problem
+    print(
+        f"perry-state: cannot import viewer/parsers.py from {PERRY_HOME}: {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+
+# ── helpers ───────────────────────────────────────────────────────────────
+
+
+def days_since(value: str) -> int | None:
+    m = re.search(r"\d{4}-\d{2}-\d{2}", value or "")
+    if not m:
+        return None
+    try:
+        then = datetime.strptime(m.group(0), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return (date.today() - then).days
+
+
+def parse_config(root: Path) -> dict:
+    """`.perry/config.md` — document language, repo layout, state root."""
+    cfg = {"present": False, "language": "", "layout": "", "pmo_repo": "", "code_repo": "",
+           "state_root": ""}
+    path = root / ".perry" / "config.md"
+    if not path.exists():
+        return cfg
+    cfg["present"] = True
+    text = path.read_text(errors="replace")
+    fields = {
+        "language": r"Document language",
+        "layout": r"Repo layout",
+        "pmo_repo": r"PMO repo path",
+        "code_repo": r"Code repo path",
+        "state_root": r"State root",
+    }
+    for key, label in fields.items():
+        m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
+        if m:
+            cfg[key] = m.group(1).strip().strip("*` ")
+    return cfg
+
+
+def hook_profile(root: Path) -> dict:
+    """`.perry/hook.md` — presence and whether it declares a high-stakes list.
+
+    `/pmo dispatch` pre-flight and `/pmo autopilot`'s safety scan both match
+    specs against this list. If it is missing there is nothing to match, so the
+    gate is reported as unarmed rather than silently passing."""
+    path = root / ".perry" / "hook.md"
+    out = {"present": path.exists(), "high_stakes": [], "high_stakes_armed": False}
+    if not path.exists():
+        return out
+    text = P._strip_comments(path.read_text(errors="replace"))
+    section = P._section(text, "High-stakes operations", "High-stakes", "高风险操作")
+    items = [b for b in P._bullets(section) if "{{" not in b]
+    out["high_stakes"] = items
+    out["high_stakes_armed"] = bool(items)
+    return out
+
+
+TIER1_CAPS = {
+    "OKR.md": 200,
+    "ARCHITECTURE.md": 500,
+}
+
+
+def tier1_caps(root: Path, phase_rel: str | None) -> list[dict]:
+    """Tier-1 hard caps (pmo/SKILL.md § Two file models). Reported, not enforced
+    — enforcement is the writing skill's job; this is the observation."""
+    out = []
+    targets = dict(TIER1_CAPS)
+    if phase_rel:
+        targets[phase_rel] = 300
+    for rel, cap in targets.items():
+        path = root / rel
+        if not path.exists():
+            continue
+        lines = len(path.read_text(errors="replace").split("\n"))
+        out.append({"file": rel, "lines": lines, "cap": cap, "over": lines > cap})
+    for rb in sorted((root / "runbook").glob("*.md")) if (root / "runbook").is_dir() else []:
+        if rb.name == "INDEX.md":
+            continue
+        lines = len(rb.read_text(errors="replace").split("\n"))
+        out.append({
+            "file": rb.relative_to(root).as_posix(),
+            "lines": lines, "cap": 150, "over": lines > 150,
+        })
+    return out
+
+
+def resolve_kr(task, linkage) -> str:
+    """Task → KR id. Declared edge first, then exact Project ID, then a
+    registered alias. Nothing else.
+
+    Returns "" when it does not resolve to exactly one KR. Callers must treat
+    "" as `unlinked` and ask the user — never guess (reference/okr-linkage.md).
+    A near-match is not a match."""
+    if not linkage or not linkage.ok:
+        return ""
+    tid = (task.id or "").strip()
+
+    # 1. The graph declares the edge outright.
+    declared = linkage.kr_for_task(tid)
+    if declared:
+        return declared
+
+    # 2/3. Project ID, then exact current-name / registered alias.
+    title = (task.title or "").strip().lower()
+    hits: set[str] = set()
+    for row in linkage.projects:
+        if row.status in {"dropped", "unlinked"} or not row.serves_kr:
+            continue
+        if tid and (tid == row.project_id or tid.startswith(row.project_id + "-")):
+            hits.add(row.serves_kr)
+            continue
+        names = [n for n in [row.name.lower(), *(a.lower() for a in row.aliases)] if n]
+        if title and title in names:
+            hits.add(row.serves_kr)
+    return hits.pop() if len(hits) == 1 else ""
+
+
+def expired_sunsets(adrs: list) -> list[dict]:
+    """Active ADRs whose date-based sunset criteria have passed."""
+    out = []
+    for adr in adrs:
+        d = days_since(adr.sunset_or_notes)
+        if d is not None and d > 0:
+            out.append({"id": adr.id, "title": adr.title, "days_past": d})
+    return out
+
+
+def encode(obj):
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {k: encode(v) for k, v in asdict(obj).items()}
+    if isinstance(obj, Path):
+        return obj.as_posix()
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: encode(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [encode(v) for v in obj]
+    return obj
+
+
+# ── payload ───────────────────────────────────────────────────────────────
+
+
+def build(root: Path, project_root: Path | None = None) -> dict:
+    # `.perry/` is anchored at the project root even when state lives in a
+    # subdirectory, so config/hook are read from there, not from `root`.
+    perry_root = project_root or root
+    installed = (
+        any((root / f).exists() for f in ("BOARD.md", "OKR.md"))
+        or (perry_root / ".perry" / "config.md").exists()
+        # A bare `design/` is not evidence: plenty of projects have one that has
+        # nothing to do with Perry. Require a doc named the way `design` writes.
+        or bool(list((root / "design").glob("DESIGN-*.md")) if (root / "design").is_dir() else [])
+    )
+    if not installed:
+        return {
+            "schema": 1,
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "project": {"root": root.as_posix(), "name": root.name},
+            "installed": False,
+            "warnings": ["No Perry state found — run /perry for first-time setup."],
+        }
+
+    snap = P.load_snapshot(root)
+    board = snap.board
+    warnings: list[str] = []
+
+    def status_counts(tasks):
+        counts: dict[str, int] = {}
+        for t in tasks:
+            counts[t.status or "unknown"] = counts.get(t.status or "unknown", 0) + 1
+        return counts
+
+    open_states = {"not_started", "in_progress", "blocked", "review"}
+    all_tasks = board.all_tasks
+
+    # KR attribution — exact resolution only; the rest are surfaced, not guessed.
+    link = snap.linkage
+    if link.spec and link.error:
+        warnings.append(f"phase linkage file is unreadable ({link.error}) — KR roll-up is off.")
+    unlinked = []
+    linked = 0
+    for t in all_tasks:
+        if t.priority == "Cadence" or t.status in {"done", "dropped"}:
+            continue
+        if resolve_kr(t, link):
+            linked += 1
+        else:
+            unlinked.append({"id": t.id, "title": t.title})
+
+    uiq = board.user_input_queue
+    def idle_days(u):
+        m = re.search(r"(\d+)", u.idle or "")
+        return int(m.group(1)) if m else -1
+    oldest_uiq = max(uiq, key=idle_days) if uiq else None
+
+    locked_designs = [d for d in snap.design if d.status == "locked"]
+    pending_handoff = [d for d in locked_designs if d.impl_refs == 0]
+
+    board_path = root / "BOARD.md"
+    board_lines = len(board_path.read_text(errors="replace").split("\n")) if board_path.exists() else 0
+    if board_lines > 200:
+        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /pmo triage.")
+
+    phase_rel = f"phase/{snap.phase.slug}.md" if snap.phase else None
+    caps = tier1_caps(root, phase_rel)
+    for c in caps:
+        if c["over"]:
+            warnings.append(
+                f"{c['file']} is {c['lines']} lines, over its tier-1 cap of {c['cap']} — split before the next write."
+            )
+
+    cur_pointer = root / "phase" / "CURRENT"
+    if cur_pointer.exists() and not snap.phase:
+        warnings.append("phase/CURRENT points at a phase file that does not exist.")
+
+    hook = hook_profile(perry_root)
+    if not hook["high_stakes_armed"]:
+        warnings.append(
+            "No high-stakes list in .perry/hook.md — /pmo dispatch and /pmo autopilot "
+            "have nothing to match against; the safety scan is unarmed."
+        )
+
+    sunsets = expired_sunsets(snap.adrs)
+    for s in sunsets:
+        warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /pmo decide --expire {s['id']}.")
+
+    if snap.arch_meta.exists:
+        if snap.arch_meta.status.lower().startswith("draft"):
+            warnings.append("ARCHITECTURE.md is still Status: draft.")
+        rev = days_since(snap.arch_meta.last_reviewed)
+        if rev is not None and rev > 180:
+            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /pmo architecture review.")
+
+    payload = {
+        "schema": 1,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "installed": True,
+        "project": {
+            "root": root.as_posix(),
+            "name": snap.project_name,
+            "config": parse_config(perry_root),
+            "hook": hook,
+        },
+        "okr": {
+            "present": bool(snap.okr.version),
+            "version": snap.okr.version,
+            "mission": snap.okr.mission,
+            "objectives": [
+                {"title": o.title, "krs": [encode(k) for k in o.krs]}
+                for o in snap.okr.objectives
+            ],
+            "operating_principles": len(snap.okr.operating_principles),
+            "anti_goals": len(snap.okr.anti_goals),
+            "version_log": snap.okr.version_log,
+        },
+        "phase": None if not snap.phase else {
+            "number": snap.phase.number,
+            "slug": snap.phase.slug,
+            "status": snap.phase.status,
+            "started": snap.phase.started,
+            "day": snap.phase.day,
+            "focus_present": bool(snap.phase.focus),
+            "objectives": [
+                {"title": o.title, "krs": [encode(k) for k in o.krs]}
+                for o in snap.phase.objectives
+            ],
+            "kr_total": len(snap.phase.krs),
+            "cost_ceiling": snap.phase.cost_ceiling_lines,
+            "scope_triggers": [encode(t) for t in snap.phase.scope_triggers],
+        },
+        "board": {
+            "lines": board_lines,
+            "cap": 200,
+            "last_updated": board.last_updated_header,
+            "p0": {"total": len(board.p0), "by_status": status_counts(board.p0)},
+            "p1": {"total": len(board.p1), "by_status": status_counts(board.p1)},
+            "p2": {"total": len(board.p2), "by_status": status_counts(board.p2)},
+            "cadence": len(board.cadence),
+            "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
+            "open": sum(1 for t in all_tasks if t.status in open_states),
+            "tasks": [encode(t) for t in all_tasks],
+        },
+        "attribution": {
+            "linked": linked,
+            "unlinked": unlinked,
+            "declared_unlinked": link.unlinked,
+            "registry_rows": len(link.projects),
+            "registry_present": link.ok,
+            "linkage_error": link.error,
+        },
+        "linkage": None if not link.ok else {
+            "spec": link.spec,
+            "phase": link.phase,
+            "updated": link.updated,
+            "objectives": [encode(o) for o in link.objectives],
+            "unlinked": link.unlinked,
+            "agents": [encode(a) for a in link.agents],
+            "projects": [encode(p) for p in link.projects],
+        },
+        "user_input_queue": {
+            "count": len(uiq),
+            "oldest": None if not oldest_uiq else {
+                "id": oldest_uiq.id,
+                "needed": oldest_uiq.needed_from_user,
+                "idle": oldest_uiq.idle,
+                "blocks": oldest_uiq.blocks,
+            },
+            "items": [encode(u) for u in uiq],
+        },
+        "risks": {
+            "top": None if not snap.top_risks else encode(snap.top_risks[0]),
+            "count": len(snap.top_risks),
+        },
+        "decisions": {
+            "count": len(snap.adrs),
+            "last": None if not snap.adrs else {
+                "id": snap.adrs[0].id, "title": snap.adrs[0].title, "date": snap.adrs[0].date,
+            },
+            "expired_sunsets": sunsets,
+        },
+        "design": {
+            "total": len(snap.design),
+            "locked": len(locked_designs),
+            "pending_handoff": [
+                {"id": d.id, "title": d.title, "locked": d.locked} for d in pending_handoff
+            ],
+            "by_status": {
+                s: sum(1 for d in snap.design if d.status == s)
+                for s in {d.status for d in snap.design}
+            },
+            "docs": [encode(d) for d in snap.design],
+        },
+        "architecture": encode(snap.arch_meta),
+        "operations": {
+            **encode(snap.ops),
+            "tier1_caps": caps,
+        },
+        "history": {
+            "journal_days": len(snap.journal),
+            "latest_journal": snap.journal[0].rel if snap.journal else "",
+            "latest_journal_days": days_since(snap.journal[0].date) if snap.journal else None,
+            "latest_weekly": snap.weekly[0].date if snap.weekly else "",
+            "latest_handoff": snap.handoff[0].date if snap.handoff else "",
+            "latest_handoff_days": days_since(snap.handoff[0].date) if snap.handoff else None,
+            "evidence_files": len(snap.evidence),
+        },
+        "warnings": warnings,
+    }
+    return payload
+
+
+# ── dashboard text form ───────────────────────────────────────────────────
+
+
+def dash(payload: dict) -> str:
+    if not payload.get("installed"):
+        return "🅿  No Perry state in this project — run /perry for first-time setup."
+
+    def em(v):
+        return v if v not in (None, "", [], {}) else "—"
+
+    lines = []
+    ph = payload["phase"]
+    okr = payload["okr"]
+    b = payload["board"]
+    lines.append(f"📍 Project        : {payload['project']['name']} · {date.today().isoformat()}")
+    if okr["present"]:
+        lines.append(f"🎯 OKR            : {okr['version']} · {len(okr['objectives'])} objectives · {okr['anti_goals']} anti-goals")
+    else:
+        lines.append("🎯 OKR            : — (no OKR.md)")
+    if ph:
+        day = f"day {ph['day']}" if ph["day"] is not None else "day —"
+        # slug on disk is "<NNN>-<name>"; the number is printed separately.
+        short_slug = re.sub(r"^\d{3}-", "", ph["slug"])
+        lines.append(
+            f"🌀 Current phase  : #{em(ph['number'])} {short_slug} · {day} · "
+            f"{len(ph['objectives'])} objectives / {ph['kr_total']} KRs · "
+            f"{len(ph['scope_triggers'])} scope triggers"
+        )
+    else:
+        lines.append("🌀 Current phase  : — (no phase/CURRENT)")
+    lines.append(
+        f"📋 Open tasks     : P0={b['p0']['total']} · P1={b['p1']['total']} · "
+        f"P2={b['p2']['total']} · blocked={b['blocked']} · BOARD {b['lines']}/{b['cap']} lines"
+    )
+    ops = payload["operations"]
+    if ops.get("inputs"):
+        lines.append(f"📥 Inputs         : {ops['inputs']} undigested (oldest: {ops['inputs_oldest']} @ {ops['inputs_oldest_days']}d)")
+    if ops.get("knowledge_index"):
+        lines.append(f"📚 Knowledge      : {ops['knowledge_index']}")
+    if payload["architecture"]["exists"]:
+        a = payload["architecture"]
+        lines.append(f"🏛 Architecture   : v{em(a['version'])} · reviewed {em(a['last_reviewed'])} · §7 open: {a['open_questions']}")
+    if ops.get("runbook_index"):
+        lines.append(f"📕 Runbooks       : {ops['runbook_index']}")
+    if ops.get("incidents_index"):
+        lines.append(f"🔥 Incidents      : {ops['incidents_index']}")
+    uiq = payload["user_input_queue"]
+    oldest = uiq["oldest"]
+    lines.append(
+        f"⏳ User Input Q   : {uiq['count']}"
+        + (f" · oldest: {oldest['id']} @ {oldest['idle']}" if oldest else "")
+    )
+    att = payload["attribution"]
+    if att["unlinked"]:
+        lines.append(f"🔗 Unlinked       : {len(att['unlinked'])} tasks awaiting KR attribution (never guessed; ask the user)")
+    risk = payload["risks"]["top"]
+    lines.append(f"🚧 Top risk       : {em(risk['title'] if risk else None)}")
+    dec = payload["decisions"]["last"]
+    last_dec = f"{dec['title']} ({dec['date']})" if dec else None
+    lines.append(f"📝 Last decision  : {em(last_dec)}")
+    d = payload["design"]
+    lines.append(f"📐 Locked designs : {d['locked']} · pending hand-off: {len(d['pending_handoff'])}")
+    h = payload["history"]
+    lines.append(
+        f"📅 Last weekly    : {em(h['latest_weekly'])} · last handoff: {em(h['latest_handoff'])}"
+        + (f", {h['latest_handoff_days']}d ago" if h["latest_handoff_days"] is not None else "")
+    )
+    if payload["warnings"]:
+        lines.append("")
+        lines.append("⚠ Warnings:")
+        lines.extend(f"   - {w}" for w in payload["warnings"])
+    return "\n".join(lines)
+
+
+# ── main ──────────────────────────────────────────────────────────────────
+
+
+def resolve_root(explicit: str | None) -> Path:
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env = os.environ.get("PERRY_PROJECT")
+    if env:
+        return Path(env).expanduser().resolve()
+    cur = Path.cwd().resolve()
+    for d in [cur, *cur.parents]:
+        if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
+                or (d / ".perry" / "config.md").exists()):
+            return d
+    return cur
+
+
+def main(argv: list[str]) -> int:
+    mode = "json"
+    root_arg = None
+    section = None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif arg == "--json":
+            mode = "json"
+        elif arg == "--dashboard":
+            mode = "dashboard"
+        elif arg == "--root":
+            i += 1
+            root_arg = argv[i] if i < len(argv) else None
+        elif arg == "--section":
+            i += 1
+            section = argv[i] if i < len(argv) else None
+        else:
+            print(f"perry-state: unknown argument {arg!r} (try --help)", file=sys.stderr)
+            return 2
+        i += 1
+
+    project_root = resolve_root(root_arg)
+    # State may live in a subdirectory (`.perry/config.md § State root`) when the
+    # project already uses a directory name Perry claims. `.perry/` stays at the
+    # project root — it holds the pointer, so it can't sit behind it.
+    root = P.resolve_state_root(project_root)
+    # parsers.py resolves PROJECT_ROOT at import time from cwd; override it so
+    # --root works regardless of where the script was invoked from.
+    P.PROJECT_ROOT = root
+    payload = build(root, project_root)
+
+    if mode == "dashboard":
+        print(dash(payload))
+        return 0
+    if section:
+        if section not in payload:
+            print(f"perry-state: no section {section!r}. Keys: {', '.join(payload)}", file=sys.stderr)
+            return 2
+        payload = {section: payload[section]}
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as exc:  # never block a standup on an extractor bug
+        print(f"perry-state: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(1)

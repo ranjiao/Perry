@@ -1,0 +1,629 @@
+#!/usr/bin/env python3
+"""
+perry-lint — validate a Perry project's state files against schema/state-schema.json.
+
+Perry's state format is described in three places: SKILL.md prose, the
+`state/*_TEMPLATE.md` files, and `viewer/parsers.py`. This script is what keeps
+them honest — it checks real files (and, with --templates, Perry's own
+templates) against the one declared schema.
+
+Usage:
+  perry-lint [--root <project_root>] [--templates] [--json] [--strict] [--quiet]
+
+  --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
+                This is the drift guard: a template that stops matching the
+                schema is what silently breaks the viewer and the standup.
+  --json        machine-readable findings
+  --strict      warnings count as failures
+  --quiet       print nothing; use the exit code
+
+Exit codes:
+  0  clean (or warnings only, without --strict)
+  1  errors found
+  2  bad invocation / unreadable schema
+
+No LLM, no external dependencies (stdlib only). Read-only.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
+
+# Frontmatter files are read with the SAME reader Perry uses, so "the linter
+# passed" and "Perry can read it" cannot diverge.
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+import parsers as P  # noqa: E402
+
+PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
+
+
+class Finding:
+    def __init__(self, severity: str, file: str, rule: str, message: str, line: int | None = None):
+        self.severity = severity
+        self.file = file
+        self.rule = rule
+        self.message = message
+        self.line = line
+
+    def as_dict(self) -> dict:
+        return {
+            "severity": self.severity, "file": self.file, "rule": self.rule,
+            "message": self.message, "line": self.line,
+        }
+
+    def __str__(self) -> str:
+        mark = {"error": "✗", "warn": "⚠"}.get(self.severity, "·")
+        where = f"{self.file}:{self.line}" if self.line else self.file
+        return f"  {mark} {where} [{self.rule}] {self.message}"
+
+
+# ── markdown helpers ──────────────────────────────────────────────────────
+
+KR_ID_RE = r"\bP-O\d+\.\d+\b"
+RE_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def strip_comments(text: str) -> str:
+    return RE_COMMENT.sub("", text)
+
+
+def headings(text: str) -> list[tuple[int, str, int]]:
+    """(level, text, line_no) for every ATX heading."""
+    out = []
+    in_fence = False
+    for i, line in enumerate(text.split("\n"), start=1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if m:
+            out.append((len(m.group(1)), m.group(2).strip(), i))
+    return out
+
+
+def section_body(text: str, level: int, matcher: re.Pattern) -> list[tuple[str, int]]:
+    """Bodies of every section whose heading matches, as (body, start_line)."""
+    lines = text.split("\n")
+    heads = headings(text)
+    out = []
+    for idx, (lvl, htext, lineno) in enumerate(heads):
+        if lvl != level or not matcher.search(htext):
+            continue
+        end = len(lines)
+        for lvl2, _, line2 in heads[idx + 1:]:
+            if lvl2 <= level:
+                end = line2 - 1
+                break
+        out.append(("\n".join(lines[lineno:end]), lineno))
+    return out
+
+
+def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
+    """Every markdown table in the section as (header_cells, data_rows)."""
+    out: list[tuple[list[str], list[list[str]]]] = []
+    prev: list[str] = []
+    header: list[str] | None = None
+    rows: list[list[str]] = []
+    for line in section.split("\n"):
+        s = line.strip()
+        if re.match(r"^\|\s*:?-{2,}", s):
+            header = [c.strip() for c in prev]
+            rows = []
+            continue
+        if s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if header is None:
+                prev = cells
+            else:
+                rows.append(cells)
+            continue
+        if header is not None:
+            out.append((header, rows))
+            header = None
+        prev = []
+    if header is not None:
+        out.append((header, rows))
+    return out
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[\s`*]+", " ", s).strip().lower()
+
+
+# ── checks ────────────────────────────────────────────────────────────────
+
+
+def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
+                      is_template: bool) -> list[Finding]:
+    """Validate a YAML-frontmatter file (currently: the linkage graph).
+
+    Uses the same reader Perry itself uses, so "the linter passed" and "Perry
+    can read it" mean the same thing."""
+    findings: list[Finding] = []
+    fm = spec["frontmatter"]
+    raw = path.read_text(errors="replace")
+    front, _ = P.split_frontmatter(raw)
+    if not front.strip():
+        return [Finding("error", rel, "missing-frontmatter",
+                        "expected a `---` fenced YAML block at the top of the file")]
+    if is_template and "{{" in front:
+        return []          # unfilled template placeholders are expected
+    try:
+        data = P.parse_yaml_subset(front)
+    except ValueError as exc:
+        return [Finding("error", rel, "bad-frontmatter", str(exc))]
+    if not isinstance(data, dict):
+        return [Finding("error", rel, "bad-frontmatter", "frontmatter is not a mapping")]
+
+    key, want = fm["spec_key"], fm["spec_version"]
+    if data.get(key) != want:
+        findings.append(Finding("error", rel, "bad-spec-version",
+                                f"`{key}: {data.get(key)!r}` — expected {want}"))
+
+    def walk(node, fields: dict, where: str):
+        for name, rule in fields.items():
+            value = node.get(name) if isinstance(node, dict) else None
+            if value is None:
+                if rule.get("required"):
+                    findings.append(Finding("error", rel, "missing-field",
+                                            f"{where}{name} is required"))
+                continue
+            if rule.get("type") == "array":
+                if not isinstance(value, list):
+                    findings.append(Finding("error", rel, "bad-type",
+                                            f"{where}{name} must be a list"))
+                    continue
+                item_rule = rule.get("items") or {}
+                if item_rule and not item_rule.get("type"):
+                    for i, item in enumerate(value):
+                        if isinstance(item, dict):
+                            walk(item, item_rule, f"{where}{name}[{i}].")
+                continue
+            if rule.get("type") == "number" and not isinstance(value, (int, float)):
+                findings.append(Finding(
+                    "error", rel, "bad-type",
+                    f"{where}{name} must be a number or omitted — "
+                    f"got {value!r}. A prose target must be omitted, not coerced."))
+            if rule.get("pattern") and isinstance(value, str) \
+                    and not re.match(rule["pattern"], value):
+                findings.append(Finding("error", rel, "bad-id",
+                                        f"{where}{name} = {value!r} does not match "
+                                        f"/{rule['pattern']}/"))
+            if rule.get("enum") and str(value) not in enums[rule["enum"]]:
+                findings.append(Finding("error", rel, "bad-enum",
+                                        f"{where}{name} = {value!r} is not one of "
+                                        f"{enums[rule['enum']]}"))
+
+    walk(data, fm["fields"], "")
+
+    # A task may serve at most one KR.
+    seen: dict[str, str] = {}
+    for obj in data.get("objectives") or []:
+        for kr in (obj or {}).get("krs") or []:
+            for task in (kr or {}).get("tasks") or []:
+                prev = seen.get(str(task))
+                if prev and prev != kr.get("id"):
+                    findings.append(Finding(
+                        "error", rel, "linkage-task-single-kr",
+                        f"task {task} is listed under both {prev} and {kr.get('id')} — "
+                        "its attribution would be ambiguous"))
+                seen[str(task)] = str(kr.get("id"))
+
+    # Objective agreement + name/alias uniqueness across projects.
+    claimed: dict[str, str] = {}
+    for pr in data.get("projects") or []:
+        if not isinstance(pr, dict):
+            continue
+        pid, serves, obj = str(pr.get("id") or ""), str(pr.get("serves") or ""), pr.get("objective")
+        m = re.match(r"^P-(O\d+)\.", serves)
+        if m and obj and m.group(1) != str(obj):
+            findings.append(Finding("error", rel, "linkage-objective-agrees",
+                                    f"{pid}: serves {serves} (which is {m.group(1)}) but "
+                                    f"objective says {obj}"))
+        for label in [pr.get("name"), *(pr.get("aliases") or [])]:
+            key2 = str(label or "").strip().lower()
+            if not key2:
+                continue
+            if key2 in claimed and claimed[key2] != pid:
+                findings.append(Finding(
+                    "error", rel, "linkage-names-unique",
+                    f"name/alias {label!r} is claimed by both {claimed[key2]} and {pid} — "
+                    "attribution cannot resolve it to one KR"))
+            claimed[key2] = pid
+    return findings
+
+
+def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
+    if spec.get("format") == "yaml-frontmatter":
+        return check_frontmatter(path, rel, spec, enums, is_template)
+
+    findings: list[Finding] = []
+    raw = path.read_text(errors="replace")
+    text = strip_comments(raw)
+    lines = raw.split("\n")
+
+    cap = spec.get("cap")
+    if cap and len(lines) > cap:
+        sev = "error" if spec.get("cap_kind") == "hard" else "warn"
+        findings.append(Finding(
+            sev, rel, "size-cap",
+            f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of {cap}. "
+            "Split the overflow into a sibling file rather than writing past it.",
+        ))
+
+    # Some sections are only mandatory once the doc reaches a given status —
+    # a design doc in `draft` is allowed to be incomplete; `locked` is not.
+    gate = spec.get("required_at_status")
+    doc_status = ""
+    if gate:
+        sm = re.search(rf"{re.escape(gate['field'])}\s*\**\s*[:：]\s*\**\s*(\w+)", text)
+        doc_status = sm.group(1).lower() if sm else ""
+    sections_are_hard = not gate or doc_status in gate["values"]
+
+    heads = headings(text)
+    for req in spec.get("headings", []):
+        matcher = re.compile(req["match"])
+        if not any(lvl == req["level"] and matcher.search(t) for lvl, t, _ in heads):
+            severity = "error" if sections_are_hard else "warn"
+            suffix = "" if sections_are_hard else (
+                f" (not yet blocking at {gate['field']}: {doc_status or '—'}; "
+                f"required at {'/'.join(gate['values'])})"
+            )
+            findings.append(Finding(
+                severity, rel, "missing-section",
+                f"required section not found: {req['label']}{suffix}",
+            ))
+
+    for field in spec.get("header_fields", []):
+        name = field["name"]
+        m = re.search(rf"{re.escape(name)}\s*\**\s*[:：]\s*\**\s*([^\n]+)", text)
+        if not m:
+            # A field declared `required: false` is a pointer with a default —
+            # absent means "use the default", not "malformed".
+            if field.get("required") is False:
+                continue
+            findings.append(Finding("error", rel, "missing-header-field",
+                                    f"header field `{name}:` not found"))
+            continue
+        value = m.group(1).strip().strip("*`> ")
+        if is_template and PLACEHOLDER.search(value):
+            continue
+        if field.get("enum"):
+            allowed = enums[field["enum"]]
+            first = re.split(r"[|/,]", value)[0].strip()
+            if first and first not in allowed and not PLACEHOLDER.search(value):
+                findings.append(Finding(
+                    "error", rel, "bad-enum",
+                    f"`{name}: {first}` is not one of {allowed}",
+                ))
+        elif field.get("pattern") and not re.search(field["pattern"], value):
+            findings.append(Finding(
+                "warn", rel, "bad-format",
+                f"`{name}: {value}` does not match /{field['pattern']}/",
+            ))
+
+    for tspec in spec.get("tables", []):
+        matcher = re.compile(tspec["under"])
+        level = tspec.get("under_level", 2)
+        bodies = section_body(text, level, matcher)
+        if not bodies:
+            continue
+        want = [norm(c) for c in tspec["columns"]]
+        prefix_match = tspec.get("column_match") == "prefix"
+        found_any = False
+        for body, start in bodies:
+            for header, rows in tables(body):
+                got = [norm(c) for c in header]
+                if not got:
+                    continue
+                found_any = True
+                ok = (
+                    all(any(g.startswith(w) for g in got) for w in want)
+                    if prefix_match else
+                    all(w in got for w in want)
+                )
+                if not ok:
+                    missing = [
+                        c for c, w in zip(tspec["columns"], want)
+                        if not (any(g.startswith(w) for g in got) if prefix_match else w in got)
+                    ]
+                    findings.append(Finding(
+                        "error", rel, "table-columns", line=start,
+                        message=f"table under section at line {start} is missing column(s) "
+                                f"{missing}; parsers key on these headers. Found: {header}",
+                    ))
+                    continue
+                for col, enum_name in (tspec.get("enum_columns") or {}).items():
+                    if norm(col) not in got:
+                        continue
+                    ci = got.index(norm(col))
+                    for row in rows:
+                        if ci >= len(row):
+                            continue
+                        val = row[ci].replace("*", "").strip()
+                        if not val or PLACEHOLDER.search(val):
+                            continue
+                        base = re.split(r"[\s(（]", val)[0]
+                        if base not in enums[enum_name]:
+                            findings.append(Finding(
+                                "error", rel, "bad-enum",
+                                f"{col} = {val!r} is not one of {enums[enum_name]}",
+                            ))
+                if tspec.get("id_column") and norm(tspec["id_column"]) in got:
+                    ci = got.index(norm(tspec["id_column"]))
+                    pat = re.compile(tspec["id_pattern"])
+                    for row in rows:
+                        if ci >= len(row):
+                            continue
+                        val = row[ci].replace("*", "").strip()
+                        if not val or PLACEHOLDER.search(val):
+                            continue
+                        if not pat.match(val):
+                            findings.append(Finding(
+                                "error", rel, "bad-id",
+                                f"id {val!r} does not match /{tspec['id_pattern']}/ — "
+                                "attribution resolves on these ids",
+                            ))
+        if not found_any and not is_template:
+            findings.append(Finding(
+                "warn", rel, "missing-table",
+                f"no table found under /{tspec['under']}/",
+            ))
+    return findings
+
+
+def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) -> list[Finding]:
+    findings: list[Finding] = []
+    # `.perry/` is anchored at the project root even when state lives in a
+    # subdirectory — it is the pointer, so it cannot sit behind the pointer.
+    perry_dir = (project_root or root) / ".perry"
+
+    # phase/CURRENT resolves
+    cur = root / "phase" / "CURRENT"
+    phase_file = None
+    if cur.exists():
+        slug = cur.read_text().strip()
+        if slug and slug not in {"(none)", "none", "—", ""}:
+            phase_file = root / "phase" / f"{slug}.md"
+            if not phase_file.exists():
+                findings.append(Finding(
+                    "error", "phase/CURRENT", "current-phase-resolves",
+                    f"points at {slug!r} but phase/{slug}.md does not exist",
+                ))
+                phase_file = None
+
+    # linkage: every KR the graph names must exist in the phase file
+    phase_krs: set[str] = set()
+    if phase_file and phase_file.exists():
+        phase_krs = set(re.findall(KR_ID_RE, strip_comments(phase_file.read_text())))
+    for lf in sorted((root / "phase").glob("*-linkage.md")) if (root / "phase").is_dir() else []:
+        link = P.parse_linkage(lf.read_text())
+        rel = lf.relative_to(root).as_posix()
+        if not link.ok:
+            continue
+        for pr in link.projects:
+            if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
+                findings.append(Finding(
+                    "warn", rel, "linkage-kr-exists",
+                    f"{pr.project_id}: serves {pr.serves_kr}, which is not in the "
+                    "current phase's KR set"))
+        for obj in link.objectives:
+            for kr in obj.krs:
+                if phase_krs and kr.id not in phase_krs:
+                    findings.append(Finding(
+                        "warn", rel, "linkage-kr-exists",
+                        f"{kr.id} is in the graph but not in the current phase file"))
+
+    # design: locked docs need an implementation plan
+    for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:
+        if df.name == "README.md":
+            continue
+        text = strip_comments(df.read_text())
+        rel = df.relative_to(root).as_posix()
+        sm = re.search(r"Status\s*\**\s*[:：]\s*\**\s*(\w+)", text)
+        if not sm or sm.group(1).lower() != "locked":
+            continue
+        # design docs number their sections (## 6. Implementation plan)
+        plan = section_body(text, 2, re.compile(r"^(?:\d+\.\s*)?Implementation plan"))
+        if not plan or not plan[0][0].strip():
+            findings.append(Finding(
+                "error", rel, "locked-design-has-plan",
+                "Status: locked but the Implementation plan section is empty — "
+                "PMO has nothing to open tasks from",
+            ))
+
+    # BOARD: done rows need evidence
+    board = root / "BOARD.md"
+    if board.exists():
+        for header, rows in tables(strip_comments(board.read_text())):
+            got = [norm(c) for c in header]
+            if "status" not in got or "evidence" not in got:
+                continue
+            si, ei = got.index("status"), got.index("evidence")
+            for row in rows:
+                if max(si, ei) >= len(row):
+                    continue
+                if row[si].replace("*", "").strip().startswith("done"):
+                    ev = row[ei].strip()
+                    if not ev or ev in {"—", "-", ""}:
+                        findings.append(Finding(
+                            "warn", "BOARD.md", "done-needs-evidence",
+                            f"row {row[0]!r} is done with no evidence path",
+                        ))
+
+    # hook safety list
+    hook = perry_dir / "hook.md"
+    armed = False
+    if hook.exists():
+        body = section_body(strip_comments(hook.read_text()), 2,
+                            re.compile(r"^High-stakes"))
+        armed = bool(body and [
+            b for b in body[0][0].split("\n")
+            if b.strip().startswith("-") and "{{" not in b
+        ])
+    if not armed:
+        findings.append(Finding(
+            "warn", ".perry/hook.md", "hook-high-stakes-armed",
+            "no high-stakes operations list — /pmo dispatch's safety re-validation and "
+            "/pmo autopilot's safety scan have nothing to match against",
+        ))
+    return findings
+
+
+# ── main ──────────────────────────────────────────────────────────────────
+
+
+def is_adopted(project_root: Path, state_root: Path) -> bool:
+    """Has this project any Perry state at all?
+
+    Linting a folder that has never been adopted used to report every required
+    file as missing — noise on someone else's project, and unusable as the
+    stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
+    files adoption wrote are malformed" from "adoption hasn't run"."""
+    return ((project_root / ".perry" / "config.md").exists()
+            or (state_root / "BOARD.md").exists()
+            or (state_root / "OKR.md").exists()
+            or (state_root / "phase").is_dir())
+
+
+def iter_targets(root: Path, spec: dict) -> list[Path]:
+    pattern = spec["path"]
+    exclude = spec.get("exclude")
+    if any(ch in pattern for ch in "*?["):
+        out = sorted(root.glob(pattern))
+    else:
+        p = root / pattern
+        out = [p] if p.exists() else []
+    if exclude:
+        out = [p for p in out if not fnmatch.fnmatch(p.relative_to(root).as_posix(), exclude)]
+    return [p for p in out if p.is_file()]
+
+
+def main(argv: list[str]) -> int:
+    root_arg = None
+    mode_templates = as_json = strict = quiet = False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif a == "--root":
+            i += 1
+            root_arg = argv[i] if i < len(argv) else None
+        elif a == "--templates":
+            mode_templates = True
+        elif a == "--json":
+            as_json = True
+        elif a == "--strict":
+            strict = True
+        elif a == "--quiet":
+            quiet = True
+        else:
+            print(f"perry-lint: unknown argument {a!r} (try --help)", file=sys.stderr)
+            return 2
+        i += 1
+
+    if not SCHEMA_PATH.exists():
+        print(f"perry-lint: schema not found at {SCHEMA_PATH}", file=sys.stderr)
+        return 2
+    schema = json.loads(SCHEMA_PATH.read_text())
+    enums = schema["enums"]
+
+    findings: list[Finding] = []
+
+    if mode_templates:
+        root = PERRY_HOME
+        for spec in schema["files"]:
+            tpl = spec.get("template")
+            if not tpl:
+                continue
+            path = PERRY_HOME / tpl
+            if not path.exists():
+                findings.append(Finding("error", tpl, "missing-template",
+                                        "schema names this template but the file is absent"))
+                continue
+            findings.extend(check_file(path, tpl, spec, enums, is_template=True))
+        label = f"templates in {PERRY_HOME}"
+    else:
+        project_root = Path(root_arg).expanduser().resolve() if root_arg else Path.cwd().resolve()
+        if not root_arg:
+            for d in [project_root, *project_root.parents]:
+                if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
+                        or (d / ".perry" / "config.md").exists()):
+                    project_root = d
+                    break
+        # State may live in a subdirectory when the project already uses a name
+        # Perry claims; `.perry/` stays at the project root either way.
+        root = P.resolve_state_root(project_root)
+        adopted = is_adopted(project_root, root)
+        for spec in schema["files"]:
+            base = project_root if spec.get("anchor") == "project" else root
+            # Nothing outside `.perry/` can be malformed Perry state before the
+            # project is a Perry project: a pre-existing `design/` belongs to
+            # whoever built it, and reporting their file as a broken design doc
+            # is Perry claiming a namespace it was never given.
+            if not adopted and spec.get("anchor") != "project":
+                continue
+            targets = iter_targets(base, spec)
+            if not targets:
+                # "required" means required OF A PERRY PROJECT. On a folder that
+                # has never been adopted it is not a finding, it is the answer.
+                if spec.get("required") and adopted:
+                    findings.append(Finding("error", spec["path"], "missing-file",
+                                            "required state file not found"))
+                continue
+            for path in targets:
+                try:
+                    rel = path.relative_to(project_root).as_posix()
+                except ValueError:
+                    rel = path.as_posix()
+                findings.extend(check_file(path, rel, spec, enums, is_template=False))
+        if adopted:
+            findings.extend(check_cross_file(root, enums, project_root))
+        label = str(project_root)
+        if root != project_root:
+            label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
+        if not adopted:
+            label += " — not a Perry project yet"
+
+    errors = [f for f in findings if f.severity == "error"]
+    warns = [f for f in findings if f.severity == "warn"]
+
+    if as_json:
+        print(json.dumps({
+            "target": label,
+            "errors": len(errors), "warnings": len(warns),
+            "findings": [f.as_dict() for f in findings],
+        }, ensure_ascii=False, indent=2))
+    elif not quiet:
+        print(f"perry-lint · {label}")
+        if not findings:
+            print("  ✓ clean — every state file matches schema/state-schema.json")
+        else:
+            for f in errors + warns:
+                print(f)
+            print(f"\n  {len(errors)} error(s), {len(warns)} warning(s)")
+
+    if errors:
+        return 1
+    return 1 if (strict and warns) else 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Exception as exc:
+        print(f"perry-lint: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(2)

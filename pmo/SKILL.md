@@ -5,6 +5,15 @@ description: Virtual Project Management Office for solo or small projects. Use w
 
 # PMO — Perry's execution steward
 
+> **This is a lane inside `/perry`, not a separate command.** Perry registers one skill;
+> this file is loaded on demand by the router when a request needs execution stewardship.
+> Invoke as `/perry pmo <subcommand>` — or just `/perry <subcommand>`, since
+> subcommand names are unique across lanes. The shorthand `/pmo <subcommand>`
+> used throughout this file and its `reference/` pages is routing vocabulary for
+> the agent, not a command the user can type; translate it when quoting a command
+> back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
+> skill, three lanes`.
+
 Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "how" — owns execution state, runs the standup ritual, triages tasks, delegates to specialist agents, and produces session-handoff docs so work survives across Claude sessions.
 
 Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not narrate; it shows the dashboard, cites files, and asks what's next.
@@ -23,7 +32,6 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
 | `reference/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
-| `reference/rendering.md` | `/pmo render <view>` (generate disposable HTML for human consumption; tier 3 of the file model) + tier 1 hard size caps |
 | `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
@@ -35,6 +43,9 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/extending.md` | Adding new subcommands + per-project hooks (`.perry/hook.md` format) |
 | `$PERRY_HOME/reference/input-quality.md` (shared, perry root — not `pmo/reference/`) | `add-task` input-quality pass (§ 4 Task) |
 | `$PERRY_HOME/reference/okr-linkage.md` (shared, perry root) | Resolving a Task/Project's KR attribution: standup roll-up, `add-task`, `digest`/`coordinate` progress ingest. The "never guess attribution — resolve by ID or ask" gate. |
+| `$PERRY_HOME/schema/README.md` (shared, perry root) | "What shape must this file be?" — the declared contract behind every state file, checked by `bin/perry-lint` |
+
+Two deterministic scripts back this file and are worth knowing before anything else: **`bin/perry-state`** computes the whole dashboard in one read (standup step 2), and **`bin/perry-lint`** validates state files against `schema/state-schema.json`. Both are stdlib-only, read-only, and never call an LLM — use them instead of re-deriving state by hand.
 
 When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
@@ -58,21 +69,15 @@ PMO **state** files split across three layers with different lifecycles:
 
 `BOARD.md` is the PMO's **working memory**. It must always be true, current, and small. The journal is the audit trail. Evidence is the deliverable.
 
-### Axis B — audience tiers (markdown source vs HTML render)
+### Axis B — audience tiers (who reads this file)
 
-EVERY Perry file falls into exactly one of three tiers based on who reads it. Tier determines size cap, format, and edit pattern. See `reference/rendering.md § The three-tier file model` for the full table.
+EVERY Perry file falls into exactly one of three tiers based on **who reads it**. Tier determines size cap, format, and edit pattern.
 
-| Tier | Purpose | Format | Hard cap | Examples |
-|---|---|---|---|---|
-| **1** — User-read-and-edit | Strategic; user MUST read in raw form | markdown | YES (per file) | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
-| **2** — Agent-internal state | Live mutating state, agent reads/writes constantly; user mostly ignores raw | markdown | NO (existing soft caps stay) | `BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `architecture/audit-history/`, `knowledge/` |
-| **3** — User-read-only HTML | Rich consumption surface, regenerated on demand | HTML | N/A (one-shot, disposable) | `perry-views/<YYYY-MM-DD>-<view>.html` (gitignored) |
+- **Tier 1 — user-read-and-edit** (`OKR.md`, `phase/<NNN>-<slug>.md`, `ARCHITECTURE.md`, `runbook/<component>.md`, `.perry/{config,hook}.md`). Strategic; the user must read it raw, so each has a **hard line cap**. When a write would exceed it, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-index + 1-paragraph summaries. This preserves tier 1's "readable in one sitting" property.
+- **Tier 2 — agent-internal state** (`BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `phase/<NNN>-linkage.md`, `architecture/audit-history/`, `knowledge/`). No user-read constraint, so no hard cap — only the soft BOARD ≤200 / SKILL.md ~300 limits, which are context-budget driven, not readability driven.
+- **Tier 3 — the consumption surface.** Perry does **not** write this tier. Reading state richly is the frontend's job: **aiMark** (`~/proj/aimark`) watches the project directory and renders it live, and the optional `bin/perry-viewer` console does the same locally. Perry's obligation to tier 3 is to write tier 1/2 in the declared structure so a reader can parse it — see `$PERRY_HOME/schema/README.md`.
 
-**Tier 1 hard caps are non-negotiable.** When a write would push a tier 1 file past its cap, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
-
-**Tier 2 has no user-read constraint** — agent reads for its own purposes; users go through tier 3 if they want to look. This is why tier 2 has no hard cap (only the existing BOARD ≤200 / SKILL.md ~300 limits, which are agent-context-budget driven, not readability driven).
-
-**Tier 3 is the dedicated consumption layer.** `/pmo render <view>` generates HTML on demand from tier 1+2 sources. Output lives in `perry-views/` (gitignored), is never edited by hand, never committed. Regenerate any time. See `reference/rendering.md`.
+**Per-file caps and the structural contract each file must satisfy** live in `$PERRY_HOME/schema/state-schema.json` (checked by `bin/perry-lint`); the full inventory is in `reference/state-files.md`. `bin/perry-state` reports current cap usage in `operations.tier1_caps`, so the standup sees an overrun before the next write hits it.
 
 ## When this skill activates
 
@@ -95,40 +100,29 @@ Always run this before anything else, even if the user asked a specific question
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other) and the repo layout (single vs split). All written output from this point uses the configured language; on a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
-2. **Read live state**:
-   - `BOARD.md` (current open work — the working memory)
-   - `PROJECT_STATE.md` (cross-phase dashboard)
-   - `DECISIONS.md` (index only — counts + most recent active ADR. Do NOT load per-decision files unless a current question requires one; see `reference/decisions.md § Standup integration`.)
-   - `ARCHITECTURE.md` if it exists at project root — read **header only** (Status, Version, Last reviewed, §-section titles) for the dashboard line. Full text is NOT loaded into context here; it gets injected only on dispatch (see `reference/architecture.md § Dispatch integration`). Do read the file if the user's current question references architecture, otherwise stay header-only.
-   - **Sunset check**: scan `DECISIONS.md` Active section for ADRs with date-based sunset criteria that have passed today's date. If any: surface 🚨 in dashboard, suggest `/pmo decide --expire ADR-NNN`.
-   - **Architecture freshness check**: if `ARCHITECTURE.md` exists and `Status: draft` for >7 days, surface 🚨; if `Last reviewed:` >180 days ago, suggest `/pmo architecture review`.
-   If any are missing, see Bootstrap.
+2. **Compute the state — ONE call, not a dozen file reads**:
+   ```
+   "$PERRY_HOME/bin/perry-state" --json
+   ```
+   Deterministic Python (stdlib only, read-only, <150 ms) and the **single source of every number on the dashboard**: board counts by priority/status, BOARD lines vs cap, phase number / day / KR totals / scope triggers, OKR version + objectives, KR attribution (`linked` vs `unlinked`, resolved by stable ID only), User Input Queue, top risk, last ADR + expired sunsets, locked designs with no implementation rows, `ARCHITECTURE.md` header + freshness, runbook / incident / knowledge INDEX lines, undigested `inputs/`, tier-1 cap overruns, and a ready-made `warnings` array.
 
-3. **Read recent history** — only the last 1–2 days of journal:
+   **Never compute a dashboard number by reading files and eyeballing it.** A field the payload doesn't carry prints `—` — that is what "never fabricate" means in practice. `--dashboard` prints the rows pre-formatted; `--section <name>` narrows the payload. Exit non-0 → say so in one line and fall back to reading `reference/state-files.md`'s inventory by hand; never silently guess. `installed: false` → see Bootstrap.
+
+3. **Read recent history** — only the last 1–2 days of journal (the payload carries counts, not content):
    - `journal/<YYYY-MM>/<today>.md` if it exists, else
    - `journal/<YYYY-MM>/<latest>.md`, plus the file before it.
    Do NOT walk the whole month; that defeats the purpose of the BOARD/journal split. Read older journal entries only on demand for `mid-phase-review`, `end-phase-retro`, or when answering a question about a specific past date.
 
-4. **Read context files** (read-only):
-   - `weekly/` — most recent file
-   - `handoff/` — most recent file (if any)
-   - `OKR.md` and `phase/<current-NNN>-<slug>.md` if OKR is installed (resolve current phase via `phase/CURRENT` pointer file)
-   - `phase/<current-NNN>-linkage.md` if present — the Project↔KR registry. Roll up KR progress by resolving each task's `kr:` through it (`$PERRY_HOME/reference/okr-linkage.md` resolution order); any task that does not resolve to exactly one KR is counted as `unlinked`, kept out of KR progress, and surfaced — never fuzzy-matched into a KR.
-   - `design/<DESIGN-ID>-*.md` — note any `Status: locked` doc whose Implementation plan has not yet been turned into `BOARD.md` rows.
+4. **Read full text only when the current question needs it.** The payload already answers "how many / how stale / what's blocked". Open the actual file when the user asks about its content:
+   - `OKR.md` / `phase/<NNN>-<slug>.md` — for goal-level discussion.
+   - `ARCHITECTURE.md` — header data is in the payload; full text is loaded only on dispatch (`reference/architecture.md § Dispatch integration`) or when the question is about architecture.
+   - `design/<DESIGN-ID>-*.md`, `decisions/ADR-NNN-*.md`, `weekly/`, `handoff/` — on demand.
+   The attribution rule still governs anything you roll up: a task's KR is resolved by stable ID through `phase/<NNN>-linkage.md` (`$PERRY_HOME/reference/okr-linkage.md`). `perry-state` applies exactly that rule — anything it reports as `unlinked` must be **asked about, never fuzzy-matched**.
 
-5. **Compute deltas** since the last standup:
+5. **Compute deltas the extractor can't see**:
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
-   - File mtimes under the project root, especially `evidence/<YYYY-MM>/`
-   - Recent entries from any project-specific MCP (see Per-project hooks)
-   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` so the dashboard surfaces what's running, when it started, and whether the cap is approached. Show as a `🚀 In flight` line.
-   - **Inputs / knowledge** (if `inputs/` or `knowledge/` exist):
-     - Count files in `inputs/` (un-digested raw drops); note oldest mtime.
-     - Read `knowledge/INDEX.md` header line for active / eternal / stale / archived counts (do NOT load digest contents — see `reference/digests.md § Standup integration`). On Codex (`$HOST = codex-cli`) suffix the line with `(advisory; cross-session count not enforced)` per `reference/host-capabilities.md`.
-   - **Architecture / runbooks / incidents** (each independent; only read if its file/directory exists):
-     - `ARCHITECTURE.md` header (already loaded in step 2) → version + last-reviewed age + Status. Latest `architecture/audit-history/<date>.md` for open drift count.
-     - `runbook/INDEX.md` header line → active / stale / gaps counts. Do NOT load individual runbooks.
-     - `incidents/INDEX.md` header line → open / this-month / derived-changes-ratio counts.
-   - **Renders** (only if `perry-views/` exists): run `"$PERRY_HOME/bin/perry-render-index"` (Python script with shebang; executable directly — NOT `bash ...`). Deterministic, no LLM, no-op when nothing to index. Output feeds the dashboard `📊 Renders` row. See `reference/rendering.md § The index hub` for what the script does and when else it runs.
+   - Recent entries from any project-specific MCP (see Per-project hooks).
+   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` — process-level state, not file state, so it is a separate call. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) label it advisory per `$PERRY_HOME/reference/host-capabilities.md`.
 
 6. **Render the headline + dashboard.** Two parts, in order:
 
@@ -152,7 +146,6 @@ Always run this before anything else, even if the user asked a specific question
    🏛 Architecture  : v<N> · last reviewed <days>d ago · §7 open: <count> · audit drift: <count>   (omit row if no ARCHITECTURE.md)
    📕 Runbooks      : <active> active · <stale> stale (≥90d) · <gaps>                       (omit row if no runbook/)
    🔥 Incidents     : <open> open · <month> this month · <derived>/<total> w/ derived       (omit row if no incidents/)
-   📊 Renders       : <stale> stale of <total> · oldest: <view> (<Nd> behind, <changed-source>)   (omit row if no perry-views/ OR 0 stale)
    ⏳ User Input Q  : <pending count> · oldest: <USER-id> @ <days idle>d
    🔗 Unlinked      : <n> tasks awaiting KR attribution (oldest <days>d)   (omit row if 0; these are excluded from KR progress, never guessed)
    🚧 Top risk      : <risk title, ≤80 chars>
@@ -250,8 +243,6 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `reference/runbooks.md` |
 | `incident <slug>` / `close` / `list` / `archive` | Postmortem records; close enforces 3-question gate (Knowledge/Invariant/Runbook) | `reference/incidents.md` |
 | `health-check` | Meta-runner: audit + runbook-check + digest stale + incident patterns. Called inline by retros | `reference/health-check.md` |
-| `render <view> [<arg>]` or `render all` | Generate disposable HTML from tier 1+2 markdown for human consumption. Output to `perry-views/` (gitignored). Single views: `dashboard / board / phase / architecture / decisions / incident <slug> / retro <NNN> / weekly <YYYY-WW> / handoff`. **`all`** = batch every applicable view (target set computed from project state; skips fresh ones; open incidents only). | `reference/rendering.md` |
-| `viewer` / `browse` [`stop`] [`--port N`] | Start the read-only **live web console** in the background and open it in the user's browser (one command, no venv/port/shell knowledge needed — for non-technical users). `stop` ends a viewer this session started. | `reference/viewer.md` |
 | `risk` | Print and triage `PROJECT_STATE.md ## Risks` | `reference/subcommands.md` |
 | `nudge` | Surface User Input Queue items idle ≥ 5 days | `reference/subcommands.md` |
 | `add-task` | BOARD row + journal definition + (P0/P1) spec file | `reference/subcommands.md` |
@@ -266,26 +257,20 @@ Conversational shape (every reply): plain language with IDs as parens; in-flight
 
 ### `help [<subcommand>]`
 
-Without arg: print the **Subcommand index** table above verbatim, plus a short pointer to peer skills (`/okr help`, `/design help`, `/perry help`).
-
-With arg: locate the row for `<subcommand>`, print it, then **read the matching reference file** so the procedure is in context for any follow-up. If the user types a subcommand that doesn't exist, suggest the closest match (e.g., `clos` → `close-task`).
-
-`help` itself does NOT trigger the standup ritual (it's a navigation command, not an action). The user can still ask for a standup by typing `/pmo` directly.
+Without arg: print the **Subcommand index** table above verbatim, plus a pointer to peer skills (`/okr help`, `/design help`, `/perry help`). With arg: print that row, then **read the matching reference file** so the procedure is in context; on an unknown subcommand, suggest the closest match (`clos` → `close-task`). `help` is navigation, not action — it does NOT trigger the standup.
 
 ## State files & size discipline
 
 PMO writes a fixed set of state files at the project root: `BOARD.md` (live), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `DECISIONS.md` (index) + `decisions/ADR-NNN-*.md` (per-ADR), `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
 
-Size discipline is non-negotiable. Tier 1 files (user-read) have hard line caps that PMO/OKR **refuse to write past** — overflow forces split into sibling files. Tier 2 files (agent-state) have soft caps that `triage` enforces.
-
-**Full inventory + ownership + templates + caps**: see `reference/state-files.md`. Read before bootstrap, before introducing a new file type, or when answering "where does this content go?".
+Size discipline is non-negotiable: tier 1 files have hard caps PMO/OKR **refuse to write past**; tier 2 have soft caps `triage` enforces. **Full inventory + ownership + templates + caps**: `reference/state-files.md`. **Structural contract** (sections, columns, enums): `$PERRY_HOME/schema/state-schema.json`.
 
 ## Bootstrap
 
 If invoked in a project with no `BOARD.md` at the project root, ask once:
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 
-On yes → read `reference/bootstrap.md` and follow the procedure (creates initial state files, writes ADR-001, registers `perry-views/` in `.gitignore`, lazy-defers `ARCHITECTURE.md` / `runbook/` / `incidents/` until first use, then runs the standup).
+On yes → read `reference/bootstrap.md` and follow the procedure (creates initial state files, writes ADR-001, writes `.perry/hook.md` with the default high-stakes safety list and asks the user to confirm it, lazy-defers `ARCHITECTURE.md` / `runbook/` / `incidents/` until first use, then runs the standup).
 
 ## Style rules (do not violate)
 
@@ -296,8 +281,10 @@ On yes → read `reference/bootstrap.md` and follow the procedure (creates initi
 - **No `done` without evidence.** Refuse the move and flag the gap.
 - **Run the input-quality pass on `add-task`.** Before writing a new BOARD row, check it against `$PERRY_HOME/reference/input-quality.md § 4 Task` (verification falsifiable, deliverable is an artifact not an activity, single owner, priority justified). Advisory + override — surface ≤3 issues, never silently rewrite. This is the earlier, softer companion to the hard `done`-needs-evidence gate.
 - **Never guess a task's KR attribution — this is a hard gate.** Resolve every task/progress-report to a KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias; `$PERRY_HOME/reference/okr-linkage.md`). If it doesn't resolve to exactly one KR — because a name drifted, is ambiguous, or matches nothing — **ask the user** (`AskUserQuestion`, candidate KRs); if the user is unavailable, mark the task `attribution: unlinked`, keep it out of every KR roll-up, and surface it. Never fuzzy-match a name into a KR, and never fabricate a mapping to complete a number. New aliases confirmed by the user are handed to `okr` to record (PMO doesn't write `phase/`).
-- **Do not invent state.** Print `—` and ask, rather than guess.
+- **Do not invent state.** Print `—` and ask, rather than guess. Counts come from `bin/perry-state`, not from reading a file and estimating.
 - **Do not duplicate state across files.** Each fact lives in one place. Boards reference, evidence stores.
+- **Write the declared structure.** State files have a contract in `$PERRY_HOME/schema/state-schema.json` — named sections, table columns, status vocabulary. Everything downstream reads that structure, so a renamed heading or an off-vocabulary status silently zeroes a dashboard row. After bootstrap or any structural edit, run `"$PERRY_HOME/bin/perry-lint" --root .`.
+- **Never dispatch against an unarmed safety gate.** `.perry/hook.md § High-stakes operations` is what `dispatch` refuses on and `autopilot` requires; if `perry-state` reports `hook.high_stakes_armed: false`, say so and get an explicit go-ahead (see `reference/dispatch.md`, `reference/autopilot.md`).
 - **Never write to OKR files.** Hand off via chat.
 - **Plain language in chat, IDs in files.** See `reference/conversational.md`.
 - **In-flight board on demand, not by default.** See `reference/conversational.md`.

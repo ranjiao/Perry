@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""
+perry-explain — resolve an ID to what it actually means.
+
+Agent-run projects accumulate stable IDs fast: REL-001, ADR-003, P-O1.2,
+DESIGN-002, USER-014. They are good for the agent — precise, greppable, stable
+across renames — and they are how a board stays unambiguous. But they are
+write-optimized for the wrong reader. A standup line like
+
+    REL-002  blocked  waiting on USER-014
+
+is fully meaningful to the agent that wrote it and opaque to the person it was
+written for, who now has to go grep their own project to find out what they are
+blocked on. That asymmetry compounds: the agent has perfect recall of every ID
+it ever minted, and the user has none.
+
+This script closes it. Give it an ID and it says what that is, where it was
+defined, and everywhere it is referenced. Give it nothing and it prints the
+whole glossary.
+
+Works on any project, Perry or not — it reads the shapes markdown documents
+actually use (table rows, headings, YAML ids, ID-named files) rather than
+Perry's schema, so a project with its own ID convention gets the same lookup.
+
+Usage:
+  perry-explain <ID> [--root DIR] [--json]
+  perry-explain --all [--root DIR] [--json]     the full glossary
+  perry-explain --dangling [--root DIR]          IDs referenced but never defined
+
+No LLM, stdlib only, read-only. Exit 0 unless the ID is unknown (exit 1).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+SKIP_DIRS = {
+    ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
+    "target", ".next", "vendor", "site-packages", ".pytest_cache", ".tox",
+}
+
+# REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's KR form P-O1.2
+ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+
+# Tokens shaped exactly like a project ID that are nothing of the kind. Without
+# this, running against Perry's own repo reported SHA-256 and a `#L12-40` line
+# citation as undefined work items — which is how a checker teaches people to
+# ignore it.
+NOT_AN_ID = {
+    "SHA", "MD", "AES", "RSA", "DES", "HMAC", "CRC", "UTF", "ISO", "IEC",
+    "ANSI", "ASCII", "RFC", "HTTP", "HTTPS", "IPV", "TLS", "SSL", "EC",
+    "X", "UTC", "GMT", "ES", "CSS", "HTML", "JSON", "YAML", "SQL", "GPU",
+    "CPU", "RAM", "USB", "PDF", "PNG", "JPEG", "MP", "H", "AV", "VP",
+    "COVID", "ISBN", "GPT", "CVE", "CWE", "PEP", "PYTHON", "NODE", "V",
+}
+# `#L12-40` — a line-range citation, not an identifier.
+LINE_RANGE = re.compile(r"^L\d+-\d+$")
+# `<NNN>-1`, `NN-7` — the number-shaped part of a template placeholder.
+PLACEHOLDER_PREFIX = re.compile(r"^[NXY]+$")
+
+# Material that teaches rather than tracks. An ID appearing only here is an
+# example — `tag your task like TASK-007` is not a reference to missing work.
+#
+# `docs/` is deliberately NOT in this set. It is where most projects keep their
+# real documentation, and excluding it would blind the check on exactly the
+# projects that need it most.
+ILLUSTRATIVE_PARTS = {
+    "templates", "template", "examples", "example", "fixtures", "fixture",
+    "samples", "sample", "tests", "test", "reference", "references",
+    "scaffold", "boilerplate",
+}
+ILLUSTRATIVE_NAMES = {"SKILL.MD", "README.MD", "AGENTS.MD", "CLAUDE.MD",
+                      "CONTRIBUTING.MD", "CHANGELOG.MD", "INSTALL.MD"}
+
+
+def is_real_id(token: str) -> bool:
+    """Filter tokens that match the ID shape but are not project identifiers."""
+    if LINE_RANGE.match(token):
+        return False
+    prefix = token.rsplit("-", 1)[0]
+    return prefix not in NOT_AN_ID and not PLACEHOLDER_PREFIX.match(prefix)
+
+
+def is_illustrative(rel: str) -> bool:
+    """True for a path whose job is to explain, not to track."""
+    p = Path(rel)
+    if p.name.upper() in ILLUSTRATIVE_NAMES:
+        return True
+    # A template's placeholder rows are the clearest case of an ID that is an
+    # example: `| TASK-009 | … |` inside journal_TEMPLATE.md refers to nothing
+    # and is not supposed to.
+    if re.search(r"(?:^|[_.-])template(?:[_.-]|$)", p.stem, re.I):
+        return True
+    return any(part.lower() in ILLUSTRATIVE_PARTS for part in p.parts[:-1])
+
+
+def find_ids(text: str) -> list[str]:
+    return [t for t in ID_RE.findall(text) if is_real_id(t)]
+
+TABLE_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
+HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
+YAML_ID = re.compile(r"^\s*-?\s*id:\s*[\"']?([A-Za-z0-9.\-]+)[\"']?\s*$")
+YAML_TITLE = re.compile(r"^\s*title:\s*[\"']?(.+?)[\"']?\s*$")
+MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+# Column headers that carry a row's human name, in preference order.
+TITLE_COLS = ("title", "name", "decision", "question", "ask", "summary",
+              "recurring task", "work", "change")
+
+
+def strip_md(s: str) -> str:
+    s = MD_LINK.sub(r"\1", s)
+    return s.replace("**", "").replace("`", "").strip()
+
+
+def walk_md(root: Path):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for fn in filenames:
+            if fn.lower().endswith((".md", ".markdown")):
+                yield Path(dirpath) / fn
+
+
+def harvest(root: Path) -> dict:
+    """Every ID in the project: where defined, where mentioned, what it is."""
+    entries: dict[str, dict] = {}
+
+    def ent(i: str) -> dict:
+        return entries.setdefault(i, {
+            "id": i, "title": None, "kind": None, "status": None,
+            "defined": None, "mentions": [], "in_tracking_doc": False,
+        })
+
+    for path in sorted(walk_md(root)):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        rel = str(path.relative_to(root))
+        illustrative = is_illustrative(rel)
+
+        # A file named for an ID defines it; its H1 is the title.
+        fname_ids = find_ids(path.stem)
+        if fname_ids:
+            e = ent(fname_ids[0])
+            if not e["defined"]:
+                e["defined"] = f"{rel}:1"
+                e["kind"] = e["kind"] or "document"
+                for ln in lines[:40]:
+                    h = HEADING.match(ln)
+                    if h:
+                        t = strip_md(h.group(1))
+                        t = ID_RE.sub("", t).strip(" —-–:·")
+                        if t:
+                            e["title"] = e["title"] or t
+                        break
+
+        header_cells: list[str] = []
+        yaml_pending: str | None = None
+
+        for n, raw in enumerate(lines, 1):
+            found = find_ids(raw)
+
+            # ── table rows: | ID | Title | … |
+            m = TABLE_ROW.match(raw)
+            if m:
+                cells = [c.strip() for c in m.group(1).split("|")]
+                low = [strip_md(c).lower() for c in cells]
+                if any(c in ("id", "adr", "#", "task", "design") for c in low[:2]):
+                    header_cells = low
+                    continue
+                if set("".join(cells)) <= set("-: "):
+                    continue
+                first_ids = find_ids(cells[0]) if cells else []
+                if first_ids:
+                    e = ent(first_ids[0])
+                    e["defined"] = e["defined"] or f"{rel}:{n}"
+                    e["kind"] = e["kind"] or "row"
+                    if not e["title"] and len(cells) > 1:
+                        idx = 1
+                        for want in TITLE_COLS:
+                            if want in header_cells:
+                                idx = header_cells.index(want)
+                                break
+                        if idx < len(cells):
+                            e["title"] = strip_md(cells[idx]) or None
+                    if not e["status"]:
+                        for key in ("status", "chosen"):
+                            if key in header_cells:
+                                v = strip_md(cells[header_cells.index(key)])
+                                if v and v != "—":
+                                    e["status"] = v
+                                    break
+
+            # ── headings: ## ADR-001 — PMO bootstrap
+            h = HEADING.match(raw)
+            if h and found:
+                e = ent(found[0])
+                e["defined"] = e["defined"] or f"{rel}:{n}"
+                e["kind"] = e["kind"] or "section"
+                if not e["title"]:
+                    t = ID_RE.sub("", strip_md(h.group(1))).strip(" —-–:·")
+                    e["title"] = t or None
+
+            # ── yaml: - id: P-O1.1  /  title: "…"
+            ym = YAML_ID.match(raw)
+            if ym and ID_RE.fullmatch(ym.group(1)) and is_real_id(ym.group(1)):
+                yaml_pending = ym.group(1)
+                e = ent(yaml_pending)
+                e["defined"] = e["defined"] or f"{rel}:{n}"
+                e["kind"] = e["kind"] or "linkage entry"
+            elif yaml_pending:
+                tm = YAML_TITLE.match(raw)
+                if tm:
+                    e = ent(yaml_pending)
+                    e["title"] = e["title"] or strip_md(tm.group(1))
+                    yaml_pending = None
+                elif raw.strip() and not raw.startswith((" ", "\t", "-")):
+                    yaml_pending = None
+
+            for i in set(found):
+                e = ent(i)
+                loc = f"{rel}:{n}"
+                if not illustrative:
+                    e["in_tracking_doc"] = True
+                if loc != e["defined"] and len(e["mentions"]) < 40:
+                    e["mentions"].append(loc)
+
+    return entries
+
+
+def label(e: dict) -> str:
+    """The form an ID should always travel in: `REL-002 ("Flake detector")`."""
+    return f'{e["id"]} ("{e["title"]}")' if e.get("title") else e["id"]
+
+
+def render_one(e: dict) -> str:
+    L = [f'{e["id"]}  —  {e["title"] or "(no title found)"}']
+    if e.get("kind"):
+        L.append(f'  kind       {e["kind"]}')
+    if e.get("status"):
+        L.append(f'  status     {e["status"]}')
+    L.append(f'  defined    {e["defined"] or "NOWHERE — this ID is referenced but never defined"}')
+    if e["mentions"]:
+        L.append(f'  mentioned  {e["mentions"][0]}')
+        for m in e["mentions"][1:8]:
+            L.append(f'             {m}')
+        if len(e["mentions"]) > 8:
+            L.append(f'             … and {len(e["mentions"]) - 8} more')
+    else:
+        L.append("  mentioned  nowhere else")
+    return "\n".join(L)
+
+
+def main(argv: list[str]) -> int:
+    root = Path(os.environ.get("PERRY_PROJECT") or ".").expanduser()
+    want, as_json, mode = None, False, "one"
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--help", "-h"):
+            print(__doc__.strip())
+            return 0
+        if a == "--root" and i + 1 < len(argv):
+            root = Path(argv[i + 1]).expanduser()
+            i += 1
+        elif a == "--json":
+            as_json = True
+        elif a == "--all":
+            mode = "all"
+        elif a == "--dangling":
+            mode = "dangling"
+        elif not a.startswith("-"):
+            want = a.strip()
+        i += 1
+
+    if not root.is_dir():
+        print(f"perry-explain: not a directory: {root}", file=sys.stderr)
+        return 1
+    root = root.resolve()
+    entries = harvest(root)
+
+    if mode == "all":
+        rows = sorted(entries.values(), key=lambda e: e["id"])
+        if as_json:
+            print(json.dumps(rows, indent=2))
+        else:
+            print(f"Glossary · {root.name} · {len(rows)} IDs\n")
+            width = max((len(r["id"]) for r in rows), default=4)
+            for r in rows:
+                title = r["title"] or ("— referenced but never defined"
+                                       if not r["defined"] else "—")
+                print(f"  {r['id']:<{width}}  {title}")
+        return 0
+
+    if mode == "dangling":
+        bad = sorted((e for e in entries.values()
+                      if not e["defined"] and e["in_tracking_doc"]),
+                     key=lambda e: e["id"])
+        if as_json:
+            print(json.dumps(bad, indent=2))
+        elif not bad:
+            print("✓ every ID referenced in this project is defined somewhere")
+        else:
+            print(f"✗ {len(bad)} ID(s) are referenced but never defined\n")
+            for e in bad:
+                print(f"  {e['id']}  first seen {e['mentions'][0] if e['mentions'] else '?'}")
+        return 0 if not bad else 1
+
+    if not want:
+        print(__doc__.strip())
+        return 0
+
+    e = entries.get(want) or entries.get(want.upper())
+    if not e:
+        print(f"{want} — not found in {root.name}.")
+        near = [k for k in entries if k.startswith(want.split("-")[0].upper())][:8]
+        if near:
+            print(f"  IDs with the same prefix: {', '.join(sorted(near))}")
+        print("  Run with --all to list every ID in this project.")
+        return 1
+    print(json.dumps(e, indent=2) if as_json else render_one(e))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -5,6 +5,15 @@ description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md —
 
 # design — Perry's design-doc steward
 
+> **This is a lane inside `/perry`, not a separate command.** Perry registers one skill;
+> this file is loaded on demand by the router when a request needs design-doc / RFC stewardship.
+> Invoke as `/perry design <subcommand>` — or just `/perry <subcommand>`, since
+> subcommand names are unique across lanes. The shorthand `/design <subcommand>`
+> used throughout this file and its `reference/` pages is routing vocabulary for
+> the agent, not a command the user can type; translate it when quoting a command
+> back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
+> skill, three lanes`.
+
 Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "decided" layer that sits between OKR's "why" and PMO's "how": before non-trivial implementation work fans out into many tasks, the design skill produces a single locked document that names the problem, the user decisions, the architecture, and the non-goals.
 
 Voice: structured, decision-oriented, friction-friendly. The design skill refuses to mark a doc "Design locked" unless the User Decisions section is fully resolved — it would rather show an open question than write fiction.
@@ -35,8 +44,8 @@ Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language and repo layout. All written output uses the configured language. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
-2. **Scan** `design/` for all `*.md` files. Parse each doc's frontmatter / header for `Status:` (one of: `draft`, `in_review`, `locked`, `superseded`, `dropped`) and `Date:`.
-3. **Cross-check `BOARD.md`** (if PMO is installed): for each locked design, count open vs done implementation tasks that back-reference the design ID.
+2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --section design`. Deterministic, read-only. It scans `design/` for every `*.md`, normalises each `Status:` (`draft` | `in_review` | `locked` | `superseded` | `dropped`) and `Date:`, and cross-checks `BOARD.md` for implementation rows that back-reference each design ID — so `pending_handoff` lists exactly the locked docs PMO hasn't opened tasks from. Every count in the snapshot comes from this payload.
+3. **Read a doc's full text** only when the conversation is about its content (`decide`, `lock`, `revise`, or a question about one doc). The payload answers "how many, which status, how stale" without loading them all.
 4. **Render the headline + snapshot.** Two parts, in order:
 
    **Part A — TL;DR** (exactly one line, plain language, **no leading ID**). The single most important thing about the design lane right now, in human terms. If nothing is pressing, say so explicitly — don't manufacture urgency. Examples:

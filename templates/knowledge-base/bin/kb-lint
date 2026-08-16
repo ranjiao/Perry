@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""
+kb-lint — the verification loop for a knowledge base.
+
+A knowledge base has no test suite, so "done" has no natural definition and an
+agent stops when the work *looks* finished. This script is the substitute: a
+check the agent can run that returns pass or fail, so the loop closes without a
+human in it.
+
+It enforces the four properties that a vault actually degrades on. Every one of
+them is a thing three sessions that never read the index will get wrong:
+
+  1. link integrity  — every [[wikilink]] and relative .md link resolves
+  2. reachability    — every page is reachable from index.md, directly or not
+  3. provenance      — every synthesized page cites at least one raw/ source
+  4. distinctness    — no two pages claim the same title
+
+Usage:
+  bin/kb-lint [--root DIR] [--json] [--quiet]
+
+Exit code is 1 when anything fails, so it works as a gate:
+  bin/kb-lint && echo "safe to stop"
+
+Layout it assumes (edit CONFIG below if yours differs):
+  index.md    the catalog every session reads first
+  wiki/       agent-written pages
+  raw/        immutable source material, never edited after it lands
+  log.md      append-only activity record
+
+Python 3 standard library only. Read-only.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+CONFIG = {
+    "index": "index.md",
+    "pages_dir": "wiki",
+    "raw_dir": "raw",
+    "require_provenance": True,   # set False for a vault of original writing
+}
+
+WIKILINK = re.compile(r"\[\[([^\]|#]+)")
+MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+H1 = re.compile(r"^#\s+(.+?)\s*$", re.M)
+
+
+def read(p: Path) -> str:
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def targets(text: str) -> set[str]:
+    """Link targets in a page, wiki-style and markdown-style alike."""
+    out = {m.group(1).strip() for m in WIKILINK.finditer(text)}
+    for m in MD_LINK.finditer(text):
+        t = m.group(1).split("#", 1)[0].strip()
+        if t and not t.startswith(("http://", "https://", "mailto:")):
+            out.add(t)
+    return {t for t in out if t}
+
+
+def resolve(target: str, source: Path, root: Path, pages: dict[str, Path]) -> Path | None:
+    """A wikilink resolves by page name; a markdown link resolves by path."""
+    stem = target[:-3] if target.endswith(".md") else target
+    if stem.lower() in pages:
+        return pages[stem.lower()]
+    for cand in ((source.parent / target), (root / target)):
+        if cand.suffix != ".md":
+            cand = cand.with_suffix(".md")
+        if cand.is_file():
+            return cand.resolve()
+    return None
+
+
+def main(argv: list[str]) -> int:
+    root = Path(".").resolve()
+    as_json = quiet = False
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--root" and i + 1 < len(argv):
+            root = Path(argv[i + 1]).expanduser().resolve()
+            i += 1
+        elif argv[i] == "--json":
+            as_json = True
+        elif argv[i] in ("--quiet", "-q"):
+            quiet = True
+        elif argv[i] in ("--help", "-h"):
+            print(__doc__.strip())
+            return 0
+        i += 1
+
+    index = root / CONFIG["index"]
+    pages_dir = root / CONFIG["pages_dir"]
+    raw_dir = root / CONFIG["raw_dir"]
+    findings: list[dict] = []
+
+    def add(kind, path, detail):
+        findings.append({"kind": kind, "path": path, "detail": detail})
+
+    if not index.is_file():
+        add("no-index", CONFIG["index"],
+            "the catalog every session reads first is missing — without it, "
+            "sessions rediscover the vault instead of using it")
+        if as_json:
+            print(json.dumps({"ok": False, "findings": findings}, indent=2))
+        elif not quiet:
+            print(f"✗ {CONFIG['index']} not found")
+        return 1
+
+    page_files = sorted(pages_dir.rglob("*.md")) if pages_dir.is_dir() else []
+    pages = {p.stem.lower(): p.resolve() for p in page_files}
+
+    # 1 · link integrity
+    for p in [index, *page_files]:
+        text = read(p)
+        for t in targets(text):
+            if t.startswith(CONFIG["raw_dir"] + "/") and (root / t).exists():
+                continue
+            if resolve(t, p, root, pages) is None:
+                add("broken-link", str(p.relative_to(root)),
+                    f"'{t}' does not resolve to a page")
+
+    # 2 · reachability — walk out from the index, transitively
+    seen: set[Path] = set()
+    queue = [index]
+    while queue:
+        cur = queue.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        for t in targets(read(cur)):
+            hit = resolve(t, cur, root, pages)
+            if hit and hit not in seen:
+                queue.append(hit)
+    for p in page_files:
+        if p.resolve() not in seen:
+            add("unreachable", str(p.relative_to(root)),
+                "not reachable from the index — an unlinked page is where the "
+                "next duplicate gets written")
+
+    # 3 · provenance
+    if CONFIG["require_provenance"] and raw_dir.is_dir():
+        for p in page_files:
+            text = read(p)
+            cites = (CONFIG["raw_dir"] + "/") in text or re.search(
+                r"^\s*(source|sources|from)\s*:", text, re.I | re.M)
+            if not cites:
+                add("no-provenance", str(p.relative_to(root)),
+                    f"cites no {CONFIG['raw_dir']}/ source — a claim nobody can "
+                    "re-verify is not knowledge, it is a rumour with a filename")
+
+    # 4 · distinctness
+    by_title: dict[str, list[str]] = {}
+    for p in page_files:
+        m = H1.search(read(p))
+        if m:
+            key = re.sub(r"[^a-z0-9]+", " ", m.group(1).lower()).strip()
+            by_title.setdefault(key, []).append(str(p.relative_to(root)))
+    for title, paths in by_title.items():
+        if len(paths) > 1:
+            add("duplicate-title", paths[0],
+                f"'{title}' is also the title of: {', '.join(paths[1:])}")
+
+    ok = not findings
+    if as_json:
+        print(json.dumps({
+            "ok": ok,
+            "pages": len(page_files),
+            "reachable": len([p for p in page_files if p.resolve() in seen]),
+            "findings": findings,
+        }, indent=2))
+    elif not quiet:
+        if ok:
+            print(f"✓ kb-lint clean — {len(page_files)} pages, all reachable, "
+                  "all cited, all distinct")
+        else:
+            print(f"✗ kb-lint — {len(findings)} finding(s) across "
+                  f"{len(page_files)} pages\n")
+            for f in findings:
+                print(f"  [{f['kind']}] {f['path']}")
+                print(f"      {f['detail']}")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

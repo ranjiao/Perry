@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# tests/run — Perry's test suite. Python 3 stdlib only; no venv, no pip.
+#
+#   bash tests/run            # everything
+#   bash tests/run --lint     # just the schema drift guard (fast)
+#
+# What it covers:
+#   1. bin/perry-lint --templates — the shipped templates still match
+#      schema/state-schema.json (the drift guard).
+#   2. tests/test_parsers.py — viewer/parsers.py, bin/perry-state, and
+#      bin/perry-lint against a realistic fixture project.
+#      tests/test_diagnose.py — bin/perry-diagnose (findings fire AND don't
+#      false-positive), the two template linters actually gate, and the
+#      diagnosis schema entry matches its template.
+#   3. Every shipped script compiles and answers --help.
+set -e
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+cd "$ROOT"
+
+fail=0
+step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
+
+step "1. schema drift guard (templates vs schema/state-schema.json)"
+python3 bin/perry-lint --templates || fail=1
+
+if [ "${1:-}" = "--lint" ]; then
+  exit "$fail"
+fi
+
+step "2. parser / extractor / linter contract tests"
+python3 -m unittest discover -s tests || fail=1
+
+step "3. bin/ scripts are syntactically valid and self-documenting"
+for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
+         templates/knowledge-base/bin/kb-lint templates/ops/bin/deliverable-lint; do
+  python3 -c "import ast,sys; ast.parse(open('$f').read())" || { echo "  ✗ $f does not parse"; fail=1; }
+  python3 "$f" --help >/dev/null 2>&1 || { echo "  ✗ $f --help failed"; fail=1; }
+done
+for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
+         bin/perry-codex-preflight bin/perry-viewer; do
+  bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
+done
+[ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"
+
+step "4. sample project lints clean"
+python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1
+
+if [ "$fail" = 0 ]; then
+  printf '\n\033[32m✓ all green\033[0m\n'
+else
+  printf '\n\033[31m✗ failures above\033[0m\n'
+fi
+exit "$fail"

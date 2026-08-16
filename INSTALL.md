@@ -1,10 +1,10 @@
 # Install — Perry
 
-Perry is a four-skill set: a top-level `/perry` plus three children (`/okr`, `/pmo`, `/design`). It runs on **Claude Code** and **Codex CLI**. Both can coexist on the same machine.
+Perry is a four-skill set: a top-level `/perry` plus three children (`/perry okr`, `/perry pmo`, `/perry design`). It runs on **Claude Code** and **Codex CLI**. Both can coexist on the same machine.
 
 ## Where to clone — Perry is location-agnostic
 
-`setup` and all `bin/` scripts resolve their own path via `$(dirname "$0")`, so you can clone Perry **anywhere** — `~/proj/Perry`, `~/.claude/perry`, `~/code/perry`, `/opt/perry`, an external SSD, doesn't matter. The host-side install (symlink under `~/.claude/skills/` or `~/.agents/skills/`) is what makes `/perry`, `/okr`, `/pmo`, `/design` discoverable to Claude Code and Codex CLI; the source location only matters for `git pull` updates.
+`setup` and all `bin/` scripts resolve their own path via `$(dirname "$0")`, so you can clone Perry **anywhere** — `~/proj/Perry`, `~/.claude/perry`, `~/code/perry`, `/opt/perry`, an external SSD, doesn't matter. The host-side install (symlink under `~/.claude/skills/` or `~/.agents/skills/`) is what makes `/perry`, `/perry okr`, `/perry pmo`, `/perry design` discoverable to Claude Code and Codex CLI; the source location only matters for `git pull` updates.
 
 **This doc uses `~/proj/Perry` as the canonical example** in commands. If you cloned elsewhere, substitute your path. Skill-side references all use `$PERRY_HOME` (which `setup` recommends you `export` in your shell profile), not a hardcoded path.
 
@@ -66,7 +66,7 @@ What a brand-new Mac will be missing (and how setup handles it):
 | **Claude Code CLI** | The default install target reads `~/.claude/skills/` | ❌ external download | Setup fails fast with a link to `claude.com/download` |
 | **Homebrew** | Mac package manager (gates several others) | ✅ via the official curl-install script | Interactive prompt; `--yes-deps` auto-installs |
 | **coreutils** (provides `gtimeout`) | Soft: `perry-codex-preflight` uses `timeout` if present, degrades gracefully if not | ✅ `brew install coreutils` | Interactive prompt; `--yes-deps` auto-installs |
-| **Node.js** | Only needed if you use the **codex** executor in `/pmo dispatch` | ✅ `brew install node` | Interactive prompt; `--yes-deps` auto-installs |
+| **Node.js** | Only needed if you use the **codex** executor in `/perry pmo dispatch` | ✅ `brew install node` | Interactive prompt; `--yes-deps` auto-installs |
 | **codex CLI** | Same — only for codex executor | ✅ `npm install -g @openai/codex` | Interactive prompt; `--yes-deps` auto-installs |
 
 Default behavior is **interactive prompts** for each missing optional/soft dep. Pass `--yes-deps` to accept all auto-installs without prompting, `--no-deps` to skip Phase 0 entirely, or `--check-deps-only` to see the report and exit without installing or symlinking.
@@ -85,9 +85,9 @@ Default install target: `~/.claude/skills/`. The `setup` script links the parent
 ```
 ~/.claude/skills/
 ├── perry      → <source dir>/Perry         # top-level (real symlink to source)
-├── okr        → perry/okr                  # child (relative)
-├── pmo        → perry/pmo                  # child (relative)
-└── design     → perry/design               # child (relative)
+├── okr        → perry/perry okr                  # child (relative)
+├── pmo        → perry/perry pmo                  # child (relative)
+└── design     → perry/perry design               # child (relative)
 ```
 
 ## One-shot install
@@ -115,7 +115,7 @@ ls ~/.claude/skills | grep -E '^(perry|okr|pmo|design)$'
 # Expect all four
 ```
 
-In a Claude Code session, `/perry`, `/okr`, `/pmo`, and `/design` are all available.
+In a Claude Code session, `/perry`, `/perry okr`, `/perry pmo`, and `/perry design` are all available.
 
 ## Codex CLI (host-specific details)
 
@@ -145,9 +145,9 @@ The script creates the same symlink layout under each host's skills dir:
 ```
 ~/.agents/skills/                                             # Codex
 ├── perry      → <source dir>/Perry         # top-level (real symlink to source)
-├── okr        → perry/okr                  # child (relative)
-├── pmo        → perry/pmo                  # child (relative)
-└── design     → perry/design               # child (relative)
+├── okr        → perry/perry okr                  # child (relative)
+├── pmo        → perry/perry pmo                  # child (relative)
+└── design     → perry/perry design               # child (relative)
 ```
 
 Setup also prints the recommended shell exports for unambiguous `$PERRY_HOME` resolution:
@@ -197,15 +197,15 @@ If this is a new project (no `OKR.md` / `BOARD.md` yet), `/perry` will run first
 The recommended first-run order is:
 
 ```
-/okr init                       # interview: mission, Operating Principles,
+/perry okr init                       # interview: mission, Operating Principles,
                                 # 1–3 Objectives + KRs, Anti-Goals, version v1
-/okr plan-phase <slug>           # full phase OKR (10 mandatory sections); auto-assigns #NNN
-/pmo                            # bootstraps execution files, runs first standup
-/okr plan-week                  # proposes first batch of weekly tasks
-                                # → /pmo writes them to BOARD.md + today's journal entry after approval
+/perry okr plan-phase <slug>           # full phase OKR (10 mandatory sections); auto-assigns #NNN
+/perry pmo                            # bootstraps execution files, runs first standup
+/perry okr plan-week                  # proposes first batch of weekly tasks
+                                # → /perry pmo writes them to BOARD.md + today's journal entry after approval
 ```
 
-After that, daily/weekly use is whichever of `/perry`, `/okr`, `/pmo`, or `/design` matches the moment.
+After that, daily/weekly use is whichever of `/perry`, `/perry okr`, `/perry pmo`, or `/perry design` matches the moment.
 
 Project-specific additions (custom agents, MCP tools, domain constraints, promotion stages, cost ceiling source) live at `<project_root>/.perry/hook.md`. The skill folder itself stays project-agnostic.
 

@@ -456,4 +456,8 @@ if __name__ == "__main__":
     port = int(os.environ.get("PERRY_VIEWER_PORT", "8080"))
     print(f"Perry viewer · project root: {PROJECT_ROOT}")
     print(f"Open http://127.0.0.1:{port}")
-    app.run(host="127.0.0.1", port=port, debug=True)
+    # debug=False by default: the Werkzeug interactive debugger is a remote-code
+    # console, and this process reads the whole project's private state. Opt in
+    # explicitly (PERRY_VIEWER_DEBUG=1) when developing the viewer itself.
+    debug = os.environ.get("PERRY_VIEWER_DEBUG") == "1"
+    app.run(host="127.0.0.1", port=port, debug=debug)

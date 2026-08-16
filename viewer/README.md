@@ -7,9 +7,12 @@ skill directory.
 
 **Opt-in.** Lightweight Perry users never run it and carry zero extra
 dependencies. It's for power users who want to glance at live state during
-active work without paying the ~50s LLM cost of `/pmo render` each time. See
-`../pmo/reference/rendering.md § Two consumption paths` for how it relates to
-the disposable `/pmo render` HTML.
+active work, with no LLM cost and nothing to install into the project.
+
+It is the **fallback** consumption surface. The primary one is **aiMark**
+(`~/proj/aimark`), which watches the project directory and renders it live.
+Reach for this viewer when aiMark isn't running or isn't wanted. Both read the
+same tier 1/2 markdown; neither writes to the project.
 
 ## Run
 

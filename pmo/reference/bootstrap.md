@@ -21,6 +21,9 @@ If the user declines, stop. If the user accepts, follow this procedure.
    - `decisions/ADR-001-pmo-bootstrap.md` from `state/ADR_TEMPLATE.md` (Type: Process, Status: active, records the bootstrap event). DECISIONS.md index gets the matching ADR-001 row added.
    - Empty directories: `journal/<current-YYYY-MM>/`, `evidence/<current-YYYY-MM>/`, `weekly/`, `handoff/`, `design/`, `inputs/`, `knowledge/`, `decisions/`
    - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (empty catalog)
+   - **`.perry/hook.md` from `state/hook_TEMPLATE.md`** — do NOT skip this, and do NOT write it empty. Its `## High-stakes operations` list is the only thing `/pmo dispatch`'s safety re-validation and `/pmo autopilot`'s safety scan match specs against; with no list, both gates have nothing to catch and autopilot refuses to run. The template ships a conservative default list (prod deploys, credentials, infra, money, destructive data ops, outbound messages, history rewrites).
+
+     After writing it, **show the user the default list and ask them to confirm or amend it** — one `AskUserQuestion` (header `"High-stakes"`, options: `Keep the defaults (Recommended) | Add project-specific entries | Review the list with me`). This is the one bootstrap step the user should actually look at; everything else is scaffolding.
 
 3. **Do NOT eagerly create**:
    - `ARCHITECTURE.md` / `architecture/`
@@ -34,7 +37,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
    **Exception**: if `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation. See `reference/architecture.md` and `reference/runbooks.md`.
 
-4. **Append `perry-views/` to `.gitignore`** — tier 3 HTML output lives there and is disposable, never tracked. If `.gitignore` already exists, append the line. If missing, create it with `perry-views/` (plus any other entries the project hook declares).
+4. **Check `.gitignore`** — add any entries the project hook declares. Perry itself writes nothing that needs ignoring; the consumption layer (aiMark, or `bin/perry-viewer`) reads the tracked files directly and generates nothing into the project.
 
 5. **Populate detected fields** (project name, today's date, ISO week, current YYYY-MM) into the new files. Templates use `{{placeholder}}` syntax — replace each.
 

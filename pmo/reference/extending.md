@@ -10,9 +10,13 @@ Rationale: every new line in `SKILL.md` is loaded on every PMO invocation; refer
 
 If a new feature is broadly applicable (touches every standup, every reply), it does belong in `SKILL.md` — but rarely. When in doubt, write the detail to a reference file and link.
 
-## Per-project hooks (optional)
+## Per-project hooks
 
-A project may declare PMO-specific overrides at `.perry/hook.md` in the project root. The hook is read at every standup; its contents are pure additions to PMO's generic behavior, never overrides of the core rules.
+`.perry/hook.md` is written at PMO bootstrap from `state/hook_TEMPLATE.md` and read at every standup. Its contents are pure additions to PMO's generic behavior, never overrides of the core rules — with one exception that is not optional:
+
+> **`## High-stakes operations` is a safety gate, not configuration.** `/pmo dispatch` refuses any spec whose `Files in scope` / `Deliverable` matches a line in it; `/pmo autopilot` skips matching rows and **refuses to run when the list is empty** (`autopilot.md` pre-flight step 0). A project without the list has an unarmed gate, so bootstrap always writes the conservative default and asks the user to confirm it. Everything below this line is genuinely optional.
+
+Check whether it's armed with `"$PERRY_HOME/bin/perry-state" --section project` (`hook.high_stakes_armed`); `bin/perry-lint` warns when it isn't.
 
 ### Block format
 
