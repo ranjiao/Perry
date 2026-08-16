@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (13th pass — V4 review FAILED phase D; TASK-019/020 reopened)
+> Last updated: 2026-08-16 (14th pass — re-review FAILED again; N1–N15 fixed; TASK-026 drafted)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,7 +16,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — **now also blocks TASK-019/020**: the V4 review's B4 asks which lane owns `OKR.md § Commitments`, which is this contract. Needs your V5 sign-off | `evidence/2026-08/TASK-026-spec.md` | V5 |
+| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | review | **Drafted** — ownership table + both moves + 3 refusal cases, marked DRAFT; `tests/test_ownership.py` 13 tests. **Waiting on your V5 sign-off**: name, date, and what you checked | `evidence/2026-08/TASK-026-spec.md` | V5 |
 
 ## P1
 

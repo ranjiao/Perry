@@ -26,7 +26,7 @@ Carries rules rather than references.
 
 `Status` and `Stage` are orthogonal here for the same reason as in pipeline
 mode — `Status` stays the global lifecycle enum and `Stage` carries this
-track's vocabulary. See `modes/pipeline.md § Status and Stage are orthogonal`.
+track's vocabulary. See `modes/pipeline.md § Status and Stage are orthogonal, and that is the point`.
 
 ## Work arrives; it is not planned
 
@@ -85,6 +85,14 @@ exists to prevent. **Report it by elapsed time, not by triage count**: `Arrived`
 is recorded and there is no triage counter, so "still here after 14 days" is
 computable and "still here after two triages" is not.
 
+**Resolved rows leave at the end of the review period.** Routed, dropped and
+deferred rows all stay visible until the period closes, then move to that day's
+journal entry with their `Outcome` intact — the same live/history split
+`BOARD.md` and `journal/` use everywhere else. Without this rule intake only
+grows, and a board could overflow on a year of recorded drops, which would
+destroy the argument above: overflow is supposed to mean *taking on more than
+you discharge*, not *having discharged a lot*.
+
 ## Standing commitments, not objectives
 
 There is no goal whose achievement ends an operations queue. What exists instead
@@ -94,16 +102,28 @@ true — and an SLA against which arrivals are measured.
 ```markdown
 ## Commitments      (in OKR.md — written by the goals lane)
 
-| Track | Promise | To whom | By when | Status | Discharged by |
-|---|---|---|---|---|---|
-| ops | Vendor invoices reconciled | Finance | 5 working days from arrival | active | the board rows carrying `Commitment: ops/1` |
+| Id | Track | Promise | To whom | By when | Status | Discharged by |
+|---|---|---|---|---|---|---|
+| ops/1 | ops | Vendor invoices reconciled | Finance | within the track SLA | active | routed intake, worked oldest-first |
 ```
 
-The link is written from the **board** side — each row's `Commitment` cell names
-the commitment it discharges — so the commitments table never accumulates a list
-of IDs that rot as rows close. Triage reads it in the direction it actually
-needs: given a commitment due this week, which rows carry it, and how far along
-are they.
+The link is written from the **board** side — each row's `Commitment` cell
+carries the `Id` above, and never a row position or the promise text. `Id` is
+stable; row position is not, and the goals lane rewrites this file. A position
+reference does not dangle when a row is inserted, it silently re-points every
+board row to the wrong promise, which is worse than a broken link because
+nothing looks broken.
+
+Triage reads it in the direction it actually needs: given a commitment due this
+week, which board rows carry its id, and how far along are they.
+
+**`By when` is prose; the clock is `SLA` in the track register.** A standing
+commitment's `By when` says what was promised in the words it was promised in
+("within the track SLA", "same business day"); the number triage actually
+measures against lives once, in `.perry/config.md § Tracks` → `SLA`. Writing
+"5 working days" here as well is how the same value ends up in two places
+disagreeing about whether days are calendar or working. **`5d` means five
+calendar days.**
 
 **The goals lane owns this section**, like every other section of `OKR.md`. The
 modes read it and never write it — the same one-writer-per-file rule that
@@ -112,9 +132,10 @@ named party *is* a goal; DESIGN-003 already frames a KR as the special case
 where the party is the project itself. What these modes disclaim is the
 objectives→KRs *cascade*, not the goals file.
 
-`Track` is what keeps two tracks' promises apart in one table. `Discharged by`
-is what lets triage answer "are this commitment's items far enough along" —
-without it, the question is unanswerable and the column's absence is silent.
+`Track` is what keeps two tracks' promises apart in one table. `Id` is what
+lets triage answer "are this commitment's items far enough along" — it is the
+value board rows carry, so the question becomes a scan rather than a search.
+`Discharged by` is prose for a human reader and is never dereferenced.
 
 Forcing an objectives cascade onto this produces goals nobody set and a phase
 that never legitimately closes. Perry's `phase/` machinery is not used by this
@@ -138,11 +159,13 @@ next-due. `BOARD.md § Cadence` is that register, and it already exists:
 
 The **procedure** goes in `runbook/<slug>.md` — an existing claimed path
 (`schema/state-schema.json § claims[]`), so converting a recurring request into
-a runbook adds no new claim. `Last evidence` points at it. The runbook's four
-mandatory sections and its staleness rules live in
-`$PERRY_HOME/packs/software-ops/runbooks.md`; a queue-mode track that is not
-software still uses the same file shape, since "what it does, what healthy looks
-like, what failure looks like, who to escalate to" is not a software question.
+a runbook adds no new claim. `Last evidence` points at it. The runbook's shape is normative in
+`schema/state-schema.json § files[] runbook` (template
+`pmo/state/runbook_TEMPLATE.md`); the software-ops pack elaborates the staleness
+and coverage rules at `$PERRY_HOME/packs/software-ops/runbooks.md`. A queue-mode
+track that is not software uses the schema shape and needs no pack, since "what
+it does, what healthy looks like, what failure looks like, who to escalate to"
+is not a software question.
 
 The triage question that matters most in this mode is **"what recurs?"** —
 because a request that has arrived three times is not a request, it is a
@@ -158,16 +181,22 @@ stamp — and a rubber stamp is worse than no gate, because it produces a record
 that claims something nobody did.
 
 So the floor is **V2**: a structural check plus a resolution note saying what
-was actually done. Two escalations override it:
+was actually done. **The note goes in the row's `Evidence` cell** for a
+one-liner, or at `evidence/<YYYY-MM>/<ID>-resolution.md` when it needs more —
+naming the location because a mode that mandates recording something and ships
+no place to put it is the defect this file already fixed once, in its own Intake
+table. Two escalations override the floor:
 
 - **The consequence rule.** Anything outward-facing, irreversible, or touching
   money, legal exposure or personal data needs **V5** regardless — and in an
   operations queue that is a *lot* of items, because operations is where the
-  outward-facing actions live. This is the one rung rule that is **enforced**:
+  outward-facing actions live. This is the one rung rule with a **check** —
   `perry-lint --verification` matches each closure against
-  `.perry/hook.md § High-stakes operations` — the single canonical name for that
-  list — and reports `consequence-needs-signoff`. The V2 default above is
-  pre-selected at close, not enforced.
+  `.perry/hook.md § High-stakes operations`, the single canonical name for that
+  list, and reports `consequence-needs-signoff`. It **reports**; it does not
+  refuse. The ladder is advisory for one release (DESIGN-003 decision 4), so
+  neither this rule nor the V2 default stops a close. Reported and enforced are
+  different words and only one of them is currently true.
 - **Incidents.** An incident resolved without a written cause is not resolved;
   it is paused. Those close at V3 minimum with the evidence that the cause was
   found, not merely that the symptom stopped.
@@ -180,8 +209,12 @@ Ordered:
 2. **SLA breaches** — rows whose `today − Arrived` exceeds the track's `SLA`,
    oldest first, each named with its age and the `Commitment` it breaches.
    Both inputs are columns: this is arithmetic, not judgment.
-3. **Queue depth and trend.** Depth is the count of rows in this track not at
-   `Status: done`. The trend is that count against the same count at the last
+3. **Queue depth and trend.** Depth is the count of **active** rows in this
+   track — `Status` neither `done` nor `dropped`, the same definition
+   `modes/pipeline.md` counts WIP with. Counting dropped rows would make depth
+   rise monotonically for any queue that declines requests, reporting the exact
+   opposite of reality for a queue doing the right thing. The trend is that
+   count against the same count at the last
    triage, which the journal's status-change lines carry — arrivals and
    resolutions are both dated, so the series is recoverable without a new file.
    Arriving faster than discharging is the finding; a single number hides it.
@@ -196,6 +229,15 @@ Ordered:
 **The review period** is the track's `Cycle` cell (`.perry/config.md § Tracks`)
 — `monthly`, `2026-W34`, whatever fits. It reports throughput, breaches and
 depth trend, and then the next period starts. Nothing closes.
+
+## Where the rows physically sit
+
+Board rows live under `## P0` / `## P1` / `## P2` in every mode, because those
+are the schema's required headings and the file has exactly one row table shape.
+A queue- or pipeline-mode row therefore still carries a priority — **used for
+placement, not for meaning.** The throttle in this mode is depth and age, and in
+pipeline mode it is the per-stage WIP limit; priority is where the row is
+written down, not how it is chosen. Default to `P1` when nothing else argues.
 
 ## What this mode does not assume
 

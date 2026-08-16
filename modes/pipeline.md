@@ -3,7 +3,7 @@
 > Loaded by the router for any track whose `Mode` is `pipeline`.
 > DESIGN-003 § 5.1. Covers content and copywriting (16.4% of observed agentic
 > work), document processing (4.1%) and sales operations (4.0%). **Not legal
-> matters yet** — see *Known limit · confidentiality* at the bottom.
+> matters yet** — see *Known limit — confidentiality* at the bottom.
 
 Unlike `modes/project.md`, this file carries rules rather than references,
 because pipeline's rules exist nowhere else in Perry yet.
@@ -14,13 +14,15 @@ because pipeline's rules exist nowhere else in Perry yet.
 |---|---|---|
 | **Ends when** | The item ships — or is explicitly dropped | — |
 | **Unit that gets an ID** | The deliverable, not the task. One ID per thing that will leave the building | `BOARD.md` row |
-| **Spine** | `OKR.md § Commitments` — track · promise · to whom · by when · status · discharged by | Written by the **goals** lane |
+| **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · by when · status | Written by the **goals** lane |
 | **Horizon** | The cycle, declared explicitly (`2026-W34`, `until 2026-09-30`) | `.perry/config.md § Tracks` → `Cycle` |
 | **Calendar** | **Binding** — see *What "binding" does and does not mean* below | — |
 | **Item states** | Two orthogonal fields: `Status` (the global lifecycle enum, unchanged) and `Stage` (this track's vocabulary) | `BOARD.md` → `Status`, `Stage` |
 | **Stage vocabulary** | Default `brief → draft → review → approved → published` | `.perry/config.md § Tracks` → `Stages` |
 | **WIP control** | A limit per stage | `.perry/config.md § Tracks` → `WIP` |
 | **Dwell time** | Expected time in stage before triage flags it | `.perry/config.md § Tracks` → `SLA` |
+| **Stage clock** | The date the item entered its current stage | `BOARD.md` → `Stage since` |
+| **Commitment link** | The `Id` of the promise this item discharges | `BOARD.md` → `Commitment` |
 | **Triage asks** | Which item is aging in which stage? | — |
 | **Default rung** | **V5** — a shipped deliverable is outward-facing by definition | `BOARD.md` → `Verification` |
 | **Signature failure** | Everything sits in `review` forever | — |
@@ -88,6 +90,14 @@ If a future release wants binding to be a mechanism, the check to build is an
 overdue-commitment lint over `OKR.md § Commitments` — recorded here so it is a
 known gap rather than an unnoticed one.
 
+**The same concession covers every other control in this file, and it has to be
+said out loud or the concession is decorative.** The WIP limit, "the last stage
+is what `done` means", and queue's "`Arrived` is never lost" are all norms the
+agent upholds; none has a lint. WIP is the awkward one, because this mode calls
+it the central control. The checks a future release would build are: WIP
+overflow, an item in no stage, and a `done` row that never reached the terminal
+stage. Until then they are rules an agent follows, not rules a script catches.
+
 ## Stages, and why the vocabulary is declared per track
 
 The default `brief → draft → review → approved → published` fits writing. It
@@ -105,8 +115,10 @@ domain.
 ```
 
 - **`Stages`** — arrow-separated, ordered. Absent → the default above.
-- **`WIP`** — per-stage limits, `stage:n` by name, comma-separated. A stage not
-  named has no limit. **Default: `review:3` and no other limit**, because review
+- **`WIP`** — per-stage limits, **by name only**: `stage:n`, comma-separated,
+  e.g. `review:2,draft:4`. A stage not named has no limit. (Name form only —
+  a positional grammar was considered and dropped; two grammars is one parser
+  too many.) **Default: `review:3` and no other limit**, because review
   is the stage that jams and an unlimited review queue is this mode's signature
   failure.
 - **`SLA`** — expected dwell time in a stage before triage flags it. One value
@@ -120,8 +132,11 @@ domain.
 Three rules hold whatever the vocabulary:
 
 1. **Stages are ordered and an active item is in exactly one.** An item in two
-   stages is a tracking bug, not a nuance. Items at `Status: dropped` are
-   outside the vocabulary entirely (above) and are not counted against WIP.
+   stages is a tracking bug, not a nuance. **Active** means `Status` is neither
+   `done` nor `dropped` — the same definition `modes/queue.md` counts depth
+   with, so the two modes cannot disagree about what is in flight. Items at
+   `Status: dropped` are outside the vocabulary entirely (above) and are not
+   counted against WIP.
 2. **The last stage is the one that leaves the building**, and reaching it is
    what `done` means in this mode. An item that is `approved` but not
    `published` is not done, however finished it feels.
@@ -155,14 +170,16 @@ outward-facing, so DESIGN-003's consequence rule applies to the whole mode
 rather than to occasional rows in it. A human signs off, by name, with a date,
 recording **what they checked**.
 
-**Two different things, and only one of them is enforced.** The V5 here is the
-*mode default* — it comes from `work_modes.modes.pipeline.default_rung` and is
-pre-selected at `close-task`, but nothing refuses a close below it. What
-`perry-lint --verification` enforces is the separate **consequence rule**: a row
-matching `.perry/hook.md § High-stakes operations` that closed below V5 is
-reported as `consequence-needs-signoff`. So an ordinary pipeline row closing at
-V3 is currently unchecked, and a project that wants the mode default enforced
-should list its publishing verbs in the hook.
+**Two different things, and neither is enforced this release.** The V5 here is
+the *mode default* — from `work_modes.modes.pipeline.default_rung`, pre-selected
+at `close-task`, refusing nothing. The separate **consequence rule** — a row
+matching `.perry/hook.md § High-stakes operations` closing below V5 — is
+*reported* by `perry-lint --verification` as a `consequence-needs-signoff`
+**warning**, which is advisory for one release by DESIGN-003 decision 4.
+
+Saying "enforced" here would be the same error this file spends a section
+warning about one heading earlier. Reported and enforced are different words and
+only one of them is currently true.
 
 V4 (a fresh-context reviewer against a written rubric) is a genuine step and
 belongs *before* the human gate, not instead of it. It is what makes the human's
@@ -175,13 +192,19 @@ Ordered. The first question is not "what's important" but "what's stuck":
 
 1. **Oldest item per stage.** Anything in a stage longer than the track's `SLA`
    is named with its age, its `Commitment`, and who that commitment is promised
-   to. Age is measured from the last `Stage` change recorded in the journal.
+   to. Age is `today − Stage since`, both of them columns — arithmetic, not a
+   journal search. An earlier draft measured it "from the last `Stage` change
+   recorded in the journal", which cannot work: the journal records **status**
+   changes, and this file's own orthogonality argument guarantees a
+   `draft → review` move produces no status change and therefore no line.
 2. **Stages at their WIP limit.** Compare the count of active rows per `Stage`
    against the track's `WIP` cell. Name which stage, and what is upstream of it.
 3. **Commitments due before the next triage.** Read `OKR.md § Commitments` for
-   rows in this `Track` whose `By when` falls before the next triage, then
-   follow `Discharged by` to their board rows and report how far along each is.
-   This is the step that fails silently without the `Discharged by` column.
+   rows in this `Track` whose `By when` falls before the next triage, take each
+   one's `Id`, then scan `BOARD.md` for rows whose `Commitment` cell carries
+   that id and report how far along each is. **The link is followed from the
+   board side**, never by dereferencing the commitment row's `Discharged by`
+   prose — that cell describes, it does not enumerate.
 4. **Items with no commitment** — a blank `Commitment` cell. Work in a pipeline
    that nobody asked for and nobody is waiting on is either a missing commitment
    row or a thing that should not be in flight.

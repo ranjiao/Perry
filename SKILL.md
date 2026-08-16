@@ -39,13 +39,64 @@ Subcommand names are unique across the three lanes, so `/perry plan-phase` resol
 
 ## The hand-off contract (the most important rule)
 
-- `okr` is the **only writer** of `OKR.md` and `phase/`. It **proposes** weekly tasks but never writes them.
-- `pmo` is the **only writer** of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. It **reads** OKR and design files for context.
-- `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`. On lock it **proposes** implementation tasks but never writes `BOARD.md` or `journal/`.
-- Each lane reads the others' files freely; no lane writes outside its own.
-- This is a **file-ownership** contract, not a skill-registration one. It held when the lanes were separate skills and it holds now that they are loaded on demand — which is why collapsing to one entrance changed nothing about how state is written.
+> **DRAFT — awaiting V5 sign-off (TASK-026).** This section is being rewritten
+> for the post-DESIGN-003 lane cut. Nothing below changes which files are
+> written today; the ownership set is identical to the previous version plus
+> two additions, both marked. Until a named human signs it off with a date and
+> what they checked, treat the previous wording as equally authoritative where
+> the two differ. `perry-lint` cannot check this section — a wrong contract
+> shows up later as silent cross-lane writes, not as a lint error, which is why
+> it is the one thing in Perry that requires a human gate.
 
-This single rule is what keeps the set composable and lets you drop in a fourth lane later (e.g., `research-journal`, `risk-review`) without breakage — a new lane is a directory with a `SKILL.md`, a row in the table above, and an entry in the routing reference.
+**The invariant, unchanged since Perry had three registered skills:**
+
+> **Each lane reads the others' files freely. No lane writes outside its own.**
+
+Everything below is that sentence applied to a file list. It is a
+**file-ownership** contract, not a skill-registration one — it held when the
+lanes were separate skills and it holds now that they are loaded on demand,
+which is why collapsing to one entrance changed nothing about how state is
+written.
+
+| Lane | Only writer of | Proposes, never writes |
+|---|---|---|
+| **`goals`** (today `okr/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
+| **`work`** (today `pmo/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` | KR attribution edges, handed to `goals` |
+| **`decide`** (today `design/`) | `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/`** | implementation tasks on lock, handed to `work` |
+
+**Two changes from the previous contract, and why.**
+
+1. **`DECISIONS.md` + `decisions/` move from `work` to `decide`.** A settled
+   decision and the document that settles it now have one owner. `work` was
+   the largest lane and the record of *what was decided* sat one lane away from
+   the RFCs that decided it, which is where "where do I record this?" became
+   ambiguous.
+2. **`OKR.md § Commitments` is explicitly `goals`.** Pipeline- and queue-mode
+   tracks put their spine there (`modes/pipeline.md`, `modes/queue.md`) and
+   both disclaim the objectives→KRs cascade — which read as though they owned
+   the section. They do not. A commitment to a named party *is* a goal; a KR is
+   the special case where the party is the project itself, so the two live in
+   one file under one writer. Settled 2026-08-16 after an independent review
+   found the section written by two modes and claimed by no lane.
+
+**The lane names above are the post-rename names.** The directories are still
+`okr/`, `pmo/`, `design/` until TASK-027 lands the rename and the permanent
+aliases; the parenthetical on each row is what exists on disk today. Naming a
+directory that does not exist yet is the defect `reference/user-load.md`
+forbids, so the contract states the target and the present tense side by side
+rather than pretending either away.
+
+**What "only writer" forbids, concretely.** A lane that needs a change in
+another lane's file **asks in chat and stops** — it does not write and
+apologise, and it does not write "just this once" because the other lane is not
+loaded. Three cases that have to refuse: `goals` writing `BOARD.md`; `work`
+writing `DECISIONS.md` (the newly moved file, i.e. the case this change
+creates); `decide` writing `journal/`.
+
+This single rule is what keeps the set composable and lets you drop in a fifth
+lane later (e.g. `research-journal`, `risk-review`) without breakage — a new
+lane is a directory with a `SKILL.md`, a row in the table above, and an entry in
+the routing reference.
 
 ## When this skill activates
 

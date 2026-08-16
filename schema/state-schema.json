@@ -11,30 +11,47 @@
         "unit": "task",
         "spine": "OKR.md objectives -> phase/<NNN>",
         "calendar": "advisory",
-        "default_rung": "V3"
+        "default_rung": "V3",
+        "default_stages": "",
+        "default_wip": "",
+        "default_sla": "",
+        "default_cycle": ""
       },
       "pipeline": {
         "ends_when": "the item ships",
         "unit": "deliverable",
         "spine": "commitments (party / deliverable / due) -> current cycle",
         "calendar": "binding",
-        "default_rung": "V5"
+        "default_rung": "V5",
+        "default_stages": "brief->draft->review->approved->published",
+        "default_wip": "review:3",
+        "default_sla": "",
+        "default_cycle": ""
       },
       "queue": {
         "ends_when": "never; steady state, reviewed on a period",
         "unit": "request",
         "spine": "standing commitments + SLA",
         "calendar": "binding",
-        "default_rung": "V2"
+        "default_rung": "V2",
+        "default_stages": "new->triaged->in_progress->resolved",
+        "default_wip": "",
+        "default_sla": "",
+        "default_cycle": ""
       },
       "inquiry": {
         "ends_when": "the question is answered or abandoned",
         "unit": "question",
         "spine": "question tree -> findings ledger",
         "calendar": "advisory",
-        "default_rung": "V4"
+        "default_rung": "V4",
+        "default_stages": "",
+        "default_wip": "",
+        "default_sla": "",
+        "default_cycle": ""
       }
-    }
+    },
+    "defaults_note": "An empty default means THERE IS NO DEFAULT and the track must declare the column - not that the value is blank. `SLA` and `Cycle` have none in any mode because no honest default exists: a turnaround time and a horizon boundary are commitments a project makes, and inventing one would put words in the user's mouth. A pipeline track with no `Cycle` cannot close its horizon, and that is a real cost of the one-line register, not an oversight (V4 re-review findings N6, M15)."
   },
   "verification": {
     "note": "DESIGN-003 section 5.3. Replaces the binary evidence gate with a declared rung per task. Advisory for one release (decision 4), then a hard gate. Two rules govern it, and neither is expressible as a column check: (1) the required rung is a function of CONSEQUENCE, not shape - anything outward-facing, irreversible, or carrying money/legal/safety exposure requires V5 minimum in every mode, overriding the mode default; (2) a V4 claim must cite an acceptance-criteria file and the reviewer must not have seen the reasoning that produced the artifact, or it is V1 wearing a costume.",
@@ -624,6 +641,11 @@
         "zh": [
           "处理结果"
         ]
+      },
+      "Stage since": {
+        "zh": [
+          "进入阶段"
+        ]
       }
     }
   },
@@ -813,7 +835,8 @@
             "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated.",
             "Stage": "For pipeline- and queue-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
             "Arrived": "The date an item entered the system from outside. Carried forward from `BOARD.md` Intake when a queue-mode row is routed, and REQUIRED to survive that move - V4 finding B2: age-since-arrival is what SLA triage measures, and destroying it at routing made the mode's second triage step uncomputable.",
-            "Commitment": "The promise this row discharges, by its row position or Promise text in `OKR.md` Commitments. V4 finding B4: without it, 'are this commitment's items far enough along' cannot be answered."
+            "Commitment": "The `Id` of the row in `OKR.md` Commitments that this row discharges - that id and nothing else. Never row position, never Promise text (V4 re-review finding N9).",
+            "Stage since": "The date the row entered its current `Stage`. Mirrors `Arrived`, and exists for the same reason: dwell time is what pipeline triage measures first, and the journal records STATUS changes - so a `draft`->`review` move produces no journal line at all, because this design's own argument is that Status and Stage are orthogonal. V4 re-review finding N1: the Stage column closed B1 and left the clock with no source."
           }
         },
         {
@@ -908,6 +931,7 @@
           "under": "^Commitments\\b|^承诺",
           "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it.",
           "columns": [
+            "Id",
             "Track",
             "Promise",
             "To whom",
@@ -915,7 +939,7 @@
             "Status"
           ],
           "optional_columns": {
-            "Discharged by": "How the commitment is satisfied. The authoritative link runs the OTHER way - each BOARD.md row's `Commitment` cell names the commitment it discharges - so this cell describes rather than enumerates. A list of row IDs here rots as rows close and leave the board, and Perry's own LOAD-02 check fires on IDs referenced with nothing defining them."
+            "Discharged by": "Free prose describing how the promise is satisfied. NOT a list of row IDs: the authoritative link runs the other way - each BOARD.md row's `Commitment` cell carries the `Id` from this table. Row position must never be used as the reference; the goals lane rewrites this file, and a position reference does not dangle when a row is inserted, it silently re-points every board row to the wrong promise (V4 re-review N9)."
           }
         }
       ],
@@ -1781,7 +1805,7 @@
             "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline and queue modes only. Absent = the mode's default vocabulary.",
             "WIP": "Per-stage limits for the Stages vocabulary, e.g. `-/3/2/-/-` positionally, or `review:2` by name. `-` means no limit. V4 finding B3: the mode file made WIP its central control and never said where the numbers lived, which made the rule decorative. DESIGN-003 section 5.2's original example folded a single `(WIP 3)` into the Stages cell; splitting it out is the correction, recorded in that document's Changes.",
             "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
-            "Cycle": "For pipeline mode: what bounds the current horizon, e.g. `2026-W34` or `until 2026-09-30`. V4 finding S6: 'the set of items due in this stretch' is circular and left the horizon unable to close.",
+            "Cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
             "Default rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
           }
         }
