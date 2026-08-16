@@ -16,7 +16,6 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-029 | `bin/perry-task` skeleton: schema-driven row rendering + atomic three-way write + add/start/done | Coding Agent | not_started | DESIGN-004 phase A — blocks all five others; **manual**, this defines the tool's shape | `evidence/2026-08/TASK-029-spec.md` | V3 |
 | TASK-031 | Drift reconciliation + the standup line | Coding Agent | not_started | DESIGN-004 phase C — **the pivot**: without it the tool is a convenience and §3 says don't build it. blocked-by TASK-030 | `evidence/2026-08/TASK-031-spec.md` | V3 |
 
 ## P1

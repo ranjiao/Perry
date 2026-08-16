@@ -1,0 +1,626 @@
+#!/usr/bin/env python3
+"""
+perry-task — the one deterministic way Perry's state gets written.
+
+Perry has nine read tools and, until this one, zero write tools. Every board
+row, status change, journal line and ID was produced by an agent typing markdown
+by hand — so the law that governs state ("never compute a number by reading
+files and eyeballing it") protected the way out and not the way in.
+
+Every mutating call does three things ATOMICALLY:
+
+  1. the `BOARD.md` row, rendered from schema/state-schema.json's column order
+  2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
+  3. one JSON object appended to .perry/events.jsonl
+
+If any of the three cannot be written, none are. A partial write produces
+exactly the board-vs-history divergence this tool exists to remove, which makes
+it strictly worse than a refusal.
+
+What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
+IDs are minted from max(board ∪ events), never reused; timestamps are taken at
+call time rather than asserted; `Stage since` / `Arrived` are stamped
+structurally; any column a track's mode requires and the board lacks is created
+in the same edit; rungs are validated against the schema enum before write.
+
+The event log is DERIVED AND DISPOSABLE. Delete .perry/events.jsonl and Perry
+still works — markdown is canonical. What is lost is history resolution and
+drift detection, not truth. That constraint is what keeps this from becoming a
+database with a markdown export.
+
+Usage:
+  perry-task add   --title "…" [--track T] [--owner O] [--priority P0|P1|P2]
+                   [--next "…"] [--parent ID] [--commitment ID] [--stage S]
+  perry-task start <ID> [--next "…"]
+  perry-task done  <ID> --evidence <path> [--rung V0..V6]
+  perry-task list  [--json]
+
+  --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
+  --dry-run       print what would be written; touch nothing
+  --json          machine-readable result
+
+Exit codes:
+  0  written (or, with --dry-run, would be)
+  1  refused — the reason is printed and nothing was written
+  2  bad invocation / unreadable schema
+
+No LLM, no external dependencies (stdlib only). DESIGN-004.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import tempfile
+from datetime import date, datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+import parsers as P  # noqa: E402
+
+
+class Refused(Exception):
+    """A refusal is a first-class outcome, not a crash. Nothing was written."""
+
+
+# ── schema ────────────────────────────────────────────────────────────────
+
+
+def load_schema() -> dict:
+    if not SCHEMA_PATH.exists():
+        raise Refused(f"schema not found at {SCHEMA_PATH}")
+    return json.loads(SCHEMA_PATH.read_text())
+
+
+def board_table_spec(schema: dict) -> dict:
+    board = next(f for f in schema["files"] if f["id"] == "board")
+    return next(t for t in board["tables"] if "P[012]" in t["under"])
+
+
+def mode_columns(schema: dict, mode: str) -> list[str]:
+    """Columns a track in this mode needs beyond the six every board has.
+
+    Derived from the mode's own declared semantics rather than hard-coded, so a
+    fifth mode added to `work_modes` does not silently get the project-mode set.
+    """
+    if mode == "project":
+        return []
+    cols = ["Track", "Stage"]
+    if mode == "queue":
+        cols.append("Arrived")
+    else:
+        cols.append("Stage since")
+    if mode == "inquiry":
+        cols.append("Parent")
+    return cols
+
+
+# ── board ─────────────────────────────────────────────────────────────────
+
+
+PRIORITY_RE = {p: re.compile(rf"^##\s+{p}\b") for p in ("P0", "P1", "P2")}
+
+
+class Board:
+    """`BOARD.md` as lines, edited in place and rendered back byte-for-byte.
+
+    Text-level rather than model-level on purpose: TASK-029's verification is
+    that a tool-written board is byte-identical to the hand-written one it
+    replaces. Round-tripping through a parsed model would normalize whitespace,
+    alignment and column order — and every downstream reader keys on those.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        if not path.exists():
+            raise Refused(f"no BOARD.md at {path}")
+        self.lines = path.read_text().split("\n")
+
+    # -- locating
+
+    def section(self, priority: str) -> tuple[int, int]:
+        """(first line index, end index) of the given priority section."""
+        start = None
+        for i, line in enumerate(self.lines):
+            if PRIORITY_RE[priority].match(line):
+                start = i
+                continue
+            if start is not None and line.startswith("## "):
+                return start, i
+        if start is None:
+            raise Refused(f"BOARD.md has no `## {priority}` section")
+        return start, len(self.lines)
+
+    def table(self, priority: str) -> tuple[int, int, list[str]]:
+        """(header index, separator index, header cells) for a section's table."""
+        lo, hi = self.section(priority)
+        for i in range(lo, hi):
+            if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > lo:
+                header = split_row(self.lines[i - 1])
+                return i - 1, i, header
+        raise Refused(f"`## {priority}` has no table")
+
+    def last_row(self, priority: str) -> int:
+        """Index of the last data row, or the separator when there are none."""
+        _, sep, _ = self.table(priority)
+        lo, hi = self.section(priority)
+        last = sep
+        for i in range(sep + 1, hi):
+            if self.lines[i].strip().startswith("|"):
+                last = i
+            elif self.lines[i].strip():
+                break
+        return last
+
+    # -- reading
+
+    def rows(self) -> list[tuple[str, str, dict]]:
+        """(priority, raw line, cells-by-header) for every data row."""
+        out = []
+        for pri in ("P0", "P1", "P2"):
+            try:
+                hdr_i, sep, header = self.table(pri)
+            except Refused:
+                continue
+            lo, hi = self.section(pri)
+            for i in range(sep + 1, hi):
+                s = self.lines[i].strip()
+                if not s.startswith("|"):
+                    if s:
+                        break
+                    continue
+                cells = split_row(self.lines[i])
+                if not cells or not cells[0]:
+                    continue
+                out.append((pri, self.lines[i],
+                            dict(zip([norm(h) for h in header], cells))))
+        return out
+
+    def find(self, task_id: str) -> tuple[str, int, list[str], list[str]]:
+        """(priority, line index, header, cells) for one row, or refuse."""
+        for pri in ("P0", "P1", "P2"):
+            try:
+                _, sep, header = self.table(pri)
+            except Refused:
+                continue
+            lo, hi = self.section(pri)
+            for i in range(sep + 1, hi):
+                if not self.lines[i].strip().startswith("|"):
+                    continue
+                cells = split_row(self.lines[i])
+                if cells and cells[0].replace("*", "").strip() == task_id:
+                    return pri, i, header, cells
+        raise Refused(f"{task_id} is not an open row on the board")
+
+    # -- writing
+
+    def ensure_columns(self, priority: str, needed: list[str]) -> list[str]:
+        """Add any missing column to the header, separator and every row.
+
+        The clause only `Verification` had before DESIGN-004: you cannot set a
+        cell in a column with no header, and `BOARD_TEMPLATE.md` ships six.
+        """
+        hdr_i, sep_i, header = self.table(priority)
+        missing = [c for c in needed
+                   if not any(norm(h) == norm(c) for h in header)]
+        if not missing:
+            return header
+        header = header + missing
+        self.lines[hdr_i] = render_row(header)
+        self.lines[sep_i] = "|" + "|".join(["---"] * len(header)) + "|"
+        lo, hi = self.section(priority)
+        for i in range(sep_i + 1, hi):
+            if not self.lines[i].strip().startswith("|"):
+                continue
+            cells = split_row(self.lines[i])
+            if not cells:
+                continue
+            self.lines[i] = render_row(cells + [""] * len(missing))
+        return header
+
+    def append_row(self, priority: str, values: dict) -> str:
+        _, _, header = self.table(priority)
+        cells = [values.get(norm(h), "") for h in header]
+        line = render_row(cells)
+        self.lines.insert(self.last_row(priority) + 1, line)
+        return line
+
+    def replace_row(self, index: int, header: list[str], values: dict) -> str:
+        cells = [values.get(norm(h), "") for h in header]
+        self.lines[index] = render_row(cells)
+        return self.lines[index]
+
+    def remove_row(self, index: int) -> str:
+        return self.lines.pop(index)
+
+    def text(self) -> str:
+        return "\n".join(self.lines)
+
+
+def split_row(line: str) -> list[str]:
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    return cells
+
+
+def render_row(cells: list[str]) -> str:
+    return "| " + " | ".join(c.strip() for c in cells) + " |"
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[\s`*]+", " ", s).strip().lower()
+
+
+# ── ids ───────────────────────────────────────────────────────────────────
+
+
+ID_RE = re.compile(r"\bTASK-(\d+)\b")
+
+
+def mint_id(board: Board, events: list[dict]) -> str:
+    """Next id from max(board ∪ events).
+
+    Both sources, because a task whose row has closed still owns its number —
+    reading only the board would hand a live id to a second task and silently
+    re-point every reference to the first.
+    """
+    seen = {int(m) for _, line, _ in board.rows() for m in ID_RE.findall(line)}
+    seen |= {int(m) for e in events for m in ID_RE.findall(e.get("id", ""))}
+    seen |= {int(m) for m in ID_RE.findall(board.text())}
+    return f"TASK-{max(seen, default=0) + 1:03d}"
+
+
+# ── events ────────────────────────────────────────────────────────────────
+
+
+def events_path(project_root: Path) -> Path:
+    return project_root / ".perry" / "events.jsonl"
+
+
+def read_events(project_root: Path) -> list[dict]:
+    p = events_path(project_root)
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # a corrupt line is not a reason to refuse a write
+    return out
+
+
+# ── the atomic three-way write ────────────────────────────────────────────
+
+
+def commit(project_root: Path, state_root: Path, board: Board,
+           journal_line: str, event: dict, dry_run: bool) -> dict:
+    """Write board, journal and event — or write none of them.
+
+    Ordering is deliberate. Board and journal are staged to temp files and
+    renamed (atomic on POSIX); the event is appended last, so a crash between
+    them loses the derived record rather than the canonical one. Losing an event
+    costs history resolution. Losing a board write costs the truth.
+    """
+    jpath = state_root / "journal" / f"{date.today():%Y-%m}" / f"{date.today():%Y-%m-%d}.md"
+    plan = {
+        "board": str(board.path),
+        "journal": str(jpath),
+        "events": str(events_path(project_root)),
+        "journal_line": journal_line,
+        "event": event,
+    }
+    if dry_run:
+        return plan
+
+    jtext = ""
+    if jpath.exists():
+        jtext = jpath.read_text()
+    elif not jpath.parent.exists():
+        jpath.parent.mkdir(parents=True, exist_ok=True)
+    jtext = append_status_change(jtext, journal_line)
+
+    # Stage both canonical files before renaming either.
+    staged = []
+    try:
+        for path, text in ((board.path, board.text()), (jpath, jtext)):
+            fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+            with os.fdopen(fd, "w") as fh:
+                fh.write(text)
+                fh.flush()
+                os.fsync(fh.fileno())
+            staged.append((tmp, path))
+        for tmp, path in staged:
+            os.replace(tmp, path)
+            staged = []
+    finally:
+        for tmp, _ in staged:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    ev = events_path(project_root)
+    ev.parent.mkdir(parents=True, exist_ok=True)
+    with open(ev, "a") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return plan
+
+
+def append_status_change(text: str, line: str) -> str:
+    """Append under the LAST `## Status changes` of the day, creating it if none.
+
+    The last, not the first. A day's journal accumulates one `## Status changes`
+    per entry — this session's had seventeen — and appending to the first buries
+    a change that happened at 18:33 inside the block written at 09:00. The file
+    stays chronological only if new lines land at the end of it, which is the
+    whole point of an append-only record.
+    """
+    if not text.strip():
+        text = f"# {date.today():%Y-%m-%d}\n"
+    lines = text.split("\n")
+    starts = [i for i, l in enumerate(lines) if l.strip() == "## Status changes"]
+    if not starts:
+        return text.rstrip("\n") + "\n\n## Status changes\n\n" + line + "\n"
+
+    start = starts[-1]
+    # Walk to the end of that section's list: past its blank line, over its
+    # bullets and table rows, stopping at the next heading or at prose.
+    i = start + 1
+    last_item = start
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("#"):
+            break
+        if s.startswith("- ") or s.startswith("|"):
+            last_item = i
+        elif s:
+            break
+        i += 1
+    lines.insert(last_item + 1, line)
+    return "\n".join(lines)
+
+
+# ── subcommands ───────────────────────────────────────────────────────────
+
+
+def track_of(config: dict, name: str) -> dict:
+    for t in config.get("tracks", []):
+        if t["track"] == name:
+            return t
+    if name and name != "main":
+        raise Refused(
+            f"track {name!r} is not declared in `.perry/config.md § Tracks`; "
+            f"declared: {[t['track'] for t in config.get('tracks', [])]}")
+    return {"track": "main", "mode": "project", "default_rung": ""}
+
+
+def cmd_add(args, ctx) -> dict:
+    if not args.title:
+        raise Refused("--title is required")
+    track = track_of(ctx["config"], args.track or "main")
+    mode = track["mode"]
+    tid = mint_id(ctx["board"], ctx["events"])
+    priority = args.priority or "P1"
+    if priority not in ("P0", "P1", "P2"):
+        raise Refused(f"priority {priority!r} is not one of P0/P1/P2")
+
+    needed = mode_columns(ctx["schema"], mode)
+    if not args.dry_run:
+        ctx["board"].ensure_columns(priority, needed)
+
+    today = f"{date.today():%Y-%m-%d}"
+    values = {
+        "id": tid, "title": args.title,
+        "owner": args.owner or "Coding Agent",
+        "status": "not_started",
+        "next action": args.next or "—",
+        "evidence": "—",
+    }
+    if mode != "project":
+        values["track"] = track["track"]
+        stages = split_stages(track.get("stages", "")) or default_stages(ctx["schema"], mode)
+        values["stage"] = args.stage or (stages[0] if stages else "")
+        if mode == "queue":
+            values["arrived"] = today
+        else:
+            values["stage since"] = today
+        if args.parent:
+            values["parent"] = args.parent
+    if args.commitment:
+        values["commitment"] = args.commitment
+
+    line = ctx["board"].append_row(priority, values) if not args.dry_run else render_row(
+        [values.get(k, "") for k in ("id", "title", "owner", "status", "next action", "evidence")])
+    jline = (f"- [{tid}] — → not_started · {args.title} · "
+             f"owner: {values['owner']} · priority: {priority}")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
+             "id": tid, "track": track["track"], "mode": mode,
+             "priority": priority, "actor": args.actor,
+             "from": None, "to": "not_started"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "priority": priority, "row": line, **plan}
+
+
+def cmd_start(args, ctx) -> dict:
+    tid = args.id
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("status", "")
+    if prev == "in_progress":
+        raise Refused(f"{tid} is already in_progress")
+    values["status"] = "in_progress"
+    if args.next:
+        values["next action"] = args.next
+    if "stage since" in values:
+        values["stage since"] = f"{date.today():%Y-%m-%d}"
+    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    jline = f"- [{tid}] {prev or '—'} → in_progress · started"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "start",
+             "id": tid, "track": values.get("track", "main"),
+             "actor": args.actor, "from": prev, "to": "in_progress"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "row": line, **plan}
+
+
+def cmd_done(args, ctx) -> dict:
+    tid = args.id
+    if not args.evidence:
+        raise Refused(
+            f"{tid}: --evidence is required. Perry refuses `done` without it — "
+            f"a claim of done that cites nothing is a claim about confidence, "
+            f"not about the work")
+    rungs = ctx["schema"]["enums"]["verification_rung"]
+    rung = args.rung
+    if rung and rung not in rungs:
+        raise Refused(f"rung {rung!r} is not one of {rungs}")
+    if rung == "V0":
+        raise Refused(
+            "V0 is 'asserted' — it is the name for what is being refused, "
+            "never a rung a row may carry")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("status", "")
+    if not rung:
+        track = track_of(ctx["config"], values.get("track", "main"))
+        rung = (track.get("default_rung")
+                or ctx["schema"]["work_modes"]["modes"][track["mode"]]["default_rung"])
+    line = ctx["board"].remove_row(idx) if not args.dry_run else ""
+    jline = (f"- [{tid}] {prev or '—'} → done · closed · "
+             f"evidence: `{args.evidence}` · verification: {rung}")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
+             "id": tid, "track": values.get("track", "main"),
+             "actor": args.actor, "from": prev, "to": "done",
+             "evidence": args.evidence, "rung": rung}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "rung": rung, "removed": line, **plan}
+
+
+def cmd_list(args, ctx) -> dict:
+    open_rows = [{"id": c.get("id", ""), "priority": pri,
+                  "title": c.get("title", ""), "status": c.get("status", ""),
+                  "track": c.get("track", "main")}
+                 for pri, _, c in ctx["board"].rows() if c.get("id")]
+    return {"open": open_rows, "events": len(ctx["events"])}
+
+
+def split_stages(cell: str) -> list[str]:
+    s = (cell or "").replace("→", "->").strip()
+    if not s or s == "—":
+        return []
+    return [x.strip() for x in s.split("->") if x.strip()]
+
+
+def default_stages(schema: dict, mode: str) -> list[str]:
+    return split_stages(schema["work_modes"]["modes"][mode].get("default_stages", ""))
+
+
+# ── main ──────────────────────────────────────────────────────────────────
+
+
+class Args:
+    pass
+
+
+def parse(argv: list[str]) -> Args:
+    a = Args()
+    a.cmd = None
+    a.id = a.title = a.track = a.owner = a.priority = None
+    a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
+    a.root = None
+    a.actor = "agent"
+    a.dry_run = a.as_json = False
+    i = 0
+    flags = {"--title": "title", "--track": "track", "--owner": "owner",
+             "--priority": "priority", "--next": "next", "--parent": "parent",
+             "--commitment": "commitment", "--stage": "stage",
+             "--evidence": "evidence", "--rung": "rung", "--root": "root",
+             "--actor": "actor"}
+    while i < len(argv):
+        t = argv[i]
+        if t in ("-h", "--help"):
+            print(__doc__.strip())
+            sys.exit(0)
+        elif t == "--dry-run":
+            a.dry_run = True
+        elif t == "--json":
+            a.as_json = True
+        elif t in flags:
+            i += 1
+            setattr(a, flags[t], argv[i] if i < len(argv) else None)
+        elif t.startswith("-"):
+            print(f"perry-task: unknown argument {t!r} (try --help)", file=sys.stderr)
+            sys.exit(2)
+        elif a.cmd is None:
+            a.cmd = t
+        elif a.id is None:
+            a.id = t
+        i += 1
+    return a
+
+
+def main(argv: list[str]) -> int:
+    args = parse(argv)
+    if args.cmd not in ("add", "start", "done", "list"):
+        print("perry-task: expected one of add / start / done / list "
+              "(try --help)", file=sys.stderr)
+        return 2
+    try:
+        schema = load_schema()
+        project_root = (Path(args.root).expanduser().resolve() if args.root
+                        else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+        state_root = P.resolve_state_root(project_root)
+        cfg_path = project_root / ".perry" / "config.md"
+        config = {"tracks": []}
+        if cfg_path.exists():
+            sys.path.insert(0, str(PERRY_HOME / "bin"))
+            import importlib.machinery
+            import importlib.util
+            spec = importlib.util.spec_from_loader(
+                "perry_state", importlib.machinery.SourceFileLoader(
+                    "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
+            ps = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ps)
+            config = {"tracks": ps.parse_tracks(cfg_path.read_text())}
+        ctx = {"schema": schema, "project_root": project_root,
+               "state_root": state_root, "config": config,
+               "board": Board(state_root / "BOARD.md"),
+               "events": read_events(project_root)}
+        result = {"add": cmd_add, "start": cmd_start,
+                  "done": cmd_done, "list": cmd_list}[args.cmd](args, ctx)
+    except Refused as exc:
+        if args.as_json:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-task: refused — {exc}", file=sys.stderr)
+        return 1
+
+    if args.as_json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "list":
+        for r in result["open"]:
+            print(f"  {r['id']:10} {r['priority']:3} {r['status']:12} {r['title'][:56]}")
+        print(f"\n  {len(result['open'])} open · {result['events']} event(s) recorded")
+    else:
+        verb = "would write" if args.dry_run else "wrote"
+        print(f"perry-task: {verb} {result.get('id')} "
+              f"({args.cmd}) → board + journal + event")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except BrokenPipeError:
+        sys.exit(0)
