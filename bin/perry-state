@@ -91,7 +91,39 @@ def parse_config(root: Path) -> dict:
         if m:
             cfg[key] = m.group(1).strip().strip("*` ")
     cfg["tracks"] = parse_tracks(text)
+    m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
+    names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m else ["software-ops"]
+    cfg["packs"] = load_packs([n for n in names if n and n != "—"])
     return cfg
+
+
+def load_packs(names: list[str]) -> list[dict]:
+    """Active packs and the display glossary each contributes.
+
+    A pack supplies DEFAULTS, never content, and its glossary renames only what
+    Perry renders (DESIGN-003 § 5.7). File names, IDs, enum values and column
+    keys stay invariant — the same split `reference/i18n.md` already draws
+    between document language and the machine contract, applied to a third axis.
+    A pack that could rename a column key would break every parser, so the
+    loader simply never looks at one.
+    """
+    out = []
+    for name in names:
+        manifest = PERRY_HOME / "packs" / name / "pack.md"
+        entry = {"name": name, "present": manifest.exists(), "glossary": {}}
+        if entry["present"]:
+            text = manifest.read_text(errors="replace")
+            body = re.search(r"^##\s+Glossary\b(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+            if body:
+                for line in body.group(1).splitlines():
+                    s = line.strip()
+                    if not s.startswith("|") or set(s) <= set("|- :"):
+                        continue
+                    cells = [c.strip().strip("*` ") for c in s.strip("|").split("|")]
+                    if len(cells) >= 2 and cells[0] and cells[0].lower() != "term":
+                        entry["glossary"][cells[0]] = cells[1]
+        out.append(entry)
+    return out
 
 
 # DESIGN-003 § 5.2. A project declares 1..N tracks; each has a mode, and the

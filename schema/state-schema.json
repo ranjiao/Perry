@@ -651,6 +651,16 @@
         "zh": [
           "父问题"
         ]
+      },
+      "Term": {
+        "zh": [
+          "术语"
+        ]
+      },
+      "Shown as": {
+        "zh": [
+          "显示为"
+        ]
       }
     }
   },
@@ -1792,6 +1802,11 @@
           "name": "State root",
           "required": false,
           "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
+        },
+        {
+          "name": "Packs",
+          "required": false,
+          "note": "Comma-separated pack names active in this project, resolved under $PERRY_HOME/packs/<name>/. Absent = software-ops only, which is what every pre-DESIGN-003 project effectively had. A pack supplies defaults - mode, stage vocabulary, rubrics, high-stakes additions, display glossary - never content."
         }
       ],
       "tables": [
@@ -1903,5 +1918,13 @@
       "severity": "error",
       "description": "A task id may appear under at most one KR's tasks[]; two would make its attribution ambiguous."
     }
-  ]
+  ],
+  "packs": {
+    "note": "DESIGN-003 section 5.6 / 5.7. Packs live in $PERRY_HOME, NOT in the user's project, so they claim nothing and appear in no claims[] entry. `packs/<name>/pack.md` is the manifest.",
+    "manifest": "packs/<name>/pack.md",
+    "sections": {
+      "Glossary": "Optional. A two-column table, `Term | Shown as`, that renames what Perry RENDERS. It is a third axis on the same mechanism as i18n: file names, IDs, enum values, column keys and command names stay invariant, and only the nouns a human reads change. A pack that renamed a file name would break every parser, which is why the glossary cannot reach them."
+    },
+    "invariant": "Everything in i18n.invariant, plus: a glossary may never rename a schema column key, a heading the schema matches on, an enum value, or a path. It renames prose."
+  }
 }

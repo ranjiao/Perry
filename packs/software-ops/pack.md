@@ -20,6 +20,31 @@ display glossary. Perry supplies the office; a pack supplies the practice.
 | **Gates it adds** | `close-task` gate 1 (`Touches architecture:` → review agent PASS), gate 2 (`Deployed: yes` → runbook exists) |
 | **Default rungs** | Inherits `project` mode's V3. Anything `Deployed: yes` is outward-facing and takes V5 by the consequence rule |
 
+## Glossary
+
+The nouns Perry renders for a project running this pack. Everything not listed
+keeps its default name.
+
+| Term | Shown as |
+|---|---|
+| Board | Board |
+| Phase | Phase |
+| Commitment | Key result |
+
+Deliberately almost empty, and that is the honest result. `software-ops` is the
+domain Perry's default vocabulary was **built from**, so there is nothing to
+translate — the three rows above are identities, kept to show the shape a real
+pack fills in. A content pack would map `Board → Calendar`, `Phase → Cycle`,
+`Item → Piece`; a legal pack would map `Board → Matters`, `Phase → Stage`,
+`Task → Task` and leave `Commitment` alone. The value of the glossary is
+entirely for the packs Perry does not ship.
+
+**What a glossary may never rename**: a file name, an ID, an enum value, a
+schema column key, a heading the schema matches on, or a command. Those are the
+machine contract — the same line `reference/i18n.md` draws between the document
+language and the tokens every parser keys on. A pack that could move them would
+break every reader; the loader does not look at them at all.
+
 ## Deactivating it
 
 A project whose tracks are all `pipeline`, `queue` or `inquiry` has no use for

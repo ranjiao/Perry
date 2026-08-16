@@ -706,3 +706,56 @@ class TestProvenanceLint(unittest.TestCase):
         self.assertEqual(out["sources_defined"], 0)
         self.assertEqual(out["ids_cited"], 0)
         self.assertEqual(out["findings"], [])
+
+
+class TestPackGlossary(unittest.TestCase):
+    """DESIGN-003 §5.7 — the vocabulary layer, and the line it must not cross.
+
+    "OKR" and "PMO" are the first two nouns a non-product user meets, and both
+    say *this tool is not for you* (§1.4 B7). The glossary answers that at
+    near-zero structural cost — but only because it renames PROSE. A glossary
+    that could rename a column key or an enum value would break every parser,
+    so the loader must not even look at them.
+    """
+
+    def setUp(self):
+        import importlib.util
+        spec = importlib.util.spec_from_loader(
+            "perry_state",
+            importlib.machinery.SourceFileLoader(
+                "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
+        self.ps = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.ps)
+
+    def test_absent_packs_field_defaults_to_software_ops(self):
+        """Every pre-DESIGN-003 project effectively ran that pack."""
+        packs = self.ps.load_packs(["software-ops"])
+        self.assertEqual(packs[0]["name"], "software-ops")
+        self.assertTrue(packs[0]["present"])
+
+    def test_a_missing_pack_is_reported_not_crashed_on(self):
+        packs = self.ps.load_packs(["no-such-pack"])
+        self.assertFalse(packs[0]["present"])
+        self.assertEqual(packs[0]["glossary"], {})
+
+    def test_the_glossary_parses_into_term_to_shown_as(self):
+        g = self.ps.load_packs(["software-ops"])[0]["glossary"]
+        self.assertIn("Commitment", g)
+        self.assertEqual(g["Commitment"], "Key result")
+
+    def test_packs_claim_nothing_in_the_users_project(self):
+        """packs/ lives in $PERRY_HOME. A pack that claimed a project path
+        would reopen DESIGN-002's collision surface for every install."""
+        claimed = {c["path"] for c in SCHEMA["claims"]}
+        self.assertNotIn("packs/", claimed)
+
+    def test_the_schema_forbids_a_glossary_renaming_the_machine_contract(self):
+        inv = SCHEMA["packs"]["invariant"]
+        for protected in ("column", "enum", "path"):
+            self.assertIn(protected, inv,
+                          f"the packs contract does not protect {protected} names")
+
+    def test_packs_field_is_optional_in_config(self):
+        c = file_spec("config")
+        f = next(x for x in c["header_fields"] if x["name"] == "Packs")
+        self.assertFalse(f.get("required", True))
