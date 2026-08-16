@@ -1420,6 +1420,58 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return m.group(1), text[m.end():]
 
 
+_BLOCK_SENTINEL = "\x00blk"
+_BLOCK_HEAD = re.compile(r"^(\s*(?:-\s+)?)([A-Za-z_][\w.-]*|\"[^\"]+\"|\'[^\']+\'):\s*([|>][-+]?)\s*$")
+
+
+def _lift_block_scalars(raw_lines: list[str], blocks: dict) -> list[str]:
+    """Replace each `key: |` block with a one-line sentinel scalar.
+
+    Runs before comment/blank stripping so markdown headings and paragraph
+    breaks inside the block survive verbatim. Chomping indicators (`|-`, `|+`)
+    are honoured; anything else after the marker is ignored rather than
+    rejected, since this is a reader, not a validator."""
+    out: list[str] = []
+    i = 0
+    while i < len(raw_lines):
+        line = raw_lines[i]
+        m = _BLOCK_HEAD.match(line)
+        if not m:
+            out.append(line)
+            i += 1
+            continue
+        prefix, key, marker = m.groups()
+        key_indent = len(line) - len(line.lstrip(" "))
+        body, j, block_indent = [], i + 1, None
+        while j < len(raw_lines):
+            nxt = raw_lines[j]
+            if nxt.strip() == "":
+                body.append("")
+                j += 1
+                continue
+            ind = len(nxt) - len(nxt.lstrip(" "))
+            if ind <= key_indent:
+                break
+            if block_indent is None:
+                block_indent = ind
+            body.append(nxt[block_indent:] if len(nxt) >= block_indent else nxt.lstrip())
+            j += 1
+        while body and body[-1] == "":
+            body.pop()
+        text = "\n".join(body)
+        if marker.startswith(">"):
+            text = " ".join(t for t in text.splitlines() if t).strip()
+        if marker.endswith("+"):
+            text += "\n"
+        elif not marker.endswith("-") and text:
+            text += "\n"
+        token = f"{_BLOCK_SENTINEL}{len(blocks)}\x00"
+        blocks[token] = text
+        out.append(f"{prefix}{key}: {token}")
+        i = j
+    return out
+
+
 def parse_yaml_subset(text: str):
     """A deliberately small YAML reader — enough for machine-written Perry
     frontmatter, and nothing more.
@@ -1431,10 +1483,19 @@ def parse_yaml_subset(text: str):
     structure — a linkage graph that silently loses an objective would report
     committed work as nonexistent.
 
-    Not supported (by design): anchors, multi-line scalars, multi-document
-    files, nested flow maps, tags."""
+    Block scalars (`key: |`) ARE supported, because `declarations[].content` is
+    specified as verbatim multi-line — an authored KR table cannot live on one
+    line, which is the whole reason `candidates[].resolution` could not hold it.
+    They are lifted out here rather than in the parser, because the loop below
+    strips blank lines and `#` comments, and markdown content is full of both:
+    a heading like `## Objective 1` would otherwise be silently eaten.
+
+    Not supported (by design): anchors, multi-document files, nested flow maps,
+    tags."""
+    blocks: dict[str, str] = {}
+    src = _lift_block_scalars(text.split("\n"), blocks)
     lines = []
-    for n, raw in enumerate(text.split("\n"), start=1):
+    for n, raw in enumerate(src, start=1):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         # YAML forbids tabs for indentation, and silently treating one as
@@ -1453,6 +1514,8 @@ def parse_yaml_subset(text: str):
             return None
         if tok[0] in "\"'" and len(tok) > 1 and tok[-1] == tok[0]:
             return tok[1:-1]
+        if tok.startswith(_BLOCK_SENTINEL):
+            return blocks.get(tok, "")
         if tok.startswith("[") and tok.endswith("]"):
             inner = tok[1:-1].strip()
             return [scalar(p) for p in _split_flow(inner)] if inner else []

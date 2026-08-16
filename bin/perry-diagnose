@@ -980,11 +980,72 @@ WHY = {
     "LOAD-04":
         "Some of these codes have no readable name attached anywhere, so even "
         "looking them up doesn't tell you what they are.",
+    "NS-01":
+        "Perry claimed this folder, and now it holds files Perry did not "
+        "write. It will read them as its own state and report them as broken — "
+        "so the next check will tell you your own file is malformed. It "
+        "isn't; it is just standing in a folder Perry took.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
         "heavier would cost more to maintain than it returns.",
 }
+
+
+def scan_namespace(root: Path, state_root: Path, is_perry: bool) -> dict:
+    """Paths Perry claims that now hold files Perry did not write.
+
+    The state root is chosen once, at setup. This is the "after": a project
+    adopted at `.` that later grows its own `design/proposal.md` currently gets
+    that file reported as MALFORMED PERRY STATE — the user's own document called
+    broken, which is precisely the failure the state root exists to prevent,
+    arriving by a route it does not cover.
+
+    Only meaningful on an adopted project. On anything else the collision check
+    is `perry-lint --claims`, which runs before adoption and answers a different
+    question ("where should the state root go?" rather than "has my state root
+    been encroached on?")."""
+    if not is_perry:
+        return {"applicable": False, "collisions": []}
+    try:
+        schema = json.loads((HERE.parent / "schema" / "state-schema.json").read_text())
+    except (OSError, ValueError):
+        return {"applicable": False, "collisions": []}
+
+    collisions = []
+    for c in schema.get("claims") or []:
+        if c["anchor"] == "project" or c["kind"] != "dir":
+            continue
+        target = state_root / c["path"].rstrip("/")
+        if not target.is_dir():
+            continue
+        foreign = []
+        for f in sorted(target.rglob("*.md")):
+            rel = f.relative_to(root).as_posix()
+            if not _perry_shaped(f, schema):
+                foreign.append(rel)
+        if foreign:
+            collisions.append({"path": c["path"], "owner": c["owner"],
+                               "foreign": foreign[:10], "count": len(foreign)})
+    return {"applicable": True, "collisions": collisions}
+
+
+def _perry_shaped(path: Path, schema: dict) -> bool:
+    """Generous on purpose: a false 'yes' costs one missed warning, a false
+    'no' tells the user their own working state is foreign."""
+    if path.name in ("README.md", "INDEX.md"):
+        return True
+    stem = path.stem
+    if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
+        return True
+    if re.match(r"^\d{4}-\d{2}(-\d{2})?$", stem) or re.match(r"^\d{4}-W?\d{2}$", stem):
+        return True
+    if any(Path(spec["path"]).name == path.name for spec in schema["files"]):
+        return True
+    try:
+        return "$PERRY_HOME" in path.read_text(encoding="utf-8", errors="replace")[:2000]
+    except OSError:
+        return False
 
 
 def finding(fid, severity, title, detail, evidence=None):
@@ -1000,8 +1061,23 @@ def finding(fid, severity, title, detail, evidence=None):
     }
 
 
-def derive_findings(ctx, docs, con, trk, arch, inv, load) -> list[dict]:
+def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None) -> list[dict]:
     out = []
+
+    # ── namespace ──
+    # Stays `warn`, never `error`: a user may knowingly keep one file in a
+    # claimed folder, and there is no per-path opt-out by design (DESIGN-002
+    # decision #2 was taken strictly). A permanent red for a deliberate choice
+    # is how a check trains its user to skip it.
+    for c in (ns or {}).get("collisions", []):
+        out.append(finding(
+            "NS-01", "warn",
+            f"`{c['path']}` holds {c['count']} file(s) Perry did not write",
+            f"Either move Perry's state to its own root — `/perry relocate "
+            f"perry` — or move these files out of `{c['path']}`. Both are "
+            f"reversible; the first is one command.",
+            c["foreign"],
+        ))
 
     # ── context load ──
     if not ctx["always_loaded"]:
@@ -1270,7 +1346,8 @@ def diagnose(root: Path, max_files: int) -> dict:
     trk = scan_tracking(root, state_root, inv)
     arch = scan_archetype(inv, docs, root, is_perry, perry_owned)
     load = scan_user_load(root, inv, docs, is_perry)
-    findings = derive_findings(ctx, docs, con, trk, arch, inv, load)
+    ns = scan_namespace(root, state_root, is_perry)
+    findings = derive_findings(ctx, docs, con, trk, arch, inv, load, ns)
 
     return {
         "schema": "diagnose/1",
@@ -1291,6 +1368,7 @@ def diagnose(root: Path, max_files: int) -> dict:
         "tracking": trk,
         "archetype": arch,
         "user_load": load,
+        "namespace": ns,
         "findings": findings,
         "counts": {
             "error": sum(1 for f in findings if f["severity"] == "error"),

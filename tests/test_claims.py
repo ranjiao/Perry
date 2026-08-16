@@ -201,6 +201,47 @@ class TestTheCheckIsWiredIn(unittest.TestCase):
                       "the adopt path lost the check")
 
 
+class TestRemediesExist(unittest.TestCase):
+    """A finding that recommends a command must recommend a real one.
+
+    `NS-01` tells the user to run `/perry relocate`. Decision #2 was taken
+    strictly — no per-path `Ignore:` — so relocation is one of only two
+    remedies, which is what promoted it from convenience to requirement."""
+
+    SKILL = (PERRY_HOME / "SKILL.md").read_text()
+    DIAGNOSE = (PERRY_HOME / "reference" / "diagnose.md").read_text()
+
+    def test_ns01_is_in_the_catalog(self):
+        """The catalog is the lookup for a stable ID. One without an entry is a
+        worse experience than prose."""
+        self.assertRegex(self.DIAGNOSE, r"\| `NS-01` \| warn \|")
+
+    def test_ns01_is_a_warning_not_an_error(self):
+        """A user may knowingly keep one file in a claimed folder. A permanent
+        red for a deliberate choice is how a check trains its user to skip it."""
+        row = next(l for l in self.DIAGNOSE.splitlines() if l.startswith("| `NS-01`"))
+        self.assertIn("| warn |", row)
+
+    def test_relocate_is_documented(self):
+        self.assertIn("## `/perry relocate", self.SKILL,
+                      "NS-01 recommends a command that does not exist")
+
+    def test_relocate_is_in_the_command_surface(self):
+        surface = self.SKILL[self.SKILL.index("### Command surface"):][:600]
+        self.assertIn("relocate", surface)
+
+    def test_relocate_refuses_a_dirty_tree(self):
+        sec = self.SKILL[self.SKILL.index("## `/perry relocate"):][:2600]
+        self.assertIn("dirty tree", sec,
+                      "the git mv set is the only thing making this reversible")
+
+    def test_relocate_computes_moves_from_claims(self):
+        sec = self.SKILL[self.SKILL.index("## `/perry relocate"):][:2600]
+        self.assertIn("claims[]", sec,
+                      "a hand-written path list here reproduces the drift this "
+                      "whole design exists to close")
+
+
 class TestNoProseListSurvives(unittest.TestCase):
     """Both prose lists were deleted rather than updated.
 

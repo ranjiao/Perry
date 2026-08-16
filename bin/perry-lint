@@ -262,6 +262,33 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                 findings.append(Finding("error", rel, "bad-enum",
                                         f"{where}{name} = {value!r} is not one of "
                                         f"{enums[rule['enum']]}"))
+            # A field whose legal values depend on a sibling — `step` is only
+            # meaningful against the `stage` it sits inside. A dossier reading
+            # `stage: confirm, step: rx-3` resumes into nothing, and the whole
+            # point of `step` is that resume lands somewhere real.
+            by_stage = rule.get("enum_by_stage") or {}
+            pat_by_stage = rule.get("pattern_by_stage") or {}
+            if by_stage or pat_by_stage:
+                stage = str(node.get("stage") or "") if isinstance(node, dict) else ""
+                if stage in by_stage:
+                    allowed = enums[by_stage[stage]]
+                    if str(value) not in allowed:
+                        findings.append(Finding(
+                            "error", rel, "bad-step",
+                            f"{where}{name} = {value!r} is not a valid step of "
+                            f"stage {stage!r} — expected one of {allowed}"))
+                elif stage in pat_by_stage:
+                    if not re.match(pat_by_stage[stage], str(value)):
+                        findings.append(Finding(
+                            "error", rel, "bad-step",
+                            f"{where}{name} = {value!r} does not match "
+                            f"/{pat_by_stage[stage]}/ for stage {stage!r}"))
+                elif stage:
+                    findings.append(Finding(
+                        "warn", rel, "step-without-substeps",
+                        f"{where}{name} = {value!r} but stage {stage!r} has no "
+                        f"sub-steps — resume reads `stage` alone here, so this "
+                        f"field is noise"))
 
     walk(data, fm["fields"], "")
 

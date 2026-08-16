@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (5th pass — 8 tasks closed)
+> Last updated: 2026-08-16 (6th pass — 10 tasks closed, 1 blocked)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,19 +16,17 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-013 | `NS-01` finding: emitter, catalog row, `WHY` entry | Coding Agent | not_started | DESIGN-002 phase D — the "after" case the state root does not cover | — |
+| TASK-005 | Stale-run warning | Coding Agent | blocked | DESIGN-001 phase E — `step:` validation landed; the staleness half is **blocked on USER-001** (the threshold N) | — |
 
 ## P1
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-014 | `/perry relocate <path>` subcommand | Coding Agent | not_started | DESIGN-002 phase E — the only remedy now that #2 was taken strictly | — |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-005 | `perry-lint`: validate `step:` against its stage enum; stale-run warning | Coding Agent | not_started | DESIGN-001 phase E — needs the N threshold from DESIGN-001 §8 | — |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -41,7 +39,7 @@
 | USER-id | Needed from user | Blocks | Idle | Status |
 |---|---|---|---|---|
 | USER-001 | Staleness threshold N for the stale-run lint warning (DESIGN-001 §8 — 14d is a guess with no evidence) | TASK-005 | 0d | open |
-| USER-002 | Should `--claims` be exempt from `--strict`? (DESIGN-002 §8) | TASK-011 | 0d | open |
+| USER-002 | Should `--claims` be exempt from `--strict`? (DESIGN-002 §8) | — | 0d | open |
 
 ## Done this period (leaves the board at next triage)
 
@@ -55,6 +53,8 @@
 | TASK-012 | Claim check wired into First-time setup as a conditional 3rd question; both prose path lists deleted | `SKILL.md § First-time setup` step 2, `tests/test_claims.py` (13 tests) |
 | TASK-004 | `diagnose --resume`, interview/execute sub-steps, restore-point re-validation, re-scan on resume | `reference/diagnose.md`, `tests/test_resume.py` |
 | TASK-006 | `perry-state --section interrupted` + two fixtures; the gate now reads a payload instead of eyeballing frontmatter | `bin/perry-state`, `tests/fixtures/interrupted-adoption/`, `tests/test_resume.py` (30 tests) |
+| TASK-013 | `NS-01` — scanner, emitter, catalog row, `WHY` entry | `bin/perry-diagnose`, `reference/diagnose.md` |
+| TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

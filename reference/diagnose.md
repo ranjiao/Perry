@@ -416,8 +416,25 @@ in the payload. Use it, or better it — but never present a finding without one
 | `LOAD-02` | warn | Codes referenced in documents but defined nowhere. | Resolve, define, or drop each |
 | `LOAD-03` | warn | Open decisions queued on the user past the threshold. | Triage; decide the reversible ones |
 | `LOAD-04` | info | A code is defined but carries no readable name. | Title it where it's defined |
+| `NS-01` | warn | A directory Perry claims holds files Perry did not write. | Relocate the state root, or move the file |
 | `FIT-01` | info | Far more process than work. | The subtraction |
 | `FIT-02` | info | Below the minimum viable spine. | The floor, and nothing more |
+
+`NS-01` is the only finding about Perry's own footprint rather than the
+project's structure, and it covers a gap the state root cannot. The root is
+chosen once, at setup; a project adopted at `.` that later adds its own
+`design/proposal.md` would otherwise have that file reported as *malformed
+Perry state* — the user's own document called broken, which is exactly what
+`State root:` exists to prevent, arriving by a route it does not reach.
+
+It stays `warn` and never `error`. There is no per-path opt-out by design
+(`perry/design/DESIGN-002-namespace-collision.md` decision #2 was taken
+strictly), so a user may knowingly keep one file in a claimed folder — and a
+permanent red for a deliberate choice is how a check trains its user to skip it.
+The two remedies are `/perry relocate <path>` or moving the file; both are
+reversible, and the first is one command. Before adoption the equivalent
+question is answered by `perry-lint --claims`, which asks *where the state root
+should go* rather than *what has encroached on it*.
 
 The `LOAD-*` family measures something different from the rest: not whether the
 project is well-formed, but whether a **human** can still follow it. See

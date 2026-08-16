@@ -21,7 +21,8 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 /perry                          combined snapshot (the default)
 /perry <lane> <subcommand>      /perry okr plan-phase · /perry pmo triage · /perry design lock
 /perry <subcommand>             allowed when the subcommand name is unambiguous
-/perry adopt | diagnose | help  handled here, not in a lane
+/perry adopt | diagnose        handled here, not in a lane
+/perry relocate <path> | help   handled here, not in a lane
 ```
 
 Subcommand names are unique across the three lanes, so `/perry plan-phase` resolves without the lane. Name the lane when a request is ambiguous or the user is new.
@@ -263,12 +264,60 @@ Five stages, each resumable: **scan** (read-only report) → **harvest** (cited 
 
 Sources, trust tiers, and the depth matrix (including non-code projects) are in `reference/adoption-sources.md`.
 
+## `/perry relocate <path>` — moving Perry's state root
+
+```
+/perry relocate <path>          # e.g. /perry relocate perry
+/perry relocate . --dry-run     # show the moves, touch nothing
+```
+
+Moves every path Perry claims under a new state root and rewrites
+`State root:` in `.perry/config.md`. `.perry/` itself never moves — it holds
+the pointer, so it cannot sit behind it.
+
+This exists because the state root is chosen **once**, at setup, and projects
+grow. A project adopted at `.` that later adds its own `design/proposal.md`
+gets `NS-01` (`reference/diagnose.md § Finding catalog`), and relocation is one
+of its only two remedies — the other being moving your own file. There is no
+per-path opt-out by design, so doing this by hand across fifteen paths is where
+someone loses a journal directory.
+
+**Procedure:**
+
+1. **Refuse on a dirty tree.** Same discipline as `diagnose` requiring a restore
+   point: `git status --porcelain` must be empty, or stop and say so. Not a git
+   repo → copy the tree to `.perry/relocate-<YYYY-MM-DD>-backup/` first.
+2. **Compute the moves** from `schema/state-schema.json § claims[]`, never from
+   a hand-written list — that is what drifted before. Skip `anchor: project`.
+3. **Check the destination is free**:
+   ```
+   python3 "$PERRY_HOME/bin/perry-lint" --claims --root . --state-root <path>
+   ```
+   A destination with collisions of its own is refused, not merged into.
+4. **Show every move `from → to` and confirm** (`AskUserQuestion`, header
+   `"Relocate"`, options: `Move <n> paths | Show the full list first | Cancel`).
+   Never move a user's files without the list in front of them.
+5. **`git mv` each existing path** (plain `mv` outside git). Paths that do not
+   exist are skipped silently — a project without `runbook/` is not an error.
+6. **Rewrite `State root:`** in `.perry/config.md`, adding a short `## Why the
+   state root is not \`.\`` block naming what collided.
+7. **Verify**: `perry-lint --root .` must pass, and `perry-lint --claims` must
+   report zero collisions. If either fails, print the `from → to` list so the
+   move is reversible by hand, and stop.
+
+`--dry-run` stops after step 4 and writes nothing.
+
+**What it never does.** It never moves a file it did not put there — only paths
+Perry claims, and within them only files Perry wrote. It never deletes. It never
+relocates *into* a directory that already collides. And it never runs on a dirty
+tree, because the `git mv` set is the only thing making it reversible.
+
 ## `/perry diagnose` — auditing how a project works with agents
 
 `adopt` converts a project **into** Perry. `diagnose` asks the prior question: **is this project's working structure sound at all?** It runs on any folder, including one that has never heard of Perry, and the right answer is often "leave it alone" or "you need three files" rather than "adopt Perry".
 
 ```
-/perry diagnose [--depth=quick|standard|deep] [--only=<lanes>] [--dry-run] [--recheck]
+/perry diagnose [--depth=quick|standard|deep] [--only=<lanes>] [--dry-run] [--resume] [--recheck]
 ```
 
 **Read `reference/diagnose.md` before running it.** The governing rule: **every prescription traces to a finding, and every finding traces to a measurement or an answer the user gave.** Nothing may be prescribed because Perry prefers it — diagnosis is inherently judgmental, and without that gate this subcommand becomes a machine that converts every project into a heavier project. It writes exactly one file of its own — `.perry/diagnose/<YYYY-MM-DD>-diagnosis.md` — and changes to Perry state still go through the owning child skill.
