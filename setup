@@ -155,9 +155,9 @@ if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
   warn "  1. Install Claude Code from https://claude.com/download and re-run setup."
   warn "  2. Install Codex CLI: npm install -g @openai/codex  (needs Node.js)"
   warn "  3. Run with explicit flag if a host is installed but not in PATH:"
-  warn "       ~/proj/Perry/setup --claude"
-  warn "       ~/proj/Perry/setup --codex"
-  warn "       ~/proj/Perry/setup --claude --codex"
+  warn "       ~/perry/setup --claude"
+  warn "       ~/perry/setup --codex"
+  warn "       ~/perry/setup --claude --codex"
   exit 1
 fi
 

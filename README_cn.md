@@ -41,7 +41,7 @@ Perry 是给**一个人或小团队**用的。它提供结构，但不带来会�
 Install the Perry skill set from https://github.com/ranjiao/Perry.
 
 Steps:
-1. Run: mkdir -p ~/proj && git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup --yes-deps
+1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
 2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, tell me — those need my permission.
 3. Confirm /perry is available.
 ```
@@ -49,14 +49,14 @@ Steps:
 也可以自己装：
 
 ```bash
-git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup
+git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 ```
 
-`~/proj/Perry` 只是个建议位置 —— 放哪个目录都行。
+`~/perry` 只是个建议位置 —— 放哪个目录都行。
 
 **可选参数：** `setup --claude` 或 `setup --codex` 指定单个宿主，`setup --claude --codex` 两个都装。
 
-**更新：** `cd ~/proj/Perry && git pull`（Perry 大约每周也会提醒你一次）。
+**更新：** `cd ~/perry && git pull`（Perry 大约每周也会提醒你一次）。
 
 安装细节、依赖、以及 Claude Code 和 Codex 的差异，见 **[INSTALL.md](INSTALL.md)**。
 

@@ -39,7 +39,7 @@ Paste this into a fresh Claude Code or Codex CLI session:
 Install the Perry skill set from https://github.com/ranjiao/Perry.
 
 Steps:
-1. Run: mkdir -p ~/proj && git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup --yes-deps
+1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
 2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, tell me — those need my permission.
 3. Confirm /perry is available.
 ```
@@ -47,14 +47,14 @@ Steps:
 Or install it yourself:
 
 ```bash
-git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup
+git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 ```
 
-`~/proj/Perry` is only a suggestion — any folder works.
+`~/perry` is only a suggestion — any folder works.
 
 **Options:** `setup --claude` or `setup --codex` to force one host, `setup --claude --codex` for both.
 
-**Update:** `cd ~/proj/Perry && git pull` (Perry also reminds you about once a week).
+**Update:** `cd ~/perry && git pull` (Perry also reminds you about once a week).
 
 Details, dependencies and Codex differences: **[INSTALL.md](INSTALL.md)**.
 

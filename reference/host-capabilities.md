@@ -42,7 +42,7 @@ The perry/ root directory — contains `bin/`, `reference/`, `okr/`, `pmo/`, `de
 - Codex CLI: `$HOME/.agents/skills/perry`
 
 **Resolution at runtime**:
-1. If `$PERRY_HOME` is set in env → use it (works for any custom install location, e.g., `$HOME/proj/Perry`).
+1. If `$PERRY_HOME` is set in env → use it (works for any custom install location, e.g., `$HOME/code/perry`).
 2. Otherwise the standup ritual derives it from the path of the SKILL.md the agent just read: parent dir for the top-level `SKILL.md`, grandparent for `okr/SKILL.md` / `pmo/SKILL.md` / `design/SKILL.md`.
 3. The bin scripts (`perry-update-check`, etc.) self-locate via `$0` as a third fallback for command-line invocations outside a Perry session.
 
