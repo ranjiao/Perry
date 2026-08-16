@@ -157,14 +157,14 @@ Repeat:
      - Run full `/pmo dispatch <task-id>` flow (see `dispatch.md`):
        - Pre-flight (codex preflight if codex; safety re-validation; concurrency register)
        - Dispatch via executor with async (Claude Code: `run_in_background: true`; Codex: shell `&` per `../../reference/host-capabilities.md`).
-       - Increment `dispatches_done`. Append journal status-change line.
+       - Increment `dispatches_done`. The journal status-change line is already written — `dispatch` ran `perry-task start`, which writes row, journal and event together. Appending one here duplicates it.
        - Append a row to the run summary's per-task table: dispatched at, executor.
 
 3. **Wait for ANY in-flight dispatch to complete**:
    - On Claude Code: receive runtime notification (background dispatches notify on completion). On Codex (`$HOST = codex-cli`): poll the per-task log files (`/tmp/perry-dispatch-<id>.log`) every 30s and the PID files (`/tmp/perry-dispatch-<id>.pid`) for process exit; treat first appearance of `=== END RESULT ===` (or process exit) as completion. See `../../reference/host-capabilities.md § Bash run_in_background → shell &`.
-   - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, update BOARD to `review`, append journal line.
+   - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, then move the row with `perry-task status <ID> --status review` — one call that updates `BOARD.md` and appends the journal line. Do not do either by hand: an autopilot run that hand-edits the board on every completion drowns the drift signal in output it produced itself, which is the failure this file's own header warns about.
    - Append result to the run summary's per-task table: completed at, status, evidence path.
-   - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark task `review` with failure annotation. **Never auto-retry.**
+   - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark the task `review` with the failure named: `perry-task status <ID> --status review --reason "<what failed>"`. **Never auto-retry.**
 
 4. If concurrency cap is fully occupied and no completion arrives within 10 min → log "stalled" + exit. (Likely a stuck background process; user investigates.)
 

@@ -31,10 +31,12 @@ database with a markdown export.
 Usage:
   perry-task add   --title "…" [--track T] [--owner O] [--priority P0|P1|P2]
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
+                   [--arrived YYYY-MM-DD]
   perry-task start <ID> [--next "…"]
   perry-task stage <ID> --stage <name>
   perry-task intake --title "…" [--arrived YYYY-MM-DD]
-  perry-task route <n> --track T [--priority P1] [--stage S]
+  perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
+                   [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
   perry-task drop  <ID> --reason "…"
   perry-task status <ID> --status blocked|review|not_started|in_progress
@@ -45,6 +47,11 @@ Usage:
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --dry-run       print what would be written; touch nothing
   --json          machine-readable result
+  --actor <name>  who is making the change; stamped into every event. Accepted
+                  by every subcommand and defaulted rather than required —
+                  DESIGN-004 § 8 asks whether it should be mandatory, and until
+                  that is answered an unset actor is recorded as unset rather
+                  than guessed.
 
 Exit codes:
   0  written (or, with --dry-run, would be)
@@ -455,6 +462,26 @@ def append_status_change(text: str, line: str) -> str:
 # ── subcommands ───────────────────────────────────────────────────────────
 
 
+def stages_of(schema: dict, track: dict) -> list[str]:
+    """The track's declared stage vocabulary, else its mode's default."""
+    return (split_stages(track.get("stages", ""))
+            or default_stages(schema, track["mode"]))
+
+
+def check_stage(track: dict, stages: list[str], stage: str) -> None:
+    """Refuse a stage outside the track's vocabulary — on creation as on moves.
+
+    `stage` enforced this from the day it shipped. `add` and `route` took
+    `--stage` verbatim, so `--stage bogus` wrote a cell no reader can classify
+    and exited 0: the vocabulary was checked when a row *moved* and not when it
+    was *born*, which is the one moment the cell has no prior value to fall
+    back to.
+    """
+    if stage and stages and stage not in stages:
+        raise Refused(f"stage {stage!r} is not in track {track['track']!r}'s "
+                      f"vocabulary {stages}")
+
+
 def track_of(config: dict, name: str) -> dict:
     for t in config.get("tracks", []):
         if t["track"] == name:
@@ -495,7 +522,8 @@ def cmd_add(args, ctx) -> dict:
     }
     if mode != "project":
         values["track"] = track["track"]
-        stages = split_stages(track.get("stages", "")) or default_stages(ctx["schema"], mode)
+        stages = stages_of(ctx["schema"], track)
+        check_stage(track, stages, args.stage)
         # Queue rows raised directly skip intake, so they start at the first
         # POST-intake stage — the same one `route` assigns. `new` means "sitting
         # in intake", and a row that never was there should not claim it.
@@ -596,11 +624,8 @@ def cmd_stage(args, ctx) -> dict:
     pri, idx, header, cells = ctx["board"].find(tid)
     values = dict(zip([norm(h) for h in header], cells))
     track = track_of(ctx["config"], values.get("track", "main"))
-    stages = (split_stages(track.get("stages", ""))
-              or default_stages(ctx["schema"], track["mode"]))
-    if stages and stage not in stages:
-        raise Refused(f"stage {stage!r} is not in track {track['track']!r}'s "
-                      f"vocabulary {stages}")
+    stages = stages_of(ctx["schema"], track)
+    check_stage(track, stages, stage)
     prev = values.get("stage", "")
     if prev == stage:
         raise Refused(f"{tid} is already at stage {stage!r}")
@@ -778,8 +803,8 @@ def cmd_route(args, ctx) -> dict:
                       f"queue-mode operation (`modes/queue.md`)")
     tid = mint_id(ctx["board"], ctx["events"])
     priority = args.priority or "P1"
-    stages = (split_stages(track.get("stages", ""))
-              or default_stages(ctx["schema"], track["mode"]))
+    stages = stages_of(ctx["schema"], track)
+    check_stage(track, stages, args.stage)
     stage = args.stage or (stages[1] if len(stages) > 1 else (stages[0] if stages else ""))
 
     if not args.dry_run:
@@ -928,13 +953,23 @@ def parse(argv: list[str]) -> Args:
     return a
 
 
+# The single source of truth for what `perry-task` accepts. Membership check,
+# error message and dispatch all read this one dict on purpose: it used to be a
+# tuple and a dict holding the same list, and they drifted apart twice — once
+# leaving `drop` accepted but undispatched (a bare KeyError), once leaving
+# `drop`, `status` and `resolve-intake` out of the "expected one of" line. A
+# name added here is reachable, dispatchable and advertised in one edit.
+COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
+            "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
+            "route": cmd_route, "resolve-intake": cmd_resolve_intake,
+            "status": cmd_status, "list": cmd_list}
+
+
 def main(argv: list[str]) -> int:
     args = parse(argv)
-    if args.cmd not in ("add", "start", "stage", "done", "drop",
-                        "intake", "route", "resolve-intake", "status", "list"):
-        print("perry-task: expected one of add / start / stage / done / "
-              "intake / route / list "
-              "(try --help)", file=sys.stderr)
+    if args.cmd not in COMMANDS:
+        print(f"perry-task: expected one of {' / '.join(COMMANDS)} "
+              f"(try --help)", file=sys.stderr)
         return 2
     try:
         schema = load_schema()
@@ -957,10 +992,7 @@ def main(argv: list[str]) -> int:
                "state_root": state_root, "config": config,
                "board": Board(state_root / "BOARD.md"),
                "events": read_events(project_root)}
-        result = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
-                  "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
-                  "route": cmd_route, "resolve-intake": cmd_resolve_intake,
-                  "status": cmd_status, "list": cmd_list}[args.cmd](args, ctx)
+        result = COMMANDS[args.cmd](args, ctx)
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))

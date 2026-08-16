@@ -552,6 +552,44 @@ class TestDriftReconciliation(unittest.TestCase):
         self.assertIn("TASK-900", d["unrecorded_sample"])
         self.assertTrue(d["baseline"], "no baseline to judge unrecorded rows against")
 
+    def test_a_routed_row_is_not_reported_as_un_tool_written(self):
+        """Round-5 finding 5, and the first time the recurring defect reached
+        code rather than prose.
+
+        `reconcile_drift` recognized only `add` as a creating event. `route`
+        emits `route`, so every row the tool itself created by promoting an
+        intake request was counted `unrecorded` — forever, and it could never
+        be detected as `orphaned` either, because the same tuple gates both
+        loops. The detector generated the exact false drift it was built to
+        catch, and `work/SKILL.md` then instructed the agent to narrate that
+        signal as "written by hand since the tool landed."
+
+        The route path is exercised end to end rather than by asserting on the
+        tuple: the bug was that two readers disagreed about what creates a row,
+        and only a written row can show that.
+        """
+        p = Project(tracks=TestModeAwareWrites.TRACKS)
+        p.run("intake", "--title", "vendor spend reconciliation")
+        code, r = p.run("route", "1", "--track", "ops")
+        self.assertEqual(code, 0)
+        d = self._drift(p)
+        self.assertEqual(
+            d["unrecorded"], 0,
+            f"a row the tool created via `route` was reported as having no "
+            f"creating event: {d}")
+        self.assertEqual(d["drift"], 0)
+
+        # And the other half of the same tuple: deleting a routed row by hand
+        # must still be caught. A fix that made `route` invisible to both loops
+        # would pass the assertion above and lose the detection.
+        board = p.root / "BOARD.md"
+        board.write_text("\n".join(
+            l for l in board.read_text().split("\n")
+            if not l.startswith(f"| {r['id']} |")))
+        d = self._drift(p)
+        self.assertIn(r["id"], d["orphaned"],
+                      "a routed row deleted by hand went undetected")
+
     def test_drift_is_reported_never_refused(self):
         """A user editing their own markdown is legitimate. Perry notices; it
         does not object, and nothing exits non-zero."""
@@ -628,6 +666,26 @@ class TestModeAwareWrites(unittest.TestCase):
         code, out = p.run("stage", a["id"], "--stage", "shipped")
         self.assertEqual(code, 1)
         self.assertIn("vocabulary", str(out))
+
+    def test_a_bad_stage_is_refused_at_creation_too(self):
+        """`stage` validated the vocabulary from the day it shipped; `add` and
+        `route` took `--stage` verbatim and exited 0.
+
+        The vocabulary was enforced when a row *moved* and not when it was
+        *born* — the one moment there is no prior value to fall back on, so the
+        bad cell is what the row carries from then on. `subcommands.md` already
+        promised this refusal, which made the doc the only place it existed.
+        """
+        p = Project(tracks=self.TRACKS)
+        code, out = p.run("add", "--title", "post", "--track", "blog",
+                          "--stage", "shipped", "--priority", "P0")
+        self.assertEqual(code, 1, f"an out-of-vocabulary stage was written: {out}")
+        self.assertIn("vocabulary", str(out))
+        self.assertNotIn("post", p.board(), "a refusal wrote a row anyway")
+
+        p.run("intake", "--title", "req")
+        code, out = p.run("route", "1", "--track", "ops", "--stage", "bogus")
+        self.assertEqual(code, 1, f"route wrote an out-of-vocabulary stage: {out}")
 
     def test_moving_to_the_same_stage_is_refused(self):
         p = Project(tracks=self.TRACKS)
@@ -814,6 +872,39 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
             code, out = p.run("status", a["id"], "--status", want)
             self.assertEqual(code, 1, want)
             self.assertIn("perry-task", str(out))
+
+    def test_every_accepted_command_runs_and_is_advertised(self):
+        """The acceptance guard, the dispatch table and the "expected one of"
+        message drifted apart twice.
+
+        First `drop` was accepted and undispatched — a bare KeyError. Then
+        `drop`, `status` and `resolve-intake` were dispatched and missing from
+        the error message. Both were one list of command names written down
+        three times, so `COMMANDS` is now the only copy and this test asserts
+        the three readers agree.
+
+        Reached through the CLI, not by importing the dict: what matters is
+        that a name a user can type is a name that runs, and only invoking the
+        process can show that.
+        """
+        for name in PT.COMMANDS:
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-task"), name],
+                capture_output=True, text=True)
+            self.assertNotEqual(
+                r.returncode, 2,
+                f"{name!r} is dispatchable but the guard rejects it")
+            self.assertNotIn(
+                "Traceback", r.stderr,
+                f"{name!r} crashed instead of refusing:\n{r.stderr}")
+
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "nonesuch"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 2)
+        for name in PT.COMMANDS:
+            self.assertIn(name, r.stderr,
+                          f"{name!r} is accepted but not advertised")
 
     def test_drop_requires_a_reason_and_leaves_no_orphan(self):
         """A hand-removed row leaves its `add` event with no row and no close —

@@ -52,9 +52,11 @@ Three deterministic scripts back this file and are worth knowing before anything
 | **`bin/perry-lint`** | read | judging by eye whether a file matches `schema/state-schema.json` |
 | **`bin/perry-task`** | **write** | hand-typing a board row, an ID, a timestamp, or the transitions it covers |
 
-`perry-task` is the newest and the one that changes how this lane works. Perry had nine read tools and no writer, so the rule "never compute a number by reading files and eyeballing it" protected the way out and not the way in. Every board row, ID and timestamp was typed. Now `add`, `start`, `stage`, `done`, `drop`, `intake`, `route` and `resolve-intake` write the board row, the journal line and an event **atomically** — none of the three if any would fail — and compute the fields an agent used to supply and get wrong.
+`perry-task` is the newest and the one that changes how this lane works. Perry had nine read tools and no writer, so the rule "never compute a number by reading files and eyeballing it" protected the way out and not the way in. Every board row, ID and timestamp was typed. Now `add`, `start`, `stage`, `status`, `done`, `drop`, `intake`, `route` and `resolve-intake` write the board row, the journal line and an event **atomically** — none of the three if any would fail — and compute the fields an agent used to supply and get wrong. A tenth, `list`, writes nothing: it is the read path a front-end uses (`--all --json` returns closed rows too, which `BOARD.md` alone cannot).
 
-**It covers four of the six statuses, and says so.** `not_started` (`add`, `route`), `in_progress` (`start`), `done` and `dropped` have tool paths. `blocked` and `review` do not — those transitions are still written by hand, and a row moved into them shows up as a post-tool edit at the next standup. That gap is real and named rather than papered over; closing it is a `status` subcommand nobody has written yet.
+**All six statuses have a tool path.** `not_started` (`add`, `route`), `in_progress` (`start`), `done`, `dropped` (`drop`), and — since `status` landed — `blocked` and `review`. `status` handles any transition the named subcommands don't, and **refuses `done` and `dropped` by name**: those close a row behind an evidence gate and a reason gate that a general status setter would walk straight past. It also refuses `blocked` without `--reason`, because a blocked row with no named dependency is one nobody can unblock.
+
+That gap used to be open and this file used to say so. It mattered more than a missing convenience: `dispatch` moves a row to `review` on **every** run, so for as long as `review` had no tool path, every dispatch manufactured a post-tool edit and buried the drift signal under noise the lane produced itself. **A coverage gap stops being cosmetic the moment a detector exists.**
 
 **Hand-editing still works and is still legitimate.** It is reported, not refused: `perry-state` counts a row with no creating event as `unrecorded` and shows it in the standup's `🔀 Drift` row. That visibility is the whole mechanism — see `perry/design/DESIGN-004-deterministic-writes.md § 5.4`.
 
@@ -177,7 +179,7 @@ Always run this before anything else, even if the user asked a specific question
    - "A locked design from 3 days ago has no implementation tasks yet (DESIGN-002) → run `/design handoff DESIGN-002`"
    - "BOARD.md is 240 lines, over the 200-line cap → run `triage` to push detail into evidence and close stale rows"
    - "3 tasks can't be attributed to a KR (names drifted / ambiguous) → surface the candidate KRs and ask the user; don't guess — see `$PERRY_HOME/reference/okr-linkage.md`"
-   - "2 board rows were written by hand since the tool landed → they are `unrecorded`; nothing is wrong, but the record of how they got there is missing"
+   - "2 board rows have no creating event → they predate the event log or were written by hand; nothing is wrong, but the record of how they got there is missing"
    - "1 event opened a task that has no row and no close → the mutation did not land in `BOARD.md`; check what happened to it"
    - "3 external docs sitting un-digested in `inputs/` (oldest 6d) → run `/pmo digest <oldest>`"
    - "5 digests in `knowledge/` have gone stale → triage during next `mid-phase-review` or `end-phase-retro`"
@@ -314,7 +316,7 @@ On yes → read `reference/bootstrap.md` and follow the procedure (creates initi
 
 If the user does not respond to required inputs (User Input Queue items) for >5 calendar days:
 - Continue any task that does not depend on the missing input.
-- Flag affected tasks as `blocked` with the missing USER-id named.
+- Flag affected tasks as `blocked` with the missing USER-id named — through the tool, which requires the name: `perry-task status <ID> --status blocked --reason "awaiting USER-<n>"`.
 - In every status report, list paused tasks and the date of the original request.
 - Never substitute agent judgment for missing user constraints on production / external-action decisions.
 

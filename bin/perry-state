@@ -306,9 +306,15 @@ def reconcile_drift(project_root: Path, board, events: dict) -> dict:
 
     rows = {t.id: t for t in board.all_tasks if getattr(t, "id", "")}
 
+    # Two events create a row: `add` raises one directly, `route` promotes one
+    # out of `## Intake`. Recognizing only `add` would report every routed row
+    # as un-tool-written forever — the detector manufacturing the false drift
+    # it exists to catch. Keep this tuple in step with `perry-task`'s writers.
+    creating = ("add", "route")
+
     for tid, row in rows.items():
         events_for = seq.get(tid, [])
-        if not any(e.get("event") == "add" for e in events_for):
+        if not any(e.get("event") in creating for e in events_for):
             out["unrecorded"] += 1
             if len(out["unrecorded_sample"]) < 5:
                 out["unrecorded_sample"].append(tid)
@@ -319,7 +325,7 @@ def reconcile_drift(project_root: Path, board, events: dict) -> dict:
     for tid, events_for in seq.items():
         if tid in rows:
             continue
-        if any(e.get("event") == "add" for e in events_for) and \
+        if any(e.get("event") in creating for e in events_for) and \
            not any(e.get("event") in ("done", "drop") for e in events_for):
             out["orphaned"].append(tid)
 

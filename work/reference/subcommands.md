@@ -5,7 +5,7 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 ## Planning
 
 ### `plan-week`
-Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **New rows go through `perry-task add --priority P0`**; a priority change on an existing row is still a hand edit and shows up as a post-tool edit at the next standup — the tool has no `priority` subcommand yet, and saying so beats pretending the path exists. and writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **New rows go through `perry-task add --priority P0`**; a priority change on an existing row is still a hand edit and shows up as a post-tool edit at the next standup — the tool has no `priority` subcommand yet, and saying so beats pretending the path exists. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
 
@@ -14,6 +14,22 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 - **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1]`, where `<n>` is the intake row's position. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
 - **Dropped** → `"$PERRY_HOME/bin/perry-task" resolve-intake <n> --outcome dropped --reason "…"`. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked. The tool writes the `Outcome` cell, the journal line and the event, so a declined request is as visible as a routed one.
 - **Deferred** → same command with `--outcome deferred --reason "<the named condition>"` — never a bare "later".
+
+**Recording an arrival is a separate act from draining one.** A request that
+reaches you between triages — in chat, from a colleague, out of a meeting — is
+written down when it arrives, not remembered until the next walk:
+
+```
+"$PERRY_HOME/bin/perry-task" intake --title "<the request, in the asker's words>" \
+    [--arrived YYYY-MM-DD]
+```
+
+`--arrived` defaults to today and is there for a request that reached you
+earlier than you are recording it; backdating it honestly is what keeps the SLA
+clock true. Do this whenever a request arrives on a queue-mode track, not only
+during triage — an intake section that is only ever *drained* and never *filled*
+is the failure `modes/queue.md` describes as "a track whose intake is always
+empty while work is clearly happening."
 
 A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
 
@@ -39,7 +55,7 @@ It re-stamps `Stage since` in the same write and refuses a stage outside the tra
 
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
-Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Update `BOARD.md`, write a `## Status changes` block in today's journal entry summarizing what moved.
+Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then update `BOARD.md` or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.
 
 If `BOARD.md` is over the 200-line cap, triage MUST propose specific cuts before exiting.
 
@@ -119,7 +135,9 @@ Print the exact command — **in its `/perry <lane> …` form**, since this stri
 | `inquiry` | `Track`, `Stage` = `open`, `Stage since` = today, `Parent` = the question this was split from, or blank for a root |
 | `project` | nothing extra — this is today's behavior, unchanged |
 
-**Add the column if the board has none.** You cannot set a cell in a column with no header, and `BOARD_TEMPLATE.md` ships six columns — so the first non-`project` row on a board also adds the headers it needs, in the same edit. Same clause `close-task` already has for `Verification`, applied to the five columns that were given a home and no creator.
+**Add the column if the board has none.** You cannot set a cell in a column with no header, and `BOARD_TEMPLATE.md` ships six columns — so the first non-`project` row on a board also adds the headers it needs, in the same edit. `perry-task add` and `route` do this via `ensure_columns`; nothing is expected of you.
+
+(An earlier draft justified this as "the same clause `close-task` already has for `Verification`." There is no such clause. `Verification` is a declared *optional* column in `schema/state-schema.json`, but `close-task` removes the row rather than stamping it — the rung is written to the journal line and the event, which is where `perry-task list` reads it from. The back-reference pointed at a precedent that never existed; the rule stands on its own.)
 
 A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
 
@@ -251,17 +269,30 @@ If the task spec lists `Subjective verification` items, **use `AskUserQuestion`*
 2. The tool wrote the status-change line. Anything more the close deserves — a
    paragraph of what was learned, a correction, a finding — goes in today's
    `## Notes` by hand.
-3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, tick it there too.
+3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, **do not tick it there** — `phase/` is the `goals` lane's file and this lane is not its writer (`SKILL.md § The hand-off contract`). Print the hand-off instead: "`<ID>` closed; it is a Must-Have in `phase/<NNN>-<slug>.md` → run `/perry goals link` to tick it." Asking and stopping is the contract; writing and apologising is the thing it forbids.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
 5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).
 
 To find a closed task later: `grep "TASK-007" journal/` returns its creation entry, all status changes, and its close entry.
 
 ### `drop-task <id> <reason>`
-Symmetric to `close-task`:
-1. Remove the row from `BOARD.md`.
-2. Append a `## Status changes` line to today's journal: `[ID] <prev-status> → dropped · reason: <reason>`.
-3. The original task definition in its creation-day journal entry stays untouched.
+Symmetric to `close-task`, and like it, tool-written:
+
+```
+"$PERRY_HOME/bin/perry-task" drop <ID> --reason "<reason>"
+```
+
+`--reason` is required and the tool refuses without it — a dropped row that
+does not say why is indistinguishable from one that was lost.
+
+The tool removes the board row, writes the journal status-change line and
+appends the closing event, atomically. **Do not remove the row by hand.** A
+hand-deleted row leaves its `add` event with no row and no close, which is
+exactly the `orphaned` condition `perry-state` reports — so hand-dropping
+manufactures, on every drop, the false drift the detector exists to catch.
+
+The original task definition in its creation-day journal entry stays untouched
+— that is the historical record.
 
 ## Cross-session
 
@@ -290,7 +321,7 @@ Runs when a phase has been scored via `okr score-phase` and the user is ready to
 1. Confirm `evidence/<YYYY-MM>/retro.md` exists (the phase score from OKR). If not, prompt to run `okr score-phase` first.
 2. **Calendar-month directories** — `journal/<YYYY-MM>/` and `evidence/<YYYY-MM>/` are calendar-bound; create new month dirs only if the calendar month rolled (most rollovers do NOT need this — phases can span multiple calendar months OR fit inside one).
 3. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
-4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `drop-task`.
+4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `perry-task drop <ID> --reason "<reason>"` — the reason the user just gave, verbatim, not a paraphrase.
 5. Hand off to OKR: print "OKR `plan-phase <new-slug>` is needed — pick the next phase's slug." Do **not** create the new phase file yourself — that's OKR's lane.
 6. Append a `## Notes` entry to today's journal: "rollover from phase #<old-NNN>-<old-slug>; <n> rows carried; see evidence/<YYYY-MM>/retro.md".
 

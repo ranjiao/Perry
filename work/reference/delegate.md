@@ -4,6 +4,25 @@ Generate a self-contained delegation prompt for another agent (Coding / Research
 
 For automated end-to-end execution use `dispatch` instead (see `dispatch.md`).
 
+## Record the delegation before rendering the prompt
+
+```
+"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status in_progress \
+    --next "delegated to <agent-type>; awaiting paste-back"
+```
+
+This is the only state `delegate` writes, and it is not optional. Rendering a
+prompt leaves no trace anywhere — board, journal, events — so without this call
+a delegated task is byte-for-byte indistinguishable from one nobody has
+touched. `triage` asks "Owner is an agent but no recent delegation prompt in
+chat?", and chat is not a surface any tool can read: the check was written
+against evidence that only ever existed in a scrollback. One tool call moves it
+onto state that `perry-state` and a front-end can both see.
+
+It stays `in_progress` rather than `review` on purpose — the work has been
+handed out, not handed back. `review` is where `dispatch` puts a row when a
+result has actually arrived.
+
 ## Required fields in the rendered prompt
 
 - Task ID and Objective/KR linkage
