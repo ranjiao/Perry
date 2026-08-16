@@ -192,22 +192,54 @@ once, and asking again is how a resumable pipeline loses the work it was
 supposed to protect.
 
 1. Briefly explain Perry (≤3 sentences).
-2. **Confirm two project-wide preferences before any file is written** — record them in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask both via a single `AskUserQuestion` tool call (two questions, structured options):
+
+2. **Run the namespace check before asking anything** — silently:
+
+   ```
+   python3 "$PERRY_HOME/bin/perry-lint" --claims --root . --json
+   ```
+
+   Read-only, exit 0 always. It resolves every path in
+   `schema/state-schema.json § claims[]` against this folder and returns
+   `collisions` plus a `suggested_state_root`.
+
+   - **`collisions: 0`** → write `State root: .` and **ask nothing.** The clean
+     case must cost the user zero questions; that is the whole reason this is a
+     check rather than a standing question.
+   - **`collisions > 0`** → add State root as a **third question in the same
+     `AskUserQuestion` call** below. No extra round trip.
+
+   Without this step Perry claims a namespace it was not given. The escape
+   hatch used to be offered only on the adopt path, so a greenfield `/perry` in
+   a folder that already owned `design/` wrote straight over it with no question
+   asked — and every later lint run reported the user's own file as a malformed
+   Perry design doc. Never enumerate the claimed paths here; run the check.
+
+3. **Confirm the project-wide preferences before any file is written** — record them in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask via a single `AskUserQuestion` tool call (two questions, or three when step 2 found a collision):
    - **Document language** (header `"Language"`): options = `English (Recommended if user typed English) | 中文 (Recommended if user typed 中文) | other`. The "Recommended" tag goes on whichever matches the language the user has been typing. Each option's `description` says what it changes in consequences: *"OKR, board titles, decisions and design docs get written in this language. IDs, file names and status words stay English so tools can still read them."*
    - **Repo layout** (header `"Repo layout"`): options = `Single repo (Recommended for non-code projects) | Split repo (PMO ↔ code; only if both exist and you've seen branch contention)`. See **Repo layout options** below for the trade-off explanation that goes into each option's `description`.
+
+   - **State root** (header `"State root"`) — **only when step 2 reported a
+     collision.** Options = `Put Perry's files under <suggested>/ (Recommended) |
+     Use the project root anyway | Another directory`. Name the colliding path
+     and its owner in the question itself — "this project already has `design/`
+     with 1 file Perry did not write" — because the user cannot evaluate the
+     options without knowing what is at stake. `Use the project root anyway` is
+     a real answer: it means lint will report those files, and the option's
+     `description` must say so.
 
    **Don't ask about chat language here.** Write `Chat language: follow user` and mirror whatever the user types — that is right for nearly everyone and costs them no decision. Only pin it (and only when the user asks, e.g. "reply in Chinese even when I type English") by writing a named language into that field.
 
    Document language governs **files**; chat language governs **replies**; they are allowed to differ, and often should. `reference/i18n.md` is the contract — the three layers of text, the glossary that localizes headings and column headers, what stays English in every language, and how to switch later.
-3. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
+4. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
 
    For a new project, recommend the order below.
-4. Recommend the order:
+5. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
    - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
    - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
-5. Ask: "Run `/perry okr init` now?" — if yes, read `$PERRY_HOME/okr/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
+6. Ask: "Run `/perry okr init` now?" — if yes, read `$PERRY_HOME/okr/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
 
 ## `/perry adopt` — converting an existing project
 

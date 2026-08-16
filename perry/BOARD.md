@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (3rd pass — 5 tasks closed)
+> Last updated: 2026-08-16 (4th pass — 6 tasks closed)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,13 +16,12 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-012 | Wire the claim check into first-time setup | Coding Agent | in_progress | DESIGN-002 phase C — prose lists deleted and adopt step 0 rewired; `SKILL.md § First-time setup` still does not run the check | — |
+| TASK-004 | `reference/diagnose.md`: add `--resume`, sub-steps, restore-point re-validation | Coding Agent | not_started | DESIGN-001 phase D — the entry gate already offers Resume on an interrupted diagnosis, but diagnose has no procedure for it. Closing a hole opened by TASK-002. | — |
 
 ## P1
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-004 | `reference/diagnose.md`: add `--resume`, sub-steps, restore-point re-validation | Coding Agent | not_started | DESIGN-001 phase D — the entry gate already covers diagnose; this adds the flag and sub-step rules | — |
 
 ## P2
 
@@ -55,6 +54,7 @@
 | TASK-011 | `perry-lint --claims`, outside the `is_adopted()` guard | `bin/perry-lint` |
 | TASK-002 | Entry gate: interrupted-run detection, the card, three-way choice; both routes around it guarded | `SKILL.md § Mandatory first move` step 2 |
 | TASK-003 | Resume contract (DISCOVERABLE/POSITIONED/LOSSLESS), confirm sub-step table, commit idempotency, one-dossier-per-run | `reference/adoption.md`, `tests/test_resume.py` (17 tests) |
+| TASK-012 | Claim check wired into First-time setup as a conditional 3rd question; both prose path lists deleted | `SKILL.md § First-time setup` step 2, `tests/test_claims.py` (13 tests) |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

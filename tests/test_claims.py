@@ -155,6 +155,52 @@ class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):
                          + ", ".join(misses))
 
 
+class TestTheCheckIsWiredIn(unittest.TestCase):
+    """The check has to run on every entry path, not just the adopt one.
+
+    The original defect was not that the mechanism was missing — `State root:`
+    has existed all along. It was that only `/perry adopt` ever asked. A
+    greenfield `/perry` in a folder already owning `design/` wrote over it with
+    no question asked, because First-time setup asks Document language and Repo
+    layout and nothing else."""
+
+    SKILL = (PERRY_HOME / "SKILL.md").read_text()
+    ADOPTION = (PERRY_HOME / "reference" / "adoption.md").read_text()
+
+    def setup_section(self) -> str:
+        start = self.SKILL.index("## First-time setup")
+        return self.SKILL[start:self.SKILL.index("\n## ", start + 10)]
+
+    def test_first_time_setup_runs_the_check(self):
+        self.assertIn("--claims", self.setup_section(),
+                      "First-time setup does not run the namespace check — the "
+                      "greenfield path is unprotected, which is the original bug")
+
+    def test_the_check_precedes_the_question_block(self):
+        """Asking the language question first and the state-root question later
+        costs a second round trip for no reason."""
+        sec = self.setup_section()
+        self.assertLess(sec.index("--claims"), sec.index('header `"Language"`'),
+                        "the check must run before the AskUserQuestion block so "
+                        "State root can ride along as a third question")
+
+    def test_a_clean_folder_costs_no_question(self):
+        sec = self.setup_section()
+        self.assertRegex(sec, r"collisions: 0.*?ask nothing",
+                         "a folder with no collision must not be asked about the "
+                         "state root at all")
+
+    def test_state_root_question_is_conditional(self):
+        sec = self.setup_section()
+        window = sec[sec.index('header `"State root"`'):][:400]
+        self.assertIn("only when", window.lower(),
+                      "the State root question must be conditional on a collision")
+
+    def test_adopt_still_runs_it_too(self):
+        self.assertIn("--claims", self.ADOPTION,
+                      "the adopt path lost the check")
+
+
 class TestNoProseListSurvives(unittest.TestCase):
     """Both prose lists were deleted rather than updated.
 
