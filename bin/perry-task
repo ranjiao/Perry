@@ -33,7 +33,7 @@ Usage:
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
   perry-task start <ID> [--next "…"]
   perry-task done  <ID> --evidence <path> [--rung V0..V6]
-  perry-task list  [--json]
+  perry-task list  [--all] [--track T] [--json]
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --dry-run       print what would be written; touch nothing
@@ -443,7 +443,7 @@ def cmd_add(args, ctx) -> dict:
     jline = (f"- [{tid}] — → not_started · {args.title} · "
              f"owner: {values['owner']} · priority: {priority}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
-             "id": tid, "track": track["track"], "mode": mode,
+             "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
              "from": None, "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
@@ -466,7 +466,8 @@ def cmd_start(args, ctx) -> dict:
     line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
     jline = f"- [{tid}] {prev or '—'} → in_progress · started"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "start",
-             "id": tid, "track": values.get("track", "main"),
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"),
              "actor": args.actor, "from": prev, "to": "in_progress"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
@@ -499,7 +500,8 @@ def cmd_done(args, ctx) -> dict:
     jline = (f"- [{tid}] {prev or '—'} → done · closed · "
              f"evidence: `{args.evidence}` · verification: {rung}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
-             "id": tid, "track": values.get("track", "main"),
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"),
              "actor": args.actor, "from": prev, "to": "done",
              "evidence": args.evidence, "rung": rung}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
@@ -508,11 +510,63 @@ def cmd_done(args, ctx) -> dict:
 
 
 def cmd_list(args, ctx) -> dict:
-    open_rows = [{"id": c.get("id", ""), "priority": pri,
-                  "title": c.get("title", ""), "status": c.get("status", ""),
-                  "track": c.get("track", "main")}
-                 for pri, _, c in ctx["board"].rows() if c.get("id")]
-    return {"open": open_rows, "events": len(ctx["events"])}
+    """The full task set, from one call.
+
+    `BOARD.md` holds open work only — closed rows leave it — so the complete
+    set has, until now, existed solely as a reconstruction from date-sharded
+    journal prose. A reader would have to parse every file in every month and
+    rebuild each task's timeline. This does that once, in code, so a front-end
+    never learns Perry's file formats and Perry can change them without
+    breaking a program it does not control.
+    """
+    tasks: dict[str, dict] = {}
+    for pri, _, c in ctx["board"].rows():
+        tid = c.get("id", "").replace("*", "").strip()
+        if not tid:
+            continue
+        tasks[tid] = {
+            "id": tid, "title": c.get("title", ""), "priority": pri,
+            "status": c.get("status", ""), "track": c.get("track", "") or "main",
+            "stage": c.get("stage", ""), "open": True,
+            "evidence": c.get("evidence", ""),
+            "verification": c.get("verification", ""),
+            "timeline": [],
+        }
+
+    for e in ctx["events"]:
+        tid = e.get("id", "")
+        if not tid:
+            continue
+        t = tasks.setdefault(tid, {
+            "id": tid, "title": "", "priority": e.get("priority", ""),
+            "status": "", "track": e.get("track", "main"), "stage": "",
+            "open": False, "evidence": "", "verification": "", "timeline": [],
+        })
+        # A row that has left the board is closed; one still on it stays open,
+        # and its live cells win over anything the event stream remembers.
+        if not t["open"]:
+            t["status"] = e.get("to") or t["status"]
+            t["title"] = e.get("title") or t["title"]
+            t["evidence"] = e.get("evidence") or t["evidence"]
+            t["verification"] = e.get("rung") or t["verification"]
+        t["timeline"].append({k: e[k] for k in ("ts", "event", "from", "to")
+                              if k in e})
+
+    rows = sorted(tasks.values(), key=lambda t: t["id"])
+    if args.track:
+        rows = [t for t in rows if t["track"] == args.track]
+    if not args.all:
+        rows = [t for t in rows if t["open"]]
+
+    # An id whose only record is an event with no title predates the `title`
+    # field. Reported rather than papered over: a bare id is exactly what
+    # `reference/user-load.md` forbids handing a reader.
+    untitled = [t["id"] for t in rows if not t["title"]]
+    return {"tasks": rows,
+            "open": sum(1 for t in rows if t["open"]),
+            "closed": sum(1 for t in rows if not t["open"]),
+            "events": len(ctx["events"]),
+            "untitled": untitled}
 
 
 def split_stages(cell: str) -> list[str]:
@@ -540,7 +594,7 @@ def parse(argv: list[str]) -> Args:
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
     a.actor = "agent"
-    a.dry_run = a.as_json = False
+    a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
@@ -556,6 +610,8 @@ def parse(argv: list[str]) -> Args:
             a.dry_run = True
         elif t == "--json":
             a.as_json = True
+        elif t == "--all":
+            a.all = True
         elif t in flags:
             i += 1
             setattr(a, flags[t], argv[i] if i < len(argv) else None)
@@ -609,9 +665,15 @@ def main(argv: list[str]) -> int:
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif args.cmd == "list":
-        for r in result["open"]:
-            print(f"  {r['id']:10} {r['priority']:3} {r['status']:12} {r['title'][:56]}")
-        print(f"\n  {len(result['open'])} open · {result['events']} event(s) recorded")
+        for r in result["tasks"]:
+            mark = " " if r["open"] else "·"
+            title = r["title"] or "(no title in the record)"
+            print(f" {mark}{r['id']:10} {r['priority']:3} {r['status']:12} {title[:54]}")
+        print(f"\n  {result['open']} open · {result['closed']} closed · "
+              f"{result['events']} event(s)")
+        if result["untitled"]:
+            print(f"  ⚠ {len(result['untitled'])} id(s) have no title in the record: "
+                  f"{', '.join(result['untitled'])}")
     else:
         verb = "would write" if args.dry_run else "wrote"
         print(f"perry-task: {verb} {result.get('id')} "

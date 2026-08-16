@@ -221,6 +221,36 @@ def parse_tracks(text: str) -> list[dict]:
     return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
 
 
+def read_event_log(project_root: Path) -> dict:
+    """`.perry/events.jsonl` — the history `BOARD.md` cannot hold.
+
+    DERIVED AND DISPOSABLE (DESIGN-004 § 5.3). Absent, every field below is
+    zero and nothing else in the payload changes: markdown stays canonical, and
+    what is lost is history resolution, not truth. A caller must never need this
+    block to know current state.
+    """
+    path = project_root / ".perry" / "events.jsonl"
+    out = {"present": path.exists(), "total": 0, "by_event": {}, "last": ""}
+    if not path.exists():
+        return out
+    by: dict[str, int] = {}
+    last = ""
+    n = 0
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # a corrupt line is not a reason to lose the rest
+        n += 1
+        by[e.get("event", "?")] = by.get(e.get("event", "?"), 0) + 1
+        last = e.get("ts", "") or last
+    out.update(total=n, by_event=dict(sorted(by.items())), last=last)
+    return out
+
+
 def verification_distribution(tasks) -> dict:
     """How closures on this board were verified (DESIGN-003 § 5.3).
 
@@ -613,6 +643,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
             "open": sum(1 for t in all_tasks if t.status in open_states),
             "verification": verification_distribution(all_tasks),
+            "events": read_event_log(project_root),
             "tasks": [encode(t) for t in all_tasks],
         },
         "attribution": {

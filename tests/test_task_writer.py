@@ -367,3 +367,111 @@ class TestJournalAppendsChronologically(unittest.TestCase):
         out = PT.append_status_change("", "- [TASK-001] a → b")
         self.assertTrue(out.startswith("# "))
         self.assertIn("TASK-001", out)
+
+
+class TestFullTaskSet(unittest.TestCase):
+    """`list --all` — the question a front-end must answer and BOARD.md cannot.
+
+    The board holds open work only; closed rows leave it. Until this, the full
+    set existed solely as a reconstruction from date-sharded journal prose — a
+    reader would have to parse every file in every month and rebuild each task's
+    timeline. One call replaces that, which is what lets a consumer stay
+    ignorant of Perry's file formats.
+    """
+
+    def test_closed_tasks_are_reconstructed_from_events(self):
+        p = Project()
+        _, a = p.run("add", "--title", "will close")
+        _, b = p.run("add", "--title", "stays open")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        _, out = p.run("list", "--all")
+        ids = {t["id"]: t for t in out["tasks"]}
+        self.assertIn(a["id"], ids, "a closed task vanished from the full set")
+        self.assertFalse(ids[a["id"]]["open"])
+        self.assertTrue(ids[b["id"]]["open"])
+        self.assertEqual(out["open"], 1)
+        self.assertEqual(out["closed"], 1)
+
+    def test_a_closed_task_keeps_its_title_and_evidence(self):
+        """A bare id is what `reference/user-load.md` forbids handing a reader.
+        The event log has to carry enough to name what it is talking about."""
+        p = Project()
+        _, a = p.run("add", "--title", "the flake detector")
+        p.run("done", a["id"], "--evidence", "evidence/x.md", "--rung", "V3")
+        _, out = p.run("list", "--all")
+        t = next(x for x in out["tasks"] if x["id"] == a["id"])
+        self.assertEqual(t["title"], "the flake detector")
+        self.assertEqual(t["evidence"], "evidence/x.md")
+        self.assertEqual(t["verification"], "V3")
+
+    def test_without_all_only_open_tasks_are_returned(self):
+        p = Project()
+        _, a = p.run("add", "--title", "closes")
+        p.run("done", a["id"], "--evidence", "e.md")
+        _, out = p.run("list")
+        self.assertEqual([t["id"] for t in out["tasks"] if not t["open"]], [])
+
+    def test_every_task_carries_its_timeline(self):
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        p.run("start", a["id"])
+        p.run("done", a["id"], "--evidence", "e.md")
+        _, out = p.run("list", "--all")
+        t = next(x for x in out["tasks"] if x["id"] == a["id"])
+        self.assertEqual([e["event"] for e in t["timeline"]],
+                         ["add", "start", "done"])
+
+    def test_an_untitled_id_is_reported_rather_than_papered_over(self):
+        """Events written before the `title` field exists cannot name their
+        task. Saying so beats printing a bare id and hoping."""
+        p = Project()
+        (p.root / ".perry" / "events.jsonl").write_text(
+            json.dumps({"ts": "2026-01-01T00:00:00", "event": "done",
+                        "id": "TASK-900", "to": "done"}) + "\n")
+        _, out = p.run("list", "--all")
+        self.assertIn("TASK-900", out["untitled"])
+
+    def test_the_live_board_wins_over_the_event_stream(self):
+        """A row still on the board is the truth; events are derived. If they
+        disagree, the markdown is canonical — §5.3."""
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        p.run("start", a["id"])
+        _, out = p.run("list", "--all")
+        t = next(x for x in out["tasks"] if x["id"] == a["id"])
+        self.assertTrue(t["open"])
+        self.assertEqual(t["status"], "in_progress")
+
+
+class TestPerryStateReadsTheLog(unittest.TestCase):
+    def _state(self, root: Path) -> dict:
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(root), "--json"], capture_output=True, text=True)
+        return json.loads(r.stdout)
+
+    def test_the_events_block_reports_the_log(self):
+        p = Project()
+        p.run("add", "--title", "X")
+        ev = self._state(p.root)["board"]["events"]
+        self.assertTrue(ev["present"])
+        self.assertEqual(ev["total"], 1)
+        self.assertEqual(ev["by_event"], {"add": 1})
+
+    def test_no_log_is_zeroes_not_an_error(self):
+        """A pre-DESIGN-004 project has no log and must not be reported as
+        broken for it."""
+        p = Project()
+        ev = self._state(p.root)["board"]["events"]
+        self.assertFalse(ev["present"])
+        self.assertEqual(ev["total"], 0)
+
+    def test_a_corrupt_line_does_not_lose_the_rest(self):
+        p = Project()
+        p.run("add", "--title", "X")
+        log = p.root / ".perry" / "events.jsonl"
+        log.write_text(log.read_text() + "{ not json\n" +
+                       json.dumps({"ts": "2026-01-01T00:00:00", "event": "start",
+                                   "id": "TASK-001"}) + "\n")
+        ev = self._state(p.root)["board"]["events"]
+        self.assertEqual(ev["total"], 2, "a corrupt line took a valid one with it")
