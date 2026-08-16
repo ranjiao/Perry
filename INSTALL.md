@@ -4,9 +4,9 @@ Perry is a four-skill set: a top-level `/perry` plus three children (`/perry okr
 
 ## Where to clone — Perry is location-agnostic
 
-`setup` and all `bin/` scripts resolve their own path via `$(dirname "$0")`, so you can clone Perry **anywhere** — `~/proj/Perry`, `~/.claude/perry`, `~/code/perry`, `/opt/perry`, an external SSD, doesn't matter. The host-side install (symlink under `~/.claude/skills/` or `~/.agents/skills/`) is what makes `/perry`, `/perry okr`, `/perry pmo`, `/perry design` discoverable to Claude Code and Codex CLI; the source location only matters for `git pull` updates.
+`setup` and all `bin/` scripts resolve their own path via `$(dirname "$0")`, so you can clone Perry **anywhere** — `~/perry`, `~/.claude/perry`, `~/code/perry`, `/opt/perry`, an external SSD, doesn't matter. The host-side install (symlink under `~/.claude/skills/` or `~/.agents/skills/`) is what makes `/perry`, `/perry okr`, `/perry pmo`, `/perry design` discoverable to Claude Code and Codex CLI; the source location only matters for `git pull` updates.
 
-**This doc uses `~/proj/Perry` as the canonical example** in commands. If you cloned elsewhere, substitute your path. Skill-side references all use `$PERRY_HOME` (which `setup` recommends you `export` in your shell profile), not a hardcoded path.
+**This doc uses `~/perry` as the canonical example** in commands. If you cloned elsewhere, substitute your path. Skill-side references all use `$PERRY_HOME` (which `setup` recommends you `export` in your shell profile), not a hardcoded path.
 
 ## Host selection
 
@@ -48,8 +48,8 @@ Recommended agent-driven install flow (clean room → working Perry):
 1. User: install Xcode CLT once (xcode-select --install + click GUI)
 2. User: install Homebrew once (run the curl command from brew.sh — needs sudo)
 3. User: install Claude Code or Codex CLI
-4. Agent: git clone https://github.com/ranjiao/Perry ~/proj/Perry
-5. Agent: ~/proj/Perry/setup --yes-deps      # everything else is automated now
+4. Agent: git clone https://github.com/ranjiao/Perry ~/perry
+5. Agent: ~/perry/setup --yes-deps      # everything else is automated now
 ```
 
 Steps 1-3 are user actions because they need GUI/sudo/external download. After that, the agent can drive everything to completion.
@@ -72,10 +72,10 @@ What a brand-new Mac will be missing (and how setup handles it):
 Default behavior is **interactive prompts** for each missing optional/soft dep. Pass `--yes-deps` to accept all auto-installs without prompting, `--no-deps` to skip Phase 0 entirely, or `--check-deps-only` to see the report and exit without installing or symlinking.
 
 ```bash
-~/proj/Perry/setup --check-deps-only      # see what's present / missing; exit
-~/proj/Perry/setup                         # default: prompt per missing dep
-~/proj/Perry/setup --yes-deps              # auto-install everything that can be
-~/proj/Perry/setup --no-deps               # skip dep check, just symlink
+~/perry/setup --check-deps-only      # see what's present / missing; exit
+~/perry/setup                         # default: prompt per missing dep
+~/perry/setup --yes-deps              # auto-install everything that can be
+~/perry/setup --no-deps               # skip dep check, just symlink
 ```
 
 ## Claude Code (host-specific details)
@@ -93,8 +93,8 @@ Default install target: `~/.claude/skills/`. The `setup` script links the parent
 ## One-shot install
 
 ```bash
-git clone <perry repo> ~/proj/Perry         # or wherever you want the source
-~/proj/Perry/setup                          # global install: ~/.claude/skills/
+git clone <perry repo> ~/perry         # or wherever you want the source
+~/perry/setup                          # global install: ~/.claude/skills/
 ```
 
 That's it. Re-run the script anytime; it's idempotent.
@@ -105,7 +105,7 @@ If you want Perry available only inside one project (not globally):
 
 ```bash
 cd /path/to/your/project
-~/proj/Perry/setup --local                  # installs to ./. claude/skills/
+~/perry/setup --local                  # installs to ./. claude/skills/
 ```
 
 ### Verify
@@ -124,20 +124,20 @@ Codex CLI discovers skills the same way Claude Code does — by reading `SKILL.m
 If you only have Codex installed (no Claude Code), `setup` auto-detects and installs for Codex only:
 
 ```bash
-git clone https://github.com/ranjiao/Perry ~/proj/Perry
-~/proj/Perry/setup                                            # auto-detects Codex; installs to ~/.agents/skills/
+git clone https://github.com/ranjiao/Perry ~/perry
+~/perry/setup                                            # auto-detects Codex; installs to ~/.agents/skills/
 ```
 
 To force Codex install (e.g., if Claude is also in PATH but you only want Codex):
 
 ```bash
-~/proj/Perry/setup --codex                                    # Codex only — installs to ~/.agents/skills/
+~/perry/setup --codex                                    # Codex only — installs to ~/.agents/skills/
 ```
 
 To install for both hosts:
 
 ```bash
-~/proj/Perry/setup --claude --codex                           # both — installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
+~/perry/setup --claude --codex                           # both — installs to BOTH ~/.claude/skills/ AND ~/.agents/skills/
 ```
 
 The script creates the same symlink layout under each host's skills dir:
@@ -178,7 +178,7 @@ If you installed via symlink (the default), Perry tracks the source folder live 
 If you installed by copy:
 
 ```bash
-rsync -a --delete ~/proj/Perry/ ~/.claude/skills/perry/
+rsync -a --delete ~/perry/ ~/.claude/skills/perry/
 ~/.claude/skills/perry/setup     # refresh child symlinks if any new children were added
 ```
 

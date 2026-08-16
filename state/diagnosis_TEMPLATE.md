@@ -7,6 +7,7 @@ lanes: [context, docs, concurrency, tracking]
 started: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
 updated: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
 stage: scan
+step: "{{q1..q6 during interview, rx-<n> during execute; omit otherwise}}"
 archetype:
   scanned: "{{software | knowledge-base | ops | null}}"
   scanned_confidence: "{{high | medium | low | none}}"
@@ -60,7 +61,8 @@ restore_point: "{{branch name, or .perry/diagnose/<date>-backup/, or null}}"
 
 | Key | Purpose |
 |---|---|
-| `stage` | Where the pipeline stopped: `scan` → `read` → `interview` → `prescribe` → `execute` → `done`. A resumed run reads this and nothing else. |
+| `stage` | Where the pipeline stopped: `scan` → `read` → `interview` → `prescribe` → `execute` → `done`, plus terminal `abandoned`. Advance only after the stage's writes are durable. |
+| `step` | Fine position **within** the stage — `q1`..`q6` through the interview, `rx-<n>` through execute. Neither survives being restarted from the top: a six-question interview re-asked from scratch is why the user quit the first time. |
 | `archetype.scanned` | What `bin/perry-diagnose` inferred from folder shapes. May be `null`; that is an honest answer, not a failure. |
 | `archetype.confirmed` | What the user said the project is. **Overrides `scanned` unconditionally** — the scan reads directory names, the user knows the project. |
 | `maintenance_ceiling` | The Q6 answer. A **hard cap** on the prescription, not a factor to weigh. An unmaintained organ reports stale state that everything downstream believes. |

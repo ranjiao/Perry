@@ -112,6 +112,13 @@ YAML_ID = re.compile(r"^\s*-?\s*id:\s*[\"']?([A-Za-z0-9.\-]+)[\"']?\s*$")
 YAML_TITLE = re.compile(r"^\s*title:\s*[\"']?(.+?)[\"']?\s*$")
 MD_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 
+# Headings whose body names work that does not exist yet. An ID here is a
+# proposal — it becomes real when the design locks and PMO opens the row.
+PROPOSAL_SECTION = re.compile(
+    r"implementation plan|proposed (?:pmo )?task|open questions|"
+    r"alternatives considered|references",
+    re.I)
+
 # Column headers that carry a row's human name, in preference order.
 TITLE_COLS = ("title", "name", "decision", "question", "ask", "summary",
               "recurring task", "work", "change")
@@ -166,6 +173,11 @@ def harvest(root: Path) -> dict:
 
         header_cells: list[str] = []
         yaml_pending: str | None = None
+        # A design doc's Implementation plan names the tasks PMO will open
+        # AFTER lock and hand-off. Until then they correctly do not exist, so
+        # counting them as dangling makes every draft design trip LOAD-02 —
+        # the same noise the is_illustrative filter was added to remove.
+        proposing = False
 
         for n, raw in enumerate(lines, 1):
             found = find_ids(raw)
@@ -195,14 +207,28 @@ def harvest(root: Path) -> dict:
                             e["title"] = strip_md(cells[idx]) or None
                     if not e["status"]:
                         for key in ("status", "chosen"):
-                            if key in header_cells:
-                                v = strip_md(cells[header_cells.index(key)])
-                                if v and v != "—":
-                                    e["status"] = v
-                                    break
+                            if key not in header_cells:
+                                continue
+                            k = header_cells.index(key)
+                            # Same bounds guard the title lookup above uses: a
+                            # ragged row must not raise, it must yield nothing.
+                            if k >= len(cells):
+                                continue
+                            v = strip_md(cells[k])
+                            if v and v != "—":
+                                e["status"] = v
+                                break
+            else:
+                # A GFM table is a contiguous block, so any non-row line ends
+                # it. Without this reset, a wide header leaks into the next
+                # table in the same file and `chosen`/`status` resolves against
+                # columns that table never had.
+                header_cells = []
 
             # ── headings: ## ADR-001 — PMO bootstrap
             h = HEADING.match(raw)
+            if h:
+                proposing = bool(PROPOSAL_SECTION.search(strip_md(h.group(1))))
             if h and found:
                 e = ent(found[0])
                 e["defined"] = e["defined"] or f"{rel}:{n}"
@@ -230,7 +256,7 @@ def harvest(root: Path) -> dict:
             for i in set(found):
                 e = ent(i)
                 loc = f"{rel}:{n}"
-                if not illustrative:
+                if not illustrative and not proposing:
                     e["in_tracking_doc"] = True
                 if loc != e["defined"] and len(e["mentions"]) < 40:
                     e["mentions"].append(loc)

@@ -77,13 +77,74 @@ When `/perry` is invoked, always run this before doing anything else.
 
 1. **Read `.perry/config.md`** if present, to pick up document language, chat language and repo layout. If absent and any state file exists, prompt the user to run first-time setup so the config is recorded. **Everything rendered from here on — the dashboard, the TL;DR, the suggested next actions, every `AskUserQuestion` label — is written in the chat language** (`Chat language`, or the user's own language when unset). Everything written to a file uses `Document language`, which may be a different one. The full contract, including what never gets translated, is `reference/i18n.md` — read it before the first localized write in a session.
 
-2. **Compute the state — one call**:
+2. **Check for an interrupted run — before anything else reads project state.**
+
+   ```
+   ls .perry/adoption/*.md .perry/diagnose/*.md 2>/dev/null
+   ```
+
+   Read the `stage:` field of each. An entry whose `stage` is **not** `done` or
+   `abandoned` is a pipeline someone walked away from mid-run.
+
+   This gate exists because such a run is otherwise **invisible**. `/perry adopt`
+   stages 0–3 deliberately write no state file (`reference/adoption.md § The one
+   rule`), so `installed: false` in step 3 is true for an abandoned adoption and
+   for a folder that has never heard of Perry alike — and the next session
+   re-runs First-time setup, re-asks language and repo layout, and starts a
+   *second* dossier beside the first. Dossier paths are dated, so nothing
+   collides and nothing warns.
+
+   - **None found** → continue to step 3 unchanged.
+   - **One found** → render the card below, then ask. Do **not** run First-time
+     setup, and do not render the dashboard first; the user cannot evaluate a
+     dashboard for a project whose adoption never finished.
+   - **More than one** → list them with their stage and age, ask which to act on,
+     then treat that one as the single case.
+
+   The card names position, what is already banked, and what is not — the user
+   is being asked to spend an hour or throw one away, and needs both numbers:
+
+   ```
+   ⏸  Interrupted run · /perry adopt · <project>
+      Stopped <N>d ago at stage <n> (<stage>) · step: <step>
+      Already decided : <e.g. state root `perry/`, document language English>
+      Already authored: <e.g. 2 Objectives, 9 KRs>
+      Not yet done    : <e.g. phase, 6 clusters, attribution, 2 transcriptions>
+      Nothing has been written to the project yet.
+   ```
+
+   Fill every line from the dossier — `stage`, `step`, `updated`, the count of
+   `declarations[]`, and `candidates[]` by `status`. A line the dossier cannot
+   answer prints `—`; never estimate what the user already did.
+
+   Then one `AskUserQuestion`, header `"Interrupted run"`, options:
+   `Resume where you left off (Recommended) | Start over (archives this one) | Abandon it`.
+
+   - **Resume** → re-enter at `stage`/`step`. Every declaration in
+     `declarations[]` is already banked and is **not** re-asked.
+   - **Start over** → move the file to `.perry/<pipeline>/archive/<date>-<name>.md`
+     and begin a fresh run. Archive rather than delete: `candidates[]` with
+     `status: rejected` are the don't-ask-me-again record, and `--recheck` reads
+     the archive.
+   - **Abandon** → set `stage: abandoned` in place. Terminal; this gate skips it
+     from now on, and the rejection record survives.
+
+   **Never resume without asking.** A run continued on Perry's initiative
+   re-commits the user to decisions they may no longer stand behind.
+   `--resume` is the shorthand for a user who already knows: it skips the card
+   and continues. `--recheck` is unaffected — it operates on finished runs.
+
+   **A flag mismatch is refused, not merged.** If the invocation carries a
+   `--depth` or `--only` that disagrees with the dossier's `depth:` / `lanes:`,
+   say so and ask which wins rather than resuming into a mixed scope.
+
+3. **Compute the state — one call**:
    ```
    "$PERRY_HOME/bin/perry-state" --json
    ```
-   Deterministic, read-only, stdlib-only. `installed: false` → jump to **First-time setup** below. Otherwise the payload carries everything the combined dashboard needs across all three children — OKR version + objectives, phase number / day / KR totals, board counts, User Input Queue, top risk, last ADR, locked designs and their hand-off status, plus a `warnings` array. **Every number below comes from this payload**; a field it doesn't carry prints `—`. Flag any child whose files are missing (no `OKR.md`, no `BOARD.md`, empty `design/`).
+   Deterministic, read-only, stdlib-only. `installed: false` → jump to **First-time setup** below — **but only if step 2 found no interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the combined dashboard needs across all three children — OKR version + objectives, phase number / day / KR totals, board counts, User Input Queue, top risk, last ADR, locked designs and their hand-off status, plus a `warnings` array. **Every number below comes from this payload**; a field it doesn't carry prints `—`. Flag any child whose files are missing (no `OKR.md`, no `BOARD.md`, empty `design/`).
 
-3. **Render the combined dashboard** — exactly this shape, no preamble:
+4. **Render the combined dashboard** — exactly this shape, no preamble:
 
    ```
    🅿  Perry · <project name> · <today's date>
@@ -112,37 +173,73 @@ When `/perry` is invoked, always run this before doing anything else.
    `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than printing the bare ID
    or inventing a name.
 
-4. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
+5. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
    - "phase #002 commit KRs ≥80% → run `/pmo end-phase-retro`, `/okr score-phase`, `/pmo rollover`, `/okr plan-phase <new-slug>`"
    - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
    - "no current phase → run `/okr plan-phase <slug>`, then `/okr plan-week`, then `/pmo` to add the tasks"
    - "DESIGN-002 (\"Flake scoring\") in_review for 8d → run `/design lock` or `/design revise`"
 
-5. Then ask: **"What do you want to do?"**
+6. Then ask: **"What do you want to do?"**
 
 If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/okr/SKILL.md` and follow it. A PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk) → `$PERRY_HOME/pmo/SKILL.md`. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/design/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
 
 ## First-time setup
 
-When `/perry` is run in a project with no Perry state files at all:
+When `/perry` is run in a project with no Perry state files at all **and step 2
+found no interrupted run**. If a dossier or diagnosis exists with a non-terminal
+`stage`, this section does not run — the user already answered these questions
+once, and asking again is how a resumable pipeline loses the work it was
+supposed to protect.
 
 1. Briefly explain Perry (≤3 sentences).
-2. **Confirm two project-wide preferences before any file is written** — record them in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask both via a single `AskUserQuestion` tool call (two questions, structured options):
+
+2. **Run the namespace check before asking anything** — silently:
+
+   ```
+   python3 "$PERRY_HOME/bin/perry-lint" --claims --root . --json
+   ```
+
+   Read-only, exit 0 always. It resolves every path in
+   `schema/state-schema.json § claims[]` against this folder and returns
+   `collisions` plus a `suggested_state_root`.
+
+   - **`collisions: 0`** → write `State root: .` and **ask nothing.** The clean
+     case must cost the user zero questions; that is the whole reason this is a
+     check rather than a standing question.
+   - **`collisions > 0`** → add State root as a **third question in the same
+     `AskUserQuestion` call** below. No extra round trip.
+
+   Without this step Perry claims a namespace it was not given. The escape
+   hatch used to be offered only on the adopt path, so a greenfield `/perry` in
+   a folder that already owned `design/` wrote straight over it with no question
+   asked — and every later lint run reported the user's own file as a malformed
+   Perry design doc. Never enumerate the claimed paths here; run the check.
+
+3. **Confirm the project-wide preferences before any file is written** — record them in `.perry/config.md` (create the file if missing) so every subsequent session and every child skill reads from one source. Ask via a single `AskUserQuestion` tool call (two questions, or three when step 2 found a collision):
    - **Document language** (header `"Language"`): options = `English (Recommended if user typed English) | 中文 (Recommended if user typed 中文) | other`. The "Recommended" tag goes on whichever matches the language the user has been typing. Each option's `description` says what it changes in consequences: *"OKR, board titles, decisions and design docs get written in this language. IDs, file names and status words stay English so tools can still read them."*
    - **Repo layout** (header `"Repo layout"`): options = `Single repo (Recommended for non-code projects) | Split repo (PMO ↔ code; only if both exist and you've seen branch contention)`. See **Repo layout options** below for the trade-off explanation that goes into each option's `description`.
+
+   - **State root** (header `"State root"`) — **only when step 2 reported a
+     collision.** Options = `Put Perry's files under <suggested>/ (Recommended) |
+     Use the project root anyway | Another directory`. Name the colliding path
+     and its owner in the question itself — "this project already has `design/`
+     with 1 file Perry did not write" — because the user cannot evaluate the
+     options without knowing what is at stake. `Use the project root anyway` is
+     a real answer: it means lint will report those files, and the option's
+     `description` must say so.
 
    **Don't ask about chat language here.** Write `Chat language: follow user` and mirror whatever the user types — that is right for nearly everyone and costs them no decision. Only pin it (and only when the user asks, e.g. "reply in Chinese even when I type English") by writing a named language into that field.
 
    Document language governs **files**; chat language governs **replies**; they are allowed to differ, and often should. `reference/i18n.md` is the contract — the three layers of text, the glossary that localizes headings and column headers, what stays English in every language, and how to switch later.
-3. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
+4. **Ask whether this is a new project or an existing one** — one `AskUserQuestion` (header `"Starting point"`, options: `New project — start from goals (Recommended if the folder is nearly empty) | Existing project — analyze what's here first`). The second option routes to **`/perry adopt`**: Perry reads the project's own evidence (README, roadmap, git history, existing design/ADR docs, TODOs, issues) and proposes candidates the user confirms, instead of interviewing from a blank slate. Read `reference/adoption.md` before running it. Adoption writes no state file directly — it produces a dossier, the user confirms it, and the normal subcommands materialize the result.
 
    For a new project, recommend the order below.
-4. Recommend the order:
+5. Recommend the order:
    - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
    - Then, run `/okr plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
    - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
    - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
-5. Ask: "Run `/perry okr init` now?" — if yes, read `$PERRY_HOME/okr/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
+6. Ask: "Run `/perry okr init` now?" — if yes, read `$PERRY_HOME/okr/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
 
 ## `/perry adopt` — converting an existing project
 
@@ -221,7 +318,9 @@ The field **names** above stay English in every language — this is the file th
 
 ### `State root` — where Perry's files live
 
-Default `.` (the project root), which is what every Perry project written before this field existed assumes. **Ask the user** when the project already uses a directory Perry claims — `design/` is the usual collision, and a project's own design docs are not Perry design docs. Setting `State root: perry` puts `OKR.md`, `BOARD.md`, `phase/`, `design/`, `journal/` and the rest under `perry/`, leaving the project's own tree untouched.
+Default `.` (the project root), which is what every Perry project written before this field existed assumes. **Ask the user** when the project already uses a directory Perry claims — `design/` is the usual collision, and a project's own design docs are not Perry design docs. Setting `State root: perry` puts Perry's whole tree under `perry/`, leaving the project's own untouched.
+
+**Do not enumerate the claimed paths here.** `schema/state-schema.json § claims[]` is the one authoritative list, and `perry-lint --claims --root .` computes the collision against it. This paragraph used to name five paths while the skills wrote eighteen, so a project owning `evidence/` or `knowledge/` collided silently — a second, hand-maintained copy is what drifted. Run the check; don't recite a list.
 
 `.perry/` itself **never moves**: it is the anchor that marks the folder as a Perry project and it holds this pointer, so it cannot sit behind the pointer. Every reader resolves the root the same way — `viewer/parsers.py § resolve_state_root` is the one implementation, and `schema/state-schema.json` declares which files are anchored at the project root (`anchor: project`) rather than the state root.
 
