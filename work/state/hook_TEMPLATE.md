@@ -17,13 +17,20 @@
 > not apply to this project; add anything an agent must never touch unattended.
 > Each line is matched case-insensitively as a substring against spec fields, so
 > prefer concrete path fragments and command names over prose.
+>
+> **Only backticked spans are extracted.** A line with no backticks contributes
+> ZERO fragments and the gate is silently blind to whatever it described. The
+> shipped defaults once had exactly this bug on the two lines covering money and
+> outbound messages — the gate matched nothing on a published post, an invoice
+> email, or a cost-ceiling raise, and reported them clean. If you add a line,
+> backtick the words you want matched.
 
 - Production deploys — `deploy`, `release`, `promote`, `production`, `prod`
 - Credentials and secrets — `.env`, `secrets`, `credentials`, `token`, `apikey`, `api_key`, `id_rsa`
 - Infrastructure and cloud state — `terraform`, `helm`, `k8s`, `infra/`, `iam`
-- Money — raising a cost ceiling, adding a paid API, changing billing config
+- Money — `cost ceiling`, `paid API`, `billing`, `invoice`, `payment`, `refund`, `pricing`
 - Destructive data operations — `DROP TABLE`, `migrate --down`, `rm -rf`, bulk delete, restore-over
-- Anything that sends outbound messages on the user's behalf — email, Slack, PR comments on other people's repos
+- Anything sent on the user's behalf — `publish`, `published`, `send`, `sent`, `email`, `slack`, `post`, `client`, `filing`, `submit`
 - Git history rewrites — `push --force`, `rebase` onto a shared branch, tag deletion
 
 ## Project specifics (optional — delete what you don't use)

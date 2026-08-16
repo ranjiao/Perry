@@ -17,7 +17,7 @@
 - System package installs — `brew install`, `npm install -g`, Homebrew bootstrap, Xcode CLT
 - **Writing into a project Perry does not own** — `adopt` commit stage, `diagnose` execute stage, `relocate`, `git mv`
 - **The claim surface** — `claims`, `state-schema.json`, anything that changes which paths Perry writes into someone else's project
-- Publishing to a public repo — `git push`, `origin`, `gh release`, tag creation
+- Publishing to a public repo — `git push`, `origin`, `gh release`, `publish`, `published`, tag creation
 - Git history rewrites — `push --force`, `--force-with-lease`, `rebase` onto `main`, tag deletion
 - Destructive filesystem operations — `rm -rf`, `rm -f`, bulk delete, overwriting a project's own `design/`, `evidence/`, `knowledge/`, `inputs/`
 - Self-update — `git pull` inside `$PERRY_HOME`

@@ -857,3 +857,70 @@ class TestRouterNamesOnlyRealThings(unittest.TestCase):
                     f"router quotes the withdrawn command {withdrawn.strip('` ')} "
                     f"back to the user: {line[:90]}",
                 )
+
+
+class TestTheHookTemplateIsNotBlind(unittest.TestCase):
+    """The shipped safety gate must match the things it says it covers.
+
+    `high_stakes_fragments` extracts only backticked spans. The shipped default
+    hook once had two lines — money, and anything sent on the user's behalf —
+    written entirely in prose, contributing zero fragments each. A fifth review
+    put three deliberately outward-facing closures on a board (a published post,
+    an invoice email, a cost-ceiling raise) and `consequence-needs-signoff`
+    fired zero times: the gate reported them clean.
+
+    That is the worst failure shape a safety check has, because it is
+    indistinguishable from safety. The test is empirical for the same reason —
+    asserting that the template *mentions* money would have passed while the
+    gate was blind.
+    """
+
+    OUTWARD = [
+        ("T-1", "Publish launch post"),
+        ("T-2", "Email Q3 invoice summary to vendors"),
+        ("T-3", "Raise the paid API cost ceiling"),
+    ]
+
+    def test_every_high_stakes_line_contributes_at_least_one_fragment(self):
+        text = (PERRY_HOME / "work" / "state" / "hook_TEMPLATE.md").read_text()
+        body = re.search(r"## High-stakes operations(.*?)^## ", text, re.M | re.S)
+        self.assertTrue(body, "the template has no high-stakes section")
+        for line in body.group(1).split("\n"):
+            if not line.strip().startswith("-") or "{{" in line:
+                continue
+            self.assertTrue(
+                re.findall(r"`([^`]+)`", line),
+                f"this line contributes no fragments and the gate is silently "
+                f"blind to it: {line.strip()[:70]}",
+            )
+
+    def test_the_shipped_hook_actually_catches_outward_facing_closures(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# c\n\n- Document language: English\n"
+                "- Repo layout: single\n- State root: .\n")
+            (root / ".perry" / "hook.md").write_text(
+                (PERRY_HOME / "work" / "state" / "hook_TEMPLATE.md").read_text())
+            rows = "".join(
+                f"| {tid} | {title} | User + Agent | done | — | done 2026-08-16 | V2 |\n"
+                for tid, title in self.OUTWARD)
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## P0\n\n"
+                "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
+                "|---|---|---|---|---|---|---|\n" + rows +
+                "\n## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                "\n## P2\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
+                "\n## User Input Queue\n\n| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n"
+                "\n## Top risks\n\n- none\n")
+            r = subprocess.run(
+                ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            out = json.loads(r.stdout)
+        hits = " ".join(f["message"] for f in out["findings"]
+                        if f["rule"] == "consequence-needs-signoff")
+        for tid, title in self.OUTWARD:
+            self.assertIn(tid, hits,
+                          f"{title!r} closed at V2 and the gate said nothing")
