@@ -126,7 +126,7 @@ For navigation help: `/design help` prints this index; `/design help <subcommand
 |---|---|---|
 | `init` | First-time bootstrap of the `design/` lane (write README) | Subcommands |
 | `new <slug>` | Start a new design doc (interactive: title, ID, KR linkage) | Subcommands |
-| `resolve <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion. (Alias: `decide`) | Subcommands |
+| `resolve <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion | Subcommands |
 | `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates the `DECISIONS.md` index. `--supersede` / `--expire` / `--archive` manage lifecycle | `reference/decisions.md` |
 | `lock <DESIGN-ID>` | Move `in_review` → `locked`; print impl tasks for PMO `add-task` | Subcommands |
 | `revise <DESIGN-ID>` | Material change after lock; appends `## Changes` | Subcommands |
@@ -162,7 +162,13 @@ Writes `design/<DESIGN-ID>-<slug>.md` from `state/design_TEMPLATE.md` with `Stat
 
 **Input-quality pass** on that first writing pass: run `$PERRY_HOME/reference/input-quality.md § 3 Design doc` against Problem / Goals / Non-Goals (concrete problem, substantive Non-Goals, testable numbered Goals). Surface ≤3 issues, advisory + override. Catching a thin Non-Goals here means `lock` isn't the first time the user hears about it.
 
-### `resolve <DESIGN-ID>` (alias: `decide`)
+### `resolve <DESIGN-ID>`
+
+> The `decide` alias was withdrawn. With the lane itself named `decide`,
+> `/perry decide` became unparseable — a lane with no subcommand, or a
+> subcommand missing its argument? An alias that makes the entrance ambiguous
+> costs more than the muscle memory it saves, and the rename existed to remove
+> exactly this collision rather than move it one level up.
 Walk every unresolved row in the User Decisions table. For each: present the options, ask the user to pick (or to add an option), record the choice with today's date. Refuse to "decide on the user's behalf" — leave TBD if the user cannot decide now.
 
 **Use `AskUserQuestion`** to render each row's options as buttons (header = decision number or short topic, ≤ 12 chars). The Options column in the User Decisions table is written pipe-separated (`A / B / C`) precisely so each token maps to one `AskUserQuestion` option. Batch up to 4 unresolved rows per `AskUserQuestion` call. The user can always pick "Other" to add a new option, in which case append it to the row's Options list and record the choice.

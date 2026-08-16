@@ -18,10 +18,10 @@ Carries rules rather than references.
 | **Calendar** | **Binding** — arrival date + SLA. Same meaning as `modes/pipeline.md § What "binding" does and does not mean`; read it there, it is one argument for both modes | — |
 | **Item states** | `Status` (the global enum, unchanged) and `Stage` — default `new → triaged → in_progress → resolved` | `BOARD.md` → `Status`, `Stage` |
 | **Arrival** | The date it came in, carried from intake and **never lost** | `BOARD.md` → `Arrived` |
-| **SLA** | Response/turnaround time for the track | `.perry/config.md § Tracks` → `SLA` |
-| **WIP control** | Queue depth and age | derived from `Arrived` |
+| **SLA** | Response/turnaround time. **No default** — a track without it cannot run the breach step, and triage reports that rather than skipping it | `.perry/config.md § Tracks` → `SLA` |
+| **WIP control** | Depth (from `Status` + `Track`) and age (from `Arrived`). **No cap** — see below | — |
 | **Triage asks** | What breached SLA, what recurs, what should become a runbook? | — |
-| **Default rung** | **V2** + a resolution note | `BOARD.md` → `Verification` |
+| **Default rung** | **V2** + a resolution note. Overridable per track (`Tracks` → `Default rung`) and per row | `BOARD.md` → `Verification` |
 | **Signature failure** | The board shows intentions while the real work arrives and completes in chat | — |
 
 `Status` and `Stage` are orthogonal here for the same reason as in pipeline
@@ -85,7 +85,9 @@ exists to prevent. **Report it by elapsed time, not by triage count**: `Arrived`
 is recorded and there is no triage counter, so "still here after 14 days" is
 computable and "still here after two triages" is not.
 
-**Resolved rows leave at the end of the review period.** Routed, dropped and
+**Rows with an `Outcome` leave at the end of the review period.** (Not
+"resolved" — that word is already the terminal *stage* of this mode's item
+vocabulary two screens up, and one word cannot mean both.) Routed, dropped and
 deferred rows all stay visible until the period closes, then move to that day's
 journal entry with their `Outcome` intact — the same live/history split
 `BOARD.md` and `journal/` use everywhere else. Without this rule intake only

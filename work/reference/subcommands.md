@@ -11,11 +11,11 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 
 **Step 0 — drain `BOARD.md § Intake`, before anything else.** Only applies when the section exists (queue-mode tracks; `modes/queue.md`). Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
-- **Routed** to a track → becomes a normal board row with an owner, a priority and a target rung.
-- **Dropped**, with a reason written down. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked.
-- **Deferred**, with a **named condition** — never a bare "later".
+- **Routed** to a track → becomes a normal board row with an owner, a priority and a target rung. **Carry `Arrived` onto the new row, and set `Stage` to the track's first post-intake stage** (`triaged` in the default queue vocabulary). This is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`).
+- **Dropped**, with the reason in the intake row's `Outcome` cell. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked.
+- **Deferred**, with a **named condition** in `Outcome` — never a bare "later".
 
-A row still sitting in intake after two triages is reported by age. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
+A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
 
 Then walk `BOARD.md` top-to-bottom. For each open row:
 - Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d) → flag
@@ -28,6 +28,8 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 - Latest `architecture/audit-history/<date>.md` has open drift items older than 7 days → flag with "audit drift open" annotation; not blocking but visible.
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `$PERRY_HOME/packs/software-ops/incidents.md`).
 - Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
+
+**Every stage move stamps the clock.** Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
 
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`). Read the mode file for any track you are triaging.
 
@@ -67,10 +69,19 @@ These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" se
 
 ## Decisions & risk
 
-### `decide <topic>` / `decide --supersede ADR-NNN` / `decide --expire ADR-NNN` / `decide --archive ADR-NNN`
-ADR-style decision recording with file-per-decision layout. New ADR writes to `decisions/ADR-NNN-<slug>.md` from `state/ADR_TEMPLATE.md`; updates the `DECISIONS.md` index. Status lifecycle: `active → superseded | expired | archived` (files never move; only header field flips). Content written in `.perry/config.md` § Document language. **Full procedure in `reference/decisions.md`** — read that file before running any `decide` variant.
+### ~~`decide <topic>`~~ — moved to the `decide` lane
 
-If the project still has the **old monolithic `DECISIONS.md`** (one big file with all ADRs inline, no `decisions/` directory): PMO surfaces a one-time migration suggestion in the standup. The migration is a manual interactive operation — no dedicated subcommand. See `reference/decisions.md § Migration` for the procedure PMO walks the user through.
+ADR recording left this lane on 2026-08-16, when the signed hand-off contract
+(`$PERRY_HOME/SKILL.md § The hand-off contract`) gave `DECISIONS.md` and
+`decisions/` to `decide`. It is now **`/perry decide adr <topic>`**, with the
+same `--supersede` / `--expire` / `--archive` lifecycle, and the full procedure
+lives at `$PERRY_HOME/decide/reference/decisions.md`.
+
+**`work` no longer writes `DECISIONS.md` or `decisions/` at all.** If a request
+lands here that would, route it — do not write and mention it afterwards. That
+is the refusal case the contract names.
+
+The old-monolithic-`DECISIONS.md` migration moved with it.
 
 ### `risk`
 Print and triage risks in `PROJECT_STATE.md ## Risks`. For each: still valid? severity changed? mitigation in place? owner? Update accordingly.
@@ -92,6 +103,17 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 - unresolved, or the user is unavailable → `/okr link --unlinked <TASK-ID>`, and write the BOARD row with `attribution: unlinked` so it stays out of every KR roll-up until the standup surfaces it
 
 Print the exact command; don't edit `phase/` yourself.
+
+**Mode columns — the write path, not just the column.** A column nobody writes is not a control. For a row on a track whose mode is not `project`, `add-task` sets these in the same edit that creates the row:
+
+| Track mode | Set at creation |
+|---|---|
+| `pipeline` | `Track`, `Stage` = the first stage of the track's `Stages`, `Stage since` = today, `Commitment` if the row discharges one |
+| `queue` | `Track`, `Stage` = first post-intake stage, `Arrived` = the date it arrived (carried from `## Intake`, or today for a row raised directly), `Commitment` if applicable |
+| `inquiry` | `Track`, `Stage` = `open`, `Stage since` = today, `Parent` = the question this was split from, or blank for a root |
+| `project` | nothing extra — this is today's behavior, unchanged |
+
+A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-mode board must carry `Stage` and `Arrived`. They are optional in the schema so that no pre-DESIGN-003 board is invalidated, **not** so a mode track can skip them — a track that does is missing the clock its own triage reads.
 
 1. **Add a row to `BOARD.md`** — terse: `ID | Title | Owner | Status | Next action | Evidence path`.
 2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). Journal entry is the canonical historical record.
@@ -167,7 +189,7 @@ Two rules override the default, and neither is optional:
 Write the chosen rung into the BOARD row's `Verification` column (add the column if the board has none) and into the journal status-change line. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
 
 If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
-1. **Remove the row from `BOARD.md`**.
+1. **Remove the row from `BOARD.md`**. On a pipeline track, the row must have reached the terminal stage of its `Stages` first — `approved` is not `published`, and closing short of the last stage is the mode's signature failure wearing a green checkmark.
 2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path> · verification: <V0-V6>`.
 3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, tick it there too.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.

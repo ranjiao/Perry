@@ -14,7 +14,7 @@ because pipeline's rules exist nowhere else in Perry yet.
 |---|---|---|
 | **Ends when** | The item ships — or is explicitly dropped | — |
 | **Unit that gets an ID** | The deliverable, not the task. One ID per thing that will leave the building | `BOARD.md` row |
-| **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · by when · status | Written by the **goals** lane |
+| **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · by when · status. `By when` is a **date** for pipeline rows; queue rows in the same table may carry prose | Written by the **goals** lane |
 | **Horizon** | The cycle, declared explicitly (`2026-W34`, `until 2026-09-30`) | `.perry/config.md § Tracks` → `Cycle` |
 | **Calendar** | **Binding** — see *What "binding" does and does not mean* below | — |
 | **Item states** | Two orthogonal fields: `Status` (the global lifecycle enum, unchanged) and `Stage` (this track's vocabulary) | `BOARD.md` → `Status`, `Stage` |
@@ -24,7 +24,7 @@ because pipeline's rules exist nowhere else in Perry yet.
 | **Stage clock** | The date the item entered its current stage | `BOARD.md` → `Stage since` |
 | **Commitment link** | The `Id` of the promise this item discharges | `BOARD.md` → `Commitment` |
 | **Triage asks** | Which item is aging in which stage? | — |
-| **Default rung** | **V5** — a shipped deliverable is outward-facing by definition | `BOARD.md` → `Verification` |
+| **Default rung** | **V5** — a shipped deliverable is outward-facing by definition. Three layers: the mode default (`work_modes.modes.pipeline.default_rung`), a per-track override (`Tracks` → `Default rung`), and the per-row value | `BOARD.md` → `Verification` |
 | **Signature failure** | Everything sits in `review` forever | — |
 
 ### `Status` and `Stage` are orthogonal, and that is the point
@@ -103,8 +103,10 @@ stage. Until then they are rules an agent follows, not rules a script catches.
 The default `brief → draft → review → approved → published` fits writing. It
 does not fit a legal matter (`intake → research → draft → partner review →
 filed`), an invoice run, or a document-extraction batch. So the stage list is
-**declared in the track register**, and a pack may supply a default for its
-domain.
+**declared in the track register**. (An earlier draft said a pack could supply a
+domain default; no such layer exists — no pack-default mechanism, no declared
+precedence between track, pack and mode — so the clause was removed rather than
+left as a promise.)
 
 ```markdown
 ## Tracks      (in .perry/config.md)
@@ -122,8 +124,11 @@ domain.
   is the stage that jams and an unlimited review queue is this mode's signature
   failure.
 - **`SLA`** — expected dwell time in a stage before triage flags it. One value
-  for the track; `5d` means an item sitting in any stage for five days is
-  surfaced. This is the **single home for SLA** in both pipeline and queue mode
+  for the track; `5d` means five **calendar** days, and an item sitting in any
+  stage that long is surfaced. **No default in any mode** — a turnaround time is
+  a commitment the project makes to someone, and inventing one would put words
+  in the user's mouth. A track without `SLA` cannot run triage step 1, and
+  triage reports that as a finding rather than skipping the step silently. This is the **single home for SLA** in both pipeline and queue mode
   — an earlier draft of these two files put it in two different places.
 - **`Cycle`** — what bounds the current horizon. An ISO week, a date
   (`until 2026-09-30`), or a named campaign. Without it the horizon cannot
@@ -199,8 +204,10 @@ Ordered. The first question is not "what's important" but "what's stuck":
    `draft → review` move produces no status change and therefore no line.
 2. **Stages at their WIP limit.** Compare the count of active rows per `Stage`
    against the track's `WIP` cell. Name which stage, and what is upstream of it.
-3. **Commitments due before the next triage.** Read `OKR.md § Commitments` for
-   rows in this `Track` whose `By when` falls before the next triage, take each
+3. **Commitments due within the track's `SLA` window.** Nothing records when a
+   triage last ran or when the next one is due, so "before the next triage" is
+   not a datum — read `OKR.md § Commitments` for rows in this `Track` whose
+   `By when` date falls inside that window, take each
    one's `Id`, then scan `BOARD.md` for rows whose `Commitment` cell carries
    that id and report how far along each is. **The link is followed from the
    board side**, never by dereferencing the commitment row's `Discharged by`

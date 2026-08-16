@@ -125,7 +125,7 @@ If the user clearly wants only goal-setting → the `goals` lane. If clearly onl
 
 When `/perry` is invoked, always run this before doing anything else.
 
-−2. **Set `$PERRY_HOME`** — if the env var is not already set, derive it from the path of the SKILL.md you just read. `$PERRY_HOME` is the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`). For child SKILL.md (`<PERRY_HOME>/<child>/SKILL.md`), use the grandparent directory. All later bin/ invocations in this file and the reference files are written as `$PERRY_HOME/bin/<script>` — they only work if this step ran.
+−2. **Set `$PERRY_HOME`** — if the env var is not already set, derive it from the path of the SKILL.md you just read. `$PERRY_HOME` is the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md (`<PERRY_HOME>/<lane>/SKILL.md`), use the grandparent directory. All later bin/ invocations in this file and the reference files are written as `$PERRY_HOME/bin/<script>` — they only work if this step ran.
 
 −1. **Detect host once** — silently:
    ```
@@ -299,10 +299,10 @@ When `/perry` is invoked, always run this before doing anything else.
    or inventing a name.
 
 5. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
-   - "phase #002 commit KRs ≥80% → run `/pmo end-phase-retro`, `/okr score-phase`, `/pmo rollover`, `/okr plan-phase <new-slug>`"
-   - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
-   - "no current phase → run `/okr plan-phase <slug>`, then `/okr plan-week`, then `/pmo` to add the tasks"
-   - "DESIGN-002 (\"Flake scoring\") in_review for 8d → run `/design lock` or `/design revise`"
+   - "phase #002 commit KRs ≥80% → run `/perry work end-phase-retro`, `/perry goals score-phase`, `/perry work rollover`, `/perry goals plan-phase <new-slug>`"
+   - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/perry work nudge` then `/perry work friday-review`"
+   - "no current phase → run `/perry goals plan-phase <slug>`, then `/perry goals plan-week`, then `/perry work` to add the tasks"
+   - "DESIGN-002 (\"Flake scoring\") in_review for 8d → run `/perry decide lock` or `/perry decide revise`"
 
 6. Then ask: **"What do you want to do?"**
 
@@ -360,10 +360,10 @@ supposed to protect.
 
    For a new project, recommend the order below.
 5. Recommend the order:
-   - First, run `/okr init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
-   - Then, run `/okr plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
-   - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
-   - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
+   - First, run `/perry goals init` — interview to create `OKR.md` (mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals, version v1).
+   - Then, run `/perry goals plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
+   - Then, run `/perry work` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
+   - Finally, run `/perry goals plan-week` — proposes the first batch of weekly tasks, which `/perry work` then writes as BOARD rows + a journal entry under `## New tasks added`.
 6. Ask: "Run `/perry goals init` now?" — if yes, read `$PERRY_HOME/goals/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
 
 ## `/perry adopt` — converting an existing project
@@ -515,11 +515,13 @@ When the user types something inside a `/perry` session, route to the right chil
 - Cadence rituals · `monday-plan`, `midweek-check`, `friday-review`, `mid-phase-review`, `end-phase-retro`
 - Cross-session work · `coordinate`, `delegate` (manual prompt), `dispatch` (auto end-to-end via claude-subagent or codex), `handoff`
 - Opening the project in a browser / live web console · `viewer` (= `browse`) — agent starts it and opens the browser for you
-- Decisions and risks · `decide`, `risk`, `nudge`
+- Risks and chasing the user · `risk`, `nudge`
+  (ADR recording moved to the `decide` lane — see below)
 - Phase transition · `rollover`
 
 **Route to the `decide` lane (alias `design`) for:**
-- Anything called RFC / architecture / design doc · `new`, `decide`, `lock`, `revise`, `supersede`, `drop`, `handoff`, `status`
+- Anything called RFC / architecture / design doc · `new`, `resolve`, `lock`, `revise`, `supersede`, `drop`, `handoff`, `status`
+- Recording a decision · `adr <topic>`, `adr --supersede` / `--expire` / `--archive`. Moved here from `work` by the signed hand-off contract: `DECISIONS.md` and `decisions/` belong to this lane
 - "Should we design this before building it?" → yes if multi-system, irreversible, or has multiple open user decisions
 
 **Handle here in the router (without loading a lane):**
@@ -561,7 +563,7 @@ Perry — virtual project office. One command: /perry
   /perry decide <sub>    Design-doc / RFC / decision stewardship (alias: /perry design) (locked decisions before building)
             Use when: drafting an RFC, locking user decisions, handing off
             implementation tasks to PMO.
-            Common: new, decide, lock, handoff
+            Common: new, resolve, lock, adr, handoff
             Full list: /perry help decide
 
   The lane name is optional when the subcommand is unambiguous —

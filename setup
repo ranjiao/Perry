@@ -87,8 +87,8 @@ What setup does:
   Phase 1 — symlink (per selected host):
     For each target skills directory:
       1. Symlinks perry/ → this script's source.
-      2. Symlinks each child skill (okr, pmo, design) as a sibling pointing
-         at perry/<name>.
+      2. REMOVES any legacy sibling links (okr, pmo, design) left by older
+         installs. They are lanes inside /perry now, not host commands.
 
 Re-running is safe and idempotent.
 USAGE
@@ -248,7 +248,7 @@ check_deps() {
     if dep_present codex; then
       log "  ✅ codex       ($(command -v codex) — $(codex --version 2>/dev/null | head -1)) — available as executor"
     else
-      log "  ℹ️  codex       (optional — only if you use codex executor in /pmo dispatch)"
+      log "  ℹ️  codex       (optional — only if you use codex executor in /perry work dispatch)"
       DEPS_MISSING_OPTIONAL+=("codex")
     fi
   fi
@@ -377,7 +377,7 @@ install_codex_cli() {
     return 0
   fi
   log ""
-  log "📦 codex CLI (only needed for codex executor in /pmo dispatch):"
+  log "📦 codex CLI (only needed for codex executor in /perry work dispatch):"
   if confirm "  npm install -g @openai/codex now?"; then
     npm install -g @openai/codex
   else
@@ -533,6 +533,27 @@ log "── Phase 1: skill symlink ───────────────
 
 # Claude Code install
 CC_DIR=""
+# Legacy sibling links are swept from BOTH host directories regardless of which
+# host this run installs. They are leftovers from an older Perry, not artifacts
+# of this install, so scoping their removal to the selected host means a user
+# who installed both and later re-runs `setup --claude` keeps the codex-side
+# leftovers forever — and never sees them, because nothing else looks there.
+# Cleanup follows the mess, not the invocation.
+sweep_legacy_everywhere() {
+  local d
+  for d in "$HOME/.claude/skills" "$HOME/.agents/skills"; do
+    [ -d "$d" ] || continue
+    local name
+    for name in okr pmo design goals work decide; do
+      if [ -L "$d/$name" ] && [ "$(readlink "$d/$name")" = "perry/$name" ]; then
+        rm -f "$d/$name"
+        log "  [sweep] removed legacy link $d/$name"
+      fi
+    done
+  done
+}
+sweep_legacy_everywhere
+
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$LOCAL" -eq 1 ]; then
     CC_DIR="$(pwd)/.claude/skills"
@@ -566,7 +587,7 @@ log "Perry ready."
 log "  source       : $SOURCE_DIR"
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  claude-code  : $CC_DIR"   || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  codex        : $CODEX_DIR" || true
-log "  skill        : /perry  (one entrance; okr / pmo / design are lanes inside it)"
+log "  skill        : /perry  (one entrance; goals / work / decide are lanes inside it)"
 log "  lanes        : /perry okr … · /perry pmo … · /perry design … · /perry diagnose"
 log ""
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  Claude Code: invoke /perry inside a project for the combined dashboard." || true

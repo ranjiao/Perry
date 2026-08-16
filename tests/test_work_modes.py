@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -759,3 +760,100 @@ class TestPackGlossary(unittest.TestCase):
         c = file_spec("config")
         f = next(x for x in c["header_fields"] if x["name"] == "Packs")
         self.assertFalse(f.get("required", True))
+
+
+class TestEveryModeColumnHasAWriter(unittest.TestCase):
+    """A column is not a control until something writes it.
+
+    This is the defect that survived three review rounds in three disguises. The
+    schema kept gaining honest homes for data — `Stage`, `Stage since`,
+    `Arrived`, `Commitment`, `Parent` — while no procedure ever set them, so
+    triage steps that read those cells were uncomputable in practice no matter
+    how correct the mode files sounded. The reviewer's phrasing is the test
+    name.
+
+    The write path lives in `work/reference/subcommands.md`, because `work` is
+    the only lane that may write `BOARD.md`. Checking the prose is crude, but
+    the alternative — asserting only that the schema declares the column — is
+    exactly the check that passed three times while the bug survived.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.proc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
+
+    def test_add_task_sets_the_mode_columns_at_creation(self):
+        self.assertIn("Stage since", self.proc,
+                      "nothing in the writing lane ever sets the stage clock")
+        self.assertIn("Arrived", self.proc)
+        self.assertIn("Parent", self.proc)
+
+    def test_a_stage_move_stamps_the_clock_in_the_same_edit(self):
+        """Status and Stage are orthogonal by design, so a draft→review move
+        produces no status change and would otherwise leave no trace at all."""
+        self.assertRegex(
+            self.proc, r"stage move stamps the clock|sets `Stage since` to today",
+            "no rule requires a stage change to update its timestamp",
+        )
+
+    def test_routing_out_of_intake_carries_the_arrival_date(self):
+        """queue.md calls this not-optional; the procedure that actually does
+        the routing is what has to agree."""
+        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
+        self.assertIn("Arrived", step0,
+                      "triage Step 0 routes a row without carrying `Arrived`, "
+                      "which is the only clock a queue row is governed by")
+        self.assertIn("Stage", step0)
+
+    def test_intake_staleness_is_measured_in_days_not_triages(self):
+        """`Arrived` is recorded and nothing counts triages, so elapsed time is
+        computable and a triage count is not.
+
+        Asserted positively — that a day-based threshold exists — rather than by
+        forbidding the string. The procedure names the rejected formulation in
+        order to reject it, and a checker that cannot tell a rule from its
+        counter-example is the same defect this suite hit with example IDs."""
+        step0 = self.proc[self.proc.index("Step 0"):self.proc.index("Then walk")]
+        self.assertRegex(step0, r"more than \d+ days",
+                         "intake staleness has no elapsed-time threshold")
+
+    def test_the_work_lane_no_longer_writes_decisions(self):
+        """The signed hand-off contract moved DECISIONS.md to `decide`. The
+        procedure file is where a violation would actually live."""
+        self.assertNotRegex(
+            self.proc, r"^### `decide <topic>` /", 
+            "the ADR procedure is still in the work lane, contradicting the "
+            "signed contract",
+        )
+        self.assertIn("moved to the `decide` lane", self.proc)
+
+
+class TestRouterNamesOnlyRealThings(unittest.TestCase):
+    """Every directory and command the router prints must exist.
+
+    Step −2 of the mandatory ritual verifies the install root by listing what
+    `$PERRY_HOME` contains. It named three directories that the rename had
+    moved — in the one step whose entire job is to confirm the install is sane.
+    """
+
+    def test_every_directory_the_router_lists_exists(self):
+        m = re.search(r"it also contains ([^)]+)\)", ROUTER := (PERRY_HOME / "SKILL.md").read_text())
+        self.assertTrue(m, "step −2 no longer lists what $PERRY_HOME contains")
+        for name in re.findall(r"`(\w[\w-]*)/`", m.group(1)):
+            self.assertTrue((PERRY_HOME / name).is_dir(),
+                            f"router says $PERRY_HOME contains {name}/, which does not exist")
+
+    def test_the_router_does_not_tell_users_to_run_withdrawn_commands(self):
+        """`/okr` and `/design` resolve to other people's skills on a host with
+        lark-okr or the design: plugin family installed — which is the reason
+        the siblings were withdrawn in the first place."""
+        router = (PERRY_HOME / "SKILL.md").read_text()
+        for line in router.split("\n"):
+            if line.strip().startswith(">") or "shorthand" in line:
+                continue
+            for withdrawn in ("`/okr ", "`/pmo ", "`/design "):
+                self.assertNotIn(
+                    withdrawn, line,
+                    f"router quotes the withdrawn command {withdrawn.strip('` ')} "
+                    f"back to the user: {line[:90]}",
+                )
