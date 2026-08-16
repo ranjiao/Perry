@@ -1310,11 +1310,14 @@ class TestListContract(unittest.TestCase):
     TASK_KEYS = {
         "id", "title", "owner", "priority", "status", "track", "mode",
         "stage", "stage_since", "arrived", "parent", "commitment",
-        "next_action", "evidence", "verification", "open",
+        "next_action", "evidence", "verification", "open", "group",
         "created", "updated", "timeline",
     }
-    TOP_KEYS = {"contract", "project_root", "state_root", "tasks",
-                "open", "closed", "events", "untitled"}
+    TOP_KEYS = {"contract", "project_root", "state_root", "conformance",
+                "tasks", "open", "closed", "events", "untitled"}
+    CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
+                        "rows_with_unrecognized_id", "off_enum_status",
+                        "has_event_log"}
     EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
 
     TRACKS = TestModeAwareWrites.TRACKS
@@ -1359,6 +1362,7 @@ class TestListContract(unittest.TestCase):
         self.assertEqual(set(d), self.TOP_KEYS,
                          f"missing {self.TOP_KEYS - set(d)}, "
                          f"extra {set(d) - self.TOP_KEYS}")
+        self.assertEqual(set(d["conformance"]), self.CONFORMANCE_KEYS)
 
     def test_open_means_still_on_the_board_not_a_status_value(self):
         """The contract says `open` is the live/closed test, not `status` —
@@ -1409,6 +1413,97 @@ class TestListContract(unittest.TestCase):
         self.assertEqual(t["timeline"], [])
         self.assertTrue(t["open"])
 
+    # Reduced from a real Perry project, kept close to the original on purpose:
+    # sections named by workstream instead of P0/P1/P2, a 4-column table, an id
+    # in strikethrough, a status in the document language, a first cell that is
+    # prose rather than a handle, and a reference table that is not work at all.
+    MESSY = """# BOARD
+
+## ID prefixes (canonical)
+
+| Prefix | Means |
+|---|---|
+| DATA-n | data layer |
+
+## Open — 投资线
+
+| ID | Title | Owner | Status | Next action |
+|---|---|---|---|---|
+| IPS-004 | 政策起草 | User | 起草中 | 起草 v2 |
+
+## Open — 工程线 · phase #004
+
+| ID | Title | Owner | Status | Next action |
+|---|---|---|---|---|
+| TECH-conftest | `tests/conftest.py` 无隔离 | Coding Agent | not_started | — |
+
+## P2 (低优先 carry)
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| 2 待核项 | GAVI 金额 | User | 半解 |
+| ~~DATA-007~~ | 每仓核验时效 | Coding Agent | done |
+
+## Cadence
+
+| ID | Recurring task | Frequency | Next due | Owner | Last evidence |
+|---|---|---|---|---|---|
+| CAD-01 | weekly review | weekly | 2026-08-20 | User | — |
+
+## Top risks
+
+- something
+"""
+
+    def test_a_real_projects_board_is_read_rather_than_mostly_skipped(self):
+        """The compatibility case, taken from a live Perry project.
+
+        Reading only `## P0` / `## P1` / `## P2` found the one section whose
+        name happened to match, reported three tasks for a project with dozens,
+        and pulled rows out of a `## ID prefixes` reference table as though
+        they were work. A front-end handed that payload shows the user
+        confident nonsense — which is worse than showing nothing.
+        """
+        d = self.payload(Project(board=self.MESSY))
+        ids = {t["id"] for t in d["tasks"]}
+        self.assertEqual(ids, {"IPS-004", "TECH-conftest", "DATA-007"},
+                         f"workstream sections were not read: {sorted(ids)}")
+
+        by_id = {t["id"]: t for t in d["tasks"]}
+        self.assertEqual(by_id["IPS-004"]["group"], "Open — 投资线")
+        self.assertEqual(by_id["IPS-004"]["priority"], "",
+                         "a section that is not P0/P1/P2 must not be assigned "
+                         "a priority the project never stated")
+        self.assertEqual(by_id["DATA-007"]["priority"], "P2")
+        self.assertEqual(by_id["TECH-conftest"]["next_action"], "—")
+
+    def test_what_it_could_not_read_is_reported_not_dropped(self):
+        c = self.payload(Project(board=self.MESSY))["conformance"]
+
+        self.assertIn("ID prefixes (canonical)",
+                      [s["heading"] for s in c["sections_skipped"]],
+                      "a reference table was silently treated as work, or "
+                      "silently ignored — neither is reportable to a user")
+        self.assertEqual(
+            [r["cell"] for r in c["rows_with_unrecognized_id"]], ["2 待核项"],
+            "a row whose first cell is prose vanished without a word")
+        self.assertEqual(c["off_enum_status"], [{"id": "IPS-004", "status": "起草中"}],
+                         "a status outside the enum was passed through as if "
+                         "valid — a front-end would render it as a state it "
+                         "has no colour for, or silently bucket it wrong")
+        self.assertFalse(c["has_event_log"])
+        self.assertEqual(
+            {s["heading"] for s in c["sections_read"]},
+            {"Open — 投资线", "Open — 工程线 · phase #004", "P2 (低优先 carry)"})
+
+    def test_cadence_and_risks_are_not_reported_as_tasks(self):
+        """They are board sections and they are not work. Counting them is how
+        `perry-state`'s drift row got a number no project could drive to zero."""
+        d = self.payload(Project(board=self.MESSY))
+        self.assertNotIn("CAD-01", {t["id"] for t in d["tasks"]})
+        headings = {s["heading"] for s in d["conformance"]["sections_read"]}
+        self.assertNotIn("Cadence", headings)
+
     def test_the_contract_document_lists_exactly_these_keys(self):
         """The spec and the payload are two statements of one thing, which is
         the arrangement that has drifted in every review round of this project.
@@ -1416,11 +1511,12 @@ class TestListContract(unittest.TestCase):
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
         self.assertIn(PT.LIST_CONTRACT, doc, "the doc names a different version")
         documented = set(re.findall(r"^\| `(\w+)` \|", doc, re.M))
-        undocumented = (self.TASK_KEYS | self.EVENT_KEYS) - documented
+        known = self.TASK_KEYS | self.EVENT_KEYS | self.CONFORMANCE_KEYS
+        undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "
                          f"{sorted(undocumented)}")
-        phantom = documented - (self.TASK_KEYS | self.EVENT_KEYS)
+        phantom = documented - known
         self.assertFalse(phantom,
                          f"the contract doc documents keys the payload does "
                          f"not emit: {sorted(phantom)}")

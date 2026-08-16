@@ -104,7 +104,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.0"
+LIST_CONTRACT = "perry-task/list/1.1"
 
 
 # ── schema ────────────────────────────────────────────────────────────────
@@ -228,6 +228,70 @@ class Board:
                     continue
                 out.append((pri, self.lines[i],
                             dict(zip([norm(h) for h in header], cells))))
+        return out
+
+    # Sections that hold something other than task rows. Matched against the
+    # canonical name and its `i18n.headings` aliases, so a localized board is
+    # skipped for the same reasons an English one is.
+    NON_TASK_SECTIONS = ("Intake", "Cadence", "User Input Queue", "Top risks")
+
+    def task_tables(self) -> list[dict]:
+        """Every section of this board that holds task-shaped rows.
+
+        `rows()` looks only at `## P0` / `## P1` / `## P2`, which is right for
+        the WRITE path — a new row needs a priority and those are the only
+        sections that mean one. It is wrong for the read path, and silently so.
+
+        A real Perry project checked while writing this organizes its board by
+        workstream: `## Open — 投资线`, `## Open — 工程线 · phase #004`,
+        `## ✅ v2.0 build — DEPLOYED`, `## Backbone`, and one `## P2`. Reading
+        only P0/P1/P2 found the single section whose name happened to match,
+        reported three tasks for a project with dozens, and — because it never
+        checked what it was reading — picked up rows from a `## ID prefixes`
+        reference table as though they were work. A front-end handed that
+        payload shows the user confident nonsense.
+
+        So: every `## ` section whose table resolves at least `ID` and `Title`
+        is a task table. `P0`/`P1`/`P2` carry their priority; anything else
+        carries its heading as `group` and no priority, because inventing one
+        would be claiming the project said something it did not.
+        """
+        skip = {s.lower() for name in self.NON_TASK_SECTIONS
+                for s in heading_spellings(name)}
+        out = []
+        heads = [(i, l) for i, l in enumerate(self.lines) if l.startswith("## ")]
+        for n, (start, line) in enumerate(heads):
+            end = heads[n + 1][0] if n + 1 < len(heads) else len(self.lines)
+            title = line[3:].strip()
+            if any(title.lower().startswith(s) for s in skip):
+                continue
+            sep = next((i for i in range(start, end)
+                        if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > start
+                        and self.lines[i - 1].strip().startswith("|")), None)
+            if sep is None:
+                continue
+            header = split_row(self.lines[sep - 1])
+            keys = [norm(h) for h in header]
+            if "id" not in keys or "title" not in keys:
+                # A table under a `## ` heading that is not a task table — a
+                # reference table, a glossary, a legend. Reported, not read.
+                out.append({"heading": title, "priority": None, "header": header,
+                            "rows": [], "readable": False})
+                continue
+            pri = next((p for p in ("P0", "P1", "P2")
+                        if PRIORITY_RE[p].match(line)), None)
+            rows = []
+            for i in range(sep + 1, end):
+                s = self.lines[i].strip()
+                if not s.startswith("|"):
+                    if s and not s.startswith(("#", ">")):
+                        break
+                    continue
+                cells = split_row(self.lines[i])
+                if cells and cells[0]:
+                    rows.append(dict(zip(keys, cells)))
+            out.append({"heading": title, "priority": pri, "header": header,
+                        "rows": rows, "readable": True})
         return out
 
     def find(self, task_id: str) -> tuple[str, int, list[str], list[str]]:
@@ -1114,29 +1178,60 @@ def cmd_list(args, ctx) -> dict:
                 "status": "", "track": "main", "mode": "", "stage": "",
                 "stage_since": "", "arrived": "", "parent": "",
                 "commitment": "", "next_action": "", "evidence": "",
-                "verification": "", "open": False,
+                "verification": "", "open": False, "group": "",
                 "created": None, "updated": None, "timeline": []}
 
     tasks: dict[str, dict] = {}
-    for pri, _, c in ctx["board"].rows():
-        tid = c.get("id", "").replace("*", "").strip()
-        if not tid:
+    conformance = {"sections_read": [], "sections_skipped": [],
+                   "rows_with_unrecognized_id": [], "off_enum_status": [],
+                   "has_event_log": bool(ctx["events"])}
+    statuses = set(ctx["schema"]["enums"]["task_status"])
+
+    for tbl in ctx["board"].task_tables():
+        if not tbl["readable"]:
+            conformance["sections_skipped"].append(
+                {"heading": tbl["heading"],
+                 "why": "table has no ID and Title columns",
+                 "columns": tbl["header"]})
             continue
-        t = blank(tid)
-        t.update({
-            "title": c.get("title", ""), "owner": c.get("owner", ""),
-            "priority": pri, "status": c.get("status", ""),
-            "track": c.get("track", "") or "main",
-            "stage": c.get("stage", ""),
-            "stage_since": c.get("stage since", ""),
-            "arrived": c.get("arrived", ""), "parent": c.get("parent", ""),
-            "commitment": c.get("commitment", ""),
-            "next_action": c.get("next action", ""),
-            "evidence": c.get("evidence", ""),
-            "verification": c.get("verification", ""),
-            "open": True,
-        })
-        tasks[tid] = t
+        conformance["sections_read"].append(
+            {"heading": tbl["heading"], "priority": tbl["priority"],
+             "rows": len(tbl["rows"])})
+        pri = tbl["priority"] or ""
+        for c in tbl["rows"]:
+            # `~~DATA-007~~` and `**TASK-1**` are both real, both from a real
+            # board: strikethrough means retired, bold means emphasis, and the
+            # id underneath is the handle either way.
+            tid = c.get("id", "").replace("~", "").replace("*", "").replace("`", "").strip()
+            if not tid:
+                continue
+            if not re.fullmatch(r"[A-Za-z][\w./-]*-?\d*", tid):
+                # A row whose first cell is prose, not a handle. One real board
+                # has `| 2 待核项 | …` sitting in its P2 table. Reported so a
+                # reader knows the board holds something it could not index —
+                # dropping it silently is how a front-end shows nonsense.
+                conformance["rows_with_unrecognized_id"].append(
+                    {"section": tbl["heading"], "cell": tid[:60]})
+                continue
+            st = c.get("status", "")
+            if st and st not in statuses:
+                conformance["off_enum_status"].append({"id": tid, "status": st})
+            t = blank(tid)
+            t.update({
+                "title": c.get("title", ""), "owner": c.get("owner", ""),
+                "priority": pri, "group": tbl["heading"],
+                "status": c.get("status", ""),
+                "track": c.get("track", "") or "main",
+                "stage": c.get("stage", ""),
+                "stage_since": c.get("stage since", ""),
+                "arrived": c.get("arrived", ""), "parent": c.get("parent", ""),
+                "commitment": c.get("commitment", ""),
+                "next_action": c.get("next action", ""),
+                "evidence": c.get("evidence", ""),
+                "verification": c.get("verification", ""),
+                "open": True,
+            })
+            tasks[tid] = t
 
     for e in ctx["events"]:
         tid = e.get("id", "")
@@ -1174,6 +1269,7 @@ def cmd_list(args, ctx) -> dict:
     return {"contract": LIST_CONTRACT,
             "project_root": str(ctx["project_root"]),
             "state_root": str(ctx["state_root"]),
+            "conformance": conformance,
             "tasks": rows,
             "open": sum(1 for t in rows if t["open"]),
             "closed": sum(1 for t in rows if not t["open"]),

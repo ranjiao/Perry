@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.0`**
+> Contract: **`perry-task/list/1.1`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,9 +47,10 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.0",   // check this before anything else
+  "contract":     "perry-task/list/1.1",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
+  "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
   "tasks":        [ /* see below */ ],
   "open":         3,                       // counts AFTER --track filtering
   "closed":       11,
@@ -77,6 +78,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `next_action` | string | |
 | `evidence` | string | path, relative to `state_root` |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
+| `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
 | `open` | bool | **`true` iff the row is still on `BOARD.md`.** This, not `status`, is the live/closed test. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
@@ -91,6 +93,36 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `from` | string \| null |
 | `to` | string \| null |
 | `actor` | string \| null |
+
+### `conformance` — what the board did not parse cleanly
+
+**Read this before you trust `tasks`.** Perry's own template is not what real
+projects look like. A live Perry project checked while writing this organizes
+its board by workstream (`## Open — 投资线`, `## Open — 工程线 · phase #004`,
+`## Backbone`) with exactly one section named `P2`, tables of four and five
+columns rather than six, ids in strikethrough, statuses written in the project's
+own language, and a `## ID prefixes` reference table that is not work at all.
+
+Every one of those is legitimate. This block says which of them this board has,
+so a front-end can show "12 tasks, 1 row unreadable" instead of quietly
+rendering 12 and dropping one.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `sections_read` | array | `{heading, priority, rows}` per section that yielded tasks. `priority` is `null` unless the heading is `P0`/`P1`/`P2`. |
+| `sections_skipped` | array | `{heading, why, columns}` — a `## ` section with a table that has no `ID`+`Title`. Usually a reference or legend table. |
+| `rows_with_unrecognized_id` | array | `{section, cell}` — a row whose first cell is prose rather than a handle. **These are not in `tasks`.** |
+| `off_enum_status` | array | `{id, status}` — the row IS in `tasks`, and its `status` is not one of the six. Do not assume you can colour it. |
+| `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
+
+Two consequences worth designing for rather than discovering:
+
+- **`status` is not guaranteed to be one of the six.** The enum is what Perry
+  *writes*; a board that predates the tool holds whatever a human typed. Render
+  an unknown status as itself, never as a default bucket.
+- **`priority` is `""` for any row outside `P0`/`P1`/`P2`**, which on a
+  workstream-organized board is most of them. Group by `group` and fall back to
+  `priority`, not the other way round.
 
 ## The three rules that make it safe to code against
 
