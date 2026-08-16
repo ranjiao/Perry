@@ -163,6 +163,34 @@ When `/perry` is invoked, always run this before doing anything else.
    ```
    Deterministic, read-only, stdlib-only. `installed: false` → jump to **First-time setup** below — **but only if step 2 found no interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the combined dashboard needs across all three children — OKR version + objectives, phase number / day / KR totals, board counts, User Input Queue, top risk, last ADR, locked designs and their hand-off status, plus a `warnings` array. **Every number below comes from this payload**; a field it doesn't carry prints `—`. Flag any child whose files are missing (no `OKR.md`, no `BOARD.md`, empty `design/`).
 
+3b. **Load the mode file for each declared track** — `project.config.tracks[]`
+   in the payload above. For each distinct `mode` in that list, read
+   `$PERRY_HOME/modes/<mode>.md` in full, once. That file declares what the
+   track's spine is, what closes its horizon, whether its calendar is binding,
+   what its item states are, what `triage` asks of it, and its default
+   verification rung.
+
+   **The payload is never empty.** A project that has declared no tracks
+   reports exactly one — `main`, mode `project`, `declared: false` — so there
+   is no "no tracks" branch to write and nothing to special-case. That single
+   implicit track loads `modes/project.md`, which adds nothing to Perry's
+   behavior on purpose: `project` is the shape Perry was built for and its
+   rules already live in `okr/SKILL.md` and `pmo/SKILL.md`. A project written
+   before tracks existed therefore behaves identically, which is the property
+   `tests/test_work_modes.py` protects.
+
+   Cost discipline: **one mode file per distinct mode, not per track.** Five
+   pipeline tracks read `modes/pipeline.md` once. Modes are tier 1 and loaded
+   on demand, exactly like `*/reference/*.md` — the router's own tier-0 cost is
+   this paragraph and one payload field.
+
+   The register is a `## Tracks` table in `.perry/config.md` — a tier-1 file
+   the user owns and edits directly, because a track is configuration rather
+   than state and `.perry/` is a path Perry already claims. Its shape is in
+   `schema/state-schema.json`; `perry-lint` validates the `Mode` and
+   `Default rung` cells whenever the section exists and skips it entirely when
+   it doesn't.
+
 4. **Render the combined dashboard** — exactly this shape, no preamble:
 
    ```

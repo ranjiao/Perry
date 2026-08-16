@@ -1,6 +1,53 @@
 {
   "schema_version": 2,
   "description": "Structural contract for Perry state files. The single source of truth that SKILL.md prose, state/*_TEMPLATE.md, and viewer/parsers.py must all agree with. Validated by bin/perry-lint (against a project) and by tests/ (against the templates themselves).",
+  "work_modes": {
+    "note": "DESIGN-003 (locked 2026-08-16). A project declares 1..N tracks in `.perry/config.md § Tracks`; each track has a mode, and the mode determines spine, item states, cadence driver, triage questions and default verification rung. Absent a Tracks section there is one implicit track named `main`, mode `project` — which is today's Perry exactly, so nothing here changes an existing project until it opts in.",
+    "default_track": "main",
+    "default_mode": "project",
+    "modes": {
+      "project": {
+        "ends_when": "a goal is met",
+        "unit": "task",
+        "spine": "OKR.md objectives -> phase/<NNN>",
+        "calendar": "advisory",
+        "default_rung": "V3"
+      },
+      "pipeline": {
+        "ends_when": "the item ships",
+        "unit": "deliverable",
+        "spine": "commitments (party / deliverable / due) -> current cycle",
+        "calendar": "binding",
+        "default_rung": "V5"
+      },
+      "queue": {
+        "ends_when": "never; steady state, reviewed on a period",
+        "unit": "request",
+        "spine": "standing commitments + SLA",
+        "calendar": "binding",
+        "default_rung": "V2"
+      },
+      "inquiry": {
+        "ends_when": "the question is answered or abandoned",
+        "unit": "question",
+        "spine": "question tree -> findings ledger",
+        "calendar": "advisory",
+        "default_rung": "V4"
+      }
+    }
+  },
+  "verification": {
+    "note": "DESIGN-003 section 5.3. Replaces the binary evidence gate with a declared rung per task. Advisory for one release (decision 4), then a hard gate. Two rules govern it, and neither is expressible as a column check: (1) the required rung is a function of CONSEQUENCE, not shape - anything outward-facing, irreversible, or carrying money/legal/safety exposure requires V5 minimum in every mode, overriding the mode default; (2) a V4 claim must cite an acceptance-criteria file and the reviewer must not have seen the reasoning that produced the artifact, or it is V1 wearing a costume.",
+    "rungs": {
+      "V0": "asserted - 'looks done'. Never valid. If the linter sees one, that is a finding, not a low rung.",
+      "V1": "artifact exists - a file at a path. Attested by the agent.",
+      "V2": "structural check - a linter over required sections / schema / format. Attested by a script.",
+      "V3": "reproducible run - command + inputs + output, re-runnable. Attested by a script.",
+      "V4": "rubric review - a fresh-context reviewer scores against written acceptance criteria. Attested by a second agent.",
+      "V5": "human sign-off - name, date, and what they checked. Attested by the user.",
+      "V6": "external confirmation - client accepted / filed / published / merged. Attested by the world."
+    }
+  },
   "enums": {
     "task_status": [
       "not_started",
@@ -22,6 +69,21 @@
       "Research Agent",
       "Review Agent",
       "User + Agent"
+    ],
+    "mode": [
+      "project",
+      "pipeline",
+      "queue",
+      "inquiry"
+    ],
+    "verification_rung": [
+      "V0",
+      "V1",
+      "V2",
+      "V3",
+      "V4",
+      "V5",
+      "V6"
     ],
     "design_status": [
       "draft",
@@ -397,6 +459,36 @@
           "\u8bc1\u636e"
         ]
       },
+      "Track": {
+        "zh": [
+          "\u8f68\u9053"
+        ]
+      },
+      "Mode": {
+        "zh": [
+          "\u6a21\u5f0f"
+        ]
+      },
+      "Verification": {
+        "zh": [
+          "\u9a8c\u8bc1"
+        ]
+      },
+      "Default rung": {
+        "zh": [
+          "\u9ed8\u8ba4\u9a8c\u8bc1\u7ea7"
+        ]
+      },
+      "Arrived": {
+        "zh": [
+          "\u5230\u8fbe"
+        ]
+      },
+      "Request": {
+        "zh": [
+          "\u8bf7\u6c42"
+        ]
+      },
       "USER-id": {
         "zh": [
           "\u7528\u6237\u8f93\u5165\u7f16\u53f7"
@@ -650,8 +742,21 @@
             "Evidence"
           ],
           "enum_columns": {
-            "Status": "task_status"
+            "Status": "task_status",
+            "Verification": "verification_rung"
+          },
+          "optional_columns": {
+            "Track": "Which declared track this row belongs to. Absent = the implicit `main` track, mode `project`.",
+            "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated."
           }
+        },
+        {
+          "under": "^Intake\\b|^\u6536\u4ef6",
+          "note": "Untriaged external requests, for queue-mode tracks (DESIGN-003 decision 3). OPTIONAL: skipped entirely when the section is absent. Lives inside BOARD.md rather than a new INTAKE.md so the refactor claims no new path \u2014 BOARD.md is already in claims[]. `triage` drains this section as its first step.",
+          "columns": [
+            "Arrived",
+            "Request"
+          ]
         },
         {
           "under": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
@@ -1576,6 +1681,20 @@
           "name": "State root",
           "required": false,
           "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves \u2014 it is the anchor that holds this pointer."
+        }
+      ],
+      "tables": [
+        {
+          "under": "^Tracks\\b|^\u8f68\u9053",
+          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file.",
+          "columns": [
+            "Track",
+            "Mode"
+          ],
+          "enum_columns": {
+            "Mode": "mode",
+            "Default rung": "verification_rung"
+          }
         }
       ],
       "anchor": "project"

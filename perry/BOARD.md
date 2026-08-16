@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (8th pass — DESIGN-003 hand-off, 14 tasks added)
+> Last updated: 2026-08-16 (9th pass — TASK-015 + TASK-018 closed at V3)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,9 +16,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-015 | Schema: tracks, modes, `track:` / `verification:` fields | Coding Agent | not_started | DESIGN-003 phase A — blocks all 13 others | `evidence/2026-08/TASK-015-spec.md` |
-| TASK-018 | `modes/project.md` — the proven no-op | Coding Agent | not_started | DESIGN-003 phase C — the don't-break-what-works gate; blocked-by TASK-015 | `evidence/2026-08/TASK-018-spec.md` |
-| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — lands **first and alone**, revertible as one commit; blocked-by TASK-015 | `evidence/2026-08/TASK-026-spec.md` |
+| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — unblocked (TASK-015 closed). Lands **first and alone**; needs your V5 sign-off, so it is not agent-closable | `evidence/2026-08/TASK-026-spec.md` |
 
 ## P1
 
@@ -69,6 +67,8 @@
 | TASK-013 | `NS-01` — scanner, emitter, catalog row, `WHY` entry | `bin/perry-diagnose`, `reference/diagnose.md` |
 | TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
 | TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
+| TASK-015 | Schema: `mode` + `verification_rung` enums, `work_modes`/`verification` blocks, optional `## Tracks` + `## Intake` table specs, i18n columns — **V3** | `schema/state-schema.json`, `tests/test_work_modes.py`; lint output on all 3 fixtures byte-identical to the pre-change baseline, no fixture edited |
+| TASK-018 | `modes/project.md` + router step 3b + `perry-state.parse_tracks` — **V3** | `modes/project.md`, `SKILL.md § Mandatory first move` step 3b, `bin/perry-state`; `perry-state --dashboard` byte-identical on all 3 fixtures before/after |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 
