@@ -29,6 +29,20 @@ FIXTURE = PERRY_HOME / "tests" / "fixtures" / "sample-project"
 DIAGNOSE = PERRY_HOME / "bin" / "perry-diagnose"
 KB_LINT = PERRY_HOME / "templates" / "knowledge-base" / "bin" / "kb-lint"
 DELIV_LINT = PERRY_HOME / "templates" / "ops" / "bin" / "deliverable-lint"
+EXPLAIN = PERRY_HOME / "bin" / "perry-explain"
+
+
+def load_bin_module(name: str):
+    """Import an extensionless script from bin/ as a module."""
+    import importlib.util
+    from importlib.machinery import SourceFileLoader
+
+    path = PERRY_HOME / "bin" / name
+    loader = SourceFileLoader(name.replace("-", "_"), str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 
 def scan(root: Path) -> dict:
@@ -393,6 +407,144 @@ class TestFindingsExplainThemselves(unittest.TestCase):
                 capture_output=True, text=True, timeout=120,
             ).stdout
         self.assertIn("Nothing to fix", out)
+
+
+class TestIdsResolve(unittest.TestCase):
+    """`bin/perry-explain` exists because Perry mints nine families of ID and
+    hands them to a user who never agreed to learn them. If the resolver can't
+    resolve them, the IDs are just as opaque as before."""
+
+    def explain(self, root: Path, *args: str):
+        return subprocess.run(
+            [sys.executable, str(EXPLAIN), "--root", str(root), *args],
+            capture_output=True, text=True, timeout=60,
+        )
+
+    def test_resolves_the_fixture_ids_a_user_would_hit(self):
+        # USER-014 is the exact case: BOARD.md says "waiting on USER-014" and
+        # nothing on that line says what it is.
+        r = self.explain(FIXTURE, "USER-014", "--json")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        e = json.loads(r.stdout)
+        self.assertEqual(e["id"], "USER-014")
+        self.assertTrue(e["title"], "USER-014 resolved with no title")
+        self.assertTrue(e["defined"])
+
+    def test_resolves_ids_from_every_shape_perry_writes(self):
+        for wanted in ("REL-002",       # board table row
+                       "ADR-001",       # decisions table + ID-named file
+                       "P-O1.2",        # linkage YAML
+                       "DESIGN-001"):   # design doc
+            with self.subTest(id=wanted):
+                r = self.explain(FIXTURE, wanted, "--json")
+                self.assertEqual(r.returncode, 0, f"{wanted}: {r.stdout}")
+                e = json.loads(r.stdout)
+                self.assertTrue(e["title"], f"{wanted} has no readable title")
+
+    def test_glossary_lists_every_id(self):
+        r = self.explain(FIXTURE, "--all", "--json")
+        rows = json.loads(r.stdout)
+        ids = {x["id"] for x in rows}
+        self.assertTrue({"REL-001", "ADR-002", "USER-014", "P-O1.1"} <= ids, ids)
+
+    def test_dangling_ids_are_reported_and_gate(self):
+        """The fixture's phase doc names REL-003, which is on no board."""
+        r = self.explain(FIXTURE, "--dangling", "--json")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("REL-003", {x["id"] for x in json.loads(r.stdout)})
+
+    def test_unknown_id_fails_helpfully(self):
+        r = self.explain(FIXTURE, "REL-999")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("--all", r.stdout)
+
+    def test_label_form_pairs_id_with_title(self):
+        """The form the style rule requires: REL-002 ("Flake detector")."""
+        mod = load_bin_module("perry-explain")
+        entries = mod.harvest(FIXTURE)
+        self.assertEqual(mod.label(entries["REL-002"]),
+                         'REL-002 ("Flake detector")')
+        self.assertEqual(mod.label({"id": "X-1"}), "X-1")
+
+    def test_works_on_a_project_with_its_own_id_convention(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "plan.md",
+                  "| ID | Title | Status |\n|---|---|---|\n"
+                  "| EPIC-7 | Billing rewrite | active |\n")
+            r = self.explain(root, "EPIC-7", "--json")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(r.stdout)["title"], "Billing rewrite")
+
+
+class TestUserLoadFindings(unittest.TestCase):
+    def test_dangling_ids_surface_as_a_finding(self):
+        p = scan(FIXTURE)
+        self.assertIn("LOAD-02", ids(p))
+
+    def test_id_sprawl_without_a_lookup(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            for i in range(1, 10):
+                write(root, f"docs/m{i}.md",
+                      f"# Notes {i}\nMILE-00{i} relates to ADR-00{i}.\n")
+            p = scan(root)
+        self.assertIn("LOAD-01", ids(p))
+
+    def test_a_perry_project_has_a_lookup_so_no_sprawl_finding(self):
+        """Perry ships bin/perry-explain, so its IDs are resolvable."""
+        p = scan(FIXTURE)
+        self.assertNotIn("LOAD-01", ids(p))
+
+    def test_decision_backlog_surfaces(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            for i in range(6):
+                write(root, f"docs/d{i}.md", f"# Doc {i}\nBackend: TBD\n")
+            p = scan(root)
+        self.assertIn("LOAD-03", ids(p))
+
+    def test_tokens_shaped_like_ids_but_arent(self):
+        """Running against Perry's own repo first reported SHA-256 and a
+        `#L12-40` line citation as undefined work items. 25 findings, 21 of
+        them noise — which is how a checker teaches people to ignore it."""
+        mod = load_bin_module("perry-explain")
+        for token in ("SHA-256", "L12-40", "UTF-8", "NNN-1", "NN-7", "AES-256"):
+            self.assertFalse(mod.is_real_id(token), f"{token} counted as an ID")
+        for token in ("REL-001", "ADR-003", "USER-014", "EPIC-7", "CTX-01"):
+            self.assertTrue(mod.is_real_id(token), f"{token} rejected as an ID")
+
+    def test_illustrative_ids_are_not_dangling(self):
+        """`tag your task like TASK-007` in a README refers to nothing and is
+        not supposed to."""
+        mod = load_bin_module("perry-explain")
+        for rel in ("README.md", "SKILL.md", "pmo/reference/decisions.md",
+                    "pmo/state/journal_TEMPLATE.md", "templates/software/STATE.md",
+                    "tests/fixtures/p/BOARD.md"):
+            self.assertTrue(mod.is_illustrative(rel), f"{rel} should be illustrative")
+        # docs/ holds real documentation on most projects — excluding it would
+        # blind the check on exactly the projects that need it.
+        for rel in ("BOARD.md", "docs/plan.md", "phase/002-release.md"):
+            self.assertFalse(mod.is_illustrative(rel), f"{rel} wrongly excluded")
+
+    def test_perry_itself_passes_its_own_id_checks(self):
+        """The skill that reports this must not commit it."""
+        p = scan(PERRY_HOME)
+        self.assertEqual(p["user_load"]["dangling"], [])
+        self.assertEqual(p["user_load"]["untitled"], [])
+        for fid in ("LOAD-01", "LOAD-02", "LOAD-03", "LOAD-04"):
+            self.assertNotIn(fid, ids(p), f"Perry trips its own {fid}")
+
+    def test_a_small_tidy_project_reports_no_load_findings(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "AGENTS.md", "# Rules\n- Test with `pytest`.\n")
+            write(root, "STATE.md", "# State\nGoal: ship it.\n")
+            write(root, "DECISIONS.md", "# Decisions\n- 2026-01-01 chose X\n")
+            write(root, "Makefile", "test:\n\tpytest\n")
+            p = scan(root)
+        for fid in ("LOAD-01", "LOAD-02", "LOAD-03", "LOAD-04"):
+            self.assertNotIn(fid, ids(p), f"{fid} fired on a tidy project")
 
 
 class TestSchemaAgreement(unittest.TestCase):

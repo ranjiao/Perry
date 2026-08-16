@@ -32,7 +32,7 @@ step "2. parser / extractor / linter contract tests"
 python3 -m unittest discover -s tests || fail=1
 
 step "3. bin/ scripts are syntactically valid and self-documenting"
-for f in bin/perry-state bin/perry-lint bin/perry-diagnose \
+for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
          templates/knowledge-base/bin/kb-lint templates/ops/bin/deliverable-lint; do
   python3 -c "import ast,sys; ast.parse(open('$f').read())" || { echo "  ✗ $f does not parse"; fail=1; }
   python3 "$f" --help >/dev/null 2>&1 || { echo "  ✗ $f --help failed"; fail=1; }

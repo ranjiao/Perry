@@ -82,19 +82,25 @@ When `/perry` is invoked, always run this before doing anything else.
       P-O2 · <title> .......... <KRs done>/<KRs total>
 
    📋 Open tasks  : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
-   ⏳ User Input Q: <pending count> · oldest: <USER-id> @ <days idle>d
+   ⏳ User Input Q: <pending count> · oldest: <USER-id> "<title>" @ <days idle>d
    🚧 Top risk    : <risk title, ≤80 chars>
-   📝 Last decision: <ADR title> (<date>)
+   📝 Last decision: <ADR-id> "<title>" (<date>)
    📅 Last weekly : <YYYY-WW>, <days>d ago · last handoff: <date>, <days>d ago
    ```
 
    Use `—` for empty fields. Never fabricate values.
 
+   **Every ID printed here carries its title**, per `## Style rules` — a
+   dashboard line naming `USER-014` and nothing else tells the user they are
+   blocked and not what on. If the payload has an ID but no title for it, run
+   `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than printing the bare ID
+   or inventing a name.
+
 4. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
    - "phase #002 commit KRs ≥80% → run `/pmo end-phase-retro`, `/okr score-phase`, `/pmo rollover`, `/okr plan-phase <new-slug>`"
-   - "USER-014 idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
+   - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/pmo nudge` then `/pmo friday-review`"
    - "no current phase → run `/okr plan-phase <slug>`, then `/okr plan-week`, then `/pmo` to add the tasks"
-   - "DESIGN-002 in_review for 8d → run `/design lock` or `/design revise`"
+   - "DESIGN-002 (\"Flake scoring\") in_review for 8d → run `/design lock` or `/design revise`"
 
 5. Then ask: **"What do you want to do?"**
 
@@ -291,6 +297,8 @@ With arg `okr`, `pmo`, or `design`: route to that child's `help` subcommand (the
 
 - **Lead with the dashboard, not narration.**
 - **Numbers, IDs, file paths.** Not paragraphs.
+- **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P-O1.2`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use `bin/perry-explain <ID>` to resolve one, `--all` for the glossary. Full rule in `reference/user-load.md`.
+- **Never ask a question the user cannot evaluate.** Before offering options, check whether the user can predict what will be different for them under each. If not, reframe in consequences, or decide it yourself and say so, or narrow to two — see `reference/user-load.md § The three exits`. Depth of analysis and usefulness of a question come apart completely once the subject leaves the user's expertise, and this gets *worse* as the agent gets better.
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
@@ -321,6 +329,10 @@ Whenever a Perry skill (top-level or any child) needs the user to make a choice 
 - **Recommended option first.** Append `(Recommended)` to the label so the user sees which one Perry suggests.
 - **Header chip ≤ 12 chars** (e.g., "Executor", "Status", "KR-1.2").
 - **Each option's `description` carries the trade-off** — what happens, what it implies, what's lost. Don't make the user guess.
+- **The trade-off is stated in consequences, not mechanism.** "Runs on your laptop with no setup, but breaks if two people use it at once" is decidable. "SQLite vs Postgres" is not, unless the user already knows. If an option cannot be expressed in something the user will experience, that is the signal it should not be a question — see `reference/user-load.md`.
+- **Offer the escape hatch on anything the user may not be equipped for.** "Or I pick and tell you what I picked" as an explicit option. If they take it, don't re-ask a variant later. Two deferrals in a session means stop offering choices and switch to recommendations they can veto — and say that's what you're doing.
+- **Cap open decisions at three at a time.** Past that, queue and say so. A decision backlog stalls everything downstream or lets it proceed on a guess, and afterwards nobody can tell which happened.
+- **Anything decided on the user's behalf gets logged** as agent-decided, with what would trigger a revisit. Asking less is only acceptable if those calls stay visible and reversible.
 - **Optional `preview`** for showing a code/template snippet (e.g., showing what the rendered task block will look like before they approve).
 - Mutually exclusive options unless `multiSelect: true`.
 
@@ -360,6 +372,7 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 - [INSTALL.md](INSTALL.md) — install instructions.
 - [schema/README.md](schema/README.md) — the state-file contract every skill, template, and parser must agree with; validated by `bin/perry-lint`.
 - [reference/adoption.md](reference/adoption.md) — `/perry adopt`: the five-stage pipeline that converts an existing project into Perry state. The governing rule (**evidence proposes, the user declares**), the asymmetry between what may be inferred and what may not, cluster triage, the cluster→KR attribution pass, and the list of things adoption never does.
+- [reference/user-load.md](reference/user-load.md) — the shared contract for all four skills on **how much a human can carry**: never ask a question the user cannot evaluate (and the three exits when the honest answer is that they can't), cap open decisions, log what was decided on their behalf, and the rule that **an ID never travels alone**. Perry mints nine ID families; this is what stops them becoming a private vocabulary.
 - [reference/diagnose.md](reference/diagnose.md) — `/perry diagnose`: the six-stage pipeline that audits and refactors how a project works with agents. The governing rule (**every prescription traces to a finding**), the six-question interview, the prescription patterns, and the execution safety rules.
 - [reference/project-archetypes.md](reference/project-archetypes.md) — the research diagnose applies: the three failure modes of agent projects, the isolation ladder, the tier discipline for documents, the minimum viable spine, three archetypes, and an explicit account of where the evidence is thin.
 - [templates/](templates/) — runnable scaffolds for the three archetypes, including a verification loop for the two that have none natively (`kb-lint`, `deliverable-lint`).

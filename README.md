@@ -305,6 +305,7 @@ stdlib-only scripts do the work an LLM shouldn't:
 | `bin/perry-state` | Reads the whole project in one pass and emits the dashboard model (`--json`) or the pre-formatted rows (`--dashboard`). | The standup ritual of all four skills; any subcommand needing counts |
 | `bin/perry-lint` | Validates state files against `schema/state-schema.json` — sections, table columns, status vocabulary, ID patterns, cross-file linkage integrity. `--templates` validates Perry's own templates. | Bootstrap, after any structural write, CI |
 | `bin/perry-diagnose` | Measures how a project is *structured for agent work* — context load against budget, the document reference graph, concurrency signals, tracking spine — and emits findings with stable IDs. Runs on **any** folder, Perry or not. | `/perry diagnose` stage 0 |
+| `bin/perry-explain` | Resolves an ID (`REL-002`, `ADR-003`, `P-O1.2`) to what it is, where it was defined, and everywhere it's referenced. `--all` prints the glossary, `--dangling` lists IDs referenced but defined nowhere. Reads the shapes markdown actually uses, so it works on **any** project. | Any time an ID appears without its title; `/perry diagnose` `LOAD-*` findings |
 
 Why it matters: before this, every dashboard number was the agent reading a
 dozen files and counting by eye — which is both expensive and exactly the kind

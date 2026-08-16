@@ -59,6 +59,8 @@ THRESHOLDS = {
     "orphan_ratio_warn": 0.30,      # share of docs reachable from nothing
     "doc_count_index_required": 12, # past this, an index is not optional
     "moc_note_threshold": 200,      # KB: add Maps of Content past this
+    "id_lookup_required": 12,       # past this many IDs, the user needs a lookup
+    "open_decisions_warn": 5,       # decisions queued on the user at once
 }
 
 # Files an agent host loads unconditionally at the project root.
@@ -196,6 +198,96 @@ def is_routed(root: Path, rel: str) -> bool:
                 r"^\s*description\s*:", head, re.M):
             return True
     return False
+
+
+def load_sibling(name: str):
+    """Import an extensionless script from bin/ as a module.
+
+    Used so the ID scan below shares `perry-explain`'s single implementation
+    rather than carrying a second copy of it — the same rule `schema/README.md`
+    applies to state parsing."""
+    import importlib.util
+    from importlib.machinery import SourceFileLoader
+
+    path = HERE / name
+    loader = SourceFileLoader(name.replace("-", "_"), str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
+
+
+def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> dict:
+    """How much this project asks a *human* to hold in their head.
+
+    The agent has perfect recall of every ID it ever minted and can reason
+    about any subsystem on demand. The user has neither, and the project is
+    theirs. So the binding constraint on an agent-run project is usually not
+    the agent's capability — it is how much the person can look up, absorb, and
+    decide. This measures that surface."""
+    try:
+        explain = load_sibling("perry-explain")
+        entries = explain.harvest(root)
+    except Exception:
+        return {"available": False}
+
+    # Only count an undefined ID when a *tracking* document relies on it.
+    # Documentation and templates are full of illustrative IDs — `tag your task
+    # like TASK-007` refers to nothing and is not supposed to. Without this,
+    # running against Perry's own repo produced 25 findings, 21 of them noise.
+    dangling = sorted(e["id"] for e in entries.values()
+                      if not e["defined"] and e.get("in_tracking_doc"))
+    untitled = sorted(e["id"] for e in entries.values()
+                      if e["defined"] and not e["title"]
+                      and e.get("in_tracking_doc"))
+
+    # Does one document resolve most of the IDs, or are definitions scattered
+    # across the whole tree with nowhere to look them up?
+    by_file: dict[str, int] = {}
+    for e in entries.values():
+        if e["defined"]:
+            by_file[e["defined"].split(":")[0]] = by_file.get(e["defined"].split(":")[0], 0) + 1
+    defined_n = sum(by_file.values())
+    best = max(by_file.values(), default=0)
+    concentrated = bool(defined_n) and best / defined_n >= 0.6
+
+    # A lookup exists if one doc covers most IDs, or the project ships a
+    # resolver (Perry does — `bin/perry-explain`).
+    has_resolver = is_perry or any(
+        (root / d / "perry-explain").is_file() for d in ("bin", "scripts", "tools")
+    )
+
+    # Same illustrative filter as the ID scan: a skill file explaining that a
+    # decision column starts life as `TBD` is documentation, not a decision
+    # anyone is waiting on. Perry's own repo produced 14 of these before the
+    # filter and 0 after.
+    open_decisions = 0
+    samples: list[str] = []
+    for rel in inventory["md"]:
+        if explain.is_illustrative(rel):
+            continue
+        for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
+            if OPEN_DECISION.search(line):
+                open_decisions += 1
+                if len(samples) < 8:
+                    samples.append(f"{rel}:{n}")
+    open_decisions += len([e for e in entries.values()
+                           if e["id"].startswith("USER-")
+                           and e.get("in_tracking_doc")])
+
+    return {
+        "available": True,
+        "total_ids": len(entries),
+        "dangling": dangling,
+        "untitled": untitled,
+        "definitions_concentrated": concentrated,
+        "has_resolver": has_resolver,
+        "open_decisions": open_decisions,
+        "open_decision_samples": samples,
+    }
 
 
 def perry_owned_globs() -> list[str]:
@@ -857,6 +949,25 @@ WHY = {
         "There's more process here than work for it to manage. Every file "
         "that has to be kept current is ongoing cost, and one that goes stale "
         "is worse than one that never existed.",
+    "LOAD-01":
+        "These short codes are precise for the agent and opaque to you. When a "
+        "status line says one thing is blocked on another and gives you only "
+        "the codes, you have to go searching your own project to find out what "
+        "you're blocked on — and the agent, which remembers every code it ever "
+        "created, has no idea you can't.",
+    "LOAD-02":
+        "Documents refer to codes that are never defined anywhere, so there is "
+        "no way to find out what they mean. Usually it's work that was renamed, "
+        "dropped, or only ever discussed — but you can't tell which without "
+        "asking.",
+    "LOAD-03":
+        "Open questions are piling up faster than they're being answered. A "
+        "backlog of decisions is worse than a backlog of work: everything "
+        "downstream quietly stalls or proceeds on a guess, and nobody can tell "
+        "which happened.",
+    "LOAD-04":
+        "Some of these codes have no readable name attached anywhere, so even "
+        "looking them up doesn't tell you what they are.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -877,7 +988,7 @@ def finding(fid, severity, title, detail, evidence=None):
     }
 
 
-def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
+def derive_findings(ctx, docs, con, trk, arch, inv, load) -> list[dict]:
     out = []
 
     # ── context load ──
@@ -1051,6 +1162,53 @@ def derive_findings(ctx, docs, con, trk, arch, inv) -> list[dict]:
             "what it replaces. Only real decisions — not every choice.",
         ))
 
+    # ── what the project asks a human to carry ──
+    if load.get("available"):
+        if (load["total_ids"] >= THRESHOLDS["id_lookup_required"]
+                and not load["has_resolver"]
+                and not load["definitions_concentrated"]):
+            out.append(finding(
+                "LOAD-01", "warn",
+                f"{load['total_ids']} short codes in use with no way to look "
+                "them up",
+                "Add one file listing every code and what it means in a line, "
+                "and keep it current. Or copy in a resolver — Perry ships "
+                "`bin/perry-explain`, which reads the codes straight out of "
+                "your documents so there is nothing extra to maintain. Either "
+                "way, the rule that matters is that a code never appears "
+                "without its name the first time it's mentioned.",
+            ))
+        if load["dangling"]:
+            out.append(finding(
+                "LOAD-02", "warn",
+                f"{len(load['dangling'])} code(s) are referenced but never "
+                "defined",
+                "For each: point it at the real item, write the item down, or "
+                "drop the reference. Prose that names work which does not "
+                "exist anywhere is the hardest kind to resolve later.",
+                load["dangling"][:10],
+            ))
+        if load["untitled"]:
+            out.append(finding(
+                "LOAD-04", "info",
+                f"{len(load['untitled'])} code(s) are defined without a "
+                "readable name",
+                "Give each one a short title where it is defined, so looking "
+                "it up actually answers the question.",
+                load["untitled"][:10],
+            ))
+        if load["open_decisions"] >= THRESHOLDS["open_decisions_warn"]:
+            out.append(finding(
+                "LOAD-03", "warn",
+                f"{load['open_decisions']} open questions are waiting on you",
+                "Work through them oldest first, and for each one ask whether "
+                "it actually needs you. Anything reversible and low-stakes is "
+                "better decided by whoever is working on it and written down, "
+                "rather than queued for a person who cannot evaluate it faster "
+                "than it can be undone.",
+                load["open_decision_samples"][:6],
+            ))
+
     # ── fit ──
     doc_lines = docs["total_lines"]
     if arch["guess"] == "software" and inv["code_total"] < 10 and docs["total"] > 25:
@@ -1099,7 +1257,8 @@ def diagnose(root: Path, max_files: int) -> dict:
     con = scan_concurrency(root, inv, tier0_paths)
     trk = scan_tracking(root, state_root, inv)
     arch = scan_archetype(inv, docs, root, is_perry, perry_owned)
-    findings = derive_findings(ctx, docs, con, trk, arch, inv)
+    load = scan_user_load(root, inv, docs, is_perry)
+    findings = derive_findings(ctx, docs, con, trk, arch, inv, load)
 
     return {
         "schema": "diagnose/1",
@@ -1119,6 +1278,7 @@ def diagnose(root: Path, max_files: int) -> dict:
         "concurrency": con,
         "tracking": trk,
         "archetype": arch,
+        "user_load": load,
         "findings": findings,
         "counts": {
             "error": sum(1 for f in findings if f["severity"] == "error"),

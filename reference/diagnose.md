@@ -119,6 +119,26 @@ pointing at `reference/project-archetypes.md` for anyone who wants the
 reasoning and the sources. Most users never will, and the report has to work
 completely for them.
 
+### The other half of this rule
+
+Explaining a finding well is worthless if the *decision* it leads to is one the
+user cannot make. [user-load.md](user-load.md) covers that half and binds this
+skill as much as the others:
+
+- **Never ask a question the user cannot evaluate.** Before offering
+  prescription options, check whether they can predict what will be different
+  for them under each. If not: reframe in consequences, decide it and say so,
+  or narrow to two.
+- **An ID never travels alone.** That includes this skill's own `CTX-01` /
+  `RX-3` codes — a prescription table listing bare finding IDs re-commits the
+  exact problem `LOAD-01` reports. Every ID in the report carries its title.
+- **Two deferrals means stop asking.** If the user answers "whatever you think"
+  twice, switch to recommendations they can veto and say that is what you are
+  doing. In a skill whose whole output is a list of proposed changes, this is
+  the difference between a plan they own and one they nodded at.
+- **The prescription list is itself a decision backlog.** Cap what you put in
+  front of them, and let the maintenance ceiling from Q6 do the cutting.
+
 ## Command surface
 
 ```
@@ -336,8 +356,17 @@ in the payload. Use it, or better it — but never present a finding without one
 | `TRK-02` | warn | Every goal file is older than the staleness threshold. | Update or retire it |
 | `TRK-03` | error | No check the agent can run. | The constructed check |
 | `TRK-04` | warn | No decision log. | The spine install (decisions file) |
+| `LOAD-01` | warn | Many short codes in use and no way to look them up. | Add a glossary, or ship `bin/perry-explain` |
+| `LOAD-02` | warn | Codes referenced in documents but defined nowhere. | Resolve, define, or drop each |
+| `LOAD-03` | warn | Open decisions queued on the user past the threshold. | Triage; decide the reversible ones |
+| `LOAD-04` | info | A code is defined but carries no readable name. | Title it where it's defined |
 | `FIT-01` | info | Far more process than work. | The subtraction |
 | `FIT-02` | info | Below the minimum viable spine. | The floor, and nothing more |
+
+The `LOAD-*` family measures something different from the rest: not whether the
+project is well-formed, but whether a **human** can still follow it. See
+[user-load.md](user-load.md) — the contract those findings enforce, which also
+governs how this skill's own interview behaves.
 
 Interview findings get IDs in the same shape, prefixed by the question that
 produced them, and carry `source: interview` in the diagnosis doc.
