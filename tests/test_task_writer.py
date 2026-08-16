@@ -350,6 +350,37 @@ class TestWhatTheToolComputes(unittest.TestCase):
                             "a closed task's id was reused — every reference to "
                             "the first now silently points at the second")
 
+    def test_a_closed_tasks_number_survives_deleting_the_event_log(self):
+        """The event log is declared derived and disposable — "delete it and
+        what is lost is history resolution and drift detection, not truth."
+
+        That was false for exactly one thing. A closed task is in neither the
+        board (its row was removed at close) nor, after a delete, the log — so
+        `mint_id`, which read only those two, reissued its number. Every journal
+        line, evidence file and commit message naming the old task then
+        silently pointed at the new one. **A reused id is truth, not history
+        resolution.**
+
+        The journal closes it: canonical, append-only, and carrying a creation
+        line for every task ever raised — the one record every procedure here
+        forbids editing, including on drop and close.
+
+        Found by demonstrating to the user where task state lives, not by a
+        review: closing a task and deleting the log are each ordinary, and only
+        doing both in sequence shows it.
+        """
+        p = Project()
+        _, a = p.run("add", "--title", "first")
+        p.run("done", a["id"], "--evidence", "x.md", "--rung", "V3")
+        (p.root / ".perry" / "events.jsonl").unlink()
+
+        code, b = p.run("add", "--title", "after the log was deleted")
+        self.assertEqual(code, 0, b)
+        self.assertNotEqual(
+            b["id"], a["id"],
+            f"{a['id']} was reissued after the disposable log was deleted — "
+            f"the journal already carried it")
+
     def test_timestamps_are_observed_not_asserted(self):
         p = Project()
         p.run("add", "--title", "X")

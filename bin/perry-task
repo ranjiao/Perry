@@ -25,7 +25,7 @@ until the log is writable. This is the direction the loss is allowed to run,
 never the reverse. See `commit()`.
 
 What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
-IDs are minted from max(board ∪ events), never reused; timestamps are taken at
+IDs are minted from max(board ∪ journal ∪ events), never reused; timestamps are taken at
 call time rather than asserted; `Stage since` / `Arrived` are stamped
 structurally; any column a track's mode requires and the board lacks is created
 in the same edit; rungs are validated against the schema enum before write.
@@ -34,6 +34,12 @@ The event log is DERIVED AND DISPOSABLE. Delete .perry/events.jsonl and Perry
 still works — markdown is canonical. What is lost is history resolution and
 drift detection, not truth. That constraint is what keeps this from becoming a
 database with a markdown export.
+
+That claim was false for one thing until `mint_id` learned to read the journal:
+ID uniqueness depended on the log, so deleting it reissued the number of every
+closed task. Anything load-bearing that lives only in this file is a bug in the
+same class — the file is allowed to make Perry *slower to explain itself*, never
+*wrong*.
 
 Usage:
   perry-task add   --title "…" [--track T] [--owner O] [--priority P0|P1|P2]
@@ -459,16 +465,37 @@ def check_header(header: list[str]) -> None:
 ID_RE = re.compile(r"\bTASK-(\d+)\b")
 
 
-def mint_id(board: Board, events: list[dict]) -> str:
-    """Next id from max(board ∪ events).
+def mint_id(board: Board, events: list[dict], state_root: Path | None = None) -> str:
+    """Next id from max(board ∪ journal ∪ events).
 
-    Both sources, because a task whose row has closed still owns its number —
-    reading only the board would hand a live id to a second task and silently
-    re-point every reference to the first.
+    A task whose row has closed still owns its number — reading only the board
+    would hand a live id to a second task and silently re-point every reference
+    to the first.
+
+    **The journal is why this is safe, and it was missing.** Board and events
+    alone put ID uniqueness at the mercy of `.perry/events.jsonl`, which this
+    tool declares derived and disposable: delete it, and the next `add` reissues
+    the number of every already-closed task, because a closed task is in neither
+    remaining source. The docstring promised that deleting the log costs
+    "history resolution and drift detection, not truth" — a reused id IS truth,
+    and every journal line, evidence file and commit message naming the old task
+    silently re-points to the new one.
+
+    The journal closes it: it is canonical, append-only, and carries a creation
+    line for every task ever raised — the one record that every procedure here
+    forbids editing, including on drop and close. So an id is never reissued as
+    long as the canonical files survive, and the disposable file is genuinely
+    disposable again.
     """
     seen = {int(m) for _, line, _ in board.rows() for m in ID_RE.findall(line)}
     seen |= {int(m) for e in events for m in ID_RE.findall(e.get("id", ""))}
     seen |= {int(m) for m in ID_RE.findall(board.text())}
+    if state_root is not None:
+        for p in sorted((state_root / "journal").rglob("*.md")):
+            try:
+                seen |= {int(m) for m in ID_RE.findall(p.read_text(errors="replace"))}
+            except OSError:
+                continue
     return f"TASK-{max(seen, default=0) + 1:03d}"
 
 
@@ -653,7 +680,7 @@ def cmd_add(args, ctx) -> dict:
         raise Refused("--title is required")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
-    tid = mint_id(ctx["board"], ctx["events"])
+    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
     priority = args.priority or "P1"
     if priority not in ("P0", "P1", "P2"):
         raise Refused(f"priority {priority!r} is not one of P0/P1/P2")
@@ -964,7 +991,7 @@ def cmd_route(args, ctx) -> dict:
     if track["mode"] == "project":
         raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
                       f"queue-mode operation (`modes/queue.md`)")
-    tid = mint_id(ctx["board"], ctx["events"])
+    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
     priority = args.priority or "P1"
     stages = stages_of(ctx["schema"], track)
     check_stage(track, stages, args.stage)
