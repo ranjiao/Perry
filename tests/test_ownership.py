@@ -157,11 +157,12 @@ class TestRefusalCasesAreNamed(unittest.TestCase):
 
 
 class TestDraftStatusIsHonest(unittest.TestCase):
-    """While the section is unsigned it must say so.
+    """The contract must be exactly one of: marked DRAFT, or signed off.
 
-    Delete this class in the same commit that removes the DRAFT banner after
-    V5 sign-off — a test asserting a banner exists is exactly as wrong as the
-    banner outliving the signature.
+    Written to guard the unsigned state and it now guards the signed one, which
+    is why it survived the signature rather than being deleted with the banner.
+    The failure it prevents in both directions is the same: a section whose
+    stated status has drifted from its real one.
     """
 
     def test_an_unsigned_contract_is_marked_draft(self):

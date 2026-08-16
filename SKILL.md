@@ -39,14 +39,18 @@ Subcommand names are unique across the three lanes, so `/perry plan-phase` resol
 
 ## The hand-off contract (the most important rule)
 
-> **DRAFT — awaiting V5 sign-off (TASK-026).** This section is being rewritten
-> for the post-DESIGN-003 lane cut. Nothing below changes which files are
-> written today; the ownership set is identical to the previous version plus
-> two additions, both marked. Until a named human signs it off with a date and
-> what they checked, treat the previous wording as equally authoritative where
-> the two differ. `perry-lint` cannot check this section — a wrong contract
-> shows up later as silent cross-lane writes, not as a lint error, which is why
-> it is the one thing in Perry that requires a human gate.
+> **Signed off: Ran Jiao, 2026-08-16.** Checked: the drafted contract section,
+> `perry/design/DESIGN-003-work-modes.md § 5.9` (blast radius), and
+> `perry/evidence/2026-08/TASK-026-spec.md`; approved as written, without
+> per-line reconciliation against `schema/state-schema.json § files[].owner`
+> — `tests/test_ownership.py` covers that agreement mechanically.
+>
+> Recorded at this precision on purpose. V5's whole value is saying **what was
+> actually checked**; writing "reviewed" or inflating it into a line-by-line
+> audit would make the rung a label instead of a record. `perry-lint` cannot
+> check this section at all — a wrong contract shows up later as silent
+> cross-lane writes, not as a lint error, which is why it is the one thing in
+> Perry that requires a human gate.
 
 **The invariant, unchanged since Perry had three registered skills:**
 
