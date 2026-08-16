@@ -143,9 +143,20 @@ Reject if no evidence path provided.
 2. **If any check fails**, refuse close. Use `AskUserQuestion` (header = TASK-ID, options): `Add runbook now (Recommended) | Keep as review until runbook exists | Override — close without runbook (NOT recommended)`. "Override" requires a written reason; the override is logged under `## Status changes` as `runbook-override: <reason>`.
 3. `Deployed: no` or field absent → skip this gate.
 
+**Pre-close gate 3 — record the verification rung** (DESIGN-003 § 5.3; `schema/state-schema.json § verification`):
+
+Before flipping status, capture **how** this was verified, not just that evidence exists. Pre-select the track's `Default rung` from `.perry/config.md § Tracks` (V3 for `project`, V5 for `pipeline`, V2 for `queue`, V4 for `inquiry`), so the ordinary case costs the user no decision at all — they confirm rather than choose.
+
+Two rules override the default, and neither is optional:
+
+- **Consequence beats mode.** If the task matches `.perry/hook.md § High-stakes operations` — outward-facing, irreversible, or carrying money, legal or safety exposure — the rung is **V5 minimum** whatever the mode default says. `perry-lint --verification` reports the mismatch as `consequence-needs-signoff`, so a close below V5 on a high-stakes row will surface at the next standup regardless.
+- **V4 needs a rubric, V5 needs a signature.** A `V4` close must cite the acceptance-criteria file the reviewer scored against, and that reviewer must not have seen the reasoning that produced the artifact. A `V5` close must record **name, date, and what was checked** — "reviewed" is not what was checked.
+
+Write the chosen rung into the BOARD row's `Verification` column (add the column if the board has none) and into the journal status-change line. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
+
 If the task spec lists `Subjective verification` items, **use `AskUserQuestion`** (header = TASK-ID, options = `Verified — close (Recommended) | Partial — keep as review | Reject — needs rework`) before flipping status. On `Verified — close`:
 1. **Remove the row from `BOARD.md`**.
-2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path>`.
+2. Append a `## Status changes` line to `journal/<YYYY-MM>/<today>.md`: `[ID] <prev-status> → done · <one-line> · evidence: <path> · verification: <V0-V6>`.
 3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, tick it there too.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
 5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).

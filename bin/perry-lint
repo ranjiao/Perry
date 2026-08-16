@@ -8,7 +8,8 @@ them honest — it checks real files (and, with --templates, Perry's own
 templates) against the one declared schema.
 
 Usage:
-  perry-lint [--root <project_root>] [--templates | --claims] [--json]
+  perry-lint [--root <project_root>] [--templates | --claims | --verification]
+             [--json]
              [--state-root <path>] [--strict] [--quiet]
 
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
@@ -19,6 +20,11 @@ Usage:
                 the default mode it is deliberately NOT gated on is_adopted() —
                 a collision check that only ran on adopted projects would answer
                 the question after the moment it mattered.
+  --verification  advisory pass over every done row's verification rung
+                (DESIGN-003 section 5.3): a missing rung, a rung the cited
+                evidence cannot satisfy, and any row matching the project's
+                own high-stakes list that closed below V5. Never sets a
+                non-zero exit - advisory for one release by decision 4.
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
@@ -601,6 +607,137 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     return findings
 
 
+# ── verification ladder (DESIGN-003 § 5.3) ────────────────────────────────
+
+
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+RUNNABLE_RE = re.compile(r"`[^`]+`|\.(?:py|sh|json|md|ya?ml)\b|/")
+
+
+def high_stakes_fragments(perry_dir: Path) -> list[str]:
+    """The backticked fragments from `.perry/hook.md § High-stakes operations`.
+
+    Reused rather than re-declared. The consequence rule — anything
+    outward-facing or irreversible needs V5 regardless of its mode's default —
+    has no field of its own to read, and inventing one would mean asking the
+    user to classify every task twice. The hook already carries the project's
+    own statement of what is dangerous, so that list *is* the consequence
+    signal. A project with an unarmed hook simply gets no consequence checks,
+    which is honest: nothing has told Perry what matters there.
+    """
+    hook = perry_dir / "hook.md"
+    if not hook.exists():
+        return []
+    body = section_body(strip_comments(hook.read_text(errors="replace")), 2,
+                        heading_re("High-stakes operations"))
+    if not body:
+        return []
+    out = []
+    for line in body[0][0].split("\n"):
+        if not line.strip().startswith("-") or "{{" in line:
+            continue
+        out += [f.lower() for f in re.findall(r"`([^`]+)`", line) if len(f) > 2]
+    return out
+
+
+def rung_satisfied(rung: str, evidence: str) -> str | None:
+    """Why this rung is NOT satisfiable from this evidence, or None if it is.
+
+    Deliberately shallow. The linter can tell that a V5 claim carries no date,
+    or that a V4 claim cites no rubric file; it cannot tell whether the reviewer
+    was genuinely fresh-context or whether the human actually read the thing.
+    Checking the checkable and staying quiet about the rest is what keeps this
+    advisory pass from becoming theatre in the other direction.
+    """
+    ev = (evidence or "").strip()
+    if rung == "V0":
+        return ("V0 is 'asserted' — it is the name for what is being refused, "
+                "never a rung a row may carry")
+    if not ev or ev in ("—", "-"):
+        return f"{rung} claimed with no evidence at all"
+    if rung in ("V2", "V3") and not RUNNABLE_RE.search(ev):
+        return (f"{rung} means a check something can re-run; the evidence names "
+                f"no command, script or path")
+    if rung == "V4" and not re.search(r"rubric|criteria|\.md\b", ev, re.I):
+        return ("V4 requires a written acceptance rubric the reviewer scored "
+                "against; the evidence cites none (see DESIGN-003 § 5.3)")
+    if rung == "V5" and not DATE_RE.search(ev):
+        return ("V5 is a human sign-off recording name, date and what was "
+                "checked; the evidence carries no date")
+    return None
+
+
+def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
+    """Advisory pass over every `done` row's verification rung.
+
+    Advisory for one release by DESIGN-003 § 4 decision 4: a hard gate on day
+    one would retroactively invalidate every `done` row in every existing
+    project, since none of them carry a rung. This mode never sets a non-zero
+    exit — branch on the `--json` counts if you want CI to care.
+    """
+    findings: list[Finding] = []
+    board = state_root / "BOARD.md"
+    if not board.exists():
+        return findings
+    # `seen` is returned alongside the findings so the caller can tell "every
+    # done row is fine" from "there were no done rows" — printing a checkmark
+    # for an empty scan is how a gate quietly stops being one.
+    check_verification.rows_seen = 0
+    text = strip_comments(board.read_text(errors="replace"))
+    stakes = high_stakes_fragments(perry_dir)
+
+    rows_seen = rows_ranked = 0
+    for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
+        for header, rows in tables(body):
+            got = [norm(c) for c in header]
+            ci_id, ci_st = column_index(got, "ID"), column_index(got, "Status")
+            ci_ev, ci_v = column_index(got, "Evidence"), column_index(got, "Verification")
+            ci_ti = column_index(got, "Title")
+            if ci_st < 0:
+                continue
+            for row in rows:
+                def cell(i):
+                    return row[i].replace("*", "").strip() if 0 <= i < len(row) else ""
+                if cell(ci_st) != "done":
+                    continue
+                rows_seen += 1
+                tid = cell(ci_id) or "(unnamed row)"
+                ev, rung = cell(ci_ev), cell(ci_v)
+                if not rung:
+                    findings.append(Finding(
+                        "warn", "BOARD.md", "no-verification-rung",
+                        f"{tid} is done with no verification rung — "
+                        f"'evidence exists' does not say what was checked",
+                    ))
+                    continue
+                rows_ranked += 1
+                why = rung_satisfied(rung, ev)
+                if why:
+                    findings.append(Finding(
+                        "warn", "BOARD.md", "rung-not-satisfied",
+                        f"{tid}: {why}",
+                    ))
+                # The consequence rule overrides the mode default in every mode.
+                hay = f"{tid} {cell(ci_ti)} {ev}".lower()
+                hit = next((f for f in stakes if f in hay), None)
+                if hit and rung < "V5":
+                    findings.append(Finding(
+                        "warn", "BOARD.md", "consequence-needs-signoff",
+                        f"{tid} matches the project's own high-stakes list "
+                        f"({hit!r}) but closed at {rung}; outward-facing or "
+                        f"irreversible work needs V5 regardless of mode",
+                    ))
+
+    if rows_seen and not rows_ranked:
+        findings.append(Finding(
+            "warn", "BOARD.md", "board-declares-no-rungs",
+            f"{rows_seen} done row(s), none carrying a Verification column — "
+            f"add one to start rating closures (advisory this release)",
+        ))
+    check_verification.rows_seen = rows_seen
+    return findings
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 
@@ -714,7 +851,8 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
 
 def main(argv: list[str]) -> int:
     root_arg = None
-    mode_templates = mode_claims = as_json = strict = quiet = False
+    mode_templates = mode_claims = mode_verification = False
+    as_json = strict = quiet = False
     state_root_arg = None
     i = 0
     while i < len(argv):
@@ -729,6 +867,8 @@ def main(argv: list[str]) -> int:
             mode_templates = True
         elif a == "--claims":
             mode_claims = True
+        elif a == "--verification":
+            mode_verification = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -786,6 +926,41 @@ def main(argv: list[str]) -> int:
         # folder would otherwise have permanently red CI with no way to accept
         # it. Same reasoning that keeps NS-01 at `warn`. Branch on the
         # `collisions` count in --json instead.
+        return 0
+
+    if mode_verification:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        findings = check_verification(state_root, project_root / ".perry")
+        scanned = getattr(check_verification, "rows_seen", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "done_rows_scanned": scanned,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --verification · {project_root}")
+            for f in findings:
+                print(f)
+            if findings:
+                tail = f"\n  {len(findings)} advisory finding(s) over {scanned} done row(s)"
+            elif scanned:
+                tail = f"\n  ✓ all {scanned} done row(s) carry a satisfiable rung"
+            else:
+                # Not a pass. Perry's own board moves closed rows out of the
+                # P-sections into `## Done this period`, so an empty scan is the
+                # normal state there — say so rather than printing a checkmark
+                # for having checked nothing.
+                tail = ("\n  · no done rows under P0/P1/P2 to rate "
+                        "(closed rows leave those sections at triage)")
+            print(tail)
+        # Advisory for one release by DESIGN-003 decision 4 — a hard gate now
+        # would retroactively invalidate every `done` row written before rungs
+        # existed. `--strict` does NOT promote these; branch on --json `count`.
         return 0
 
     # Localized column headers are legal in whatever the project's document

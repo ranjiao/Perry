@@ -264,6 +264,197 @@ class TestTrackParsing(unittest.TestCase):
         self.assertEqual(got[0]["mode"], "queue")
 
 
+class TestVerificationLint(unittest.TestCase):
+    """`perry-lint --verification` — advisory, but it must actually fire.
+
+    Advisory does not mean toothless. The failure this guards against is a pass
+    that reports nothing because it scanned nothing, which is why the empty-scan
+    case is tested explicitly alongside the positive ones.
+    """
+
+    BOARD_HEAD = (
+        "# Board — T\n\n## P0 (must finish this period)\n\n"
+        "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
+        "|---|---|---|---|---|---|---|\n"
+    )
+    TAIL = (
+        "\n## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+        "\n## P2\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+        "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
+        "\n## User Input Queue\n\n| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n"
+        "\n## Top risks\n\n- none\n"
+    )
+
+    def _run(self, rows: str, hook: str | None = None) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- Document language: English\n"
+                "- Repo layout: single\n- State root: .\n"
+            )
+            if hook:
+                (root / ".perry" / "hook.md").write_text(
+                    "# hook\n\n## High-stakes operations\n\n" + hook + "\n")
+            (root / "BOARD.md").write_text(self.BOARD_HEAD + rows + self.TAIL)
+            r = subprocess.run(
+                ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(r.returncode, 0, "advisory mode must always exit 0")
+            return json.loads(r.stdout)
+
+    def rules(self, out: dict) -> list[str]:
+        return [f["rule"] for f in out["findings"]]
+
+    def test_a_satisfiable_rung_is_silent(self):
+        out = self._run(
+            "| T-1 | Ship | Coding Agent | done | — | `pytest tests/ -q` green | V3 |\n")
+        self.assertEqual(out["findings"], [])
+        self.assertEqual(out["done_rows_scanned"], 1)
+
+    def test_done_with_no_rung_is_reported(self):
+        out = self._run("| T-1 | Ship | Coding Agent | done | — | some/file.md | |\n")
+        self.assertIn("no-verification-rung", self.rules(out))
+
+    def test_v0_is_never_a_valid_rung(self):
+        out = self._run("| T-1 | Ship | Coding Agent | done | — | looks fine | V0 |\n")
+        self.assertIn("rung-not-satisfied", self.rules(out))
+
+    def test_v3_without_anything_rerunnable_is_reported(self):
+        out = self._run("| T-1 | Ship | Coding Agent | done | — | it works now | V3 |\n")
+        self.assertIn("rung-not-satisfied", self.rules(out))
+
+    def test_v4_without_a_rubric_is_reported(self):
+        """A V4 claim citing no acceptance criteria is V1 in a costume."""
+        out = self._run("| T-1 | Ship | Coding Agent | done | — | reviewer said ok | V4 |\n")
+        self.assertIn("rung-not-satisfied", self.rules(out))
+
+    def test_v5_without_a_date_is_reported(self):
+        out = self._run("| T-1 | Ship | Coding Agent | done | — | signed off | V5 |\n")
+        self.assertIn("rung-not-satisfied", self.rules(out))
+
+    def test_v5_with_a_date_passes(self):
+        out = self._run(
+            "| T-1 | Ship | Coding Agent | done | — | Ran J. checked the diff 2026-08-16 | V5 |\n")
+        self.assertEqual(out["findings"], [])
+
+    def test_high_stakes_row_below_v5_is_reported(self):
+        """The consequence rule has no field of its own — it reads the
+        project's own hook, so a project that armed one gets the check for
+        free and a project that didn't gets no false positives."""
+        out = self._run(
+            "| T-1 | Push the release | Coding Agent | done | — | `make release` ok | V3 |\n",
+            hook="- Publishing — `git push`, `release`\n",
+        )
+        self.assertIn("consequence-needs-signoff", self.rules(out))
+
+    def test_no_hook_means_no_consequence_findings(self):
+        out = self._run(
+            "| T-1 | Push the release | Coding Agent | done | — | `make release` ok | V3 |\n")
+        self.assertNotIn("consequence-needs-signoff", self.rules(out))
+
+    def test_board_with_no_rung_column_at_all_is_reported_once(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# c\n\n- Document language: English\n- Repo layout: single\n- State root: .\n")
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## P0\n\n"
+                "| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n"
+                "| T-1 | a | Coding Agent | done | — | x.md |\n"
+                "| T-2 | b | Coding Agent | done | — | y.md |\n" + self.TAIL)
+            r = subprocess.run(
+                ["python3", str(LINT), "--verification", "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            out = json.loads(r.stdout)
+        self.assertIn("board-declares-no-rungs", [f["rule"] for f in out["findings"]])
+        self.assertEqual(out["done_rows_scanned"], 2)
+
+    def test_an_empty_scan_is_not_a_pass(self):
+        """Zero done rows must be distinguishable from zero findings, or the
+        mode reports a checkmark for having checked nothing."""
+        out = self._run("| T-1 | Ship | Coding Agent | in_progress | — | — | |\n")
+        self.assertEqual(out["done_rows_scanned"], 0)
+        self.assertEqual(out["findings"], [])
+
+
+class TestRungDistribution(unittest.TestCase):
+    """`perry-state` must report HOW closures were verified, not just how many.
+
+    `unrated` is deliberately not folded into V1: "nobody said" and "someone
+    said an artifact exists" are different claims, and collapsing them would
+    flatter the board during exactly the release where the number is supposed
+    to be watched.
+    """
+
+    def _state(self, rows: str, header: str) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# c\n\n- Document language: English\n"
+                "- Repo layout: single\n- State root: .\n")
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## P0\n\n" + header + rows
+                + "\n## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                + "\n## P2\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                + "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
+                + "\n## User Input Queue\n\n| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n"
+                + "\n## Top risks\n\n- none\n")
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+                 "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            return json.loads(r.stdout)["board"]["verification"]
+
+    WITH = ("| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
+            "|---|---|---|---|---|---|---|\n")
+    WITHOUT = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
+               "|---|---|---|---|---|---|\n")
+
+    def test_rungs_are_counted_and_unrated_kept_separate(self):
+        v = self._state(
+            "| T-1 | a | Coding Agent | done | — | `pytest -q` | V3 |\n"
+            "| T-2 | b | Coding Agent | done | — | Ran J. 2026-08-16 | V5 |\n"
+            "| T-3 | c | Coding Agent | done | — | f.md | |\n"
+            "| T-4 | d | Coding Agent | in_progress | — | — | |\n", self.WITH)
+        self.assertEqual(v["closed"], 3)
+        self.assertEqual(v["by_rung"], {"V3": 1, "V5": 1})
+        self.assertEqual(v["unrated"], 1)
+
+    def test_a_board_with_no_rung_column_reports_all_closures_unrated(self):
+        v = self._state(
+            "| T-1 | a | Coding Agent | done | — | f.md |\n"
+            "| T-2 | b | Coding Agent | done | — | g.md |\n", self.WITHOUT)
+        self.assertEqual(v["closed"], 2)
+        self.assertEqual(v["by_rung"], {})
+        self.assertEqual(v["unrated"], 2)
+
+    def test_nothing_closed_reports_zero_not_absent(self):
+        v = self._state(
+            "| T-1 | a | Coding Agent | in_progress | — | — |\n", self.WITHOUT)
+        self.assertEqual(v, {"closed": 0, "by_rung": {}, "unrated": 0})
+
+    def test_rung_is_resolved_by_header_name_not_position(self):
+        """A board that puts Verification somewhere other than last must still
+        rate the right cell — reading it positionally would rate whatever
+        happened to be in column 7."""
+        v = self._state(
+            "| T-1 | a | Coding Agent | done | — | `pytest -q` | V3 | extra |\n",
+            "| ID | Title | Owner | Status | Next action | Evidence | Verification | Notes |\n"
+            "|---|---|---|---|---|---|---|---|\n")
+        self.assertEqual(v["by_rung"], {"V3": 1})
+
+    def test_a_junk_rung_counts_as_unrated_not_as_a_rung(self):
+        v = self._state(
+            "| T-1 | a | Coding Agent | done | — | f.md | probably fine |\n", self.WITH)
+        self.assertEqual(v["by_rung"], {})
+        self.assertEqual(v["unrated"], 1)
+
+
 class TestI18n(unittest.TestCase):
     def test_new_columns_have_a_chinese_alias(self):
         """A column with no glossary entry silently zeroes its dashboard row in

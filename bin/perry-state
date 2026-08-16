@@ -129,6 +129,32 @@ def parse_tracks(text: str) -> list[dict]:
     return rows or [dict(DEFAULT_TRACK)]
 
 
+def verification_distribution(tasks) -> dict:
+    """How closures on this board were verified (DESIGN-003 § 5.3).
+
+    `unrated` is reported separately from the rungs rather than folded into
+    V1, because "nobody said" and "someone said an artifact exists" are
+    different claims and collapsing them would flatter the board. It is also
+    the number that should shrink over the advisory release — decision 4 made
+    the rung optional for one cycle precisely so this count can be watched
+    instead of forcing a migration.
+    """
+    closed = [t for t in tasks if t.status == "done"]
+    by_rung: dict[str, int] = {}
+    unrated = 0
+    for t in closed:
+        rung = (getattr(t, "verification", "") or "").strip().upper()
+        if re.fullmatch(r"V[0-6]", rung):
+            by_rung[rung] = by_rung.get(rung, 0) + 1
+        else:
+            unrated += 1
+    return {
+        "closed": len(closed),
+        "by_rung": dict(sorted(by_rung.items())),
+        "unrated": unrated,
+    }
+
+
 def hook_profile(root: Path) -> dict:
     """`.perry/hook.md` — presence and whether it declares a high-stakes list.
 
@@ -494,6 +520,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "cadence": len(board.cadence),
             "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
             "open": sum(1 for t in all_tasks if t.status in open_states),
+            "verification": verification_distribution(all_tasks),
             "tasks": [encode(t) for t in all_tasks],
         },
         "attribution": {
@@ -599,6 +626,18 @@ def dash(payload: dict) -> str:
         f"📋 Open tasks     : P0={b['p0']['total']} · P1={b['p1']['total']} · "
         f"P2={b['p2']['total']} · blocked={b['blocked']} · BOARD {b['lines']}/{b['cap']} lines"
     )
+    # Omitted entirely when nothing on the board has closed — a distribution
+    # over zero closures is a row that says nothing and costs a line every
+    # standup. It appears the moment there is something to report.
+    v = b.get("verification") or {}
+    if v.get("closed"):
+        parts = [f"{k}={n}" for k, n in (v.get("by_rung") or {}).items()]
+        if v.get("unrated"):
+            parts.append(f"unrated={v['unrated']}")
+        lines.append(
+            f"🔬 Verification   : {' · '.join(parts)} "
+            f"({v['closed']} closure{'s' if v['closed'] != 1 else ''})"
+        )
     ops = payload["operations"]
     if ops.get("inputs"):
         lines.append(f"📥 Inputs         : {ops['inputs']} undigested (oldest: {ops['inputs_oldest']} @ {ops['inputs_oldest_days']}d)")

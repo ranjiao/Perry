@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (9th pass — TASK-015 + TASK-018 closed at V3)
+> Last updated: 2026-08-16 (10th pass — phase B closed; rows now carry a target rung)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -14,30 +14,28 @@
 
 ## P0 (must finish this period)
 
-| ID | Title | Owner | Status | Next action | Evidence |
-|---|---|---|---|---|---|
-| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — unblocked (TASK-015 closed). Lands **first and alone**; needs your V5 sign-off, so it is not agent-closable | `evidence/2026-08/TASK-026-spec.md` |
+| ID | Title | Owner | Status | Next action | Evidence | Verification |
+|---|---|---|---|---|---|---|
+| TASK-026 | Rewrite `SKILL.md § The hand-off contract` | User + Agent | not_started | DESIGN-003 phase G — unblocked (TASK-015 closed). Lands **first and alone**; needs your V5 sign-off, so it is not agent-closable | `evidence/2026-08/TASK-026-spec.md` | V5 |
 
 ## P1
 
-| ID | Title | Owner | Status | Next action | Evidence |
-|---|---|---|---|---|---|
-| TASK-016 | `perry-lint --verification` (advisory) | Coding Agent | not_started | DESIGN-003 phase B — blocked-by TASK-015 | `evidence/2026-08/TASK-016-spec.md` |
-| TASK-017 | Rung capture at `close-task` + distribution in `perry-state` | Coding Agent | not_started | DESIGN-003 phase B — blocked-by TASK-016 | `evidence/2026-08/TASK-017-spec.md` |
-| TASK-019 | `modes/pipeline.md` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-019-spec.md` |
-| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-020-spec.md` |
-| TASK-024 | Extract `packs/software-ops/` from `pmo/reference/` | Coding Agent | not_started | DESIGN-003 phase F — the pack-abstraction test; a failed extraction is a design finding, not a bug | `evidence/2026-08/TASK-024-spec.md` |
-| TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — blocked-by TASK-026 | `evidence/2026-08/TASK-027-spec.md` |
+| ID | Title | Owner | Status | Next action | Evidence | Verification |
+|---|---|---|---|---|---|---|
+| TASK-019 | `modes/pipeline.md` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-019-spec.md` | V4 |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-018 | `evidence/2026-08/TASK-020-spec.md` | V4 |
+| TASK-024 | Extract `packs/software-ops/` from `pmo/reference/` | Coding Agent | not_started | DESIGN-003 phase F — the pack-abstraction test; a failed extraction is a design finding, not a bug | `evidence/2026-08/TASK-024-spec.md` | V4 |
+| TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — blocked-by TASK-026 | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
 
-| ID | Title | Owner | Status | Next action | Evidence |
-|---|---|---|---|---|---|
-| TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — |
-| TASK-022 | `modes/inquiry.md` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-018 | — |
-| TASK-023 | `SRC-` ids in digests + `perry-lint --provenance` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-022 | — |
-| TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — blocked-by TASK-024 | — |
-| TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — |
+| ID | Title | Owner | Status | Next action | Evidence | Verification |
+|---|---|---|---|---|---|---|
+| TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — | V4 |
+| TASK-022 | `modes/inquiry.md` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-018 | — | V4 |
+| TASK-023 | `SRC-` ids in digests + `perry-lint --provenance` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-022 | — | V3 |
+| TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — blocked-by TASK-024 | — | V4 |
+| TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -69,6 +67,8 @@
 | TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 | TASK-015 | Schema: `mode` + `verification_rung` enums, `work_modes`/`verification` blocks, optional `## Tracks` + `## Intake` table specs, i18n columns — **V3** | `schema/state-schema.json`, `tests/test_work_modes.py`; lint output on all 3 fixtures byte-identical to the pre-change baseline, no fixture edited |
 | TASK-018 | `modes/project.md` + router step 3b + `perry-state.parse_tracks` — **V3** | `modes/project.md`, `SKILL.md § Mandatory first move` step 3b, `bin/perry-state`; `perry-state --dashboard` byte-identical on all 3 fixtures before/after |
+| TASK-016 | `perry-lint --verification` — missing rung, unsatisfiable rung, and high-stakes rows closed below V5 — **V3** | `bin/perry-lint`, `tests/test_work_modes.py::TestVerificationLint` (11 tests incl. the empty-scan case) |
+| TASK-017 | Rung capture at `close-task` + `board.verification` distribution + standup row — **V3** | `viewer/parsers.py`, `bin/perry-state`, `pmo/reference/subcommands.md § close-task` gate 3, `pmo/SKILL.md`; `tests/…::TestRungDistribution` (5 tests) |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

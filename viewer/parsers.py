@@ -136,6 +136,7 @@ class Task:
     evidence: str = ""
     priority: str = ""   # P0 / P1 / P2 / Cadence / Backbone
     status_note: str = ""  # parenthetical qualifier, e.g. "dev done" from "review (dev done)"
+    verification: str = ""  # V0..V6 rung (DESIGN-003 § 5.3); "" = unrated
 
 
 @dataclass
@@ -502,10 +503,22 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
     tasks: list[Task] = []
     lines = section.split("\n")
     in_table = False
+    prev = ""
+    # `Verification` is an optional column (DESIGN-003 § 5.3) that no
+    # pre-existing board carries, so it is resolved by HEADER NAME rather than
+    # by position. Reading it positionally would make its meaning depend on
+    # where a project happened to put it, and a board with an extra column
+    # would silently rate the wrong cell.
+    vi = -1
     for line in lines:
         if re.match(r"^\|\s*---", line):
             in_table = True
+            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+                      if prev.strip().startswith("|") else [])
+            vi = next((i for i, h in enumerate(header)
+                       if h in _column_keys("Verification")), -1)
             continue
+        prev = line
         if not in_table:
             continue
         stripped = line.strip()
@@ -536,6 +549,8 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
                 evidence=cells[5] if len(cells) > 5 else "",
                 priority=priority,
                 status_note=status_note,
+                verification=(cells[vi].replace("*", "").strip()
+                              if 0 <= vi < len(cells) else ""),
             )
         )
     return tasks

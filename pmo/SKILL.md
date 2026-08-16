@@ -140,6 +140,7 @@ Always run this before anything else, even if the user asked a specific question
    🎯 OKR progress  : O1=<%> · O2=<%> · O3=<%>            (— if no OKR.md)
    🌀 Current phase : #<NNN> <slug> · day <N> · <KRs done>/<KRs total> · cost <spent>/<ceiling>   (— if no current phase)
    📋 Open tasks    : P0=<n>(<done>/<total>) · P1=<n> · P2=<n> · blocked=<n>
+   🔬 Verification  : V3=<n> · V5=<n> · unrated=<n> (<closures> closures)   (omit row if nothing has closed)
    🚀 In flight     : <count> dispatches running (— if 0)
    📥 Inputs        : <n> undigested (oldest: <name> @ <days>d) — run /pmo digest    (omit row if 0)
    📚 Knowledge     : <active> active · <eternal> eternal · <stale> stale · <archived> archived (— if no knowledge/)
