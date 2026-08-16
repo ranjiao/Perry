@@ -152,7 +152,8 @@ skill as much as the others:
 ## Command surface
 
 ```
-/perry diagnose [--depth=quick|standard|deep] [--only=<lanes>] [--dry-run] [--recheck]
+/perry diagnose [--depth=quick|standard|deep] [--only=<lanes>] [--dry-run]
+                [--resume] [--recheck]
 ```
 
 | Flag | Effect |
@@ -160,6 +161,7 @@ skill as much as the others:
 | `--depth` | `quick` = scan + report, no interview. `standard` (default) = scan + interview + prescription. `deep` = adds per-document triage of the doc graph. |
 | `--only` | Comma-separated lanes: `context,docs,concurrency,tracking`. Default all. |
 | `--dry-run` | Stop after the prescription. Writes the diagnosis doc, executes nothing. |
+| `--resume` | Continue an interrupted run from the doc's `stage:` + `step:`. A **shorthand**: `SKILL.md` step 2 detects the interrupted run without it, so this only skips the card. |
 | `--recheck` | Re-run the scan against a previously diagnosed project and diff. See § 5. |
 
 Runs on **any folder**. Perry state is optional and, when present, is just
@@ -167,8 +169,37 @@ another input.
 
 ## Stages
 
-Six stages. Each records completion in the diagnosis doc's `stage:` field, so
-an interrupted run resumes rather than restarting the interview.
+Six stages. Each records its position before handing on — `stage:` for which
+stage, `step:` for where inside it.
+
+### The resume contract
+
+Identical to the one in [adoption.md](adoption.md#the-resume-contract), and for
+the same reason: this pipeline front-loads a six-question interview, and users
+close windows. **DISCOVERABLE** (found at entry, no flag — `SKILL.md § Mandatory
+first move` step 2 owns it), **POSITIONED** (re-enter at `step`, not the top of
+`stage`), **LOSSLESS** (a user answer is durable the instant it is given).
+
+LOSSLESS was already half-solved here and is worth naming, because `adopt` had
+to be retrofitted with what this file already did: `interview[].answer` is
+declared *"verbatim; prescriptions cite it"*, so answers have always outlived
+the exchange that produced them. Write the entry **as each question is
+answered**, not when the interview ends.
+
+Two things are specific to this pipeline:
+
+**A resumed run re-validates `restore_point`; it never trusts it.** The field
+records a branch or a backup directory created before the first change. Between
+sessions the branch can be deleted, renamed, or merged away. Stage 4 may not
+begin while `restore_point` is null, and a *stale* restore point is worse than a
+null one — it reads as protection that is not there. Check it exists; if it does
+not, create a new one and overwrite the field before continuing.
+
+**Measurements are re-taken, not reused.** `measurements` is a snapshot of the
+project at scan time. Resuming days later against a tree that has moved means
+prescribing from stale numbers. On resume at any stage past `scan`, re-run
+`bin/perry-diagnose` and diff: if a finding the prescription rests on has
+closed itself, say so and drop the item rather than executing it.
 
 ### 0 · Scan (deterministic, read-only)
 
@@ -217,6 +248,13 @@ first thirty seconds.
 Cap at **six questions**. Use `AskUserQuestion` (numbered free-text on Codex,
 per `host-capabilities.md`). Each is outcome-framed: it asks about pain the
 user has felt, not about architecture they may not have vocabulary for.
+
+Set `step:` to the question about to be asked (`q1`…`q6`, or `audience` /
+`attachment`) and append to `interview[]` the moment it is answered. On resume,
+**skip every question that already has an `interview[]` entry** — including the
+situational two — and re-render the collected answers back to the user before
+continuing, so they can see what survived. Re-asking a question the user already
+answered is the single fastest way to lose them a second time.
 
 | # | Question | Ask when | What it settles |
 |---|---|---|---|
@@ -281,13 +319,21 @@ it is easiest to violate.
 Execution is opt-in per item. The user picks which to run; a bulk "all" is
 allowed but is never the default.
 
+Execution is one item at a time, and `step:` carries which — `rx-<n>`, matching
+the prescription id. Write it before the item runs and record the resulting
+`moves[]` as each move happens rather than batching at the end; a run that dies
+mid-execute must leave a `moves[]` that describes the tree as it actually is.
+On resume, skip prescription items whose `status` is already `done`.
+
 **Five safety rules, all mandatory:**
 
 1. **A restore point before the first change.** In a git repo: commit any dirty
    tree first (ask), then create `perry/diagnose-<YYYY-MM-DD>`. Not a repo:
    copy every file that will be touched to
    `.perry/diagnose/<YYYY-MM-DD>-backup/`, preserving relative paths. Never
-   begin without one.
+   begin without one. **On a resumed run, verify the recorded one still
+   exists** — a branch that was deleted between sessions leaves a field that
+   reads as protection and is not.
 2. **Move, never delete.** Demoting a document means moving it and leaving a
    pointer behind. Merging means one file absorbing another's content, with the
    source moved to an archive path — not removed. Deletion is only ever
@@ -430,7 +476,14 @@ This prescription is uncomfortable to give and is frequently the right one.
   confirm.
 - **Never treats Perry adoption as the default outcome** — it is one
   prescription among several, and frequently the wrong one.
-- **Never runs the execute stage without a restore point.**
+- **Never runs the execute stage without a restore point** — or with one it has
+  not re-verified on a resumed run.
+- **Never re-asks an interview question that already has an answer.** The answer
+  is re-rendered for confirmation, never discarded and re-put.
+- **Never resumes without being asked to.** Detection is automatic; continuation
+  is the user's call.
+- **Never prescribes from stale measurements.** A run resumed days later
+  re-scans first.
 - **Never touches another project's files.** The scan resolves one root and
   stays inside it.
 - **Never reports a correctly-structured project as broken** to justify the

@@ -28,7 +28,19 @@ import re
 import unittest
 from pathlib import Path
 
+import subprocess
+import sys
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
+FIXTURE = PERRY_HOME / "tests" / "fixtures" / "interrupted-adoption"
+
+
+def state(root: Path, section: str = "interrupted") -> dict:
+    out = subprocess.run(
+        [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
+         "--root", str(root), "--section", section],
+        capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 ENUMS = SCHEMA["enums"]
 SKILL = (PERRY_HOME / "SKILL.md").read_text()
@@ -58,11 +70,16 @@ class TestDiscoverable(unittest.TestCase):
                         "the gate must precede the state read, or an abandoned "
                         "run is routed to First-time setup before it is seen")
 
-    def test_gate_covers_both_pipelines(self):
-        window = SKILL[SKILL.index("Check for an interrupted run"):][:3000]
-        self.assertIn(".perry/adoption/", window)
-        self.assertIn(".perry/diagnose/", window,
-                      "decision #4 was a shared contract — diagnose is in scope")
+    def test_gate_reads_the_payload_not_the_files(self):
+        """Coverage of both pipelines is the scanner's job (asserted in
+        TestDetectionIsComputedNotEyeballed); the gate's job is to read it
+        rather than parse frontmatter by eye."""
+        window = SKILL[SKILL.index("Check for an interrupted run"):][:2000]
+        self.assertIn("--section interrupted", window,
+                      "the gate must read perry-state, not glob and eyeball")
+        self.assertNotIn("ls .perry/", window,
+                         "globbing and reading `stage:` by eye is the estimating "
+                         "schema/README.md forbids everywhere else")
 
     def test_first_time_setup_is_guarded(self):
         window = SKILL[SKILL.index("## First-time setup"):][:800]
@@ -166,6 +183,110 @@ class TestLossless(unittest.TestCase):
         load-bearing and survives this change."""
         window = ADOPTION[ADOPTION.index("**LOSSLESS."):][:1200]
         self.assertIn("not permission to materialize", window)
+
+
+class TestDiagnoseParity(unittest.TestCase):
+    """Decision #4 was a shared contract. `diagnose` was the pipeline that
+    *claimed* resumability without having it — and TASK-002 made that worse by
+    offering Resume on an interrupted diagnosis before there was a procedure
+    for it."""
+
+    DIAGNOSE = (PERRY_HOME / "reference" / "diagnose.md").read_text()
+
+    def test_resume_flag_exists(self):
+        self.assertIn("--resume", self.DIAGNOSE,
+                      "the entry gate offers Resume on an interrupted diagnosis; "
+                      "this file must say what that does")
+
+    def test_resume_flag_is_in_the_command_surface(self):
+        surface = self.DIAGNOSE[self.DIAGNOSE.index("/perry diagnose ["):][:200]
+        self.assertIn("--resume", surface)
+
+    def test_interview_steps_are_declared(self):
+        window = self.DIAGNOSE[self.DIAGNOSE.index("Cap at **six questions**"):][:900]
+        self.assertIn("step:", window)
+        self.assertRegex(window, r"skip every question that already has")
+
+    def test_restore_point_is_revalidated_not_trusted(self):
+        """A branch deleted between sessions leaves a field that reads as
+        protection and is not. Worse than null."""
+        self.assertRegex(
+            self.DIAGNOSE, r"re-validates `restore_point`; it never trusts it",
+            "resume must re-verify the restore point")
+        self.assertIn("verify the recorded one still", self.DIAGNOSE,
+                      "safety rule 1 must carry the resumed-run case too")
+
+    def test_measurements_are_retaken_on_resume(self):
+        self.assertIn("Never prescribes from stale measurements", self.DIAGNOSE)
+
+    def test_execute_steps_use_the_rx_pattern(self):
+        spec = file_spec("diagnosis")["frontmatter"]["fields"]["step"]
+        self.assertIn("execute", spec.get("pattern_by_stage", {}),
+                      "execute has no step pattern, so a partial execute cannot "
+                      "say which prescription item it died on")
+
+
+class TestDetectionIsComputedNotEyeballed(unittest.TestCase):
+    """The gate reads a payload, it does not parse YAML by eye.
+
+    `SKILL.md` step 2 used to say "read the `stage:` field of each", which is
+    the same eyeballing `schema/README.md` forbids for every other number on
+    the dashboard. `perry-state --section interrupted` is the one
+    implementation, and these fixtures are what it is asserted against."""
+
+    def test_both_pipelines_are_detected(self):
+        rows = state(FIXTURE)["interrupted"]
+        self.assertEqual({r["pipeline"] for r in rows}, {"adopt", "diagnose"})
+
+    def test_adopt_resume_position_is_recoverable(self):
+        row = next(r for r in state(FIXTURE)["interrupted"] if r["pipeline"] == "adopt")
+        self.assertEqual(row["stage"], "confirm")
+        self.assertEqual(row["step"], "goals",
+                         "without step, resume restarts the whole interview")
+
+    def test_diagnose_resume_position_is_recoverable(self):
+        row = next(r for r in state(FIXTURE)["interrupted"] if r["pipeline"] == "diagnose")
+        self.assertEqual((row["stage"], row["step"]), ("interview", "q4"))
+
+    def test_banked_work_is_counted(self):
+        """The card asks the user to spend an hour or throw one away. It needs
+        both numbers, and neither may be estimated."""
+        rows = {r["pipeline"]: r for r in state(FIXTURE)["interrupted"]}
+        self.assertEqual(rows["adopt"]["declarations"], 2)
+        self.assertEqual(rows["diagnose"]["interview_answers"], 3)
+        self.assertEqual(rows["adopt"]["candidates_pending"], 1)
+
+    def test_idle_days_is_computed(self):
+        for r in state(FIXTURE)["interrupted"]:
+            with self.subTest(pipeline=r["pipeline"]):
+                self.assertIsNotNone(
+                    r["idle_days"],
+                    "the card prints how long ago the run stopped; a null here "
+                    "usually means frontmatter quoting was not stripped")
+
+    def test_terminal_runs_are_not_reported(self):
+        """`done` and `abandoned` are dropped by the scanner, not by the caller,
+        so no reader has to know which values are terminal."""
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            shutil.copytree(FIXTURE, root / "p")
+            d = root / "p" / ".perry" / "adoption" / "2026-08-10-dossier.md"
+            d.write_text(d.read_text().replace("stage: confirm", "stage: abandoned"))
+            rows = state(root / "p")["interrupted"]
+            self.assertEqual([r["pipeline"] for r in rows], ["diagnose"],
+                             "an abandoned run must stop being offered")
+
+    def test_detection_survives_installed_false(self):
+        """The whole point. Stages 0-3 write no state file, so an abandoned
+        adoption reports installed:false exactly like a virgin folder."""
+        payload = state(FIXTURE, "installed")
+        self.assertFalse(payload["installed"])
+        self.assertTrue(state(FIXTURE)["interrupted"],
+                        "detection must work on a folder with no state files — "
+                        "that is the case that was routing users into "
+                        "First-time setup and losing their work")
 
 
 class TestNeverReAsks(unittest.TestCase):

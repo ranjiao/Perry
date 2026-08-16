@@ -80,11 +80,19 @@ When `/perry` is invoked, always run this before doing anything else.
 2. **Check for an interrupted run — before anything else reads project state.**
 
    ```
-   ls .perry/adoption/*.md .perry/diagnose/*.md 2>/dev/null
+   "$PERRY_HOME/bin/perry-state" --section interrupted
    ```
 
-   Read the `stage:` field of each. An entry whose `stage` is **not** `done` or
-   `abandoned` is a pipeline someone walked away from mid-run.
+   Deterministic, read-only, stdlib-only. Returns one row per pipeline someone
+   walked away from mid-run — terminal stages (`done`, `abandoned`) are dropped
+   by the scanner, so no reader has to know which values are terminal. Each row
+   carries `pipeline`, `stage`, `step`, `idle_days`, and how much the user has
+   already banked (`declarations`, `interview_answers`, `candidates_pending`).
+
+   **Every number on the card below comes from this payload.** Do not open the
+   dossier to eyeball its frontmatter — that is the same estimating
+   `schema/README.md` forbids for every other number Perry prints, and here it
+   would be estimating how much of the user's own work survived.
 
    This gate exists because such a run is otherwise **invisible**. `/perry adopt`
    stages 0–3 deliberately write no state file (`reference/adoption.md § The one
