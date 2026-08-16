@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (20th pass — round-4 review's 17 findings all closed)
+> Last updated: 2026-08-16 (21st pass — DESIGN-004 handed off, 6 tasks)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,6 +16,8 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
+| TASK-029 | `bin/perry-task` skeleton: schema-driven row rendering + atomic three-way write + add/start/done | Coding Agent | not_started | DESIGN-004 phase A — blocks all five others; **manual**, this defines the tool's shape | `evidence/2026-08/TASK-029-spec.md` | V3 |
+| TASK-031 | Drift reconciliation + the standup line | Coding Agent | not_started | DESIGN-004 phase C — **the pivot**: without it the tool is a convenience and §3 says don't build it. blocked-by TASK-030 | `evidence/2026-08/TASK-031-spec.md` | V3 |
 
 ## P1
 
@@ -23,6 +25,9 @@
 |---|---|---|---|---|---|---|
 | TASK-019 | `modes/pipeline.md` | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; WIP limit has no home or default; Commitments has no track key/owner). Fix B1+B3, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; `Arrived` is destroyed on routing so SLA triage is uncomputable; Commitments ownership). Fix B1+B2, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-030 | Event log + `list --all --json`; `perry-state` reads it for history | Coding Agent | not_started | DESIGN-004 phase B — blocked-by TASK-029 | `evidence/2026-08/TASK-030-spec.md` | V3 |
+| TASK-032 | Mode-aware writes: `stage` / `intake` / `route`, column + section creation | Coding Agent | not_started | DESIGN-004 phase D — blocked-by TASK-029 | `evidence/2026-08/TASK-032-spec.md` | V3 |
+| TASK-033 | Lane procedures call the tool instead of describing hand-edits | Coding Agent | not_started | DESIGN-004 phase E — **blocked-by TASK-031, hard**: detection must be watching before the procedures change (§5.7) | `evidence/2026-08/TASK-033-spec.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
@@ -30,6 +35,7 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
 | TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — | V4 |
+| TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F — blocked-by TASK-030; **needs your V5**, it is the one a different program's user has to accept | — | V5 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 
 ## Cadence (recurring; doesn't consume P0 slots)

@@ -1,7 +1,7 @@
 # DESIGN-004: The write side has no tool
 
-> Status: draft
-> Date: 2026-08-16 · Locked: —
+> Status: locked
+> Date: 2026-08-16 · Locked: 2026-08-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
 > Supersedes: —   · Superseded by: —
@@ -161,9 +161,9 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | What the tool writes | Markdown + event log (Recommended) / Markdown only / Event log only, markdown rendered | TBD | — |
-| 2 | How bypass is detected | Reconcile board vs events on standup, report drift (Recommended) / Content hash per row / Don't detect | TBD | — |
-| 3 | Scope of the first release | Task lifecycle only (Recommended) / Task + commitments + intake / Everything the lanes write | TBD | — |
+| 1 | What the tool writes | Markdown + event log (Recommended) / Markdown only / Event log only, markdown rendered | **Markdown + event log** | 2026-08-16 |
+| 2 | How bypass is detected | Reconcile board vs events on standup, report drift (Recommended) / Content hash per row / Don't detect | **Reconcile on standup, report drift** | 2026-08-16 |
+| 3 | Scope of the first release | Task lifecycle only (Recommended) / Task + commitments + intake / Everything the lanes write | **Task lifecycle only** | 2026-08-16 |
 
 **Three more were decided rather than asked**, because `reference/user-load.md`
 caps open decisions at three and because none of these three has an option a
@@ -308,6 +308,39 @@ It does **not** close round 5's finding 1, 2 or 8 — a subcommand index row
 pointing at a procedure that does not exist is a documentation defect, and no
 write tool detects it. That needs a different check (§ 8).
 
+### 5.7 · Blast radius
+
+What this changes outside `bin/perry-task` itself. DESIGN-003 carried the same
+table and it was not decoration — it is what showed that phase G, which read
+like cleanup, was the riskiest step in the plan. The equivalent here is
+**phase E**.
+
+| Surface | Change | Phase |
+|---|---|---|
+| `bin/perry-task` | New — the only file this design adds | A |
+| `bin/perry-state` | Reads `.perry/events.jsonl` for history; gains a `drift` block and one standup line | B, C |
+| `work/reference/subcommands.md` | **`add-task`, `close-task`, `drop-task`, `triage` step 0 stop describing hand-edits and call the tool.** The largest single edit, and the one to watch | E |
+| `work/SKILL.md` | Standup renders the drift line; the state-file inventory notes which writes are tool-mediated | C, E |
+| `schema/state-schema.json` | An `events` contract; the row-rendering column order becomes normative rather than descriptive | A |
+| `.perry/` | Gains `events.jsonl`. Already claimed — no new path in the user's project | B |
+| `modes/*.md` | Unchanged. They declare what a mode's controls *are*; the tool is how they get written | — |
+| `goals/`, `decide/` | Unchanged in the first release (decision 3 scopes it to tasks) | — |
+| aimark | Switches from parsing `BOARD.md` + `journal/` to one `list --all --json` call | F |
+
+**Phase E is the risky one, for the same reason phase G was.** It rewrites the
+procedures three lanes execute on every invocation, and a bad edit does not fail
+loudly — it produces a lane that still describes a hand-edit while the tool
+exists, which is the *worst* outcome available: two written paths to the same
+state, drift reported against a procedure that told the agent to create it.
+
+So phase E lands **after** C, never before: drift detection has to be watching
+before the procedures change, or there is no way to tell a migration from a
+regression.
+
+**Unchanged, deliberately:** `reference/user-load.md`, `reference/i18n.md`, the
+lane ownership contract, and the four mode files. This design changes *how*
+state is written, not *who* may write it or *what* the shapes are.
+
 ## 6. Implementation plan
 
 | Phase | Scope | Proposed task(s) | Owner |
@@ -316,7 +349,7 @@ write tool detects it. That needs a different check (§ 8).
 | B | Event log + `list --all --json`; `perry-state` reads it for history | TASK-030 | Coding Agent |
 | C | Drift reconciliation + the standup line | TASK-031 | Coding Agent |
 | D | Mode-aware writes: `stage`, `intake`, `route`, column/section creation | TASK-032 | Coding Agent |
-| E | Lane procedures call the tool instead of describing hand-edits | TASK-033 | Coding Agent |
+| E | Lane procedures call the tool instead of describing hand-edits. **Lands after C, never before** — see § 5.7: drift detection must be watching before the procedures change, or a migration is indistinguishable from a regression | TASK-033 | Coding Agent |
 | F | aimark integration: confirm one call answers both of § 1.3's questions | TASK-034 | User + Agent |
 
 Verification: A–D at **V3** (fixtures + a byte-diff proving a tool-written board
@@ -328,6 +361,7 @@ it is the one that has to satisfy a person using a different program.
 | Risk | Detection | Mitigation |
 |---|---|---|
 | The tool becomes a second source of truth | `.perry/events.jsonl` needed to reconstruct current state | Hard rule: markdown is canonical, events are disposable. A test deletes the event log and asserts Perry is fully functional. |
+| Phase E leaves a lane half-migrated — describing a hand-edit while the tool exists | Drift reported against rows a procedure told the agent to write by hand | Phase E lands after C so detection is already watching; and it migrates one subcommand at a time, each with its own before/after fixture. Two written paths to one piece of state is worse than either path alone. |
 | Agents route around it because it is slower than typing | Drift count rises after release | That number is the measurement. If it does not fall, this design failed and should be said so rather than defended. |
 | Atomicity is harder than it looks (three files) | Partial write in a crash test | Write to temp, fsync, rename; events last, so a crash loses the event rather than the truth. |
 | It becomes the place judgment lives | Flags accumulating on `add` | The tool never asks questions and never decides. Anything requiring a user decision stays in the lane. |
@@ -355,6 +389,11 @@ it is the one that has to satisfy a person using a different program.
 
 - 2026-08-16 — created — arising from DESIGN-003's five review rounds and a
   front-end integration question from aimark.
+- 2026-08-16 — all 3 User Decisions resolved (`resolve`); § 5.7 blast radius
+  added at `lock` pre-flight (input-quality § 3.6). That table re-scoped phase E
+  from "update the docs" to the step that must land after C — the same thing
+  DESIGN-003's blast-radius table did for its phase G.
+- 2026-08-16 — locked.
 
 ## 10. References
 
