@@ -251,6 +251,82 @@ def read_event_log(project_root: Path) -> dict:
     return out
 
 
+
+def reconcile_drift(project_root: Path, board, events: dict) -> dict:
+    """Does the board agree with the record of how it got that way?
+
+    DESIGN-004 § 5.4. Three conditions, and the first is NOT drift — which is
+    the correction this implementation makes to the spec's wording.
+
+    A board row with no creating event could be a hand-edit, or it could simply
+    predate `perry-task`. Nothing on a row records when it was created, so the
+    two are indistinguishable, and Perry's own board had 29 such rows the day
+    the tool shipped. Reporting them as drift would make the first standup after
+    every upgrade a wall of noise about work that was done correctly under the
+    old rules — and a check people learn to ignore is worse than no check.
+
+    So `unrecorded` is reported as context, with the log's baseline timestamp so
+    a reader can judge it, and `drift` counts only the two conditions that are
+    unambiguous:
+
+      orphaned   — an event opened a task and the board has no row and no close.
+                   The mutation did not land in the markdown.
+      stale_done — a `done` row whose latest event is not its close. The row was
+                   edited after the tool wrote it.
+
+    Reported, never refused (decision 5): a user editing their own markdown is
+    legitimate, and the right response is that Perry notices.
+    """
+    out = {"checked": False, "baseline": "", "drift": 0,
+           "unrecorded": 0, "unrecorded_sample": [],
+           "orphaned": [], "stale_done": []}
+    if not events.get("present"):
+        return out  # no log — a pre-DESIGN-004 project, not a broken one
+
+    path = project_root / ".perry" / "events.jsonl"
+    seq: dict[str, list[dict]] = {}
+    baseline = ""
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        tid = e.get("id")
+        if not tid:
+            continue
+        seq.setdefault(tid, []).append(e)
+        ts = e.get("ts", "")
+        baseline = ts if not baseline or (ts and ts < baseline) else baseline
+
+    out["checked"] = True
+    out["baseline"] = baseline
+
+    rows = {t.id: t for t in board.all_tasks if getattr(t, "id", "")}
+
+    for tid, row in rows.items():
+        events_for = seq.get(tid, [])
+        if not any(e.get("event") == "add" for e in events_for):
+            out["unrecorded"] += 1
+            if len(out["unrecorded_sample"]) < 5:
+                out["unrecorded_sample"].append(tid)
+            continue
+        if row.status == "done" and events_for[-1].get("event") != "done":
+            out["stale_done"].append(tid)
+
+    for tid, events_for in seq.items():
+        if tid in rows:
+            continue
+        if any(e.get("event") == "add" for e in events_for) and \
+           not any(e.get("event") in ("done", "drop") for e in events_for):
+            out["orphaned"].append(tid)
+
+    out["drift"] = len(out["orphaned"]) + len(out["stale_done"])
+    return out
+
+
 def verification_distribution(tasks) -> dict:
     """How closures on this board were verified (DESIGN-003 § 5.3).
 
@@ -644,6 +720,8 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "open": sum(1 for t in all_tasks if t.status in open_states),
             "verification": verification_distribution(all_tasks),
             "events": read_event_log(project_root),
+            "drift": reconcile_drift(project_root, board,
+                                     read_event_log(project_root)),
             "tasks": [encode(t) for t in all_tasks],
         },
         "attribution": {
@@ -761,6 +839,21 @@ def dash(payload: dict) -> str:
             f"🔬 Verification   : {' · '.join(parts)} "
             f"({v['closed']} closure{'s' if v['closed'] != 1 else ''})"
         )
+    # Drift: shown when there is something unambiguous to act on, or when the
+    # board is largely unrecorded and the reader should know the check is only
+    # covering part of it. Silent when the tool wrote everything — a line that
+    # says "0" every day is a line people stop reading.
+    d = b.get("drift") or {}
+    if d.get("checked") and (d.get("drift") or d.get("unrecorded")):
+        bits = []
+        if d.get("orphaned"):
+            bits.append(f"{len(d['orphaned'])} event(s) with no row")
+        if d.get("stale_done"):
+            bits.append(f"{len(d['stale_done'])} row(s) edited after close")
+        if d.get("unrecorded"):
+            bits.append(f"{d['unrecorded']} row(s) predate the log "
+                        f"(since {d.get('baseline', '')[:10]})")
+        lines.append(f"🔀 Drift         : {' · '.join(bits)}")
     ops = payload["operations"]
     if ops.get("inputs"):
         lines.append(f"📥 Inputs         : {ops['inputs']} undigested (oldest: {ops['inputs_oldest']} @ {ops['inputs_oldest_days']}d)")

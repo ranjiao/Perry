@@ -475,3 +475,95 @@ class TestPerryStateReadsTheLog(unittest.TestCase):
                                    "id": "TASK-001"}) + "\n")
         ev = self._state(p.root)["board"]["events"]
         self.assertEqual(ev["total"], 2, "a corrupt line took a valid one with it")
+
+
+class TestDriftReconciliation(unittest.TestCase):
+    """DESIGN-004 §5.4 — the check that makes the tool worth building.
+
+    Without it, `perry-task` is a convenience and the discipline problem is
+    untouched: §3 says so outright. This is where that claim is made good or
+    exposed as another unbacked assertion.
+
+    The implementation corrects the spec's wording in one place. A board row
+    with no creating event is NOT drift — it could be a hand-edit, or it could
+    simply predate the tool, and nothing on a row distinguishes them. Perry's
+    own board had 29 such rows the day `perry-task` shipped. Reporting those as
+    drift would make the first standup after every upgrade a wall of noise about
+    work done correctly under the old rules, and a check people learn to ignore
+    is worse than no check. So `unrecorded` is context and `drift` counts only
+    the two unambiguous conditions.
+    """
+
+    def _drift(self, p: "Project") -> dict:
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        return json.loads(r.stdout)["board"]["drift"]
+
+    def test_a_board_the_tool_wrote_entirely_has_no_drift(self):
+        p = Project()
+        p.run("add", "--title", "A", "--priority", "P0")
+        p.run("add", "--title", "B", "--priority", "P0")
+        d = self._drift(p)
+        self.assertEqual(d["drift"], 0)
+        self.assertEqual(d["unrecorded"], 0)
+
+    def test_an_event_whose_row_was_deleted_by_hand_is_reported(self):
+        """The mutation did not land in the markdown — or someone removed it
+        without closing it. Either way the two records disagree."""
+        p = Project()
+        p.run("add", "--title", "A", "--priority", "P0")
+        _, b = p.run("add", "--title", "B", "--priority", "P0")
+        board = p.root / "BOARD.md"
+        board.write_text("\n".join(
+            l for l in board.read_text().split("\n")
+            if not l.startswith(f"| {b['id']} |")))
+        d = self._drift(p)
+        self.assertEqual(d["drift"], 1)
+        self.assertIn(b["id"], d["orphaned"])
+
+    def test_a_closed_task_is_not_reported_as_orphaned(self):
+        """`done` removes the row on purpose. Reporting that as a lost mutation
+        would make every correct close look like a defect."""
+        p = Project()
+        _, a = p.run("add", "--title", "A", "--priority", "P0")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        d = self._drift(p)
+        self.assertEqual(d["drift"], 0, f"a correct close was reported: {d}")
+
+    def test_a_project_with_no_log_is_not_reported_as_broken(self):
+        """Every project predates the tool at the moment it upgrades. The first
+        standup after an upgrade must not be a wall of findings."""
+        p = Project()
+        d = self._drift(p)
+        self.assertFalse(d["checked"])
+        self.assertEqual(d["drift"], 0)
+        self.assertEqual(d["unrecorded"], 0)
+
+    def test_rows_predating_the_log_are_context_not_drift(self):
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | written by hand | Coding Agent | not_started | — | — |\n\n## P1", 1))
+        p.run("add", "--title", "tool-written", "--priority", "P0")
+        d = self._drift(p)
+        self.assertEqual(d["drift"], 0, "a pre-tool row was counted as drift")
+        self.assertEqual(d["unrecorded"], 1)
+        self.assertIn("TASK-900", d["unrecorded_sample"])
+        self.assertTrue(d["baseline"], "no baseline to judge unrecorded rows against")
+
+    def test_drift_is_reported_never_refused(self):
+        """A user editing their own markdown is legitimate. Perry notices; it
+        does not object, and nothing exits non-zero."""
+        p = Project()
+        _, a = p.run("add", "--title", "A", "--priority", "P0")
+        board = p.root / "BOARD.md"
+        board.write_text("\n".join(
+            l for l in board.read_text().split("\n")
+            if not l.startswith(f"| {a['id']} |")))
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        code, _ = p.run("add", "--title", "still works")
+        self.assertEqual(code, 0, "drift blocked a write")
