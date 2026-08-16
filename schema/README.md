@@ -93,6 +93,29 @@ the *schema*, not the parser and not a JSON payload — both sides implement it,
 and `bin/perry-lint` is the conformance test both sides run against the same
 fixtures (`tests/fixtures/sample-project/`).
 
+> **This decision now has a cost that is measured rather than assumed, and a
+> second option that did not exist when it was made.**
+>
+> Two parsers of one file diverged silently, inside this repo: `perry-task`
+> placed board cells by resolved header name while `viewer/parsers.py` read
+> them by position, so a board with one extra column reported every task's
+> owner as its track and counted zero open work — with `perry-lint` calling
+> that board clean, because column order is not something the schema
+> constrains. A schema is a weaker contract than it looks: it declares which
+> columns exist, not how a reader must find them. aiMark's parser is a third
+> implementation of the same ambiguity.
+>
+> The second option is `bin/perry-task list --all --json`
+> (`schema/task-list-contract.md`), a versioned payload with a locked shape and
+> every key always present. It costs the Python dependency this decision was
+> made to avoid, and it removes the parser. It also survives a change of
+> storage format, which the schema-conformance route does not.
+>
+> **Both are live; nothing here is settled.** Whichever aiMark takes, the thing
+> to freeze differs: the JSON contract on one path, the schema *plus a
+> statement that columns are resolved by name and never by position* on the
+> other. The second sentence is the one that was missing.
+
 The rule that follows: **if a reader can't get something from the declared
 structure, the answer is to declare it — not to infer it.** A number that
 appears in a dashboard must be traceable to a field somebody wrote down.

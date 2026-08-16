@@ -504,19 +504,32 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
     lines = section.split("\n")
     in_table = False
     prev = ""
-    # `Verification` is an optional column (DESIGN-003 § 5.3) that no
-    # pre-existing board carries, so it is resolved by HEADER NAME rather than
-    # by position. Reading it positionally would make its meaning depend on
-    # where a project happened to put it, and a board with an extra column
-    # would silently rate the wrong cell.
-    vi = -1
+    # EVERY column is resolved by HEADER NAME, never by position.
+    #
+    # The argument was written for `Verification` alone — "a board with an extra
+    # column would silently rate the wrong cell" — and then applied to that one
+    # column while the other six stayed positional. `bin/perry-task` places
+    # cells by resolved header name and `check_header` accepts the six required
+    # columns in any order, so the writer and the only reader disagreed about
+    # what a board row means. On a header of `| ID | Title | Track | Owner |
+    # Status | …`, every field shifted one place: `owner` read the track,
+    # `status` read the owner, and `open` counted zero — silently zeroing every
+    # standup number, `verification_distribution`, and drift's `stale_done`
+    # branch. `perry-lint` reports such a board clean, because column order is
+    # not something the schema constrains.
+    idx: dict[str, int] = {}
     for line in lines:
         if re.match(r"^\|\s*---", line):
             in_table = True
             header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
                       if prev.strip().startswith("|") else [])
-            vi = next((i for i, h in enumerate(header)
-                       if h in _column_keys("Verification")), -1)
+            idx = {}
+            for name in ("ID", "Title", "Owner", "Status", "Next action",
+                         "Evidence", "Verification"):
+                keys = _column_keys(name)
+                pos = next((i for i, h in enumerate(header) if h in keys), -1)
+                if pos >= 0:
+                    idx[name] = pos
             continue
         prev = line
         if not in_table:
@@ -535,22 +548,29 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 4:
             continue
-        tid = cells[0]
+
+        def cell(name: str, fallback: int) -> str:
+            # Fall back to the canonical position when a header cell is absent
+            # or unrecognized, so a board whose headers this build does not know
+            # keeps parsing exactly as it did before.
+            i = idx.get(name, fallback)
+            return cells[i] if 0 <= i < len(cells) else ""
+
+        tid = cell("ID", 0)
         if not tid or tid.strip().lower() in _column_keys("ID"):
             continue
-        base_status, status_note = _split_status(cells[3] if len(cells) > 3 else "")
+        base_status, status_note = _split_status(cell("Status", 3))
         tasks.append(
             Task(
                 id=tid,
-                title=cells[1] if len(cells) > 1 else "",
-                owner=cells[2] if len(cells) > 2 else "",
+                title=cell("Title", 1),
+                owner=cell("Owner", 2),
                 status=base_status,
-                next_action=cells[4] if len(cells) > 4 else "",
-                evidence=cells[5] if len(cells) > 5 else "",
+                next_action=cell("Next action", 4),
+                evidence=cell("Evidence", 5),
                 priority=priority,
                 status_note=status_note,
-                verification=(cells[vi].replace("*", "").strip()
-                              if 0 <= vi < len(cells) else ""),
+                verification=cell("Verification", -1).replace("*", "").strip(),
             )
         )
     return tasks

@@ -1269,6 +1269,139 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
                     f"{name}.md moves rows but never reaches `perry-task {sub}`")
 
 
+class TestListContract(unittest.TestCase):
+    """`perry-task list --json` is published to a program Perry does not own.
+
+    aimark codes against this payload. The point of freezing it is that it does
+    NOT move when Perry's storage does — `BOARD.md`'s role is an open question
+    (DESIGN-005) and this contract is deliberately not part of it.
+
+    These tests are the thing that makes the promise real: a change to the
+    payload breaks CI here rather than breaking a front-end silently, at
+    runtime, in another repo.
+
+    Spec: `schema/task-list-contract.md`.
+    """
+
+    TASK_KEYS = {
+        "id", "title", "owner", "priority", "status", "track", "mode",
+        "stage", "stage_since", "arrived", "parent", "commitment",
+        "next_action", "evidence", "verification", "open",
+        "created", "updated", "timeline",
+    }
+    TOP_KEYS = {"contract", "project_root", "state_root", "tasks",
+                "open", "closed", "events", "untitled"}
+    EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    def populated(self) -> "Project":
+        p = Project(tracks=self.TRACKS)
+        p.run("add", "--title", "plain project row", "--priority", "P0")
+        p.run("add", "--title", "pipeline row", "--track", "blog",
+              "--priority", "P1", "--commitment", "blog/1")
+        _, c = p.run("add", "--title", "closed row", "--priority", "P2")
+        p.run("done", c["id"], "--evidence", "e.md", "--rung", "V3")
+        return p
+
+    def payload(self, p: "Project", *extra) -> dict:
+        _, out = p.run("list", "--all", *extra)
+        return out
+
+    def test_the_version_handle_is_present_and_major_1(self):
+        d = self.payload(self.populated())
+        self.assertEqual(d["contract"], PT.LIST_CONTRACT)
+        self.assertTrue(d["contract"].startswith("perry-task/list/1."),
+                        f"major bumped to {d['contract']} — every consumer "
+                        f"checking major == 1 now refuses; that is intended "
+                        f"only for a removed or retyped key")
+
+    def test_every_declared_key_is_present_on_every_task(self):
+        """Rule 1 of the contract: an unknown value is "", null or [] — never a
+        missing key. It is what lets a consumer skip a defensive branch per
+        field, so it has to hold for closed rows and event-only rows too."""
+        d = self.payload(self.populated())
+        self.assertTrue(d["tasks"])
+        for t in d["tasks"]:
+            self.assertEqual(set(t), self.TASK_KEYS,
+                             f"{t.get('id')}: missing "
+                             f"{self.TASK_KEYS - set(t)}, extra "
+                             f"{set(t) - self.TASK_KEYS}")
+            for e in t["timeline"]:
+                self.assertEqual(set(e), self.EVENT_KEYS)
+
+    def test_the_top_level_shape_is_exact(self):
+        d = self.payload(self.populated())
+        self.assertEqual(set(d), self.TOP_KEYS,
+                         f"missing {self.TOP_KEYS - set(d)}, "
+                         f"extra {set(d) - self.TOP_KEYS}")
+
+    def test_open_means_still_on_the_board_not_a_status_value(self):
+        """The contract says `open` is the live/closed test, not `status` —
+        a consumer that filtered on `status != "done"` would keep showing a
+        dropped row forever."""
+        p = self.populated()
+        d = self.payload(p)
+        closed = [t for t in d["tasks"] if not t["open"]]
+        self.assertEqual(len(closed), 1)
+        self.assertEqual(closed[0]["status"], "done")
+        self.assertNotIn(closed[0]["id"], p.board())
+        self.assertTrue(all(t["id"] in p.board() for t in d["tasks"] if t["open"]))
+
+    def test_without_all_the_closed_row_is_absent(self):
+        p = self.populated()
+        ids = {t["id"] for t in self.payload(p)["tasks"]}
+        _, open_only = p.run("list")
+        self.assertEqual(len(open_only["tasks"]), len(ids) - 1)
+        self.assertTrue(all(t["open"] for t in open_only["tasks"]))
+
+    def test_mode_columns_reach_the_payload(self):
+        """`commitment` and `stage_since` exist as board columns; a payload
+        that dropped them would send a front-end back to the markdown."""
+        d = self.payload(self.populated())
+        blog = next(t for t in d["tasks"] if t["track"] == "blog")
+        self.assertEqual(blog["commitment"], "blog/1")
+        self.assertEqual(blog["stage"], "brief")
+        self.assertTrue(blog["stage_since"], "the dwell clock is not exposed")
+        self.assertTrue(blog["owner"], "owner is missing from the payload")
+
+    def test_created_and_updated_are_timestamps_or_null(self):
+        d = self.payload(self.populated())
+        for t in d["tasks"]:
+            for k in ("created", "updated"):
+                self.assertTrue(t[k] is None or isinstance(t[k], str), (t["id"], k))
+            if t["timeline"]:
+                self.assertEqual(t["updated"], t["timeline"][-1]["ts"])
+
+    def test_a_row_predating_the_event_log_still_carries_every_key(self):
+        """The hardest case for rule 1: a board row with no event at all."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | predates everything | User | in_progress | — | — |\n\n## P1", 1))
+        t = next(x for x in self.payload(p)["tasks"] if x["id"] == "TASK-900")
+        self.assertEqual(set(t), self.TASK_KEYS)
+        self.assertIsNone(t["created"])
+        self.assertEqual(t["timeline"], [])
+        self.assertTrue(t["open"])
+
+    def test_the_contract_document_lists_exactly_these_keys(self):
+        """The spec and the payload are two statements of one thing, which is
+        the arrangement that has drifted in every review round of this project.
+        Read the document's own tables rather than trusting them."""
+        doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
+        self.assertIn(PT.LIST_CONTRACT, doc, "the doc names a different version")
+        documented = set(re.findall(r"^\| `(\w+)` \|", doc, re.M))
+        undocumented = (self.TASK_KEYS | self.EVENT_KEYS) - documented
+        self.assertFalse(undocumented,
+                         f"payload keys with no row in the contract doc: "
+                         f"{sorted(undocumented)}")
+        phantom = documented - (self.TASK_KEYS | self.EVENT_KEYS)
+        self.assertFalse(phantom,
+                         f"the contract doc documents keys the payload does "
+                         f"not emit: {sorted(phantom)}")
+
+
 if __name__ == "__main__":
     # At the END of the file, not the middle. It used to sit after the fifth of
     # thirteen classes, so `python3 tests/test_task_writer.py` ran five and

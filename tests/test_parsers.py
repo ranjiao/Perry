@@ -190,6 +190,63 @@ class FixtureProject(unittest.TestCase):
         self.assertNotEqual(title.strip(), "4.2%")
 
 
+class BoardColumnsResolveByName(unittest.TestCase):
+    """The writer places cells by header name; the reader must too.
+
+    `bin/perry-task` maps values onto headers and `check_header` accepts the six
+    required columns **in any order**, so a positional reader disagrees with the
+    writer about what a row means. `_parse_task_table` resolved `Verification`
+    by name — with a comment giving the exact reason ("a board with an extra
+    column would silently rate the wrong cell") — and left the other six
+    positional, so the argument was applied to the one column a review had
+    named and to none of the six it hadn't.
+
+    The damage was silent: on `| ID | Title | Track | Owner | Status | … |`,
+    `owner` read the track and `status` read the owner, so `open` counted zero
+    and every standup number, `verification_distribution` and drift's
+    `stale_done` branch went with it. `perry-lint` calls such a board clean,
+    because column order is not something the schema constrains — which is why
+    this needs a test rather than a linter rule.
+    """
+
+    HEAD = "| ID | Title | Track | Owner | Status | Next action | Evidence |"
+    ROW = ("| TASK-001 | Reordered | build | Coding Agent | in_progress "
+           "| keep going | — |")
+
+    def parse(self, head: str, row: str):
+        section = f"{head}\n|---|---|---|---|---|---|---|\n{row}\n"
+        return P._parse_task_table(section, "P0")
+
+    def test_an_extra_column_before_owner_does_not_shift_every_field(self):
+        t = self.parse(self.HEAD, self.ROW)[0]
+        self.assertEqual(t.owner, "Coding Agent", "owner read the Track cell")
+        self.assertEqual(t.status, "in_progress", "status read the Owner cell")
+        self.assertEqual(t.next_action, "keep going")
+        self.assertEqual(t.evidence, "—")
+
+    def test_the_canonical_order_still_parses(self):
+        t = self.parse(
+            "| ID | Title | Owner | Status | Next action | Evidence |",
+            "| TASK-001 | Plain | Coding Agent | blocked | wait | e.md |")[0]
+        self.assertEqual(
+            (t.owner, t.status, t.next_action, t.evidence),
+            ("Coding Agent", "blocked", "wait", "e.md"))
+
+    def test_an_unrecognized_header_falls_back_to_position(self):
+        """A board whose headers this build cannot resolve must parse exactly
+        as it did before, not become empty."""
+        t = self.parse(
+            "| a | b | c | d | e | f |",
+            "| TASK-001 | Plain | Coding Agent | blocked | wait | e.md |")[0]
+        self.assertEqual((t.owner, t.status), ("Coding Agent", "blocked"))
+
+    def test_a_localized_header_resolves_too(self):
+        t = self.parse(
+            "| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |",
+            "| TASK-001 | 标题内容 | Coding Agent | in_progress | 继续 | — |")[0]
+        self.assertEqual((t.owner, t.status), ("Coding Agent", "in_progress"))
+
+
 class Attribution(unittest.TestCase):
     """reference/okr-linkage.md: resolve by stable ID / exact name / registered
     alias — never by fuzzy name. A near-match is not a match."""

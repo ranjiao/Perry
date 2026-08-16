@@ -99,6 +99,13 @@ class Refused(Exception):
     """A refusal is a first-class outcome, not a crash. Nothing was written."""
 
 
+# The `list --json` payload is a published contract with its own version, kept
+# separate from Perry's because the whole point is that it does NOT move when
+# Perry's storage does. Bump the minor for an ADDED key; the major only for a
+# removed or retyped one. Specified in `schema/task-list-contract.md`.
+LIST_CONTRACT = "perry-task/list/1.0"
+
+
 # ── schema ────────────────────────────────────────────────────────────────
 
 
@@ -280,19 +287,34 @@ class Board:
 
         Inserted before `## P0` so intake reads above the work it becomes,
         which is the order `modes/queue.md` describes it in.
+
+        Heading and columns are both written in the board's own language.
+        `ensure_columns` localized new headers and explained why in the same
+        round this method was added, and this one hardcoded English — so a
+        localized board got `## Intake | Arrived | Request | Outcome |` bolted
+        onto a `编号 | 标题 | …` table. One of two siblings fixed is the shape
+        every review round here has found.
         """
-        if any(re.match(rf"^##\s+{re.escape(heading)}\b", l) for l in self.lines):
+        rx = heading_re(heading)
+        if any(rx.match(l) for l in self.lines):
             return
+        try:
+            lang = header_language(self.table("P0")[2])
+        except Refused:
+            lang = "en"
+        shown = next((s for s in heading_spellings(heading)[1:]
+                      if lang != "en"), heading)
+        columns = [display_name(c, lang) for c in columns]
         anchor = next((i for i, l in enumerate(self.lines)
                        if PRIORITY_RE["P0"].match(l)), len(self.lines))
-        block = [f"## {heading}", "", render_row(columns),
+        block = [f"## {shown}", "", render_row(columns),
                  "|" + "|".join(["---"] * len(columns)) + "|", ""]
         self.lines[anchor:anchor] = block
 
     def section_table(self, heading: str) -> tuple[int, list[str]]:
         """(separator index, header cells) for a named non-priority section."""
-        start = next((i for i, l in enumerate(self.lines)
-                      if re.match(rf"^##\s+{re.escape(heading)}\b", l)), None)
+        rx = heading_re(heading)
+        start = next((i for i, l in enumerate(self.lines) if rx.match(l)), None)
         if start is None:
             raise Refused(f"BOARD.md has no `## {heading}` section")
         for i in range(start, len(self.lines)):
@@ -439,6 +461,37 @@ def display_name(canonical: str, lang: str) -> str:
     if _ALIASES is None:
         _build_column_maps()
     return (_DISPLAY.get(norm(canonical)) or {}).get(lang, canonical)
+
+
+_HEADINGS: dict[str, dict[str, str]] | None = None
+
+
+def heading_spellings(name: str) -> list[str]:
+    """Every spelling of a `## <heading>`, canonical English first.
+
+    `ensure_section` and `section_table` matched the English name exactly, so on
+    a board that already carried `## 收件` the tool did not see it, appended a
+    second `## Intake`, and then read and wrote only the new English one —
+    leaving the queue the user was actually filling unreachable by every
+    subcommand. `perry-lint` reports the duplicate clean, because the schema
+    declares `^Intake\\b|^收件` for the table and says nothing about there being
+    one of them.
+    """
+    global _HEADINGS
+    if _HEADINGS is None:
+        try:
+            _HEADINGS = load_schema()["i18n"].get("headings", {})
+        except Exception:
+            _HEADINGS = {}
+    out = [name]
+    for names in (_HEADINGS.get(name) or {}).values():
+        out += list(names)
+    return out
+
+
+def heading_re(name: str) -> re.Pattern:
+    return re.compile(r"^##\s+(?:%s)\b" %
+                      "|".join(re.escape(s) for s in heading_spellings(name)))
 
 
 REQUIRED_KEYS = ("id", "title", "owner", "status", "next action", "evidence")
@@ -724,16 +777,25 @@ def cmd_add(args, ctx) -> dict:
     if args.commitment:
         values["commitment"] = args.commitment
 
-    if not args.dry_run:
-        ctx["board"].ensure_columns(priority, columns_for(values))
-        if mode == "queue":
-            # The section `triage` step 0 walks. Nothing created it before, so
-            # step 0's "only applies when the section exists" gate no-opped
-            # forever for every queue track ever made.
-            ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
+    # Run the real path in both cases. `commit()` is what `--dry-run` skips;
+    # everything up to it happens for real against the in-memory Board, which is
+    # discarded when the process exits.
+    #
+    # Previously the dry run took a shortcut, and it lied twice: it never called
+    # `check_header`, so a board the real call refuses previewed a row and
+    # exited 0 — "the tool reporting success while writing nothing the row
+    # means" is `check_header`'s own reason for existing. And it rendered from a
+    # hardcoded six-name tuple, so `--commitment` and `--track` were invisible
+    # in the preview while the real write set them. A preview that is not the
+    # write is worse than no preview.
+    ctx["board"].ensure_columns(priority, columns_for(values))
+    if mode == "queue":
+        # The section `triage` step 0 walks. Nothing created it before, so
+        # step 0's "only applies when the section exists" gate no-opped
+        # forever for every queue track ever made.
+        ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
 
-    line = ctx["board"].append_row(priority, values) if not args.dry_run else render_row(
-        [values.get(k, "") for k in ("id", "title", "owner", "status", "next action", "evidence")])
+    line = ctx["board"].append_row(priority, values)
     jline = (f"- [{tid}] — → not_started · {args.title} · "
              f"owner: {values['owner']} · priority: {priority}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
@@ -757,7 +819,7 @@ def cmd_start(args, ctx) -> dict:
         values["next action"] = args.next
     if "stage since" in values:
         values["stage since"] = f"{date.today():%Y-%m-%d}"
-    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] {prev or '—'} → in_progress · started"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "start",
              "id": tid, "title": values.get("title", ""),
@@ -790,7 +852,7 @@ def cmd_done(args, ctx) -> dict:
         track = track_of(ctx["config"], values.get("track", "main"))
         rung = (track.get("default_rung")
                 or ctx["schema"]["work_modes"]["modes"][track["mode"]]["default_rung"])
-    line = ctx["board"].remove_row(idx) if not args.dry_run else ""
+    line = ctx["board"].remove_row(idx)
     jline = (f"- [{tid}] {prev or '—'} → done · closed · "
              f"evidence: `{args.evidence}` · verification: {rung}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
@@ -824,7 +886,7 @@ def cmd_stage(args, ctx) -> dict:
         raise Refused(f"{tid} is already at stage {stage!r}")
     values["stage"] = stage
     values["stage since"] = f"{date.today():%Y-%m-%d}"
-    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] stage {prev or '—'} → {stage}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "stage",
              "id": tid, "title": values.get("title", ""),
@@ -869,7 +931,7 @@ def cmd_status(args, ctx) -> dict:
         values["next action"] = args.next
     elif want == "blocked":
         values["next action"] = f"blocked on {args.reason}"
-    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    line = ctx["board"].replace_row(idx, header, values)
     tail = f" · {args.reason}" if args.reason else ""
     jline = f"- [{tid}] {prev or '—'} → {want}{tail}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "status",
@@ -899,7 +961,7 @@ def cmd_drop(args, ctx) -> dict:
     pri, idx, header, cells = ctx["board"].find(tid)
     values = dict(zip([norm(h) for h in header], cells))
     prev = values.get("status", "")
-    line = ctx["board"].remove_row(idx) if not args.dry_run else ""
+    line = ctx["board"].remove_row(idx)
     jline = f"- [{tid}] {prev or '—'} → dropped · reason: {args.reason}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "drop",
              "id": tid, "title": values.get("title", ""),
@@ -954,12 +1016,10 @@ def cmd_intake(args, ctx) -> dict:
     if not args.title:
         raise Refused("--title is the request text")
     arrived = args.arrived or f"{date.today():%Y-%m-%d}"
-    if not args.dry_run:
-        ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
-        line = ctx["board"].append_section_row(
-            "Intake", {"arrived": arrived, "request": args.title, "outcome": "—"})
-    else:
-        line = render_row([arrived, args.title, "—"])
+    # Same as `add`: the real path runs either way; only `commit()` is skipped.
+    ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
+    line = ctx["board"].append_section_row(
+        "Intake", {"arrived": arrived, "request": args.title, "outcome": "—"})
     jline = f"- [intake] arrived {arrived} · {args.title}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "intake",
              "id": "", "title": args.title, "arrived": arrived,
@@ -1007,15 +1067,11 @@ def cmd_route(args, ctx) -> dict:
               "arrived": intake.get("arrived", "")}
     if args.commitment:
         values["commitment"] = args.commitment
-    if not args.dry_run:
-        ctx["board"].ensure_columns(priority, columns_for(values))
-    if args.dry_run:
-        line = render_row(list(values.values()))
-    else:
-        line = ctx["board"].append_row(priority, values)
-        # The intake row keeps its record; `Outcome` says where it went.
-        ctx["board"].lines[idx] = render_row(
-            [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
+    ctx["board"].ensure_columns(priority, columns_for(values))
+    line = ctx["board"].append_row(priority, values)
+    # The intake row keeps its record; `Outcome` says where it went.
+    ctx["board"].lines[idx] = render_row(
+        [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
     jline = (f"- [{tid}] — → not_started · routed from intake "
              f"(arrived {values['arrived']}) · track: {track['track']}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "route",
@@ -1036,39 +1092,73 @@ def cmd_list(args, ctx) -> dict:
     rebuild each task's timeline. This does that once, in code, so a front-end
     never learns Perry's file formats and Perry can change them without
     breaking a program it does not control.
+
+    **This payload is a frozen contract.** Its shape is specified in
+    `schema/task-list-contract.md` and locked by tests; `LIST_CONTRACT` below
+    is the version handle a consumer checks. Every declared key is ALWAYS
+    present — an unknown value is `""`, `null` or `[]`, never a missing key —
+    so a consumer needs no defensive branch per field.
+
+    It exists so a front-end does not write a second parser for `BOARD.md`.
+    That is not a style preference: `viewer/parsers.py` and `bin/perry-task`
+    were two parsers of one file and they disagreed silently — the writer
+    placed cells by header name while the reader read them by position, so a
+    board with one extra column reported every task's owner as its track and
+    counted zero open work. A third parser would be a third chance at the same
+    bug, and this payload is the alternative.
     """
+    def blank(tid: str) -> dict:
+        # One template, so a key can never exist on some tasks and not others.
+        return {"id": tid, "title": "", "owner": "", "priority": "",
+                "status": "", "track": "main", "mode": "", "stage": "",
+                "stage_since": "", "arrived": "", "parent": "",
+                "commitment": "", "next_action": "", "evidence": "",
+                "verification": "", "open": False,
+                "created": None, "updated": None, "timeline": []}
+
     tasks: dict[str, dict] = {}
     for pri, _, c in ctx["board"].rows():
         tid = c.get("id", "").replace("*", "").strip()
         if not tid:
             continue
-        tasks[tid] = {
-            "id": tid, "title": c.get("title", ""), "priority": pri,
-            "status": c.get("status", ""), "track": c.get("track", "") or "main",
-            "stage": c.get("stage", ""), "open": True,
+        t = blank(tid)
+        t.update({
+            "title": c.get("title", ""), "owner": c.get("owner", ""),
+            "priority": pri, "status": c.get("status", ""),
+            "track": c.get("track", "") or "main",
+            "stage": c.get("stage", ""),
+            "stage_since": c.get("stage since", ""),
+            "arrived": c.get("arrived", ""), "parent": c.get("parent", ""),
+            "commitment": c.get("commitment", ""),
+            "next_action": c.get("next action", ""),
             "evidence": c.get("evidence", ""),
             "verification": c.get("verification", ""),
-            "timeline": [],
-        }
+            "open": True,
+        })
+        tasks[tid] = t
 
     for e in ctx["events"]:
         tid = e.get("id", "")
         if not tid:
             continue
-        t = tasks.setdefault(tid, {
-            "id": tid, "title": "", "priority": e.get("priority", ""),
-            "status": "", "track": e.get("track", "main"), "stage": "",
-            "open": False, "evidence": "", "verification": "", "timeline": [],
-        })
+        t = tasks.setdefault(tid, blank(tid))
         # A row that has left the board is closed; one still on it stays open,
         # and its live cells win over anything the event stream remembers.
         if not t["open"]:
             t["status"] = e.get("to") or t["status"]
             t["title"] = e.get("title") or t["title"]
+            t["track"] = e.get("track") or t["track"]
+            t["priority"] = e.get("priority") or t["priority"]
             t["evidence"] = e.get("evidence") or t["evidence"]
             t["verification"] = e.get("rung") or t["verification"]
-        t["timeline"].append({k: e[k] for k in ("ts", "event", "from", "to")
-                              if k in e})
+        t["mode"] = e.get("mode") or t["mode"]
+        ts = e.get("ts") or ""
+        if e.get("event") in ("add", "route") and ts:
+            t["created"] = ts
+        if ts and (t["updated"] is None or ts > t["updated"]):
+            t["updated"] = ts
+        t["timeline"].append(
+            {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")})
 
     rows = sorted(tasks.values(), key=lambda t: t["id"])
     if args.track:
@@ -1080,7 +1170,10 @@ def cmd_list(args, ctx) -> dict:
     # field. Reported rather than papered over: a bare id is exactly what
     # `reference/user-load.md` forbids handing a reader.
     untitled = [t["id"] for t in rows if not t["title"]]
-    return {"tasks": rows,
+    return {"contract": LIST_CONTRACT,
+            "project_root": str(ctx["project_root"]),
+            "state_root": str(ctx["state_root"]),
+            "tasks": rows,
             "open": sum(1 for t in rows if t["open"]),
             "closed": sum(1 for t in rows if not t["open"]),
             "events": len(ctx["events"]),
@@ -1263,8 +1356,15 @@ def main(argv: list[str]) -> int:
                   f"{', '.join(result['untitled'])}")
     else:
         verb = "would write" if args.dry_run else "wrote"
-        print(f"perry-task: {verb} {result.get('id')} "
-              f"({args.cmd}) → board + journal + event")
+        # `commit()` reports a lost event honestly; this line used to say
+        # "→ board + journal + event" regardless, so the surface the agent
+        # actually reads asserted a write that the function below it had
+        # already recorded as failed.
+        wrote_event = result.get("event_written", True)
+        tail = ("board + journal + event" if wrote_event
+                else "board + journal (event log unwritable — this row will "
+                     "show as `unrecorded` until it is fixed)")
+        print(f"perry-task: {verb} {result.get('id')} ({args.cmd}) → {tail}")
     return 0
 
 
