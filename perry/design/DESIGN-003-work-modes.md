@@ -510,10 +510,11 @@ against the mode table in §5.1), G at V5.
 
 ## 8. Open questions
 
-- **Portfolio roll-up.** Multiple Perry roots under one operator. Deferred
-  behind a named trigger: **≥3 separate Perry-managed folders touched in one
-  week, twice.** Until then, tracks cover it (B2). Consistent with the
-  escalate-on-evidence rule in `reference/project-archetypes.md § Part 2`.
+- ~~**Portfolio roll-up.**~~ **Closed 2026-08-16 by ADR-002**, not deferred.
+  The trigger recorded here (≥3 Perry-managed folders touched twice in a week)
+  no longer applies: the answer is the same at any number of projects — no
+  registry, the working directory is the scope, and a front-end handles its own
+  workspace selection. Tracks still cover the within-project case (B2).
 - **Does `phase/` survive in non-project modes?** Pipeline has cycles, queue
   has review periods. Probably the same file with a mode-dependent close rule —
   but that's a schema question phase D should answer with a fixture, not this
@@ -540,6 +541,9 @@ against the mode table in §5.1), G at V5.
   (input-quality §3.3, §3.6) — phase G re-scoped from cleanup to the plan's
   riskiest phase, with its own risk row and a first-and-alone landing rule.
 - 2026-08-16 — locked.
+- 2026-08-16 — § 8's portfolio-roll-up question closed by ADR-002 rather than
+  left deferred. Recorded here because a `## Changes` entry is the instrument
+  for an open question that gets answered outside the document.
 - 2026-08-16 — **V4 review of TASK-019/020 FAILED; four blocking findings, all
   accepted.** Recorded here because three of them correct §5.1/§5.2 rather than
   just the mode files. (a) §5.1's "Item states" slot needed a *location*: a new

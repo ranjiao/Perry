@@ -8,9 +8,9 @@ PMO's ADR (Architecture Decision Record) machinery. One file per decision under 
 <project_root>/
 ├── DECISIONS.md                         # INDEX only (≤200 lines, like BOARD.md)
 └── decisions/
-    ├── ADR-001-perry-skill-migration.md
-    ├── ADR-002-error-budget-temp-acceptance.md
-    ├── ADR-003-data-pipeline-split.md
+    ├── ADR-NNN-<slug>.md
+    ├── ADR-NNN-<slug>.md
+    ├── ADR-NNN-<slug>.md
     └── ...
 ```
 
@@ -101,15 +101,15 @@ Files **never move** on status change — only the `Status:` header field flips.
 
 | ADR | Title | Type | Date | Sunset / Notes |
 |---|---|---|---|---|
-| [ADR-001](decisions/ADR-001-perry-skill-migration.md) | Adopt Perry skill for PMO/OKR/design workflow | Process | 2026-05-06 | — |
-| [ADR-002](decisions/ADR-002-error-budget-temp-acceptance.md) | Temporarily accept 8.18% error-budget overrun in deploy-service | Operations | 2026-05-06 | 2026-06-30 mandatory action |
+| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Adopt Perry skill for PMO/OKR/design workflow | Process | 2026-05-06 | — |
+| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Temporarily accept 8.18% error-budget overrun in deploy-service | Operations | 2026-05-06 | 2026-06-30 mandatory action |
 | ... |
 
 ## Superseded / Expired / Archived (historical)
 
 | ADR | Title | Status | Status date | Replaced by |
 |---|---|---|---|---|
-| [ADR-005](decisions/ADR-005-...) | Old data pipeline choice | superseded | 2026-08-15 | ADR-009 |
+| [ADR-NNN](decisions/ADR-NNN-...) | Old data pipeline choice | superseded | 2026-08-15 | ADR-NNN |
 | ... |
 ```
 
@@ -118,7 +118,7 @@ Files **never move** on status change — only the `Status:` header field flips.
 ### `/pmo decide <topic>` — new ADR
 
 1. **Read `.perry/config.md`** for document language. If absent, refuse and ask user to run top-level `/perry` first-time setup.
-2. **Determine next ADR-NNN**: scan `decisions/` for highest existing `ADR-NNN-*.md`, increment. (PMO bootstrap creates ADR-001 as the bootstrap-marker; subsequent ADRs are ADR-002+.)
+2. **Determine next ADR-NNN**: scan `decisions/` for highest existing `ADR-NNN-*.md`, increment. (PMO bootstrap creates ADR-NNN as the bootstrap-marker; subsequent ADRs are ADR-NNN+.)
 3. **Walk Context → Options → Chosen → Consequences** interactively with the user:
    - Use `AskUserQuestion` (header `"ADR Type"`) to pick Type from project hook's declared list (default `Process | Architecture | Operations | Risk | Cost | Design | Tooling`).
    - Use `AskUserQuestion` for binary / small-set yes/no in the Options walk if relevant.
@@ -176,14 +176,14 @@ PMO reads specific `decisions/ADR-NNN-*.md` files only when needed — e.g., whe
 On `/pmo` bootstrap (per `SKILL.md § Bootstrap`):
 1. Create `decisions/` directory.
 2. Write `DECISIONS.md` from `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md` (empty index).
-3. Write `decisions/ADR-001-pmo-bootstrap.md` from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with:
+3. Write `decisions/ADR-NNN-<slug>.md` from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with:
    - Type: Process
    - Title: "Bootstrap PMO state for this project"
    - Status: active
    - Context: "Project started using Perry skill PMO on <date>"
    - Chosen: "Adopt Perry's BOARD / journal / decisions / evidence / weekly / handoff state layout"
    - Sunset: none (permanent)
-4. Update `DECISIONS.md` to include ADR-001 in the Active section.
+4. Update `DECISIONS.md` to include ADR-NNN in the Active section.
 
 ## Migration: old monolithic `DECISIONS.md`
 
