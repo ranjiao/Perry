@@ -52,7 +52,28 @@
       "infer",
       "confirm",
       "commit",
-      "done"
+      "done",
+      "abandoned"
+    ],
+    "adoption_step_confirm": [
+      "state_root",
+      "goals",
+      "phase",
+      "clusters",
+      "attribution",
+      "transcriptions"
+    ],
+    "adoption_step_commit": [
+      "config",
+      "okr",
+      "phase",
+      "design",
+      "board",
+      "linkage",
+      "decisions",
+      "knowledge",
+      "architecture",
+      "risks"
     ],
     "adoption_depth": [
       "quick",
@@ -97,7 +118,18 @@
       "interview",
       "prescribe",
       "execute",
-      "done"
+      "done",
+      "abandoned"
+    ],
+    "diagnosis_step_interview": [
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+      "q6",
+      "audience",
+      "attachment"
     ],
     "diagnosis_depth": [
       "quick",
@@ -443,6 +475,120 @@
       }
     }
   },
+  "claims": [
+    {
+      "path": ".perry/",
+      "kind": "dir",
+      "owner": "perry",
+      "anchor": "project",
+      "note": "the anchor. Holds the State root pointer, so it can never sit behind it."
+    },
+    {
+      "path": "OKR.md",
+      "kind": "file",
+      "owner": "okr",
+      "anchor": "state"
+    },
+    {
+      "path": "phase/",
+      "kind": "dir",
+      "owner": "okr",
+      "anchor": "state"
+    },
+    {
+      "path": "BOARD.md",
+      "kind": "file",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "PROJECT_STATE.md",
+      "kind": "file",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "DECISIONS.md",
+      "kind": "file",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "kind": "file",
+      "owner": "user",
+      "anchor": "state",
+      "note": "PMO scaffolds it; the user authors it. Mirrors files[id=architecture].owner."
+    },
+    {
+      "path": "architecture/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state",
+      "note": "lazy-created: architecture/audit-history/"
+    },
+    {
+      "path": "incidents/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state",
+      "note": "lazy-created"
+    },
+    {
+      "path": "decisions/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "journal/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "evidence/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "weekly/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "handoff/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "knowledge/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "inputs/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "runbook/",
+      "kind": "dir",
+      "owner": "pmo",
+      "anchor": "state"
+    },
+    {
+      "path": "design/",
+      "kind": "dir",
+      "owner": "design",
+      "anchor": "state"
+    }
+  ],
   "files": [
     {
       "id": "board",
@@ -885,7 +1031,44 @@
             "type": "string",
             "required": true,
             "enum": "adoption_stage",
-            "note": "the only field --resume reads; advanced only after the stage's writes are durable"
+            "note": "coarse position. Advanced only after the stage's writes are durable. `abandoned` is terminal and means the user retired the run; the dossier stays in place so its rejections remain the don't-ask-me-again record."
+          },
+          "step": {
+            "type": "string",
+            "required": false,
+            "enum_by_stage": {
+              "confirm": "adoption_step_confirm",
+              "commit": "adoption_step_commit"
+            },
+            "note": "fine position WITHIN the stage. `confirm` and `commit` are each many ordered sub-steps, and resuming at the top of `confirm` re-runs the whole interview - the failure that caused the abandonment. Absent means the stage had not begun. See design DESIGN-001."
+          },
+          "declarations": {
+            "type": "array",
+            "required": false,
+            "note": "everything the USER authored or decided, persisted the instant it was said rather than at stage 4. `evidence proposes, the user declares` only holds within one session unless the declaration outlives it. `commit` writes FROM these, never from a re-render of candidates[].proposal.",
+            "items": {
+              "step": {
+                "type": "string",
+                "required": true,
+                "enum": "adoption_step_confirm",
+                "note": "which sub-step of confirm produced this"
+              },
+              "at": {
+                "type": "string",
+                "required": false,
+                "format": "iso-datetime"
+              },
+              "content": {
+                "type": "string",
+                "required": true,
+                "note": "verbatim, multi-line. A KR carries id, statement, metric, target, baseline, stretch and deadline - candidates[].resolution is one line and cannot hold it."
+              },
+              "materialized_as": {
+                "type": "string",
+                "required": false,
+                "note": "the state file this declaration became at commit. Lets a partial commit be resumed without rewriting what already landed."
+              }
+            }
           },
           "sources": {
             "type": "array",
@@ -1063,7 +1246,18 @@
             "type": "string",
             "required": true,
             "enum": "diagnosis_stage",
-            "note": "the only field a resumed run reads; advanced only after the stage's writes are durable"
+            "note": "coarse position. Advanced only after the stage's writes are durable. `abandoned` is terminal - a declined prescription stays in the doc rather than being re-proposed."
+          },
+          "step": {
+            "type": "string",
+            "required": false,
+            "enum_by_stage": {
+              "interview": "diagnosis_step_interview"
+            },
+            "pattern_by_stage": {
+              "execute": "^rx-\\d+$"
+            },
+            "note": "fine position WITHIN the stage. The interview is six questions and the execute stage is one item at a time; neither survives being restarted from the top. See design DESIGN-001."
           },
           "archetype": {
             "type": "object",

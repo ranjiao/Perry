@@ -99,7 +99,7 @@ chose X") and let the user write it.
 |---|---|
 | `--depth` | How much to read. Default `standard`. Matrix in `reference/adoption-sources.md § Depth`. |
 | `--only` | Comma-separated lanes: `okr,board,design,knowledge,arch`. Default all. |
-| `--resume` | Continue from the dossier's `stage:` field. |
+| `--resume` | Continue from the dossier's `stage:` + `step:`. A **shorthand**: `SKILL.md` step 2 detects an interrupted run without it, so this only skips the card. A `--depth` / `--only` that disagrees with the dossier is refused, not merged. |
 | `--recheck` | Drift mode against an already-adopted project — see § Recheck. |
 
 Top-level first-time setup (`SKILL.md § First-time setup`) asks whether this is a
@@ -108,8 +108,39 @@ fresh start or an existing project, and routes here for the latter. The
 
 ## Stages
 
-Five stages. Each is resumable; each records its completion in the dossier's
-`stage:` field before handing on.
+Five stages. Each records its position in the dossier before handing on —
+`stage:` for which stage, `step:` for where inside it.
+
+### The resume contract
+
+Three properties, and every stage below is written to hold all three. They exist
+because the expensive part of this pipeline is an interview that asks the user to
+author goals, and a user will close that window.
+
+**DISCOVERABLE.** An interrupted run is found at entry, without a flag.
+`SKILL.md § Mandatory first move` step 2 owns this. It cannot live here: stages
+0–3 write no state file, so an abandoned run is indistinguishable from a virgin
+project by the only check the entrance used to make.
+
+**POSITIONED.** Resume re-enters at `step`, not at the top of `stage`. `confirm`
+and `commit` are each many ordered sub-steps; re-running `confirm` from sub-step
+0 re-asks the whole interview, which is the experience that caused the
+abandonment in the first place.
+
+**LOSSLESS.** *Every user declaration is persisted the instant it is made.*
+
+That last one is not a new requirement — it is **evidence proposes, the user
+declares** extended to the axis of time. A declaration that lives only in
+conversation memory makes the governing rule hold *within one session*, which is
+not a property worth having. The precedent already existed: stage 3 step 0 writes
+the state-root answer to `.perry/config.md` immediately rather than deferring it
+to `commit`. Everything else the user authors now behaves the same way, via
+`declarations[]`.
+
+Note what LOSSLESS does **not** license. It is not permission to materialize
+state early — corollary 2 above still holds, and a user who abandons adoption
+halfway still finds an untouched project. Declarations are durable *inside the
+dossier*; the project is written only at stage 4.
 
 ### 0 · Scan (read-only, no files written)
 
@@ -161,9 +192,18 @@ that `--resume` picks up a stable grouping.
 
 Ordering matters and is fixed, because attribution depends on goals existing:
 
-0. **Where Perry's files go.** Before any goal talk, check whether the project
-   already uses a directory Perry claims — `design/` is the common one, and
-   `OKR.md` / `BOARD.md` / `phase/` / `journal/` are the rest. If anything
+0. **Where Perry's files go.** Before any goal talk, run
+
+   ```
+   python3 "$PERRY_HOME/bin/perry-lint" --claims --root .
+   ```
+
+   which resolves every path in `schema/state-schema.json § claims[]` against
+   the project and reports what is already taken. **Do not enumerate the claimed
+   paths in prose** — this step used to name four of them while the skills wrote
+   eighteen, so a project owning `evidence/` or `knowledge/` collided silently.
+   `design/` is the common collision, but it is not the only one, and the list
+   is not this file's to keep. If anything
    collides, **ask** (`AskUserQuestion`, header `"State root"`, options:
    `Put Perry's files under perry/ (Recommended) | Use the project root anyway |
    Another directory`) and record the answer as `State root:` in
@@ -192,6 +232,31 @@ Ordering matters and is fixed, because attribution depends on goals existing:
 Every outcome is recorded in the candidate's `status`. **Rejections are kept**,
 not deleted — see § Rejections are memory.
 
+#### Resuming inside `confirm`
+
+Write `step:` **before** starting each sub-step, and append to `declarations[]`
+**as soon as** the user finishes one — not at the end of the stage, and never at
+stage 4. The six values of `adoption_step_confirm` map one-to-one onto the six
+numbered sub-steps above, in order:
+
+| `step:` | Sub-step | On resume |
+|---|---|---|
+| `state_root` | 0 · Where Perry's files go | Skip if `.perry/config.md` already carries `State root:` |
+| `goals` | 1 · Objectives + KRs | Skip if a `declarations[]` entry has `step: goals` — **re-render it back to the user, do not re-ask** |
+| `phase` | 2 · The current phase | Skip if a declaration has `step: phase` |
+| `clusters` | 3 · Cluster triage | Resume at the first cluster whose candidates are still `status: pending` |
+| `attribution` | 4 · Cluster → KR | Resume at the first cluster with no `kr:` |
+| `transcriptions` | 5 · Designs / ADRs / digests | Resume at the first `design`/`decision`/`knowledge` candidate still `pending` |
+
+The last three resume from per-item state rather than from `step` alone, because
+they are loops — `step` says which loop, the items say how far. `step` is still
+written, so a resume never has to infer which loop it was in.
+
+**Re-render, never re-ask.** On resuming at `goals` with a declaration already
+banked, print what the user authored and ask only whether they want to change it.
+Silently accepting it is worse — the user cannot tell whether their hour of work
+survived — and re-asking discards it.
+
 ### 4 · Commit (materialize)
 
 Write in dependency order, each through its owning subcommand:
@@ -209,6 +274,26 @@ Write in dependency order, each through its owning subcommand:
 | `arch` | `ARCHITECTURE.md` | `/pmo architecture init` |
 | `risk` | `PROJECT_STATE.md § Risks` | `/pmo risk` |
 
+**`commit` is resumable and idempotent.** It writes through nine subcommands, and
+a session that dies partway leaves some of them done. Two rules make re-entry
+safe:
+
+1. **Skip what already landed.** A candidate carrying `materialized_as` is not
+   re-materialized, and a declaration carrying `materialized_as` is not
+   re-written. Set both at the moment the write succeeds, and advance `step:`
+   with them, so re-running stage 4 always completes rather than duplicating.
+2. **`mode` is decided once, at stage 0, and never recomputed.** Merge mode is
+   determined from Perry state that existed *before this dossier began*. Without
+   this, a half-finished commit is indistinguishable from a partially adopted
+   project: the next run finds the `OKR.md` it wrote itself, flips to
+   `mode: merge`, and starts asking the user to resolve its own output as
+   "possible duplicates".
+
+`commit` writes **from `declarations[]`**, never from a re-render of
+`candidates[].proposal`. The proposal was Perry's strawman; the declaration is
+what the user actually authored, and the two diverge the moment the user edits
+anything.
+
 Then:
 
 1. Run `"$PERRY_HOME/bin/perry-lint" --root .` — **adoption is not complete
@@ -218,6 +303,9 @@ Then:
    was adopted, from which sources, at which depth, and — explicitly — **which
    parts were user-authored and which were transcribed**.
 3. Set the dossier's `stage: done`; leave it in place as the audit record.
+   `done` and `abandoned` are the two terminal values — the entry gate skips
+   both. **`abandoned` is set only by the user**, via the entry card, and never
+   by Perry deciding a run has gone stale.
 4. Run the post-adoption report (§ Post-adoption report).
 
 ### 5 · Recheck (ongoing)
@@ -316,6 +404,19 @@ and the feature trains the user to ignore it. The dossier is the project's
 
 `status: deferred` is the distinct case: ask again next recheck.
 
+## One dossier per run
+
+Dossier paths are dated (`.perry/adoption/<YYYY-MM-DD>-dossier.md`), so a run
+resumed on a later day must **not** open a new file. Resume writes the existing
+dossier: `updated:` moves, `started:` does not. `--recheck` and "start over" are
+the only things that create a second one, and "start over" archives the first to
+`.perry/adoption/archive/` rather than leaving two live files under the same glob.
+
+If more than one non-terminal dossier somehow exists, the entry gate lists them
+and asks; it never picks by date. Two live dossiers means two different answers
+to "what did the user already decide", and guessing between them is exactly the
+class of inference this pipeline forbids.
+
 ## Merge mode (re-adoption)
 
 If Perry state already exists (a partially adopted project, or one adopted at
@@ -360,6 +461,10 @@ Then hand off to the normal standup.
   `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Two sources of truth means a board that
   rots within a month.
 - **Never fuzzy-matches** — not for attribution, not for dedupe.
+- **Never re-asks a question the user already answered.** A banked declaration is
+  re-rendered for confirmation, never discarded and re-put.
+- **Never resumes without being asked to.** Detection is automatic; continuation
+  is the user's call, every time.
 - **Never completes without `perry-lint` passing.**
 
 ## See also

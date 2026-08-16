@@ -8,6 +8,13 @@ lanes: [okr, board, design, knowledge, arch]
 started: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
 updated: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
 stage: scan
+step: "{{sub-step within confirm/commit; omit while the stage has not begun}}"
+declarations:
+  - step: goals
+    at: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
+    content: |
+      {{verbatim, multi-line — exactly what the user authored.
+       This is what commit hands to /okr init. Never a re-render.}}
 sources:
   - id: SRC-001
     kind: readme
@@ -48,7 +55,11 @@ candidates:
 
 | Key | Purpose |
 |---|---|
-| `stage` | Where the pipeline stopped. `--resume` reads this and nothing else. Advance it only after the stage's writes are durable. |
+| `stage` | Coarse position. Advance only after the stage's writes are durable. `abandoned` is terminal — the user retired the run, and the dossier stays so its rejections remain the don't-ask-me-again record. |
+| `step` | Fine position **within** the stage. `confirm` and `commit` are each many ordered sub-steps; resuming at the top of `confirm` re-runs the whole interview, which is the failure that caused the abandonment. Absent = the stage had not begun. |
+| `declarations[]` | Everything the **user** authored or decided, written the instant they said it rather than at stage 4. *Evidence proposes, the user declares* holds only within one session unless the declaration outlives it — and `candidates[].resolution` is one line, which cannot hold a KR table. |
+| `declarations[].content` | Verbatim and multi-line. `commit` writes **from** this; it never re-renders `candidates[].proposal` over the top of it. |
+| `declarations[].materialized_as` | What it became at commit. Lets a partial commit resume without rewriting what already landed. |
 | `mode` | `fresh` (no Perry state) or `merge` (re-adoption — duplicates are surfaced to the user, never auto-dropped). |
 | `sources[]` | What was detected and whether it was actually read. The scan writes these with `read: false`; harvest flips them. |
 | `sources[].tier` | A / B / C. **Caps the confidence** of anything derived from it — see `reference/adoption-sources.md § Trust tiers`. |

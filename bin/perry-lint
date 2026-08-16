@@ -8,11 +8,19 @@ them honest — it checks real files (and, with --templates, Perry's own
 templates) against the one declared schema.
 
 Usage:
-  perry-lint [--root <project_root>] [--templates] [--json] [--strict] [--quiet]
+  perry-lint [--root <project_root>] [--templates | --claims] [--json]
+             [--state-root <path>] [--strict] [--quiet]
 
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
                 schema is what silently breaks the viewer and the standup.
+  --claims      report which paths Perry would claim in this folder are already
+                taken by someone else's files. Runs BEFORE adoption, so unlike
+                the default mode it is deliberately NOT gated on is_adopted() —
+                a collision check that only ran on adopted projects would answer
+                the question after the moment it mattered.
+  --state-root  with --claims, test a candidate state root other than the one
+                .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
   --strict      warnings count as failures
   --quiet       print nothing; use the exit code
@@ -559,9 +567,92 @@ def iter_targets(root: Path, spec: dict) -> list[Path]:
     return [p for p in out if p.is_file()]
 
 
+def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[list, dict]:
+    """What Perry would occupy here, and what is already there.
+
+    `claims[]` is the one authoritative list — `files[]` describes the files
+    Perry VALIDATES, this describes the territory Perry OCCUPIES, and the two
+    are different units. Perry writes `journal/<YYYY-MM>/<YYYY-MM-DD>.md`, but
+    the thing that collides with a user's folder is `journal/`, and no prefix
+    of that glob is the claim.
+
+    A directory already holding genuine Perry state is a RE-ADOPTION, not a
+    collision. Only a parse can tell the two apart, so this reuses the same
+    heading check the default mode runs rather than a second heuristic."""
+    claims = schema.get("claims") or []
+    rows, collisions = [], 0
+    for c in claims:
+        base = project_root if c["anchor"] == "project" else state_root
+        target = base / c["path"].rstrip("/")
+        if not target.exists():
+            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
+                         "detail": None})
+            continue
+        # Perry-shaped? Anything we would have written is not a collision.
+        if c["kind"] == "dir":
+            present = [f for f in sorted(target.rglob("*.md"))]
+        else:
+            present = [target]
+        foreign = [f for f in present if not looks_like_perry_state(f, schema, c)]
+        if not present:
+            rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
+                         "detail": "exists but empty"})
+        elif foreign:
+            collisions += 1
+            rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
+                         "detail": f"{len(foreign)} file(s) Perry did not write, "
+                                   f"e.g. {foreign[0].relative_to(project_root)}"})
+        else:
+            rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
+                         "detail": f"{len(present)} existing Perry file(s)"})
+    return rows, {"claimed": len(claims), "collisions": collisions}
+
+
+def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
+    """Would Perry have written this file?
+
+    Deliberately generous: the cost of a false 'yes' is one collision Perry
+    fails to warn about, while a false 'no' reports the user's own adopted
+    state as foreign and pushes them to relocate a working project."""
+    if path.name in ("README.md", "INDEX.md"):
+        return True
+    stem = path.stem
+    # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
+    if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
+        return True
+    if re.match(r"^\d{4}-\d{2}(-\d{2})?$", stem) or re.match(r"^\d{4}-W?\d{2}$", stem):
+        return True
+    for spec in schema["files"]:
+        if Path(spec["path"]).name == path.name:
+            return True
+    try:
+        head = path.read_text(encoding="utf-8", errors="replace")[:2000]
+    except OSError:
+        return False
+    return "Owner**: `perry`" in head or "$PERRY_HOME" in head
+
+
+def render_claims(project_root: Path, state_root: Path, rows: list, summary: dict,
+                  suggested: str | None) -> None:
+    rel = state_root.relative_to(project_root).as_posix() or "."
+    print(f"\n🚧 Namespace check · {project_root.name} · candidate state root: {rel}\n")
+    print(f"   Claimed by Perry : {summary['claimed']} paths")
+    print(f"   Already present  : {summary['collisions']} collision(s)\n")
+    shown = [r for r in rows if r["state"] != "free"]
+    if not shown:
+        print("   ✓ nothing Perry claims is taken — the project root is safe")
+    for r in shown:
+        mark = "✗" if r["state"] == "collision" else "·"
+        print(f"   {mark} {r['path']:<18} {r['detail']}")
+    if suggested:
+        print(f"\n   Suggested state root: {suggested}   (0 collisions)")
+    print()
+
+
 def main(argv: list[str]) -> int:
     root_arg = None
-    mode_templates = as_json = strict = quiet = False
+    mode_templates = mode_claims = as_json = strict = quiet = False
+    state_root_arg = None
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -573,6 +664,11 @@ def main(argv: list[str]) -> int:
             root_arg = argv[i] if i < len(argv) else None
         elif a == "--templates":
             mode_templates = True
+        elif a == "--claims":
+            mode_claims = True
+        elif a == "--state-root":
+            i += 1
+            state_root_arg = argv[i] if i < len(argv) else None
         elif a == "--json":
             as_json = True
         elif a == "--strict":
@@ -589,6 +685,41 @@ def main(argv: list[str]) -> int:
         return 2
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
+
+    if mode_claims:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        if state_root_arg:
+            state_root = (project_root / state_root_arg).resolve()
+        else:
+            state_root = P.resolve_state_root(project_root)
+        rows, summary = check_claims(project_root, schema, state_root)
+
+        # Only propose an alternative when the current candidate actually
+        # collides — a clean root must cost the user zero questions.
+        suggested = None
+        if summary["collisions"] and not state_root_arg:
+            for candidate in ("perry", "_perry", ".perry-state"):
+                alt = (project_root / candidate).resolve()
+                _, alt_sum = check_claims(project_root, schema, alt)
+                if not alt_sum["collisions"]:
+                    suggested = f"{candidate}/"
+                    break
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "state_root": state_root.relative_to(project_root).as_posix() or ".",
+                "claimed": summary["claimed"],
+                "collisions": summary["collisions"],
+                "suggested_state_root": suggested,
+                "paths": rows,
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            render_claims(project_root, state_root, rows, summary, suggested)
+        # A collision is a fact to act on, not a failure. Exit 0 unless the
+        # caller asked for --strict, so a setup script can branch on the count
+        # without treating "this project owns design/" as an error.
+        return 1 if (strict and summary["collisions"]) else 0
 
     # Localized column headers are legal in whatever the project's document
     # language is; the glossary that says which spellings count lives in the
