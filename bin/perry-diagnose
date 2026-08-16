@@ -219,6 +219,18 @@ def load_sibling(name: str):
 
 OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
 
+# A `TBD` that a template DECLARES as a legal value is not a decision anybody is
+# waiting on. `state/design_TEMPLATE.md` writes `Implementation owner: <role or
+# "TBD">` in the header of every design doc, so counting it queues three
+# imaginary decisions on the user for every three designs they write — and
+# LOAD-03 exists to measure the real queue, not to inflate it.
+# Matched anywhere in the line, not anchored: the design header packs several
+# fields onto one line (`> Author: X   · Implementation owner: TBD`), so the
+# declared field is rarely the first thing on it.
+DECLARED_TBD = re.compile(
+    r"(?:Implementation owner|Deciders?|Sunset|Locked|Superseded by|Supersedes|"
+    r"Linked OKR|Drop reason)\s*:\s*(?:TBD|undecided)\b", re.I)
+
 
 def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> dict:
     """How much this project asks a *human* to hold in their head.
@@ -270,7 +282,7 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         if explain.is_illustrative(rel):
             continue
         for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
-            if OPEN_DECISION.search(line):
+            if OPEN_DECISION.search(DECLARED_TBD.sub("", line)):
                 open_decisions += 1
                 if len(samples) < 8:
                     samples.append(f"{rel}:{n}")
