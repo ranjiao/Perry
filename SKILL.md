@@ -1,6 +1,6 @@
 ---
 name: perry
-description: Perry — a virtual project office for solo or small projects, with one entrance. Use for a where-are-we project snapshot or standup; setting, revising or scoring goals (OKR, objectives, key results, phases); planning a week; running a task board and triaging blockers; logging decisions and ADRs; drafting or locking a design doc / RFC; weekly status, session handoff, and delegating work to agents; converting an existing project into tracked state (/perry adopt); and auditing how a project is structured for agent work (/perry diagnose). Three lanes live inside it — okr (goals), pmo (execution), design (RFCs) — reached as "/perry okr plan-phase", "/perry pmo triage", "/perry design lock". They are NOT separate skills. State lives at the project root in OKR.md, phase/, BOARD.md, journal/, DECISIONS.md and design/.
+description: Perry — a virtual project office for solo or small projects, with one entrance. Use for a where-are-we project snapshot or standup; setting, revising or scoring goals (OKR, objectives, key results, phases); planning a week; running a task board and triaging blockers; logging decisions and ADRs; drafting or locking a design doc / RFC; weekly status, session handoff, and delegating work to agents; converting an existing project into tracked state (/perry adopt); and auditing how a project is structured for agent work (/perry diagnose). Three lanes live inside it — goals (objectives, phases, commitments), work (board, journal, evidence), decide (RFCs and decisions) — reached as "/perry goals plan-phase", "/perry work triage", "/perry decide lock". The former names okr / pmo / design keep working as permanent aliases. They are NOT separate skills. State lives at the project root in OKR.md, phase/, BOARD.md, journal/, DECISIONS.md and design/.
 ---
 
 # Perry — virtual project office
@@ -19,7 +19,8 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 
 ```
 /perry                          combined snapshot (the default)
-/perry <lane> <subcommand>      /perry okr plan-phase · /perry pmo triage · /perry design lock
+/perry <lane> <subcommand>      /perry goals plan-phase · /perry work triage · /perry decide lock
+                                aliases: okr → goals · pmo → work · design → decide
 /perry <subcommand>             allowed when the subcommand name is unambiguous
 /perry adopt | diagnose        handled here, not in a lane
 /perry relocate <path> | help   handled here, not in a lane
@@ -27,15 +28,15 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 
 Subcommand names are unique across the three lanes, so `/perry plan-phase` resolves without the lane. Name the lane when a request is ambiguous or the user is new.
 
-> **Reading the lane docs**: `okr/SKILL.md`, `pmo/SKILL.md`, `design/SKILL.md` and everything under `*/reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry pmo triage`. Inside a Perry session that shorthand is unambiguous routing vocabulary, so it is left as-is. Only translate it when quoting a command back to the user.
+> **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` and everything under `*/reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Inside a Perry session that shorthand is unambiguous routing vocabulary for the agent, not a command the user can type, so it is left as-is — including where it still uses the pre-rename lane names. Only translate it when quoting a command back to the user.
 
 > **Host portability**: Perry runs on **Claude Code** (default install at `~/.claude/skills/perry/`) and **Codex CLI** (default install at `~/.agents/skills/perry/`). Both hosts read SKILL.md frontmatter natively for skill discovery — no AGENTS.md or other routing file is needed. The standup ritual below sets `$PERRY_HOME` from the install location, detects which host is live, and reads `$PERRY_HOME/reference/host-capabilities.md` for the fallback rules (free-text prompts instead of `AskUserQuestion` on Codex, refusal of `Executor: claude-subagent` on Codex, etc.). Where this file or a child SKILL.md names a Claude-Code-specific tool (`AskUserQuestion`, `Agent()`, `Bash run_in_background`), that capability page owns the per-host translation; SKILL.md prose stays single-sourced.
 
 | Lane | Reached as | Loaded from | Owns | What it does |
 |------|-----------|-------------|------|--------------|
-| **`okr`** | `/perry okr …` | `$PERRY_HOME/okr/SKILL.md` | `OKR.md`, `phase/<NNN>-<slug>.md` | Goal-setting: overall versioned OKR, current phase OKR with 10 mandatory sections (NOT calendar-bound; phases end when KRs hit), weekly task proposals (handed off to PMO) |
-| **`pmo`** | `/perry pmo …` | `$PERRY_HOME/pmo/SKILL.md` | `BOARD.md` (live), `journal/<YYYY-MM>/<DD>.md` (daily), `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/` | Execution stewardship: standup ritual, task triage, agent delegation, status reports, cadence rituals, phase rollover |
-| **`design`** | `/perry design …` | `$PERRY_HOME/design/SKILL.md` | `design/<DESIGN-ID>-<slug>.md` | Design-doc stewardship: RFC drafting, user-decision tables, lock workflow, hand-off of implementation tasks to PMO |
+| **`goals`** | `/perry goals …` (alias `okr`) | `$PERRY_HOME/goals/SKILL.md` | `OKR.md`, `phase/<NNN>-<slug>.md` | Goal-setting: overall versioned OKR, current phase OKR with 10 mandatory sections (NOT calendar-bound; phases end when KRs hit), weekly task proposals (handed off to PMO) |
+| **`work`** | `/perry work …` (alias `pmo`) | `$PERRY_HOME/work/SKILL.md` | `BOARD.md` (live), `journal/<YYYY-MM>/<DD>.md` (daily), `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` | Execution stewardship: standup ritual, task triage, agent delegation, status reports, cadence rituals, phase rollover |
+| **`decide`** | `/perry decide …` (alias `design`) | `$PERRY_HOME/decide/SKILL.md` | `design/<DESIGN-ID>-<slug>.md`, `DECISIONS.md`, `decisions/` | Design-doc and decision stewardship: RFC drafting, user-decision tables, lock workflow, hand-off of implementation tasks to PMO |
 
 ## The hand-off contract (the most important rule)
 
@@ -64,9 +65,9 @@ written.
 
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
-| **`goals`** (today `okr/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
-| **`work`** (today `pmo/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` | KR attribution edges, handed to `goals` |
-| **`decide`** (today `design/`) | `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/`** | implementation tasks on lock, handed to `work` |
+| **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
+| **`work`** (`work/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` | KR attribution edges, handed to `goals` |
+| **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/`** | implementation tasks on lock, handed to `work` |
 
 **Two changes from the previous contract, and why.**
 
@@ -83,12 +84,19 @@ written.
    one file under one writer. Settled 2026-08-16 after an independent review
    found the section written by two modes and claimed by no lane.
 
-**The lane names above are the post-rename names.** The directories are still
-`okr/`, `pmo/`, `design/` until TASK-027 lands the rename and the permanent
-aliases; the parenthetical on each row is what exists on disk today. Naming a
-directory that does not exist yet is the defect `reference/user-load.md`
-forbids, so the contract states the target and the present tense side by side
-rather than pretending either away.
+**The lane names and the directories now agree.** They did not when this
+section was signed: the contract stated target names beside their then-current
+directories (`goals` (today `okr/`), …) precisely so it would never name a
+directory that did not exist — the defect `reference/user-load.md` forbids.
+TASK-027 landed the rename, and the parentheticals were collapsed as that
+section itself instructed.
+
+**Why this edit did not need a second signature.** What was signed is the
+ownership set — which lane may write which files — and that is byte-identical
+before and after. The edit removed a scaffold the contract carried for one
+release and put in writing that the scaffold's job is done. An edit that
+*changed* an ownership row would need a fresh V5, and this one is recorded here
+rather than silently applied so the distinction stays visible.
 
 **What "only writer" forbids, concretely.** A lane that needs a change in
 another lane's file **asks in chat and stops** — it does not write and
@@ -111,7 +119,7 @@ Trigger on any of:
 - The user is new to Perry and asks how it works or what to do first.
 - A new session opens in a project that contains both `OKR.md` and `BOARD.md` and the user wants the combined view.
 
-If the user clearly wants only goal-setting → the `okr` lane. If clearly only execution → `pmo`. The snapshot is for the cases in between.
+If the user clearly wants only goal-setting → the `goals` lane. If clearly only execution → `work`. The snapshot is for the cases in between.
 
 ## Mandatory first move: combined snapshot
 
@@ -230,7 +238,7 @@ When `/perry` is invoked, always run this before doing anything else.
    is no "no tracks" branch to write and nothing to special-case. That single
    implicit track loads `modes/project.md`, which adds nothing to Perry's
    behavior on purpose: `project` is the shape Perry was built for and its
-   rules already live in `okr/SKILL.md` and `pmo/SKILL.md`. A project written
+   rules already live in `goals/SKILL.md` and `work/SKILL.md`. A project written
    before tracks existed therefore behaves identically, which is the property
    `tests/test_work_modes.py` protects.
 
@@ -283,7 +291,7 @@ When `/perry` is invoked, always run this before doing anything else.
 
 6. Then ask: **"What do you want to do?"**
 
-If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/okr/SKILL.md` and follow it. A PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk) → `$PERRY_HOME/pmo/SKILL.md`. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/design/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
+If the user picks an OKR-flavored action (plan, score, pivot, revise), read `$PERRY_HOME/goals/SKILL.md` and follow it. A PMO-flavored action (triage, status, delegate, handoff, rollover, decide, risk) → `$PERRY_HOME/work/SKILL.md`. A design-flavored action (RFC, architecture, lock, supersede) → `$PERRY_HOME/decide/SKILL.md`. If unclear, ask which, then route. **Read the lane file in full before acting on it** — it is loaded on demand precisely so it can be complete.
 
 ## First-time setup
 
@@ -341,7 +349,7 @@ supposed to protect.
    - Then, run `/okr plan-phase <slug>` — creates the first phase OKR (`phase/001-<slug>.md`) with all 10 mandatory sections.
    - Then, run `/pmo` — bootstraps the execution files (`BOARD.md`, `journal/<current-YYYY-MM>/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`) and runs the first standup.
    - Finally, run `/okr plan-week` — proposes the first batch of weekly tasks, which `/pmo` then writes as BOARD rows + a journal entry under `## New tasks added`.
-6. Ask: "Run `/perry okr init` now?" — if yes, read `$PERRY_HOME/okr/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
+6. Ask: "Run `/perry goals init` now?" — if yes, read `$PERRY_HOME/goals/SKILL.md` and follow its `init` subcommand. If no, stop and let the user proceed at their own pace.
 
 ## `/perry adopt` — converting an existing project
 
@@ -480,13 +488,13 @@ Adoption asks this question during `confirm`, before anything is materialized (`
 
 When the user types something inside a `/perry` session, route to the right child rather than answering ad-hoc.
 
-**Route to the `okr` lane for:**
+**Route to the `goals` lane (alias `okr`) for:**
 - Setting or revising goals · `init`, `revise`, `pivot`
 - Phase planning · `plan-phase`, `score-phase`, `snapshot`, `dashboard`
 - Weekly task proposals · `plan-week` (the hand-off step)
 - Anything about Operating Principles, Anti-Goals, OKR versions, Cost Ceiling, KR scoring
 
-**Route to the `pmo` lane for:**
+**Route to the `work` lane (alias `pmo`) for:**
 - The standup itself, status, triage, blocker check
 - Task lifecycle · `add-task`, `close-task`, `drop-task`
 - Cadence rituals · `monday-plan`, `midweek-check`, `friday-review`, `mid-phase-review`, `end-phase-retro`
@@ -495,7 +503,7 @@ When the user types something inside a `/perry` session, route to the right chil
 - Decisions and risks · `decide`, `risk`, `nudge`
 - Phase transition · `rollover`
 
-**Route to the `design` lane for:**
+**Route to the `decide` lane (alias `design`) for:**
 - Anything called RFC / architecture / design doc · `new`, `decide`, `lock`, `revise`, `supersede`, `drop`, `handoff`, `status`
 - "Should we design this before building it?" → yes if multi-system, irreversible, or has multiple open user decisions
 
@@ -523,26 +531,26 @@ Perry — virtual project office. One command: /perry
             you can always just type /perry.
             Common: /perry, /perry help
 
-  /perry okr <sub>       Goal-setting (overall + current phase OKR + weekly proposals)
+  /perry goals <sub>     Goal-setting (alias: /perry okr) (overall + current phase OKR + weekly proposals)
             Use when: setting goals, planning a phase, scoring KRs,
             pivoting strategy.
             Common: init, plan-phase, plan-week, score-phase, snapshot, dashboard
-            Full list: /perry help okr
+            Full list: /perry help goals
 
-  /perry pmo <sub>       Execution stewardship (BOARD, journal, dispatch, cadence)
+  /perry work <sub>      Execution stewardship (alias: /perry pmo) (BOARD, journal, dispatch, cadence)
             Use when: standup, planning the week, delegating to agents,
             tracking blockers, writing weekly status, phase rollover.
             Common: triage, plan-week, dispatch, friday-review, handoff
-            Full list: /perry help pmo
+            Full list: /perry help work
 
-  /perry design <sub>    Design-doc / RFC stewardship (locked decisions before building)
+  /perry decide <sub>    Design-doc / RFC / decision stewardship (alias: /perry design) (locked decisions before building)
             Use when: drafting an RFC, locking user decisions, handing off
             implementation tasks to PMO.
             Common: new, decide, lock, handoff
-            Full list: /perry help design
+            Full list: /perry help decide
 
   The lane name is optional when the subcommand is unambiguous —
-  /perry plan-phase and /perry okr plan-phase are the same thing.
+  /perry plan-phase and /perry goals plan-phase are the same thing.
 
   /perry adopt   Convert an EXISTING project into Perry state.
             Use when: the project already has code, docs, git history, or a
@@ -563,7 +571,7 @@ then asks new-vs-existing and routes to /perry adopt for existing projects.
 Read more: $PERRY_HOME/README.md
 ```
 
-With arg `okr`, `pmo`, or `design`: read that lane's SKILL.md and render its `help` subcommand (the lane owns the detail). Don't re-render their tables here.
+With arg `goals`, `work` or `decide` (or their aliases `okr`, `pmo`, `design`): read that lane's SKILL.md and render its `help` subcommand (the lane owns the detail). Don't re-render their tables here.
 
 `help` does NOT trigger the combined snapshot ritual.
 
@@ -625,7 +633,7 @@ Each piped token becomes one `AskUserQuestion` option label.
 
 ## Per-project hooks (optional)
 
-If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`okr/SKILL.md`, `pmo/SKILL.md`, `design/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
+If your project has specific roadmap files, MCP tools, agent roles, cost ceilings, or promotion stages, add a hook block to **the children's** `SKILL.md` files (`goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` each have a `## Per-project hooks` section). The top-level Perry skill stays project-agnostic.
 
 Project hook files live at the project root (not in the skill folder), so a single Perry installation can serve many projects without entanglement. The recommended location is `<project_root>/.perry/hook.md`; children read it on every invocation.
 
@@ -639,7 +647,7 @@ Every Perry skill invocation runs `bin/perry-update-check` as the first action. 
 
 Manual trigger: `bash "$PERRY_HOME/bin/perry-update-check" --force` (bypasses throttle).
 
-The script is invoked from the standup ritual of every child (`okr` / `pmo` / `design`), so triggering any of `/perry`, `/okr`, `/pmo`, `/design` covers it. If the skill source is not a git checkout (e.g., extracted from a tarball), the check exits silently.
+The script is invoked from the standup ritual of every lane, so any `/perry …` invocation covers it. If the skill source is not a git checkout (e.g., extracted from a tarball), the check exits silently.
 
 ## See also
 
@@ -655,6 +663,6 @@ The script is invoked from the standup ritual of every child (`okr` / `pmo` / `d
 - [reference/adoption-sources.md](reference/adoption-sources.md) — the harvest catalog: source detectors, A/B/C trust tiers (which cap derived confidence), the depth matrix, scale limits, non-code projects, and the citation forms every piece of evidence must produce.
 - [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
 - [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
-- [okr/SKILL.md](okr/SKILL.md) — full goal-setting subcommands and templates.
-- [pmo/SKILL.md](pmo/SKILL.md) — full execution stewardship subcommands and templates.
-- [design/SKILL.md](design/SKILL.md) — full design-doc stewardship subcommands and templates.
+- [goals/SKILL.md](goals/SKILL.md) — full goal-setting subcommands and templates.
+- [work/SKILL.md](work/SKILL.md) — full execution stewardship subcommands and templates.
+- [decide/SKILL.md](decide/SKILL.md) — full design-doc stewardship subcommands and templates.

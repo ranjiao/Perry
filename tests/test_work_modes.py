@@ -88,7 +88,7 @@ class TestEnums(unittest.TestCase):
         self.assertEqual(sorted(SCHEMA["verification"]["rungs"]), sorted(RUNGS))
 
     def test_calendar_is_binding_exactly_where_the_design_says(self):
-        """`okr/SKILL.md § Why phases, not months` is right for project mode
+        """`goals/SKILL.md § Why phases, not months` is right for project mode
         and wrong for the 33.4% — month-end close and a filing deadline ARE
         the calendar. DESIGN-003 §1.4 B1."""
         cal = {n: m["calendar"] for n, m in SCHEMA["work_modes"]["modes"].items()}
@@ -510,7 +510,7 @@ class TestV4Corrections(unittest.TestCase):
     def test_commitments_table_is_track_keyed_and_owned_by_the_goals_lane(self):
         okr = file_spec("okr")
         t = next(x for x in okr["tables"] if "Commitments" in x["under"])
-        self.assertEqual(okr["owner"], "okr",
+        self.assertEqual(okr["owner"], "goals",
                          "OKR.md has one writer; Commitments is a section of it")
         self.assertIn("Track", t["columns"],
                       "two tracks in one table need a key or the promises merge")

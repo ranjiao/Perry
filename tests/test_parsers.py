@@ -46,7 +46,7 @@ class TemplateContract(unittest.TestCase):
     the exact failure that made the viewer show empty panels."""
 
     def test_okr_template_yields_objectives_and_krs(self):
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.objectives, "no objectives parsed from OKR_TEMPLATE")
         for obj in okr.objectives:
             self.assertTrue(obj.krs, f"objective {obj.title!r} parsed with zero KRs")
@@ -58,18 +58,18 @@ class TemplateContract(unittest.TestCase):
     def test_okr_template_ignores_commented_example_version(self):
         """The template parks a `## v2:` example inside an HTML comment. It
         must not shadow v1 as the current version."""
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.version.startswith("v1:"), okr.version)
 
     def test_okr_template_mission_principles_antigoals_versionlog(self):
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.mission)
         self.assertEqual(len(okr.operating_principles), 5)
         self.assertEqual(len(okr.anti_goals), 4, "horizontal rules must not count as bullets")
         self.assertEqual(okr.version_log[0][0], "v1", "## Versioning log not read")
 
     def test_phase_template_yields_objectives_krs_and_scope_triggers(self):
-        ph = P.parse_phase("001-demo", read("okr/state/phase_TEMPLATE.md"))
+        ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertEqual(len(ph.objectives), 2)
         self.assertEqual([kr.id for kr in ph.krs],
                          ["P-O1.1", "P-O1.2", "P-O1.3", "P-O2.1"])
@@ -81,18 +81,18 @@ class TemplateContract(unittest.TestCase):
     def test_phase_template_placeholder_status_is_not_a_real_status(self):
         """The template ships `{{armed / disarmed / tripped}}`; reading that as
         a status would report every trigger as tripped."""
-        ph = P.parse_phase("001-demo", read("okr/state/phase_TEMPLATE.md"))
+        ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertTrue(all(t.status == "armed" for t in ph.scope_triggers))
 
     def test_board_template_sections_parse(self):
-        board = P.parse_board(read("pmo/state/BOARD_TEMPLATE.md"))
+        board = P.parse_board(read("work/state/BOARD_TEMPLATE.md"))
         # Empty template rows produce no tasks, but the sections must be found —
         # a renamed heading would silently zero the board.
         self.assertEqual(board.p0, [])
         self.assertEqual(board.user_input_queue, [])
 
     def test_linkage_template_placeholders_are_rejected(self):
-        link = P.parse_linkage(read("okr/state/linkage_TEMPLATE.md"))
+        link = P.parse_linkage(read("goals/state/linkage_TEMPLATE.md"))
         self.assertFalse(link.ok, "unfilled template must not look populated")
         self.assertIn("placeholder", link.error)
 

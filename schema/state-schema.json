@@ -670,31 +670,31 @@
     {
       "path": "OKR.md",
       "kind": "file",
-      "owner": "okr",
+      "owner": "goals",
       "anchor": "state"
     },
     {
       "path": "phase/",
       "kind": "dir",
-      "owner": "okr",
+      "owner": "goals",
       "anchor": "state"
     },
     {
       "path": "BOARD.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "PROJECT_STATE.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "DECISIONS.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
@@ -707,69 +707,69 @@
     {
       "path": "architecture/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state",
       "note": "lazy-created: architecture/audit-history/"
     },
     {
       "path": "incidents/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state",
       "note": "lazy-created"
     },
     {
       "path": "decisions/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "journal/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "evidence/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "weekly/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "handoff/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "knowledge/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "inputs/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "runbook/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "design/",
       "kind": "dir",
-      "owner": "design",
+      "owner": "decide",
       "anchor": "state"
     }
   ],
@@ -777,8 +777,8 @@
     {
       "id": "board",
       "path": "BOARD.md",
-      "template": "pmo/state/BOARD_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/BOARD_TEMPLATE.md",
+      "owner": "work",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -875,8 +875,8 @@
     {
       "id": "okr",
       "path": "OKR.md",
-      "template": "okr/state/OKR_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/OKR_TEMPLATE.md",
+      "owner": "goals",
       "tier": 1,
       "cap": 200,
       "cap_kind": "hard",
@@ -949,8 +949,8 @@
       "id": "phase",
       "path": "phase/[0-9][0-9][0-9]-*.md",
       "exclude": "phase/*-linkage.md",
-      "template": "okr/state/phase_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/phase_TEMPLATE.md",
+      "owner": "goals",
       "tier": 1,
       "cap": 300,
       "cap_kind": "hard",
@@ -1037,8 +1037,8 @@
     {
       "id": "linkage",
       "path": "phase/[0-9][0-9][0-9]-linkage.md",
-      "template": "okr/state/linkage_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/linkage_TEMPLATE.md",
+      "owner": "goals",
       "tier": 2,
       "required": false,
       "format": "yaml-frontmatter",
@@ -1631,8 +1631,8 @@
       "id": "design",
       "path": "design/*.md",
       "exclude": "design/README.md",
-      "template": "design/state/design_TEMPLATE.md",
-      "owner": "design",
+      "template": "decide/state/design_TEMPLATE.md",
+      "owner": "decide",
       "tier": 2,
       "required": false,
       "header_fields": [
@@ -1693,8 +1693,8 @@
     {
       "id": "decisions",
       "path": "DECISIONS.md",
-      "template": "pmo/state/DECISIONS_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/DECISIONS_TEMPLATE.md",
+      "owner": "work",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -1723,8 +1723,8 @@
     {
       "id": "project_state",
       "path": "PROJECT_STATE.md",
-      "template": "pmo/state/PROJECT_STATE_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/PROJECT_STATE_TEMPLATE.md",
+      "owner": "work",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -1735,7 +1735,7 @@
     {
       "id": "architecture",
       "path": "ARCHITECTURE.md",
-      "template": "pmo/state/ARCHITECTURE_TEMPLATE.md",
+      "template": "work/state/ARCHITECTURE_TEMPLATE.md",
       "owner": "user",
       "tier": 1,
       "cap": 500,
@@ -1754,8 +1754,8 @@
       "id": "runbook",
       "path": "runbook/*.md",
       "exclude": "runbook/INDEX.md",
-      "template": "pmo/state/runbook_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/runbook_TEMPLATE.md",
+      "owner": "work",
       "tier": 1,
       "cap": 150,
       "cap_kind": "hard",
@@ -1815,7 +1815,7 @@
     {
       "id": "hook",
       "path": ".perry/hook.md",
-      "template": "pmo/state/hook_TEMPLATE.md",
+      "template": "work/state/hook_TEMPLATE.md",
       "owner": "user",
       "tier": 1,
       "required": false,

@@ -1,5 +1,5 @@
 ---
-name: design
+name: decide
 description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
 ---
 
@@ -21,7 +21,7 @@ Voice: structured, decision-oriented, friction-friendly. The design skill refuse
 ## Companion skills
 
 Pairs with **`pmo`** and **`okr`**. Hand-off rules:
-- `design` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`.
+- `decide` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/ADR-NNN-*.md`**.
 - `design` reads `OKR.md` / `phase/` for goal context (read-only) and reads `BOARD.md` to surface which implementation tasks reference each locked design.
 - Once a doc reaches **Design locked**, `design` hands off to `pmo`: print a list of proposed implementation tasks (each tagged with the design ID); user approves; `pmo add-task` writes them to `BOARD.md`. PMO's evidence files for those tasks back-reference the design ID in their first lines.
 - `design` never writes `BOARD.md`, `journal/`, `OKR.md`, `phase/`, `evidence/`, or any other Perry-owned file.
@@ -39,7 +39,7 @@ Trigger on any of:
 
 Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
-−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `design/SKILL.md`).
+−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `decide/SKILL.md`).
 −2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. Design docs are written in `Document language`; the snapshot and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). Section headings localize through the glossary in `schema/state-schema.json § i18n`; `DESIGN-NNN` ids, slugs, `Status:` values (`draft` | `in_review` | `locked` | …) and code references stay English in every language — a `User Decisions` row may read `| 1 | 缓存后端 | Redis \| Memcached \| DynamoDB | TBD | — |`, with the question localized and the options left as the literal identifiers they name. Contract: `$PERRY_HOME/reference/i18n.md`. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
@@ -126,7 +126,8 @@ For navigation help: `/design help` prints this index; `/design help <subcommand
 |---|---|---|
 | `init` | First-time bootstrap of the `design/` lane (write README) | Subcommands |
 | `new <slug>` | Start a new design doc (interactive: title, ID, KR linkage) | Subcommands |
-| `decide <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion | Subcommands |
+| `resolve <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion. (Alias: `decide`) | Subcommands |
+| `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates the `DECISIONS.md` index. `--supersede` / `--expire` / `--archive` manage lifecycle | `reference/decisions.md` |
 | `lock <DESIGN-ID>` | Move `in_review` → `locked`; print impl tasks for PMO `add-task` | Subcommands |
 | `revise <DESIGN-ID>` | Material change after lock; appends `## Changes` | Subcommands |
 | `supersede <OLD-ID> <NEW-slug>` | Replace one doc with a successor | Subcommands |
@@ -161,7 +162,7 @@ Writes `design/<DESIGN-ID>-<slug>.md` from `state/design_TEMPLATE.md` with `Stat
 
 **Input-quality pass** on that first writing pass: run `$PERRY_HOME/reference/input-quality.md § 3 Design doc` against Problem / Goals / Non-Goals (concrete problem, substantive Non-Goals, testable numbered Goals). Surface ≤3 issues, advisory + override. Catching a thin Non-Goals here means `lock` isn't the first time the user hears about it.
 
-### `decide <DESIGN-ID>`
+### `resolve <DESIGN-ID>` (alias: `decide`)
 Walk every unresolved row in the User Decisions table. For each: present the options, ask the user to pick (or to add an option), record the choice with today's date. Refuse to "decide on the user's behalf" — leave TBD if the user cannot decide now.
 
 **Use `AskUserQuestion`** to render each row's options as buttons (header = decision number or short topic, ≤ 12 chars). The Options column in the User Decisions table is written pipe-separated (`A / B / C`) precisely so each token maps to one `AskUserQuestion` option. Batch up to 4 unresolved rows per `AskUserQuestion` call. The user can always pick "Other" to add a new option, in which case append it to the row's Options list and record the choice.
@@ -198,7 +199,8 @@ Without an ID: print the snapshot. With an ID: print that doc's full status — 
 | File / dir | Owner | Purpose | Template |
 |------------|-------|---------|----------|
 | `design/<DESIGN-ID>-<slug>.md` | design | One design doc per ID | `state/design_TEMPLATE.md` |
-| `design/README.md` | design | Local DESIGN-ID convention + index | (written on `init`) |
+| `design/README.md` | decide | Local DESIGN-ID convention + index | (written on `init`) |
+| `DECISIONS.md` + `decisions/ADR-NNN-*.md` | decide | ADR index + one file per decision. Moved here from `work` by the signed hand-off contract, 2026-08-16 — a settled decision and the document that settles it now have one owner | `state/ADR_TEMPLATE.md` |
 | `OKR.md`, `phase/<NNN>-<slug>.md` | okr | Read by design for goal context; never written | (in okr skill) |
 | `BOARD.md` | pmo | Read by design to count implementation rows; never written | (in pmo skill) |
 
@@ -245,5 +247,5 @@ For projects without a hook, the generic schema and DESIGN-NNN convention apply.
 ## See also
 
 - [../SKILL.md](../SKILL.md) — top-level Perry routing.
-- [../pmo/SKILL.md](../pmo/SKILL.md) — execution stewardship; consumes locked designs.
-- [../okr/SKILL.md](../okr/SKILL.md) — goal-setting; provides KR linkage for designs.
+- [../work/SKILL.md](../work/SKILL.md) — execution stewardship; consumes locked designs.
+- [../goals/SKILL.md](../goals/SKILL.md) — goal-setting; provides KR linkage for designs.

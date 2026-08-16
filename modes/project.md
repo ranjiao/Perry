@@ -7,7 +7,7 @@
 **This file adds nothing to Perry's behavior. That is the point.**
 
 `project` is the shape Perry was built for, and its rules already live in
-`okr/SKILL.md` and `pmo/SKILL.md`. Copying them here would create a second
+`goals/SKILL.md` and `work/SKILL.md`. Copying them here would create a second
 authoritative copy of a rule that already has one — the exact failure
 `reference/project-archetypes.md § Part 1.2` calls *"one document, one owner,
 one copy"* and that Perry refuses everywhere else. So this file **declares which
@@ -24,14 +24,14 @@ it.
 
 | Slot | Value | Owned by |
 |---|---|---|
-| **Ends when** | The goal is met — commit KRs largely hit | `okr/reference/phases.md` |
-| **Unit that gets an ID** | Task | `pmo/reference/subcommands.md § add-task` |
-| **Spine** | `OKR.md` objectives → `phase/<NNN>-<slug>.md` | `okr/SKILL.md` |
-| **Horizon** | The phase. Closes on KR progress, **not** on a date | `okr/SKILL.md § Why phases, not months` |
-| **Calendar** | Advisory. The 80%-of-commit-KRs prompt and the 14-day snapshot heartbeat are nudges, never enforcement | `okr/SKILL.md` |
-| **Item states** | `not_started → blocked → in_progress → review → done → dropped` | `pmo/SKILL.md § Status, Priority, Owner models` |
-| **WIP control** | `P0` / `P1` / `P2`. Cadence work sits under `## Cadence` and does not consume P0 slots | `pmo/SKILL.md` |
-| **Triage asks** | Is this still the right task? What is stale, inflated, or `done` with no evidence? | `pmo/reference/subcommands.md § triage` |
+| **Ends when** | The goal is met — commit KRs largely hit | `goals/reference/phases.md` |
+| **Unit that gets an ID** | Task | `work/reference/subcommands.md § add-task` |
+| **Spine** | `OKR.md` objectives → `phase/<NNN>-<slug>.md` | `goals/SKILL.md` |
+| **Horizon** | The phase. Closes on KR progress, **not** on a date | `goals/SKILL.md § Why phases, not months` |
+| **Calendar** | Advisory. The 80%-of-commit-KRs prompt and the 14-day snapshot heartbeat are nudges, never enforcement | `goals/SKILL.md` |
+| **Item states** | `not_started → blocked → in_progress → review → done → dropped` | `work/SKILL.md § Status, Priority, Owner models` |
+| **WIP control** | `P0` / `P1` / `P2`. Cadence work sits under `## Cadence` and does not consume P0 slots | `work/SKILL.md` |
+| **Triage asks** | Is this still the right task? What is stale, inflated, or `done` with no evidence? | `work/reference/subcommands.md § triage` |
 | **Default rung** | **V3** — reproducible run. This mode is the one with a native verification loop: tests, build, lint, run by the agent with output shown rather than asserted | `schema/state-schema.json § verification` |
 | **Signature failure** | Spec-free "vibe" implementation; a tier-0 file grown past its cap; `done` rows with no evidence path | `reference/project-archetypes.md § 3.A` |
 

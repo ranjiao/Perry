@@ -4,7 +4,7 @@ Loaded only when `/pmo` is invoked in a project that has no `BOARD.md` at the pr
 
 ## Trigger
 
-`pmo/SKILL.md`'s standup ritual detects missing state files at step 2 ("Read live state"). If `BOARD.md` is absent, the agent asks:
+`work/SKILL.md`'s standup ritual detects missing state files at step 2 ("Read live state"). If `BOARD.md` is absent, the agent asks:
 
 > "No PMO state in `<project>`. Bootstrap it now? (yes/no)"
 

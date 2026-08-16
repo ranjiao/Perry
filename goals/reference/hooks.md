@@ -48,4 +48,4 @@ If the project is **<your project name>**:
 `.perry/hook.md § High-stakes operations` is a **safety gate**, not
 configuration — `/pmo dispatch` refuses specs that match it and `/pmo autopilot`
 refuses to run without it. PMO bootstrap writes a conservative default list. See
-`pmo/reference/extending.md`. OKR only reads the hook; it never writes it.
+`work/reference/extending.md`. OKR only reads the hook; it never writes it.

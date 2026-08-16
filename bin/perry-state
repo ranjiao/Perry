@@ -223,7 +223,7 @@ TIER1_CAPS = {
 
 
 def tier1_caps(root: Path, phase_rel: str | None) -> list[dict]:
-    """Tier-1 hard caps (pmo/SKILL.md § Two file models). Reported, not enforced
+    """Tier-1 hard caps (work/SKILL.md § Two file models). Reported, not enforced
     — enforcement is the writing skill's job; this is the observation."""
     out = []
     targets = dict(TIER1_CAPS)

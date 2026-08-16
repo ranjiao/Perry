@@ -20,7 +20,7 @@ same tier 1/2 markdown; neither writes to the project.
 `/pmo browse`). It starts the server in the background, waits until it's up
 (first run installs deps, ~60s), and opens your browser at the address. Stop it
 with `/pmo viewer stop`. This is the recommended path for non-technical users;
-see `../pmo/reference/viewer.md`.
+see `../work/reference/viewer.md`.
 
 Or run it yourself, from inside your project directory (the one containing
 `BOARD.md`):

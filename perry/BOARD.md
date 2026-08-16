@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (15th pass — TASK-026 signed off at V5; the contract is settled)
+> Last updated: 2026-08-16 (16th pass — lanes renamed goals/work/decide; TASK-027 at review)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -23,7 +23,7 @@
 |---|---|---|---|---|---|---|
 | TASK-019 | `modes/pipeline.md` | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; WIP limit has no home or default; Commitments has no track key/owner). Fix B1+B3, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; `Arrived` is destroyed on routing so SLA triage is uncomputable; Commitments ownership). Fix B1+B2, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
-| TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | not_started | DESIGN-003 phase G — **unblocked**, TASK-026 signed off 2026-08-16 | `evidence/2026-08/TASK-027-spec.md` | V4 |
+| TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Landed: dirs renamed, 37 files rewritten, aliases documented, `DECISIONS.md` moved to decide, setup's legacy cleanup fixed. **V4 needs a fresh-context reviewer** | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
 
@@ -65,10 +65,10 @@
 | TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 | TASK-015 | Schema: `mode` + `verification_rung` enums, `work_modes`/`verification` blocks, optional `## Tracks` + `## Intake` table specs, i18n columns — **V3** | `schema/state-schema.json`, `tests/test_work_modes.py`; lint output on all 3 fixtures byte-identical to the pre-change baseline, no fixture edited |
 | TASK-026 | Rewrite `SKILL.md § The hand-off contract` — goals/work/decide ownership, both moves, 3 refusal cases — **V5** | `SKILL.md § The hand-off contract` (signed Ran Jiao 2026-08-16), `tests/test_ownership.py` (13 tests) |
-| TASK-024 | `packs/software-ops/` — architecture/runbooks/incidents extracted, **0 content edits**; `git-boundaries.md` kept in core; OKR phase gate made pack-conditional — **V3** (rung lowered from V4, see journal) | `packs/software-ops/`, `packs/software-ops/pack.md`, `okr/reference/phases.md`; `git diff` vs pre-move = 0 lines on all three, 0 stale refs, lint clean |
+| TASK-024 | `packs/software-ops/` — architecture/runbooks/incidents extracted, **0 content edits**; `git-boundaries.md` kept in core; OKR phase gate made pack-conditional — **V3** (rung lowered from V4, see journal) | `packs/software-ops/`, `packs/software-ops/pack.md`, `goals/reference/phases.md`; `git diff` vs pre-move = 0 lines on all three, 0 stale refs, lint clean |
 | TASK-018 | `modes/project.md` + router step 3b + `perry-state.parse_tracks` — **V3** | `modes/project.md`, `SKILL.md § Mandatory first move` step 3b, `bin/perry-state`; `perry-state --dashboard` byte-identical on all 3 fixtures before/after |
 | TASK-016 | `perry-lint --verification` — missing rung, unsatisfiable rung, and high-stakes rows closed below V5 — **V3** | `bin/perry-lint`, `tests/test_work_modes.py::TestVerificationLint` (11 tests incl. the empty-scan case) |
-| TASK-017 | Rung capture at `close-task` + `board.verification` distribution + standup row — **V3** | `viewer/parsers.py`, `bin/perry-state`, `pmo/reference/subcommands.md § close-task` gate 3, `pmo/SKILL.md`; `tests/…::TestRungDistribution` (5 tests) |
+| TASK-017 | Rung capture at `close-task` + `board.verification` distribution + standup row — **V3** | `viewer/parsers.py`, `bin/perry-state`, `work/reference/subcommands.md § close-task` gate 3, `work/SKILL.md`; `tests/…::TestRungDistribution` (5 tests) |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

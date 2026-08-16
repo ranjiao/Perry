@@ -21,7 +21,7 @@ import unittest
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
-LANES = ("okr", "pmo", "design")
+LANES = ("goals", "work", "decide")
 
 
 def read(rel: str) -> str:

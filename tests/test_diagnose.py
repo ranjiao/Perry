@@ -518,8 +518,8 @@ class TestUserLoadFindings(unittest.TestCase):
         """`tag your task like TASK-007` in a README refers to nothing and is
         not supposed to."""
         mod = load_bin_module("perry-explain")
-        for rel in ("README.md", "SKILL.md", "pmo/reference/decisions.md",
-                    "pmo/state/journal_TEMPLATE.md", "templates/software/STATE.md",
+        for rel in ("README.md", "SKILL.md", "work/reference/decisions.md",
+                    "work/state/journal_TEMPLATE.md", "templates/software/STATE.md",
                     "tests/fixtures/p/BOARD.md"):
             self.assertTrue(mod.is_illustrative(rel), f"{rel} should be illustrative")
         # docs/ holds real documentation on most projects — excluding it would

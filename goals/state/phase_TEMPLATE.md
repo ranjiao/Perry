@@ -7,7 +7,7 @@
 > **Predecessor**: phase/{{NNN-1}}-{{prev-slug}}.md (or '(none)' if first phase)
 > **Tier 1 hard cap**: ≤ 300 lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-{{NNN}}-<topic>.md` and reference via link.
 
-This file is a tactical commitment, not a smaller copy of the overall OKR. Every section below is mandatory. Phases end when KRs are largely hit, not when a date arrives — see `okr/SKILL.md § Why phases, not months`.
+This file is a tactical commitment, not a smaller copy of the overall OKR. Every section below is mandatory. Phases end when KRs are largely hit, not when a date arrives — see `goals/SKILL.md § Why phases, not months`.
 
 ## Phase Focus
 
@@ -142,7 +142,7 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 ## Process Note
 
-PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, End-Phase Retro, weekly status reports) is owned by the `pmo` skill and does not consume phase Objective slots. See `pmo/SKILL.md` for the cadence definition.
+PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, End-Phase Retro, weekly status reports) is owned by the `pmo` skill and does not consume phase Objective slots. See `work/SKILL.md` for the cadence definition.
 
 ---
 

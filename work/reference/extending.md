@@ -4,7 +4,7 @@ Loaded only when the agent is adding a new subcommand / feature, or configuring 
 
 ## Extending PMO (where new content goes)
 
-When adding a new feature or refining an existing one, default to **`reference/<topic>.md`** rather than expanding `pmo/SKILL.md`. Update the **Subcommand index** in SKILL.md with a one-line pointer to the new reference, and add a row to `## How this file is organized`.
+When adding a new feature or refining an existing one, default to **`reference/<topic>.md`** rather than expanding `work/SKILL.md`. Update the **Subcommand index** in SKILL.md with a one-line pointer to the new reference, and add a row to `## How this file is organized`.
 
 Rationale: every new line in `SKILL.md` is loaded on every PMO invocation; reference files are loaded only when the matching subcommand fires. Keeping `SKILL.md` small protects context budget for the actual project state.
 

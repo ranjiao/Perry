@@ -38,7 +38,7 @@ If the project is **{{project_name}}**:
 
 ## Autopilot defaults (optional)
 
-> Recognized by `pmo/reference/autopilot.md`. Omit the section to use the
+> Recognized by `work/reference/autopilot.md`. Omit the section to use the
 > skill defaults (10 dispatches / 2h / 3 failures).
 
 ```
@@ -50,7 +50,7 @@ Autopilot defaults:
 ```
 
 <!--
-Other optional profile blocks, documented in pmo/reference/:
+Other optional profile blocks, documented in work/reference/:
   ## Architecture profile   → architecture.md (eager ARCHITECTURE.md creation)
   ## Operational profile    → runbooks.md     (eager runbook/ creation)
   ## ADR conventions        → decisions.md    (override the default ADR types)

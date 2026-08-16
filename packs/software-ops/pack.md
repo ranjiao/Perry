@@ -44,10 +44,10 @@ pipeline or an ops runbook repo kept in git needs exactly the same role
 boundaries, and a knowledge base with two sessions writing to it needs them
 more. Moving the file would have made git etiquette conditional on a software
 pack being installed, which is a worse answer than leaving a 39-line file in
-core. **It stays in `pmo/reference/git-boundaries.md`.**
+core. **It stays in `work/reference/git-boundaries.md`.**
 
 **2 · The goals lane had a hard gate keyed on `ARCHITECTURE.md`.**
-`okr/reference/phases.md` refused to write a phase file until every unresolved
+`goals/reference/phases.md` refused to write a phase file until every unresolved
 architecture-audit drift item had a response. That is a software-ops rule living
 in the *goals* lane, where it had no business being — a content pipeline has no
 architecture and no audit history, so the gate could never fire there and simply
@@ -65,4 +65,4 @@ of the packs.
 
 - `perry/design/DESIGN-003-work-modes.md § 5.6` — the pack contract.
 - `modes/project.md` — the mode this pack defaults to.
-- `pmo/reference/git-boundaries.md` — deliberately *not* in this pack; see above.
+- `work/reference/git-boundaries.md` — deliberately *not* in this pack; see above.

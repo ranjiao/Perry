@@ -1,5 +1,5 @@
 ---
-name: pmo
+name: work
 description: Virtual Project Management Office for solo or small projects. Use when the user invokes /pmo, asks for project status, weekly planning, blocker triage, status report, decision logging, agent delegation, or cross-session coordination. Maintains BOARD.md (live working memory — current open work only, ≤200 lines), journal/<YYYY-MM>/<YYYY-MM-DD>.md (daily append-only history of status changes / new tasks / decisions), PROJECT_STATE.md (cross-phase dashboard), DECISIONS.md (ADR log), evidence/<YYYY-MM>/ (per-task artifacts), weekly/<YYYY-WW>.md (status reports), and handoff/<YYYY-MM-DD>.md (session resumption docs) at the project root. Reads OKR.md and phase/<NNN>-<slug>.md when present (written by the okr skill) to ground execution in goal progress. Always begins with a proactive standup snapshot before taking action.
 ---
 
@@ -27,7 +27,6 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-phase-review` / `end-phase-retro` |
-| `reference/decisions.md` | `/pmo decide <topic>` and `--supersede` / `--expire` / `--archive` (ADR lifecycle + `decisions/` split + language rule) |
 | `$PERRY_HOME/packs/software-ops/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
 | `$PERRY_HOME/packs/software-ops/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
 | `$PERRY_HOME/packs/software-ops/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
@@ -41,7 +40,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/state-files.md` | Full state-file inventory + tier 1 hard caps + tier 2 soft caps. Read on bootstrap, when introducing new files, or answering "where does this go?" |
 | `reference/bootstrap.md` | First-time PMO bootstrap procedure in a project with no `BOARD.md` |
 | `reference/extending.md` | Adding new subcommands + per-project hooks (`.perry/hook.md` format) |
-| `$PERRY_HOME/reference/input-quality.md` (shared, perry root — not `pmo/reference/`) | `add-task` input-quality pass (§ 4 Task) |
+| `$PERRY_HOME/reference/input-quality.md` (shared, perry root — not `work/reference/`) | `add-task` input-quality pass (§ 4 Task) |
 | `$PERRY_HOME/reference/okr-linkage.md` (shared, perry root) | Resolving a Task/Project's KR attribution: standup roll-up, `add-task`, `digest`/`coordinate` progress ingest. The "never guess attribution — resolve by ID or ask" gate. |
 | `$PERRY_HOME/schema/README.md` (shared, perry root) | "What shape must this file be?" — the declared contract behind every state file, checked by `bin/perry-lint` |
 
@@ -51,7 +50,7 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** PMO is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, and `handoff/`. OKR is the only writer of `OKR.md` and `phase/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `DECISIONS.md` and `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
 
 ## Two file models (read both first)
 
@@ -95,7 +94,7 @@ Trigger on any of:
 
 Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
 
-−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: `$PERRY_HOME` is the perry/ root dir, the grandparent of `pmo/SKILL.md` (it contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, top-level `SKILL.md`). All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
+−3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: `$PERRY_HOME` is the perry/ root dir, the grandparent of `work/SKILL.md` (it contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, top-level `SKILL.md`). All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
 −2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `codex-cli`). Then read `$PERRY_HOME/reference/host-capabilities.md` once for fallback rules; subsequent references to `AskUserQuestion`, `Agent()` / `subagent_type`, and `run_in_background` in this file and the reference files apply per that matrix.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other), the chat language, and the repo layout (single vs split). `BOARD.md`, `journal/`, ADRs, evidence, weekly reports, handoffs and delegation prompts are written in `Document language`; the standup, the TL;DR, suggested actions and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; task ids, `P0`/`P1`/`P2`, owner names, status values (`in_progress`, `blocked`, …), evidence paths and commit SHAs stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`. A delegation prompt is written in the document language but must carry its file paths, commands and acceptance checks verbatim — the receiving agent runs them. On a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
@@ -238,7 +237,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `mid-phase-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midphase-review.md` | `reference/subcommands.md` |
 | `end-phase-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
-| `decide <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; updates `DECISIONS.md` index. `--supersede ADR-NNN` / `--expire ADR-NNN` / `--archive ADR-NNN` manage lifecycle. Content written in `.perry/config.md` § Document language. | `reference/decisions.md` |
+| ~~`decide <topic>`~~ | **Moved to the `decide` lane** as `/perry decide adr <topic>` (signed hand-off contract, 2026-08-16). `work` no longer writes `DECISIONS.md` or `decisions/`. | `$PERRY_HOME/decide/reference/decisions.md` |
 | `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `$PERRY_HOME/packs/software-ops/architecture.md` |
 | `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `$PERRY_HOME/packs/software-ops/architecture.md` |
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `$PERRY_HOME/packs/software-ops/runbooks.md` |
@@ -262,7 +261,7 @@ Without arg: print the **Subcommand index** table above verbatim, plus a pointer
 
 ## State files & size discipline
 
-PMO writes a fixed set of state files at the project root: `BOARD.md` (live), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `DECISIONS.md` (index) + `decisions/ADR-NNN-*.md` (per-ADR), `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
+PMO writes a fixed set of state files at the project root: `BOARD.md` (live), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history), `PROJECT_STATE.md`, `evidence/<YYYY-MM>/<TASK-ID>-*.md`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` and `knowledge/<topic>/`. Plus optional lazy-created trees: `ARCHITECTURE.md` + `architecture/audit-history/`, `runbook/`, `incidents/`. Reads from `OKR.md` / `phase/` (owned by okr skill) and `design/<DESIGN-ID>-*.md` (owned by design skill).
 
 Size discipline is non-negotiable: tier 1 files have hard caps PMO/OKR **refuse to write past**; tier 2 have soft caps `triage` enforces. **Full inventory + ownership + templates + caps**: `reference/state-files.md`. **Structural contract** (sections, columns, enums): `$PERRY_HOME/schema/state-schema.json`.
 

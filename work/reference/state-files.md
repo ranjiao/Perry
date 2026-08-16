@@ -37,7 +37,7 @@ All at the **project root** unless noted. Greppable, version-controlled.
 
 ### Tier 1 caps (PMO/OKR REFUSES to write past these)
 
-Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `pmo/SKILL.md § Two file models` and `$PERRY_HOME/schema/README.md`.
+Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), tier 2 the agent reads for its own purposes (soft caps), tier 3 is the consumption surface — which Perry does not write. See `work/SKILL.md § Two file models` and `$PERRY_HOME/schema/README.md`.
 
 - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log.
 - `ARCHITECTURE.md` ≤ **500** lines. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file keeps §-section TOC + 1-paragraph summaries.
@@ -48,6 +48,6 @@ Tiers are about **who reads the file**: tier 1 the user reads raw (hard caps), t
 
 - `BOARD.md` ≤ 200 lines. If it grows past, `triage` MUST cut it before the next standup ends.
 - `PROJECT_STATE.md` ≤ 200 lines.
-- `pmo/SKILL.md` itself ≤ ~300 lines. New features → write to `reference/<topic>.md` first, add a one-line pointer in the SKILL.md `## How this file is organized` table. See `reference/extending.md`.
+- `work/SKILL.md` itself ≤ ~300 lines. New features → write to `reference/<topic>.md` first, add a one-line pointer in the SKILL.md `## How this file is organized` table. See `reference/extending.md`.
 - Individual `journal/<YYYY-MM>/<YYYY-MM-DD>.md` files have no cap (a busy day might be 300+ lines), but they're append-only and rarely re-read in full — only when answering "what happened on X".
 - Long task content (rich definitions, audit checklists, drill records) lives in `evidence/`, not in BOARD or journal.

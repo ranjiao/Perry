@@ -46,7 +46,7 @@ If the project is **Perry**:
 
 ## Autopilot defaults
 
-> Recognized by `pmo/reference/autopilot.md`.
+> Recognized by `work/reference/autopilot.md`.
 
 ```
 Autopilot defaults:

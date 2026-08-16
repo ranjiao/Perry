@@ -14,7 +14,7 @@ There is exactly **one** architecture document per project: `ARCHITECTURE.md` at
 | **Visibility** | Read into every dispatch / autopilot run; injected into agent prompts. |
 | **Authority** | A change touching any section in this doc must be either consistent with the section OR accompanied by a user-approved edit to the section first. |
 | **Update cadence** | User-driven and user-triggered (annual / quarterly / ad-hoc). `okr plan-phase` and `end-phase-retro` *prompt* for a review but never force one — see `### /pmo architecture review`. |
-| **Size budget** | **HARD cap 500 lines** (tier 1; see `pmo/SKILL.md § Two file models`). PMO refuses writes that would exceed. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes a §-section TOC + 1-paragraph summaries per section. Typical clean ARCHITECTURE.md is 200–400 lines; 500 is the hard ceiling for "user can read in one sitting." |
+| **Size budget** | **HARD cap 500 lines** (tier 1; see `work/SKILL.md § Two file models`). PMO refuses writes that would exceed. Overflow → split per-§ to `architecture/sections/§<N>-<topic>.md`; main file becomes a §-section TOC + 1-paragraph summaries per section. Typical clean ARCHITECTURE.md is 200–400 lines; 500 is the hard ceiling for "user can read in one sitting." |
 
 ## Document structure
 
@@ -213,7 +213,7 @@ Empty field → spec is malformed; `add-task` refuses to write.
 
 ## OKR integration
 
-`okr plan-phase` (see `okr/SKILL.md § plan-phase`) now reads:
+`okr plan-phase` (see `goals/SKILL.md § plan-phase`) now reads:
 1. Latest `architecture/audit-history/<date>.md`.
 2. `ARCHITECTURE.md § Open questions` (§7).
 3. `ARCHITECTURE.md § Change log` (§8) since previous phase's `plan-phase`.

@@ -174,7 +174,7 @@ class TopRisk:
 class ScopeTrigger:
     """One trigger from a phase file's `## Phase Scope Reduction Rule` section.
 
-    The skill vocabulary is "scope-reduction trigger" (see okr/SKILL.md
+    The skill vocabulary is "scope-reduction trigger" (see goals/SKILL.md
     § plan-phase step 6). Legacy projects that still carry a `## Trip-wires`
     table are parsed into the same shape."""
     id: str        # synthesized, e.g. "#1"

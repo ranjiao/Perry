@@ -72,7 +72,7 @@ The third row has a second clause that only shows up on a real project: **if the
 source document is already in the repo and readable where it is, do not
 transcribe it.** Copying `design/global-search.md` into `design/DESIGN-001-*.md`
 produces two copies of one document, which is the duplication
-`pmo/SKILL.md § Style rules` forbids outright — and the copy starts rotting
+`work/SKILL.md § Style rules` forbids outright — and the copy starts rotting
 immediately.
 
 Transcribe when Perry's structure adds something the source cannot provide: an
@@ -477,5 +477,5 @@ Then hand off to the normal standup.
 - [input-quality.md](input-quality.md) — runs unchanged on the strawman OKR.
 - [../schema/state-schema.json](../schema/state-schema.json) — the dossier
   contract (`adoption: 1`).
-- [../pmo/reference/bootstrap.md](../pmo/reference/bootstrap.md) — the greenfield
+- [../work/reference/bootstrap.md](../work/reference/bootstrap.md) — the greenfield
   path adoption replaces for existing projects.

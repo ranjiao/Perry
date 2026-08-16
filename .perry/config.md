@@ -11,9 +11,9 @@
 ## Why the state root is not `.`
 
 Perry's own `design/` directory is the **design lane skill**
-(`design/SKILL.md`, `design/state/design_TEMPLATE.md`), not a folder of design
+(`decide/SKILL.md`, `decide/state/design_TEMPLATE.md`), not a folder of design
 documents. Pointing the state root at the project root would make Perry claim
-its own source tree, and every lint run would report `design/SKILL.md` as a
+its own source tree, and every lint run would report `decide/SKILL.md` as a
 malformed design doc.
 
 `okr/` and `pmo/` are lane skills for the same reason. `.perry/` stays at the

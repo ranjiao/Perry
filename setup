@@ -501,10 +501,16 @@ install_at() {
   # the same rule the state root already follows. Users reached Perry through
   # `/perry` and let it route anyway, so the siblings cost a namespace and
   # bought nothing.
+  # The names to clean up are HISTORICAL, so they are listed literally rather
+  # than derived from the current directories. TASK-027 renamed the lanes to
+  # goals/work/decide; deriving the list from `$perry_target/*/` would make this
+  # loop look for links named after the NEW directories, which no installer ever
+  # created — and the real leftovers on an upgrading user's machine
+  # (`~/.claude/skills/okr` and friends) would never be found again. A cleanup
+  # routine that reads current state cannot remove what current state forgot.
+  local legacy_children=(okr pmo design goals work decide)
   local removed=()
-  for child_dir in "$perry_target"/*/; do
-    [ -f "$child_dir/SKILL.md" ] || continue
-    local name="$(basename "$child_dir")"
+  for name in "${legacy_children[@]}"; do
     local target="$host_dir/$name"
 
     # Only ever remove a link this installer created. Anything else at that

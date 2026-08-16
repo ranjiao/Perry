@@ -161,7 +161,7 @@ The **procedure** goes in `runbook/<slug>.md` — an existing claimed path
 (`schema/state-schema.json § claims[]`), so converting a recurring request into
 a runbook adds no new claim. `Last evidence` points at it. The runbook's shape is normative in
 `schema/state-schema.json § files[] runbook` (template
-`pmo/state/runbook_TEMPLATE.md`); the software-ops pack elaborates the staleness
+`work/state/runbook_TEMPLATE.md`); the software-ops pack elaborates the staleness
 and coverage rules at `$PERRY_HOME/packs/software-ops/runbooks.md`. A queue-mode
 track that is not software uses the schema shape and needs no pack, since "what
 it does, what healthy looks like, what failure looks like, who to escalate to"

@@ -61,7 +61,7 @@ It is **YAML frontmatter, spec `linkage: 1`** — machine-written, machine-read,
 Perry *and* by the frontend. The full field contract is in
 `$PERRY_HOME/schema/state-schema.json` and explained in
 `$PERRY_HOME/schema/README.md § The linkage contract`. The template is
-`okr/state/linkage_TEMPLATE.md`.
+`goals/state/linkage_TEMPLATE.md`.
 
 ```yaml
 ---

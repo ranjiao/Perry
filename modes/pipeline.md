@@ -48,7 +48,7 @@ like every other drop.
 
 ## The calendar is binding here, and that is not a contradiction
 
-`okr/SKILL.md § Why phases, not months` argues that calendar boundaries are
+`goals/SKILL.md § Why phases, not months` argues that calendar boundaries are
 human-team theater and that a horizon should close when its results are hit.
 That argument is correct — **for product work**. It does not survive contact
 with a campaign launch, a client deadline, a filing date or an issue date, where

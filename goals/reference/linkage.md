@@ -30,7 +30,7 @@ A day-only value is **dropped by both readers**, not guessed at — so a graph w
 
 ## `link` — accepting PMO's hand-off
 
-PMO's attribution gate (`pmo/reference/subcommands.md § add-task`) ends in one of
+PMO's attribution gate (`work/reference/subcommands.md § add-task`) ends in one of
 three outcomes, and each maps to one edit here. PMO prints the outcome; `okr`
 performs the write.
 

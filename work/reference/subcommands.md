@@ -58,7 +58,7 @@ Triggered when OKR `score-phase` is about to run (or explicitly by the user). Re
 
 **Inline health-check** (added to end-phase-retro): run `/pmo health-check` (see `reference/health-check.md`). The retro additionally folds in:
 - **Incident feedback-loop ratio**: of all incidents resolved during this phase, how many produced derived changes (architecture / runbook / digest)? A low ratio + recurring components = a structural problem worth a KR in next phase's OKR.
-- **Audit drift trend**: how many `ARCHITECTURE.md`-vs-code drift items from the last audit are still open at phase-end? Carry them into next phase's OKR as either resolution KRs, deferral ADRs, doc edits, or `Not Doing` lines (see `okr/SKILL.md § plan-phase`).
+- **Audit drift trend**: how many `ARCHITECTURE.md`-vs-code drift items from the last audit are still open at phase-end? Carry them into next phase's OKR as either resolution KRs, deferral ADRs, doc edits, or `Not Doing` lines (see `goals/SKILL.md § plan-phase`).
 - **Runbook coverage**: count of deployed components without runbook, vs same count at phase start. Drift in this number is a red flag.
 
 These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" section so OKR's `plan-phase` for next phase can read them directly.
@@ -85,7 +85,7 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 
 **First, an input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 4 Task`): check the task's Verification is falsifiable (not "looks good"), Deliverable is an artifact (not an activity), Owner is a single value from the Owner model, Priority is justified (P0 only if it blocks a Must-Have), and a `kr:` linkage is present when the task came from `plan-week`. Surface ≤3 issues, advisory + override — fix with the user or write as-is with a one-line journal reason. Never silently rewrite. (Tasks arriving already-clean from `plan-week`, which ran the same §4 pass, usually pass with `✓ Input quality: clean`.)
 
-**Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`okr/reference/linkage.md`):
+**Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`goals/reference/linkage.md`):
 
 - resolved → `/okr link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`)
 - a name confirmed as an existing Project → `/okr link --alias <PROJECT-ID> "<name>"`

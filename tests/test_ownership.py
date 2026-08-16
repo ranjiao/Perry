@@ -31,10 +31,12 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 ROUTER = (PERRY_HOME / "SKILL.md").read_text()
 
-# Directory on disk → lane name in the contract. The rename (TASK-027) has not
-# landed, so the contract states target names and the directories keep the old
-# ones; this map is the seam, and it disappears when TASK-027 does.
-LANE_DIRS = {"okr": "goals", "pmo": "work", "design": "decide"}
+# Directory on disk → lane name in the contract. TASK-027 landed the rename, so
+# the two are now the same string; the map is kept (rather than collapsed to a
+# list) because it is what a future rename would edit, and because
+# `test_all_three_lanes_appear_with_their_present_tense_directory` still checks
+# that the contract names a directory that actually exists.
+LANE_DIRS = {"goals": "goals", "work": "work", "decide": "decide"}
 
 
 def contract_section() -> str:
@@ -113,7 +115,7 @@ class TestTheTwoMovedFiles(unittest.TestCase):
                       "claimed by no lane")
 
     def test_commitments_ownership_agrees_with_the_goals_lane_skill(self):
-        okr = (PERRY_HOME / "okr" / "SKILL.md").read_text()
+        okr = (PERRY_HOME / "goals" / "SKILL.md").read_text()
         self.assertIn("Commitments", okr,
                       "the lane that owns it must say so in its own SKILL.md, "
                       "or the contract is the only copy and drifts")
@@ -143,9 +145,9 @@ class TestRefusalCasesAreNamed(unittest.TestCase):
 
     def test_each_lane_skill_still_forbids_writing_outside_itself(self):
         expectations = {
-            "okr": "never writes",
-            "pmo": "Never write to OKR files",
-            "design": "never writes",
+            "goals": "never writes",
+            "work": "Never write to OKR files",
+            "decide": "never writes",
         }
         for directory, phrase in expectations.items():
             text = (PERRY_HOME / directory / "SKILL.md").read_text()
@@ -181,3 +183,68 @@ class TestDraftStatusIsHonest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLaneAliases(unittest.TestCase):
+    """Renaming the lanes must cost an existing user nothing.
+
+    DESIGN-003 decision 5 chose the rename *with* permanent aliases precisely so
+    the rename would be free at the command line. A user who typed
+    `/perry pmo triage` yesterday must still be routed correctly today, and the
+    router is prose — so what is testable is that the router documents every
+    alias, and that no alias silently points at a lane directory that no longer
+    exists.
+    """
+
+    ALIASES = {"okr": "goals", "pmo": "work", "design": "decide"}
+
+    def test_every_alias_is_documented_in_the_router(self):
+        s = ROUTER
+        for old, new in self.ALIASES.items():
+            self.assertRegex(
+                s, rf"alias(es)?[^\n]*`?{old}`?",
+                f"the router never tells the reader that `{old}` still works",
+            )
+            self.assertIn(f"`{new}`", s)
+
+    def test_the_command_surface_shows_the_alias_map(self):
+        m = re.search(r"### Command surface\s*```(.*?)```", ROUTER, re.S)
+        self.assertTrue(m, "no Command surface block")
+        block = m.group(1)
+        for old, new in self.ALIASES.items():
+            self.assertIn(f"{old} → {new}", block,
+                          f"alias {old} → {new} not shown where users look")
+
+    def test_every_lane_directory_named_by_the_router_exists(self):
+        """The failure this catches is the rename half-landing: the router
+        pointing at `$PERRY_HOME/<lane>/SKILL.md` for a directory that was moved
+        out from under it."""
+        for path in set(re.findall(r"\$PERRY_HOME/(\w+)/SKILL\.md", ROUTER)):
+            self.assertTrue(
+                (PERRY_HOME / path / "SKILL.md").exists(),
+                f"router loads $PERRY_HOME/{path}/SKILL.md, which does not exist",
+            )
+
+    def test_no_alias_is_also_a_live_directory(self):
+        """If `okr/` still existed alongside `goals/`, the alias would be
+        ambiguous and the rename would have left two sources of truth."""
+        for old in self.ALIASES:
+            self.assertFalse(
+                (PERRY_HOME / old / "SKILL.md").exists(),
+                f"`{old}/SKILL.md` still exists after the rename — the alias "
+                f"now has two possible targets",
+            )
+
+    def test_the_legacy_installer_cleanup_is_not_derived_from_current_dirs(self):
+        """A cleanup routine that reads current state cannot remove what current
+        state forgot: deriving the stale-symlink list from `$PERRY_HOME/*/`
+        would look for links named `goals`/`work`/`decide`, which no installer
+        ever created, and would never find an upgrading user's real leftovers."""
+        setup = (PERRY_HOME / "setup").read_text()
+        m = re.search(r"legacy_children=\(([^)]*)\)", setup)
+        self.assertTrue(m, "setup no longer declares an explicit legacy list")
+        names = m.group(1).split()
+        for old in self.ALIASES:
+            self.assertIn(old, names,
+                          f"`{old}` would never be cleaned off an upgrading "
+                          f"user's machine")

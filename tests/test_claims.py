@@ -57,7 +57,7 @@ class TestClaimsShape(unittest.TestCase):
                 self.assertIn(field, c, f"claim {c.get('path')!r} missing {field}")
             self.assertIn(c["kind"], ("file", "dir"), c["path"])
             self.assertIn(c["anchor"], ("state", "project"), c["path"])
-            self.assertIn(c["owner"], ("perry", "okr", "pmo", "design", "user"), c["path"])
+            self.assertIn(c["owner"], ("perry", "goals", "work", "decide", "user"), c["path"])
             if c["kind"] == "dir":
                 self.assertTrue(c["path"].endswith("/"),
                                 f"{c['path']}: dir claims end in / so prefix matching is unambiguous")
@@ -133,12 +133,12 @@ class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):
 
         Catches a new directory added to a skill without a matching claim."""
         # Only the FIRST cell of a row is a project path. Later cells name
-        # Perry's own tree (`pmo/state/…_TEMPLATE.md`, `reference/…`), which is
+        # Perry's own tree (`work/state/…_TEMPLATE.md`, `reference/…`), which is
         # source, not territory claimed in someone else's project.
         first_cell = re.compile(r"^\s*\|([^|]+)\|")
         pattern = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*/)[^`]*`")
         misses = []
-        for skill in ("pmo/SKILL.md", "okr/SKILL.md", "design/SKILL.md"):
+        for skill in ("work/SKILL.md", "goals/SKILL.md", "decide/SKILL.md"):
             text = (PERRY_HOME / skill).read_text()
             section = re.search(r"## State files(.*?)(?:\n## |\Z)", text, re.S)
             if not section:
