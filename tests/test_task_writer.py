@@ -178,6 +178,39 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         self.assertEqual(p.board(), before)
         self.assertEqual(p.events(), [])
 
+    def test_concurrent_writes_do_not_lose_rows(self):
+        """`BOARD.md` is read at `Board.__init__` and written at `commit()`.
+        Between those, another process can read the same board — and the second
+        rename discards the first process's row.
+
+        Measured before the fix, not theorized: five concurrent `add` calls
+        left **two** rows, with `TASK-001` and `TASK-002` each issued twice.
+        The event log took all five, because it is opened `O_APPEND`: the
+        append-only file survived precisely the race the read-modify-write
+        document lost.
+
+        `autopilot` dispatches concurrently by design, so this is a live path.
+
+        The lock has to wrap the read too. One around `commit()` alone would
+        still let both processes mint the same id from the same stale board —
+        which is why this asserts on unique ids and not only on row count.
+        """
+        p = Project()
+        n = 8
+        procs = [subprocess.Popen(
+            ["python3", str(TOOL), "add", "--title", f"concurrent {i}",
+             "--priority", "P0", "--root", str(p.root), "--json"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for i in range(n)]
+        for proc in procs:
+            proc.wait()
+
+        rows = [l for l in p.board().split("\n") if l.startswith("| TASK-")]
+        ids = re.findall(r"TASK-\d+", p.board())
+        self.assertEqual(len(rows), n, f"{n - len(rows)} row(s) were lost")
+        self.assertEqual(len(set(ids)), n, f"an id was issued twice: {ids}")
+        self.assertEqual(len(p.events()), n)
+
     def test_the_event_may_be_lost_but_never_the_row(self):
         """Reaches `commit()` and makes the event append fail, which is the
         only path where the ordering matters.

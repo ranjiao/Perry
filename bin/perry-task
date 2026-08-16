@@ -76,11 +76,14 @@ No LLM, no external dependencies (stdlib only). DESIGN-004.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import re
 import sys
 import tempfile
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -1156,6 +1159,60 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "status": cmd_status, "list": cmd_list}
 
 
+@contextlib.contextmanager
+def project_lock(state_root: Path, timeout: float = 10.0):
+    """Serialize the whole read-modify-write, not just the write.
+
+    `BOARD.md` is read when `Board` is constructed and written in `commit()`.
+    Between those two points another process can do the same thing, and the
+    second rename then discards the first process's row entirely. Measured, not
+    theorized: five concurrent `add` calls left **two** rows on the board, with
+    `TASK-001` and `TASK-002` each issued twice. The event log took all five,
+    because it is opened `O_APPEND` — the append-only file survived exactly the
+    race the read-modify-write document lost.
+
+    `autopilot` dispatches concurrently by design, so this path is live rather
+    than hypothetical.
+
+    The lock must wrap the read as well as the write, which is why it is taken
+    here and not inside `commit()`: a lock around the write alone would still
+    let both processes mint the same id from the same stale board.
+
+    **It lives beside `BOARD.md`, not in `.perry/`, because that is what it
+    protects.** Put in `.perry/`, an unwritable `.perry/` made the lock
+    uncreatable and refused the whole call — even though `BOARD.md` and the
+    journal were both perfectly writable, and the design's entire claim is that
+    `.perry/` is derived and must never be able to make Perry wrong. It is also
+    not flock on `BOARD.md` itself: `commit()` renames a temp file over it, so
+    every writer after the first would hold a lock on a replaced inode and
+    exclusion would quietly stop working.
+
+    A dedicated file that is never renamed is the one shape that survives both.
+    """
+    lock_path = state_root / ".board.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "w")
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise Refused(
+                        f"another perry-task is holding {lock_path} and did not "
+                        f"release it within {timeout:.0f}s. Nothing was written; "
+                        f"retry, or remove the file if no other process is live")
+                time.sleep(0.05)
+        yield
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            fh.close()
+
+
 def main(argv: list[str]) -> int:
     args = parse(argv)
     if args.cmd not in COMMANDS:
@@ -1179,11 +1236,12 @@ def main(argv: list[str]) -> int:
             ps = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(ps)
             config = {"tracks": ps.parse_tracks(cfg_path.read_text())}
-        ctx = {"schema": schema, "project_root": project_root,
-               "state_root": state_root, "config": config,
-               "board": Board(state_root / "BOARD.md"),
-               "events": read_events(project_root)}
-        result = COMMANDS[args.cmd](args, ctx)
+        with project_lock(state_root):
+            ctx = {"schema": schema, "project_root": project_root,
+                   "state_root": state_root, "config": config,
+                   "board": Board(state_root / "BOARD.md"),
+                   "events": read_events(project_root)}
+            result = COMMANDS[args.cmd](args, ctx)
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))

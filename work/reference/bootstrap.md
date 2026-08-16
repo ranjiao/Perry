@@ -36,7 +36,7 @@ If the user declines, stop. If the user accepts, follow this procedure.
 
    **Exception**: if `.perry/hook.md` declares an `## Architecture profile` or `## Operational profile` block, those drive eager creation. See `$PERRY_HOME/packs/software-ops/architecture.md` and `$PERRY_HOME/packs/software-ops/runbooks.md`.
 
-4. **Check `.gitignore`** — add any entries the project hook declares. Perry itself writes nothing that needs ignoring; the consumption layer (aiMark, or `bin/perry-viewer`) reads the tracked files directly and generates nothing into the project.
+4. **Check `.gitignore`** — add any entries the project hook declares, plus `.board.lock`, which is the one thing Perry writes that should not be tracked: `perry-task`'s write lock, kept beside `BOARD.md` because that is the file it protects, and pure runtime state with nothing to record. Everything else Perry writes is meant to be committed; the consumption layer (aiMark, or `bin/perry-viewer`) reads the tracked files directly and generates nothing into the project.
 
 5. **Populate detected fields** (project name, today's date, ISO week, current YYYY-MM) into the new files. Templates use `{{placeholder}}` syntax — replace each.
 
