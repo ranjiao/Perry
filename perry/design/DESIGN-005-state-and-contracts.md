@@ -1,8 +1,8 @@
 # DESIGN-005: Three domains, three different levels of finished
 
-> Status: draft
-> Date: 2026-08-17
-> Author: Perry maintainer   · Implementation owner: TBD
+> Status: locked
+> Date: 2026-08-17 · Locked: 2026-08-17
+> Author: Perry maintainer   · Implementation owner: Coding Agent (Perry repo)
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
 > Supersedes: —   · Superseded by: —
 > Requested scope: goal + decision + task, storage **and** interface, in one
@@ -266,7 +266,12 @@ that lets aimark start now, against step 0's contract, in parallel with all four
 
 ## 9. Changes (append-only after lock)
 
-—
+- **2026-08-17 · locked.** All six User Decisions resolved the same day; §4
+  records what was chosen and §4.1 what each answer settles. `Implementation
+  owner` was filled at lock time as `Coding Agent (Perry repo)` — decided by the
+  agent rather than asked, because §3 already declares aiMark's internals a
+  Non-Goal, so every step in §6 is Perry-repo work and there was no second
+  candidate. Revisit if a step is handed to someone outside this repo.
 
 ## 10. References
 
