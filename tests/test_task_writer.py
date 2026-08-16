@@ -567,3 +567,136 @@ class TestDriftReconciliation(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         code, _ = p.run("add", "--title", "still works")
         self.assertEqual(code, 0, "drift blocked a write")
+
+
+class TestModeAwareWrites(unittest.TestCase):
+    """`stage`, `intake`, `route` — the operations DESIGN-003's modes describe
+    and nothing could perform.
+
+    Each closes a specific review finding that survived because the rule lived
+    in prose: the stage clock nothing wound (round 3, N1), the arrival date the
+    routing procedure dropped (round 4, B2), and the `## Intake` section nothing
+    created (round 4, F2).
+    """
+
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| core | project | phase/ | — | — | — | — | V3 |\n"
+              "| blog | pipeline | commitments | brief->draft->review->published | review:2 | 5d | 2026-W34 | V5 |\n"
+              "| ops | queue | commitments | new->triaged->in_progress->resolved | — | 5d | monthly | V2 |\n"
+              "| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n")
+
+    def cells(self, p: "Project", tid: str) -> dict:
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        row = next(l for l in board.split("\n") if l.startswith(f"| {tid} |"))
+        return dict(zip([PT.norm(h) for h in PT.split_row(header)], PT.split_row(row)))
+
+    def test_a_stage_move_restamps_the_clock(self):
+        """Status and Stage are orthogonal, so a draft→review move produces no
+        status change and would otherwise leave no trace at all.
+
+        The clock is aged first, deliberately. Asserting `stage since` is merely
+        non-empty passes whether or not the move updates it — `add` already set
+        it — so that assertion cannot fail on the bug it names. A mutation run
+        proved exactly that: deleting the restamp left this test green. Aging
+        the cell to a past date is what makes the check able to fail.
+        """
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        self.assertEqual(self.cells(p, a["id"])["stage"], "brief")
+
+        board = p.root / "BOARD.md"
+        board.write_text(board.read_text().replace(
+            self.cells(p, a["id"])["stage since"], "2020-01-01"))
+        self.assertEqual(self.cells(p, a["id"])["stage since"], "2020-01-01")
+
+        code, _ = p.run("stage", a["id"], "--stage", "draft")
+        self.assertEqual(code, 0)
+        c = self.cells(p, a["id"])
+        self.assertEqual(c["stage"], "draft")
+        self.assertNotEqual(
+            c["stage since"], "2020-01-01",
+            "the stage moved and the clock did not — dwell time now reads "
+            "from whenever the row was created, which is the defect the "
+            "column was added to fix")
+
+    def test_a_stage_outside_the_tracks_vocabulary_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        code, out = p.run("stage", a["id"], "--stage", "shipped")
+        self.assertEqual(code, 1)
+        self.assertIn("vocabulary", str(out))
+
+    def test_moving_to_the_same_stage_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        code, _ = p.run("stage", a["id"], "--stage", "brief")
+        self.assertEqual(code, 1, "a no-op move would restamp the clock for nothing")
+
+    def test_intake_creates_the_section_that_nothing_created(self):
+        """`triage` step 0 gated itself on 'only applies when the section
+        exists', so for every queue track ever made it no-opped forever."""
+        p = Project(tracks=self.TRACKS)
+        self.assertNotIn("## Intake", p.board())
+        code, _ = p.run("intake", "--title", "reconcile vendor spend")
+        self.assertEqual(code, 0)
+        self.assertIn("## Intake", p.board())
+        self.assertIn("| Arrived | Request | Outcome |", p.board())
+
+    def test_intake_sits_above_the_work_it_becomes(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        board = p.board()
+        self.assertLess(board.index("## Intake"), board.index("## P0"))
+
+    def test_routing_carries_the_arrival_date(self):
+        """B2: the procedure that actually routed a row dropped the date its
+        own SLA check measures, silently exempting it from the only clock
+        governing it."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "vendor spend", "--arrived", "2026-08-14")
+        code, out = p.run("route", "1", "--track", "ops", "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        c = self.cells(p, out["id"])
+        self.assertEqual(c["arrived"], "2026-08-14",
+                         "the arrival date was replaced with today, or lost")
+        self.assertEqual(c["track"], "ops")
+
+    def test_routing_records_where_the_intake_row_went(self):
+        """A request whose outcome is not written down is one that gets
+        re-asked."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "vendor spend")
+        _, out = p.run("route", "1", "--track", "ops")
+        intake_row = next(l for l in p.board().split("\n")
+                          if "vendor spend" in l and not l.startswith("| TASK-"))
+        self.assertIn(out["id"], intake_row)
+
+    def test_routing_into_a_project_track_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "x")
+        code, out = p.run("route", "1", "--track", "core")
+        self.assertEqual(code, 1)
+        self.assertIn("queue-mode", str(out))
+
+    def test_routing_a_row_that_does_not_exist_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "x")
+        code, _ = p.run("route", "7", "--track", "ops")
+        self.assertEqual(code, 1)
+
+    def test_the_generated_board_still_lints(self):
+        """Everything the tool writes must satisfy the schema it renders from —
+        otherwise it is producing files Perry's own reader rejects."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "x", "--arrived", "2026-08-14")
+        p.run("route", "1", "--track", "ops", "--priority", "P0")
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        p.run("stage", a["id"], "--stage", "draft")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-lint"),
+             "--root", str(p.root)], capture_output=True, text=True)
+        self.assertNotIn("error", r.stdout.split("\n")[-2].lower().replace("0 error", ""),
+                         f"the tool wrote a board its own linter rejects:\n{r.stdout}")

@@ -32,6 +32,9 @@ Usage:
   perry-task add   --title "…" [--track T] [--owner O] [--priority P0|P1|P2]
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
   perry-task start <ID> [--next "…"]
+  perry-task stage <ID> --stage <name>
+  perry-task intake --title "…" [--arrived YYYY-MM-DD]
+  perry-task route <n> --track T [--priority P1] [--stage S]
   perry-task done  <ID> --evidence <path> [--rung V0..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -223,6 +226,62 @@ class Board:
                 continue
             self.lines[i] = render_row(cells + [""] * len(missing))
         return header
+
+    def ensure_section(self, heading: str, columns: list[str]) -> None:
+        """Create `## <heading>` with its table if the board lacks it.
+
+        `## Intake` is the organ queue mode is built on and the first thing
+        `triage` walks. Nothing created it before DESIGN-004, so step 0 gated
+        itself on "only applies when the section exists" and no-opped forever
+        for every queue track ever made.
+
+        Inserted before `## P0` so intake reads above the work it becomes,
+        which is the order `modes/queue.md` describes it in.
+        """
+        if any(re.match(rf"^##\s+{re.escape(heading)}\b", l) for l in self.lines):
+            return
+        anchor = next((i for i, l in enumerate(self.lines)
+                       if PRIORITY_RE["P0"].match(l)), len(self.lines))
+        block = [f"## {heading}", "", render_row(columns),
+                 "|" + "|".join(["---"] * len(columns)) + "|", ""]
+        self.lines[anchor:anchor] = block
+
+    def section_table(self, heading: str) -> tuple[int, list[str]]:
+        """(separator index, header cells) for a named non-priority section."""
+        start = next((i for i, l in enumerate(self.lines)
+                      if re.match(rf"^##\s+{re.escape(heading)}\b", l)), None)
+        if start is None:
+            raise Refused(f"BOARD.md has no `## {heading}` section")
+        for i in range(start, len(self.lines)):
+            if self.lines[i].startswith("## ") and i > start:
+                break
+            if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > start:
+                return i, split_row(self.lines[i - 1])
+        raise Refused(f"`## {heading}` has no table")
+
+    def section_rows(self, heading: str) -> list[tuple[int, list[str]]]:
+        sep, _ = self.section_table(heading)
+        out = []
+        for i in range(sep + 1, len(self.lines)):
+            s = self.lines[i].strip()
+            if s.startswith("## "):
+                break
+            if not s.startswith("|"):
+                if s:
+                    break
+                continue
+            cells = split_row(self.lines[i])
+            if cells and cells[0]:
+                out.append((i, cells))
+        return out
+
+    def append_section_row(self, heading: str, values: dict) -> str:
+        sep, header = self.section_table(heading)
+        rows = self.section_rows(heading)
+        at = (rows[-1][0] if rows else sep) + 1
+        line = render_row([values.get(norm(h), "") for h in header])
+        self.lines.insert(at, line)
+        return line
 
     def append_row(self, priority: str, values: dict) -> str:
         _, _, header = self.table(priority)
@@ -509,6 +568,118 @@ def cmd_done(args, ctx) -> dict:
     return {"id": tid, "rung": rung, "removed": line, **plan}
 
 
+def cmd_stage(args, ctx) -> dict:
+    """Move an item to a new stage and re-stamp its clock in the same write.
+
+    Unconditional. `Stage` and `Status` are orthogonal by design, so a
+    `draft → review` move produces no status change and would otherwise leave
+    no trace anywhere — which is exactly how the dwell-time rule survived three
+    review rounds as prose that nothing could compute.
+    """
+    tid, stage = args.id, args.stage
+    if not stage:
+        raise Refused("a stage is required: perry-task stage <ID> --stage <name>")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    track = track_of(ctx["config"], values.get("track", "main"))
+    stages = (split_stages(track.get("stages", ""))
+              or default_stages(ctx["schema"], track["mode"]))
+    if stages and stage not in stages:
+        raise Refused(f"stage {stage!r} is not in track {track['track']!r}'s "
+                      f"vocabulary {stages}")
+    prev = values.get("stage", "")
+    if prev == stage:
+        raise Refused(f"{tid} is already at stage {stage!r}")
+    values["stage"] = stage
+    values["stage since"] = f"{date.today():%Y-%m-%d}"
+    line = ctx["board"].replace_row(idx, header, values) if not args.dry_run else ""
+    jline = f"- [{tid}] stage {prev or '—'} → {stage}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "stage",
+             "id": tid, "title": values.get("title", ""),
+             "track": track["track"], "actor": args.actor,
+             "from": prev, "to": stage}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "stage": stage, "row": line, **plan}
+
+
+def cmd_intake(args, ctx) -> dict:
+    """Record an unrouted external request, creating `## Intake` if absent."""
+    if not args.title:
+        raise Refused("--title is the request text")
+    arrived = args.arrived or f"{date.today():%Y-%m-%d}"
+    if not args.dry_run:
+        ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
+        line = ctx["board"].append_section_row(
+            "Intake", {"arrived": arrived, "request": args.title, "outcome": "—"})
+    else:
+        line = render_row([arrived, args.title, "—"])
+    jline = f"- [intake] arrived {arrived} · {args.title}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "intake",
+             "id": "", "title": args.title, "arrived": arrived,
+             "actor": args.actor, "from": None, "to": "intake"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"arrived": arrived, "row": line, **plan}
+
+
+def cmd_route(args, ctx) -> dict:
+    """Move an intake row onto the board, carrying `Arrived` with it.
+
+    Not bookkeeping: `today − Arrived` is the number every SLA check measures,
+    so a routing that drops it makes queue mode's own breach check uncomputable
+    and silently exempts the row from the only clock governing it.
+    """
+    rows = ctx["board"].section_rows("Intake")
+    if not rows:
+        raise Refused("`## Intake` has no rows to route")
+    try:
+        n = int(args.id or "0")
+    except ValueError:
+        raise Refused("route takes the intake row number: perry-task route 1 --track ops")
+    if not 1 <= n <= len(rows):
+        raise Refused(f"intake row {n} does not exist (there are {len(rows)})")
+    idx, cells = rows[n - 1]
+    sep, header = ctx["board"].section_table("Intake")
+    keys = [norm(h) for h in header]
+    intake = dict(zip(keys, cells))
+
+    track = track_of(ctx["config"], args.track or "main")
+    if track["mode"] == "project":
+        raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
+                      f"queue-mode operation (`modes/queue.md`)")
+    tid = mint_id(ctx["board"], ctx["events"])
+    priority = args.priority or "P1"
+    stages = (split_stages(track.get("stages", ""))
+              or default_stages(ctx["schema"], track["mode"]))
+    stage = args.stage or (stages[1] if len(stages) > 1 else (stages[0] if stages else ""))
+
+    if not args.dry_run:
+        ctx["board"].ensure_columns(priority, mode_columns(ctx["schema"], track["mode"]))
+    values = {"id": tid, "title": intake.get("request", ""),
+              "owner": args.owner or "Coding Agent", "status": "not_started",
+              "next action": "—", "evidence": "—",
+              "track": track["track"], "stage": stage,
+              "arrived": intake.get("arrived", ""),
+              "commitment": args.commitment or ""}
+    if args.dry_run:
+        line = render_row(list(values.values()))
+    else:
+        line = ctx["board"].append_row(priority, values)
+        # The intake row keeps its record; `Outcome` says where it went.
+        ctx["board"].lines[idx] = render_row(
+            [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
+    jline = (f"- [{tid}] — → not_started · routed from intake "
+             f"(arrived {values['arrived']}) · track: {track['track']}")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "route",
+             "id": tid, "title": values["title"], "track": track["track"],
+             "arrived": values["arrived"], "actor": args.actor,
+             "from": "intake", "to": "not_started"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "arrived": values["arrived"], "row": line, **plan}
+
+
 def cmd_list(args, ctx) -> dict:
     """The full task set, from one call.
 
@@ -594,12 +765,14 @@ def parse(argv: list[str]) -> Args:
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
     a.actor = "agent"
+    a.arrived = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
              "--commitment": "commitment", "--stage": "stage",
              "--evidence": "evidence", "--rung": "rung", "--root": "root",
+             "--arrived": "arrived",
              "--actor": "actor"}
     while i < len(argv):
         t = argv[i]
@@ -628,8 +801,10 @@ def parse(argv: list[str]) -> Args:
 
 def main(argv: list[str]) -> int:
     args = parse(argv)
-    if args.cmd not in ("add", "start", "done", "list"):
-        print("perry-task: expected one of add / start / done / list "
+    if args.cmd not in ("add", "start", "stage", "done", "drop",
+                        "intake", "route", "list"):
+        print("perry-task: expected one of add / start / stage / done / "
+              "intake / route / list "
               "(try --help)", file=sys.stderr)
         return 2
     try:
@@ -653,8 +828,9 @@ def main(argv: list[str]) -> int:
                "state_root": state_root, "config": config,
                "board": Board(state_root / "BOARD.md"),
                "events": read_events(project_root)}
-        result = {"add": cmd_add, "start": cmd_start,
-                  "done": cmd_done, "list": cmd_list}[args.cmd](args, ctx)
+        result = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
+                  "done": cmd_done, "intake": cmd_intake, "route": cmd_route,
+                  "list": cmd_list}[args.cmd](args, ctx)
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
