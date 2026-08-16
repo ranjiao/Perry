@@ -4,403 +4,281 @@
 
 **[中文文档 →](README_cn.md)**
 
-A single skill for **Claude Code** and **Codex CLI** that captures the "virtual PMO + OKR + RFC steward" workflow so you don't have to re-instruct it every session. **One command: `/perry`.** Goals, execution and design docs are lanes inside it, reached as `/perry okr …`, `/perry pmo …`, `/perry design …` — Perry deliberately does not claim `/okr` or `/design` in your skill namespace, because those are common words other tools use too.
+Perry is a skill for **Claude Code** and **Codex CLI** that keeps track of your project for you: what you're trying to achieve, what's being worked on right now, what's blocking you, and what was decided and why.
 
-## 🚀 One-paste install
+You talk to it with **one command: `/perry`**.
 
-`setup` auto-detects which agent host(s) you have (`claude` and/or `codex` in PATH) and installs Perry for whichever it finds. No flag needed if you only use one of them.
+It keeps everything in plain markdown files inside your project folder, so you can read them, edit them, and commit them like any other file. Nothing is hidden in a database.
 
-### Paste into a fresh Claude Code or Codex CLI session
+---
+
+## What it does for you
+
+| You want to… | Perry gives you |
+|---|---|
+| Know where the project stands | A one-screen snapshot every time you type `/perry` |
+| Set goals and actually track them | An OKR file, plus a "current phase" with its own goals |
+| Run a task list without a tracker | A board of open tasks with owners, priorities and blockers |
+| Stop losing context between sessions | A daily journal and a handoff note you can start tomorrow from |
+| Remember why you chose something | A decision log (one file per decision) |
+| Think a feature through before building | A design doc / RFC with the open questions listed for you to answer |
+| Hand work to an AI agent | Written task specs and one-command dispatch to another agent session |
+| Digest a PDF, spreadsheet or long doc | A short structured summary Perry can cite later instead of re-reading it |
+
+Perry is built for **one person or a small team**. It gives you structure without meetings, tickets, or process for its own sake.
+
+---
+
+## Install
+
+`setup` finds whichever agent you have (`claude` and/or `codex`) and installs Perry for it.
+
+Paste this into a fresh Claude Code or Codex CLI session:
 
 ```
 Install the Perry skill set from https://github.com/ranjiao/Perry.
 
 Steps:
 1. Run: mkdir -p ~/proj && git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup --yes-deps
-2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, surface those to me as TODOs — those need my consent (GUI / sudo).
-3. Confirm /perry is available (it is the only command — okr, pmo and design are lanes inside it).
+2. Read setup's output. If it lists "Skipped installs" or asks for Xcode CLT / Homebrew, tell me — those need my permission.
+3. Confirm /perry is available.
 ```
 
-The agent's Bash tool isn't a TTY, so `setup` automatically switches to **auto-skip mode** — runs the dep check, surfaces what's missing, but won't block on Y/N prompts or sudo passwords. Adding `--yes-deps` opts into auto-installing what's installable non-interactively. Items that need GUI (Xcode CLT) or sudo (Homebrew) are listed as TODOs at the end for the user to handle.
+Or install it yourself:
 
-> **Where to clone**: `~/proj/Perry` in the example above is just a suggested default. Perry works from any location (e.g. `~/.claude/perry`, `~/code/perry`, `/opt/perry`) — the `setup` script resolves its own location via `$(dirname "$0")` and writes the host-side symlinks regardless. Replace the path in step 1 with whatever you prefer; all later commands in this README work the same way as long as you substitute consistently.
+```bash
+git clone https://github.com/ranjiao/Perry.git ~/proj/Perry && ~/proj/Perry/setup
+```
 
-> Already have Perry installed? Update with:
-> `cd <where-you-cloned-Perry> && git pull`
+`~/proj/Perry` is only a suggestion — any folder works.
 
-### Host selection
+**Options:** `setup --claude` or `setup --codex` to force one host, `setup --claude --codex` for both.
 
-The table below uses `~/proj/Perry/setup` as the canonical example — **substitute your clone path** if you put Perry somewhere else.
+**Update:** `cd ~/proj/Perry && git pull` (Perry also reminds you about once a week).
 
-| Command | What gets installed |
+Details, dependencies and Codex differences: **[INSTALL.md](INSTALL.md)**.
+
+---
+
+## Getting started
+
+### Starting a new project
+
+Type `/perry` in your project folder. It will ask two quick questions (what language to write in, and how your repo is laid out), then walk you through:
+
+```
+/perry okr init              # a short interview → your goals
+/perry okr plan-phase <name> # goals for the current stretch of work
+/perry pmo                   # sets up the task board
+/perry okr plan-week         # proposes 3–5 tasks for this week; you approve
+```
+
+That's roughly 15 minutes and you're set up.
+
+### You already have a project
+
+Don't start from a blank page — Perry can read what's already there:
+
+```
+/perry adopt
+```
+
+It reads your README, roadmap, git history, existing design notes, TODOs and issues, then **proposes** goals, tasks and decisions. Nothing is written until you say yes.
+
+### Not sure Perry is even what you need
+
+```
+/perry diagnose
+```
+
+This looks at how your project is set up for working with AI agents and tells you what's actually wrong — sessions stepping on each other, too many stale markdown files, no way to tell what's done. It works on **any** folder, and "your setup is fine, change nothing" is a perfectly normal answer. It never installs Perry without asking.
+
+---
+
+## Everyday use
+
+Just type `/perry` to see where things stand. From there:
+
+| I want to… | Type |
 |---|---|
-| `<perry-clone>/setup` | Auto-detect: install for whichever of `claude` / `codex` is in PATH. Both → both. Neither → fail with options. |
-| `<perry-clone>/setup --claude` | Force install for Claude Code only (`~/.claude/skills/`). |
-| `<perry-clone>/setup --codex` | Force install for Codex CLI only (`~/.agents/skills/`). |
-| `<perry-clone>/setup --claude --codex` | Install for both regardless of detection. |
+| See the whole picture | `/perry` |
+| See what's available | `/perry help` |
+| Plan this week | `/perry okr plan-week` |
+| Add a task | `/perry pmo add-task` |
+| Check what's stuck | `/perry pmo triage` |
+| Mark something done | `/perry pmo close-task <id>` |
+| Give a task to an AI agent | `/perry pmo dispatch <id>` |
+| Write down a decision | `/perry pmo decide <topic>` |
+| Write this week's status | `/perry pmo friday-review` |
+| Save context before you stop | `/perry pmo handoff` |
+| Start a design doc | `/perry design new <name>` |
+| Open a live view in your browser | `/perry pmo viewer` |
 
-See **[INSTALL.md](INSTALL.md)** for the agent-driven install flow, the fresh-Mac dependency matrix (Xcode CLT / Homebrew / Node / etc.), and per-host fallbacks for Codex (free-text prompts replace `AskUserQuestion`, async dispatch uses shell `&`, etc.).
+You can drop the lane name when it's unambiguous — `/perry plan-week` and `/perry okr plan-week` are the same thing.
 
-## What Perry does
+---
 
-Perry pairs **goal-setting** with **execution stewardship** and **design-doc stewardship** so a solo or small project gets the structure it needs without the bureaucracy that usually comes with it. Three lanes, one mental model, one command:
+## The three lanes
 
-| Lane | Role | Owns | Reads from peer |
-|-------|------|------|------------------|
-| **`okr`** | The "why" — goal-setting partner | `OKR.md` (versioned, with Operating Principles + Anti-Goals), `phase/<NNN>-<slug>.md` (current phase OKR — NOT calendar-bound; Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing), `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` (auto + manual snapshots) | `BOARD.md`, `evidence/<YYYY-MM>/retro.md` |
-| **`pmo`** | The "how" — execution steward | `BOARD.md` (live working memory, ≤200 lines), `journal/<YYYY-MM>/<YYYY-MM-DD>.md` (daily history, append-only), `PROJECT_STATE.md`, `DECISIONS.md` (index) + `decisions/ADR-NNN-<slug>.md` (per-decision ADR files), `evidence/<YYYY-MM>/`, `weekly/<YYYY-WW>.md`, `handoff/<YYYY-MM-DD>.md`, `inputs/` + `knowledge/<topic>/` (external-doc digests) | `OKR.md`, `phase/<NNN>-<slug>.md` |
-| **`design`** | The "decided" — RFC steward | `design/<DESIGN-ID>-<slug>.md` (Problem, Goals, Non-Goals, User Decisions, Architecture, Implementation plan, Risks, Changes) | `OKR.md`, `phase/<NNN>-<slug>.md`, `BOARD.md` |
+Everything lives under `/perry`. Inside it there are three areas, so Perry knows which kind of work you mean.
 
-All three lanes run a mandatory snapshot/standup the moment they're entered, so you always start from the actual state of your files instead of vibes.
+### `okr` — goals
 
-**Why one command and not four.** The lanes used to install as sibling skills (`/okr`, `/pmo`, `/design`). They no longer do. The host's skill namespace is shared across every tool you have installed, and `design` collides with `design-review`, `design-consultation`, `design-html`, `design-shotgun` and a whole `design:` plugin family, while `okr` collides with `lark-okr`. Taking a common English word in a namespace you don't own is the same mistake as writing into a project's existing `design/` directory — and in practice people typed `/perry` and let it route anyway. `setup` removes the old sibling links when you upgrade.
+Two levels. **Overall goals** (`OKR.md`) are your mission and 1–3 objectives; they change rarely, and old versions stay in the file so you can see how your thinking moved. **The current phase** (`phase/002-release-pipeline.md`) is what you're doing right now.
 
-## How they cooperate
+A phase is **not a month**. It ends when its key results are hit — that might be 3 days or 8 weeks. No calendar theater, no month-end retro for work that finished on day 5.
+
+| Command | Does |
+|---|---|
+| `init` | Interview → your overall goals |
+| `plan-phase <name>` | Start a new phase |
+| `plan-week` | Propose this week's tasks |
+| `snapshot` | Save the current phase state without ending it |
+| `score-phase` | Close the phase and score each key result |
+| `revise` / `pivot` | Change the goals (deliberately a bit of work, so pivots are visible) |
+| `dashboard` | Detail per objective |
+
+### `pmo` — getting things done
+
+The task board, the daily journal, decisions, status reports and handoffs. This is where most of your day happens.
+
+| Command | Does |
+|---|---|
+| `triage` | Walk the board, flag anything stale or stuck |
+| `add-task` / `close-task` / `drop-task` | Task lifecycle |
+| `delegate <id>` | Write a prompt you paste into another agent session |
+| `dispatch <id>` | Send the task to an agent and collect the result automatically |
+| `autopilot` | Dispatch everything that's safe to dispatch while you're away |
+| `digest <file>` | Turn a PDF / spreadsheet / long doc into a short summary Perry can reuse |
+| `decide <topic>` | Record a decision (with context, options and consequences) |
+| `monday-plan` / `midweek-check` / `friday-review` | Weekly rhythm |
+| `mid-phase-review` / `end-phase-retro` | Phase checkpoints |
+| `handoff` | Write a note so tomorrow's session starts informed |
+| `risk` / `nudge` | Review risks; chase things waiting on you |
+| `incident <name>` | Record what broke in production and what you changed |
+| `viewer` | Open a live browser view of the project |
+
+### `design` — decide before you build
+
+For anything worth thinking through first: multi-part changes, hard-to-undo choices, or anything with several open questions only you can answer. Perry drafts the doc, lists the decisions you need to make, then walks you through them one at a time.
+
+| Command | Does |
+|---|---|
+| `new <name>` | Start a design doc |
+| `decide <id>` | Answer the open questions one by one |
+| `lock <id>` | Freeze it; Perry proposes the tasks to build it |
+| `revise` / `supersede` / `drop` | Change it later |
+| `status` | Where each doc stands |
+
+---
+
+## A few rules Perry actually enforces
+
+These exist because they're what stops a project quietly going wrong.
+
+- **"Done" needs proof.** You can't mark a task done without pointing at something real — a file, a commit, command output. "Looks good" and "the agent says it's finished" are rejected.
+- **Each file has one owner.** The goal files, the board and the design docs are written by different lanes and never by each other. This is what keeps things from being overwritten.
+- **Important files stay short.** The files *you* need to read — goals, phase, architecture — have size limits. When something would overflow, Perry moves the detail into a side file and leaves a summary. The point is that you can still read them in one sitting.
+- **Perry never makes up a number.** If it doesn't know, it prints `—` and asks you.
+- **IDs always come with names.** You'll see `REL-002 ("Flake detector")`, never a bare code you'd have to look up.
+
+---
+
+## What Perry writes into your project
+
+All plain markdown, all yours:
 
 ```
-  ┌────────────────────┐      ┌─────────────────────────┐      ┌─────────────────────────┐
-  │ OKR.md (versioned) │  ──▶ │ phase/<NNN>-<slug>.md   │  ──▶ │ Weekly task proposals   │
-  │  Mission           │      │  (current phase OKR)    │      │  tagged with KR ids,    │
-  │  Operating Princ.  │      │  Phase Focus            │      │  Owner, Priority, DoD   │
-  │  Anti-Goals        │      │  Operating Rules        │      └────────────┬────────────┘
-  │  1–3 O + KRs       │      │  Cost Ceiling           │                   │ user approval
-  └────────────────────┘      │  User Commitments       │                   ▼
-                               │  Degradation            │      ┌─────────────────────────┐
-                               │  Scope Reduction        │      │ PMO appends rows to     │
-                               │  Definition of Done     │      │ BOARD + writes journal  │
-                               │  Not Doing              │      │  · runs standup         │
-                               │  (NOT calendar-bound;   │      │  · triages weekly       │
-                               │   phase ends on KRs)    │      │  · delegates / dispatches│
-                               └─────────────────────────┘      │  · writes evidence/     │
-                                                                 │  · publishes weekly/    │
-                                                                 │  · writes handoff/      │
-                                                                 └─────────────────────────┘
+your-project/
+├── .perry/config.md        your settings (language, layout)
+├── OKR.md                  overall goals
+├── phase/                  the current stretch of work + saved snapshots
+├── BOARD.md                open tasks, right now
+├── journal/                what happened each day
+├── DECISIONS.md            index of decisions
+├── decisions/              one file per decision, with the reasoning
+├── design/                 design docs / RFCs
+├── evidence/               proof that tasks were finished
+├── weekly/                 weekly status reports
+├── handoff/                notes to your next session
+├── inputs/ + knowledge/    documents you gave Perry, and its summaries
+└── ...                     your actual project files
 ```
 
-**The hand-off rule (the most important contract):**
-- `okr` **writes** `OKR.md` and `phase/`. **Proposes** weekly tasks; never writes them.
-- `pmo` **writes** `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `DECISIONS.md`, `evidence/`, `weekly/`, `handoff/`. **Reads** OKR and design files for context.
-- `design` **writes** `design/<DESIGN-ID>-<slug>.md`. **Proposes** implementation tasks on lock; never writes them.
-- Each lane reads the others' files freely; no lane writes outside its own. This is a file-ownership contract, not a skill-registration one — it was unaffected by collapsing to a single command.
+A few more appear only if you use them: `ARCHITECTURE.md` (a system overview you own, that every dispatched agent must respect), `runbook/` (how to operate what you've deployed), `incidents/` (what went wrong in production).
 
-## OKR phases — why no monthly cycle
+**Everything is optional and created on demand.** Perry doesn't scaffold 20 folders on day one.
 
-Perry's OKR has two layers and zero calendar bondage:
+---
 
-1. **Overall OKR** (`OKR.md`) — versioned, no time bound. Mission, Operating Principles, 1–3 Objectives + KRs, Anti-Goals. Edited via `okr revise` (which appends a new `## v<N>` block; old versions stay readable for audit).
-2. **Current phase** (`phase/<NNN>-<slug>.md`) — the live tactical commitment. **NOT calendar-bound**. A phase ends when its KRs are largely hit, not when a date arrives.
+## Reading it comfortably
 
-```
-phase/
-├── CURRENT                                       ← one-line pointer: "002-release-pipeline"
-├── 001-system-build.md                           ← scored (closed)
-├── 002-release-pipeline.md                        ← active (current; pointed to by CURRENT)
-└── snapshots/
-    ├── 2026-05-01-001-system-build-final.md     ← terminal snapshot, written at score-phase
-    ├── 2026-05-13-002-release-pipeline.md        ← heartbeat snapshot (mid-phase)
-    └── 2026-05-27-002-release-pipeline.md        ← another heartbeat
-```
+Markdown is great to write and diff, less great to read once there's a lot of it. Two options:
 
-### Why phases instead of months
+- **[aiMark](https://github.com/ranjiao/aimark)** — point it at your project folder; it renders everything live and understands Perry's structure. Reloads the moment a file changes.
+- **`/perry pmo viewer`** — a zero-setup local page (Today / Board / OKR / Phase / Risks / Architecture). Read-only, runs on your machine, stops with Ctrl-C. First run installs itself; ignore it and you carry no extra dependencies.
 
-Agent-paced projects finish month-scoped KRs in week 1, then spend three weeks doing busy-work to fill the calendar. The "month" is a unit of human team cadence; it's not a unit of project state. Perry replaces the monthly OKR with a **phase OKR** so:
-
-- **KRs end the phase, not the calendar.** No "month-end retro" theater when the work was done on day 5.
-- **Phase length is project-driven**, typically 2–6 weeks. Some phases are 3 days; some are 8 weeks. Both are fine.
-- **Phase snapshots preserve history** (manual + heartbeat) without forcing a rigid review cycle.
-- **Numbering keeps order and search clean** — `001`, `002`, ... auto-assigned by `plan-phase`. The user-chosen slug describes what the phase was about (`system-build`, `release-pipeline`, `pre-production-hardening`).
-
-### What replaces calendar discipline
-
-Two soft prompts surface in OKR standup. Neither one enforces:
-
-- **KR-progress prompt** — when ≥80% of `commit` KRs are achieved → *"Ready to `/perry okr score-phase` and start the next?"*
-- **Heartbeat prompt** — when ≥`phase_heartbeat_days` (default 14, override in `.perry/config.md`) since the last snapshot → *"Run `/perry okr snapshot` to preserve current state."*
-
-The user can ignore either. The point isn't to enforce a cadence — it's to make sure no phase silently extends forever and no chunk of work goes unsnapshotted.
-
-### Phase lifecycle commands
-
-| Command | When | What it writes |
-|---|---|---|
-| `/perry okr plan-phase <slug>` | Start a new phase. Auto-assigns `#NNN = max + 1` | `phase/<NNN>-<slug>.md` (10 mandatory sections) + updates `phase/CURRENT` |
-| `/perry okr snapshot` | Heartbeat / pre-pivot / milestone preserve | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` (does NOT end the phase) |
-| `/perry okr score-phase` | Close current phase | Per-KR scoring → `phase/<NNN>-<slug>.md § Retro` + `evidence/<YYYY-MM>/retro.md` + auto-snapshot with `-final` suffix; clears `phase/CURRENT` |
-| `/perry pmo mid-phase-review` | Midpoint check (or any time the user wants) | `evidence/<YYYY-MM>/midphase-review-<NNN>-<slug>.md`; applies Phase Scope Reduction Rule if armed |
-| `/perry pmo end-phase-retro` | Phase wrap-up retro (often run right before `score-phase`) | `evidence/<YYYY-MM>/retro.md` (consumed by `okr score-phase`) |
-| `/perry pmo rollover` | After `score-phase`: clean BOARD carry-forwards | Hands off to OKR; user runs `plan-phase <next-slug>` |
-
-### Phase Scope Reduction Rule — two trigger types
-
-Inside the phase OKR, the `Phase Scope Reduction Rule` section declares **how the phase will auto-cut scope** if things slip. Pick one or both — whichever fires first cuts. **NO calendar-date triggers.**
-
-- **Phase-day trigger** — "If by phase day `N` (counting from the `plan-phase` write date) named USER-XXX are still open, Objective N collapses to its single Must-Have."
-- **KR-progress trigger** — "If at phase day `N`, commit KRs are <`X%` achieved, scope cuts to the named Must-Haves."
-
-### OKR cross-phase firewall
-
-`okr plan-phase` reads the latest `architecture/audit-history/<date>.md` and `ARCHITECTURE.md § Open questions` (if those files exist). It **refuses to write** the new phase OKR until every unresolved drift item is explicitly addressed — resolved as a KR, accepted by editing `ARCHITECTURE.md`, deferred with an ADR, or listed under `Not Doing` with rationale. The architecture doc is the lever; OKR `plan-phase` is the recurring forcing function that prevents silent drift accumulating across phases.
-
-### What stays calendar-bound (these are storage, not project state)
-
-A phase can span any number of journal months / evidence months / ISO weeks — they're orthogonal to phases:
-
-- `journal/<YYYY-MM>/<YYYY-MM-DD>.md` — daily diary; a phase day might be Mon May 5 in one journal entry and Fri Jun 13 in another
-- `evidence/<YYYY-MM>/<TASK-ID>-*.md` — month-bucketed for retrieval, not for scoping
-- `weekly/<YYYY-WW>.md` + `/perry okr plan-week` — week as task-batch granularity for tactical planning
-
-## File model — three tiers by audience
-
-Markdown is great for producing state (agent edits, git diff, LLM prompt injection); it's bad for consuming state past 100 lines. Perry resolves this by classifying every file by **who reads it** — and by not trying to be the reader.
-
-| Tier | Purpose | Format | Hard cap | Examples |
-|---|---|---|---|---|
-| **1 — User-read-and-edit** | Strategic; user MUST read in raw form | markdown | YES per file | `OKR.md` ≤200 · `ARCHITECTURE.md` ≤500 · `phase/<NNN>-<slug>.md` ≤300 · `runbook/<component>.md` ≤150 · `.perry/{config,hook}.md` |
-| **2 — Agent-internal state** | Live mutating state, agent reads/writes constantly | markdown | NO (existing soft caps stay) | `BOARD.md` · `journal/` · `evidence/` · `decisions/` · `incidents/` · `weekly/` · `handoff/` · `PROJECT_STATE.md` · `phase/snapshots/` · `phase/<NNN>-linkage.md` · `architecture/audit-history/` · `knowledge/` |
-| **3 — The consumption surface** | Reading state richly | (not Perry's output) | — | **aiMark** · `bin/perry-viewer` |
-
-**Tier 1 hard caps are non-negotiable.** When an OKR / PMO write would push a tier 1 file past its cap, the skill **refuses** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/...-appendix.md` or `architecture/sections/§<N>-<topic>.md`), leaving the main file as a §-section index + 1-paragraph summaries. The point is to preserve tier 1's "readable in one sitting" property.
-
-**Perry does not write tier 3.** It used to — `/perry pmo render` generated disposable HTML into `perry-views/` — and that is gone. Rendering is a frontend's job, and doing it from a language model was slow, expensive, and inconsistent between runs.
-
-- **[aiMark](https://github.com/ranjiao/aimark)** is the primary surface: point it at the project folder and it watches every file, renders markdown live, and understands Perry's structure (OKR → KR → task → agent) natively. It reloads the instant a skill writes a file.
-- **`bin/perry-viewer`** stays as the zero-setup local fallback — an opt-in, read-only, localhost Flask console (Today / Board / OKR / Phase / Risks / Atlas / Pulse / Architecture) that re-reads your markdown on every request. First run auto-installs its own venv; Ctrl-C stops it; no daemon. Ignore it entirely and you carry zero extra dependencies. See `viewer/README.md`.
-
-Perry's whole obligation to tier 3 is to write tier 1/2 **in the declared structure** so a reader can parse it without guessing. That structure is `schema/state-schema.json`, and `bin/perry-lint` is what enforces it — for Perry's own parsers and for any frontend reading the same files. See [schema/README.md](schema/README.md).
-
-The point: keep markdown as the **producer-friendly** source of truth (where it excels — diff, edit, inject), and let a real frontend be the **consumer-friendly** view layer (where it excels — tables, SVG, filtering, live reload). Don't fight markdown's weaknesses; route around them.
-
-## Key concepts
-
-**Status model (PMO):** `not_started · blocked · in_progress · review · done · dropped`. A task may not be marked `done` without an evidence file under `evidence/<YYYY-MM>/<TASK-ID>-*.md` or a citable artifact (commit hash, command output, dashboard route).
-
-**Owner model (PMO):** `User · PMO Agent · Coding Agent · Research Agent · Review Agent · User + Agent`. The set is explicit so the PMO can write proper delegation prompts to other Claude sessions; user-only decisions are first-class items in the User Input Queue.
-
-**Cadence (PMO):** Monday Planning → Midweek Check → Friday Review → Mid-Phase Review → End-Phase Retro. Each is a subcommand. Cadence work is tracked under `## Cadence` and does not consume P0 capacity.
-
-**Evidence-required (PMO):** Every `done` claim points to a real artifact. "Looks good", "Should work", and "Agent thinks it is done" are explicitly rejected.
-
-**Versioning (OKR):** `OKR.md` accumulates `## v1`, `## v2`, etc. with dates. `okr revise` appends a new version; old versions stay readable. Pivots are paid in friction, not silent edits.
-
-**Anti-Goals (OKR):** First-class commitments at both overall and phase cadence. Every retro checks if any were violated.
-
-**Cost Ceiling (OKR per phase or overall):** Numbers + soft fallback threshold + hard cap + wiring status (`wired in code` vs `doc-only`). Doc-only ceilings are flagged as open risks every snapshot until they're wired.
-
-**Handoff doc (PMO):** `handoff/<YYYY-MM-DD>.md` is the bridge between sessions. The first line of every PMO session after a handoff exists is: "Read `handoff/<latest>.md` and tell me your status." The handoff doc replaces having to scroll back through chat.
-
-**External-doc digests (PMO):** `inputs/` is the raw drop zone for PDFs / Excels / screenshots / pasted text the user hands PMO. `/perry pmo digest <path>` reads the source, drafts a structured summary (TL;DR + Key facts with citations + Open questions + What PMO must remember + Section map), verifies key facts with the user via `AskUserQuestion`, then moves both source and digest into `knowledge/<topic>/`. Subsequent specs / decisions / journal cite the digest by path instead of re-reading the source. Digests carry a `Status: active | eternal | archived | superseded` field; archive review runs automatically inside `mid-phase-review` and `end-phase-retro`. **Bounded scope** — design target is 5–30 active digests per project; this is human-style note-taking, not RAG. See `pmo/reference/digests.md` for the full spec.
-
-**Decisions split (PMO):** `DECISIONS.md` at the project root is **an index only** (≤200 lines): a table of all ADRs with ID / Title / Type / Date / Status + link to the per-decision file. The full reasoning lives in `decisions/ADR-NNN-<slug>.md` — one file per ADR with Context / Options / Chosen / Consequences / Evidence / Sunset criteria. `/perry pmo decide <topic>` creates new ADRs in the configured document language; `--supersede` / `--expire` / `--archive` manage the lifecycle (files never move on status change, only header flips). Standup reads index-only — per-decision content loaded on demand. Same scaling pattern as BOARD.md vs `journal/`. See `pmo/reference/decisions.md`.
-
-**Autopilot (PMO):** `/perry pmo autopilot` walks BOARD top-to-bottom and dispatches every safe-to-dispatch row until budget exhausts (default 10 dispatches / 2h / 3 failures). First run per project is forced dry-run + briefing. Hard safety rails: never auto-`done`, never modify specs, never override hook safety list, never auto-retry. Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. See `pmo/reference/autopilot.md`.
-
-**Anti-drift discipline — ARCHITECTURE.md / runbooks / incidents (PMO):** When agents write the code, the user loses both architectural grip and operational grip. Perry's countermeasures (all **optional, lazy-created** — they materialise on first use, not at bootstrap):
-
-- **`ARCHITECTURE.md` (the central one)** — a single, user-owned, agent-read-only document at project root. Fixed 8-section structure (Mission & scope / Components / Boundaries & dependencies / Data flow / Contracts / Non-negotiables / Open questions / Change log). Every dispatched agent gets the full document injected into its prompt and must produce an `ARCHITECTURE COMPLIANCE` attestation listing touched §-sections. Before `close-task` can flip to `done`, an **independent review agent** (separate Claude subagent or codex call) reads the same document plus the diff and adversarially rebuts the primary agent's attestation — `PASS` or `FAIL`. `close-task` refuses on `FAIL`. This is the guarantee mechanism: an architecture-touching task cannot close without the doc-vs-diff consistency check passing. The cost is one extra small LLM call per dispatch. See `pmo/reference/architecture.md`.
-- **`runbook/<component>.md`** — one file per deployed component, four mandatory sections (What it does / How to tell it's healthy / Common failures + canned ops / Escalation). Task specs declare `Deployed: yes | no`; `close-task` refuses to close a `Deployed: yes` task without a matching runbook. See `pmo/reference/runbooks.md`.
-- **`incidents/<YYYY-MM-DD>-<slug>.md`** — postmortem record per production failure. `/perry pmo incident close` enforces a 3-question gate (Knowledge / **Architecture** / Runbook): each question must produce a concrete artifact OR an explicit skip-with-reason. The "Architecture" question asks whether the incident reveals that `ARCHITECTURE.md` is wrong, missing, or out of date. See `pmo/reference/incidents.md`.
-- **`/perry pmo health-check`** — meta-runner that composes `architecture-audit` + `runbook-check` + digest stale + incident patterns into one report at `evidence/<YYYY-MM>/health-check-<date>.md`. Called inline by `mid-phase-review` and `end-phase-retro`. See `pmo/reference/health-check.md`.
-
-These four work together: `ARCHITECTURE.md` is the user-controlled spine; incidents reveal where the spine is wrong; runbooks keep the user able to operate without reading agent-written code; health-check is the periodic reality check. None of them is mandatory, but each is a contract Perry uses to keep an agent-built project under user control. The cross-phase firewall in `okr plan-phase` (see § OKR phases) is what forces unresolved drift to be addressed when the next phase opens.
+---
 
 ## Working in another language
 
-Perry is written in English; your project doesn't have to be. First-time setup
-writes two independent settings into `.perry/config.md`:
+Perry is written in English; your project doesn't have to be. At first-time setup it records two separate settings:
 
-| Setting | Governs | Default |
-|---|---|---|
-| `Document language` | Everything written to a file — OKR prose, board titles, journal entries, ADR reasoning, design docs, delegation prompts | English |
-| `Chat language` | Everything said in the conversation — the dashboard, TL;DRs, suggested actions, the option labels on every question | `follow user` (mirror whatever you type) |
+- **Document language** — what gets written into files: goals, task titles, journal entries, decisions, design docs.
+- **Chat language** — what Perry says to you in conversation. Defaults to mirroring whatever you type.
 
-They're separate because the common case wants them apart: an English-language
-open-source project you think about in Chinese, or an internal project whose
-docs are Chinese but whose status lines you're happy reading in English.
+They're separate on purpose: an English open-source project you think about in Chinese works fine, and so does the reverse.
 
-What never gets translated, in any language: IDs (`REL-002`, `KR-O1.2`), enum
-values (`in_progress`, `blocked`), file names and phase slugs, `P0`/`P1`/`P2`,
-dates, paths, and command names. So a Chinese board row still reads
-`| REL-002 | 抖动检测器 | Coding Agent | blocked | 等 USER-014 | evidence/… |` —
-prose and column headers localized, machine tokens untouched. Section headings
-and column headers resolve through a glossary declared once in
-`schema/state-schema.json § i18n`, which `bin/perry-lint`, `viewer/parsers.py`
-and any external frontend all read; **a Chinese project lints clean and
-produces the same dashboard payload as an English one**, and
-`tests/fixtures/sample-project-zh/` is the fixture that keeps it that way.
-
-A language with no glossary is still fully supported for prose — set
-`Document language: Français` and every title and narrative is French, with
-English headings. Teaching Perry to localize a new language's structure is a
-schema edit plus a fixture: see
-[reference/i18n.md](reference/i18n.md), which is also where the rules live for
-switching a project's language later (Perry does not retro-translate, and why).
-
-## Typical flow (first time, any project)
+Some things stay English in every language, so tools keep working: IDs (`REL-002`), status words (`in_progress`, `blocked`), file names, dates, paths and command names. So a Chinese board row reads:
 
 ```
-/perry okr        → init                              # interview: mission, Operating Principles,
-                                                 # 1–3 Objectives + KRs, Anti-Goals, version v1
-/perry okr        → plan-phase <slug>                 # full phase OKR; auto-assigns #NNN
-/perry okr        → plan-week                          # proposes 3–5 candidate tasks for this ISO week
-                                                 # user approves a subset
-
-/perry pmo        → (auto) writes BOARD rows + full task definitions to journal/<YYYY-MM>/<today>.md, runs standup
-... daily work ... /perry pmo close-task ... /perry pmo decide ... /perry pmo delegate <id> ...
-/perry pmo        → digest <inputs/...>                # whenever user drops external docs (PDF/Excel/notes)
-/perry pmo        → autopilot                          # batch-dispatch eligible specs while you're away
-/perry pmo        → friday-review                      # writes weekly/<YYYY-WW>.md
-/perry pmo        → handoff                            # writes handoff/<today>.md before stopping
-
-/perry okr        → snapshot                           # heartbeat snapshot (or auto-prompted after 14d)
-/perry pmo        → mid-phase-review                   # phase-midpoint; applies scope-reduction if armed
-/perry pmo        → end-phase-retro                    # when KRs largely hit; writes evidence/<YYYY-MM>/retro.md
-
-/perry okr        → score-phase                        # consumes the retro, fills phase file's Retro, snapshots
-/perry pmo        → rollover                           # cleans BOARD carry-forwards, hands off to OKR
-/perry okr        → plan-phase <next-slug>             # next phase begins (auto #NNN+1)
+| REL-002 | 抖动检测器 | Coding Agent | blocked | 等 USER-014 | evidence/… |
 ```
 
-## Project file layout (after all skills bootstrap)
+Any language works for prose. Details, and how to switch later: [reference/i18n.md](reference/i18n.md).
+
+---
+
+## A typical project, start to finish
 
 ```
-<project_root>/
-├── .perry/
-│   ├── config.md                       ← document + chat language, repo layout (single | split), state root
-│   └── hook.md                         ← project-specific additions (optional)
-│   ├── index.html                              ← navigator hub (auto-regenerated on every render)
-│   ├── 2026-05-15-dashboard.html
-│   ├── 2026-05-15-board.html
-│   └── 2026-05-13-architecture.html
-├── OKR.md                              ← okr (overall, versioned)
-├── phase/
-│   ├── CURRENT                          ← okr (one-line pointer: <NNN>-<slug> of current phase)
-│   ├── 001-system-build.md              ← okr (phase #001, scored)
-│   ├── 002-release-pipeline.md           ← okr (phase #002, active — current)
-│   └── snapshots/
-│       ├── 2026-05-01-001-system-build-final.md    ← terminal snapshot at score-phase
-│       └── 2026-05-13-002-release-pipeline.md       ← heartbeat snapshot
-├── BOARD.md                             ← pmo (LIVE working memory; ≤200 lines; closed tasks leave)
-├── journal/
-│   └── 2026-05/
-│       ├── 2026-05-01.md                ← pmo (day's status changes / new tasks / decisions)
-│       ├── 2026-05-02.md
-│       └── ...                          ← one file per day; append-only after the day ends
-├── PROJECT_STATE.md                     ← pmo (cross-phase dashboard)
-├── DECISIONS.md                         ← pmo (INDEX only, ≤200 lines)
-├── decisions/
-│   ├── ADR-001-pmo-bootstrap.md         ← pmo (one file per decision; Context/Options/Chosen/Consequences)
-│   ├── ADR-002-cache-backend.md          ← Status: active | superseded | expired | archived (header field; files don't move)
-│   └── ...
-├── design/
-│   └── DESIGN-001-process-mgmt.md       ← design (RFC)
-├── evidence/
-│   └── 2026-05/
-│       ├── TASK-001-deliverable-name.md          ← pmo (per-task artifact)
-│       ├── midphase-review-002-release-pipeline.md
-│       └── retro.md                              ← consumed by okr `score-phase`
-├── weekly/
-│   └── 2026-W18.md                      ← pmo (status report)
-├── handoff/
-│   └── 2026-05-01.md                    ← pmo (session bridge)
-├── inputs/                              ← raw drop zone for external docs (ephemeral)
-│   └── 2026-05-07-vendor-acme-q1-report.pdf   ← waiting for /perry pmo digest
-├── knowledge/                           ← post-digest organized library
-│   ├── INDEX.md                                ← pmo (auto-maintained catalog)
-│   ├── _shared/
-│   │   └── USER-002-constraints-digest.md     ← project-constitution (eternal)
-│   ├── vendor-acme/
-│   │   ├── 2025-12-09-contract.pdf            ← moved from inputs/
-│   │   └── 2025-12-09-contract-digest.md      ← PMO's structured summary
-│   └── research/
-│       └── kubernetes-best-practices-2024-digest.md
-│
-│   # The four below are OPTIONAL — created lazily on first use, not at bootstrap.
-├── ARCHITECTURE.md                      ← USER-OWNED single source of truth for system design.
-│                                         Injected into every dispatched agent's prompt.
-│                                         Independent review agent verifies every code change against it.
-├── architecture/
-│   └── audit-history/
-│       └── 2026-05-13.md                        ← per-run audit report (mechanical + LLM consistency scan)
-├── runbook/                             ← operability of deployed components (only if any spec has `Deployed: yes`)
-│   ├── INDEX.md                                 ← auto-maintained catalog
-│   └── deploy-daemon.md                         ← per-component: What / Healthy / Failures / Escalation
-├── incidents/                           ← postmortem records (only if you use /perry pmo incident)
-│   ├── INDEX.md
-│   └── 2026-05-12-deploy-stuck.md               ← timeline + root cause + fix + derived changes
-│
-└── ... (your actual project files)
+/perry okr init                 # set your goals
+/perry okr plan-phase mvp       # goals for this stretch
+/perry okr plan-week            # this week's tasks — you approve them
+/perry                          # every morning: where are we
+
+... work ...
+/perry pmo dispatch REL-002     # hand a task to an agent
+/perry pmo close-task REL-002   # done, with evidence
+/perry pmo decide caching       # write down why you chose Redis
+/perry pmo friday-review        # this week's status
+/perry pmo handoff              # before you stop
+
+/perry pmo end-phase-retro      # key results mostly hit → wrap up
+/perry okr score-phase          # score it
+/perry okr plan-phase beta      # next phase
 ```
 
-## The deterministic layer (no LLM involved)
+---
 
-Perry's state lives in markdown, but the *reading* of it is regular code. Three
-stdlib-only scripts do the work an LLM shouldn't:
+## Questions
 
-| Script | Does | Used by |
-|---|---|---|
-| `bin/perry-state` | Reads the whole project in one pass and emits the dashboard model (`--json`) or the pre-formatted rows (`--dashboard`). | The standup ritual of all four skills; any subcommand needing counts |
-| `bin/perry-lint` | Validates state files against `schema/state-schema.json` — sections, table columns, status vocabulary, ID patterns, cross-file linkage integrity. `--templates` validates Perry's own templates. | Bootstrap, after any structural write, CI |
-| `bin/perry-diagnose` | Measures how a project is *structured for agent work* — context load against budget, the document reference graph, concurrency signals, tracking spine — and emits findings with stable IDs. Runs on **any** folder, Perry or not. | `/perry diagnose` stage 0 |
-| `bin/perry-explain` | Resolves an ID (`REL-002`, `ADR-003`, `P-O1.2`) to what it is, where it was defined, and everywhere it's referenced. `--all` prints the glossary, `--dangling` lists IDs referenced but defined nowhere. Reads the shapes markdown actually uses, so it works on **any** project. | Any time an ID appears without its title; `/perry diagnose` `LOAD-*` findings |
+**Do I have to use all of it?** No. Plenty of people only use the board and the journal. Every file is created when first needed.
 
-Why it matters: before this, every dashboard number was the agent reading a
-dozen files and counting by eye — which is both expensive and exactly the kind
-of thing that quietly goes wrong. Now the numbers are computed, the agent
-narrates them, and `—` means "genuinely unknown" rather than "didn't look".
+**Does it work without a git repo?** Yes. Git makes the history nicer but nothing requires it.
 
-```bash
-bin/perry-state --dashboard        # what's the state, right now
-bin/perry-lint --root .            # is every state file well-formed
-bin/perry-diagnose --root . --text # is this project's structure sound at all
-bash tests/run                     # the whole suite (stdlib only, no venv)
-```
+**Can I use it for non-code projects?** Yes — research, writing, ops, business planning. `/perry diagnose` even recognises those as different project types.
 
-`schema/state-schema.json` is the single contract that SKILL.md prose,
-`state/*_TEMPLATE.md`, and `viewer/parsers.py` must all agree with — see
-[schema/README.md](schema/README.md). `tests/` pins that agreement; the
-`--templates` check is what fails when a template and a parser drift apart.
+**What if my project already has a `design/` folder?** Perry asks. You can put all of its files under a subfolder (`perry/`) and leave your tree untouched.
 
-## `/perry diagnose` — is this project even set up right?
+**Can I add my own commands?** Yes. A new lane is a folder with a `SKILL.md` that declares which files it owns and never writes to anyone else's. That single rule is what lets the set grow.
 
-Everything above assumes the project should be run Perry's way. `/perry diagnose`
-asks the prior question, on **any** folder — including one that has never
-installed Perry, and including projects where the honest answer is "leave it
-alone" or "you need three files, not a PMO".
+---
 
-It targets the three ways agent-run projects actually fall apart:
+## More
 
-| Failure | Looks like | What fixes it |
-|---|---|---|
-| **Session interference** | Two sessions edit one file; one's work vanishes. Git `index.lock` errors. | The lowest rung of the isolation ladder that survives the contention you *actually observe* — often just "one at a time" |
-| **The document jungle** | 40 markdown files, half stale, two contradicting, nobody can find the right one. | A tier discipline with a hard budget on what loads every session, plus an index the agent reads first |
-| **Goal drift** | Plenty of activity, no way to say what's done or whether it mattered. | An externalized goal spine, a decision log, and a check the agent can actually run |
-
-```bash
-/perry diagnose              # scan → interview → prescribe → execute, gated
-/perry diagnose --dry-run    # stop after the prescription, change nothing
-/perry diagnose --recheck    # what drifted since last time
-```
-
-Six stages, and the governing rule is that **every prescription traces to a
-finding, and every finding traces to a measurement or something you said.**
-Nothing gets prescribed because Perry likes it. Two outcomes stay first-class:
-zero findings, and a prescription of pure subtraction.
-
-The research behind it — the isolation ladder, the tier budget, the three
-archetypes (software, knowledge base, ops/content), and an explicit account of
-where the evidence is thin — is in
-[reference/project-archetypes.md](reference/project-archetypes.md). The
-procedure is [reference/diagnose.md](reference/diagnose.md). Runnable scaffolds
-for each archetype are in [templates/](templates/), including a real
-verification loop for the two archetypes that have none natively
-(`kb-lint` for a knowledge base, `deliverable-lint` for ops/content work).
-
-## Designing your own skills on top
-
-Perry was built so you can extend it without breaking the core. Some natural additions:
-
-- **`research-journal`** — owns `RESEARCH.md`; consumes a domain MCP; feeds findings to OKR pivots.
-- **`risk-review`** — runs periodic checks via a domain MCP; raises P0 tasks via PMO when something trips.
-- **`experiment-runner`** — coordinates batch jobs in a sub-session; reports KR-relevant numbers back to OKR.
-
-Rule for adding a new skill to the family: declare the files you own and the files you only read in your `description:` frontmatter, and never write to files owned by another skill. That single discipline is what makes the set scale past two members.
+- **[INSTALL.md](INSTALL.md)** — install details, dependencies, Claude Code vs Codex differences
+- **[reference/i18n.md](reference/i18n.md)** — writing in another language
+- **[reference/diagnose.md](reference/diagnose.md)** — how the project audit works
+- **[reference/adoption.md](reference/adoption.md)** — how adopting an existing project works
+- **[schema/README.md](schema/README.md)** — the file format, if you're building something that reads Perry's files
