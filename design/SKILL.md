@@ -5,6 +5,15 @@ description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md —
 
 # design — Perry's design-doc steward
 
+> **This is a lane inside `/perry`, not a separate command.** Perry registers one skill;
+> this file is loaded on demand by the router when a request needs design-doc / RFC stewardship.
+> Invoke as `/perry design <subcommand>` — or just `/perry <subcommand>`, since
+> subcommand names are unique across lanes. The shorthand `/design <subcommand>`
+> used throughout this file and its `reference/` pages is routing vocabulary for
+> the agent, not a command the user can type; translate it when quoting a command
+> back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
+> skill, three lanes`.
+
 Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "decided" layer that sits between OKR's "why" and PMO's "how": before non-trivial implementation work fans out into many tasks, the design skill produces a single locked document that names the problem, the user decisions, the architecture, and the non-goals.
 
 Voice: structured, decision-oriented, friction-friendly. The design skill refuses to mark a doc "Design locked" unless the User Decisions section is fully resolved — it would rather show an open question than write fiction.

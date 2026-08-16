@@ -10,6 +10,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -313,9 +314,16 @@ class ViewerTemplates(unittest.TestCase):
         import jinja2
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(str(PERRY_HOME / "viewer" / "templates")))
-        # Filters that serve.py registers at runtime.
-        for name in ("evidence_path", "strip_md", "md", "shortdate",
-                     "first_line", "strip_leading_bold"):
+        # Filters that serve.py registers at runtime. Read them OUT of
+        # serve.py rather than listing them here: a hardcoded list silently
+        # goes stale the moment someone adds a filter, and then this test
+        # reports a working template as broken. That already happened once,
+        # with `strip_md_link`.
+        serve = (PERRY_HOME / "viewer" / "serve.py").read_text()
+        names = re.findall(r'@app\.template_filter\(\s*["\']([\w]+)["\']', serve)
+        self.assertTrue(names, "no template filters found in serve.py — "
+                               "the registration pattern changed")
+        for name in names:
             env.filters.setdefault(name, lambda v, *a, **k: v)
         return env
 

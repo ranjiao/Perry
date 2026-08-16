@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Perry setup — install perry/ + link child skills (okr, pmo, design)
-# as siblings so the host (Claude Code at ~/.claude/skills/, Codex CLI at
-# ~/.agents/skills/) surfaces /perry, /okr, /pmo, /design.
+# Perry setup — install perry/ into the host's skills directory (Claude Code
+# at ~/.claude/skills/, Codex CLI at ~/.agents/skills/) so it surfaces /perry.
+#
+# ONE skill is registered. okr, pmo and design are lanes inside it, reached as
+# `/perry okr …`, and loaded on demand by the router. Earlier versions also
+# symlinked them as sibling skills; this script now removes those links,
+# because `design` and `okr` are common words in a shared namespace and Perry
+# should not claim them (see install_at for the full reasoning).
 #
 # Both hosts read SKILL.md frontmatter natively for skill discovery; the
 # install is just a symlink in the host's canonical skills directory.
@@ -484,29 +489,36 @@ install_at() {
     return 1
   fi
 
-  local linked=() skipped=()
+  # Perry registers ONE skill: perry. The children (okr, pmo, design) are
+  # lanes inside it, loaded on demand by the router — not host commands.
+  #
+  # They used to be symlinked as siblings so `/okr`, `/pmo` and `/design`
+  # worked directly. That was withdrawn because the names are generic and the
+  # host's skill namespace is shared: `design` collides with design-review,
+  # design-consultation, design-html, design-shotgun and a whole `design:`
+  # plugin family; `okr` collides with lark-okr. Claiming a common English
+  # word in a shared namespace is the tool taking something it was not given —
+  # the same rule the state root already follows. Users reached Perry through
+  # `/perry` and let it route anyway, so the siblings cost a namespace and
+  # bought nothing.
+  local removed=()
   for child_dir in "$perry_target"/*/; do
     [ -f "$child_dir/SKILL.md" ] || continue
     local name="$(basename "$child_dir")"
     local target="$host_dir/$name"
 
-    if [ -L "$target" ]; then
-      local existing="$(readlink "$target")"
-      if [ "$existing" = "perry/$name" ]; then
-        continue
-      fi
-      ln -snf "perry/$name" "$target"
-      linked+=("$name")
-    elif [ ! -e "$target" ]; then
-      ln -snf "perry/$name" "$target"
-      linked+=("$name")
-    else
-      skipped+=("$name (real file/dir at $target)")
+    # Only ever remove a link this installer created. Anything else at that
+    # path belongs to someone else.
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "perry/$name" ]; then
+      rm -f "$target"
+      removed+=("$name")
     fi
   done
 
-  [ ${#linked[@]} -gt 0 ]  && log "  [$label] linked child skills: ${linked[*]}"  || true
-  [ ${#skipped[@]} -gt 0 ] && warn "  [$label] skipped: ${skipped[*]}"            || true
+  if [ ${#removed[@]} -gt 0 ]; then
+    log "  [$label] removed legacy child skill links: ${removed[*]}"
+    log "  [$label] these are now lanes inside /perry — use '/perry <lane> <subcommand>'"
+  fi
   return 0
 }
 
@@ -548,7 +560,8 @@ log "Perry ready."
 log "  source       : $SOURCE_DIR"
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  claude-code  : $CC_DIR"   || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  codex        : $CODEX_DIR" || true
-log "  skills       : /perry, /okr, /pmo, /design"
+log "  skill        : /perry  (one entrance; okr / pmo / design are lanes inside it)"
+log "  lanes        : /perry okr … · /perry pmo … · /perry design … · /perry diagnose"
 log ""
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  Claude Code: invoke /perry inside a project for the combined dashboard." || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  Codex CLI  : invoke /skills, then pick perry — or type \$perry to mention." || true

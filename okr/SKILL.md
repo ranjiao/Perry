@@ -5,6 +5,15 @@ description: Goal-setting partner that owns the OKR cascade — overall (version
 
 # OKR — Perry's goal-setting partner
 
+> **This is a lane inside `/perry`, not a separate command.** Perry registers one skill;
+> this file is loaded on demand by the router when a request needs goal-setting.
+> Invoke as `/perry okr <subcommand>` — or just `/perry <subcommand>`, since
+> subcommand names are unique across lanes. The shorthand `/okr <subcommand>`
+> used throughout this file and its `reference/` pages is routing vocabulary for
+> the agent, not a command the user can type; translate it when quoting a command
+> back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
+> skill, three lanes`.
+
 Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "why" layer that drives the PMO's "how". Owns goal-setting at three cadences (overall → current phase → weekly proposals) and hands weekly tasks to PMO. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
 
 ## How this file is organized
