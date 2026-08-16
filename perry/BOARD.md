@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (6th pass — 10 tasks closed, 1 blocked)
+> Last updated: 2026-08-16 (7th pass — all 11 hand-off tasks closed)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -16,12 +16,12 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| TASK-005 | Stale-run warning | Coding Agent | blocked | DESIGN-001 phase E — `step:` validation landed; the staleness half is **blocked on USER-001** (the threshold N) | — |
-
+|  |  |  |  |  |  |
 ## P1
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
+|  |  |  |  |  |  |
 
 ## P2
 
@@ -38,8 +38,8 @@
 
 | USER-id | Needed from user | Blocks | Idle | Status |
 |---|---|---|---|---|
-| USER-001 | Staleness threshold N for the stale-run lint warning (DESIGN-001 §8 — 14d is a guess with no evidence) | TASK-005 | 0d | open |
-| USER-002 | Should `--claims` be exempt from `--strict`? (DESIGN-002 §8) | — | 0d | open |
+| USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |
+| USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |
 
 ## Done this period (leaves the board at next triage)
 
@@ -55,6 +55,7 @@
 | TASK-006 | `perry-state --section interrupted` + two fixtures; the gate now reads a payload instead of eyeballing frontmatter | `bin/perry-state`, `tests/fixtures/interrupted-adoption/`, `tests/test_resume.py` (30 tests) |
 | TASK-013 | `NS-01` — scanner, emitter, catalog row, `WHY` entry | `bin/perry-diagnose`, `reference/diagnose.md` |
 | TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
+| TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 

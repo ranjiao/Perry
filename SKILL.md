@@ -87,8 +87,9 @@ When `/perry` is invoked, always run this before doing anything else.
    Deterministic, read-only, stdlib-only. Returns one row per pipeline someone
    walked away from mid-run — terminal stages (`done`, `abandoned`) are dropped
    by the scanner, so no reader has to know which values are terminal. Each row
-   carries `pipeline`, `stage`, `step`, `idle_days`, and how much the user has
-   already banked (`declarations`, `interview_answers`, `candidates_pending`).
+   carries `pipeline`, `stage`, `step`, `idle_days`, `stale`, and how much the
+   user has already banked (`declarations`, `interview_answers`,
+   `candidates_pending`).
 
    **Every number on the card below comes from this payload.** Do not open the
    dossier to eyeball its frontmatter — that is the same estimating
@@ -128,6 +129,15 @@ When `/perry` is invoked, always run this before doing anything else.
 
    Then one `AskUserQuestion`, header `"Interrupted run"`, options:
    `Resume where you left off (Recommended) | Start over (archives this one) | Abandon it`.
+
+   **When `stale: true`** (the run has not advanced in `stale_after_days`, a
+   calibrated default of 30 declared in `schema/state-schema.json § thresholds`),
+   say so in one clause and move `Abandon it` to first with the `(Recommended)`
+   tag. A run untouched for a month is more likely finished-with than paused,
+   and the user should not have to re-read a card they have already skipped
+   several times. It stays a recommendation, never an automatic retirement —
+   `abandoned` is set by the user, never by Perry deciding a run has gone
+   stale.
 
    - **Resume** → re-enter at `stage`/`step`. Every declaration in
      `declarations[]` is already banked and is **not** re-asked.

@@ -40,6 +40,7 @@ import json
 import os
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -202,6 +203,24 @@ def heading_re(name: str) -> re.Pattern:
 # ── checks ────────────────────────────────────────────────────────────────
 
 
+# Filled from schema["thresholds"] in main(). Module-level rather than threaded
+# through two signatures, so every check reads the one declared number.
+SCHEMA_THRESHOLDS: dict = {}
+
+
+def _days_since(stamp: str) -> int | None:
+    """Whole days since an ISO date or datetime. None when unparseable —
+    a missing timestamp must not silently read as "0 days old"."""
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", stamp.strip().strip("\"'"))
+    if not m:
+        return None
+    try:
+        then = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+    return (date.today() - then).days
+
+
 def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                       is_template: bool) -> list[Finding]:
     """Validate a YAML-frontmatter file (currently: the linkage graph).
@@ -291,6 +310,23 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                         f"field is noise"))
 
     walk(data, fm["fields"], "")
+
+    # A pipeline someone walked away from and never came back to. Reported so
+    # the interrupted-run card can also offer to retire it, rather than showing
+    # the same abandoned dossier at every entry forever.
+    stale = SCHEMA_THRESHOLDS.get("stale_run_days") or {}
+    if spec.get("id") in (stale.get("applies_to") or []):
+        stage = str(data.get("stage") or "")
+        if stage and stage not in ("done", "abandoned"):
+            days = _days_since(str(data.get("updated") or data.get("started") or ""))
+            limit = stale.get("value")
+            if days is not None and limit and days >= limit:
+                findings.append(Finding(
+                    "warn", rel, "stale-run",
+                    f"stage {stage!r} has not advanced in {days}d "
+                    f"(threshold {limit}d) — resume it, or retire it with "
+                    f"`stage: abandoned` so it stops being offered. The "
+                    f"threshold is a calibrated default, not a law."))
 
     # A task may serve at most one KR.
     seen: dict[str, str] = {}
@@ -712,6 +748,7 @@ def main(argv: list[str]) -> int:
         return 2
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
+    SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
 
     if mode_claims:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
@@ -743,10 +780,13 @@ def main(argv: list[str]) -> int:
             }, ensure_ascii=False, indent=2))
         elif not quiet:
             render_claims(project_root, state_root, rows, summary, suggested)
-        # A collision is a fact to act on, not a failure. Exit 0 unless the
-        # caller asked for --strict, so a setup script can branch on the count
-        # without treating "this project owns design/" as an error.
-        return 1 if (strict and summary["collisions"]) else 0
+        # A collision is a fact to act on, not a failure — and `--strict` does
+        # NOT promote it. There is no per-path opt-out by design (DESIGN-002
+        # decision #2), so a project that knowingly keeps one file in a claimed
+        # folder would otherwise have permanently red CI with no way to accept
+        # it. Same reasoning that keeps NS-01 at `warn`. Branch on the
+        # `collisions` count in --json instead.
+        return 0
 
     # Localized column headers are legal in whatever the project's document
     # language is; the glossary that says which spellings count lives in the

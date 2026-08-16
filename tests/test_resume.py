@@ -289,6 +289,48 @@ class TestDetectionIsComputedNotEyeballed(unittest.TestCase):
                         "First-time setup and losing their work")
 
 
+class TestStaleRuns(unittest.TestCase):
+    """USER-001: 30 days. A calibrated default, declared once."""
+
+    SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
+
+    def test_threshold_is_declared_in_the_schema(self):
+        """Hardcoding it in perry-lint and again in perry-state is how two
+        readers end up disagreeing about when a run is stale."""
+        t = self.SCHEMA["thresholds"]["stale_run_days"]
+        self.assertEqual(t["value"], 30)
+        self.assertEqual(sorted(t["applies_to"]), ["adoption", "diagnosis"])
+
+    def test_payload_carries_stale_and_its_threshold(self):
+        for r in state(FIXTURE)["interrupted"]:
+            with self.subTest(pipeline=r["pipeline"]):
+                self.assertIn("stale", r)
+                self.assertEqual(r["stale_after_days"], 30)
+
+    def test_a_fresh_run_is_not_stale(self):
+        self.assertFalse(any(r["stale"] for r in state(FIXTURE)["interrupted"]),
+                         "fixtures are days old, not months")
+
+    def test_an_aged_run_is_flagged(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "p"
+            shutil.copytree(FIXTURE, root)
+            d = root / ".perry" / "adoption" / "2026-08-10-dossier.md"
+            d.write_text(d.read_text().replace(
+                'updated: "2026-08-10T10:14:00Z"', 'updated: "2020-01-01T00:00:00Z"'))
+            row = next(r for r in state(root)["interrupted"] if r["pipeline"] == "adopt")
+            self.assertTrue(row["stale"])
+
+    def test_card_leads_with_abandon_when_stale(self):
+        window = SKILL[SKILL.index("Check for an interrupted run"):][:4000]
+        self.assertIn("stale: true", window,
+                      "the card must react to the flag, not just carry it")
+        self.assertIn("never by Perry deciding a run has gone", window,
+                      "stale is a recommendation; retirement stays the user's")
+
+
 class TestNeverReAsks(unittest.TestCase):
 
     def test_re_render_never_re_ask_is_stated(self):

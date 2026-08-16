@@ -202,6 +202,18 @@ def encode(obj):
 TERMINAL_STAGES = {"done", "abandoned"}
 
 
+def stale_run_days() -> int | None:
+    """The one declared threshold, read from the schema rather than hardcoded
+    here — `perry-lint` reports the same number, and two readers disagreeing
+    about when a run is stale is worse than neither reporting it."""
+    try:
+        schema = json.loads(
+            (Path(__file__).resolve().parent.parent / "schema" / "state-schema.json").read_text())
+    except (OSError, ValueError):
+        return None
+    return ((schema.get("thresholds") or {}).get("stale_run_days") or {}).get("value")
+
+
 def scan_interrupted(perry_root: Path) -> list[dict]:
     """Pipelines someone walked away from mid-run.
 
@@ -217,6 +229,7 @@ def scan_interrupted(perry_root: Path) -> list[dict]:
     here rather than by the caller, so no reader has to know which values are
     terminal."""
     out: list[dict] = []
+    limit = stale_run_days()
     for kind, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
         d = perry_root / ".perry" / sub
         if not d.is_dir():
@@ -235,7 +248,12 @@ def scan_interrupted(perry_root: Path) -> list[dict]:
                 "updated": fm.get("updated"),
                 "depth": fm.get("depth"),
                 "lanes": fm.get("lanes"),
-                "idle_days": days_since((fm.get("updated") or "")[:10]),
+                "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
+                # The card offers "Abandon" on every run; on a stale one it
+                # should lead with it. Computed here so the card never has to
+                # decide what "stale" means.
+                "stale": bool(limit and idle is not None and idle >= limit),
+                "stale_after_days": limit,
                 # What the user has already banked. The card needs both numbers:
                 # they are being asked to spend an hour or throw one away.
                 "declarations": count_list_items(f, "declarations"),
