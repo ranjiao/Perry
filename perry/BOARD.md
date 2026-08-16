@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-16 (16th pass — lanes renamed goals/work/decide; TASK-027 at review)
+> Last updated: 2026-08-16 (17th pass — phase E: inquiry mode + provenance)
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -30,8 +30,6 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
 | TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — | V4 |
-| TASK-022 | `modes/inquiry.md` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-018 | — | V4 |
-| TASK-023 | `SRC-` ids in digests + `perry-lint --provenance` | Coding Agent | not_started | DESIGN-003 phase E — blocked-by TASK-022 | — | V3 |
 | TASK-025 | Pack loader + display glossary | Coding Agent | not_started | DESIGN-003 phase F — unblocked (TASK-024 closed; the abstraction held) | — | V4 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 
@@ -64,6 +62,8 @@
 | TASK-014 | `/perry relocate <path>` — procedure, safety rules, command surface | `SKILL.md`, `tests/test_claims.py` (19 tests) |
 | TASK-005 | `step:` cross-field validation + stale-run warning at 30d; block-scalar support in `parse_yaml_subset` | `bin/perry-lint`, `bin/perry-state`, `viewer/parsers.py`, `schema § thresholds` |
 | TASK-015 | Schema: `mode` + `verification_rung` enums, `work_modes`/`verification` blocks, optional `## Tracks` + `## Intake` table specs, i18n columns — **V3** | `schema/state-schema.json`, `tests/test_work_modes.py`; lint output on all 3 fixtures byte-identical to the pre-change baseline, no fixture edited |
+| TASK-022 | `modes/inquiry.md` — question tree via `Parent`, answer files, provenance as the mode's test suite — **V3** (rung lowered from V4, see journal) | `modes/inquiry.md`, `tests/…::TestInquiryHasDataForEveryControl` (5 tests); every column it relies on verified present in the schema |
+| TASK-023 | `SRC-` ids + `knowledge/` schema entry + `perry-lint --provenance` — **V3** | `bin/perry-lint`, `schema/state-schema.json`, `work/state/digest_TEMPLATE.md`, `work/reference/digests.md`; `tests/…::TestProvenanceLint` (6 tests, all four failure modes + empty scan) |
 | TASK-026 | Rewrite `SKILL.md § The hand-off contract` — goals/work/decide ownership, both moves, 3 refusal cases — **V5** | `SKILL.md § The hand-off contract` (signed Ran Jiao 2026-08-16), `tests/test_ownership.py` (13 tests) |
 | TASK-024 | `packs/software-ops/` — architecture/runbooks/incidents extracted, **0 content edits**; `git-boundaries.md` kept in core; OKR phase gate made pack-conditional — **V3** (rung lowered from V4, see journal) | `packs/software-ops/`, `packs/software-ops/pack.md`, `goals/reference/phases.md`; `git diff` vs pre-move = 0 lines on all three, 0 stale refs, lint clean |
 | TASK-018 | `modes/project.md` + router step 3b + `perry-state.parse_tracks` — **V3** | `modes/project.md`, `SKILL.md § Mandatory first move` step 3b, `bin/perry-state`; `perry-state --dashboard` byte-identical on all 3 fixtures before/after |

@@ -595,3 +595,114 @@ class TestI18n(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInquiryHasDataForEveryControl(unittest.TestCase):
+    """The defect that failed two prior reviews: a control described in prose
+    whose data has nowhere to live. `modes/inquiry.md` was written after the
+    schema fields existed rather than before, and this pins that order."""
+
+    def test_the_question_tree_edge_is_a_real_column(self):
+        t = table_spec("board", "P[012]")
+        self.assertIn("Parent", t["optional_columns"],
+                      "a question tree needs an edge; BOARD.md has no nesting")
+        self.assertNotIn("Parent", t["columns"],
+                         "Parent must stay optional or every non-inquiry board "
+                         "becomes a lint error")
+
+    def test_the_source_of_truth_for_citations_is_validated(self):
+        """`knowledge/` was claimed but had no files[] entry, so digest headers
+        were never checked — provenance is unenforceable without one."""
+        k = file_spec("knowledge")
+        fields = {f["name"] for f in k["header_fields"]}
+        self.assertEqual(k["owner"], "work")
+        for required in ("Id", "Source", "Received"):
+            self.assertIn(required, fields,
+                          f"a digest with no {required} cannot back a citation")
+        idf = next(f for f in k["header_fields"] if f["name"] == "Id")
+        self.assertEqual(idf["pattern"], r"SRC-\d+")
+
+    def test_inquiry_default_rung_is_v4(self):
+        self.assertEqual(SCHEMA["work_modes"]["modes"]["inquiry"]["default_rung"], "V4")
+
+    def test_inquiry_calendar_stays_advisory(self):
+        """A deadline on a question produces a confident answer, not a correct
+        one — the one place besides project mode where advisory is right."""
+        self.assertEqual(SCHEMA["work_modes"]["modes"]["inquiry"]["calendar"],
+                         "advisory")
+
+    def test_every_field_the_mode_file_names_exists_somewhere(self):
+        text = (PERRY_HOME / "modes" / "inquiry.md").read_text()
+        board = table_spec("board", "P[012]")
+        cols = set(board["columns"]) | set(board["optional_columns"])
+        for named in ("Parent", "Stage", "Stage since", "Verification"):
+            self.assertIn(f"`{named}`", text,
+                          f"inquiry.md never names the {named} column it relies on")
+            self.assertIn(named, cols,
+                          f"inquiry.md relies on {named}, which the schema lacks")
+        self.assertIn("WIP", (PERRY_HOME / "modes" / "inquiry.md").read_text())
+        cfg = table_spec("config", "Tracks")
+        self.assertIn("WIP", cfg["optional_columns"])
+
+
+class TestProvenanceLint(unittest.TestCase):
+    """`--provenance` must fire on all four failure modes, and must not report
+    a pass over an empty scan."""
+
+    def _run(self, digests: dict, citing: str = "") -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# c\n\n- Document language: English\n"
+                "- Repo layout: single\n- State root: .\n")
+            kd = root / "knowledge" / "topic"
+            kd.mkdir(parents=True)
+            for name, body in digests.items():
+                (kd / name).write_text(body)
+            if citing:
+                ev = root / "evidence" / "2026-08"
+                ev.mkdir(parents=True)
+                (ev / "Q-1-answer.md").write_text(citing)
+            r = subprocess.run(
+                ["python3", str(LINT), "--provenance", "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, "advisory mode must always exit 0")
+            return json.loads(r.stdout)
+
+    GOOD = ("# d\n\n> Id: SRC-1\n> Source: knowledge/topic/p.pdf\n"
+            "> Received: 2026-08-10 by file drop\n> Status: active\n")
+
+    def rules(self, out):
+        return [f["rule"] for f in out["findings"]]
+
+    def test_a_resolvable_citation_is_silent(self):
+        out = self._run({"a.md": self.GOOD}, "The claim holds [SRC-1].")
+        self.assertEqual(out["findings"], [])
+        self.assertEqual(out["sources_defined"], 1)
+        self.assertEqual(out["ids_cited"], 1)
+
+    def test_a_dangling_citation_is_reported(self):
+        out = self._run({"a.md": self.GOOD}, "Unverified [SRC-9].")
+        self.assertIn("citation-dangling", self.rules(out))
+
+    def test_a_digest_with_no_id_cannot_be_cited_and_is_reported(self):
+        out = self._run({"a.md": "# d\n\n> Source: x\n> Received: 2026-08-10\n"})
+        self.assertIn("source-has-no-id", self.rules(out))
+
+    def test_a_digest_missing_its_fetch_date_is_reported(self):
+        out = self._run({"a.md": "# d\n\n> Id: SRC-1\n> Source: x\n> Status: active\n"})
+        self.assertIn("source-missing-field", self.rules(out))
+
+    def test_a_reused_id_is_reported(self):
+        """Ids are minted once. A recycled id does not dangle — it silently
+        re-points an old citation, which is worse than a broken link."""
+        dup = self.GOOD.replace("p.pdf", "other.pdf")
+        out = self._run({"a.md": self.GOOD, "b.md": dup})
+        self.assertIn("source-id-reused", self.rules(out))
+
+    def test_an_empty_scan_is_not_reported_as_a_pass(self):
+        out = self._run({})
+        self.assertEqual(out["sources_defined"], 0)
+        self.assertEqual(out["ids_cited"], 0)
+        self.assertEqual(out["findings"], [])

@@ -1,5 +1,6 @@
 # Digest — {{source filename}}
 
+> Id: SRC-{{n}}
 > Source: knowledge/{{topic}}/{{source-filename}}
 > Source SHA-256: {{hash}}
 > Received: {{YYYY-MM-DD}} by {{user paste | file drop}}

@@ -646,6 +646,11 @@
         "zh": [
           "进入阶段"
         ]
+      },
+      "Parent": {
+        "zh": [
+          "父问题"
+        ]
       }
     }
   },
@@ -836,7 +841,8 @@
             "Stage": "For pipeline- and queue-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
             "Arrived": "The date an item entered the system from outside. Carried forward from `BOARD.md` Intake when a queue-mode row is routed, and REQUIRED to survive that move - V4 finding B2: age-since-arrival is what SLA triage measures, and destroying it at routing made the mode's second triage step uncomputable.",
             "Commitment": "The `Id` of the row in `OKR.md` Commitments that this row discharges - that id and nothing else. Never row position, never Promise text (V4 re-review finding N9).",
-            "Stage since": "The date the row entered its current `Stage`. Mirrors `Arrived`, and exists for the same reason: dwell time is what pipeline triage measures first, and the journal records STATUS changes - so a `draft`->`review` move produces no journal line at all, because this design's own argument is that Status and Stage are orthogonal. V4 re-review finding N1: the Stage column closed B1 and left the clock with no source."
+            "Stage since": "The date the row entered its current `Stage`. Mirrors `Arrived`, and exists for the same reason: dwell time is what pipeline triage measures first, and the journal records STATUS changes - so a `draft`->`review` move produces no journal line at all, because this design's own argument is that Status and Stage are orthogonal. V4 re-review finding N1: the Stage column closed B1 and left the clock with no source.",
+            "Parent": "For inquiry-mode rows: the ID of the question this one was split out of. A question tree needs an edge, and BOARD.md has no nesting - so the edge is a cell. Absent = a root question. Written by add-task, read by triage to report which branches are still open."
           }
         },
         {
@@ -1827,6 +1833,33 @@
         }
       ],
       "anchor": "project"
+    },
+    {
+      "id": "knowledge",
+      "path": "knowledge/*/*.md",
+      "template": "work/state/digest_TEMPLATE.md",
+      "owner": "work",
+      "tier": 2,
+      "required": false,
+      "note": "Digests of external sources. The provenance base for inquiry-mode tracks: a finding may cite `[SRC-n]`, and this entry is what guarantees the id exists, is unique, and carries an origin and a date. Added by TASK-023 - `knowledge/` was in claims[] but had no files[] entry, so nothing validated these headers at all.",
+      "header_fields": [
+        {
+          "name": "Id",
+          "pattern": "SRC-\\d+",
+          "note": "Stable citation id. Minted once at digest time and never reused, so a claim citing SRC-7 in a year still resolves to the same source."
+        },
+        {
+          "name": "Source"
+        },
+        {
+          "name": "Received"
+        },
+        {
+          "name": "Status",
+          "pattern": "active|archived|eternal|superseded"
+        }
+      ],
+      "anchor": "state"
     }
   ],
   "cross_file": [

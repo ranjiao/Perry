@@ -113,7 +113,7 @@ The user already drops the source file at `inputs/<path>`. Adding `--paper` woul
 
 ## Digest schemas (two variants share lifecycle, differ in schema)
 
-Both schemas share: front-matter (Source / SHA / Status / Topics / Referenced by), placement under `knowledge/<topic>/`, the same `Status: active | archived | eternal | superseded` lifecycle, the same `archive_inactive_days` archive-candidate detection, the same `knowledge/INDEX.md` registration.
+Both schemas share: front-matter (Id / Source / SHA / Status / Topics / Referenced by), placement under `knowledge/<topic>/`, the same `Status: active | archived | eternal | superseded` lifecycle, the same `archive_inactive_days` archive-candidate detection, the same `knowledge/INDEX.md` registration.
 
 They differ in **body sections** to match what's worth capturing about each type.
 
@@ -122,6 +122,7 @@ They differ in **body sections** to match what's worth capturing about each type
 ```markdown
 # Digest — <source filename>
 
+> Id: SRC-<n>
 > Source: knowledge/<topic>/<source-filename>
 > Source SHA-256: <hash>
 > Received: <YYYY-MM-DD> by <user paste | file drop>
@@ -131,6 +132,14 @@ They differ in **body sections** to match what's worth capturing about each type
 > Topics: <comma-separated>
 > Verification level: standard | strict
 > Referenced by: <auto-grep result; updated at INDEX rebuild>
+
+**`Id:` is the citation handle, and it is minted once.** Take the next unused
+`SRC-<n>` across all of `knowledge/`, never reuse one, and never renumber. A
+finding written a year ago that cites `[SRC-n]` has to still resolve to the same
+source — that is the whole point of a stable id, and it is why the number is not
+derived from position, topic or filename, all of which move. `perry-lint
+--provenance` checks that every cited id resolves and that every digest carries
+an origin and a date.
 
 ## TL;DR (≤ 3 sentences)
 <one paragraph>

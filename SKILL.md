@@ -581,6 +581,13 @@ With arg `goals`, `work` or `decide` (or their aliases `okr`, `pmo`, `design`): 
 - **Numbers, IDs, file paths.** Not paragraphs.
 - **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P-O1.2`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use `bin/perry-explain <ID>` to resolve one, `--all` for the glossary. Full rule in `reference/user-load.md`.
 - **Never ask a question the user cannot evaluate.** Before offering options, check whether the user can predict what will be different for them under each. If not, reframe in consequences, or decide it yourself and say so, or narrow to two — see `reference/user-load.md § The three exits`. Depth of analysis and usefulness of a question come apart completely once the subject leaves the user's expertise, and this gets *worse* as the agent gets better.
+- **Never mint an example ID that resolves to nothing.** Writing `SRC-7` or
+  `TASK-042` in prose to illustrate a shape creates a reference Perry's own
+  `LOAD-02` check reports as dangling — correctly, because a reader cannot tell
+  an illustration from a real cross-reference. Use the placeholder form
+  (`SRC-n`, `TASK-NNN`, `<DESIGN-ID>`) in every example. This rule exists
+  because Perry violated it three times in one session while writing the
+  documentation that forbids it.
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
 - **Write in the configured languages, and don't mix them.** Chat replies follow `Chat language` (or the user's own language when unset); files follow `Document language`. IDs, enum values, file paths, slugs and command names stay English in every language, so a Chinese dashboard line reads `REL-002（"抖动检测器"）blocked，等 USER-014`. Never translate a quoted artifact — a path, a command, an error message, or the user's own words. Full contract in `reference/i18n.md`.

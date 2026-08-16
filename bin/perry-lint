@@ -8,7 +8,8 @@ them honest — it checks real files (and, with --templates, Perry's own
 templates) against the one declared schema.
 
 Usage:
-  perry-lint [--root <project_root>] [--templates | --claims | --verification]
+  perry-lint [--root <project_root>] [--templates | --claims | --verification |
+              --provenance]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -25,6 +26,10 @@ Usage:
                 evidence cannot satisfy, and any row matching the project's
                 own high-stakes list that closed below V5. Never sets a
                 non-zero exit - advisory for one release by decision 4.
+  --provenance  advisory pass over source citations (DESIGN-003 section 5.4):
+                every `SRC-n` cited anywhere resolves to a digest under
+                knowledge/, every digest carries an id, an origin and a
+                fetch date, and no id is reused. Never exits non-zero.
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
@@ -738,6 +743,88 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     return findings
 
 
+
+# ── provenance (DESIGN-003 § 5.4) ──────────────────────────────────────────
+
+
+SRC_RE = re.compile(r"\bSRC-(\d+)\b")
+
+
+def check_provenance(state_root: Path) -> list["Finding"]:
+    """Every cited source resolves; every source has an origin and a date.
+
+    Outside code, provenance IS the test suite. `modes/inquiry.md` lets a
+    finding carry `[SRC-n]`, and the citation is worth nothing unless the id
+    resolves to a digest that says where the material came from and when it was
+    fetched — a claim citing a source nobody can re-open is a claim about the
+    agent's memory.
+
+    Advisory, like `--verification`: it reports, it does not refuse.
+    """
+    findings: list[Finding] = []
+    kdir = state_root / "knowledge"
+
+    # 1. Build the id → file map, reporting malformed and duplicate ids.
+    defined: dict[str, Path] = {}
+    for md in sorted(kdir.rglob("*.md")) if kdir.exists() else []:
+        if md.name == "INDEX.md":
+            continue
+        text = strip_comments(md.read_text(errors="replace"))
+        rel = md.relative_to(state_root).as_posix()
+        m = re.search(r"^>\s*Id\s*[:：]\s*(\S+)", text, re.M)
+        if not m:
+            findings.append(Finding(
+                "warn", rel, "source-has-no-id",
+                "digest carries no `Id: SRC-<n>` — nothing can cite it",
+            ))
+            continue
+        sid = m.group(1).strip("*` ")
+        if not SRC_RE.fullmatch(sid):
+            findings.append(Finding(
+                "warn", rel, "source-id-malformed",
+                f"`Id: {sid}` is not of the form SRC-<n>",
+            ))
+            continue
+        if sid in defined:
+            findings.append(Finding(
+                "warn", rel, "source-id-reused",
+                f"{sid} is already defined by {defined[sid]} — ids are minted "
+                f"once and never reused, or an old citation silently re-points",
+            ))
+            continue
+        defined[sid] = rel
+        for field, rule in (("Source", "origin"), ("Received", "fetch date")):
+            if not re.search(rf"^>\s*{field}\s*[:：]\s*\S", text, re.M):
+                findings.append(Finding(
+                    "warn", rel, "source-missing-field",
+                    f"{sid} has no `{field}:` — a source with no {rule} cannot "
+                    f"be re-verified, which is what citing it was for",
+                ))
+
+    # 2. Every citation anywhere in the state tree must resolve.
+    cited: dict[str, list[str]] = {}
+    for md in sorted(state_root.rglob("*.md")):
+        if kdir.exists() and kdir in md.parents:
+            continue
+        try:
+            text = strip_comments(md.read_text(errors="replace"))
+        except (UnicodeDecodeError, OSError):
+            continue
+        rel = md.relative_to(state_root).as_posix()
+        for sid in {f"SRC-{n}" for n in SRC_RE.findall(text)}:
+            cited.setdefault(sid, []).append(rel)
+    for sid, where in sorted(cited.items()):
+        if sid not in defined:
+            findings.append(Finding(
+                "warn", where[0], "citation-dangling",
+                f"{sid} is cited in {len(where)} file(s) and defined by no "
+                f"digest under knowledge/",
+            ))
+
+    check_provenance.stats = {"defined": len(defined), "cited": len(cited)}
+    return findings
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 
@@ -852,6 +939,7 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
 def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
+    mode_provenance = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -869,6 +957,8 @@ def main(argv: list[str]) -> int:
             mode_claims = True
         elif a == "--verification":
             mode_verification = True
+        elif a == "--provenance":
+            mode_provenance = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -961,6 +1051,36 @@ def main(argv: list[str]) -> int:
         # Advisory for one release by DESIGN-003 decision 4 — a hard gate now
         # would retroactively invalidate every `done` row written before rungs
         # existed. `--strict` does NOT promote these; branch on --json `count`.
+        return 0
+
+
+    if mode_provenance:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        findings = check_provenance(state_root)
+        stats = getattr(check_provenance, "stats", {"defined": 0, "cited": 0})
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "sources_defined": stats["defined"],
+                "ids_cited": stats["cited"],
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --provenance · {project_root}")
+            for f in findings:
+                print(f)
+            if findings:
+                print(f"\n  {len(findings)} advisory finding(s)")
+            elif stats["defined"] or stats["cited"]:
+                print(f"\n  ✓ {stats['cited']} cited id(s) all resolve; "
+                      f"{stats['defined']} source(s) carry an origin and a date")
+            else:
+                # Same discipline as --verification: an empty scan is not a pass.
+                print("\n  · no digests under knowledge/ and no citations to check")
         return 0
 
     # Localized column headers are legal in whatever the project's document
