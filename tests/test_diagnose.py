@@ -581,3 +581,61 @@ class TestSchemaAgreement(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UserAskAnswerState(unittest.TestCase):
+    """LOAD-03 must count asks that are *waiting*, not asks that ever existed.
+
+    It counted every `USER-` id appearing in a tracking doc, ignoring its Status
+    cell — so a project that answered its questions but had not yet swept the
+    rows kept reporting an open decision backlog. Sweeping answered rows is
+    `triage`'s job and is optional; being reported as blocked for not doing it
+    is not. The finding's own text says "open questions are waiting on you",
+    which was the claim that had drifted from what the number measured.
+    """
+
+    def _board(self, rows: str) -> str:
+        return ("# Board\n\n## P0\n\n"
+                "| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n"
+                "\n## P1\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                "\n## P2\n\n| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+                "\n## Cadence\n\n| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|\n"
+                "\n## User Input Queue\n\n"
+                "| USER-id | Needed from user | Blocks | Idle | Status |\n"
+                "|---|---|---|---|---|\n" + rows +
+                "\n## Top risks\n\n- none\n")
+
+    def _count(self, rows: str) -> int:
+        import subprocess, tempfile, json as _json
+        from pathlib import Path as _P
+        with tempfile.TemporaryDirectory() as td:
+            root = _P(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# c\n\n- Document language: English\n"
+                "- Repo layout: single\n- State root: .\n")
+            (root / "BOARD.md").write_text(self._board(rows))
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-diagnose"),
+                 "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            return _json.loads(r.stdout)["user_load"]["open_decisions"]
+
+    def test_an_answered_ask_is_not_waiting_on_anyone(self):
+        self.assertEqual(
+            self._count("| USER-001 | Threshold N | — | — | **answered 2026-08-16: 30 days** |\n"),
+            0)
+
+    def test_an_unanswered_ask_still_counts(self):
+        self.assertEqual(
+            self._count("| USER-001 | Threshold N | TASK-005 | 6d | pending |\n"),
+            1)
+
+    def test_answered_and_pending_are_counted_separately(self):
+        self.assertEqual(
+            self._count(
+                "| USER-001 | A | — | — | **answered 2026-08-16** |\n"
+                "| USER-002 | B | — | 3d | pending |\n"
+                "| USER-003 | C | — | 9d | waiting on you |\n"),
+            2)
