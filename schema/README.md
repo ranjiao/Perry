@@ -74,6 +74,35 @@ bin/perry-lint --root . --json --strict
 the standup payload; the linter answers "is this file well-formed?", the
 extractor answers "what does it say?".
 
+## The three read contracts
+
+A program outside Perry reads state through these, not through this schema and
+not by parsing markdown. Each is versioned **independently** (DESIGN-005 § 4
+decision 5) so a consumer that reads one is not forced to re-check its code when
+another moves.
+
+| Contract | Command | Spec | Covers |
+|---|---|---|---|
+| `perry-task/list/1.1` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
+| `perry-decide/list/1.0` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
+| `perry-goals/list/1.0` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
+
+Three properties they share, and the third is the one that matters on a real
+project:
+
+1. **Every declared key is always present** — an unknown value is `""`, `null`
+   or `[]`, never a missing key.
+2. **`1.x` → `1.y` only adds keys.** A removal or a retype is a major bump.
+3. **Each carries a `conformance` block** naming what it could not read
+   cleanly. Perry's own template is not what projects look like after a year:
+   boards organized by workstream rather than `P0`/`P1`/`P2`, statuses in the
+   document language, KR ids reused, ADR headers in three generations of the
+   template. All of that is legitimate, and a payload that smoothed it over
+   would hand a front-end confident nonsense.
+
+`perry-state --json` remains the agent-facing combined read. It is **not** a
+frozen contract — treat anything taken from it as best-effort.
+
 ## Consumers
 
 The schema is a **cross-repo contract**, not a Perry-internal detail. Four

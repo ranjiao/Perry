@@ -9,3 +9,4 @@
 {"ts": "2026-08-17T00:55:19", "event": "add", "id": "TASK-038", "title": "tasks: event log becomes canonical, BOARD.md becomes a projection", "track": "main", "mode": "project", "priority": "P2", "actor": "agent", "from": null, "to": "not_started"}
 {"ts": "2026-08-17T01:24:11", "event": "done", "id": "TASK-035", "title": "perry-decide: writer + missing bootstrap + list contract", "track": "main", "actor": "agent", "from": "not_started", "to": "done", "evidence": "evidence/2026-08/TASK-035-perry-decide.md", "rung": "V3"}
 {"ts": "2026-08-17T01:24:11", "event": "start", "id": "TASK-036", "title": "perry-goals/list/1.0 read contract", "track": "main", "actor": "agent", "from": "not_started", "to": "in_progress"}
+{"ts": "2026-08-17T01:31:56", "event": "done", "id": "TASK-036", "title": "perry-goals/list/1.0 read contract", "track": "main", "actor": "agent", "from": "in_progress", "to": "done", "evidence": "evidence/2026-08/TASK-036-goals-contract.md", "rung": "V3"}
