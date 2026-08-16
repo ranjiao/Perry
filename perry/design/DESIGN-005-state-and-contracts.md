@@ -100,18 +100,58 @@ the same defect the format produces, in a place the format cannot explain.
 
 ## 4. User Decisions
 
-Each row is a real fork. Recommendations are given, not assumed.
+All six resolved 2026-08-17 by Ran Jiao. Recommendations were given, not assumed.
 
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| 1 | **Is hand-editing `BOARD.md` (and `OKR.md`, `DECISIONS.md`) a feature to keep, or a transitional artifact?** Every other row depends on this one. | (a) keep — markdown stays canonical, hand-edits stay legitimate and reported · (b) drop — a structured store becomes canonical and markdown becomes a rendered view that hand-edits do not survive · (c) split — canonical markdown for goals and decisions (low volume, high prose), structured for tasks | **(c)**, see §5.1 |
-| 2 | **If anything becomes structured, which store?** | (a) JSONL append-only · (b) JSON document · (c) YAML · (d) SQLite | **(a)** — see §5.2; it already exists and already survived the concurrency test |
-| 3 | **Do goals and decisions get write tools?** | (a) both · (b) decisions only · (c) neither | **(a)** — §1.3's missing-bootstrap failure is a writer-shaped hole |
-| 4 | **Does aimark call `perry-*` tools, or keep its own parser?** Reverses or confirms `schema/README.md`'s recorded decision. | (a) call the tools · (b) keep the parser, and add "columns resolve by name, never by position" to the schema as a binding rule · (c) both — tools when Python is present, parser as fallback | **(a)**; if (b), the schema addition is mandatory, not optional |
-| 5 | **Contract versioning** — one version for all three read contracts, or one each? | (a) one each (`perry-task/list/1.0`, `perry-goals/list/1.0`, …) · (b) a single `perry/state/1.0` | **(a)** — they will not move together |
-| 6 | **Does the event log become canonical for tasks** (markdown as projection), or stay derived? | (a) stays derived · (b) becomes canonical | tied to #1; **(a)** if #1 is (a) or (c) |
+| # | Question | Options | Chosen | Date |
+|---|---|---|---|---|
+| 1 | **Is hand-editing `BOARD.md` (and `OKR.md`, `DECISIONS.md`) a feature to keep, or a transitional artifact?** Every other row depends on this one. | (a) keep — markdown stays canonical, hand-edits stay legitimate and reported · (b) drop — a structured store becomes canonical and markdown becomes a rendered view that hand-edits do not survive · (c) split — canonical markdown for goals and decisions (low volume, high prose), structured for tasks | **(c) split** | 2026-08-17 |
+| 2 | **Which store for the structured half?** | (a) JSONL append-only · (b) JSON document · (c) YAML · (d) SQLite | **(a) JSONL append-only** | 2026-08-17 |
+| 3 | **Do goals and decisions get write tools?** | (a) both · (b) decisions only · (c) neither | **(a) both** | 2026-08-17 |
+| 4 | **Does aimark call `perry-*` tools, or keep its own parser?** Reverses or confirms `schema/README.md`'s recorded decision. | (a) call the tools · (b) keep the parser, and add "columns resolve by name, never by position" to the schema as a binding rule · (c) both — tools when Python is present, parser as fallback | **(a) call the tools** | 2026-08-17 |
+| 5 | **Contract versioning** — one version for all three read contracts, or one each? | (a) one each (`perry-task/list/1.0`, `perry-goals/list/1.0`, …) · (b) a single `perry/state/1.0` | **(a) one each** | 2026-08-17 |
+| 6 | **Does the event log become canonical for tasks** (markdown as projection), or stay derived? | (a) stays derived · (b) becomes canonical | **(b) becomes canonical** — consequence of #1, not separately asked | 2026-08-17 |
 
-## 5. Architecture (conditional on §4)
+**#6 was not put to the user as its own question, and that is recorded here
+rather than hidden.** Choosing (c) on #1 *is* choosing (b) on #6: the option the
+user read said a hand-edited task row "gets overwritten on the next tool write —
+but not silently; the difference is surfaced first", which is markdown-as-
+projection. Asking it again as an independent fork would have been asking the
+same question twice in different words.
+
+> This row's parenthetical previously read *"tied to #1; (a) if #1 is (a) or
+> (c)"* — which contradicted §5.1 and §5.2 in the same document, both of which
+> describe the log becoming canonical under (c). A decision row asserting the
+> opposite of the section it points at is the exact defect five review rounds
+> kept finding in this project, committed here by its own author. Corrected at
+> resolve time, before it could be built against.
+
+**What would reopen #1**, the only one that is expensive to change later: a user
+who edits `BOARD.md` by hand often enough that reconciliation prompts become
+noise rather than a safety net. That is a usage observation, not an argument —
+if it happens, the answer is (a), not a bigger reconciler.
+
+### 4.1 · What each answer settles
+
+- **#1 = (c)** → §5.1 stands as written. `OKR.md`, `phase/` and `decisions/`
+  remain canonical hand-editable markdown; task rows do not.
+- **#2 = (a)** → `.perry/events.jsonl` is *reclassified*, not replaced. No new
+  file, so ADR-002's "no new derived data" holds unchanged.
+- **#3 = (a)** → `perry-goals` and `perry-decide` are both built, and
+  `perry-decide` carries the missing bootstrap from §1.3.
+- **#4 = (a)** → **reverses** `schema/README.md`'s recorded decision that aiMark
+  implements the schema rather than calling a tool. aiMark now shells out to
+  `perry-*` and takes a Python 3 dependency. That README section must be
+  rewritten from "here are two live options" to a settled decision naming this
+  one, with the old rationale preserved as history — it was correct when made.
+- **#5 = (a)** → three independent version strings; `perry-task/list/1.0` is
+  unaffected by anything the other two do.
+- **#6 = (b)** → §5.5's highest-risk row is now in scope rather than hypothetical.
+  It stays **last** in §6, because everything else is useful without it and
+  nothing else needs it first.
+
+## 5. Architecture
+
+> §4 is resolved, so nothing below is conditional any more.
 
 ### 5.1 · Why the three domains should not get the same storage answer
 
@@ -129,11 +169,11 @@ paid per write**, and tasks are where the writes are. Applying one storage
 answer to all three would either put ADR prose into a database or leave the
 churning tuples in the format that has produced every blocking defect.
 
-So the recommendation for #1 is (c): **goals and decisions stay canonical
-markdown with writer tools; tasks move their canonical row data into the
-append-only log, with `BOARD.md` remaining a first-class human view.**
+This is what #1 = (c) settles: **goals and decisions stay canonical markdown
+with writer tools; tasks move their canonical row data into the append-only log,
+with `BOARD.md` remaining a first-class human view.**
 
-### 5.2 · If tasks go structured, the store is the log that already exists
+### 5.2 · The task store is the log that already exists
 
 `.perry/events.jsonl` is append-only, `O_APPEND`, git-diffable, and already
 carries every transition. Making it canonical is a **reclassification, not a new
@@ -185,12 +225,24 @@ a write in another.
 
 ## 6. Implementation plan
 
-1. `perry-decide list --json` + `perry-decide` writer + the missing bootstrap (§1.3)
-2. `perry-goals list --json`
-3. `perry-goals` writer
-4. Tasks storage change — **only if #1 resolves to (b) or (c), and last**
+All four are in scope; §4 is resolved. Steps 1–3 do not depend on step 4 and
+must not wait for it.
 
-Steps 1–3 are independent of every decision in §4 except #3 and #5.
+| # | Step | Rung | Why here |
+|---|---|---|---|
+| 0 | Record decision 4's reversal in `schema/README.md` — **done at resolve time** | V2 | it invalidates a published instruction to another repo's author; leaving it stale for one commit is how aiMark gets built against the wrong contract |
+| 1 | `perry-decide` — writer, the missing bootstrap (§1.3), and `perry-decide/list/1.0` | V4 | `DECISIONS.md` exists nowhere today, so this is the only step that closes a total gap rather than improving a partial one |
+| 2 | `perry-goals/list/1.0` — read contract only | V4 | additive; `perry-state` already parses everything it needs |
+| 3 | `perry-goals` writer | V4 | riskiest of the markdown three — `OKR.md` is prose the user argues with |
+| 4 | Tasks: log becomes canonical, `BOARD.md` becomes a projection | **V5** | changes what "the truth" is; the only step that needs the user to accept a behavior change they will feel |
+
+**Step 4 stays last for a reason that survived the decision going its way.**
+Steps 1–3 are useful whether or not it ships, and it needs none of them first.
+Sequencing it last keeps the expensive, hardest-to-reverse change behind three
+cheap ones that will have exercised the contract pattern by then.
+
+`perry-task/list/1.0` does not move in any of these steps. That is the property
+that lets aimark start now, against step 0's contract, in parallel with all four.
 
 ## 7. Risks & mitigations
 
@@ -198,7 +250,8 @@ Steps 1–3 are independent of every decision in §4 except #3 and #5.
 |---|---|
 | A `perry-goals` writer reformats prose-heavy `OKR.md` and a human's wording is lost | text-level edits like `perry-task`'s `Board`, never a parse-and-render round trip; byte-identity test against the existing file before any write path ships |
 | The read contracts are built, then drift from what the tools emit | the same arrangement that already failed five times. `TestListContract` reads the contract document's own tables back against the payload; every new contract copies that test, not just the pattern |
-| Decision #1 stays unanswered and steps 1–3 get built against an assumption | steps 1–3 are chosen precisely because they do not depend on #1. Step 4 is hard-blocked on it, stated in §5.5 |
+| aiMark is built against the schema route while decision 4 says otherwise | `schema/README.md § Consumers` was rewritten at resolve time, not deferred to step 1 — that instruction lives in the file another repo's author reads |
+| Step 4 lands and a hand-edited board row is discarded without the user seeing it | the reconcile prompt is the deliverable, not a nicety. `unrecorded` already detects the edit; step 4 must surface it as a diff to accept or reject, and V5 exists on that row to make the user judge exactly this |
 | Tasks move to the log, and a user's hand-edit is silently discarded | never silently — an edit with no event is already detected as `unrecorded`; if the log becomes canonical the same detector must surface the edit as a reconcile prompt, not overwrite it |
 | Three writers, three locks, one project | all three take the same `.board.lock`; a lane cannot interleave with another |
 

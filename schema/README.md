@@ -93,32 +93,73 @@ the *schema*, not the parser and not a JSON payload — both sides implement it,
 and `bin/perry-lint` is the conformance test both sides run against the same
 fixtures (`tests/fixtures/sample-project/`).
 
-> **This decision now has a cost that is measured rather than assumed, and a
-> second option that did not exist when it was made.**
+> ### Superseded 2026-08-17 — aiMark calls the tools
+>
+> **`perry/design/DESIGN-005-state-and-contracts.md § 4` decision 4 reverses the
+> paragraph above.** aiMark shells out to `bin/perry-task list --all --json`
+> (`schema/task-list-contract.md`) and takes a Python 3 dependency. The shared
+> artifact for task state is that **payload**, not this schema.
+>
+> The rationale above was correct when it was made and is kept rather than
+> deleted: a general file browser that must not degrade on non-Perry folders
+> genuinely should not need a Python runtime. What changed is that the cost of
+> the alternative got measured.
 >
 > Two parsers of one file diverged silently, inside this repo: `perry-task`
-> placed board cells by resolved header name while `viewer/parsers.py` read
-> them by position, so a board with one extra column reported every task's
-> owner as its track and counted zero open work — with `perry-lint` calling
-> that board clean, because column order is not something the schema
-> constrains. A schema is a weaker contract than it looks: it declares which
-> columns exist, not how a reader must find them. aiMark's parser is a third
-> implementation of the same ambiguity.
+> placed board cells by resolved header name while `viewer/parsers.py` read them
+> by position, so a board with one extra column reported every task's owner as
+> its track and counted zero open work — and `perry-lint` called that board
+> clean, because column order is not something the schema constrains. **A schema
+> is a weaker contract than it looks: it declares which columns exist, not how a
+> reader must find them.** aiMark's parser would have been a third
+> implementation of the same ambiguity, in a repo Perry's tests cannot reach.
 >
-> The second option is `bin/perry-task list --all --json`
-> (`schema/task-list-contract.md`), a versioned payload with a locked shape and
-> every key always present. It costs the Python dependency this decision was
-> made to avoid, and it removes the parser. It also survives a change of
-> storage format, which the schema-conformance route does not.
+> DESIGN-005 also settles that task rows stop being canonical markdown at all
+> (decisions 1, 2 and 6 — the append-only log becomes the source of truth). A
+> schema-conformance consumer would have had to be rewritten for that; a
+> contract consumer does not, which is the whole point of freezing the payload
+> rather than the file format.
 >
-> **Both are live; nothing here is settled.** Whichever aiMark takes, the thing
-> to freeze differs: the JSON contract on one path, the schema *plus a
-> statement that columns are resolved by name and never by position* on the
-> other. The second sentence is the one that was missing.
+> **This applies to task state only.** `OKR.md`, `phase/` and `decisions/` stay
+> canonical hand-editable markdown, and their contracts —
+> `perry-goals/list/1.0` and `perry-decide/list/1.0` — do not exist yet
+> (DESIGN-005 § 6, steps 1–2). Until they do, a consumer that needs goals or
+> decisions still reads the files, and the "resolve columns by name, never by
+> position" rule below is the one that keeps it honest.
 
 The rule that follows: **if a reader can't get something from the declared
 structure, the answer is to declare it — not to infer it.** A number that
 appears in a dashboard must be traceable to a field somebody wrote down.
+
+### Columns resolve by name. Never by position.
+
+**Binding on every reader of every table in this schema**, in any language, in
+any repository.
+
+A table's `columns` list declares *which* columns a table has. It does **not**
+declare their order, and no reader may treat it as if it did — not for the
+required columns, not for the first one, not "just for `ID` because it is
+always first". `optional_columns` may appear anywhere, a project may reorder
+its own board, and `i18n.columns` means the header cell may not even be the
+English string.
+
+Resolve every column by matching the header cell against the canonical name and
+its `i18n.columns` aliases, and fall back to the canonical position only when no
+header cell matches — so an unrecognized header degrades to the old behavior
+instead of returning nothing.
+
+This paragraph exists because it was missing. `viewer/parsers.py` resolved
+exactly one column (`Verification`) by name, with a comment giving the correct
+reason — *"a board with an extra column would silently rate the wrong cell"* —
+and read the other six positionally, while `bin/perry-task` wrote all of them by
+name. On `| ID | Title | Track | Owner | … |` every field shifted one place:
+owner read the track, status read the owner, the open count went to zero, and
+`perry-lint` reported the board clean. **Two implementations of one schema, in
+one repository, disagreeing about what a row means** — because the schema
+answered "which columns" and the question was "where".
+
+Reference implementation: `viewer/parsers.py § _parse_task_table`. Locked by
+`tests/test_parsers.py § BoardColumnsResolveByName`.
 
 ## The linkage contract
 
