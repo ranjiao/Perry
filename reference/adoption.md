@@ -452,17 +452,35 @@ work under `## Open — 工程线` keeps that heading and every row under it; no
 is moved into `## P0`, because nothing in the file says which work is P0 and
 inferring it is exactly what this pipeline forbids.
 
+It asserts a second thing, which took longer to learn: **that the file still
+says what it said.** Every id, cell, character and row count can survive an edit
+that reverses the claim — a two-column legend under `## P0` widened into a task
+table, a `Status: not yet locked` normalized to `locked`, a token spliced into a
+sentence about a vendor contract. So the tool also re-reads its own output with
+`viewer/parsers` and refuses a file whose *records* changed, a line it rewrote
+that is neither a table row nor part of the header block, and a canonical value
+the author's own words — kept beside it — do not say. Each check names what it
+cannot see; `bin/perry-migrate § meaning()` is where that is written down.
+
 What the agent does around it:
 
 1. **Show the dry run.** All of it. It is the artifact the user is agreeing to.
 2. **Read back the files it will not touch**, and why. A file it refuses is
    left byte-identical — an unresolvable status word, a table Perry does not
    recognise, a file over its size cap. Each is one hand edit, and after it
-   `perry-migrate apply` finishes the job.
-3. **Never run `apply` without being asked.** ADR-004 § 4: mandatory migration
+   `perry-migrate apply` finishes the job. "Does not recognise" is a
+   vocabulary test, not a shape one: a table is Perry's when more of the
+   schema's column names are already in its header than are missing from it.
+   `ID`, `Status` and `Owner` are the commonest words in any markdown table,
+   and sharing one of them is a coincidence.
+3. **Read the migrated files.** Not the diff — the files, as a reader. The
+   assertions above exist because three defects in a row passed thirty
+   mutations and were found by somebody opening the file, and each check states
+   its own blind spot precisely so this step still has something to do.
+4. **Never run `apply` without being asked.** ADR-004 § 4: mandatory migration
    means the tool may refuse without it; it never means the tool may perform it
    unasked.
-4. **Hand the restore point to the user by name.** `perry-migrate restore
+5. **Hand the restore point to the user by name.** `perry-migrate restore
    <run-id>` puts every byte back, including the declarations the run made.
 
 `perry-migrate` refuses outright on a project with no Perry state — that project

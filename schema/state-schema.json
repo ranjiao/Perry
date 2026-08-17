@@ -706,7 +706,30 @@
         "进行中": "active",
         "已评分": "scored"
       }
-    }
+    },
+    "negations_description": "The other half of the same vocabulary. A canonical value standing in a sentence is not the same as one standing alone: `> Status: not yet locked - do not build from this` contains the word `locked`, and reading it as `locked` reverses what the author wrote while preserving every character they typed. perry-migrate drops a candidate whose clause is denied by one of these words, so a value that says only what it is NOT resolves to nothing and is reported rather than guessed. Same discipline as enum_aliases: a denial word is looked up here, never inferred in code. What it cannot see is stated in perry-migrate's enum_candidates - negation carried by grammar rather than by a word.",
+    "negations": [
+      "not",
+      "no",
+      "never",
+      "nor",
+      "cannot",
+      "isn't",
+      "aren't",
+      "wasn't",
+      "weren't",
+      "don't",
+      "doesn't",
+      "didn't",
+      "won't",
+      "hasn't",
+      "haven't",
+      "未",
+      "尚未",
+      "没",
+      "不",
+      "非"
+    ]
   },
   "thresholds": {
     "stale_run_days": {
