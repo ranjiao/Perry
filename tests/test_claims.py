@@ -288,17 +288,33 @@ class TestNoTestFileEndsEarly(unittest.TestCase):
     """
 
     DRIVER = """
-import os, runpy, sys, unittest
-sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
-ns = {}
+import os, sys, unittest
+
+# The namespace the file's own statements populate. `runpy.run_path` was used
+# here and could not work: the patched `unittest.main` raises during the run,
+# so run_path never returns and the name it would have been assigned to stays
+# empty. The counter then read `{}` and the guard compared 0 to 0 on every
+# input — inert on the exact defect it names. `exec` into a dict we hold means
+# the namespace fills as the file executes, so the count at the entry point is
+# a real count.
+path = sys.argv[1]
+sys.path.insert(0, os.path.dirname(os.path.abspath(path)))
+ns = {"__name__": "__main__", "__file__": path}
 seen = {}
+
 def count():
-    seen["at_entry"] = len([v for v in ns.values()
-        if isinstance(v, type) and issubclass(v, unittest.TestCase)])
-    raise SystemExit
+    # Record and RETURN — do not abort. Aborting was the second bug in this
+    # driver: `total` is counted after the exec, so an entry point that stops
+    # execution makes total == at_entry by construction and the comparison
+    # holds no matter how much was skipped. Letting the file finish is what
+    # makes the two numbers independent.
+    seen.setdefault("at_entry", len([v for v in ns.values()
+        if isinstance(v, type) and issubclass(v, unittest.TestCase)]))
+
 unittest.main = count
+src = open(path).read()
 try:
-    ns.update(runpy.run_path(sys.argv[1], run_name="__main__"))
+    exec(compile(src, path, "exec"), ns)
 except SystemExit:
     pass
 total = len([v for v in ns.values()
@@ -482,18 +498,48 @@ class TestEveryDeclaredSubcommandHasAProcedure(unittest.TestCase):
                         f"{lane}/SKILL.md: `{name}` points at {path.name}, "
                         f"which does not exist")
 
+    @staticmethod
+    def _headings_naming_only(body, name, all_names):
+        """Headings that are about `name` and about nothing else in the index.
+
+        The first version of this matched any heading mentioning the name, and
+        `goals/reference/phases.md`'s H1 is
+        `# `plan-phase` / `score-phase` / `snapshot` / `commit` — …`, which
+        satisfied all four of that lane's rows by itself. Deleting the whole
+        `commit` procedure left the suite green.
+
+        A title listing several subcommands is an index, not a procedure. A
+        title naming exactly one is the procedure — several reference pages
+        (`delegate.md`, `dispatch.md`, `autopilot.md`) are a single procedure
+        whose H1 is its only heading, so excluding H1s outright would be wrong.
+        """
+        out = []
+        for line in body.split("\n"):
+            if not line.startswith("#"):
+                continue
+            spans = re.findall(r"`([^`]+)`", line)
+            named = {n for n in all_names
+                     for s in spans
+                     if re.search(rf"(?:^|[\s/]){re.escape(n)}(?:$|[\s<\[])", s)}
+            if named == {name}:
+                out.append(line)
+        return out
+
     def test_every_row_has_a_procedure_in_the_reference_it_names(self):
         for lane in self.LANES:
-            for name, ref in self.rows(lane):
-                pat = re.compile(rf"(?m)^#+ .*`[^`]*\b{re.escape(name)}\b")
+            rows = self.rows(lane)
+            all_names = {n for n, _ in rows}
+            for name, ref in rows:
                 body = "\n".join(p.read_text() for p in self.resolve(lane, ref)
                                   if p.exists())
-                self.assertRegex(
-                    body, pat,
+                self.assertTrue(
+                    self._headings_naming_only(body, name, all_names),
                     f"{lane}/SKILL.md declares `{name}` and points at {ref}, "
-                    f"but that file has no heading for it — the index promises "
-                    f"a procedure nobody wrote, and each user gets a different "
-                    f"one improvised on the spot")
+                    f"but that file has no heading that is about `{name}` and "
+                    f"nothing else — the index promises a procedure nobody "
+                    f"wrote, and each user gets a different one improvised on "
+                    f"the spot. A title listing several subcommands does not "
+                    f"count; that is an index, not a procedure.")
 
 
 class TestTheStageInvariantReachesEveryFileThatMovesARow(unittest.TestCase):

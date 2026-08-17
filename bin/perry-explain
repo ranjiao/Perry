@@ -187,7 +187,24 @@ def harvest(root: Path) -> dict:
         # the same noise the is_illustrative filter was added to remove.
         proposing = False
 
+        # A fenced block is pasted output, not a reference. Evidence files
+        # quote command transcripts constantly, and those transcripts carry
+        # ids from throwaway fixtures and from copies of *other* projects —
+        # `wrote RX-010`, `oldest: CAD-002 @ 224d`. Charging this project for
+        # an id it never minted turns the dangling report into noise, which
+        # `reference/diagnose.md` names as worse than no check at all.
+        #
+        # Only fences are exempt, not inline code: `see \`TASK-042\`` is how
+        # Perry is supposed to cite a real row, and exempting that would
+        # remove most of what the check reads.
+        fenced = False
+
         for n, raw in enumerate(lines, 1):
+            if raw.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
             found = find_ids(raw)
 
             # ── table rows: | ID | Title | … |

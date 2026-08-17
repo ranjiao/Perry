@@ -31,7 +31,10 @@ Established by an end-to-end run (`perry-state --section cadence`):
 | `2026-W40（上次 2026-01-05 完成）` | quarterly | `due: 2026-01-05`, **224 days overdue** |
 
 Dashboard line from the same run:
-`🔁 Cadence : 2 registered · 2 overdue (oldest: CAD-002 @ 224d)`.
+
+```
+🔁 Cadence : 2 registered · 2 overdue (oldest: CAD-002 @ 224d)
+```
 
 This is not hypothetical prose. It is the convention the live register uses —
 `**2026-08-31**（7 月版 ✅ 8/3 补作 → evidence/2026-08/retro-2026-07.md；6 月版跳过）`.
@@ -56,7 +59,12 @@ Established by reverting: deleting the sort line and running the **full suite**
 gives `Ran 600 tests ... OK`. The guarding test adds `old` (37 days) before
 `newer` (12 days), so board order already equals sorted order and the assertion
 is satisfied by its own setup. The code itself is correct — adding the rows in
-the opposite order in a temp project produced `[('CAD-002', 30), ('CAD-001', 5)]`
+the opposite order in a temp project produced
+
+```
+[('CAD-002', 30), ('CAD-001', 5)]
+```
+
 — it is simply unverified.
 
 This matters beyond coverage: `work/reference/subcommands.md:95` now instructs
@@ -137,9 +145,15 @@ cannot see this. No test anywhere asserts the message text for `done`.
   cannot reproduce the claimed twenty-mutation run, which is why this review ran
   its own.
 - Rubric item 1 fully verified: both subcommands write board + journal + event
-  under one lock; `mint_cadence_id` returned `CAD-004` on the real register
-  numbered `CADENCE-000/002/003` and correctly skipped the number-free
-  `CADENCE-NIGHTLY-RESEARCH`; no procedure instructs a hand edit.
+  under one lock; on gimegime-pmo's own register `mint_cadence_id` minted the
+  next free number and correctly skipped the number-free row:
+
+```
+register: CADENCE-000, CADENCE-002, CADENCE-003, CADENCE-NIGHTLY-RESEARCH
+minted:   CAD-004
+```
+
+  No procedure instructs a hand edit.
 
 ## What must change
 

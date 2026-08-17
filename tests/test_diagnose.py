@@ -21,6 +21,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import pathlib
 import unittest
 from pathlib import Path
 
@@ -745,6 +746,61 @@ class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
             "a planning placeholder was counted as a decision queued on the user")
         self.assertLess(d["open_decisions"], 3,
                         "the two `TBD at handoff` cells were counted")
+
+
+class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
+    """Evidence files quote command transcripts, and those transcripts carry
+    ids from throwaway fixtures and from copies of *other* projects. Committing
+    four V4 reviews put `CAD-002`, `CAD-004`, `CADENCE-000` and `RX-010` into
+    this repo's dangling report — ids Perry never minted, in output Perry was
+    quoting.
+
+    A dangling report full of ids the project does not own is one the user
+    learns to ignore, which `reference/diagnose.md` names as worse than no
+    check at all.
+
+    Only fences are exempt, never inline code: ``see `TASK-042` `` is how Perry
+    is supposed to cite a real row.
+    """
+
+    DOC = """# Notes
+
+The row we are waiting on is `TASK-901`.
+
+```
+perry-task: wrote ZZZ-404 (risk-add) → board + journal + event
+oldest: ZZZ-405 @ 224d
+```
+"""
+
+    def harvest(self, text):
+        import tempfile
+        explain = load_bin_module("perry-explain")
+        with tempfile.TemporaryDirectory() as d:
+            root = pathlib.Path(d)
+            (root / "BOARD.md").write_text("# BOARD\n")
+            (root / "notes.md").write_text(text)
+            return explain.harvest(root)
+
+    def test_an_id_only_inside_a_fence_is_not_reported_as_dangling(self):
+        e = self.harvest(self.DOC)
+        for tracked in ("ZZZ-404", "ZZZ-405"):
+            self.assertFalse(
+                e.get(tracked, {}).get("in_tracking_doc"),
+                f"{tracked} appears only in pasted output and was counted as "
+                f"a reference this project owes a definition for")
+
+    def test_an_id_in_prose_is_still_counted(self):
+        """The exemption must not swallow the check it lives in."""
+        e = self.harvest(self.DOC)
+        self.assertTrue(e["TASK-901"]["in_tracking_doc"])
+        self.assertFalse(e["TASK-901"]["defined"])
+
+    def test_an_unclosed_fence_does_not_swallow_the_rest_of_the_file(self):
+        """A single stray ``` would otherwise exempt every line after it."""
+        e = self.harvest("# Notes\n\n```\nZZZ-404\n```\n\nWaiting on `TASK-902`.\n")
+        self.assertTrue(e.get("TASK-902", {}).get("in_tracking_doc"),
+                        "a stray fence swallowed every line after it")
 
 
 if __name__ == "__main__":

@@ -69,8 +69,13 @@ Two aggravating factors:
   *smaller* rewrite (creating a missing `## P1`). The rule is applied in one
   function and overridden 1,300 lines later.
 - The human-readable output never mentions it. `bin/perry-task:2559-2572` prints
-  only `wrote RX-010 (risk-add) → board + journal + event`; the `migrated` list
-  exists only under `--json`.
+  only the write line, with no mention of the nine rows it rewrote:
+
+```
+perry-task: wrote RX-010 (risk-add) → board + journal + event
+```
+
+  The `migrated` list exists only under `--json`.
 
 `risk-add --dry-run --json` already returns the full `migrated` list without
 writing. What is missing is a flag and a refusal.
@@ -90,7 +95,8 @@ AFTER   total 15  open 11  cleared 4   collisions: set()
 ```
 
 One risk was added; the total rose by two, and GAVI is now reported **twice —
-once open (board `RX-004`) and once cleared (PROJECT_STATE)** simultaneously.
+once open (its new board id) and once cleared (its `PROJECT_STATE` bullet)**
+simultaneously.
 No test covers the two-file path.
 
 ### M-2 · The writer resolves the `ID` column by position; the reader resolves it by name
