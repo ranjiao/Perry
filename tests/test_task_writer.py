@@ -2800,5 +2800,55 @@ class TestDropRecordsWhereTheRowDied(unittest.TestCase):
                          "an empty stage was rendered into the journal line")
 
 
+class TestOnePriorityValidator(unittest.TestCase):
+    """`cmd_add` refused an unknown priority; `cmd_route` did not, and fed it
+    straight into `PRIORITY_RE[...]`.
+
+    So `route --priority "P2 (低优先 carry)"` — a real project's full section
+    heading, which is what anyone reading that board would type — raised
+    `KeyError` instead of refusing. A traceback where a refusal belongs, for
+    the third time in this file.
+
+    The shape is the recurring one: one rule, two implementations, and the
+    value is a dict key, so validating it in one place and indexing with it in
+    another guarantees the mismatch eventually.
+    """
+
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | commitments | new->triaged->in_progress | — | 5d | monthly | V2 |\n")
+
+    def test_route_refuses_an_unknown_priority_rather_than_crashing(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        code, out = p.run("route", "1", "--track", "ops",
+                          "--priority", "P2 (低优先 carry)")
+        self.assertEqual(code, 1, out)
+        self.assertIn("not one of P0/P1/P2", str(out))
+
+    def test_the_refusal_says_what_to_type_instead(self):
+        """A refusal that names no way forward is a wall. The heading IS the
+        thing `--group` takes."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        _, out = p.run("route", "1", "--track", "ops", "--priority", "nonsense")
+        self.assertIn("--group", str(out))
+
+    def test_add_and_route_refuse_identically(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        _, a = p.run("add", "--title", "x", "--priority", "ZZZ")
+        _, r = p.run("route", "1", "--track", "ops", "--priority", "ZZZ")
+        self.assertEqual(str(a), str(r),
+                         "two callers, two different answers to one question")
+
+    def test_a_valid_priority_still_routes(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        code, out = p.run("route", "1", "--track", "ops", "--priority", "P2")
+        self.assertEqual(code, 0, out)
+
+
 if __name__ == "__main__":
     unittest.main()

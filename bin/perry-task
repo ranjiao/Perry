@@ -829,6 +829,26 @@ def heading_spellings(name: str) -> list[str]:
     return out
 
 
+def check_priority(priority: str) -> str:
+    """One validator, because there were two and only one of them ran.
+
+    `cmd_add` refused an unknown priority; `cmd_route` passed `args.priority`
+    straight into `PRIORITY_RE[...]`, so `route --priority "P2 (低优先 carry)"`
+    — a real project's full heading, which is exactly what someone reading
+    that board would type — raised `KeyError` instead of refusing. A traceback
+    where a refusal belongs, for the third time in this file.
+
+    The value is a key, so validating it in one place and indexing with it in
+    another is the shape that guarantees a mismatch eventually.
+    """
+    if priority and priority not in ("P0", "P1", "P2"):
+        raise Refused(f"priority {priority!r} is not one of P0/P1/P2. A board "
+                      f"section whose heading carries more than that — "
+                      f"`## P2 (低优先 carry)` — is still `--priority P2`; "
+                      f"pass the whole heading to `--group` instead")
+    return priority
+
+
 def heading_re(name: str) -> re.Pattern:
     # `(?!\w)` rather than `\b`: a word boundary needs a word char on one
     # side, so a heading ending in punctuation — `## P2 (低优先 carry)` on a
@@ -1186,9 +1206,7 @@ def cmd_add(args, ctx) -> dict:
     mode = track["mode"]
     tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
     group = args.group or ""
-    priority = args.priority or ("" if group else "P1")
-    if priority and priority not in ("P0", "P1", "P2"):
-        raise Refused(f"priority {priority!r} is not one of P0/P1/P2")
+    priority = check_priority(args.priority or ("" if group else "P1"))
     if not group:
         try:
             ctx["board"].table(priority)
@@ -2401,7 +2419,7 @@ def cmd_route(args, ctx) -> dict:
         raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
                       f"queue-mode operation (`modes/queue.md`)")
     tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
-    priority = args.priority or "P1"
+    priority = check_priority(args.priority or "P1")
     stages = stages_of(ctx["schema"], track)
     check_stage(track, stages, args.stage)
     # Same function `cmd_add` calls, so the two cannot disagree about where a
