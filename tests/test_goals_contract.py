@@ -1,4 +1,4 @@
-"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/1.0`.
+"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.0`.
 
 The third read contract, and the last one a front-end needs before it can show
 a whole project without opening a markdown file.
@@ -38,11 +38,12 @@ def run(root: Path, *argv) -> tuple[int, dict | str]:
 class TestShape(unittest.TestCase):
 
     TOP = {"contract", "project_root", "state_root", "conformance",
-           "okr", "phase", "krs", "linkage", "counts"}
-    KR = {"id", "level", "objective", "text", "metric", "qualifier",
-          "linked_to", "stretch", "target", "current", "progress", "tasks"}
+           "okr", "phase", "krs", "linkage", "counts",
+           "answered_by", "unlinked_task_ids"}
+    KR = {"id", "level", "objective", "title", "metric", "qualifier",
+          "linked_to", "stretch", "target", "current", "due", "task_ids"}
     CONF = {"okr_present", "phase_present", "linkage_present",
-            "krs_without_metric", "krs_without_progress",
+            "krs_without_metric", "krs_without_numbers",
             "krs_not_in_linkage", "duplicate_kr_ids"}
 
     def test_the_shape_is_exact(self):
@@ -60,7 +61,7 @@ class TestShape(unittest.TestCase):
 
     def test_version_handle(self):
         _, d = run(FIXTURE)
-        self.assertTrue(d["contract"].startswith("perry-goals/list/1."))
+        self.assertTrue(d["contract"].startswith("perry-goals/list/2."))
 
     def test_level_filter(self):
         _, d = run(FIXTURE, "--level", "phase")
@@ -102,6 +103,30 @@ class TestDerivedFieldsAreReallyDerived(unittest.TestCase):
         self.assertGreater(ph["day"], 0,
                            "phase day is 0 or None — the `started` date was "
                            "not read, or the field does not exist")
+
+    def test_unlinked_tasks_are_named_not_left_to_set_arithmetic(self):
+        """A task absent from every KR's `task_ids` might serve no KR, or might
+        be a payload the consumer truncated. Only Perry can tell those apart,
+        so Perry says which — and this asserts it says something, because a
+        field that is always empty is decoration.
+
+        Added after a mutation run: emptying the computation left every other
+        test green.
+        """
+        _, d = run(FIXTURE)
+        self.assertTrue(
+            d["unlinked_task_ids"],
+            "the fixture has a task serving no KR and the payload reported none")
+        linked = {tid for k in d["krs"] for tid in k["task_ids"]}
+        for tid in d["unlinked_task_ids"]:
+            self.assertNotIn(tid, linked,
+                             f"{tid} is reported unlinked and also carries an edge")
+
+    def test_answered_by_names_the_source_not_the_outcome(self):
+        """"No register" and "no progress" are different facts and only one of
+        them is about the work."""
+        _, d = run(FIXTURE)
+        self.assertEqual(d["answered_by"], "linkage")
 
     def test_kr_total_matches_the_krs_actually_listed(self):
         _, d = run(FIXTURE)
@@ -180,17 +205,32 @@ Ship the thing.
         self.assertEqual(len([k for k in d["krs"] if k["id"] == "KR1"]), 2,
                          "a duplicate id was collapsed, losing a KR")
 
-    def test_krs_with_no_measurable_progress_are_named(self):
-        """Without a linkage register there is no target and no current, so
-        progress is `null` — not zero. A front-end rendering 0% would be
-        asserting no progress on work it knows nothing about."""
+    def test_no_numbers_without_a_register_and_no_percentage_ever(self):
+        """Without a linkage register there is no target and no current — and
+        the payload never turns them into a percentage even when there is.
+
+        Perry cannot tell which direction a KR runs. A ceiling rendered
+        two-thirds achieved is the worst thing a dashboard can say, and Perry's
+        own fixture proves the point without a risk metric: `manual steps = 0`
+        gives `target: 0`, where the division does not exist at all."""
         _, d = run(self.okr_project(self.OKR))
         self.assertTrue(d["krs"])
         for k in d["krs"]:
-            self.assertIsNone(k["progress"])
-        self.assertEqual(sorted(set(d["conformance"]["krs_without_progress"])),
+            self.assertIsNone(k["target"])
+            self.assertIsNone(k["current"])
+            self.assertNotIn("progress", k,
+                             "a pre-computed percentage came back")
+        self.assertEqual(sorted(set(d["conformance"]["krs_without_numbers"])),
                          ["KR1"])
         self.assertFalse(d["conformance"]["linkage_present"])
+        self.assertEqual(d["answered_by"], "prose")
+
+    def test_a_zero_target_would_have_been_a_division_by_zero(self):
+        """The fixture case that validates removing `progress`: a
+        reduce-to-zero KR. Any `current / target` here is undefined."""
+        _, d = run(FIXTURE)
+        zeros = [k for k in d["krs"] if k["target"] == 0]
+        self.assertTrue(zeros, "the fixture no longer has a zero-target KR")
 
 
 class TestContractDocAgrees(unittest.TestCase):
@@ -205,7 +245,8 @@ class TestContractDocAgrees(unittest.TestCase):
             "linkage", "counts", "present", "version", "mission",
             "operating_principles", "anti_goals", "objectives", "number",
             "slug", "status", "started", "day", "kr_total", "cost_ceiling",
-            "updated", "error", "phase"}
+            "updated", "error", "phase", "name", "answered_by",
+            "unlinked_task_ids"}
         undocumented = (TestShape.KR | TestShape.CONF) - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "

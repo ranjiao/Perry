@@ -59,7 +59,7 @@ class Refused(Exception):
 # Versioned independently of the other two (DESIGN-005 § 4 decision 5). Goals
 # move on a different clock from tasks; tying the versions together would make
 # a consumer re-check code for a change in a domain it does not read.
-LIST_CONTRACT = "perry-goals/list/1.0"
+LIST_CONTRACT = "perry-goals/list/2.0"
 
 
 def plain(x):
@@ -89,23 +89,26 @@ def kr_rows(snap) -> list[dict]:
             for k in (getattr(o, "krs", None) or []):
                 r = reg.get(k.id, {})
                 target, current = r.get("target"), r.get("current")
-                progress = None
-                if isinstance(target, (int, float)) and target:
-                    if isinstance(current, (int, float)):
-                        progress = round(current / target, 4)
                 out.append({
                     "id": k.id,
                     "level": level,
                     "objective": getattr(o, "title", ""),
-                    "text": getattr(k, "text", "") or getattr(k, "title", ""),
+                    "title": getattr(k, "text", "") or getattr(k, "title", ""),
                     "metric": getattr(k, "metric", ""),
+                    "due": r.get("due", "") or getattr(k, "due", "") or "",
                     "qualifier": getattr(k, "qualifier", ""),
                     "linked_to": getattr(k, "linked", "") or "",
                     "stretch": bool(getattr(k, "stretch", False)),
+                    # Numbers or null. NEVER a pre-computed percentage: half
+                    # of a real OKR's targets are ceilings, not goals, and a
+                    # max-drawdown limit rendered two-thirds achieved is the
+                    # worst thing a dashboard can say. Only the project knows
+                    # which direction a KR runs, so only the project may draw
+                    # the bar. `progress` shipped in 1.0 and is removed here —
+                    # that is why this is 2.0 and not 1.1.
                     "target": target,
                     "current": current,
-                    "progress": progress,
-                    "tasks": r.get("tasks", []),
+                    "task_ids": r.get("tasks", []),
                 })
     return out
 
@@ -118,6 +121,28 @@ def days_since(value: str) -> int | None:
         return (date.today() - datetime.strptime(m.group(0), "%Y-%m-%d").date()).days
     except ValueError:
         return None
+
+
+def objective_rows(src, lk) -> list[dict]:
+    """Objectives with an id where one is *stated*, never invented.
+
+    `OKR.md`'s objectives carry a title and no id — the heading is
+    `### Objective 1 — <title>`, and the "1" is ordinal prose, not a handle.
+    The linkage register does carry real ids, so an id is taken from there by
+    title match and left empty otherwise. Deriving `O1`, `O2` from position
+    would be minting a key the file never stated, and a consumer would key on
+    it right up until someone reordered two headings.
+    """
+    by_title = {o.title.strip(): o.id
+                for o in (getattr(lk, "objectives", None) or [])
+                if getattr(o, "title", "")}
+    out = []
+    for o in (getattr(src, "objectives", None) or []):
+        title = getattr(o, "title", "")
+        out.append({"id": by_title.get(title.strip(), ""),
+                    "title": title,
+                    "krs": [k.id for k in (getattr(o, "krs", None) or [])]})
+    return out
 
 
 def build(project_root: Path, state_root: Path, level: str | None) -> dict:
@@ -137,6 +162,34 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     if level:
         krs = [k for k in krs if k["level"] == level]
 
+    # Which source actually answered. A consumer showing a cascade needs to say
+    # "no register" rather than "no progress" — they are different facts and
+    # only one of them is about the work.
+    if getattr(lk, "objectives", None):
+        answered_by = "linkage"
+    elif okr_present or ph is not None:
+        answered_by = "prose"
+    else:
+        answered_by = "none"
+
+    # DECLARED, never inferred by set arithmetic. A task absent from every KR's
+    # `task_ids` might be unlinked, or might be a payload the consumer
+    # truncated — only Perry can tell the two apart, so Perry says which.
+    # `perry-state` computes this from the same snapshot; it is read here rather
+    # than recomputed so the two cannot come to disagree.
+    unlinked = []
+    try:
+        att = P.attribution(snap) if hasattr(P, "attribution") else None
+    except Exception:
+        att = None
+    if att is None:
+        linked_ids = {tid for k in krs for tid in k["task_ids"]}
+        board = getattr(snap, "board", None)
+        rows = (list(getattr(board, "p0", [])) + list(getattr(board, "p1", []))
+                + list(getattr(board, "p2", []))) if board else []
+        unlinked = sorted({t.id for t in rows if getattr(t, "id", "")
+                           and t.id not in linked_ids})
+
     # Every one of these is a real state a project can be in, and none of them
     # is an error. A project may run goals with no phase, a phase with no
     # linkage register, or an OKR whose KRs carry no metric at all. Reported so
@@ -147,9 +200,10 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
         "phase_present": ph is not None,
         "linkage_present": bool(getattr(lk, "objectives", None)),
         "krs_without_metric": [k["id"] for k in krs if not k["metric"]],
-        "krs_without_progress": [k["id"] for k in krs if k["progress"] is None],
+        "krs_without_numbers": [k["id"] for k in krs
+                                if k["target"] is None or k["current"] is None],
         "krs_not_in_linkage": [k["id"] for k in krs
-                               if k["level"] == "phase" and not k["tasks"]
+                               if k["level"] == "phase" and not k["task_ids"]
                                and k["target"] is None],
         "duplicate_kr_ids": sorted(
             {k["id"] for k in krs if [x["id"] for x in krs].count(k["id"]) > 1}),
@@ -171,11 +225,11 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
             "mission": (okr.mission if okr else "") or "",
             "operating_principles": list(getattr(okr, "operating_principles", []) or []),
             "anti_goals": list(getattr(okr, "anti_goals", []) or []),
-            "objectives": [{"title": getattr(o, "title", ""),
-                            "krs": [k.id for k in (getattr(o, "krs", None) or [])]}
-                           for o in (getattr(okr, "objectives", None) or [])],
+            "objectives": objective_rows(okr, lk),
         },
         "phase": None if ph is None else {
+            "id": getattr(ph, "number", ""),
+            "name": getattr(ph, "slug", ""),
             "number": getattr(ph, "number", ""),
             "slug": getattr(ph, "slug", ""),
             "status": getattr(ph, "status", ""),
@@ -183,11 +237,11 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
             "day": phase_day,
             "kr_total": phase_krs,
             "cost_ceiling": getattr(ph, "cost_ceiling_raw", "") or "",
-            "objectives": [{"title": getattr(o, "title", ""),
-                            "krs": [k.id for k in (getattr(o, "krs", None) or [])]}
-                           for o in (getattr(ph, "objectives", None) or [])],
+            "objectives": objective_rows(ph, lk),
         },
         "krs": krs,
+        "answered_by": answered_by,
+        "unlinked_task_ids": unlinked,
         "linkage": {
             "present": bool(getattr(lk, "objectives", None)),
             "phase": getattr(lk, "phase", "") or "",
@@ -255,11 +309,12 @@ def main(argv: list[str]) -> int:
         if ph:
             print(f"  phase #{ph['number']} {ph['slug']} · day {ph['day']}")
         for k in result["krs"]:
-            pct = "—" if k["progress"] is None else f"{k['progress'] * 100:.0f}%"
-            print(f"  {k['id']:10} {k['level']:8} {pct:>5}  {k['text'][:48]}")
+            n = ("—" if k["target"] is None or k["current"] is None
+                 else f"{k['current']}/{k['target']}")
+            print(f"  {k['id']:10} {k['level']:8} {n:>9}  {k['title'][:44]}")
         c = result["conformance"]
         print(f"\n  {result['counts']['krs']} KR(s) · "
-              f"{len(c['krs_without_progress'])} with no measurable progress")
+              f"{len(c['krs_without_numbers'])} with no target/current pair")
         if not c["linkage_present"]:
             print("  ⚠ no linkage register — no KR carries task edges or a target")
     return 0
