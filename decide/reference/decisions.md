@@ -1,4 +1,4 @@
-# `/pmo decide <topic>` and the `decisions/` library
+# `adr <topic>` and the `decisions/` library
 
 The `decide` lane's ADR (Architecture Decision Record) machinery. One file per decision under `decisions/<ADR-ID>-<slug>.md`. `DECISIONS.md` at the project root is **an index only** — it lists which ADRs exist and their current status, but does not hold the decision content itself. Same split rationale as BOARD.md vs journal/: keep the always-loaded file small; one decision per file scales.
 
@@ -113,9 +113,9 @@ Files **never move** on status change — only the `Status:` header field flips.
 | ... |
 ```
 
-## Subcommand: `/pmo decide [<topic>]` and `--supersede` / `--expire` / `--archive`
+## Subcommand: `adr [<topic>]` and `--supersede` / `--expire` / `--archive`
 
-### `/pmo decide <topic>` — new ADR
+### `/perry decide adr <topic>` — new ADR
 
 1. **Read `.perry/config.md`** for document language. If absent, refuse and ask user to run top-level `/perry` first-time setup.
 2. **Determine next ADR-NNN**: scan `decisions/` for highest existing `ADR-NNN-*.md`, increment. (PMO bootstrap creates ADR-NNN as the bootstrap-marker; subsequent ADRs are ADR-NNN+.)
@@ -139,14 +139,14 @@ Files **never move** on status change — only the `Status:` header field flips.
    apologising is the thing it forbids.
 9. **Reply with the ADR path** + 1-line summary.
 
-### `/pmo decide --supersede ADR-NNN` — new ADR replacing an old one
+### `/perry decide adr --supersede ADR-NNN` — new ADR replacing an old one
 
 Same flow as new ADR, with extra steps:
 1. The new ADR's header gets `Supersedes: ADR-NNN`.
 2. The old ADR file's `Status:` flips to `superseded`; header gets `Superseded by: ADR-<new>`; flip happens AFTER the new ADR is written so the chain is intact.
 3. `DECISIONS.md` index: new ADR in Active section; old ADR moves to Superseded section with `Replaced by` populated.
 
-### `/pmo decide --expire ADR-NNN [<trigger-note>]`
+### `/perry decide adr --expire ADR-NNN [<trigger-note>]`
 
 For time-boxed ADRs whose sunset fired:
 1. Flip target ADR's `Status:` to `expired`.
@@ -154,7 +154,7 @@ For time-boxed ADRs whose sunset fired:
 3. Update DECISIONS.md index (move row to Expired section).
 4. Surface the expiration in chat: "ADR-NNN has expired; you may need a new ADR to handle the now-uncovered situation."
 
-### `/pmo decide --archive ADR-NNN <reason>`
+### `/perry decide adr --archive ADR-NNN <reason>`
 
 For ADRs whose context has passed (project pivot, scope change, etc.):
 1. Flip target ADR's `Status:` to `archived`.
@@ -167,7 +167,7 @@ Use sparingly. Most retired ADRs should be `superseded` (have a successor) or `e
 
 At every standup, PMO scans active ADRs with `Sunset criteria` for any date-based trigger that has passed today's date. If any fired but Status is still `active`:
 - Surface in the dashboard as a 🚨 alert
-- Suggest action: "ADR-NNN sunset date passed; run `/pmo decide --expire ADR-NNN` or take the required action."
+- Suggest action: "ADR-NNN sunset date passed; run `/perry decide adr --expire ADR-NNN` or take the required action."
 
 Metric-based and event-based triggers are NOT auto-checked (PMO can't reliably evaluate them without project-specific instrumentation). They are listed in the ADR for human reference; the user invokes `--expire` when they observe the trigger.
 

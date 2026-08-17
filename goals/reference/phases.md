@@ -1,6 +1,76 @@
-# `plan-phase` / `score-phase` / `snapshot` — the phase cadence
+# `plan-phase` / `score-phase` / `snapshot` / `commit` — the phase cadence and the commitment register
 
-Loaded when one of those three subcommands fires.
+Loaded when one of those four subcommands fires.
+
+`commit` lives here rather than in a file of its own because `plan-phase`
+already walks the same table, and a rule about commitments written in two files
+is the defect this lane keeps finding in other people's work.
+
+## `commit <promise>`
+
+Add or update a row in `OKR.md § Commitments` — the spine for `pipeline`- and
+`queue`-mode tracks. The goals lane is the only writer of `OKR.md`, so this is
+where a commitment is created; the work lane links to it from the board side by
+putting the `Id` in a row's `Commitment` cell, and never the other way round.
+
+**There is no tool yet.** This is an agent procedure that edits `OKR.md`
+directly, the same way `plan-phase` writes a phase file. TASK-042 replaces it
+with a deterministic writer, exactly as `cadence-add` replaced the prose
+procedure for the recurrence register. Until then the rules below are rules an
+agent follows, not rules a script catches — said out loud because
+`modes/pipeline.md` makes the same admission about WIP, and an unstated
+concession is a decorative one.
+
+### Creating one
+
+1. **Refuse if the section is absent and no track is `pipeline` or `queue`.**
+   `OKR_TEMPLATE.md` says to omit the section entirely on an all-`project`
+   project. Creating it because someone typed `commit` would add a spine to a
+   shape that has no use for one. Say which modes it serves and stop.
+   If the section is absent and such a track *does* exist, create it from
+   `goals/state/OKR_TEMPLATE.md § Commitments`, header and note included.
+
+2. **Mint the `Id`** as `<track>/<n>`, where `<n>` is one greater than the
+   highest `<n>` already present **for that track** in this table. Ids are
+   never reused and never renumbered: a board row's `Commitment` cell points
+   at this string, and the goals lane rewrites this file wholesale, so an id
+   that moves silently re-points work rather than dangling visibly.
+
+3. **Ask for `To whom` and `By when`** — one `AskUserQuestion`, both fields.
+   Neither has a default. A promise with no named party is a KR, and belongs
+   under an Objective instead; say so and route it there rather than filing a
+   commitment to nobody.
+
+4. **Check `By when` against the track's mode**, because the column carries two
+   formats in one table:
+
+   | Track mode | Accepted | Refused |
+   |---|---|---|
+   | `pipeline` | a date (`2026-09-30`) | prose — triage compares this cell against today, and cannot compare prose |
+   | `queue` | prose naming the SLA (`within the track SLA`), or a date | prose that names no clock (`soon`, `ASAP`, `when we get to it`) |
+
+   For a queue track, refuse if `.perry/config.md § Tracks` has no `SLA` cell
+   for it: "within the track SLA" pointing at an empty register is a promise
+   with no clock at all. Name the track and ask for the SLA first.
+
+5. **Write the row** with `Status: active`, and leave `Discharged by` empty.
+   That cell is free prose describing *how* the promise gets satisfied; it is
+   never a list of row ids.
+
+### Ending one
+
+| | Writes | Notes |
+|---|---|---|
+| `--close <Id>` | `Status: closed` | Ask for one line in `Discharged by` if it is still empty. A promise closed with no account of how is indistinguishable from one abandoned quietly. |
+| `--miss <Id> <reason>` | `Status: missed`, `<reason>` appended to `Discharged by` | |
+
+**A missed commitment is recorded, never silently re-dated.** Editing `By when`
+on a promise whose date has passed erases the fact that it was missed, and the
+party it was made to is the one person who cannot see the edit. If the promise
+still stands under a new date, `--miss` the old row and `commit` a new one; the
+register then reads as what happened. Refuse a `By when` edit on any row whose
+current date is in the past and whose `Status` is `active` — that is the one
+edit this procedure will not make.
 
 ## `plan-phase <slug>`
 

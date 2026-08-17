@@ -398,5 +398,103 @@ class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
                           f"bin/{name} never resolves the state root")
 
 
+class TestEveryDeclaredSubcommandHasAProcedure(unittest.TestCase):
+    """`goals/SKILL.md` listed `commit <promise>` with a paragraph of behaviour
+    and pointed at `reference/phases.md`, which had never heard of it. A user
+    who typed it got whatever the agent invented on the spot, and two users got
+    two different things.
+
+    Same defect class as the router naming three directories that did not
+    exist (TASK-027 round 3) and `subcommands.md` citing a restatement
+    `autopilot.md` does not contain (m-10). The index is a promise that a
+    procedure exists somewhere; nothing checked that it did.
+
+    Found as M-7 in the V4 review of TASK-019/020.
+    """
+
+    ROOT = pathlib.Path(__file__).resolve().parent.parent
+    LANES = ("goals", "work", "decide")
+
+    def rows(self, lane):
+        """The index table, and only it.
+
+        A lane SKILL.md holds several tables that look alike — `decide` also
+        has one listing state files, whose rows would parse as subcommands
+        pointing at templates. The index is identified by the row every lane
+        has and no other table does: `help`. Take the contiguous block of
+        table lines containing it.
+        """
+        lines = (self.ROOT / lane / "SKILL.md").read_text().split("\n")
+        blocks, cur = [], []
+        for line in lines:
+            if line.startswith("|"):
+                cur.append(line)
+            else:
+                if cur:
+                    blocks.append(cur)
+                cur = []
+        if cur:
+            blocks.append(cur)
+        index = [b for b in blocks
+                 if any(re.match(r"^\|\s*`help[ `]", l) for l in b)]
+        self.assertEqual(1, len(index),
+                         f"{lane}/SKILL.md: could not identify the index table")
+        out = []
+        for line in index[0]:
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            m = re.match(r"^`([a-z][a-z-]*)[^`]*`$", cells[0])
+            if m:
+                out.append((m.group(1), cells[-1].strip("`")))
+        return out
+
+    def resolve(self, lane, cell):
+        """Every file a reference cell names. `Subcommands` and
+        `(handled here)` mean the lane's own SKILL.md — the reference is a
+        section, not a file. A cell may name more than one file
+        (`` `subcommands.md` + `reporting-format.md` ``); all must exist, and
+        the procedure has to be in one of them."""
+        out = []
+        for ref in re.split(r"[+,]", cell):
+            ref = ref.strip().strip("`").strip()
+            if not ref.endswith(".md"):
+                out.append(self.ROOT / lane / "SKILL.md")
+            elif ref.startswith("$PERRY_HOME/"):
+                out.append(self.ROOT / ref[len("$PERRY_HOME/"):])
+            else:
+                out.append(self.ROOT / lane / ref)
+        return out
+
+    def test_the_index_is_not_empty(self):
+        """A parser that silently matched nothing would make both checks
+        below pass on any input at all."""
+        for lane in self.LANES:
+            self.assertGreaterEqual(
+                len(self.rows(lane)), 8,
+                f"{lane}/SKILL.md: the index parser found almost no rows, so "
+                f"the checks below are grading an empty set")
+
+    def test_every_row_names_a_reference_that_exists(self):
+        for lane in self.LANES:
+            for name, ref in self.rows(lane):
+                for path in self.resolve(lane, ref):
+                    self.assertTrue(
+                        path.exists(),
+                        f"{lane}/SKILL.md: `{name}` points at {path.name}, "
+                        f"which does not exist")
+
+    def test_every_row_has_a_procedure_in_the_reference_it_names(self):
+        for lane in self.LANES:
+            for name, ref in self.rows(lane):
+                pat = re.compile(rf"(?m)^#+ .*`[^`]*\b{re.escape(name)}\b")
+                body = "\n".join(p.read_text() for p in self.resolve(lane, ref)
+                                  if p.exists())
+                self.assertRegex(
+                    body, pat,
+                    f"{lane}/SKILL.md declares `{name}` and points at {ref}, "
+                    f"but that file has no heading for it — the index promises "
+                    f"a procedure nobody wrote, and each user gets a different "
+                    f"one improvised on the spot")
+
+
 if __name__ == "__main__":
     unittest.main()
