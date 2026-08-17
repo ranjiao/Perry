@@ -997,6 +997,211 @@ class TestWorkModeDetection(unittest.TestCase):
         self.assertEqual(t["scores"]["pipeline"], 0)
 
 
+class TestASharedSignalScoresForEveryModeThatOwnsIt(unittest.TestCase):
+    """Two of the columns this scanner reads are named by **two** contracts.
+
+    `Stage since` is pipeline's *Stage clock* and inquiry's *Question clock*
+    (`modes/inquiry.md` § contract, whose triage step 2 computes
+    `today − Stage since`). `Commitment` is pipeline's *Commitment link* and
+    the cell `modes/queue.md` gives a routed intake row, carries on every row,
+    and names an SLA breach by. Attributing either to `pipeline` alone let one
+    column contradict a declaration the user wrote on purpose.
+    """
+
+    @staticmethod
+    def inquiry_board(root: Path, declared_mode: str = "inquiry") -> None:
+        """A canonical inquiry track: root questions, own stage vocabulary.
+
+        `Parent` is empty because these are roots — `modes/inquiry.md` §
+        contract defines the spine as exactly the rows with an empty `Parent`
+        — and the stages are the track's own, which the register explicitly
+        permits. So the inquiry-shaped signals a scanner might look for are
+        legitimately absent, and the only column left is the question clock.
+        """
+        write(root, ".perry/config.md", CONFIG + tracks_section(
+            f"| study | {declared_mode} | questions | scoping→reading→synthesis "
+            f"| open:5 | — | — | V4 |\n"))
+        write(root, "BOARD.md", board(
+            "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Stage since | Parent |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| Q-1 | Does batching cut cost? | Agent | in_progress | study | reading | 2026-08-10 | — |\n"
+            "| Q-2 | What do vendors charge? | Agent | in_progress | study | scoping | 2026-08-12 | — |\n"))
+
+    @staticmethod
+    def queue_board(root: Path, declared_mode: str = "queue") -> None:
+        """A queue track whose rows name the commitment they discharge.
+
+        `modes/queue.md § Standing commitments` writes the link from the board
+        side — the row's `Commitment` cell carries the promise's `Id` — so this
+        board is doing exactly what that file asks for.
+        """
+        write(root, ".perry/config.md", CONFIG + tracks_section(
+            f"| ops | {declared_mode} | commitments | waiting→working→closed "
+            f"| — | 5d | monthly | V2 |\n"))
+        write(root, "BOARD.md", board(
+            "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Commitment |\n"
+            "|---|---|---|---|---|---|---|\n"
+            "| OPS-1 | Vendor invoice | Agent | in_progress | ops | working | ops/1 |\n"
+            "| OPS-2 | Access review | Agent | not_started | ops | waiting | ops/1 |\n"))
+
+    def test_the_question_clock_is_inquiry_evidence_too(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.inquiry_board(root)
+            t = modes_of(scan(root))["study"]
+        self.assertEqual(t["scores"]["inquiry"], t["scores"]["pipeline"],
+                         "`Stage since` was attributed to one of its two owners")
+        self.assertTrue(any("Stage since" in e for e in t["evidence"]["inquiry"]),
+                        "the question clock is missing from inquiry's evidence")
+        self.assertTrue(any("Stage since" in e for e in t["evidence"]["pipeline"]),
+                        "the stage clock is missing from pipeline's evidence")
+
+    def test_the_commitment_cell_is_queue_evidence_too(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.queue_board(root)
+            t = modes_of(scan(root))["ops"]
+        self.assertEqual(t["scores"]["queue"], t["scores"]["pipeline"],
+                         "`Commitment` was attributed to one of its two owners")
+        self.assertTrue(any("Commitment" in e for e in t["evidence"]["queue"]))
+        self.assertTrue(any("Commitment" in e for e in t["evidence"]["pipeline"]))
+
+    def test_a_shared_column_cannot_separate_its_own_owners(self):
+        """The reproduction. A board carrying only the question clock is a
+        board that fits pipeline and inquiry equally, and the honest report is
+        the tie — not the alphabetically luckier of the two."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.inquiry_board(root)
+            payload = scan(root)
+        t = modes_of(payload)["study"]
+        self.assertIsNone(t["mode"], f"a shared column named `{t['mode']}`")
+        self.assertEqual(t["confidence"], "low")
+        self.assertNotIn("MODE-01", ids(payload),
+                         "a correct declaration was contradicted by a column "
+                         "its own mode contract names")
+
+    def test_a_queue_row_naming_its_commitment_is_not_accused(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.queue_board(root)
+            payload = scan(root)
+        self.assertNotIn("MODE-01", ids(payload))
+
+    def test_shared_evidence_alone_never_reaches_high(self):
+        """Both shared columns at once do point at pipeline — it is the only
+        mode that owns both — but the whole case rests on evidence two other
+        contracts also claim. That is a `medium`, and `MODE-01` does not fire
+        on `medium`."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | queue | commitments | waiting→working→closed | — | 5d | monthly | V2 |\n"))
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Stage since | Commitment |\n"
+                "|---|---|---|---|---|---|---|---|\n"
+                "| OPS-1 | Vendor invoice | Agent | in_progress | ops | working | 2026-08-10 | ops/1 |\n"))
+            payload = scan(root)
+        t = modes_of(payload)["ops"]
+        self.assertEqual(t["mode"], "pipeline")
+        self.assertEqual(t["confidence"], "medium")
+        self.assertNotIn("MODE-01", ids(payload))
+
+    def test_a_correctly_declared_inquiry_track_reads_as_inquiry(self):
+        """The clearing case, and the one that matters most: the same board
+        plus one signal only inquiry owns is named, with confidence, as what
+        it says it is. A fix that made every inquiry track unreadable would
+        pass every test above."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.inquiry_board(root)
+            write(root, "evidence/2026-08/Q-3-answer.md", "# Answer\n$0.004 [SRC-1]\n")
+            payload = scan(root)
+        t = modes_of(payload)["study"]
+        self.assertEqual(t["mode"], "inquiry")
+        self.assertEqual(t["confidence"], "high")
+        self.assertNotIn("MODE-01", ids(payload))
+
+    def test_a_correctly_declared_queue_track_reads_as_queue(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.queue_board(root)
+            write(root, "BOARD.md", (root / "BOARD.md").read_text() + (
+                "\n## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
+                "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n"))
+            payload = scan(root)
+        t = modes_of(payload)["ops"]
+        self.assertEqual(t["mode"], "queue")
+        self.assertEqual(t["confidence"], "high")
+        self.assertNotIn("MODE-01", ids(payload))
+
+
+class TestHighIsMoreThanOneSignal(unittest.TestCase):
+    """`MODE-01` is gated on `high`, and it is the only finding that
+    contradicts something the user deliberately wrote down. So `high` costs
+    more than one column."""
+
+    def test_one_structural_signal_alone_is_medium(self):
+        """`Arrived` is queue's alone and it is worth 3. Under the old rule
+        `top >= 3` and a margin of 3 over an empty field made that `high`, so
+        one column could accuse a declaration."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | pipeline | commitments | — | — | 5d | 2026-W34 | V5 |\n"))
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Track | Arrived |\n"
+                "|---|---|---|---|---|---|\n"
+                "| OPS-1 | Vendor invoice | Agent | in_progress | ops | 2026-08-14 |\n"))
+            payload = scan(root)
+        t = modes_of(payload)["ops"]
+        self.assertEqual(t["mode"], "queue")
+        self.assertEqual(t["confidence"], "medium",
+                         "one column was enough to be sure")
+        self.assertNotIn("MODE-01", ids(payload))
+
+    def test_a_narrow_lead_is_medium_however_many_signals(self):
+        """The other half of the gate. Two inquiry signals against one queue
+        signal is a lead of 2 — real, and not a margin. `HIGH_MARGIN` is what
+        keeps it out of a finding."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n"))
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Track | Stage | Arrived | Parent |\n"
+                "|---|---|---|---|---|---|---|---|\n"
+                "| X-1 | Something | Agent | in_progress | ops | researching | 2026-08-14 | X-0 |\n"))
+            payload = scan(root)
+        t = modes_of(payload)["ops"]
+        self.assertEqual(t["mode"], "inquiry")
+        self.assertEqual(t["scores"]["inquiry"] - t["scores"]["queue"], 2)
+        self.assertEqual(t["confidence"], "medium")
+        self.assertNotIn("MODE-01", ids(payload))
+
+    def test_no_single_signal_can_reach_the_high_floor(self):
+        """The invariant the two numbers encode, asserted over the numbers
+        themselves so that raising a weight later cannot quietly restore
+        one-column certainty. Two shared signals sum below the floor too, so
+        `high` always rests on evidence exactly one mode owns."""
+        mod = load_bin_module("perry-diagnose")
+        self.assertLess(mod.STRUCTURAL, mod.HIGH_SCORE)
+        self.assertLess(mod.CORROBORATING, mod.HIGH_SCORE)
+        self.assertLess(2 * mod.SHARED, mod.HIGH_SCORE)
+
+    def test_every_column_signal_names_modes_that_exist(self):
+        """The attribution table is data now. A typo in an owner tuple would
+        otherwise score a mode nothing ever reads."""
+        mod = load_bin_module("perry-diagnose")
+        seen = set()
+        for col, owners, phrase in mod.COLUMN_SIGNALS:
+            seen.add(col)
+            self.assertTrue(owners, f"`{col}` belongs to no mode")
+            for m in owners:
+                self.assertIn(m, mod.MODE_NAMES, f"`{col}` names `{m}`")
+        self.assertEqual(seen, {"stage since", "commitment", "arrived", "parent"})
+
+
 class TestModeDisagreementIsAFinding(unittest.TestCase):
     """MODE-01. A project whose register says `pipeline` and whose board shows
     a steady-state queue has one of the two wrong, and which one is the user's
