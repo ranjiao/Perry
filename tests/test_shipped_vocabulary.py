@@ -444,7 +444,16 @@ class TestHostCapabilitiesNamesTheOneLiveEntrance(unittest.TestCase):
             "dead vocabulary:\n    " + "\n    ".join(bad))
 
     def test_the_invocation_row_offers_one_skill_on_each_host(self):
-        """The specific cell a Codex user acts on."""
+        """The specific cell a Codex user acts on.
+
+        The Codex column read `` `/skills` then pick perry/okr/pmo/design ``,
+        and that shape is invisible to `WITHDRAWN`: its lookbehind rejects a
+        name character before the slash, so in `perry/okr` the `/` is preceded
+        by `y` and nothing matches. A slash-joined alias list is therefore the
+        one spelling of this defect that only a row-level check can see —
+        which is why the match here is a plain word boundary and not the
+        module pattern.
+        """
         rows = [l for l in read(self.REL).splitlines()
                 if l.startswith("| Skill invocation")]
         self.assertEqual(len(rows), 1, "the Skill invocation row is gone — "
@@ -455,9 +464,19 @@ class TestHostCapabilitiesNamesTheOneLiveEntrance(unittest.TestCase):
                                       "user how to reach Perry at all")
         for dead in ALIASES:
             self.assertNotRegex(
-                row, rf"(?<![\w/]){dead}(?![\w-])",
+                row, rf"\b{dead}\b",
                 f"the invocation row still sends a user looking for a "
                 f"`{dead}` entry that no host registers")
+
+    def test_the_row_check_sees_the_slash_joined_list_the_module_pattern_misses(self):
+        """Guard against the guard, on the exact seam above. If this ever
+        stops holding, the Codex column can regress in silence."""
+        codex_column = "`/skills` then pick perry/okr/pmo/design, or `$perry`"
+        self.assertEqual(
+            withdrawn_hits(codex_column), [],
+            "the module pattern now catches the slash-joined list, so the "
+            "reason this class carries its own matcher no longer holds")
+        self.assertRegex(codex_column, r"\bpmo\b")
 
     def test_the_page_states_that_perry_registers_exactly_one_skill(self):
         """The prose half of the same claim. Row-level correctness without it
