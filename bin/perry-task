@@ -2771,6 +2771,41 @@ def perry_state():
     return _PERRY_STATE
 
 
+_PERRY_CONFORM = None
+
+
+def perry_conform():
+    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
+    global _PERRY_CONFORM
+    if _PERRY_CONFORM is None:
+        import importlib.machinery
+        import importlib.util
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            "perry_conform", importlib.machinery.SourceFileLoader(
+                "perry_conform", str(PERRY_HOME / "bin" / "perry-conform")))
+        mod = importlib.util.module_from_spec(spec)
+        # Registered BEFORE exec: `perry-conform` declares dataclasses under
+        # `from __future__ import annotations`, and `dataclasses` resolves
+        # those string annotations through `sys.modules[cls.__module__]`. An
+        # unregistered module makes that lookup return None and the import dies
+        # inside the decorator, several frames from anything that names it.
+        sys.modules["perry_conform"] = mod
+        spec.loader.exec_module(mod)
+        _PERRY_CONFORM = mod
+    return _PERRY_CONFORM
+
+
+#: The commands that only read. Everything else writes `BOARD.md` and is gated
+#: on `BOARD.md` — on that file and on nothing else, because ADR-004 § 5 makes
+#: conformance per-file so a project can migrate its board and not its risks.
+#: `list` is a published contract (`schema/task-list-contract.md`) and reading
+#: is never gated, so it is not merely excluded here — `tests/test_conformance`
+#: asserts it still answers on an undeclared project with the gate enforcing.
+READ_ONLY_COMMANDS = {"list"}
+GATED_FILE = "BOARD.md"
+
+
 def split_stages(cell: str) -> list[str]:
     """The stage vocabulary of a `Stages` cell — `perry-state`'s implementation.
 
@@ -2961,12 +2996,30 @@ def main(argv: list[str]) -> int:
         config = {"tracks": []}
         if cfg_path.exists():
             config = {"tracks": perry_state().parse_tracks(cfg_path.read_text())}
+        # ADR-004. Taken before the lock and before any command runs: a refusal
+        # must mean nothing was written, and a dry run must preview the refusal
+        # rather than the write it would not be allowed to perform.
+        gate = None
+        if args.cmd not in READ_ONLY_COMMANDS:
+            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
+                                        tool="perry-task", root_arg=args.root)
+            if not gate.ok:
+                raise Refused(gate.message)
+            if gate.message and not args.as_json:
+                print(f"perry-task: ⚠ conformance (advisory) — {gate.message}",
+                      file=sys.stderr)
         with project_lock(state_root):
             ctx = {"schema": schema, "project_root": project_root,
                    "state_root": state_root, "config": config,
                    "board": Board(state_root / "BOARD.md"),
                    "events": read_events(project_root)}
             result = COMMANDS[args.cmd](args, ctx)
+        # `list` is a published contract and gets nothing added to it. Every
+        # other subcommand's payload is Perry-internal, so the verdict rides
+        # along there — an agent reading `--json` should not have to shell out
+        # to a second tool to learn its write was allowed under protest.
+        if gate is not None and isinstance(result, dict):
+            result["conformance"] = gate.as_dict()
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))

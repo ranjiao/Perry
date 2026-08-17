@@ -1860,6 +1860,12 @@
           "name": "Packs",
           "required": false,
           "note": "Comma-separated pack names active in this project, resolved under $PERRY_HOME/packs/<name>/. Absent = software-ops only, which is what every pre-DESIGN-003 project effectively had. A pack supplies defaults - mode, stage vocabulary, rubrics, high-stakes additions, display glossary - never content."
+        },
+        {
+          "name": "Conformance gate",
+          "required": false,
+          "pattern": "advisory|enforce",
+          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'advisory' for one release: every project that predates the marker is undeclared, and for the ones that are not already Perry-shaped the way forward is the migration (TASK-044), which does not exist yet - a refusal naming a command nobody can run is a wall. The env var PERRY_CONFORMANCE overrides this field. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.md, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself."
         }
       ],
       "tables": [

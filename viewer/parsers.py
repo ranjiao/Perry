@@ -124,6 +124,77 @@ def resolve_state_root(project_root: Path) -> Path:
     return root
 
 
+# ── the conformance declaration (ADR-004) ─────────────────────────────────
+#
+# `.perry/conformance.md` records, per state file, that **the user declared**
+# this file to match Perry's shape at a given shape version. It is only ever
+# half the fact: the other half is whether the file still matches, and that is
+# computed live by `bin/perry-conform` from `bin/perry-lint`'s schema
+# validation. Storing a verdict would make the file a cache that goes wrong;
+# storing a decision makes it a record that cannot.
+#
+# The reader lives here, beside `resolve_state_root`, for the same reason that
+# one does: `bin/perry-lint`, `bin/perry-conform` and any front-end must read
+# the declaration identically, and a second parser is how they stop agreeing.
+
+CONFORMANCE_FILE = ".perry/conformance.md"
+
+_CONFORMANCE_ROW = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
+
+
+@dataclass
+class Declaration:
+    """One row of `.perry/conformance.md`."""
+    path: str            # as the schema declares it, relative to that spec's anchor
+    shape_version: int
+    declared: str        # ISO date the user declared it
+    route: str           # "declare" (already conformant) or "migrate" (TASK-044)
+    line: int
+
+
+@dataclass
+class ConformanceRecord:
+    path: Path
+    exists: bool
+    declarations: dict[str, Declaration] = field(default_factory=dict)
+    #: Rows present in the file that this reader could not turn into a
+    #: declaration. Reported, never guessed at — a mangled row must not read as
+    #: "declared" and must not read as "absent" either.
+    unreadable: list[tuple[int, str]] = field(default_factory=list)
+
+
+def read_conformance(project_root: Path) -> ConformanceRecord:
+    """The declarations recorded for this project. Never writes, never infers.
+
+    A project with no file has no declarations — which is every project that
+    existed before ADR-004, including Perry's own."""
+    path = Path(project_root) / CONFORMANCE_FILE
+    rec = ConformanceRecord(path=path, exists=path.exists())
+    if not rec.exists:
+        return rec
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return rec
+    for i, line in enumerate(text.split("\n"), start=1):
+        m = _CONFORMANCE_ROW.match(line)
+        if not m:
+            continue
+        cells = [c.strip().strip("`") for c in m.group(1).split("|")]
+        if len(cells) < 4:
+            continue
+        rel, ver, declared, route = cells[0], cells[1], cells[2], cells[3]
+        if rel.lower() in ("file", "path") or not rel:
+            continue           # the header row
+        if not re.fullmatch(r"\d+", ver or ""):
+            rec.unreadable.append((i, line.strip()))
+            continue
+        rec.declarations[rel] = Declaration(
+            path=rel, shape_version=int(ver), declared=declared,
+            route=route or "declare", line=i)
+    return rec
+
+
 # ── Data classes ──────────────────────────────────────────────────────────
 
 @dataclass

@@ -16,7 +16,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | not_started | rubric written: evidence/2026-08/TASK-043-spec.md. The main thing it decides is the path from 'already conformant, never declared' to 'declared' — every existing Perry project including this one has no marker. Agent started. | — |  |
+| TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | review | V4 review against evidence/2026-08/TASK-043-spec.md; evidence in evidence/2026-08/TASK-043-conformance-marker.md | — |  |
 | TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | rubric written: evidence/2026-08/TASK-044-spec.md. Blocked on TASK-043 — this task produces the fact that one defines. Its own failure retires ADR-004 rather than the phase. | — |  |
 
 ## P1

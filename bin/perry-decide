@@ -81,6 +81,35 @@ LIST_CONTRACT = "perry-decide/list/1.0"
 STATUSES = ("active", "superseded", "expired", "archived")
 ADR_RE = re.compile(r"\bADR-(\d+)\b")
 
+#: `list` only reads, and reading is never gated (ADR-004). Everything else
+#: rewrites `DECISIONS.md` — `new` and `supersede` and `status` all re-render
+#: the index — so that is the one file this lane gates on. Not `design/*.md`
+#: and not the ADR bodies: conformance is per-file, and the file this lane is
+#: about to write is the index.
+READ_ONLY_COMMANDS = {"list"}
+GATED_FILE = "DECISIONS.md"
+
+_PERRY_CONFORM = None
+
+
+def perry_conform():
+    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
+    global _PERRY_CONFORM
+    if _PERRY_CONFORM is None:
+        import importlib.machinery
+        import importlib.util
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            "perry_conform", importlib.machinery.SourceFileLoader(
+                "perry_conform", str(PERRY_HOME / "bin" / "perry-conform")))
+        mod = importlib.util.module_from_spec(spec)
+        # See the identical note in `bin/perry-task`: `dataclasses` resolves
+        # `from __future__ import annotations` strings through `sys.modules`.
+        sys.modules["perry_conform"] = mod
+        spec.loader.exec_module(mod)
+        _PERRY_CONFORM = mod
+    return _PERRY_CONFORM
+
 
 def load_schema() -> dict:
     if not SCHEMA_PATH.exists():
@@ -501,7 +530,22 @@ def main(argv: list[str]) -> int:
         state_root = P.resolve_state_root(project_root)
         ctx = {"project_root": project_root, "state_root": state_root,
                "project_name": project_root.name}
+        # ADR-004, before the command runs so a refusal means nothing was
+        # written. `bootstrap` on a project with no `DECISIONS.md` sees the
+        # `absent` verdict and passes: there is no shape to conform to yet, and
+        # the file it creates is Perry's own.
+        gate = None
+        if args.cmd not in READ_ONLY_COMMANDS:
+            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
+                                        tool="perry-decide", root_arg=args.root)
+            if not gate.ok:
+                raise Refused(gate.message)
+            if gate.message and not args.as_json:
+                print(f"perry-decide: ⚠ conformance (advisory) — {gate.message}",
+                      file=sys.stderr)
         result = COMMANDS[args.cmd](args, ctx)
+        if gate is not None and isinstance(result, dict):
+            result["conformance"] = gate.as_dict()
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))

@@ -177,6 +177,26 @@ FIELD_ALIASES: dict[str, list[str]] = {}
 HEADING_ALIASES: dict[str, list[str]] = {}
 
 
+def load_glossary(schema: dict) -> None:
+    """Arm the localization glossary and the declared thresholds.
+
+    Every check below reads these module-level tables, so calling `check_file`
+    without this first silently reports a localized project's own column
+    headers as wrong columns. It used to live inline in `main()`, which meant
+    the only way to reach `check_file` correctly was to be `main()`;
+    `bin/perry-conform` needs the same validation on one file, and a second
+    copy of this loop is exactly the two-implementations-of-one-rule defect
+    ADR-004 is about."""
+    SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    i18n = schema.get("i18n") or {}
+    for col, per_lang in (i18n.get("columns") or {}).items():
+        COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
+    for fld, per_lang in (i18n.get("fields") or {}).items():
+        FIELD_ALIASES[fld] = [a for aliases in per_lang.values() for a in aliases]
+    for head, per_lang in (i18n.get("headings") or {}).items():
+        HEADING_ALIASES[head] = [a for aliases in per_lang.values() for a in aliases]
+
+
 def accepted(column: str) -> list[str]:
     """Every normalized header spelling that satisfies this schema column."""
     names = [column, *COLUMN_ALIASES.get(column, [])]
@@ -955,6 +975,12 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     state as foreign and pushes them to relocate a working project."""
     if path.name in ("README.md", "INDEX.md"):
         return True
+    # The conformance record is Perry's own bookkeeping and deliberately not a
+    # `files[]` entry (it records decisions ABOUT state, not state), so the loop
+    # below cannot see it. Named from `parsers` rather than spelled out here —
+    # one name, one definition.
+    if path.name == Path(P.CONFORMANCE_FILE).name:
+        return True
     stem = path.stem
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
     if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
@@ -1138,13 +1164,10 @@ def main(argv: list[str]) -> int:
     # Localized column headers are legal in whatever the project's document
     # language is; the glossary that says which spellings count lives in the
     # schema so every reader (this linter, viewer/parsers.py, aiMark) agrees.
-    i18n = schema.get("i18n") or {}
-    for col, per_lang in (i18n.get("columns") or {}).items():
-        COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
-    for fld, per_lang in (i18n.get("fields") or {}).items():
-        FIELD_ALIASES[fld] = [a for aliases in per_lang.values() for a in aliases]
-    for head, per_lang in (i18n.get("headings") or {}).items():
-        HEADING_ALIASES[head] = [a for aliases in per_lang.values() for a in aliases]
+    # Loaded HERE and not above the early-returning modes on purpose: that is
+    # where it has always been loaded, and moving it would quietly change what
+    # `--verification` matches on a localized board.
+    load_glossary(schema)
 
     findings: list[Finding] = []
 
@@ -1202,16 +1225,31 @@ def main(argv: list[str]) -> int:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
         if not adopted:
             label += " — not a Perry project yet"
+        # The declaration ADR-004 needs is a DIFFERENT fact from anything above:
+        # this loop answers "does the shape hold", and that answers "did the user
+        # say so". Reported as a note rather than as a Finding — a project that
+        # has simply not run `perry-conform declare` yet is not malformed, and
+        # promoting it to a warning would make `--strict` red on every project
+        # in existence for a reason lint cannot fix.
+        declared = P.read_conformance(project_root).declarations
+        conformance_note = {
+            "declared": len(declared),
+            "shape_version": schema.get("schema_version"),
+            "command": "perry-conform status",
+        }
 
     errors = [f for f in findings if f.severity == "error"]
     warns = [f for f in findings if f.severity == "warn"]
 
     if as_json:
-        print(json.dumps({
+        payload = {
             "target": label,
             "errors": len(errors), "warnings": len(warns),
             "findings": [f.as_dict() for f in findings],
-        }, ensure_ascii=False, indent=2))
+        }
+        if not mode_templates:
+            payload["conformance"] = conformance_note
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
         if not findings:
@@ -1220,6 +1258,11 @@ def main(argv: list[str]) -> int:
             for f in errors + warns:
                 print(f)
             print(f"\n  {len(errors)} error(s), {len(warns)} warning(s)")
+        if not mode_templates:
+            n = conformance_note["declared"]
+            print(f"  · {n} file(s) declared conformant at shape version "
+                  f"{conformance_note['shape_version']} "
+                  f"(`perry-conform status` for the per-file verdict)")
 
     if errors:
         return 1
