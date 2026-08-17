@@ -70,6 +70,7 @@ Usage:
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
   perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
+  perry-task evidence <ID> --evidence "…"  rewrite Evidence, nothing else
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -1482,129 +1483,96 @@ def cmd_status(args, ctx) -> dict:
     return {"id": tid, "status": want, "row": line, **plan}
 
 
-def cmd_next(args, ctx) -> dict:
-    """Rewrite a row's `Next action` and nothing else.
+def cell_writer(field: str, flag: str, event: str, why: str,
+                validate=None, terminal_ok: bool = True,
+                required_msg: str = "", show_previous: bool = True):
+    """One implementation for "correct this cell and nothing else".
 
-    Found by running a triage: `next_action_cites_closed` reported a row whose
-    next step named work that had finished, and there was **no way to correct
-    it**. `status` is the only writer of that cell and it refuses a no-op
-    transition — correctly, since a journal line asserting `not_started →
-    not_started` records a change that did not happen. So the alternatives were
-    a status change the row did not warrant, or a hand edit, and the single
-    most common triage action had no tool path.
+    There were three — `next`, `retitle`, `rung` — written weeks apart and each
+    a copy of the previous, and the fourth was about to be written for
+    `Evidence` when a corrupted row needed repairing and no tool could do it.
+    Three copies of one rule is the defect class this project has spent five
+    review rounds finding in its own prose; here it was in its own code.
 
-    Relaxing `status` was the wrong fix. A status change and a correction are
-    different events and a reader should be able to tell them apart; folding
-    them would make "the plan changed" and "the state changed" the same line in
-    the journal forever.
-
-    Refuses a closed row: a row that has left the board has no next step, and
-    writing one would put a live-looking instruction on finished work.
+    Each writer keeps its own **event name**, which is the part that is not
+    boilerplate. A reader has to be able to tell "the plan changed" from "what
+    this is called changed" from "where this got to", and folding them into one
+    event loses all three facts at once.
     """
-    tid = args.id
-    if not args.next:
-        raise Refused(
-            "--next is required: this subcommand exists to write that cell, "
-            "and clearing it would leave the row with no stated next step")
-    pri, idx, header, cells = ctx["board"].find(tid)
-    values = dict(zip([norm(h) for h in header], cells))
-    if values.get("status", "").strip().strip("*` ").lower() in ("done", "dropped"):
-        raise Refused(
-            f"{tid} is {values.get('status', '').strip()} — a row that has "
-            f"finished has no next step")
-    prev = values.get("next action", "")
-    if prev.strip() == args.next.strip():
-        raise Refused(f"{tid}'s next action is already that text")
-    values["next action"] = args.next
-    line = ctx["board"].replace_row(idx, header, values)
-    jline = f"- [{tid}] next action · {args.next}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "next",
-             "id": tid, "title": values.get("title", ""),
-             "track": values.get("track", "main"), "actor": args.actor,
-             "from": prev, "to": args.next}
-    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run)
-    return {"id": tid, "next": args.next, "row": line, **plan}
+    def run(args, ctx) -> dict:
+        tid = args.id
+        value = getattr(args, flag)
+        if not value:
+            raise Refused(required_msg or
+                          f"--{flag.replace('_', '-')} is required: this "
+                          f"subcommand exists to write that cell")
+        if validate:
+            value = validate(value, ctx)
+        pri, idx, header, cells = ctx["board"].find(tid)
+        values = dict(zip([norm(h) for h in header], cells))
+        if not terminal_ok:
+            status = values.get("status", "").strip().strip("*` ").lower()
+            if status in ("done", "dropped"):
+                raise Refused(f"{tid} is {values.get('status', '').strip()} — "
+                              f"a row that has finished has no next step")
+        prev = values.get(field, "")
+        if prev.strip() == value.strip():
+            raise Refused(f"{tid}'s {field} is already that")
+        ctx["board"].ensure_columns(pri, [canonical_column(field)])
+        pri, idx, header, cells = ctx["board"].find(tid)
+        values = dict(zip([norm(h) for h in header], cells))
+        values[field] = value
+        line = ctx["board"].replace_row(idx, header, values)
+        # Each writer keeps the journal line it shipped with. Unifying the
+        # format would have been a behaviour change wearing a refactor's
+        # clothes — `next` writes the new value alone, its two siblings write
+        # the transition, and a reader may be parsing either.
+        jline = (f"- [{tid}] {why} · {prev or '—'} → {value}" if show_previous
+                 else f"- [{tid}] {why} · {value}")
+        ev = {"ts": datetime.now().isoformat(timespec="seconds"),
+              "event": event, "id": tid, "title": values.get("title", ""),
+              "track": values.get("track", "main"), "actor": args.actor,
+              "from": prev, "to": value}
+        plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                      jline, ev, args.dry_run)
+        return {"id": tid, field: value, "row": line, **plan}
+    return run
 
 
-def cmd_retitle(args, ctx) -> dict:
-    """Rewrite a row's `Title` and nothing else.
+#: `next` — the most common thing a triage does, and it had no tool path until
+#: TASK-041: `status` is the only other writer of that cell and it refuses a
+#: no-op, so correcting a plan meant changing a status the row did not warrant.
+#: It refuses a finished row: a row that has completed has no next step, and
+#: writing one puts a live-looking instruction on finished work.
+cmd_next = cell_writer(
+    "next action", "next", "next", "next action", terminal_ok=False,
+    show_previous=False,
+    required_msg="--next is required: this subcommand exists to write that "
+                 "cell, and clearing it would leave the row with no stated "
+                 "next step")
 
-    Same gap `next` closed, one column over. A title is how a human finds a
-    row, and it goes wrong the same way a next step does: TASK-021 was filed
-    as "Recurrence register + `OKR.md § Commitments`", the second half was
-    split out to its own row, and the title then described work this row would
-    never do. `status` refuses a no-op, `next` writes a different cell, and
-    there was nothing else — so the row could not close honestly without a
-    hand edit.
+#: `retitle` — a row filed as two pieces of work whose second half later splits
+#: out carries a title describing work it will never do. Safe because the `Id`
+#: is the identity and never moves: a `Commitment` cell, a linkage graph and
+#: every event point at the id, and none of them reads the title. That is also
+#: why there is no subcommand for changing an id.
+cmd_retitle = cell_writer(
+    "title", "title", "retitle", "retitled",
+    required_msg="--title is required: this subcommand exists to write that "
+                 "cell, and a row with no title is one nobody can find")
 
-    The `Id` is the identity and never moves; the title is prose about it.
-    That is exactly why this is safe and why `Id` has no equivalent
-    subcommand: every reference — a board `Commitment` cell, a linkage graph,
-    an event — points at the id, and none of them reads the title.
+#: `rung` — `--rung` lived only on `done`, which is after the argument matters.
+#: `ADR-005` is what makes the cell load-bearing: it is a claim about who is
+#: hurt when the work is wrong, and a claim nobody can correct without a hand
+#: edit is one nobody corrects.
+cmd_rung = cell_writer("verification", "rung", "rung", "rung",
+                       validate=lambda v, ctx: check_rung(v, ctx["schema"]))
 
-    Its own event name, for the reason `next` has one: "what this row is
-    called changed" and "where this row got to" are different facts, and a
-    reader who cannot separate them cannot reconstruct either.
-    """
-    tid = args.id
-    if not args.title:
-        raise Refused(
-            "--title is required: this subcommand exists to write that cell, "
-            "and a row with no title is one nobody can find")
-    pri, idx, header, cells = ctx["board"].find(tid)
-    values = dict(zip([norm(h) for h in header], cells))
-    prev = values.get("title", "")
-    if prev.strip() == args.title.strip():
-        raise Refused(f"{tid} is already titled that")
-    values["title"] = args.title
-    line = ctx["board"].replace_row(idx, header, values)
-    jline = f"- [{tid}] retitled · {prev} → {args.title}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
-             "event": "retitle", "id": tid, "title": args.title,
-             "track": values.get("track", "main"), "actor": args.actor,
-             "from": prev, "to": args.title}
-    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run)
-    return {"id": tid, "title": args.title, "row": line, **plan}
-
-
-def cmd_rung(args, ctx) -> dict:
-    """Rewrite a row's `Verification` and nothing else.
-
-    The third instance of one gap: `next` closed it for `Next action`,
-    `retitle` for `Title`, and the rung had no writer at all on an open row —
-    `--rung` existed only on `done`, which is far too late to be arguing about
-    it.
-
-    `ADR-005` is what makes this load-bearing. The rung is no longer a habit,
-    it is a claim about who is hurt when the work is wrong, and a claim that
-    cannot be corrected without a hand edit is one nobody will correct.
-    """
-    tid = args.id
-    if not args.rung:
-        raise Refused("--rung is required: this subcommand exists to write "
-                      "that cell")
-    rung = check_rung(args.rung, ctx["schema"])
-    pri, idx, header, cells = ctx["board"].find(tid)
-    values = dict(zip([norm(h) for h in header], cells))
-    prev = values.get("verification", "")
-    if prev.strip() == rung:
-        raise Refused(f"{tid} is already {rung}")
-    values["verification"] = rung
-    ctx["board"].ensure_columns(pri, ["Verification"])
-    pri, idx, header, cells = ctx["board"].find(tid)
-    values = dict(zip([norm(h) for h in header], cells))
-    values["verification"] = rung
-    line = ctx["board"].replace_row(idx, header, values)
-    jline = f"- [{tid}] rung · {prev or '—'} → {rung}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "rung",
-             "id": tid, "title": values.get("title", ""),
-             "track": values.get("track", "main"), "actor": args.actor,
-             "from": prev, "to": rung}
-    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run)
-    return {"id": tid, "rung": rung, "row": line, **plan}
+#: `evidence` — the fourth, and the one that showed the other three were a
+#: pattern. A row whose `Evidence` cell was corrupted could not be repaired:
+#: `done --evidence` is the only other writer and closing a row to fix a cell
+#: is not a correction, it is a lie about the work.
+cmd_evidence = cell_writer("evidence", "evidence", "evidence", "evidence")
 
 
 def cmd_drop(args, ctx) -> dict:
@@ -2960,7 +2928,7 @@ def parse(argv: list[str]) -> Args:
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "retitle", "rung", "done", "drop"})
+                         "retitle", "rung", "evidence", "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
@@ -2974,6 +2942,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "retitle": cmd_retitle, "rung": cmd_rung,
+            "evidence": cmd_evidence,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "list": cmd_list}
 

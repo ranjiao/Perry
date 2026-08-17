@@ -2990,5 +2990,113 @@ class TestTheDelimiterIsACharacterPeopleWrite(unittest.TestCase):
                          "a value leaked into the column after it")
 
 
+class TestOneCellWriterNotFour(unittest.TestCase):
+    """`next`, `retitle` and `rung` were three copies of one twenty-line
+    function, written weeks apart, each a copy of the one before. The fourth
+    was about to be written for `Evidence` — a corrupted cell needed repairing
+    and `done --evidence` was the only other writer, so the only way to fix a
+    cell was to close the row, which is not a correction but a lie about the
+    work.
+
+    Three copies of one rule is the defect class five review rounds found in
+    this project's prose. This one was in its own code.
+
+    What is *not* shared is the part that is not boilerplate: each writer keeps
+    its own event name, its own journal wording and its own refusal. A reader
+    has to be able to tell "the plan changed" from "what this is called
+    changed" from "where this got to", and one event name loses all three.
+    """
+
+    FIELDS = [("next", "--next", "next action"),
+              ("retitle", "--title", "title"),
+              ("rung", "--rung", "verification"),
+              ("evidence", "--evidence", "evidence")]
+
+    def cell(self, p, tid, key):
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        row = next(l for l in board.split("\n") if l.startswith(f"| {tid} |"))
+        return dict(zip([PT.norm(h) for h in PT.split_row(header)],
+                        PT.split_row(row))).get(key, "")
+
+    def value_for(self, sub):
+        return "V5" if sub == "rung" else "a new value"
+
+    def test_each_writes_its_own_cell_and_no_other(self):
+        for sub, flag, key in self.FIELDS:
+            with self.subTest(sub=sub):
+                p = Project()
+                _, a = p.run("add", "--title", "x", "--priority", "P0",
+                             "--rung", "V4")
+                before = {k: self.cell(p, a["id"], k)
+                          for _, _, k in self.FIELDS}
+                code, out = p.run(sub, a["id"], flag, self.value_for(sub))
+                self.assertEqual(code, 0, out)
+                for _, _, other in self.FIELDS:
+                    if other == key:
+                        continue
+                    self.assertEqual(before[other], self.cell(p, a["id"], other),
+                                     f"{sub} also wrote `{other}`")
+
+    def test_each_is_its_own_event(self):
+        """Four subcommands, four event names. Folding them is what makes the
+        three facts unrecoverable."""
+        seen = []
+        for sub, flag, _ in self.FIELDS:
+            p = Project()
+            _, a = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V4")
+            p.run(sub, a["id"], flag, self.value_for(sub))
+            events = [json.loads(l)["event"]
+                      for l in (p.root / ".perry" / "events.jsonl").read_text()
+                      .strip().split("\n")]
+            seen.append(events[-1])
+        self.assertEqual(len(self.FIELDS), len(set(seen)),
+                         f"two writers share an event name: {seen}")
+
+    def test_each_refuses_a_no_op(self):
+        for sub, flag, _ in self.FIELDS:
+            with self.subTest(sub=sub):
+                p = Project()
+                _, a = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V4")
+                p.run(sub, a["id"], flag, self.value_for(sub))
+                code, _ = p.run(sub, a["id"], flag, self.value_for(sub))
+                self.assertEqual(code, 1, f"{sub} wrote a value already there")
+
+    def test_each_refusal_says_what_that_subcommand_is_for(self):
+        """The unification must not cost the wording. `next` explains that
+        clearing it leaves the row with no stated next step; `retitle` that a
+        row with no title is one nobody can find."""
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        _, n = p.run("next", a["id"])
+        _, r = p.run("retitle", a["id"])
+        self.assertIn("no stated next step", str(n))
+        self.assertIn("nobody can find", str(r))
+
+    def test_only_next_refuses_a_finished_row(self):
+        """A finished row has no next step. It still has a title, a rung and
+        an evidence path, and those stay correctable — a board that stages
+        finished work in place is the case that matters, since `done` removes
+        the row. Perry's own board did that for twenty rows."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | finished in place | User | done | — | e.md |\n\n## P1", 1))
+        self.assertEqual(1, p.run("next", "TASK-900", "--next", "more")[0],
+                         "a finished row was given a live-looking next step")
+        self.assertEqual(0, p.run("retitle", "TASK-900", "--title", "clearer")[0],
+                         "a finished row's title stopped being correctable")
+
+    def test_evidence_repairs_a_cell_without_closing_the_row(self):
+        """The case that showed the other three were a pattern."""
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        code, _ = p.run("evidence", a["id"], "--evidence", "evidence/2026-08/x.md")
+        self.assertEqual(code, 0)
+        self.assertEqual("evidence/2026-08/x.md", self.cell(p, a["id"], "evidence"))
+        self.assertEqual("not_started", self.cell(p, a["id"], "status"),
+                         "repairing a cell closed the row")
+
+
 if __name__ == "__main__":
     unittest.main()

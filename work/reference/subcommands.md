@@ -206,6 +206,25 @@ Safe because the `Id` is the identity and never moves — a `Commitment` cell, a
 linkage graph and every event point at the id, and none of them reads the
 title. That is also why there is no subcommand for changing an id.
 
+**Four cells are correctable in place, each with its own subcommand.**
+
+```
+"$PERRY_HOME/bin/perry-task" next     <ID> --next "…"
+"$PERRY_HOME/bin/perry-task" retitle  <ID> --title "…"
+"$PERRY_HOME/bin/perry-task" rung     <ID> --rung V1..V6
+"$PERRY_HOME/bin/perry-task" evidence <ID> --evidence "…"
+```
+
+They are one implementation with four configurations — they were three copies
+of one function before `evidence` made the pattern obvious. What is **not**
+shared is the part that matters: each has its own event name, so a reader can
+tell "the plan changed" from "what this is called changed" from "where this got
+to". One event name would lose all three at once.
+
+`next` is the only one that refuses a finished row: a completed row has no next
+step, and writing one puts a live-looking instruction on finished work. Its
+title, its rung and its evidence path stay correctable.
+
 **A rung is set when the row is opened, and corrected the same way.**
 
 ```
