@@ -16,6 +16,8 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
+| TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | not_started | ADR-004 names this as the mechanism that does not exist yet. Everything else in that ADR is blocked on it. | — |  |
+| TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | ADR-004's five guarantees. Mandatory migration is only safe to require if these hold — a migration that mangles a board is worse than every bug it replaces. | — |  |
 
 ## P1
 
@@ -36,6 +38,7 @@
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | review | rubric written: evidence/2026-08/TASK-040-spec.md. Its one open question is whether four columns is the right set. V4 review launched. | — |  |
 | TASK-042 | OKR.md § Commitments — the half TASK-021 did not do | Coding Agent | not_started | blocked on TASK-037's extraction. Acceptance is goals/reference/phases.md § commit <promise> — the procedure shipped 2026-08-17 states the rules the tool must implement; this row closes when commit stops being prose. | — |  |
+| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | Blocked: nothing may be removed before the marker exists and the migration can produce it (ADR-004). | — |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
