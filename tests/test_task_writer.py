@@ -2280,7 +2280,132 @@ class TestWritingToAProjectsOwnSections(unittest.TestCase):
         self.assertIn(a["id"], p.board().split("## P1")[0])
 
 
+class TestModeColumnsOnBoardsPerryDidNotBuild(unittest.TestCase):
+    """m-11: two guards could not fail on the defect they named.
+    `test_arrived_survives_routing_out_of_intake` asserted a schema key and
+    routed nothing; `test_add_task_sets_the_mode_columns_at_creation` grepped
+    prose. The behavioural tests that existed only ever exercised **queue**
+    tracks on boards **`add` had just created** — which is why B-2, the
+    arrival date dropped on routing, survived a review.
 
+    Both blind spots are the same shape as M-8: Perry's own board is the one
+    board Perry never has to adapt to. These tests use a pipeline track, and a
+    board written by hand with none of the mode columns present.
+    """
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    #: Six standard columns, no `Stage`, no `Stage since`, no `Arrived`, no
+    #: `Track` — a board that predates work modes entirely, which is every
+    #: board of every project that adopts Perry.
+    PREEXISTING = """# BOARD
+
+## P0
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-900 | already here | Coding Agent | in_progress | keep going | — |
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+"""
+
+    cells = TestModeAwareWrites.cells
+
+    def test_add_on_a_pipeline_track_stamps_the_stage_clock(self):
+        """The prose guard asserted the string `Stage since` appears in the
+        triage procedure. That passes whether or not any write sets it."""
+        p = Project(tracks=self.TRACKS, board=self.PREEXISTING)
+        code, a = p.run("add", "--title", "post", "--track", "blog",
+                        "--priority", "P0")
+        self.assertEqual(code, 0, a)
+        c = self.cells(p, a["id"])
+        self.assertEqual(c["stage"], "brief",
+                         "the row landed in no stage, so dwell time has no "
+                         "start and triage's first question has no answer")
+        self.assertTrue(c["stage since"],
+                        "the stage clock was never wound")
+
+    def test_the_columns_are_created_on_a_board_that_never_had_them(self):
+        p = Project(tracks=self.TRACKS, board=self.PREEXISTING)
+        _, a = p.run("add", "--title", "post", "--track", "blog",
+                     "--priority", "P0")
+        self.assertIn("stage since", self.cells(p, a["id"]))
+        old = next(l for l in p.board().split("\n")
+                   if l.startswith("| TASK-900 |"))
+        self.assertIn("already here", old,
+                      "widening the table disturbed a row that was there first")
+
+    def test_routing_into_a_pipeline_track_carries_the_arrival_date(self):
+        """The only routing test covered `ops`, a queue track. A pipeline
+        track reads `Arrived` too — it is what says how long a brief sat
+        before anyone picked it up."""
+        p = Project(tracks=self.TRACKS, board=self.PREEXISTING)
+        p.run("intake", "--title", "guest post pitch", "--arrived", "2026-08-01")
+        code, out = p.run("route", "1", "--track", "blog", "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        c = self.cells(p, out["id"])
+        self.assertEqual(c["arrived"], "2026-08-01",
+                         "the arrival date was replaced with today, or lost")
+        self.assertEqual(c["stage"], "brief")
+        self.assertTrue(c["stage since"])
+
+    #: An `## Intake` section a human typed straight into the board: the
+    #: request and nothing else. `perry-task intake` always stamps a date, so
+    #: every test that had ever routed a row supplied one without meaning to.
+    HAND_TYPED = PREEXISTING.replace("## P0", """## Intake
+
+| Request | Outcome |
+|---|---|
+| a request someone typed in | — |
+
+## P0""", 1)
+
+    def test_routing_a_hand_typed_intake_row_does_not_traceback(self):
+        """`values['arrived']` was read three lines after a branch that only
+        sometimes sets it. On a pipeline track with no arrival date that was
+        `KeyError: 'arrived'` — a traceback, not a refusal, on the one intake
+        shape every adopting project already has."""
+        p = Project(tracks=self.TRACKS, board=self.HAND_TYPED)
+        code, out = p.run("route", "1", "--track", "blog", "--priority", "P0")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(self.cells(p, out["id"])["stage since"],
+                        "a pipeline row is measured from `Stage since`; it "
+                        "has no arrival date and does not need one")
+
+    def test_routing_one_into_a_queue_track_is_refused_not_crashed(self):
+        """A queue row's only clock is `Arrived`. Filing one without a date
+        creates a request that can never breach an SLA — which reads as
+        compliance rather than as a gap."""
+        p = Project(tracks=self.TRACKS, board=self.HAND_TYPED)
+        code, out = p.run("route", "1", "--track", "ops", "--priority", "P0")
+        self.assertEqual(code, 1)
+        self.assertIn("--arrived", str(out), "the refusal named no way out")
+        self.assertEqual(self.HAND_TYPED, p.board(),
+                         "a refusal is supposed to write nothing at all")
+
+    def test_route_accepts_the_date_the_intake_row_lacks(self):
+        p = Project(tracks=self.TRACKS, board=self.HAND_TYPED)
+        code, out = p.run("route", "1", "--track", "ops", "--priority", "P0",
+                          "--arrived", "2026-07-04")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.cells(p, out["id"])["arrived"], "2026-07-04")
+
+    def test_a_stage_move_restamps_the_clock_on_such_a_board(self):
+        p = Project(tracks=self.TRACKS, board=self.PREEXISTING)
+        _, a = p.run("add", "--title", "post", "--track", "blog",
+                     "--priority", "P0")
+        board = p.root / "BOARD.md"
+        board.write_text(board.read_text().replace(
+            self.cells(p, a["id"])["stage since"], "2020-01-01"))
+        code, _ = p.run("stage", a["id"], "--stage", "draft")
+        self.assertEqual(code, 0)
+        self.assertNotEqual(
+            self.cells(p, a["id"])["stage since"], "2020-01-01",
+            "the stage moved and the clock did not, so the row reads as "
+            "having sat in `draft` since 2020")
 
 
 if __name__ == "__main__":

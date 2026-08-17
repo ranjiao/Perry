@@ -482,7 +482,14 @@ class TestV4Corrections(unittest.TestCase):
                          "Status keeps its global lifecycle enum in every mode")
 
     # B2 — the arrival date was destroyed on routing
-    def test_arrived_survives_routing_out_of_intake(self):
+    def test_arrived_is_declared_on_both_sides_of_the_route(self):
+        """**Schema only.** This asserts the column is declared in both
+        tables; it routes nothing and cannot fail on a router that drops the
+        value. It was the only guard on B-2 for a release, which is how B-2
+        survived a review — `test_task_writer.py`
+        `TestModeColumnsOnBoardsPerryDidNotBuild` is the one that can fail.
+        Kept because a declaration and a behaviour are different claims.
+        """
         board = self.board_table("board", "P[012]")
         intake = self.board_table("board", "Intake")
         self.assertIn("Arrived", intake["columns"])
@@ -779,7 +786,12 @@ class TestEveryModeColumnHasAWriter(unittest.TestCase):
     def setUpClass(cls):
         cls.proc = (PERRY_HOME / "work" / "reference" / "subcommands.md").read_text()
 
-    def test_add_task_sets_the_mode_columns_at_creation(self):
+    def test_the_procedure_tells_the_agent_to_set_the_mode_columns(self):
+        """**Prose only.** It greps the triage procedure for column names and
+        passes whether or not any write sets them — named for what it checks,
+        after the V4 review found it standing in for a behavioural test.
+        `TestModeColumnsOnBoardsPerryDidNotBuild` is that test.
+        """
         self.assertIn("Stage since", self.proc,
                       "nothing in the writing lane ever sets the stage clock")
         self.assertIn("Arrived", self.proc)

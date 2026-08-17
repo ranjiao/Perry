@@ -2030,12 +2030,25 @@ def cmd_route(args, ctx) -> dict:
     # every row `Arrived` regardless, so a pipeline row arrived with no dwell
     # clock at all — and `rows_with_no_computable_age` could not report it,
     # because `arrived` was non-empty.
+    #
+    # `--arrived` overrides, because an intake row a human typed straight into
+    # the board has no `Arrived` cell to carry. Reading it out of the row and
+    # then using it unconditionally three lines later raised `KeyError:
+    # 'arrived'` — a traceback rather than a refusal, on the one board shape
+    # every adopting project already has.
+    arrived = args.arrived or intake.get("arrived", "")
     if track["mode"] == "queue":
-        values["arrived"] = intake.get("arrived", "")
+        if not arrived:
+            raise Refused(
+                f"intake row {args.id} has no arrival date, and `{track['track']}` "
+                f"is a queue track whose only clock is `Arrived`. Routing it "
+                f"would file a request that can never breach an SLA.\n"
+                f"Supply one: --arrived YYYY-MM-DD")
+        values["arrived"] = arrived
     else:
         values["stage since"] = f"{date.today():%Y-%m-%d}"
-        if intake.get("arrived"):
-            values["arrived"] = intake["arrived"]
+        if arrived:
+            values["arrived"] = arrived
     if args.commitment:
         values["commitment"] = args.commitment
     ctx["board"].ensure_columns(priority, columns_for(values))
@@ -2044,14 +2057,14 @@ def cmd_route(args, ctx) -> dict:
     ctx["board"].lines[idx] = render_row(
         [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
     jline = (f"- [{tid}] — → not_started · routed from intake "
-             f"(arrived {values['arrived']}) · track: {track['track']}")
+             f"(arrived {arrived or '—'}) · track: {track['track']}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "route",
              "id": tid, "title": values["title"], "track": track["track"],
-             "arrived": values["arrived"], "actor": args.actor,
+             "arrived": arrived, "actor": args.actor,
              "from": "intake", "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
-    return {"id": tid, "arrived": values["arrived"], "row": line, **plan}
+    return {"id": tid, "arrived": arrived, "row": line, **plan}
 
 
 def cmd_list(args, ctx) -> dict:
