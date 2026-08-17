@@ -427,6 +427,40 @@ Evidence files must back-reference `DESIGN-006` in their first lines.
 | Escalation union silently fails like the unbackticked hook lines did | Same failure class as `hook_TEMPLATE.md`'s backtick bug | Same fix: only backticked spans extract; lint warns on a `Must escalate` line with zero backticks |
 | Knowledge promoted without user attention becomes a rubber stamp | Cards/week rate at retro | Promotion is one question at an existing gate, never batch; user confirms each card |
 
+## 7b. Input from the first consumer (added 2026-08-17)
+
+aiMark, the front-end this design's roster has to serve, reported after
+replacing its markdown parsers with the three read contracts
+(`~/proj/aimark/doc/perry-contract-gaps.md` § 3):
+
+> `phase/NNN-linkage.md` carried `agents: [{id, tasks}]`, aiMark parsed it, and
+> the Agents view was built on it. `perry-goals/list/2.0` does not carry it, and
+> no other payload does. So the roster now falls back to the board's Owner
+> column for everybody, and the view says `source: owner` rather than implying a
+> declared team.
+
+**It was not answered by adding the key**, and the reason belongs in this
+design rather than in a task comment:
+
+- `{id, tasks}` is the shape the *linkage graph* happened to carry. § 5.2's role
+  card is context, loads, may-touch and must-escalate. Publishing the narrow
+  shape into a frozen additive contract would mean either changing it later —
+  which an additive contract cannot do — or shipping two roster objects.
+- A roster is a fact about **who executes**. `phase/NNN-linkage.md` is the
+  `goals` lane's record of what serves which KR. The two answer different
+  questions and only coincide while the only roles are `Coding Agent` and
+  `User + Agent`, which is § 1.1's whole complaint.
+
+So the roster ships when the role object does, and it ships from whichever lane
+owns roles — a decision § 4 makes and this section does not pre-empt. Until
+then aiMark's fallback is the honest one: it says `source: owner` rather than
+implying a declared team, and it keeps the declared code path unused rather
+than deleting it.
+
+**What this section commits to**: whatever the roster's published shape turns
+out to be, it answers "which roles exist, and what is each working on" in one
+call, because that is the question the consumer asked.
+
 ## 8. Open questions
 
 - **OKR linkage.** ~~No v1 objective covers the runtime layer.~~ Resolved
