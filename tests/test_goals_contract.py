@@ -104,6 +104,39 @@ class TestDerivedFieldsAreReallyDerived(unittest.TestCase):
                            "phase day is 0 or None — the `started` date was "
                            "not read, or the field does not exist")
 
+    def test_a_project_whose_state_root_is_not_dot_is_read(self):
+        """The bug this tool shipped with, found by pointing it at Perry.
+
+        `load_snapshot(root)` takes the **state** root — it reads
+        `root / "OKR.md"` directly. This tool passed `project_root`, so on
+        every project whose state root is not `.` it read the wrong directory
+        and reported `okr_present: false` inside a payload that looked entirely
+        well-formed. Perry and aiMark both keep state under `perry/`. Both were
+        reported as having no goals, and that number was published to a
+        consumer as a measurement.
+
+        No existing test caught it because the fixture's state root IS `.` —
+        a fixture that cannot exhibit the shape under test proves nothing about
+        it. This one declares `State root: goalsdir`.
+        """
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp)
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- Document language: English\n"
+            "- State root: goalsdir\n")
+        (root / "goalsdir").mkdir()
+        (root / "goalsdir" / "OKR.md").write_text(TestRealProjectShapes.OKR)
+
+        code, d = run(root)
+        self.assertEqual(code, 0, d)
+        self.assertTrue(
+            d["okr"]["present"],
+            "the OKR sits under the declared state root and was reported absent")
+        self.assertEqual(len(d["krs"]), 2)
+        self.assertTrue(d["state_root"].endswith("goalsdir"))
+
     def test_unlinked_tasks_are_named_not_left_to_set_arithmetic(self):
         """A task absent from every KR's `task_ids` might serve no KR, or might
         be a payload the consumer truncated. Only Perry can tell those apart,

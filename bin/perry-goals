@@ -146,7 +146,13 @@ def objective_rows(src, lk) -> list[dict]:
 
 
 def build(project_root: Path, state_root: Path, level: str | None) -> dict:
-    snap = P.load_snapshot(project_root)
+    # `load_snapshot` takes the STATE root — it reads `root / "OKR.md"` directly.
+    # Passing `project_root` made this tool read the wrong directory on every
+    # project whose state root is not `.`, and report `okr_present: false` with
+    # a payload that looked entirely well-formed. Perry and aiMark both keep
+    # their state under `perry/`; both were reported as having no goals, and
+    # that number was published to a consumer as measured data.
+    snap = P.load_snapshot(state_root)
     okr, ph, lk = snap.okr, snap.phase, getattr(snap, "linkage", None)
 
     # `present`, `day` and `kr_total` are NOT fields on the parser dataclasses —
