@@ -219,7 +219,7 @@ PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, En
 
 ## Changes / Pivots     <!-- append-only -->
 
-- 2026-08-17 — **Objective 3 added mid-phase.** `ADR-004` changed how a real project gets landed — migrate once rather than adapt forever — and opened TASK-043/044/045, which served no KR this phase had. Recording where they serve is bookkeeping for a decision already signed; the Objective is the smallest honest way to do it. If the phase should not carry O3, drop it and declare the three `unlinked` instead.
+- 2026-08-17 — **Objective 3 added mid-phase, and confirmed by the user the same day.** `ADR-004` changed how a real project gets landed — migrate once rather than adapt forever — and opened TASK-043/044/045, which served no KR this phase had. The alternative offered was to drop O3 and declare the three `unlinked`; the user kept it, accepting that the phase's Definition of Done grows and that it scores later.
 - 2026-08-17 — Phase created. Slug written as `work-modes-live`, not the `helloworld` given on the command line — reason: the slug is the searchable half of the filename and `helloworld` describes no work. Focus chosen by the user from three evidence-backed options.
 
 ## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->
