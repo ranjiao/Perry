@@ -6,6 +6,14 @@
 > `reference/subcommands.md` does not reach it; a loop that hand-edits rows
 > would generate one post-tool edit per dispatch and drown the drift signal in
 > output it produced itself.
+>
+> **Stage moves go through the tool too** — `perry-task stage <ID> --stage
+> <name>`, which re-stamps `Stage since` in the same write. On a `pipeline`- or
+> `queue`-mode track a completion often moves the stage as well as the status,
+> and the two are orthogonal: a `draft → review` stage move produces no status
+> change and would leave no trace at all if hand-edited. A hand-edited cell
+> leaves the dwell clock reading from whenever the row was created, so triage's
+> first question — what is aging in which stage — measures nothing.
 
 
 Walks the BOARD top-to-bottom and dispatches every task that's safe to dispatch without user input, until budget exhausts or no actionable tasks remain. Designed for "user goes to lunch / sleep / out for the day, comes back to a wall of `review` rows".

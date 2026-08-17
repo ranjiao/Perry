@@ -155,6 +155,14 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 4. **Status decision**:
    - All objective verifications pass + no scope violation + RESULT block has all required fields → status `review` (NEVER auto-`done`; subjective verification is the user's, per the project's standing rule).
    - Anything fails → status `review` with failure annotation; no auto-retry, no auto-rollback.
+   - **On a `pipeline`- or `queue`-mode track, the stage usually moves too, and
+     it goes through the tool**: `perry-task stage <ID> --stage <name>`, which
+     re-stamps `Stage since` in the same write and refuses a stage outside the
+     track's declared vocabulary. `Stage` and `Status` are orthogonal, so a
+     stage move produces no status change and would otherwise leave no trace
+     anywhere; a hand-edited cell leaves the dwell clock reading from whenever
+     the row was created. This file is loaded on its own, so the invariant in
+     `reference/subcommands.md` does not reach it.
 5. Write `evidence/<YYYY-MM>/<TASK-ID>-dispatch-<YYYY-MM-DD-HHMM>.md`:
    - Header (date, executor, async, cycle time)
    - Full agent RESULT block verbatim
