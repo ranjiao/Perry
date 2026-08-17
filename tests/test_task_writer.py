@@ -1318,7 +1318,7 @@ class TestListContract(unittest.TestCase):
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
-                        "has_event_log"}
+                        "rows_with_no_computable_age", "has_event_log"}
     EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
 
     TRACKS = TestModeAwareWrites.TRACKS
@@ -1803,3 +1803,58 @@ class TestUserInputQueueHasAWriter(unittest.TestCase):
                          len(header.strip("|").split("|")),
                          "an existing row was not widened with the new column")
         self.assertEqual(a["id"], "USER-901", "the pre-existing id was reused")
+
+
+class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
+    """`triage`'s entire staleness mechanism is age comparisons.
+
+    A row with no event and no date cell has no age, and the six standard
+    board columns carry no date — so on any board written before the tool
+    existed, most rows read as fresh forever. **6 of 9 open rows on Perry's
+    own board**, including the two whose `Next action` still described
+    blockers that had already been fixed.
+
+    Found while updating `triage` to read the payload: the procedure said
+    "measured from `updated`, or from the row's date cells when there is no
+    event log", and those date cells do not exist. A fallback naming a source
+    that is not there is the defect this project keeps finding — written, this
+    time, by the same author who had just written the rule against it.
+    """
+
+    def test_a_hand_written_row_is_declared_ageless_not_treated_as_fresh(self):
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | predates the tool | User | in_progress | — | — |\n\n## P1", 1))
+        _, d = p.run("list", "--all")
+        t = next(x for x in d["tasks"] if x["id"] == "TASK-900")
+        self.assertIsNone(t["updated"])
+        self.assertIn("TASK-900", d["conformance"]["rows_with_no_computable_age"])
+
+    def test_a_tool_written_row_has_an_age_and_is_not_flagged(self):
+        """The check must run AFTER the event merge. Placed during the board
+        walk it flagged rows the tool had just created, because `updated` was
+        not filled in yet — measured 9 flagged where 6 was the truth."""
+        p = Project()
+        _, a = p.run("add", "--title", "tool written", "--priority", "P0")
+        _, d = p.run("list", "--all")
+        t = next(x for x in d["tasks"] if x["id"] == a["id"])
+        self.assertIsNotNone(t["updated"])
+        self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])
+
+    def test_a_row_with_a_stage_clock_is_ageable_without_events(self):
+        """`Stage since` and `Arrived` are dates on the row itself, so a
+        pipeline or queue row is ageable even with no event log."""
+        p = Project(tracks=TestModeAwareWrites.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        (p.root / ".perry" / "events.jsonl").unlink()
+        _, d = p.run("list", "--all")
+        self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])
+
+    def test_closed_rows_are_not_reported_as_ageless(self):
+        """The question is "is this still live", which a closed row answers."""
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        _, d = p.run("list", "--all")
+        self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])

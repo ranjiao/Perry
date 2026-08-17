@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.2`**
+> Contract: **`perry-task/list/1.3`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,7 +47,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.2",   // check this before anything else
+  "contract":     "perry-task/list/1.3",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
@@ -117,6 +117,7 @@ rendering 12 and dropping one.
 | `off_enum_status` | array | `{id, status}` — the cell said something, and after stripping emphasis it is still not one of the six. `status` is `""` for these and `status_text` has the original. |
 | `rows_with_no_status` | array | `{id, section}` — the row's `Status` cell was empty, usually because its section's table has no `Status` column. **`open` is an assumption for these**, see below. |
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. |
+| `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
 
 Two consequences worth designing for rather than discovering:
@@ -167,6 +168,18 @@ One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer
 deserves to know when a value's *meaning* changed under it.
+
+### 1.3 — 2026-08-17
+
+- **added** `conformance.rows_with_no_computable_age`. The six standard board
+  columns carry no date, so a row written before the event log has no age at
+  all — and every staleness rule is an age comparison, which made those rows
+  permanently fresh. Found while updating `triage` to read this payload: the
+  procedure said "measured from `updated`, or from the row's date cells when
+  there is no event log", and **the row's date cells do not exist** on a
+  standard board. A fallback that names a source which is not there is the
+  defect this project keeps finding; the honest answer is that the age is
+  unknown and the payload now says so.
 
 ### 1.2 — 2026-08-17
 

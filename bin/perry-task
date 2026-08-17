@@ -106,7 +106,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.2"
+LIST_CONTRACT = "perry-task/list/1.3"
 
 
 # ── schema ────────────────────────────────────────────────────────────────
@@ -1365,6 +1365,7 @@ def cmd_list(args, ctx) -> dict:
     conformance = {"sections_read": [], "sections_skipped": [],
                    "rows_with_unrecognized_id": [], "off_enum_status": [],
                    "rows_with_no_status": [], "evidence_not_found": [],
+                   "rows_with_no_computable_age": [],
                    "has_event_log": bool(ctx["events"])}
     statuses = set(ctx["schema"]["enums"]["task_status"])
     terminal = {"done", "dropped"}
@@ -1464,6 +1465,21 @@ def cmd_list(args, ctx) -> dict:
             t["updated"] = ts
         t["timeline"].append(
             {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")})
+
+    # A row with no event AND no date cell has no age at all. Every staleness
+    # rule triage runs is "idle ≥ N days", so such a row reads as fresh
+    # forever. The six standard board columns carry no date, so on a board
+    # written before the event log this is most of them — including, when this
+    # was added, the two rows on Perry's own board whose `Next action` still
+    # described blockers that had already been fixed.
+    #
+    # Computed HERE, after the event merge: doing it during the board walk
+    # flagged rows the tool had created itself, because `updated` was not
+    # filled in yet.
+    conformance["rows_with_no_computable_age"] = sorted(
+        t["id"] for t in tasks.values()
+        if t["open"] and not t["updated"]
+        and not t["stage_since"] and not t["arrived"])
 
     rows = sorted(tasks.values(), key=lambda t: t["id"])
     if args.track:

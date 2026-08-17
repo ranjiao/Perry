@@ -56,10 +56,11 @@ triage-shaped question the old walk had no way to ask:
 | `off_enum_status` | The cell says something the enum does not cover. Often legitimate (a composite state); sometimes a typo. Surface, never rewrite. |
 | `evidence_not_found` | A path in the `Evidence` cell resolves under neither root. Usually a symbol or a note, not a broken link — check before treating it as one. |
 | `sections_skipped` | A `## ` section holding a table with no `ID`+`Title`. If it is actually work, its table needs those columns. |
+| `rows_with_no_computable_age` | No age exists for these. Every staleness rule below is an age comparison, so they were being read as fresh forever. Ask about each rather than skipping it. |
 | `has_event_log: false` | The project predates the writer. `created` / `updated` / `timeline` are empty for every row and **that is not an error** — fall back to the row's own date cells. |
 
 Then walk the rows the payload returned. For each open row:
-- Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d, measured from `updated`, or from the row's date cells when there is no event log) → flag
+- Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d, measured from `updated`) → flag. **A row in `conformance.rows_with_no_computable_age` has no age**: no event, and the six standard board columns carry no date. Do not treat it as fresh — that is what the old rule did to two thirds of Perry's own board. Ask instead: *"this row has no recorded age; is it still live?"*
 - Same dependency cited in ≥2 rows? → structural blocker
 - `done` claim without evidence file in `evidence/<YYYY-MM>/` → `"$PERRY_HOME/bin/perry-task" status <ID> --status review --next "needs an evidence file before it can close"`
 - Owner is an agent and the row is still `not_started`? → flag. **Read the row, not the chat**: `delegate` now writes `in_progress` with `delegated to <agent>; awaiting paste-back` in `Next action`, so a delegated task is visible in state. This check used to look for "a recent delegation prompt in chat", which is not a surface any tool can read and not a record that survives the session.

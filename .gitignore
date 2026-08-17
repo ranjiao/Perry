@@ -9,3 +9,6 @@
 # Python bytecode from bin/ + viewer/
 __pycache__/
 *.pyc
+
+# Subagent worktrees — temporary, created by the Agent tool
+.claude/worktrees/
