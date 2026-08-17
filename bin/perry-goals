@@ -50,10 +50,111 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
+from tables import render_row, split_row, squash  # noqa: E402
 
 
 class Refused(Exception):
     """A refusal is a first-class outcome, not a crash."""
+
+
+class Okr:
+    """`OKR.md` as a list of lines, edited in place. Never re-rendered.
+
+    The same rule `perry-task`'s `Board` states, and it binds harder here:
+    `BOARD.md` is mostly table, `OKR.md` is mostly prose the user argued with.
+    A writer that round-trips through a parsed model normalizes whitespace,
+    heading punctuation and blank-line runs, and the result still passes
+    `perry-lint` while no longer reading the way its author wrote it — the one
+    failure DESIGN-005 § 5.5 says is worse than having no writer at all.
+
+    So the gate this class exists to pass, before any write path ships:
+
+        load it, change nothing, write it back  →  byte-identical
+
+    over every real `OKR.md` available, not over a fixture Perry generated.
+    The four on this machine disagree about almost everything — heading
+    punctuation, language, whether `Anti-Goals` sits inside a version, whether
+    version numbers are contiguous — and not one of them is malformed.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        if not path.exists():
+            raise Refused(f"no OKR.md at {path}")
+        self.text = path.read_text()
+        self.lines = self.text.split("\n")
+
+    def render(self) -> str:
+        """Exactly what `__init__` read, unless a cell was changed.
+
+        `split("\n")` / `join("\n")` is lossless in both directions,
+        including for a file with no trailing newline and for one with
+        several — which `splitlines()` is not, and which is why it is not
+        used.
+        """
+        return "\n".join(self.lines)
+
+    def unchanged(self) -> bool:
+        return self.render() == self.text
+
+    # -- locating
+
+    def section(self, pattern: str, level: int = 2) -> tuple[int, int]:
+        """(first line, end line) of the first heading matching `pattern`.
+
+        `end` is the next heading at the same level **or shallower**, so a
+        `## Commitments` section ends at the next `##` or `#` and swallows any
+        `###` beneath it. gimegime-pmo nests `### Anti-Goals` inside a version
+        section; a scanner that stopped at any heading would cut that version
+        in half.
+        """
+        hashes = "#" * level
+        rx = re.compile(rf"^{hashes}\s+(?:{pattern})", re.I)
+        stop = re.compile(rf"^#{{1,{level}}}\s")
+        start = None
+        for i, line in enumerate(self.lines):
+            if start is None:
+                if rx.match(line):
+                    start = i
+            elif stop.match(line):
+                return start, i
+        if start is None:
+            raise Refused(
+                f"OKR.md has no `{hashes} {pattern}` section")
+        return start, len(self.lines)
+
+    def has_section(self, pattern: str, level: int = 2) -> bool:
+        try:
+            self.section(pattern, level)
+            return True
+        except Refused:
+            return False
+
+    def table(self, lo: int, hi: int) -> tuple[int, list[str]]:
+        """(separator line index, header cells) for the first table in range.
+
+        The header is the line above the separator, which is how a markdown
+        table is actually defined — looking for a line of pipes and calling
+        the first one a header would match a row.
+        """
+        for i in range(lo, hi):
+            if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > lo:
+                return i, split_row(self.lines[i - 1])
+        raise Refused("that section has no table")
+
+    def rows(self, lo: int, hi: int) -> list[tuple[int, dict]]:
+        """(line index, cells keyed by squashed header) for each data row."""
+        sep, header = self.table(lo, hi)
+        keys = [squash(h) for h in header]
+        out = []
+        for i in range(sep + 1, hi):
+            line = self.lines[i]
+            if not line.strip().startswith("|"):
+                if line.strip():
+                    break
+                continue
+            out.append((i, dict(zip(keys, split_row(line)))))
+        return out
 
 
 # Versioned independently of the other two (DESIGN-005 § 4 decision 5). Goals
