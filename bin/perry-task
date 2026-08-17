@@ -114,7 +114,7 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P
-from tables import render_row, split_row, squash  # noqa: E402
+from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
 
 
 class Refused(Exception):
@@ -3227,6 +3227,23 @@ def main(argv: list[str]) -> int:
         # to a second tool to learn its write was allowed under protest.
         if gate is not None and isinstance(result, dict):
             result["conformance"] = gate.as_dict()
+    # A value a markdown table row cannot carry. Translated into the ordinary
+    # refusal channel here, at the boundary, rather than checked per
+    # subcommand: the previous version of this rule lived inside `render_row`
+    # as an escape for one character, and the next subcommand to grow a
+    # free-text flag walked straight past it. `render_row` raises before
+    # `commit()`, so a refusal means nothing was written.
+    except UnrenderableCell as exc:
+        msg = (f"the value {exc.value[:60]!r}… {exc.why}. "
+               "A board cell is one line of a markdown table; pass a summary "
+               "and put the long form in an evidence file."
+               if len(exc.value) > 60 else
+               f"the value {exc.value!r} {exc.why}.")
+        if args.as_json:
+            print(json.dumps({"refused": msg}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-task: refused — {msg}", file=sys.stderr)
+        return 1
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))

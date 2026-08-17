@@ -45,6 +45,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
 try:
     import parsers as P  # noqa: E402
+    from tables import split_row  # noqa: E402
 except ImportError as exc:  # pragma: no cover - install-shape problem
     print(
         f"perry-state: cannot import viewer/parsers.py from {PERRY_HOME}: {exc}",
@@ -119,7 +120,7 @@ def load_packs(names: list[str]) -> list[dict]:
                     s = line.strip()
                     if not s.startswith("|") or set(s) <= set("|- :"):
                         continue
-                    cells = [c.strip().strip("*` ") for c in s.strip("|").split("|")]
+                    cells = [c.strip("*` ") for c in split_row(s)]
                     if len(cells) >= 2 and cells[0] and cells[0].lower() != "term":
                         entry["glossary"][cells[0]] = cells[1]
         out.append(entry)
@@ -179,7 +180,7 @@ def parse_tracks(text: str) -> list[dict]:
         return [dict(DEFAULT_TRACK)]
 
     def cells_of(line: str) -> list[str]:
-        return [c.strip().strip("*` ") for c in line.strip().strip("|").split("|")]
+        return [c.strip("*` ") for c in split_row(line)]
 
     header: dict[str, int] = {}
     rows = []

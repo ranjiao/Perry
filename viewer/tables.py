@@ -62,15 +62,67 @@ def split_row(line: str) -> list[str]:
     return cells
 
 
+class UnrenderableCell(ValueError):
+    """A value a markdown table row cannot carry. Raised by `render_row`.
+
+    Carries `index` and `value` so a CLI can name the field it refused rather
+    than echoing a row the user never typed.
+    """
+
+    def __init__(self, index: int, value: str, why: str) -> None:
+        self.index, self.value, self.why = index, value, why
+        super().__init__(f"cell {index}: {why}")
+
+
 def render_row(cells: list[str]) -> str:
     """`["a", "b"]` → `| a | b |`, one space of padding, no alignment.
 
     Deliberately not column-aligned. Aligning would rewrite every row of a
     table whenever one cell grew, turning a one-cell edit into a whole-table
     diff and burying the change nobody can then review.
+
+    **Raises `UnrenderableCell` for a value that would not read back as
+    itself.** The check is the round trip against `split_row`, not a list of
+    characters, and that is the whole point of it.
+
+    The previous version escaped `|` and nothing else. It was written after a
+    `Next action` quoting a markdown header shifted every column after it and
+    pushed `Risk` into `Verification` — so the guard was shaped around the one
+    character that had bitten. Weeks later `--next` was handed text containing
+    blank lines, `render_row` emitted the newlines verbatim, and three rows of
+    Perry's own board were destroyed: each ended mid-cell with no closing `|`,
+    the tail landed in the document as loose paragraphs, and the *next* `add`
+    parsed the truncated line as the table's last row and inserted into the
+    middle of the spilled text. `perry-lint` reported `✓ clean` throughout.
+
+    `|` passes because escaping round-trips. `\\n` cannot round-trip through a
+    markdown table at all, which is why this refuses rather than encodes: the
+    caller asked to store something the format does not hold, and silently
+    collapsing it would lose the user's writing without saying so.
     """
-    return "| " + " | ".join(
+    out = "| " + " | ".join(
         c.strip().replace("|", _ESCAPED_PIPE) for c in cells) + " |"
+    want = [c.strip() for c in cells]
+
+    # The invariant is TWO clauses, and the round trip alone is not it.
+    # `split_row` scans a string for `|` without caring about line breaks, so
+    # `split_row(render_row(c)) == c` holds for a cell containing `\n` — the
+    # first version of this guard was exactly that comparison and let a
+    # multi-line `--next` straight through, which is the bug it was written
+    # for. Found by probing the guard rather than by reading it.
+    if len(out.splitlines()) > 1:
+        i = next((n for n, c in enumerate(want)
+                  if "\n" in c or "\r" in c), 0)
+        raise UnrenderableCell(
+            i, want[i] if i < len(want) else "",
+            "contains a line break — a markdown table row is one line")
+    got = split_row(out)
+    if got != want:
+        i = next((n for n, (a, b) in enumerate(zip(got, want)) if a != b),
+                 min(len(want), len(got)))
+        raise UnrenderableCell(i, want[i] if i < len(want) else "",
+                               "does not read back as itself")
+    return out
 
 
 def squash(s: str) -> str:

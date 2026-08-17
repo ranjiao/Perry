@@ -62,7 +62,7 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # passed" and "Perry can read it" cannot diverge.
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P
-from tables import squash  # noqa: E402
+from tables import split_row, squash  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 
@@ -131,7 +131,17 @@ def section_body(text: str, level: int, matcher: re.Pattern) -> list[tuple[str, 
 
 
 def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
-    """Every markdown table in the section as (header_cells, data_rows)."""
+    """Every markdown table in the section as (header_cells, data_rows).
+
+    Rows are split by `viewer/tables.py § split_row` — the same function the
+    writer's `render_row` is the inverse of, and the same one every reader in
+    `viewer/parsers.py` uses. This file used to carry its own
+    naive split on every `|`, which did not honour the escape, so the linter read
+    eight cells where the contract reader read seven on a row `perry-task`
+    itself had written, and reported `bad-enum Verification = '—'` against a
+    correctly-formed row. A checker that reads a file differently from the
+    tool that wrote it does not check that file.
+    """
     out: list[tuple[list[str], list[list[str]]]] = []
     prev: list[str] = []
     header: list[str] | None = None
@@ -143,7 +153,7 @@ def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
             rows = []
             continue
         if s.startswith("|"):
-            cells = [c.strip() for c in s.strip("|").split("|")]
+            cells = split_row(s)
             if header is None:
                 prev = cells
             else:
@@ -489,6 +499,44 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                 if not got:
                     continue
                 found_any = True
+                # A row that is not as wide as its header. Both directions are
+                # wrong and neither was reported until now: a SHORT row reads
+                # as one whose trailing columns are empty — and empty is legal
+                # for `Evidence`, so nothing downstream objects — while a LONG
+                # row shifts every column after the extra `|`.
+                #
+                # This is the check that was missing when `perry-task add`
+                # wrote raw newlines into three rows of Perry's own board.
+                # Each ended mid-cell with no closing `|`; `perry-lint`
+                # reported `✓ clean`; the next `add` then parsed the truncated
+                # line as the table's last row and inserted into the middle of
+                # the spilled text. Every column read below is index-guarded
+                # (`if ci >= len(row): continue`), which is exactly why a
+                # malformed row passed every one of them in silence.
+                #
+                # Deliberately ABOVE the missing-columns branch, which bails
+                # out with `continue`. Comparing a row's width to its header's
+                # needs no interpretation of what the columns mean, so a table
+                # whose headers Perry does not recognize can still be told its
+                # rows do not line up — and that is precisely the table a
+                # project arriving from outside Perry has.
+                for row in rows:
+                    if len(row) == len(header):
+                        continue
+                    if not any(c.strip() for c in row):
+                        continue          # a blank spacer row inside a table
+                    shown = (row[column_index(got, tspec["id_column"])]
+                             if tspec.get("id_column")
+                             and 0 <= column_index(got, tspec["id_column"]) < len(row)
+                             else " | ".join(row)[:60])
+                    findings.append(Finding(
+                        "error", rel, "ragged-row", line=start,
+                        message=f"row {shown!r} has {len(row)} cell(s) but its "
+                                f"header has {len(header)} — "
+                                + ("the trailing column(s) read as empty"
+                                   if len(row) < len(header)
+                                   else "every column after the extra `|` is shifted"),
+                    ))
                 missing = [c for c in tspec["columns"] if not satisfied(c, got)]
                 if missing:
                     findings.append(Finding(

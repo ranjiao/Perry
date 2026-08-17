@@ -50,6 +50,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+from tables import split_row  # noqa: E402
+
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
 THRESHOLDS = {
@@ -1295,7 +1298,7 @@ def md_table(lines: list[str], aliases: dict[str, set[str]]):
             continue
         if set(s) <= set("|- :"):
             continue
-        cells = [c.strip().strip("*` ") for c in s.strip().strip("|").split("|")]
+        cells = [c.strip("*` ") for c in split_row(s)]
         low = [c.lower() for c in cells]
         if not header:
             header = {canon: i for canon, names in aliases.items()

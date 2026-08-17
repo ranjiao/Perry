@@ -35,7 +35,7 @@ from pathlib import Path
 #
 # `tests/test_risks.py::TestOneNormalizationForAHeaderCell` compares the
 # reader's predicate against the writer's over a corpus of header forms.
-from tables import squash  # noqa: E402
+from tables import split_row, squash  # noqa: E402
 
 # ── localization glossary ─────────────────────────────────────────────────
 #
@@ -678,7 +678,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
     for line in lines:
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in split_row(prev)]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Title", "Owner", "Status", "Next action",
@@ -702,7 +702,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             # to one ## section, so a later |--- can still start a new table.
             in_table = False
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_row(line)
         if len(cells) < 4:
             continue
 
@@ -942,7 +942,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in split_row(prev)]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Recurring task", "Title", "Owner", "Frequency",
@@ -963,7 +963,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
         if not line.startswith("|"):
             in_table = False
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_row(line)
         if len(cells) < 4:
             continue
 
@@ -1032,7 +1032,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in split_row(prev)]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("USER-id", "Needed from user", "Blocks", "Asked",
@@ -1047,7 +1047,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
             continue
         if not line.startswith("|"):
             break
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_row(line)
         if len(cells) < 4:
             continue
         if squash(cells[0]) in {"", *_column_keys("USER-id")}:
@@ -1165,7 +1165,7 @@ def _table_rows(section: str) -> list[dict[str, str]]:
                 continue
             header = []
             continue
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        cells = split_row(stripped)
         if not header:
             prev_cells = cells
             continue
@@ -1461,7 +1461,7 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
             if in_table:
                 break
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_row(line)
         if len(cells) < 3:
             continue
         if cells[0].lower() in {"day", ""}:
@@ -1541,7 +1541,7 @@ def _has_risk_header(section: str) -> bool:
         prev = lines[i - 1].strip()
         if not prev.startswith("|"):
             continue
-        header = [squash(c) for c in prev.strip("|").split("|")]
+        header = [squash(c) for c in split_row(prev)]
         if wanted & set(header):
             return True
     return False
@@ -1714,7 +1714,7 @@ def parse_decisions(text: str) -> list[ADR]:
             continue
         if not in_table or not line.startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = split_row(line)
         if len(cells) < 4:
             continue
         first = cells[0]
@@ -1992,7 +1992,7 @@ def parse_project_state(text: str) -> ProjectState:
                 continue
             if not in_table or not line.startswith("|"):
                 continue
-            cells = [c.strip() for c in line.strip("|").split("|")]
+            cells = split_row(line)
             if len(cells) < 5 or squash(cells[0]) == "id":
                 continue
             ps.carry_forwards.append(

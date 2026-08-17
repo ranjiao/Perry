@@ -94,7 +94,7 @@ TEMPLATE_PATH = PERRY_HOME / "goals" / "state" / "OKR_TEMPLATE.md"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
-from tables import render_row, split_row, squash  # noqa: E402
+from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
 
 
 class Refused(Exception):
@@ -1454,6 +1454,15 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
+    # See the twin in `bin/perry-task § main`. Both writers call `render_row`,
+    # so both need the translation; a guard installed in only the tool where
+    # the bug happened to surface is the mistake `render_row`'s own docstring
+    # is about.
+    except UnrenderableCell as exc:
+        print(f"perry-goals: refused — the value {exc.value[:60]!r} "
+              f"{exc.why}. A register cell is one line of a markdown table.",
+              file=sys.stderr)
+        sys.exit(1)
     except Refused as exc:
         print(f"perry-goals: refused — {exc}", file=sys.stderr)
         sys.exit(1)
