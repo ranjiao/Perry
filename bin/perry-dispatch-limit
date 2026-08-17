@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# perry-dispatch-limit — track and enforce max concurrent /pmo dispatches.
+# perry-dispatch-limit — track and enforce max concurrent /perry work dispatches.
 #
 # Each in-flight dispatch leaves a marker file at
 #   ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
 #
 # `register` reserves a slot (refuses if at limit). `release` frees it.
 # Stale markers (older than PERRY_DISPATCH_STALE_TTL, default 1h) are
-# auto-cleaned before counting — covers the case where a previous PMO
+# auto-cleaned before counting — covers the case where a previous `work`
 # session crashed without releasing.
 set -e
 
@@ -22,7 +22,7 @@ mkdir -p "$CACHE_DIR"
 # ─── Helpers ─────────────────────────────────────────────────
 usage() {
   cat <<'USAGE'
-perry-dispatch-limit — track concurrent /pmo dispatch slots.
+perry-dispatch-limit — track concurrent /perry work dispatch slots.
 
 Usage:
   perry-dispatch-limit register <task-id> <executor>

@@ -1,28 +1,50 @@
 """What Perry hands a user must be written in the vocabulary a user can type.
 
-`SKILL.md § Reading the lane docs` carves out exactly two classes of file —
-lane `SKILL.md` bodies and `*/reference/` prose — as places where the shorthand
-`/pmo triage` is left standing, because inside a Perry session an agent reads
-it as routing vocabulary and translates before quoting.
+`SKILL.md § Reading the lane docs` carves out the pages an agent **loads and
+re-renders** before a user sees them — the three lane `SKILL.md` bodies,
+`*/reference/`, `packs/`, and the shared root `reference/`. Inside a Perry
+session that shorthand is routing vocabulary; the agent translates before
+quoting. This file does not police those.
 
-The round-4 review found that the carve-out was being applied to four classes
-it never covered, and that each of the four ends up in front of the user with
-**no agent step left to translate it**:
+It polices the complement: everything with **no agent step left to translate
+it**. The carve-out note in `SKILL.md` lists those classes in prose; this file
+is the same list, mechanically, and `TestTheCarveOutSaysWhatThisFileEnforces`
+asserts the two lists agree, so neither can drift without the other going red.
 
-- `bin/` — `perry-state` fills the `warnings[]` array and `perry-lint` fills
+- `bin/` — `--help` is the quote, already rendered, printed to a terminal.
+  `perry-state` also fills `warnings[]` and `perry-lint` fills
   `Finding.message`; `reference/i18n.md § chat output` sends both straight to
   chat. One of them named `/pmo decide --expire`, which exists in neither
   vocabulary: `decide <topic>` left the `work` lane on 2026-08-16 and the live
   form is `/perry decide adr --expire`.
-- `*/state/*_TEMPLATE.md` and `state/*_TEMPLATE.md` — these are copied verbatim
-  into the user's own repository and stay there. `BOARD_TEMPLATE.md`'s two
-  header lines sit at the top of the single most-read file Perry produces.
-- `packs/` and the shared root `reference/` — outside every lane, so outside
-  every lane-scoped guard.
+- `*/state/*_TEMPLATE.md` and `state/*_TEMPLATE.md` — copied verbatim into the
+  user's own repository and left there. `BOARD_TEMPLATE.md`'s two header lines
+  sit at the top of the single most-read file Perry produces.
+- `setup` — its completion banner is the first thing a user reads after
+  install, at the exact moment they learn what to type.
 - lane frontmatter `description:` — read by the host, not by an agent that has
   already loaded the router.
+- `SKILL.md` itself — the router is the page a new user is shown, and the
+  carve-out it declares does not name itself.
+- `reference/host-capabilities.md` — the one page inside `reference/` that is
+  *excluded* from the carve-out, because it owns per-host translation: it tells
+  a user which entrance their host offers, and a reader types what it says.
 
-None of these had a guard of any kind. This file is that guard.
+**Round 5, on why this is shaped the way it is.** Round 4 quoted two strings in
+`bin/`. The repair fixed those two strings and then wrote a guard shaped around
+them: `TOOLS = ("perry-state", "perry-lint")` — 2 of 14 — over an AST walk that
+*discarded docstrings*. Every one of the nine Python tools prints
+`__doc__.strip()` for `--help`, so the guard was blind to its own subject
+matter, and blind entirely to the five `bash` tools, which have no AST at all.
+`perry-state --help`, `perry-dispatch-limit --help` and
+`perry-codex-preflight --help` all still greeted the user in the dead
+vocabulary while 27 tests passed.
+
+So the check here is **"can this string reach a terminal"**, and it is answered
+by running the program, not by reading it:
+`TestEveryShippedToolsHelpIsTypeable` executes `--help` on every tool in `bin/`,
+discovers the list from the filesystem so a new tool is covered on the day it
+lands, and is language-agnostic by construction.
 
 Run: python3 -m unittest discover -s tests   (or ./tests/run)
 """
@@ -30,12 +52,26 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import ast
+import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 LANES = ("goals", "work", "decide")
+
+
+def shipped_tools() -> list[Path]:
+    """Every executable in `bin/`, discovered rather than listed.
+
+    The round-4 guard hard-coded two tool names and went quiet on the other
+    twelve. Reading the directory means a tool added tomorrow is covered
+    tomorrow, and a tool that is renamed cannot fall out of the set silently.
+    """
+    return sorted(p for p in (PERRY_HOME / "bin").iterdir()
+                  if p.is_file() and not p.name.startswith(".")
+                  and p.suffix != ".md" and os.access(p, os.X_OK))
 
 # A withdrawn command in any shape a document actually writes one:
 #
@@ -59,6 +95,113 @@ def read(rel: str) -> str:
     return (PERRY_HOME / rel).read_text(encoding="utf-8")
 
 
+class TestEveryShippedToolsHelpIsTypeable(unittest.TestCase):
+    """The check is "can this string reach a terminal", so it runs the program.
+
+    Round 4 quoted two `bin/` strings; the repair fixed those two and guarded
+    them with an AST walk over two tools that *discarded docstrings*. All nine
+    Python tools print `__doc__.strip()` for `--help`, and five more tools are
+    `bash`, which an AST walk cannot see at all. Three tools were still
+    greeting the user in the withdrawn vocabulary with the suite green:
+
+        $ python3 bin/perry-state --help
+          - the standup ritual (`/perry`, `/pmo`, `/okr`, `/design`) reads `--json`
+        $ bash bin/perry-dispatch-limit --help
+        perry-dispatch-limit — track concurrent /pmo dispatch slots.
+        $ bash bin/perry-codex-preflight --help
+        perry-codex-preflight — verify codex CLI before /pmo dispatch.
+
+    Executing `--help` is language-agnostic, cannot be fooled by *where* the
+    string lives in the source, and needs no per-tool registration. `--help` is
+    read-only in every tool here: each one matches the flag and exits before it
+    touches the filesystem.
+    """
+
+    def test_the_tool_list_is_the_directory_and_not_a_stale_literal(self):
+        """Guard against the guard, and against the exact defect being fixed.
+        A hard-coded pair of names is how the last version of this passed while
+        three tools printed dead commands."""
+        tools = shipped_tools()
+        self.assertGreaterEqual(
+            len(tools), 14,
+            f"only {len(tools)} executables found in bin/ — the discovery has "
+            f"come unstuck from the tree")
+        names = {p.name for p in tools}
+        # One of each language, and the three that were actually wrong.
+        for expected in ("perry-state", "perry-lint", "perry-task",
+                         "perry-dispatch-limit", "perry-codex-preflight",
+                         "perry-viewer", "perry-detect-host"):
+            self.assertIn(expected, names)
+        # The two languages must both be represented, because the previous
+        # guard could only ever have seen one of them.
+        shebangs = {p.read_text(errors="replace").splitlines()[0] for p in tools}
+        self.assertTrue(any("python" in s for s in shebangs))
+        self.assertTrue(any("bash" in s for s in shebangs))
+
+    @staticmethod
+    def help_text(path: Path) -> str:
+        proc = subprocess.run([str(path), "--help"], capture_output=True,
+                              text=True, timeout=60, cwd=str(PERRY_HOME))
+        return proc.stdout + proc.stderr
+
+    def test_no_tools_help_output_names_a_withdrawn_command(self):
+        offenders = []
+        for path in shipped_tools():
+            text = self.help_text(path)
+            for n, line in enumerate(text.splitlines(), 1):
+                for hit in withdrawn_hits(line):
+                    offenders.append(
+                        f"`{path.name} --help` line {n} → {hit.strip()!r}\n"
+                        f"      {line.strip()[:100]}")
+                    break
+        self.assertEqual(
+            offenders, [],
+            "a shipped tool greets the user in a vocabulary that no longer "
+            "exists:\n    " + "\n    ".join(offenders))
+
+    def test_the_tools_actually_produced_help_to_scan(self):
+        """The other half of the anti-vacuity guard. A tool that crashed, hung
+        or printed nothing on `--help` would pass the scan above by saying
+        nothing, which is the failure mode this whole file exists to catch."""
+        thin = []
+        for path in shipped_tools():
+            text = self.help_text(path)
+            if len(text.strip()) < 40:
+                thin.append(f"{path.name}: {len(text.strip())} chars")
+        self.assertEqual(
+            thin, [],
+            "a tool produced no usable --help, so scanning it proved "
+            "nothing:\n    " + "\n    ".join(thin))
+
+    def test_the_scan_would_catch_the_strings_that_were_wrong(self):
+        """The three real round-5 lines, replayed verbatim. A guard that does
+        not go red on all three is not the guard this task owes."""
+        replay = [
+            "  - the standup ritual (`/perry`, `/pmo`, `/okr`, `/design`) "
+            "reads `--json`",
+            "perry-dispatch-limit — track concurrent /pmo dispatch slots.",
+            "perry-codex-preflight — verify codex CLI before /pmo dispatch.",
+        ]
+        for line in replay:
+            with self.subTest(line=line[:50]):
+                self.assertNotEqual(withdrawn_hits(line), [])
+
+    def test_the_scan_does_not_cry_wolf_on_the_live_forms(self):
+        """The replacements, and the two shapes that legitimately contain a
+        lane word: a JSON section key (`--section ... okr / design`) and a
+        directory (`design/`). If the pattern reddened on these, the honest
+        fix would look like a false alarm and get exempted."""
+        for line in (
+            "perry-dispatch-limit — track concurrent /perry work dispatch slots.",
+            "  --section     emit one top-level key only (board / phase / okr "
+            "/ design / …)",
+            "`decide/SKILL.md § init` creates `design/` and states outright",
+            "evidence/<YYYY-MM>/okr-v2-retro.md",
+        ):
+            with self.subTest(line=line[:50]):
+                self.assertEqual(withdrawn_hits(line), [], line)
+
+
 class TestBinPrintsOnlyLiveCommands(unittest.TestCase):
     """`bin/` output is the quote, already rendered.
 
@@ -68,42 +211,93 @@ class TestBinPrintsOnlyLiveCommands(unittest.TestCase):
         warnings: ['ADR-002 sunset criteria passed 16d ago —
                    run /pmo decide --expire ADR-002.']
 
-    The scan is over string *literals* rather than raw file text, and skips
-    docstrings, so a comment explaining the old vocabulary is still allowed
-    while anything that can reach a user is not. That distinction is the whole
-    reason this is an AST walk instead of a grep.
+    `--help` is covered above by execution. This class covers the strings that
+    execution cannot reach without contriving the conditions that emit them —
+    `warnings[]`, `Finding.message`, error branches — by walking the source.
+
+    Two things changed after round 4. The tool list is now **every** Python
+    tool, not two of them; and the **module** docstring is no longer discarded,
+    because every one of these tools prints it as `--help`. Docstrings on
+    functions and classes are still skipped: those are never printed, and
+    keeping them exempt is what lets a docstring explain the old vocabulary —
+    as several in this repo do — without the explanation becoming an offence.
     """
 
-    TOOLS = ("perry-state", "perry-lint")
+    @staticmethod
+    def python_tools() -> list[Path]:
+        return [p for p in shipped_tools()
+                if "python" in p.read_text(errors="replace").splitlines()[0]]
+
+    def test_the_python_tool_set_is_the_whole_of_it(self):
+        """Guard against the guard: `TOOLS = ("perry-state", "perry-lint")` is
+        precisely the shape that let round 5's defect through."""
+        names = {p.name for p in self.python_tools()}
+        self.assertGreaterEqual(len(names), 9,
+                                f"only {len(names)} Python tools seen: {names}")
+        for expected in ("perry-state", "perry-lint", "perry-task",
+                         "perry-diagnose", "perry-goals", "perry-decide"):
+            self.assertIn(expected, names)
 
     @staticmethod
     def message_literals(path: Path) -> list[tuple[int, str]]:
+        """Every string literal that is not a function or class docstring.
+
+        The module docstring is deliberately **included** — `--help` prints it.
+        """
         tree = ast.parse(path.read_text())
-        docstrings = set()
+        skip = set()
         for node in ast.walk(tree):
-            if isinstance(node, (ast.Module, ast.FunctionDef,
-                                 ast.AsyncFunctionDef, ast.ClassDef)):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.ClassDef)):
                 body = node.body
                 if (body and isinstance(body[0], ast.Expr)
                         and isinstance(body[0].value, ast.Constant)
                         and isinstance(body[0].value.value, str)):
-                    docstrings.add(id(body[0].value))
+                    skip.add(id(body[0].value))
         out = []
         for node in ast.walk(tree):
             if (isinstance(node, ast.Constant)
                     and isinstance(node.value, str)
-                    and id(node) not in docstrings):
+                    and id(node) not in skip):
                 out.append((node.lineno, node.value))
         return out
 
+    def test_the_module_docstring_is_no_longer_discarded(self):
+        """Guard against the guard, pinned on the mechanism that failed. The
+        round-4 walk skipped `ast.Module` docstrings alongside function ones;
+        that single word in a tuple is what hid `perry-state --help`."""
+        path = PERRY_HOME / "bin" / "perry-state"
+        first = ast.parse(path.read_text()).body[0]
+        assert isinstance(first, ast.Expr)
+        seen = [v for _, v in self.message_literals(path)]
+        self.assertIn(first.value.value, seen,
+                      "the module docstring is being skipped again — the text "
+                      "`--help` prints would go unscanned")
+
+    def test_a_function_docstring_is_still_allowed_to_explain_the_old_names(self):
+        """The complement. Narrowing the exemption to *module* docstrings is
+        only correct if the narrower exemption still holds."""
+        src = ('"""mod"""\n'
+               'def f():\n'
+               '    """Historically this was `/pmo triage`."""\n'
+               '    return 1\n')
+        tree = ast.parse(src)
+        skip = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                skip.add(id(node.body[0].value))
+        vals = [n.value for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                and id(n) not in skip]
+        self.assertNotIn("Historically this was `/pmo triage`.", vals)
+
     def test_no_tool_puts_a_withdrawn_command_in_a_string_it_can_print(self):
         offenders = []
-        for tool in self.TOOLS:
-            path = PERRY_HOME / "bin" / tool
+        for path in self.python_tools():
             for lineno, value in self.message_literals(path):
                 for hit in withdrawn_hits(value):
                     offenders.append(
-                        f"bin/{tool}:{lineno} → {hit.strip()!r} in "
+                        f"bin/{path.name}:{lineno} → {hit.strip()!r} in "
                         f"{value.strip()[:80]!r}")
                     break
         self.assertEqual(
@@ -142,6 +336,212 @@ class TestBinPrintsOnlyLiveCommands(unittest.TestCase):
         for w in emitted:
             self.assertEqual(withdrawn_hits(w), [],
                              f"perry-state emitted a withdrawn command: {w}")
+
+
+# A line may keep a withdrawn spelling only when it is *reporting the
+# withdrawal* — "earlier versions symlinked them so `/okr` worked; that was
+# withdrawn". Round 4's m-4 rejected the previous exemption for being every
+# blockquote and every line containing the word; this one is a closed set of
+# past-tense markers that must appear on the same line as the hit, so a line
+# that instructs the reader can never qualify.
+WITHDRAWAL_MARKER = re.compile(
+    r"\b(?:was withdrawn|were withdrawn|used to|earlier versions|"
+    r"are written in shorthand|no longer)\b", re.I)
+
+
+class TestTheRouterAndTheInstallerAreTypeable(unittest.TestCase):
+    """`SKILL.md` and `setup` are the two pages a *new* user reads.
+
+    The carve-out `SKILL.md:41` declares does not name `SKILL.md` itself
+    (round 4, m-1) and never named `setup`. `setup`'s completion banner printed
+    two consecutive lines, one in each vocabulary, at the exact moment a user
+    learns what to type:
+
+        skill        : /perry  (one entrance; goals / work / decide are lanes …)
+        lanes        : /perry okr … · /perry pmo … · /perry design … · …
+    """
+
+    FILES = ("SKILL.md", "setup")
+
+    def offenders(self, rel: str) -> list[str]:
+        out = []
+        for n, line in enumerate(read(rel).splitlines(), 1):
+            if not withdrawn_hits(line) or WITHDRAWAL_MARKER.search(line):
+                continue
+            out.append(f"{rel}:{n} → {line.strip()[:110]}")
+        return out
+
+    def test_neither_names_a_command_that_no_longer_exists(self):
+        for rel in self.FILES:
+            with self.subTest(doc=rel):
+                bad = self.offenders(rel)
+                self.assertEqual(
+                    bad, [],
+                    f"{rel} shows a withdrawn command without saying it is "
+                    f"withdrawn:\n    " + "\n    ".join(bad))
+
+    def test_the_setup_banner_names_the_three_live_lanes_and_no_others(self):
+        """Pinned on the banner specifically. The scan above would also be
+        satisfied by deleting the line."""
+        banner = [l for l in read("setup").splitlines()
+                  if "lanes        :" in l]
+        self.assertEqual(len(banner), 1,
+                         "the completion banner's lane line is gone — this "
+                         "test would pass against nothing")
+        line = banner[0]
+        for lane in LANES:
+            self.assertIn(f"/perry {lane}", line,
+                          f"the install banner never names the `{lane}` lane "
+                          f"in the form a user types")
+        for dead in ALIASES:
+            self.assertNotIn(f"/perry {dead}", line,
+                             f"the install banner still advertises `{dead}`")
+
+    def test_the_exemption_is_a_narrow_seam_and_not_a_loophole(self):
+        """Guard against the guard. If the marker set ever grows wide enough to
+        excuse an instruction, this file stops meaning anything — which is the
+        criticism round 4 levelled at the previous blockquote exemption."""
+        excused = [(rel, n, line.strip())
+                   for rel in self.FILES
+                   for n, line in enumerate(read(rel).splitlines(), 1)
+                   if withdrawn_hits(line) and WITHDRAWAL_MARKER.search(line)]
+        self.assertLessEqual(
+            len(excused), 4,
+            f"{len(excused)} lines are being excused as historical notes; the "
+            f"exemption has become a way to keep dead commands: {excused}")
+        # And it must not excuse an instruction that merely mentions history.
+        self.assertFalse(
+            WITHDRAWAL_MARKER.search("Run `/pmo triage` to sort the board."),
+            "the marker set matches a plain instruction")
+        self.assertTrue(
+            WITHDRAWAL_MARKER.search(
+                "Earlier versions symlinked them so `/okr` worked."),
+            "the marker set no longer recognises a genuine historical note")
+
+
+class TestHostCapabilitiesNamesTheOneLiveEntrance(unittest.TestCase):
+    """`reference/host-capabilities.md` is the one page inside the carve-out's
+    directories that is *excluded* from it.
+
+    It is the single owner of per-host translation: its job is to tell a user
+    which entrance their host offers. It documented Perry as four skills on
+    both hosts, so a Codex user following row `Skill invocation` ran `/skills`,
+    looked for `pmo`, and found nothing — the three sibling skills were
+    withdrawn *and* the lanes were renamed. A page whose whole purpose is to be
+    accurate about the host cannot be read as shorthand, so this class allows
+    it no exemption at all, not even the historical-note seam above.
+    """
+
+    REL = "reference/host-capabilities.md"
+
+    def test_the_page_uses_no_withdrawn_command_anywhere(self):
+        bad = [f"{self.REL}:{n} → {line.strip()[:110]}"
+               for n, line in enumerate(read(self.REL).splitlines(), 1)
+               if withdrawn_hits(line)]
+        self.assertEqual(
+            bad, [],
+            "the page that owns per-host translation is itself written in the "
+            "dead vocabulary:\n    " + "\n    ".join(bad))
+
+    def test_the_invocation_row_offers_one_skill_on_each_host(self):
+        """The specific cell a Codex user acts on."""
+        rows = [l for l in read(self.REL).splitlines()
+                if l.startswith("| Skill invocation")]
+        self.assertEqual(len(rows), 1, "the Skill invocation row is gone — "
+                                       "this test would prove nothing")
+        row = rows[0]
+        self.assertIn("/perry", row)
+        self.assertIn("/skills", row, "the Codex column no longer tells the "
+                                      "user how to reach Perry at all")
+        for dead in ALIASES:
+            self.assertNotRegex(
+                row, rf"(?<![\w/]){dead}(?![\w-])",
+                f"the invocation row still sends a user looking for a "
+                f"`{dead}` entry that no host registers")
+
+    def test_the_page_states_that_perry_registers_exactly_one_skill(self):
+        """The prose half of the same claim. Row-level correctness without it
+        leaves `All four Perry skills …` standing two lines above."""
+        text = read(self.REL)
+        self.assertNotRegex(
+            text, r"[Aa]ll four Perry skills",
+            "the page still asserts Perry registers four skills")
+        self.assertRegex(
+            text, r"registers \*\*one\*\* skill",
+            "the page never states how many skills Perry actually registers")
+
+    def test_it_names_the_lane_directories_that_exist(self):
+        """`§ $PERRY_HOME` listed `okr/`, `pmo/`, `design/` as the directories
+        on disk. Checked against the filesystem, not a literal."""
+        text = read(self.REL)
+        for lane in LANES:
+            self.assertIn(f"`{lane}/`", text,
+                          f"the $PERRY_HOME section does not name `{lane}/`")
+            self.assertTrue((PERRY_HOME / lane).is_dir())
+        for dead in ALIASES:
+            self.assertFalse(
+                (PERRY_HOME / dead).exists(),
+                f"`{dead}/` exists again — this test is now checking nothing")
+
+
+class TestTheCarveOutSaysWhatThisFileEnforces(unittest.TestCase):
+    """The round-4 review's m-6: the carve-out silently omitted `bin/`,
+    `*/state/`, the shared root `reference/`, `packs/`, `setup` and the router
+    — which is where every finding lived — while this file's own docstring
+    claimed four covered classes and covered two and a half.
+
+    A guard that misdescribes its own coverage is worse than no guard, because
+    the next reviewer trusts it. So the two documents are pinned to each other:
+    `SKILL.md`'s carve-out note must name every class this file exempts *and*
+    every class it enforces, and it must name them as the same lists.
+    """
+
+    @staticmethod
+    def carve_out() -> str:
+        text = read("SKILL.md")
+        start = text.index("**Reading the lane docs**")
+        return text[start:start + 2500]
+
+    def test_the_carve_out_names_every_directory_it_exempts(self):
+        note = self.carve_out()
+        for exempt in ("`*/reference/`", "`packs/`"):
+            self.assertIn(exempt, note,
+                          f"the carve-out does not say it covers {exempt}, so "
+                          f"~30 occurrences there are exempt by accident")
+        self.assertIn("reference/", note)
+
+    def test_the_carve_out_names_every_class_this_file_enforces(self):
+        """Each of these has a test class above. If a class is added here
+        without being declared there, the carve-out is over-claiming again."""
+        note = self.carve_out()
+        for enforced in ("`bin/`", "`setup`", "description:", "SKILL.md",
+                         "reference/host-capabilities.md", "_TEMPLATE.md"):
+            self.assertIn(
+                enforced, note,
+                f"the carve-out note never says {enforced} is outside it, "
+                f"which is how it silently grew the last time")
+
+    def test_the_carve_out_points_at_this_file(self):
+        self.assertIn("tests/test_shipped_vocabulary.py", self.carve_out(),
+                      "the prose list names no mechanical counterpart")
+
+    def test_the_exempted_directories_really_do_still_contain_shorthand(self):
+        """Guard against the guard, in the honest direction. The carve-out is
+        only load-bearing while those trees actually use the shorthand; if they
+        were cleaned up, keeping the exemption would hide a future regression
+        and this test says so."""
+        found = 0
+        for base in ("packs", "reference"):
+            for p in sorted((PERRY_HOME / base).rglob("*.md")):
+                if p.name == "host-capabilities.md":
+                    continue
+                found += len([l for l in p.read_text().splitlines()
+                              if withdrawn_hits(l)])
+        self.assertGreater(
+            found, 0,
+            "`packs/` and the shared root `reference/` no longer contain any "
+            "shorthand, so the carve-out that exempts them is dead weight — "
+            "drop it from SKILL.md and enforce them here instead")
 
 
 class TestShippedTemplatesAreTypeable(unittest.TestCase):

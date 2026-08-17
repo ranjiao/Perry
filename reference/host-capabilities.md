@@ -1,10 +1,12 @@
 # Host capabilities matrix
 
-Perry runs on two hosts: **Claude Code** (full tool surface) and **Codex CLI** (narrower). All four Perry skills branch on `$HOST` at standup; this file is the single source of truth for what differs. SKILL.md files name the capability and link here; they do not inline per-host fallbacks.
+Perry runs on two hosts: **Claude Code** (full tool surface) and **Codex CLI** (narrower). Perry registers **one** skill, `perry`, on both hosts; its three lanes — `goals`, `work`, `decide` — are read on demand and are not separately registered. The standup ritual branches on `$HOST`, and this file is the single source of truth for what differs. SKILL.md files name the capability and link here; they do not inline per-host fallbacks.
+
+> **This page is outside the shorthand carve-out.** `SKILL.md § Reading the lane docs` lets lane docs, `packs/` and the rest of this directory keep the pre-rename lane spellings, because an agent reads them as routing vocabulary and translates before quoting. This page is the one that *owns* that translation — it tells a user which entrance their host actually offers, and a reader who follows it types what it says. So every command and directory named here is written in the live vocabulary. `tests/test_shipped_vocabulary.py::TestHostCapabilitiesNamesTheOneLiveEntrance` holds it there, with no exemption of any kind.
 
 ## Detect once per session
 
-The standup ritual of every Perry skill (`/perry`, `/okr`, `/pmo`, `/design`) sets `$PERRY_HOME` first (derived from the SKILL.md path it just read; see § `$PERRY_HOME` below), then runs:
+The standup ritual — `/perry`, and every `/perry <lane> …` that routes through it — sets `$PERRY_HOME` first (derived from the SKILL.md path it just read; see § `$PERRY_HOME` below), then runs:
 
 ```
 bash "$PERRY_HOME/bin/perry-detect-host"
@@ -27,7 +29,7 @@ The script uses env-var sniffing in this order:
 2. **`CLAUDE*` second** — `CLAUDECODE=1`, `CLAUDE_CODE_ENTRYPOINT=cli`. Claude Code sets these.
 3. **Parent-process name** — best-effort fallback (`ps -p $PPID -o comm=`). Useful when env vars aren't set; **does not work in Codex's seatbelt sandbox** (process inspection is blocked → `ps` returns empty).
 
-**Why CODEX_ before CLAUDE_**: when Claude Code launches `codex exec` (e.g., `/pmo dispatch` with `Executor: codex`), the nested shell inherits `CLAUDECODE=1` from the parent and *also* gets `CODEX_SANDBOX=seatbelt` from Codex itself. The innermost active runtime is Codex, so CODEX_* must win the tie. Standalone Codex sessions don't have CLAUDECODE; standalone Claude Code sessions don't have CODEX_*. The ordering is correct in all four scenarios.
+**Why CODEX_ before CLAUDE_**: when Claude Code launches `codex exec` (e.g., `/perry work dispatch` with `Executor: codex`), the nested shell inherits `CLAUDECODE=1` from the parent and *also* gets `CODEX_SANDBOX=seatbelt` from Codex itself. The innermost active runtime is Codex, so CODEX_* must win the tie. Standalone Codex sessions don't have CLAUDECODE; standalone Claude Code sessions don't have CODEX_*. The ordering is correct in all four scenarios.
 
 **`CODEX_HOME` is NOT auto-set** — it's a user-level pointer to `~/.codex`. The script does not rely on it; the verified sentinels are `CODEX_SANDBOX` and `CODEX_THREAD_ID`.
 
@@ -35,7 +37,7 @@ If a future Codex version stops setting `CODEX_*` vars (or Claude Code starts se
 
 ## `$PERRY_HOME` — where Perry's bin/ + reference/ live
 
-The perry/ root directory — contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, and the top-level `SKILL.md`.
+The perry/ root directory — contains `bin/`, `reference/`, the three lane directories `goals/`, `work/`, `decide/`, and the top-level `SKILL.md`.
 
 **Default install locations** (host-canonical):
 - Claude Code: `$HOME/.claude/skills/perry`
@@ -57,7 +59,7 @@ Every bin/ invocation in SKILL.md and reference files is written as `bash "$PERR
 | `Bash` `run_in_background: true` parameter | pass it on the tool call | not a tool param — wrap in `&` background-shell pattern (see below) |
 | `perry-dispatch-limit` concurrency cap | enforced (cross-task within session) | enforced filesystem-wide, but **advisory only** across separate codex sessions; surface as "local-only on Codex" |
 | Skill discovery | reads `SKILL.md` frontmatter from `~/.claude/skills/<name>/` | reads `SKILL.md` frontmatter from `~/.agents/skills/<name>/` (also `$CWD/.agents/skills/`, `/etc/codex/skills/`). Both hosts use the same SKILL.md files; install paths differ. See `INSTALL.md` |
-| Skill invocation | `/perry`, `/okr`, `/pmo`, `/design` slash commands | `/skills` then pick perry/okr/pmo/design, or `$perry` / `$pmo` / `$okr` / `$design` to mention, or implicit triggering on description match |
+| Skill invocation | `/perry` — one slash command; lanes are arguments to it (`/perry work triage`), not separate commands | `/skills` then pick **perry** — the only Perry entry in the list — or `$perry` to mention, or implicit triggering on description match. Lanes are then arguments the same way. |
 | `ScheduleWakeup` / `/loop` / `/schedule` | available (host-provided) | not available — Perry does not depend on these |
 | Plan mode / `ExitPlanMode` | available | not available — Perry does not depend on these |
 
@@ -85,9 +87,9 @@ The chosen value is the same; only the rendering differs. All downstream logic (
 
 ### `Agent` / `subagent_type` → refuse `claude-subagent` executor (codex-cli)
 
-`/pmo dispatch` and `/pmo autopilot` allow `Executor: claude-subagent | codex`. On Codex:
+`/perry work dispatch` and `/perry work autopilot` allow `Executor: claude-subagent | codex`. On Codex:
 
-- If the spec pins `Executor: claude-subagent` → refuse the dispatch. Print: *"This spec pins `Executor: claude-subagent`, which only runs under Claude Code. On Codex, switch to `Executor: codex` (edit the spec) or fall back to `/pmo delegate` (manual paste)."* Do not silently re-route.
+- If the spec pins `Executor: claude-subagent` → refuse the dispatch. Print: *"This spec pins `Executor: claude-subagent`, which only runs under Claude Code. On Codex, switch to `Executor: codex` (edit the spec) or fall back to `/perry work delegate` (manual paste)."* Do not silently re-route.
 - If the spec pins `Executor: codex` → proceed normally; `codex exec` is host-agnostic.
 - If the spec is `Dispatch mode: auto` with `Executor` missing → the standard `AskUserQuestion` for executor choice (see above) is rendered as the numbered free-text prompt; offer only `codex` and `manual` (omit `claude-subagent`).
 
@@ -102,7 +104,7 @@ codex exec "<prompt>" > "/tmp/perry-dispatch-<task-id>.log" 2>&1 &
 echo $! > "/tmp/perry-dispatch-<task-id>.pid"
 ```
 
-PMO writes the `🚀 In flight` BOARD line and the journal `## Status changes` line as usual. Completion is detected by the user telling PMO "it finished" (or by re-invoking `/pmo status`, which `tail`s the log file and parses the `=== RESULT ===` block). Codex has no automatic completion notification.
+The `work` lane writes the `🚀 In flight` BOARD line and the journal `## Status changes` line as usual. Completion is detected by the user saying "it finished" (or by re-invoking `/perry work status`, which `tail`s the log file and parses the `=== RESULT ===` block). Codex has no automatic completion notification.
 
 ### `perry-dispatch-limit` → advisory on Codex
 
