@@ -273,6 +273,25 @@ that lets aimark start now, against step 0's contract, in parallel with all four
   Non-Goal, so every step in §6 is Perry-repo work and there was no second
   candidate. Revisit if a step is handed to someone outside this repo.
 
+- **2026-08-17 · step 4 accepted by the user, and sequenced after step 3.**
+  Step 4 is the only one in this plan that needed a signature rather than a
+  review, because it changes what "the truth" is: today a hand edit to
+  `BOARD.md` *is* the new fact, and afterwards it raises a reconcile prompt
+  instead — never silently overwritten, and never silently authoritative
+  either. The user accepted that, and accepted the cost it names: editing the
+  board directly stops being the last word, and a quick correction gains a
+  confirmation step.
+
+  **The acceptance was taken before step 3 starts, deliberately.** TASK-037
+  builds the `goals` lane's writer, and a writer built against "the file is the
+  truth" is a different writer from one built against "the log is the truth".
+  Asking after would have meant either rework or a second design that quietly
+  disagreed with this one.
+
+  Sequencing is unchanged: step 4 still lands last, per §6 and §5.5's
+  `highest` blast radius. What moved is that its direction is no longer an open
+  question that step 3 has to guess at.
+
 ## 10. References
 
 - `perry/design/DESIGN-003-work-modes.md` — tracks, modes, verification ladder
