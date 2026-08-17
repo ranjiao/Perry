@@ -349,6 +349,71 @@ def reconcile_drift(project_root: Path, board, events: dict) -> dict:
     return out
 
 
+def cadence_report(board) -> dict:
+    """`BOARD.md § Cadence` — what recurs, and what is late.
+
+    `work/reference/subcommands.md § triage` has told the agent to surface
+    "Cadence row past its `Next due` … by age" since before there was any way
+    to compute that, and `modes/queue.md` makes overdue recurrences step 5 of
+    queue-mode triage. Both were instructions to eyeball a table, which is the
+    one thing Perry's oldest rule forbids. This is the arithmetic.
+
+    **A cell that cannot be read is reported, never rounded to "fine".** Three
+    of the five rows on one live register carry prose in `Next due`, and two
+    frequencies there (`continuous`, `hourly`) have no period at all. Treating
+    an unreadable cell as "not overdue" would silently exempt exactly the rows
+    most likely to have been abandoned — the same failure as an SLA clock that
+    stops when it cannot parse an arrival date. So:
+
+    - `overdue` — a real date, in the past. Sorted by age, oldest first.
+    - `undated` — the frequency IS periodic, so this row should carry a
+      computable due date, and the cell does not yield one. A finding.
+    - `unreadable_frequency` — the frequency itself is prose this build has no
+      period for. Not necessarily wrong (`ad hoc` spelled some other way), but
+      nothing here can schedule it, and saying so beats guessing.
+
+    A row that is legitimately aperiodic — `continuous`, `hourly` — appears in
+    `items` with `frequency_kind: "aperiodic"` and in none of the three lists.
+    """
+    today = date.today()
+    items, overdue, undated, unreadable = [], [], [], []
+    for c in getattr(board, "cadence_items", []):
+        parsed = P.parse_frequency(c.frequency)
+        kind = parsed[0] if parsed else ""
+        due = P.parse_due(c.next_due)
+        days = (today - due).days if due else None
+        row = {
+            "id": c.id, "title": c.title, "owner": c.owner,
+            "frequency": c.frequency, "frequency_kind": kind,
+            "last_run": c.last_run, "next_due": c.next_due,
+            # The parsed date, beside the raw cell. A consumer that wants to
+            # sort or diff needs the date; one that wants to show the user what
+            # the board says needs the cell. Handing over only the cell is what
+            # made every reader write its own half-parser.
+            "due": due.isoformat() if due else None,
+            # `None` when the row is not late, INCLUDING when it is due today —
+            # a ritual due today is due, not overdue. Written as an explicit
+            # `is not None` test below rather than a truthiness test, because 0
+            # is falsy and a truthy test would keep a `days >= 0` bug invisible:
+            # the payload would carry `days_overdue: 0` and the list would still
+            # look right. A guard that works by accident is one a later edit
+            # removes without anything going red.
+            "days_overdue": days if (days is not None and days > 0) else None,
+            "last_evidence": c.last_evidence,
+        }
+        items.append(row)
+        if row["days_overdue"] is not None:
+            overdue.append(row)
+        elif kind == "period" and due is None:
+            undated.append({"id": c.id, "next_due": c.next_due,
+                            "frequency": c.frequency})
+        if not kind:
+            unreadable.append({"id": c.id, "frequency": c.frequency})
+    overdue.sort(key=lambda r: -r["days_overdue"])
+    return {"count": len(items), "overdue": overdue, "undated": undated,
+            "unreadable_frequency": unreadable, "items": items}
+
+
 def verification_distribution(tasks) -> dict:
     """How closures on this board were verified (DESIGN-003 § 5.3).
 
@@ -674,6 +739,8 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         return int(m.group(1)) if m else -1
     oldest_uiq = max(uiq, key=idle_days) if uiq else None
 
+    cadence = cadence_report(board)
+
     locked_designs = [d for d in snap.design if d.status == "locked"]
     pending_handoff = [d for d in locked_designs if d.impl_refs == 0]
 
@@ -798,6 +865,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             },
             "items": [encode(u) for u in uiq],
         },
+        "cadence": cadence,
         "risks": {
             "top": None if not snap.top_risks else encode(snap.top_risks[0]),
             "count": len(snap.top_risks),
@@ -919,6 +987,20 @@ def dash(payload: dict) -> str:
         f"⏳ User Input Q   : {uiq['count']}"
         + (f" · oldest: {oldest['id']} @ {oldest['idle']}" if oldest else "")
     )
+    # Silent on a project with no register — a line reading "0" every standup
+    # is a line people stop reading. Present the moment there is one, because
+    # the whole point of a recurrence register is that nobody notices when a
+    # ritual quietly stops happening.
+    cad = payload.get("cadence") or {}
+    if cad.get("count"):
+        bits = [f"{cad['count']} registered"]
+        if cad["overdue"]:
+            o = cad["overdue"][0]
+            bits.append(f"{len(cad['overdue'])} overdue "
+                        f"(oldest: {o['id']} @ {o['days_overdue']}d)")
+        if cad["undated"]:
+            bits.append(f"{len(cad['undated'])} with no readable Next due")
+        lines.append(f"🔁 Cadence        : {' · '.join(bits)}")
     att = payload["attribution"]
     if att["unlinked"]:
         lines.append(f"🔗 Unlinked       : {len(att['unlinked'])} tasks awaiting KR attribution (never guessed; ask the user)")

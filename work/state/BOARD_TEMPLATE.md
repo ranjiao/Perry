@@ -28,9 +28,9 @@
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
-| ID | Recurring task | Owner | Frequency | Next due | Last evidence |
-|---|---|---|---|---|---|
-|  |  |  |  |  |  |
+| ID | Recurring task | Owner | Frequency | Last run | Next due | Last evidence |
+|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |
 
 ## User Input Queue
 

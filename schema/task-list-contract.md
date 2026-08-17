@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.2`**
+> Contract: **`perry-task/list/1.3`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,7 +47,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.2",   // check this before anything else
+  "contract":     "perry-task/list/1.3",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
@@ -167,6 +167,21 @@ One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer
 deserves to know when a value's *meaning* changed under it.
+
+### 1.3 — 2026-08-17
+
+- **corrected** which events reach `tasks`. The board half of "these sections
+  are not tasks" was always right — the reader skips `## Intake`,
+  `## Cadence`, `## User Input Queue` and `## Top risks` by heading. The
+  *event* half folded every event that carried an id, so a user-input row
+  raised by `perry-task ask` arrived as a task with `status: "pending"`,
+  `open: false`, no priority and no group, counted in `closed`, and listed in
+  `untitled` when the question predated the `title` field. `perry-task
+  cadence-add` would have put its rows in the same place. Only events from
+  the subcommands that write a priority-table row are folded now. **This
+  changes a value, not a shape**: a consumer sees fewer rows, and the ones
+  that leave were never work. Section rows stay out of this payload — that is
+  still a `1.x` addition if a front-end asks for them.
 
 ### 1.2 — 2026-08-17
 

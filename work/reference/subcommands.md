@@ -68,7 +68,7 @@ Then walk the rows the payload returned. For each open row:
 - Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `$PERRY_HOME/packs/software-ops/architecture.md`).
 - Latest `architecture/audit-history/<date>.md` has open drift items older than 7 days → flag with "audit drift open" annotation; not blocking but visible.
 - Open `incidents/*.md` with status `open` for ≥3 days → surface as P0 attention items even if not on BOARD (see `$PERRY_HOME/packs/software-ops/incidents.md`).
-- Cadence row past its `Next due` → surface by age, exactly the way a stale User Input Queue item is. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
+- Cadence row past its `Next due` → **read `cadence.overdue` from `perry-state --json`; it is already sorted oldest-first with `days_overdue` computed.** Do not scan the table by eye — this bullet said "surface by age" for a release before anything could compute an age, and the register it describes had three readers and no writer. Also read `cadence.undated` (a periodic ritual whose `Next due` cell yields no date — the row most likely to have quietly stopped) and `cadence.unreadable_frequency`. In a queue-mode track this is the highest-value question triage asks: **what recurs?** A request seen three times is not a request, it is a process nobody has written down — propose converting it to a Cadence row with a runbook, or record an explicit decline.
 
 **Every stage move goes through the tool — this is a global invariant, not a triage rule.**
 
@@ -106,6 +106,48 @@ waiting, which is the single number in the payload a user is meant to act on.
 
 The prose cell stays yours. The tool owns the id, the dates and the status;
 what is being asked, and what was decided, are written by whoever knows.
+
+**Registering a recurrence, and recording that it ran, go through the tool.**
+
+```
+"$PERRY_HOME/bin/perry-task" cadence-add  --title "<what recurs>" \
+    --frequency <weekly|monthly|quarterly|Nd|…> [--owner O] [--on YYYY-MM-DD]
+"$PERRY_HOME/bin/perry-task" cadence-done <CAD-ID> --evidence <path> \
+    [--on YYYY-MM-DD] [--frequency F]
+```
+
+`cadence-add` mints the `CAD-NNN`, creates `## Cadence` after the priority
+tables if the board lacks it, and **computes `Next due`** from the frequency.
+`cadence-done` records the occurrence: it stamps `Last run`, writes
+`Last evidence`, and **recomputes `Next due` from the row's own `Frequency`** in
+the same write. That recomputation is the whole point of the pair.
+
+**`Next due` is a derived cell, and a human was doing the arithmetic.** This is
+the third time Perry has hit that: `Stage since` and `Arrived` store a date and
+compute the age, and `Idle` was removed from the User Input Queue for it. Here
+the stored value is a *date* rather than an age, so it does not rot overnight —
+but it is wrong the moment the ritual runs, and only a person re-deriving
+`frequency + last run` after every occurrence could keep it true. Nobody does,
+and the result is visible on a real register: cells reading `2026-W32` and
+`**2026-08-31**` with a parenthetical listing which occurrences were skipped.
+`Last run` is now stored alongside, because it is the input `Next due` is
+computed from and without it the due date is an assertion nothing on the board
+can check.
+
+**Reading is tolerant; writing is strict.** `cadence-add` refuses a frequency it
+cannot schedule from, naming what it accepts. Nothing refuses a cell a project
+already wrote: `continuous` and `hourly` are live in a real `Frequency` column
+and are recorded as recurrences with no computable due date (`Next due: n/a`),
+and prose in `Next due` is reported as unreadable rather than silently treated
+as never due.
+
+`cadence-done` refuses without `--evidence`, for the reason `done` does: a
+recurring task that reports itself run and cites nothing is exactly the ritual
+nobody notices has stopped happening. `--on` backdates a run that already
+happened; `--frequency` changes the schedule in the same write, which is also
+the escape hatch when a row's existing cell is prose the tool cannot read.
+
+`perry-task` cannot close a Cadence row with `done` and never could — `## Cadence` is not a task section. A recurrence has no end; it is retired by removing the row.
 
 **Every status change that is not a close goes through the tool too.**
 
