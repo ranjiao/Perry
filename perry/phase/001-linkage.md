@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "001-work-modes-live"
-updated: "2026-08-17T08:56:00Z"
+updated: "2026-08-18T00:00:00Z"
 objectives:
   - id: O1
     title: "The three non-`project` modes run on a live track"
@@ -19,7 +19,7 @@ objectives:
         target: 3
         current: 0
         stretch: false
-        tasks: ["TASK-020"]
+        tasks: ["TASK-020", "TASK-046"]
       - id: P-O1.3
         title: "Switching a track's mode edits one file and rewrites no state, shown by a revert test"
         metric: "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately."
@@ -27,11 +27,11 @@ objectives:
         tasks: []
       - id: P-O1.4
         title: "Blocking review findings open against the mode work"
-        metric: "0 open (baseline 6 — 3 on TASK-019, 3 on TASK-020)"
+        metric: "0 open (baseline 6 — 3 on TASK-019, 3 on TASK-020). `current` counts fix rows for blocking findings that are not yet `done`."
         target: 0
-        current: 0
+        current: 3
         stretch: false
-        tasks: ["TASK-027"]
+        tasks: ["TASK-027", "TASK-053", "TASK-056", "TASK-062"]
   - id: O2
     title: "The `goals` lane can write its own state"
     krs:
@@ -39,14 +39,14 @@ objectives:
         title: "Lanes with a deterministic write tool"
         metric: "3 of 3 (baseline 2 of 3 — `goals` has none)"
         target: 3
-        current: 2
+        current: 3
         stretch: false
         tasks: ["TASK-037", "TASK-042"]
       - id: P-O2.2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
         metric: "1 passing test (baseline: no such test)"
         target: 1
-        current: 0
+        current: 1
         stretch: false
         tasks: []
   - id: O3
@@ -56,23 +56,43 @@ objectives:
         title: "A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration"
         metric: "1 marker, all 3 writers gating (baseline: `is_adopted()` answers only whether any Perry file exists)"
         target: 3
-        current: 0
+        current: 3
         stretch: false
-        tasks: ["TASK-043", "TASK-045"]
+        tasks: ["TASK-043", "TASK-045", "TASK-047"]
       - id: P-O3.2
         title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
         metric: "id set before == id set after (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked)"
         target: 1
         current: 0
         stretch: false
-        tasks: ["TASK-044"]
+        tasks: ["TASK-044", "TASK-051", "TASK-052", "TASK-068"]
 unlinked:
   - "TASK-034"
   - "TASK-038"
   - "TASK-040"
+  - "TASK-048"
+  - "TASK-050"
+  - "TASK-057"
+  - "TASK-058"
+  - "TASK-059"
+  - "TASK-060"
+  - "TASK-061"
+  - "TASK-063"
+  - "TASK-064"
+  - "TASK-065"
+  - "TASK-066"
+  - "TASK-067"
+  - "TASK-069"
+  - "TASK-070"
+  - "TASK-072"
+  - "TASK-073"
+  - "TASK-074"
+  - "TASK-075"
+  - "TASK-076"
+  - "TASK-077"
 agents:
   - id: "Coding Agent"
-    tasks: ["TASK-019", "TASK-020", "TASK-021", "TASK-027", "TASK-037", "TASK-042", "TASK-043", "TASK-044", "TASK-045"]
+    tasks: ["TASK-019", "TASK-020", "TASK-027", "TASK-037", "TASK-042", "TASK-044", "TASK-045", "TASK-046", "TASK-047", "TASK-051", "TASK-052", "TASK-053", "TASK-056", "TASK-062", "TASK-068"]
   - id: "User + Agent"
     tasks: ["TASK-028"]
 projects:
@@ -91,9 +111,9 @@ projects:
   - id: "TASK-021"
     serves: P-O1.1
     objective: O1
-    name: "Recurrence register + `OKR.md § Commitments`"
+    name: "Recurrence register (cadence-add / cadence-done)"
     aliases: []
-    status: active
+    status: done
   - id: "TASK-027"
     serves: P-O1.4
     objective: O1
@@ -121,85 +141,151 @@ projects:
   - id: "TASK-043"
     serves: P-O3.1
     objective: O3
-    name: "Conformance marker"
+    name: "Conformance marker: a project declares it is Perry-shaped, at version N"
     aliases: []
-    status: active
+    status: done
   - id: "TASK-044"
     serves: P-O3.2
     objective: O3
-    name: "Migration is dry-runnable, lossless, recoverable, user-declared"
+    name: "Migration must be dry-runnable, lossless, recoverable and user-declared"
     aliases: []
     status: active
   - id: "TASK-045"
     serves: P-O3.1
     objective: O3
-    name: "Retire the runtime tolerance branches"
+    name: "Retire the runtime tolerance branches, behind the conformance marker"
+    aliases: []
+    status: active
+  - id: "TASK-046"
+    serves: P-O1.2
+    objective: O1
+    name: "A queue track must declare an SLA at creation — no default"
+    aliases: []
+    status: active
+  - id: "TASK-047"
+    serves: P-O3.1
+    objective: O3
+    name: "Flip the conformance gate to enforce"
+    aliases: []
+    status: active
+  - id: "TASK-051"
+    serves: P-O3.2
+    objective: O3
+    name: "Migration recognizes a table by shape, not by vocabulary"
+    aliases: []
+    status: active
+  - id: "TASK-052"
+    serves: P-O3.2
+    objective: O3
+    name: "The losslessness assertions ask whether the bytes survived, never what the file now says"
+    aliases: []
+    status: active
+  - id: "TASK-053"
+    serves: P-O1.4
+    objective: O1
+    name: "route ignores --group, and the refusal that recommends it is mine"
+    aliases: []
+    status: active
+  - id: "TASK-056"
+    serves: P-O1.4
+    objective: O1
+    name: "A claim stated in three places and implemented in none — the missing-SLA finding"
+    aliases: []
+    status: active
+  - id: "TASK-062"
+    serves: P-O1.4
+    objective: O1
+    name: "The board-overflow signal does not name intake, and prescribes the split queue mode forbids"
+    aliases: []
+    status: active
+  - id: "TASK-068"
+    serves: P-O3.2
+    objective: O3
+    name: "Migration joins its header block onto the author's prose — the fourth instance of one defect class"
     aliases: []
     status: active
 ---
 
 # Phase #001 — O→KR→task linkage
 
-> **Owner**: `okr` skill (only writer — this file lives under `phase/`). PMO reads it for
-> roll-up + task→KR resolution; PMO never writes it. Both Perry and the frontend read the
+> **Owner**: `goals` lane (only writer — this file lives under `phase/`). `work` reads it for
+> roll-up + task→KR resolution; `work` never writes it. Both Perry and the frontend read the
 > **frontmatter above** — this body is documentation, never a second source of truth.
 > **Tier**: 2 (agent-state, no line cap).
 > **Spec**: `linkage: 1`. Contract in `$PERRY_HOME/schema/README.md § The linkage contract`.
 
-## Coverage as written
+## The headline: 23 of 39 open rows serve no KR in this phase
 
-All 13 currently-open board tasks are resolved: 10 carry a KR edge, 3 are declared
-`unlinked`. Nothing is left to inference.
+Rebuilt 2026-08-18. The previous version covered **13** tasks and said *"All 13
+currently-open board tasks are resolved… Nothing is left to inference."* That
+sentence was true when written and is the kind that stops being true silently:
+the board reached 39 open rows, and TASK-046 through TASK-077 appeared in
+neither the KR edges nor the `unlinked` declaration. They were not resolved and
+not declared — they were **absent**, which is the one state the linkage contract
+has no word for.
 
-| Task | Resolution |
-|---|---|
-| TASK-019, TASK-021, TASK-028 | P-O1.1 |
-| TASK-020 | P-O1.2 |
-| TASK-027 | P-O1.4 |
-| TASK-037, TASK-042 | P-O2.1 |
-| TASK-043, TASK-045 | P-O3.1 |
-| TASK-044 | P-O3.2 |
-| TASK-034, TASK-038, TASK-040 | `unlinked` — declared, matching `## Not Doing in this phase` |
+**That ratio is the finding, not a bookkeeping detail.** A phase whose KRs
+describe under half of what the project is actually doing is a phase that has
+been overtaken. `score-phase` and `rollover` are the response; this file records
+the fact rather than papering over it. See `## What the unlinked rows actually
+serve` below — most of them have a home in `perry/OKR.md` v2, just not in
+phase #001's KRs.
 
-**`unlinked` is a declaration, not a gap.** The three rows there are real work
-that serves no KR *this phase*: TASK-034 is aiMark's write lifecycle (overall
-`KR-O4.3`, no phase objective), TASK-038 is `DESIGN-005` step 4 (`KR-O2.2`,
-which the phase deliberately did not take on), and TASK-040 is board tooling
-that no KR asks for. Recording them as unlinked is what keeps "nobody got round
-to it" distinguishable from "this serves nothing", which the graph's own
-contract requires.
+## What is linked, and why each edge is defensible
 
-**Objective 3 was added mid-phase**, on 2026-08-17, by `ADR-004`. TASK-043/044/045
-did not exist when this phase was planned; the decision that created them also
-changed how a real project gets landed. See `001-work-modes-live.md § Changes /
-Pivots` — and if the phase should not carry O3, dropping it and declaring the
-three `unlinked` is the alternative.
+Every edge below is **stated on the board**, not inferred from topic similarity.
+`reference/okr-linkage.md` makes that a hard gate: *ask the user, never guess;
+unresolved → `unlinked`, excluded from roll-up.*
 
-**`P-O1.4` moved from 6 to 0**, not by being re-planned but because the six
-blocking findings it counts were closed on 2026-08-17. It is a stored number for
-a fact that is derivable from the review documents, which is the shape this
-project keeps finding and has not yet fixed here.
+| KR | Tasks | Why this edge |
+|---|---|---|
+| P-O1.1 | TASK-019, TASK-021, TASK-028 | unchanged from the previous version |
+| P-O1.2 | TASK-020, **TASK-046** | the KR's own metric names *"queue SLA age"* as one of the three questions that must answer from real state. A queue track with no SLA cannot answer it — the check has no clock. TASK-046 is that clock being required at creation |
+| P-O1.4 | TASK-027, **TASK-053**, **TASK-056**, **TASK-062** | the KR counts *open blocking review findings*. Each of the three additions was opened **by name** on TASK-019's or TASK-020's row as the fix for a specific V4 FAIL. The board says so; nothing here is inferred |
+| P-O2.1 | TASK-037, TASK-042 | unchanged |
+| P-O3.1 | TASK-043, TASK-045, **TASK-047** | the KR's metric is literally *"all 3 writers gating"*. TASK-047 is the flip from advisory to enforce, which is that clause |
+| P-O3.2 | TASK-044, **TASK-051**, **TASK-052**, **TASK-068** | all three were opened as fixes for TASK-044's V4 FAIL, named on its row. TASK-068 is the fourth instance of the same defect class, found by reading the migrated files back |
 
-The four `unlinked` entries mean *this work serves no KR in phase #001*, not *we have not got
-round to attributing it*. Each one is named in the phase file's `## Not Doing in this phase`
-with its reason. Re-declare them against the next phase's KRs at `score-phase`; do not carry
-this list forward blindly.
+## What the unlinked rows actually serve
 
-## Two KRs carry zero tasks, on purpose
+**`unlinked` means "serves no KR in phase #001", not "unattributed".** Grouped
+by where they do have a home, so `score-phase` has somewhere to start:
 
-- **P-O1.3** (mode-switch edits one file, rewrites no state) has no board row. Nothing currently
-  open produces the revert test it needs. This is a completeness signal, not an error — the gap
-  is real and `plan-week` should fill it.
-- **P-O2.2** (byte-identity test) is written into TASK-037's Verification rather than existing as
-  its own row. If TASK-037 ships without that test, this KR has no other carrier.
+- **`perry/OKR.md` v2 Objective 5 — roles and knowledge**: TASK-072 … TASK-077
+  (DESIGN-006 phases A–F), and TASK-059, which was rescoped into that design
+  rather than patched into a contract. Six of these were minted 2026-08-18 from
+  a handoff payload that had sat unmined since the doc locked.
+- **v2 Objective 4 — aiMark manages projects through Perry**: TASK-034,
+  TASK-057, TASK-058, TASK-060, TASK-061, TASK-063. Every one came from
+  aiMark's own gap report or from the lifecycle run.
+- **v2 KR-O3.3 — content present in a project's files but absent from its
+  contract payload**: TASK-069. Proposed and **confirmed by the user**
+  2026-08-18; recorded here because the phase register has no P-O KR for it.
+- **v2 KR-O2.2 — the log becomes canonical**: TASK-038. Its own row now carries
+  the verdict that DESIGN-005 § 6's gate is met.
+- **No KR at any level — internal architecture and hygiene**: TASK-040,
+  TASK-048, TASK-050, TASK-064, TASK-065, TASK-066, TASK-067, TASK-070. These
+  are the honest zero. They make the tool survivable and no goal asks for them,
+  which is worth seeing rather than hiding behind a stretched edge.
+
+## Two KRs still carry zero tasks, on purpose
+
+- **P-O1.3** (mode-switch edits one file, rewrites no state) has no board row.
+  Nothing open produces the revert test it needs. Unchanged since the previous
+  version, and now four weeks older — a completeness signal `plan-week` has not
+  acted on.
+- **P-O2.2** (byte-identity test) is written into TASK-037's Verification
+  rather than existing as its own row. TASK-037 has now **shipped** and is in
+  `review`; its own report claims a test asserting the two real `OKR.md` files
+  are byte-identical after a refused write. If the pending V4 confirms that,
+  this KR is met by that test and `current` is 1. **It is recorded as 1 here on
+  that basis and must be re-scored if the V4 fails.**
 
 ## Rules (do not violate)
 
 - A Project **serves** exactly one KR. If it genuinely serves two, split it into two Projects.
 - A project's `objective` must agree with its `serves` KR id (`P-O1.2` → `O1`).
 - Add an **alias** only after the user confirms two names are the same Project.
-- A KR may legitimately carry zero tasks — that is a completeness signal worth showing, not an error.
-- Work seen in execution that no Project claims goes in `unlinked[]`, and is resolved by
-  **asking the user**. Never guess. See `$PERRY_HOME/reference/okr-linkage.md`.
-
-Validate after every write: `"$PERRY_HOME/bin/perry-lint" --root .`
+- `unlinked` is **declared, never inferred** — set arithmetic over the board would
+  report the whole un-triaged backlog as drift on day one. That is why the 23 rows
+  above are listed individually rather than computed as a remainder.
