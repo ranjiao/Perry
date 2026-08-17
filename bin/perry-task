@@ -107,7 +107,8 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-import parsers as P  # noqa: E402
+import parsers as P
+from tables import render_row, split_row, squash  # noqa: E402
 
 
 class Refused(Exception):
@@ -593,20 +594,6 @@ class Board:
 
     def text(self) -> str:
         return "\n".join(self.lines)
-
-
-def split_row(line: str) -> list[str]:
-    cells = [c.strip() for c in line.strip().strip("|").split("|")]
-    return cells
-
-
-def render_row(cells: list[str]) -> str:
-    return "| " + " | ".join(c.strip() for c in cells) + " |"
-
-
-def squash(s: str) -> str:
-    """Whitespace/decoration only — no language knowledge."""
-    return re.sub(r"[\s`*]+", " ", s).strip().lower()
 
 
 _ALIASES: dict[str, str] | None = None

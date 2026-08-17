@@ -2476,5 +2476,60 @@ class TestRetitle(unittest.TestCase):
         self.assertIn("new name", line)
 
 
+class TestDecoratedHeaders(unittest.TestCase):
+    """A board whose header cells are bolded or backticked.
+
+    Perry handles it — `squash()` strips `*` and `` ` `` before a header cell
+    becomes a key — and nothing tested it. Deleting that stripping left all
+    588 tests green, which is how a coverage gap announces itself: the
+    behaviour is right, and nothing would notice it breaking.
+
+    Real projects write `| **ID** | **Title** |`. Losing this makes every
+    column resolve to nothing, and `add` would file rows into a table whose
+    columns it could not name.
+    """
+
+    BOLD = """# BOARD
+
+## P0
+
+| **ID** | **Title** | **Owner** | **Status** | **Next action** | **Evidence** |
+|---|---|---|---|---|---|
+| TASK-900 | old | Coding Agent | not_started | — | — |
+"""
+
+    def test_a_row_can_be_added_to_a_table_with_bolded_headers(self):
+        p = Project(board=self.BOLD)
+        code, a = p.run("add", "--title", "new work", "--priority", "P0")
+        self.assertEqual(code, 0, a)
+        row = next(l for l in p.board().split("\n")
+                   if l.startswith(f"| {a['id']} |"))
+        self.assertEqual(
+            len(PT.split_row(row)), 6,
+            "the columns did not resolve, so the row was written blind")
+        self.assertIn("new work", row)
+
+    def test_the_header_is_left_exactly_as_the_project_wrote_it(self):
+        p = Project(board=self.BOLD)
+        p.run("add", "--title", "new work", "--priority", "P0")
+        self.assertIn("| **ID** | **Title** |", p.board(),
+                      "the tool rewrote a header it was only supposed to read")
+
+    def test_an_existing_row_is_still_findable(self):
+        p = Project(board=self.BOLD)
+        code, _ = p.run("status", "TASK-900", "--status", "in_progress")
+        self.assertEqual(code, 0)
+        row = next(l for l in p.board().split("\n")
+                   if l.startswith("| TASK-900 |"))
+        self.assertIn("in_progress", row)
+
+    def test_squash_drops_decoration_and_nothing_else(self):
+        self.assertEqual("status", PT.squash("**Status**"))
+        self.assertEqual("next action", PT.squash("`Next action`"))
+        self.assertEqual("下一步", PT.squash(" **下一步** "),
+                         "squash has no language knowledge and must not "
+                         "touch anything that is not decoration")
+
+
 if __name__ == "__main__":
     unittest.main()

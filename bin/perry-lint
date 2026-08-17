@@ -61,7 +61,8 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # Frontmatter files are read with the SAME reader Perry uses, so "the linter
 # passed" and "Perry can read it" cannot diverge.
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-import parsers as P  # noqa: E402
+import parsers as P
+from tables import squash  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 
@@ -157,8 +158,9 @@ def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
     return out
 
 
-def norm(s: str) -> str:
-    return re.sub(r"[\s`*]+", " ", s).strip().lower()
+#: `perry-task` defined this character-for-character under the name `squash`.
+#: One rule, one implementation — extracted for TASK-037.
+norm = squash
 
 
 # ── localized column headers ──────────────────────────────────────────────
