@@ -1327,7 +1327,10 @@ class TestListContract(unittest.TestCase):
         "group", "status_text", "created", "updated", "timeline",
     }
     TOP_KEYS = {"contract", "project_root", "state_root", "conformance",
-                "tasks", "open", "closed", "events", "untitled"}
+                "intake", "tasks", "open", "closed", "events", "untitled"}
+    INTAKE_KEYS = {"rows", "undischarged", "oldest_undischarged"}
+    INTAKE_ROW_KEYS = {"n", "arrived", "request", "outcome", "discharged",
+                       "age_days"}
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
@@ -1378,6 +1381,7 @@ class TestListContract(unittest.TestCase):
                          f"missing {self.TOP_KEYS - set(d)}, "
                          f"extra {set(d) - self.TOP_KEYS}")
         self.assertEqual(set(d["conformance"]), self.CONFORMANCE_KEYS)
+        self.assertEqual(set(d["intake"]), self.INTAKE_KEYS)
 
     def test_open_means_still_on_the_board_not_a_status_value(self):
         """The contract says `open` is the live/closed test, not `status` —
@@ -1526,7 +1530,8 @@ class TestListContract(unittest.TestCase):
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
         self.assertIn(PT.LIST_CONTRACT, doc, "the doc names a different version")
         documented = set(re.findall(r"^\| `(\w+)` \|", doc, re.M))
-        known = self.TASK_KEYS | self.EVENT_KEYS | self.CONFORMANCE_KEYS
+        known = (self.TASK_KEYS | self.EVENT_KEYS | self.CONFORMANCE_KEYS
+                 | self.INTAKE_KEYS | self.INTAKE_ROW_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "
@@ -2142,3 +2147,69 @@ class TestAnIntakeRowTakesExactlyOneOutcome(unittest.TestCase):
         p.run("intake", "--title", "a request")
         code, out = p.run("route", "1", "--track", "ops")
         self.assertEqual(code, 0, out)
+
+
+class TestIntakeIsReadableAndSweepable(unittest.TestCase):
+    """V4 review M-5 and M-6.
+
+    M-5: `route <n>` and `resolve-intake <n>` act on a row POSITION, and no
+    payload carried one — so the only way to run the drain was to open
+    `BOARD.md` and count, twenty lines below the rule forbidding exactly that.
+
+    M-6: `modes/queue.md` says discharged rows leave at the end of the review
+    period, and grep found that rule in that one file and nowhere else. It
+    matters because the same file rests its overflow argument on it: intake
+    pressure is supposed to mean *taking on more than you discharge*, not
+    *having discharged a lot*.
+    """
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    def loaded(self) -> "Project":
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "oldest", "--arrived", "2026-08-01")
+        p.run("intake", "--title", "newer", "--arrived", "2026-08-15")
+        return p
+
+    def test_the_row_numbers_the_procedure_needs_are_in_the_payload(self):
+        _, d = self.loaded().run("list", "--all")
+        self.assertEqual([r["n"] for r in d["intake"]["rows"]], [1, 2])
+        self.assertEqual(d["intake"]["undischarged"], 2)
+
+    def test_the_oldest_undischarged_row_is_named(self):
+        """Triage step 0 works oldest-first, and reports a row still sitting
+        after 14 days by elapsed time."""
+        i = self.loaded().run("list", "--all")[1]["intake"]
+        self.assertEqual(i["oldest_undischarged"], 1)
+        self.assertGreater(i["rows"][0]["age_days"], i["rows"][1]["age_days"])
+
+    def test_discharging_moves_a_row_out_of_the_undischarged_count(self):
+        p = self.loaded()
+        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "no")
+        i = p.run("list", "--all")[1]["intake"]
+        self.assertEqual(i["undischarged"], 1)
+        self.assertEqual(i["oldest_undischarged"], 2)
+        self.assertTrue(i["rows"][0]["discharged"])
+
+    def test_sweep_moves_discharged_rows_to_the_journal_with_their_outcome(self):
+        p = self.loaded()
+        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "covered elsewhere")
+        code, out = p.run("intake-sweep")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("oldest", p.board(), "the discharged row is still on the board")
+        self.assertIn("newer", p.board(), "an undischarged row was swept")
+        self.assertIn("covered elsewhere", p.journal(),
+                      "the outcome did not survive leaving the board")
+
+    def test_sweeping_with_nothing_discharged_is_refused(self):
+        """A no-op that reports success reads as 'the board is tidy'."""
+        code, out = self.loaded().run("intake-sweep")
+        self.assertEqual(code, 1)
+        self.assertIn("triage step 0", str(out))
+
+    def test_a_project_with_no_intake_section_reports_an_empty_block(self):
+        """Not every project is queue-shaped, and that is not an error."""
+        _, d = Project().run("list", "--all")
+        self.assertEqual(d["intake"]["rows"], [])
+        self.assertEqual(d["intake"]["undischarged"], 0)
+        self.assertIsNone(d["intake"]["oldest_undischarged"])

@@ -61,6 +61,7 @@ Usage:
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
+  perry-task intake-sweep                  discharged intake rows → journal
   perry-task drop  <ID> --reason "…"
   perry-task status <ID> --status blocked|review|not_started|in_progress
                     [--reason "…"] [--next "…"]
@@ -115,7 +116,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.3"
+LIST_CONTRACT = "perry-task/list/1.4"
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
 # `## Top risks` rows go through the same three-way commit and land in the same
@@ -621,6 +622,16 @@ def _build_column_maps() -> None:
                 aliases.setdefault(squash(name), key)
                 display[key].setdefault(lang, name)
     _ALIASES, _DISPLAY = aliases, display
+
+
+def days_between(value: str) -> int | None:
+    m = re.search(r"\d{4}-\d{2}-\d{2}", value or "")
+    if not m:
+        return None
+    try:
+        return (date.today() - datetime.strptime(m.group(0), "%Y-%m-%d").date()).days
+    except ValueError:
+        return None
 
 
 def norm(s: str) -> str:
@@ -1870,6 +1881,54 @@ def check_intake_undischarged(intake: dict, n: str) -> None:
             f"erase where the first went")
 
 
+def cmd_intake_sweep(args, ctx) -> dict:
+    """Move discharged intake rows off the board and into today's journal.
+
+    `modes/queue.md` states the rule and explains why it matters — "without
+    this rule intake only grows, and a board could overflow on a year of
+    recorded drops, which would destroy the argument above: overflow is
+    supposed to mean *taking on more than you discharge*, not *having
+    discharged a lot*." A V4 review found the rule existed in that one file
+    and **nowhere else**: no subcommand, no triage step. The one part of the
+    intake lifecycle nothing implemented was the part the overflow argument
+    rests on.
+
+    Rows keep their `Outcome` verbatim in the journal, so the record of where
+    a request went survives leaving the board — the same live/history split
+    `BOARD.md` and `journal/` use everywhere else.
+    """
+    rows = ctx["board"].section_rows("Intake")
+    _, header = ctx["board"].section_table("Intake")
+    keys = [norm(h) for h in header]
+    discharged = []
+    for idx, cells in rows:
+        row = dict(zip(keys, cells))
+        outcome = (row.get("outcome") or "").strip()
+        if outcome and outcome.strip("*` ").lower() not in INTAKE_UNSET:
+            discharged.append((idx, row))
+    if not discharged:
+        raise Refused(
+            "no discharged intake rows to sweep — every row is still waiting "
+            "for an outcome, which is what triage step 0 is for")
+
+    for idx, _ in sorted(discharged, key=lambda x: -x[0]):
+        ctx["board"].lines.pop(idx)
+
+    block = "\n".join(
+        [f"### Intake swept {date.today():%Y-%m-%d}", ""] +
+        [f"- **{r.get('arrived', '—')}** · {r.get('request', '')} → "
+         f"{r.get('outcome', '')}" for _, r in discharged])
+    jline = f"- [intake] {len(discharged)} discharged row(s) left the board"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "intake-sweep", "id": "", "title": "",
+             "count": len(discharged), "actor": args.actor,
+             "from": "intake", "to": "journal"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run, definition=block)
+    return {"swept": len(discharged),
+            "rows": [r.get("request", "") for _, r in discharged], **plan}
+
+
 def cmd_route(args, ctx) -> dict:
     """Move an intake row onto the board, carrying `Arrived` with it.
 
@@ -2143,7 +2202,39 @@ def cmd_list(args, ctx) -> dict:
     # field. Reported rather than papered over: a bare id is exactly what
     # `reference/user-load.md` forbids handing a reader.
     untitled = [t["id"] for t in rows if not t["title"]]
+    # `## Intake` — the one section a procedure must act on by POSITION.
+    # `route <n>` and `resolve-intake <n>` take a row number, and the only way
+    # to get one was to open `BOARD.md` and count, twenty lines below the rule
+    # that forbids exactly that. Undischarged rows and the oldest arrival are
+    # what triage's step 0 asks for; both were uncomputable from any payload.
+    intake_rows = []
+    try:
+        for pos, (_, cells) in enumerate(ctx["board"].section_rows("Intake"), 1):
+            _, ihdr = ctx["board"].section_table("Intake")
+            row = dict(zip([norm(h) for h in ihdr], cells))
+            outcome = (row.get("outcome") or "").strip()
+            intake_rows.append({
+                "n": pos,
+                "arrived": row.get("arrived", ""),
+                "request": row.get("request", ""),
+                "outcome": outcome,
+                "discharged": bool(outcome)
+                              and outcome.strip("*` ").lower() not in INTAKE_UNSET,
+                "age_days": days_between(row.get("arrived", "")),
+            })
+    except Refused:
+        pass                      # no `## Intake` — not every project is queue-shaped
+
     return {"contract": LIST_CONTRACT,
+            "intake": {
+                "rows": intake_rows,
+                "undischarged": sum(1 for r in intake_rows if not r["discharged"]),
+                "oldest_undischarged": next(
+                    (r["n"] for r in sorted(
+                        (x for x in intake_rows if not x["discharged"]),
+                        key=lambda x: x["age_days"] if x["age_days"] is not None else -1,
+                        reverse=True)), None),
+            },
             "project_root": str(ctx["project_root"]),
             "state_root": str(ctx["state_root"]),
             "conformance": conformance,
@@ -2238,7 +2329,8 @@ def parse(argv: list[str]) -> Args:
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
                          "done", "drop"})
-SECTION_EVENTS = frozenset({"intake", "resolve-intake", "ask", "answer",
+SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
+                            "ask", "answer",
                             "cadence-add", "cadence-done",
                             "risk-add", "risk-clear"})
 
@@ -2248,6 +2340,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
+            "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "list": cmd_list}
 
 
@@ -2374,7 +2467,13 @@ def main(argv: list[str]) -> int:
         tail = ("board + journal + event" if wrote_event
                 else "board + journal (event log unwritable — this row will "
                      "show as `unrecorded` until it is fixed)")
-        print(f"perry-task: {verb} {result.get('id')} ({args.cmd}) → {tail}")
+        # Not every subcommand mints an id — `intake`, `intake-sweep` and
+        # `resolve-intake` act on a section row. Printing `None` there told the
+        # user the write had no subject when it had a perfectly good one.
+        subject = (result.get("id")
+                   or (f"{result['swept']} row(s)" if "swept" in result else "")
+                   or (f"intake row {args.id}" if args.id else "the row"))
+        print(f"perry-task: {verb} {subject} ({args.cmd}) → {tail}")
     return 0
 
 

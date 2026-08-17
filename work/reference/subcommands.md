@@ -9,6 +9,28 @@ Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve vi
 
 ### `triage`
 
+**Read the intake block first — do not count rows by hand.**
+
+```
+"$PERRY_HOME/bin/perry-task" list --all --json     # → .intake
+```
+
+`route <n>` and `resolve-intake <n>` act on a row **position**, and until the
+payload carried one the only way to get it was to open `BOARD.md` and count —
+twenty lines below the rule forbidding exactly that. `.intake` gives you `n`
+per row, `undischarged`, and `oldest_undischarged` to start from.
+
+**At the end of a review period, sweep:**
+
+```
+"$PERRY_HOME/bin/perry-task" intake-sweep
+```
+
+Discharged rows move to today's journal with their `Outcome` intact. This rule
+lived in `modes/queue.md` and nothing implemented it, which matters because the
+same file rests its overflow argument on it: intake pressure is supposed to mean
+*taking on more than you discharge*, not *having discharged a lot*.
+
 **Step 0 — drain `BOARD.md § Intake`, before anything else.** Applies to every queue-mode track. If the track exists and the section does not, it is created by the first `perry-task add` on a queue track or by `perry-task intake`; do not hand-write it, and do not skip the step — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
 - **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1]`, where `<n>` is the intake row's position. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.

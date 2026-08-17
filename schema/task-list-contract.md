@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.3`**
+> Contract: **`perry-task/list/1.4`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,10 +47,11 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.3",   // check this before anything else
+  "contract":     "perry-task/list/1.4",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
+  "intake":       { /* see below */ },     // queue mode's inbox, by position
   "tasks":        [ /* see below */ ],
   "open":         3,                       // counts AFTER --track filtering
   "closed":       11,
@@ -130,6 +131,38 @@ Two consequences worth designing for rather than discovering:
   workstream-organized board is most of them. Group by `group` and fall back to
   `priority`, not the other way round.
 
+### `intake` — queue mode's inbox
+
+`route <n>` and `resolve-intake <n>` act on a row **position**, and until 1.4
+the only way to get one was to open `BOARD.md` and count — twenty lines below
+the rule forbidding exactly that.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `rows` | array | one entry per intake row, in board order; fields below |
+| `undischarged` | int | rows still waiting for an outcome — what triage step 0 works through |
+| `oldest_undischarged` | int \| null | the `n` of the longest-waiting undischarged row |
+
+An intake row:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `n` | int | the row's position — **the number `route` and `resolve-intake` take** |
+| `arrived` | string | `YYYY-MM-DD`, carried onto the task when routed |
+| `request` | string | the asker's words |
+| `outcome` | string | `routed → TASK-NNN`, `dropped … — reason`, `deferred … — condition`, or `—` |
+| `discharged` | bool | an outcome has been recorded. A row takes exactly one. |
+| `age_days` | int \| null | `today − arrived` |
+
+Absent `## Intake`, `rows` is empty and the counts are zero. Not every project
+is queue-shaped, and that is not an error.
+
+**Discharged rows stay until they are swept.** `perry-task intake-sweep` moves
+them into the journal with their `Outcome` intact. That rule lived in
+`modes/queue.md` and nothing implemented it, which mattered because the same
+file rests its overflow argument on it: intake pressure is supposed to mean
+*taking on more than you discharge*, not *having discharged a lot*.
+
 ## The three rules that make it safe to code against
 
 1. **Every key above is always present.** An unknown value is `""`, `null` or
@@ -169,6 +202,13 @@ One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer
 deserves to know when a value's *meaning* changed under it.
+
+### 1.4 — 2026-08-17
+
+- **added** `intake`. `route` and `resolve-intake` take a row position and no
+  payload carried one, so the drain could only be run by opening the board and
+  counting — which `subcommands.md` forbids twenty lines above the step that
+  needed it. Found by a V4 review.
 
 ### 1.3 — 2026-08-17
 
