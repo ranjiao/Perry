@@ -1071,6 +1071,12 @@ WHY = {
         "write. It will read them as its own state and report them as broken — "
         "so the next check will tell you your own file is malformed. It "
         "isn't; it is just standing in a folder Perry took.",
+    "MODE-01":
+        "You wrote down what kind of work this is, and the board says "
+        "something else. The questions asked at each review are picked from "
+        "that label — so it will keep asking what is aging in review when the "
+        "real question is what came in and never got answered, and the check "
+        "that would have caught something never runs.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -1134,6 +1140,273 @@ def _perry_shaped(path: Path, schema: dict) -> bool:
         return False
 
 
+# ── work modes ────────────────────────────────────────────────────────────
+#
+# DESIGN-003 gave a project four shapes, and `modes/*.md` says what tells them
+# apart: what closes the horizon, and what the spine is. This scanner answers
+# "which of the four does the *observable* work fit" — a different question
+# from "which one did the register declare", and the whole value is in being
+# able to answer the two differently.
+#
+# One rule it may not break: **"cannot tell" is a real answer.** Three of the
+# four modes are recognised by columns and files a project may simply not have,
+# and a scanner that fell back to `project` whenever it saw nothing would
+# announce a verdict on every folder on earth while having measured none of
+# them. `reference/diagnose.md` calls a signal that never clears worse than no
+# check; a verdict that never abstains is that same defect facing the other way.
+#
+# And it never reads the `## Tracks` row it is judging. Scoring a track's own
+# declared `Stages` / `SLA` / `Cycle` cells as evidence would let the
+# declaration confirm itself, and `MODE-01` — the disagreement finding — could
+# then never fire at all.
+
+MODE_NAMES = ("project", "pipeline", "queue", "inquiry")
+
+# The default stage vocabularies from `modes/*.md`, minus every member that is
+# ALSO a global `Status` value or another mode's stage. `review` is pipeline's
+# and the status enum's; `in_progress` is queue's and the status enum's. A cell
+# reading either of those distinguishes nothing, so neither is here.
+STAGE_VOCAB = {
+    "pipeline": {"brief", "draft", "approved", "published"},
+    "queue": {"new", "triaged", "resolved"},
+    "inquiry": {"open", "researching", "answered"},
+}
+
+DATEISH = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+BLANK_CELL = {"", "—", "-", "–", "n/a", "none"}
+
+# Columns read by name. English always resolves; the other languages come from
+# the schema, so this script carries no second copy of that list.
+_FALLBACK_COLUMNS = ("id", "track", "stage", "stage since", "commitment",
+                     "arrived", "parent", "by when", "title", "status")
+
+
+def column_aliases() -> dict[str, set[str]]:
+    """Canonical column name (lowercased) → every spelling a header may use."""
+    out: dict[str, set[str]] = {c: {c} for c in _FALLBACK_COLUMNS}
+    try:
+        schema = json.loads(read_text(PERRY_HOME / "schema" / "state-schema.json"))
+        cols = (schema.get("i18n") or {}).get("columns") or {}
+    except Exception:
+        cols = {}
+    for canon, langs in cols.items():
+        key = str(canon).lower()
+        names = out.setdefault(key, {key})
+        for spellings in (langs or {}).values():
+            names |= {str(v).lower() for v in (spellings or [])}
+    return out
+
+
+def md_sections(text: str):
+    """`## Heading` → its body lines, including a leading preamble section.
+
+    Deliberately its own reader rather than `viewer/parsers.py`'s: `ADR-004`
+    splits the tools in two, sending the steady-state readers strict against
+    Perry's declared shape and keeping `diagnose` *"tolerant, and more so —
+    they must read any shape to propose a migration."* A diagnose that borrowed
+    the strict reader would stop being able to read the projects it exists to
+    diagnose.
+    """
+    heading, body = "", []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            yield heading, body
+            heading, body = line[3:].strip(), []
+        else:
+            body.append(line)
+    yield heading, body
+
+
+def md_table(lines: list[str], aliases: dict[str, set[str]]):
+    """The first readable table in `lines` → (column → index, [row cells]).
+
+    Resolved **by name**, never by position: a project may omit any column, and
+    a positional read then attributes one column's value to another. That exact
+    bug has been found twice in this repo's own parsers.
+    """
+    header: dict[str, int] = {}
+    rows: list[list[str]] = []
+    for line in lines:
+        s = line.strip()
+        if not s.startswith("|"):
+            if rows:
+                break
+            continue
+        if set(s) <= set("|- :"):
+            continue
+        cells = [c.strip().strip("*` ") for c in s.strip().strip("|").split("|")]
+        low = [c.lower() for c in cells]
+        if not header:
+            header = {canon: i for canon, names in aliases.items()
+                      for i, c in enumerate(low) if c in names}
+            if not header:
+                break
+            continue
+        rows.append(cells)
+    return header, rows
+
+
+def _as_dict(header: dict[str, int], cells: list[str]) -> dict[str, str]:
+    return {k: (cells[i] if 0 <= i < len(cells) else "") for k, i in header.items()}
+
+
+def _filled(rows: list[dict], col: str) -> int:
+    return sum(1 for r in rows if (r.get(col) or "").strip().lower() not in BLANK_CELL)
+
+
+def _verdict(evidence: dict[str, list]) -> tuple[str | None, str, dict[str, int]]:
+    """Score → (mode or None, confidence, scores).
+
+    `None` is returned twice over, and the two are different facts the payload
+    keeps apart: `none` means nothing distinguishing was found at all, `low`
+    means two modes tied. Neither is a verdict, and neither may be rounded up
+    into one.
+    """
+    scores = {m: sum(w for w, _ in evidence[m]) for m in MODE_NAMES}
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+    top, second = ranked[0], ranked[1]
+    if top[1] == 0:
+        return None, "none", scores
+    if top[1] == second[1]:
+        return None, "low", scores
+    if top[1] >= 3 and top[1] - second[1] >= 3:
+        return top[0], "high", scores
+    return top[0], "medium", scores
+
+
+def scan_work_modes(root: Path, state_root: Path) -> dict:
+    """Which of DESIGN-003's four shapes each track's work actually fits."""
+    try:
+        state = load_sibling("perry-state")
+        tracks = state.parse_tracks(read_text(root / ".perry" / "config.md"))
+    except Exception:
+        # Reported absent rather than defaulted. A fallback here would make
+        # every project read as one implicit `project` track, and MODE-01 would
+        # go quiet instead of red.
+        return {"available": False, "register_declared": False, "tracks": []}
+
+    aliases = column_aliases()
+    board = read_text(state_root / "BOARD.md")
+    okr = read_text(state_root / "OKR.md")
+
+    rows: list[dict] = []
+    intake_rows = 0
+    for heading, body in md_sections(board):
+        header, cells = md_table(body, aliases)
+        if not header:
+            continue
+        if re.match(r"(?:Intake|收件)\b", heading, re.I):
+            # Counted as its own organ, not as board rows — the `Arrived`
+            # column appears in both and would otherwise be scored twice.
+            intake_rows += len(cells)
+            continue
+        rows += [_as_dict(header, c) for c in cells]
+
+    commitments: list[dict] = []
+    for heading, body in md_sections(okr):
+        if not re.match(r"(?:Commitments|承诺)\b", heading, re.I):
+            continue
+        header, cells = md_table(body, aliases)
+        commitments += [_as_dict(header, c) for c in cells]
+
+    phase_dir = state_root / "phase"
+    phase_files = sorted(phase_dir.glob("[0-9][0-9][0-9]-*.md")) if phase_dir.is_dir() else []
+    has_current = (phase_dir / "CURRENT").is_file()
+    objectives = len(re.findall(r"^#{2,4}\s*(?:Objective|目标)\b", okr, re.M | re.I))
+    ev_dir = state_root / "evidence"
+    answers = sorted(ev_dir.glob("*/*-answer.md")) if ev_dir.is_dir() else []
+    kdir = state_root / "knowledge"
+    digests = 0
+    if kdir.is_dir():
+        for p in sorted(kdir.rglob("*.md")):
+            if re.search(r"^\s*[-*>]?\s*Id\s*:\s*SRC-\d+\b",
+                         read_text(p, cap=4000), re.M):
+                digests += 1
+
+    # Project-wide signals. They can only be attributed when there is exactly
+    # one track to attribute them to — `phase/` and `## Intake` carry no track
+    # column, so on a multi-track project they say nothing about any one track.
+    file_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    if phase_files or has_current:
+        file_ev["project"].append(
+            (3, f"phase/ holds {len(phase_files)} numbered phase file(s)"
+                + (" and a CURRENT pointer" if has_current else "")))
+    if objectives:
+        file_ev["project"].append((2, f"OKR.md declares {objectives} objective(s)"))
+    if intake_rows:
+        file_ev["queue"].append(
+            (3, f"BOARD.md § Intake carries {intake_rows} arrived request(s)"))
+    if answers:
+        file_ev["inquiry"].append(
+            (3, f"{len(answers)} answer file(s) under evidence/"))
+    if digests:
+        file_ev["inquiry"].append(
+            (2, f"{digests} source digest(s) under knowledge/ carrying an SRC- id"))
+
+    single = len(tracks) == 1
+
+    def evidence_for(name: str) -> dict[str, list]:
+        ev: dict[str, list] = {m: list(v) for m, v in file_ev.items()} if single \
+            else {m: [] for m in MODE_NAMES}
+        mine = [r for r in rows if single
+                or (r.get("track") or "").strip().lower() == name.lower()]
+        n = lambda col: _filled(mine, col)  # noqa: E731
+        if n("stage since"):
+            ev["pipeline"].append(
+                (3, f"{n('stage since')} board row(s) carry a `Stage since` date"))
+        if n("commitment"):
+            ev["pipeline"].append(
+                (3, f"{n('commitment')} board row(s) name the `Commitment` they discharge"))
+        if n("arrived"):
+            ev["queue"].append(
+                (3, f"{n('arrived')} board row(s) carry an `Arrived` date"))
+        if n("parent"):
+            ev["inquiry"].append(
+                (3, f"{n('parent')} board row(s) name a `Parent` question"))
+        seen = {(r.get("stage") or "").strip().lower() for r in mine}
+        for mode, vocab in STAGE_VOCAB.items():
+            hit = sorted(seen & vocab)
+            if hit:
+                ev[mode].append((2, f"stage vocabulary in use: {', '.join(hit)}"))
+        krs = sum(1 for r in mine
+                  if re.search(r"\bkr:\s*\S", " ".join(r.values()), re.I))
+        if krs:
+            ev["project"].append((2, f"{krs} board row(s) attribute work to a KR"))
+        mine_c = [c for c in commitments if single
+                  or (c.get("track") or "").strip().lower() == name.lower()]
+        dated = sum(1 for c in mine_c if DATEISH.search(c.get("by when") or ""))
+        prose = sum(1 for c in mine_c
+                    if (c.get("by when") or "").strip().lower() not in BLANK_CELL
+                    and not DATEISH.search(c.get("by when") or ""))
+        if dated:
+            ev["pipeline"].append(
+                (3, f"{dated} commitment(s) promise a dated `By when`"))
+        if prose:
+            ev["queue"].append(
+                (2, f"{prose} standing commitment(s) whose `By when` is prose, not a date"))
+        return ev
+
+    out = []
+    for t in tracks:
+        ev = evidence_for(t["track"])
+        mode, confidence, scores = _verdict(ev)
+        out.append({
+            "track": t["track"],
+            "declared": bool(t.get("declared")),
+            "declared_mode": t.get("mode") or "project",
+            "mode": mode,
+            "confidence": confidence,
+            "scores": scores,
+            "evidence": {m: [lbl for _, lbl in ev[m]] for m in MODE_NAMES},
+            "scope": "track" if t.get("declared") else "project",
+        })
+    return {
+        "available": True,
+        "register_declared": any(t.get("declared") for t in tracks),
+        "tracks": out,
+    }
+
+
 def finding(fid, severity, title, detail, evidence=None):
     return {
         "id": fid,
@@ -1147,8 +1420,34 @@ def finding(fid, severity, title, detail, evidence=None):
     }
 
 
-def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None) -> list[dict]:
+def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
+                    modes=None) -> list[dict]:
     out = []
+
+    # ── work modes ──
+    # Fires only when the register DECLARED a mode and the evidence points
+    # somewhere else with a clear margin. Three abstentions are deliberate: an
+    # undeclared track (the implicit `main` is a default, not a claim), a
+    # `cannot tell` verdict, and a `medium` one. Each of them is a case where
+    # the report would be telling the user their own declaration is wrong on
+    # thinner evidence than they used to write it.
+    for t in (modes or {}).get("tracks", []):
+        if not (t["declared"] and t["mode"] and t["confidence"] == "high"):
+            continue
+        if t["mode"] == t["declared_mode"]:
+            continue
+        out.append(finding(
+            "MODE-01", "warn",
+            f"track `{t['track']}` is written down as `{t['declared_mode']}` "
+            f"work and looks like `{t['mode']}` work",
+            f"One of the two is wrong and only you can say which. Either "
+            f"change the `Mode` cell for `{t['track']}` in `.perry/config.md` "
+            f"to `{t['mode']}`, or keep the label and fix what is on the board "
+            f"to match it. Do not leave them disagreeing: the label is what "
+            f"picks the review questions, so a wrong one asks about the wrong "
+            f"thing every single time.",
+            t["evidence"].get(t["mode"], [])[:6],
+        ))
 
     # ── namespace ──
     # Stays `warn`, never `error`: a user may knowingly keep one file in a
@@ -1433,7 +1732,8 @@ def diagnose(root: Path, max_files: int) -> dict:
     arch = scan_archetype(inv, docs, root, is_perry, perry_owned)
     load = scan_user_load(root, inv, docs, is_perry)
     ns = scan_namespace(root, state_root, is_perry)
-    findings = derive_findings(ctx, docs, con, trk, arch, inv, load, ns)
+    modes = scan_work_modes(root, state_root)
+    findings = derive_findings(ctx, docs, con, trk, arch, inv, load, ns, modes)
 
     return {
         "schema": "diagnose/1",
@@ -1455,6 +1755,7 @@ def diagnose(root: Path, max_files: int) -> dict:
         "archetype": arch,
         "user_load": load,
         "namespace": ns,
+        "work_modes": modes,
         "findings": findings,
         "counts": {
             "error": sum(1 for f in findings if f["severity"] == "error"),
@@ -1495,6 +1796,24 @@ def render_text(d: dict) -> str:
       f"runnable check: {'yes' if trk['has_check'] else 'NO'}")
     if trk["perry"]["installed"]:
         A(f"   Perry state    : installed (state root {trk['perry']['state_root']})")
+    wm = d.get("work_modes") or {}
+    for t in wm.get("tracks", []):
+        # "cannot tell" is printed as itself. Rounding an abstention up to the
+        # commonest mode is the one thing this line may not do.
+        said = t["mode"] or "cannot tell"
+        scope = t["track"] if t["declared"] else "whole project"
+        declared = f"declared {t['declared_mode']}" if t["declared"] \
+            else "nothing declared"
+        A(f"   Work mode      : {scope} — evidence says {said} "
+          f"({t['confidence']}) · {declared}")
+        for label in (t["evidence"].get(t["mode"]) or [])[:2]:
+            A(f"                    {label}")
+        if not t["mode"]:
+            A("                    " + (
+                "no distinguishing signal — the four modes are told apart by "
+                "what closes the horizon"
+                if t["confidence"] == "none"
+                else "signals point two ways at once; neither is claimed"))
     A("")
     c = d["counts"]
     A(f"   Findings       : {c['error']} error · {c['warn']} warn · {c['info']} info")
