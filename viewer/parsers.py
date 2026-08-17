@@ -748,6 +748,19 @@ def next_due_after(run: date, frequency: str) -> date | None:
 
 
 _ISO_WEEK = re.compile(r"(\d{4})-W(\d{1,2})\b", re.I)
+_ISO_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+# Where the cell stops being a due date and starts being an annotation. Every
+# live register writes its note about the LAST run after one of these, and that
+# note routinely contains dates — a completion date, or a dated evidence
+# filename. Reading past this is how `n/a （见 evidence/2026-08/2026-08-03-…）`
+# came back as "14 days overdue".
+_ANNOTATION = re.compile(r"->|→|[(（\[【<;；\n]")
+
+# A leading token that says, in the register's own words, that there is no date
+# here. Not an error and not a guess — the same set `parse_frequency` treats as
+# deliberately aperiodic, plus the em-dash spellings of an empty cell.
+_NO_DATE = _APERIODIC | {"—", "–", "-", "tbd", "无", "none", "待定", "?", "??"}
 
 
 def parse_due(cell: str) -> date | None:
@@ -756,30 +769,50 @@ def parse_due(cell: str) -> date | None:
     The cell is prose on a real board and this function is the tolerant half of
     the contract. Three live examples from one project's register:
 
-        n/a
+        n/a （见 `evidence/2026-08/2026-08-03-retro.md`）
         **2026-08-31**（7 月版 ✅ 8/3 补作 → `evidence/2026-08/retro-2026-07.md`）
         **2026-W32 friday-review (8/7)**（W31 版 ✅ 8/3 补作…）
 
-    A bare date wins. Failing that, an ISO week resolves to its **Sunday** —
-    a week-scoped ritual is not late on Monday, and taking the Monday would
-    report every weekly row as six days overdue for most of its own week.
-    Anything else returns `None` and is reported as unreadable rather than
-    treated as never due, which would silently exempt it from the only clock
-    governing it.
+    Only the LEADING segment is read — the text before the first annotation
+    opener. The old rule searched the whole cell for `\\d{4}-\\d{2}-\\d{2}` and
+    so read the first two rows above as due `2026-08-03` (a path fragment) and
+    `2026-01-05` (a note about the last run), reporting both overdue by 14 and
+    224 days. `parse_frequency`'s docstring next door states the rule this now
+    honours: **a confidently wrong value is worse than an admitted unreadable
+    one.** A cell this cannot read returns `None` and lands in
+    `cadence.undated`, which is a reported finding, not a silent pass.
+
+    Within that segment the FIRST token that resolves wins, so an ISO week
+    written before a bare date is not overruled by it. A week resolves to its
+    **Sunday** — a week-scoped ritual is not late on Monday, and taking the
+    Monday would report every weekly row as up to six days overdue inside its
+    own week. A token that is a path (`evidence/2026-08/x.md`) is skipped
+    rather than mined for digits: it cites the last run, never the next one.
     """
-    raw = cell or ""
-    m = re.search(r"\d{4}-\d{2}-\d{2}", raw)
-    if m:
-        try:
-            return datetime.strptime(m.group(0), "%Y-%m-%d").date()
-        except ValueError:
+    head = _ANNOTATION.split(cell or "", 1)[0]
+    for token in head.split():
+        t = token.strip("*`_ 　,.，。;；:：、!！").strip()
+        if not t:
+            continue
+        if t.lower() in _NO_DATE:
+            # The cell says there is no date. Reading on would find one in the
+            # citation that follows and report a ritual that is deliberately
+            # aperiodic as overdue.
             return None
-    w = _ISO_WEEK.search(raw)
-    if w:
-        try:
-            return date.fromisocalendar(int(w.group(1)), int(w.group(2)), 7)
-        except ValueError:
-            return None
+        if "/" in t or t.lower().endswith((".md", ".txt", ".json")):
+            continue
+        w = _ISO_WEEK.match(t)
+        if w:
+            try:
+                return date.fromisocalendar(int(w.group(1)), int(w.group(2)), 7)
+            except ValueError:
+                return None
+        d = _ISO_DATE.match(t)
+        if d:
+            try:
+                return datetime.strptime(d.group(1), "%Y-%m-%d").date()
+            except ValueError:
+                return None
     return None
 
 

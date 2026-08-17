@@ -178,9 +178,12 @@ See `work/reference/subcommands.md`.
 
 The **procedure** goes in `runbook/<slug>.md` — an existing claimed path
 (`schema/state-schema.json § claims[]`), so converting a recurring request into
-a runbook adds no new claim. `Last evidence` points at it. The runbook's shape is normative in
-`schema/state-schema.json § files[] runbook` (template
-`work/state/runbook_TEMPLATE.md`); the software-ops pack elaborates the staleness
+a runbook adds no new claim. `Last evidence` points at it. What that schema
+entry (`§ files[] runbook`) makes normative is the **path, the template
+(`work/state/runbook_TEMPLATE.md`) and the cap** — its `headings` list is empty,
+so a runbook containing nothing but `# nonsense` draws no lint finding. The
+shape below is what the template carries and what an agent should write, not
+something a check enforces; the software-ops pack elaborates the staleness
 and coverage rules at `$PERRY_HOME/packs/software-ops/runbooks.md`. A queue-mode
 track that is not software uses the schema shape and needs no pack, since "what
 it does, what healthy looks like, what failure looks like, who to escalate to"
@@ -230,7 +233,10 @@ Ordered:
    Both inputs are columns: this is arithmetic, not judgment.
 3. **Queue depth and trend.** Depth is the count of **active** rows in this
    track — `Status` neither `done` nor `dropped`, the same definition
-   `modes/pipeline.md` counts WIP with. Counting dropped rows would make depth
+   `modes/pipeline.md` counts WIP with. A row `perry-task drop` retired has
+   already left the board and cannot be counted; the exclusion is what keeps a
+   row a project archived **by hand** at `Status: dropped`, in a section of its
+   own, from being counted as still waiting. Counting those would make depth
    rise monotonically for any queue that declines requests, reporting the exact
    opposite of reality for a queue doing the right thing. The trend is that
    count against the same count at the last
@@ -246,7 +252,12 @@ Ordered:
    way a stale User Input Queue item is. Read `cadence.overdue` out of
    `perry-state --json`, sorted and aged for you; a periodic ritual whose
    `Next due` cell yields no date at all is in `cadence.undated` and is the row
-   most likely to have stopped happening without anyone noticing.
+   most likely to have stopped happening without anyone noticing. Read
+   `cadence.unreadable_frequency` too — a row whose `Frequency` cell this build
+   has no period for is scheduled by nothing at all, and it is in that list
+   only. Three lists, and `work/reference/subcommands.md § triage` reads the
+   same three: a procedure that reads two of them is a procedure with a blind
+   spot, not a shorter one.
 
 **The review period** is the track's `Cycle` cell (`.perry/config.md § Tracks`)
 — `monthly`, `2026-W34`, whatever fits. It reports throughput, breaches and
@@ -254,12 +265,22 @@ depth trend, and then the next period starts. Nothing closes.
 
 ## Where the rows physically sit
 
-Board rows live under `## P0` / `## P1` / `## P2` in every mode, because those
-are the schema's required headings and the file has exactly one row table shape.
-A queue- or pipeline-mode row therefore still carries a priority — **used for
-placement, not for meaning.** The throttle in this mode is depth and age, and in
-pipeline mode it is the per-stage WIP limit; priority is where the row is
-written down, not how it is chosen. Default to `P1` when nothing else argues.
+Board rows live under `## P0` / `## P1` / `## P2` **by default**, in every mode,
+because those are the schema's required headings and the file has exactly one
+row table shape. A queue- or pipeline-mode row filed there carries a priority —
+**used for placement, not for meaning.** The throttle in this mode is depth and
+age, and in pipeline mode it is the per-stage WIP limit; priority is where the
+row is written down, not how it is chosen. Default to `P1` when nothing else
+argues.
+
+**A project that files work under its own headings keeps them.** `perry-task add
+--group "<heading>"` writes into any `## ` section whose table resolves `ID` and
+`Title`, with no priority at all — a real adopted project organizes its board as
+`## Open — 工程线` and `## Open — 投资线`, and rewriting that structure to suit
+this file is an Anti-Goal. The row table shape is still one shape: the section
+is widened to the six required columns if it is narrower, and the mode columns
+join it the same way they join `## P1`. This paragraph claimed "in every mode"
+without the `--group` half for one release after `--group` shipped.
 
 ## What this mode does not assume
 

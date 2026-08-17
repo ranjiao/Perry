@@ -2280,6 +2280,101 @@ class TestWritingToAProjectsOwnSections(unittest.TestCase):
         self.assertIn(a["id"], p.board().split("## P1")[0])
 
 
+class TestANarrowSectionIsWidenedWhicheverFlagNamedIt(unittest.TestCase):
+    """Round-5 review B-3. The M-8 widening landed on `--group` alone.
+
+    `add --group P1` widened a four-column section and succeeded; `add
+    --priority P1` and `route --priority P1` on **the same section** refused
+    with "BOARD.md's columns cannot be resolved". The board does not know which
+    flag named it, so two answers is one of them being wrong — and the narrow
+    case is if anything MORE likely under a priority heading, since a
+    hand-written `## P2 (低优先 carry)` is the shape a project reaches for when
+    it wants a short list.
+
+    Measured on a copy of a real adopted project: `intake` wrote the row and
+    `route 1 --track ops --priority P2` refused, so `## Intake` filled and could
+    never be drained. TASK-020's deliverable 3 is *"`triage` gains a first step:
+    drain intake"* — the routing half did not run at all.
+    """
+
+    NARROW = """# BOARD
+
+## P1
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| TECH-1 | pre-existing | Coding Agent | not_started |
+"""
+
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | commitments | new->triaged->resolved | — | 5d | monthly | V2 |\n")
+
+    def widths(self, p: Project) -> tuple[str, list[str]]:
+        header = next(l for l in p.board().split("\n") if l.startswith("| ID |"))
+        return header, [l for l in p.board().split("\n")
+                        if l.startswith(("| TECH-1 |", "| TASK-"))]
+
+    def test_add_by_priority_widens_it_the_way_add_by_group_does(self):
+        p = Project(board=self.NARROW)
+        code, a = p.run("add", "--title", "new work", "--priority", "P1",
+                        "--next", "the actual next step")
+        self.assertEqual(code, 0, f"the priority path refused a section the "
+                                  f"group path accepts: {a}")
+        self.assertIn("the actual next step", p.board(),
+                      "`Next action` was dropped silently")
+
+    def test_the_two_flags_produce_the_same_header(self):
+        """The claim in one assertion: same board, same section, same result."""
+        by_group = Project(board=self.NARROW)
+        by_group.run("add", "--title", "x", "--group", "P1", "--next", "n")
+        by_priority = Project(board=self.NARROW)
+        by_priority.run("add", "--title", "x", "--priority", "P1", "--next", "n")
+        self.assertEqual(self.widths(by_group)[0], self.widths(by_priority)[0])
+
+    def test_widening_pads_the_rows_that_were_already_there(self):
+        p = Project(board=self.NARROW)
+        p.run("add", "--title", "new work", "--priority", "P1")
+        header, rows = self.widths(p)
+        for r in rows:
+            self.assertEqual(len(PT.split_row(r)), len(PT.split_row(header)),
+                             f"row width diverged from the header:\n  {r}")
+        old = next(r for r in rows if r.startswith("| TECH-1 |"))
+        self.assertIn("pre-existing", old, "existing data was disturbed")
+        self.assertIn("not_started", old, "a cell shifted into another column")
+
+    def test_the_intake_drain_runs_on_a_narrow_pre_existing_board(self):
+        """The end-to-end statement, and the one that was failing in the
+        field: a section the tool itself creates and fills must be drainable
+        onto the board the project already had."""
+        p = Project(tracks=self.TRACKS, board=self.NARROW)
+        code, _ = p.run("intake", "--title", "客户要对账", "--arrived", "2026-08-05")
+        self.assertEqual(code, 0)
+        code, out = p.run("route", "1", "--track", "ops", "--priority", "P1")
+        self.assertEqual(code, 0, f"the drain refused on a board `intake` had "
+                                  f"just filled: {out}")
+        row = next(l for l in p.board().split("\n")
+                   if l.startswith(f"| {out['id']} |"))
+        self.assertIn("2026-08-05", row, "the SLA clock was lost at routing")
+        self.assertIn("客户要对账", row)
+
+    def test_an_unreadable_header_is_still_refused_not_widened(self):
+        """The bound on the fix. A section whose IDENTITY columns cannot be
+        resolved is not a narrow table, it is an unknown one — appending `ID`
+        and `Title` beside `甲` and `乙` writes a row with two blank leading
+        cells and exits 0, which is `check_header`'s reason for existing wearing
+        a disguise. Both flags refuse it."""
+        board = self.NARROW.replace("| ID | Title |", "| 甲 | 乙 |")
+        for flag in ("--priority", "--group"):
+            p = Project(board=board)
+            code, out = p.run("add", "--title", "X", flag, "P1")
+            self.assertEqual(code, 1, f"{flag} wrote against an unreadable "
+                                      f"header: {out}")
+            self.assertIn("i18n.columns", str(out))
+            self.assertNotIn("TASK-001", p.board())
+
+
 class TestModeColumnsOnBoardsPerryDidNotBuild(unittest.TestCase):
     """m-11: two guards could not fail on the defect they named.
     `test_arrived_survives_routing_out_of_intake` asserted a schema key and
@@ -2529,6 +2624,180 @@ class TestDecoratedHeaders(unittest.TestCase):
         self.assertEqual("下一步", PT.squash(" **下一步** "),
                          "squash has no language knowledge and must not "
                          "touch anything that is not decoration")
+
+
+class TestOneRuleOneImplementation(unittest.TestCase):
+    """Round-5 review m-6, m-7, m-8 — three values with two writers each.
+
+    Perry has hit this shape often enough to name it: two implementations of
+    one rule drift silently, and a value that is both stored and derived is
+    wrong for exactly the rows nobody wrote the storing path for.
+    """
+
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| core | project | phase/ | — | — | — | — | V3 |\n"
+              "| blog | pipeline | commitments | brief->draft->review->published | review:2 | 5d | 2026-W34 | V5 |\n"
+              "| ops | queue | commitments | new->triaged->in_progress->resolved | — | 5d | monthly | V2 |\n"
+              "| study | inquiry | questions | open->researching->answered | open:5 | — | — | V4 |\n")
+
+    # -- m-6: the stage vocabulary parser
+
+    def test_perry_task_carries_no_second_stage_parser(self):
+        """`split_stages` existed twice, differing only in a loop variable,
+        with the docstring explaining the normalization on one copy.
+
+        Three spellings of the separator are in circulation (`->`, `→`, `→`
+        with spaces) and "the first stage" / "the terminal stage" are both
+        load-bearing, so the two copies were one edit away from disagreeing
+        about where every row in a track begins and ends. Replacing
+        `perry-state`'s must change `perry-task`'s answer; if it does not,
+        there is a second body here.
+        """
+        ps = PT.perry_state()
+        original = ps.split_stages
+        try:
+            ps.split_stages = lambda cell: ["SENTINEL"]
+            self.assertEqual(
+                PT.split_stages("brief->draft"), ["SENTINEL"],
+                "perry-task carries its own copy of the stage parser")
+        finally:
+            ps.split_stages = original
+        self.assertEqual(PT.split_stages("brief→draft"), ["brief", "draft"])
+
+    def test_stages_of_consumes_the_registers_computed_list(self):
+        """`parse_tracks` already computes `stage_list`; `stages_of` ignored it
+        and re-split the raw cell. Two readings of one register, and nothing
+        asserted they agreed."""
+        track = {"track": "blog", "mode": "pipeline",
+                 "stages": "this-cell->is-stale",
+                 "stage_list": ["brief", "draft"]}
+        self.assertEqual(PT.stages_of(PT.load_schema(), track),
+                         ["brief", "draft"],
+                         "the raw cell was re-parsed instead of the computed "
+                         "list the register already carries")
+
+    # -- m-7: where a row is born
+
+    def test_the_entry_stage_rule_has_one_implementation(self):
+        self.assertEqual(PT.entry_stage("queue", ["new", "triaged", "done"]),
+                         "triaged", "a queue row must skip the intake stage")
+        self.assertEqual(PT.entry_stage("pipeline", ["brief", "draft"]), "brief")
+        self.assertEqual(PT.entry_stage("inquiry", ["open", "answered"]), "open")
+        self.assertEqual(PT.entry_stage("queue", ["only"]), "only")
+        self.assertEqual(PT.entry_stage("pipeline", []), "")
+
+    def test_add_and_route_are_born_at_the_same_stage_in_every_mode(self):
+        """The expression lived in `cmd_add` and in `cmd_route`, both written
+        the same round. A row's entry stage is where its dwell clock starts, so
+        the two disagreeing means the same work measured two ways depending on
+        which command created it."""
+        for track, expected in (("ops", "triaged"), ("blog", "brief"),
+                                ("study", "open")):
+            p = Project(tracks=self.TRACKS)
+            _, a = p.run("add", "--title", "raised", "--track", track,
+                         "--priority", "P0")
+            p.run("intake", "--title", "arrived", "--arrived", "2026-08-01")
+            code, r = p.run("route", "1", "--track", track, "--priority", "P0")
+            self.assertEqual(code, 0, r)
+            header = next(l for l in p.board().split("\n")
+                          if l.startswith("| ID |"))
+            keys = [PT.norm(h) for h in PT.split_row(header)]
+
+            def stage_of(tid: str) -> str:
+                row = next(l for l in p.board().split("\n")
+                           if l.startswith(f"| {tid} |"))
+                return dict(zip(keys, PT.split_row(row)))["stage"]
+
+            self.assertEqual(stage_of(a["id"]), expected, f"{track}: add")
+            self.assertEqual(stage_of(r["id"]), expected, f"{track}: route")
+
+    # -- m-8: `mode` in the frozen list contract
+
+    def test_mode_is_derived_from_the_track_register(self):
+        """It shipped in `perry-task/list/1.4` read back out of the event log,
+        so it was blank for exactly the rows `route` creates — on the one mode
+        where routing is how a row is normally born."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "vendor spend", "--arrived", "2026-08-01")
+        _, r = p.run("route", "1", "--track", "ops", "--priority", "P0")
+        _, a = p.run("add", "--title", "post", "--track", "blog",
+                     "--priority", "P0")
+        _, out = p.run("list", "--all")
+        modes = {t["id"]: t["mode"] for t in out["tasks"]}
+        self.assertEqual(modes[r["id"]], "queue",
+                         "a routed row still ships a blank mode")
+        self.assertEqual(modes[a["id"]], "pipeline")
+
+    def test_mode_survives_the_event_log_being_deleted(self):
+        """The log is declared DERIVED AND DISPOSABLE at the top of
+        `bin/perry-task`. Nothing in a frozen contract may depend on it for a
+        value the markdown already determines."""
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog",
+                     "--priority", "P0")
+        (p.root / ".perry" / "events.jsonl").unlink()
+        _, out = p.run("list", "--all")
+        self.assertEqual({t["id"]: t["mode"] for t in out["tasks"]}[a["id"]],
+                         "pipeline", "deleting the derived log blanked a "
+                                     "value the board determines")
+
+    def test_a_project_with_no_track_register_still_reports_project_mode(self):
+        """`parse_tracks`'s own fallback: a project that never heard of tracks
+        has exactly one, named `main`, mode `project`. The payload says the
+        same rather than an empty string."""
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0")
+        _, out = p.run("list", "--all")
+        self.assertEqual(out["tasks"][0]["mode"], "project")
+
+
+class TestDropRecordsWhereTheRowDied(unittest.TestCase):
+    """Round-5 review M-4. `modes/pipeline.md` claimed a dropped item's `Stage`
+    cell "keeps the last stage it reached, so the record says where it died".
+
+    `cmd_drop` removes the row, so the cell went with it, and neither the
+    journal line nor the event carried the stage. The claim was corrected
+    rather than implemented — keeping the row would make every WIP and depth
+    count in both mode files start excluding it — but the fact it named is
+    real and cheap to keep: three items dying at `review` is a statement about
+    the review stage, not about the three items.
+    """
+
+    TRACKS = TestOneRuleOneImplementation.TRACKS
+
+    def test_the_journal_line_and_the_event_carry_the_stage(self):
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog",
+                     "--priority", "P0")
+        code, _ = p.run("stage", a["id"], "--stage", "review")
+        self.assertEqual(code, 0)
+        code, _ = p.run("drop", a["id"], "--reason", "client pulled the campaign")
+        self.assertEqual(code, 0)
+
+        self.assertNotIn(f"| {a['id']} |", p.board(),
+                         "drop is supposed to remove the row")
+        self.assertIn("at stage: review", p.journal(),
+                      "the journal records that it died and not where")
+        ev = p.events()[-1]
+        self.assertEqual(ev["event"], "drop")
+        self.assertEqual(ev["stage"], "review",
+                         "the only surviving structured record lost the stage")
+        self.assertEqual(ev["reason"], "client pulled the campaign")
+
+    def test_a_project_mode_row_carries_an_empty_stage_rather_than_no_key(self):
+        """Project mode has no stages at all. The key is still present: a
+        consumer that has to branch on a missing key is one that will forget
+        to."""
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "X", "--track", "core", "--priority", "P0")
+        p.run("drop", a["id"], "--reason", "duplicate")
+        ev = p.events()[-1]
+        self.assertIn("stage", ev)
+        self.assertEqual(ev["stage"], "")
+        self.assertNotIn("at stage:", p.journal(),
+                         "an empty stage was rendered into the journal line")
 
 
 if __name__ == "__main__":

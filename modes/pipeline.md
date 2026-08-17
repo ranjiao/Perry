@@ -42,9 +42,25 @@ enum-checked in the schema, because the vocabulary is per-track rather than
 global — the track register is what declares it.
 
 **`dropped` is a `Status`, never a stage.** A dropped item leaves the ordered
-vocabulary entirely; its `Stage` cell keeps the last stage it reached, so the
-record says where it died. The reason goes in the journal status-change line,
-like every other drop.
+vocabulary entirely — there is no `dropped` stage to move it to, and adding one
+would put a terminal state into a sequence every WIP and dwell number is
+computed over.
+
+**Where it died is recorded, and it is not recorded on the board.** `perry-task
+drop` removes the row: `BOARD.md` holds open work, and a dropped item is not
+open work. The stage it reached goes into the two surfaces that survive the
+removal — the journal's status-change line (`… → dropped · at stage: review ·
+reason: …`) and the `drop` event's `stage` field — alongside the reason, like
+every other drop. That is the diagnostic that matters here: three items dying at
+`review` is a fact about the review stage, not about the three items, and it is
+recoverable by reading the journal or the log rather than by keeping dead rows
+on the board.
+
+This file said the opposite until a review checked it — that the row's `Stage`
+cell "keeps the last stage it reached" — while the only drop path deleted the
+cell along with the row and wrote the stage nowhere. It is recorded now; the
+claim was corrected rather than implemented, because keeping the row would
+require every count in this file and in `modes/queue.md` to start excluding it.
 
 ## The calendar is binding here, and that is not a contradiction
 
@@ -139,9 +155,11 @@ Three rules hold whatever the vocabulary:
 1. **Stages are ordered and an active item is in exactly one.** An item in two
    stages is a tracking bug, not a nuance. **Active** means `Status` is neither
    `done` nor `dropped` — the same definition `modes/queue.md` counts depth
-   with, so the two modes cannot disagree about what is in flight. Items at
-   `Status: dropped` are outside the vocabulary entirely (above) and are not
-   counted against WIP.
+   with, so the two modes cannot disagree about what is in flight. A row
+   `perry-task drop` retired is not on the board and so cannot be counted at
+   all; the `Status: dropped` case this excludes is the row a project archives
+   **by hand** into a section of its own (`## Done this period` and its
+   equivalents), which the reader does see. Both routes end in the same count.
 2. **The last stage is the one that leaves the building**, and reaching it is
    what `done` means in this mode. An item that is `approved` but not
    `published` is not done, however finished it feels.

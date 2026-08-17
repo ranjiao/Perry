@@ -1067,6 +1067,16 @@ def dash(payload: dict) -> str:
                         f"(oldest: {o['id']} @ {o['days_overdue']}d)")
         if cad["undated"]:
             bits.append(f"{len(cad['undated'])} with no readable Next due")
+        # The third list, which this line used to drop. A row unreadable on
+        # BOTH axes is in `unreadable_frequency` only — the `undated` branch is
+        # gated on `kind == "period"` — so it appeared nowhere on the human
+        # surface at all. That is the row nothing can schedule and nothing was
+        # saying so about, which is the exact failure this register exists to
+        # catch. `work/reference/subcommands.md § triage` and
+        # `modes/queue.md § triage` step 5 both name all three lists.
+        if cad.get("unreadable_frequency"):
+            bits.append(f"{len(cad['unreadable_frequency'])} with an "
+                        f"unreadable Frequency")
         lines.append(f"🔁 Cadence        : {' · '.join(bits)}")
     att = payload["attribution"]
     if att["unlinked"]:
