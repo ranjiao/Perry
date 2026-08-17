@@ -23,20 +23,20 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-019 | `modes/pipeline.md` | Coding Agent | review | round-4's five items all closed (M-7 M-8 m-9 m-10 m-11) — see evidence/2026-08/TASK-019-020-round5-fixes.md. Waiting on a 5th V4 review; nothing here is self-approved. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
-| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | round-4's five items all closed; routing a hand-typed intake row was crashing and now refuses or carries the date. Waiting on a 5th V4 review. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-019 | `modes/pipeline.md` | Coding Agent | review | pipeline.md's dropped-stage claim withdrawn and the two downstream statements reconciled; drop now writes the stage into the journal line and the event. split_stages collapsed to one implementation, stages_of consumes the register's computed list, entry_stage factored to one place. Needs a 5th V4. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | the intake drain runs on a narrow pre-existing board — verified on a gimegime-pmo copy, row landed in ## P2 (低优先 carry) with Arrived carried. Widening is bounded: an unreadable header still refuses. queue.md's two false claims corrected. Needs a 5th V4. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | round-4's 3 blocking + 4 major all fixed and merged (ea2d4b8): bin/ no longer prints dead commands, 28 template occurrences cleaned, adoption.md re-routed, lane descriptions rewritten, 12 pack pointers repaired, the router guard widened. 47 mutations, all red. Needs a 5th V4. | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-021 | Recurrence register (cadence-add / cadence-done) | Coding Agent | review | rubric written: evidence/2026-08/TASK-021-spec.md, deliberately separate from the producer's own account. V4 review launched. | — | V4 |
+| TASK-021 | Recurrence register (cadence-add / cadence-done) | Coding Agent | review | all three MAJOR fixed — parse_due bounded to the leading segment, the overdue sort now has a falsifiable test, the Cadence refusal is true and says why. 13/13 mutations red. Needs a 5th V4. | — | V4 |
 | TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F, unblocked. Needs your V5 — the one acceptance another program's user has to give. Scope: one call answers both questions in DESIGN-004 §1.3. | — | V5 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 | TASK-037 | perry-goals writer | Coding Agent | not_started | extraction landed (viewer/tables.py) and the byte-identity gate passes over 5 real OKR.md files incl. gimegime-pmo and aimark. Next: the OKR.md write path, starting with § Commitments (TASK-042). | — |  |
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |
-| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | review | rubric written: evidence/2026-08/TASK-040-spec.md. Its one open question is whether four columns is the right set. V4 review launched. | — |  |
+| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | review | B-1 and B-2 fixed — the writer uses the reader's own predicate, and conversion moved to a risk-migrate subcommand that only runs when asked (ADR-004). Board wins once migrated. 12/12 mutations red. Needs a 5th V4. | — |  |
 | TASK-042 | OKR.md § Commitments — the half TASK-021 did not do | Coding Agent | not_started | blocked on TASK-037's extraction. Acceptance is goals/reference/phases.md § commit <promise> — the procedure shipped 2026-08-17 states the rules the tool must implement; this row closes when commit stops being prose. | — |  |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | Blocked: nothing may be removed before the marker exists and the migration can produce it (ADR-004). | — |  |
 
