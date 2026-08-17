@@ -819,12 +819,22 @@ class TestEveryModeColumnHasAWriter(unittest.TestCase):
 
     def test_the_work_lane_no_longer_writes_decisions(self):
         """The signed hand-off contract moved DECISIONS.md to `decide`. The
-        procedure file is where a violation would actually live."""
-        self.assertNotRegex(
-            self.proc, r"^### `decide <topic>` /", 
+        procedure file is where a violation would actually live.
+
+        The check was `assertNotRegex(self.proc, r"^### \\`decide <topic>\\`")`
+        **without `re.M`**, so `^` anchored at byte 0 of a 350-line file and
+        matched nothing anywhere. A round-4 reviewer proved it by pasting the
+        whole ADR procedure back into the middle of the file: the test stayed
+        green. A guard anchored to the wrong line is the second of the two
+        defect shapes this project keeps finding.
+        """
+        self.assertNotIn(
+            "### `decide <topic>`", self.proc,
             "the ADR procedure is still in the work lane, contradicting the "
-            "signed contract",
-        )
+            "signed contract")
+        self.assertNotIn(
+            "`decisions/ADR-NNN-<slug>.md`", self.proc.split("no longer writes")[0],
+            "the work lane's procedures still name the ADR file as one they write")
         self.assertIn("moved to the `decide` lane", self.proc)
 
 

@@ -286,25 +286,103 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         self.assertEqual(set(rows), {"goals", "work", "decide"},
                          "the ownership table no longer has three lane rows")
 
+    # Every lane-owned path in the schema, mapped to the contract cell that
+    # must claim it. Explicit, because the substring heuristic this replaces
+    # silently skipped whatever it failed to match.
+    SCHEMA_PATH_TO_CONTRACT = {
+        "BOARD.md": "BOARD.md",
+        "journal/<YYYY-MM>/<YYYY-MM-DD>.md": "journal/",
+        "PROJECT_STATE.md": "PROJECT_STATE.md",
+        "evidence/<YYYY-MM>/<TASK-ID>-*.md": "evidence/",
+        "weekly/<YYYY-WW>.md": "weekly/",
+        "handoff/<YYYY-MM-DD>.md": "handoff/",
+        "OKR.md": "OKR.md",
+        "phase/[0-9][0-9][0-9]-*.md": "phase/<NNN>-<slug>.md",
+        "phase/[0-9][0-9][0-9]-linkage.md": "phase/<NNN>-<slug>.md",
+        "design/*.md": "design/<DESIGN-ID>-<slug>.md",
+        "DECISIONS.md": "DECISIONS.md",
+        "decisions/ADR-NNN-<slug>.md": "decisions/",
+    }
+
+    # Schema-declared, lane-owned, and NOT named in the signed contract table.
+    # Found the moment the check above stopped skipping what it could not
+    # match. Left as a recorded gap rather than fixed here: the table carries a
+    # V5 signature, and `SKILL.md § The hand-off contract` says an edit that
+    # changes an ownership row needs a fresh one. Adding these silently would
+    # be forging it.
+    NOT_IN_THE_SIGNED_CONTRACT = {
+        "runbook/*.md": "schema owner `work`; the table names no runbook cell",
+        "knowledge/*/*.md": "schema owner `work`; the table names no knowledge cell",
+    }
+
+    def test_the_gap_between_schema_and_contract_does_not_grow(self):
+        """Two lane-owned paths are in the schema and not in the signed table.
+
+        This asserts the list is exactly those two. A third would mean a new
+        file was given an owner in the schema without the contract being
+        updated — which is how the first two got there.
+        """
+        rows = self.contract_rows()
+        actually_absent = set()
+        for f in SCHEMA["files"]:
+            if f["owner"] in ("perry", "user"):
+                continue
+            cell = self.SCHEMA_PATH_TO_CONTRACT.get(f["path"])
+            if cell and any(cell in owned for owned in rows.values()):
+                continue
+            actually_absent.add(f["path"])
+        self.assertEqual(
+            actually_absent, set(self.NOT_IN_THE_SIGNED_CONTRACT),
+            "the set of schema-owned files missing from the signed contract "
+            "changed. If a file was added, the contract needs a fresh V5 "
+            "signature — not a quiet entry in this test.")
+
     def test_every_schema_file_owner_matches_the_contract(self):
         """The specific failure this catches: schema says one lane, the signed
-        contract says another, and nothing notices."""
+        contract says another, and nothing notices.
+
+        It did not catch it. `if not claimed_by: continue` silently skipped
+        every schema path whose glob failed to substring-match a contract cell
+        — measured coverage was **4 of 9** lane-owned files, and the five it
+        skipped included `design/*.md`, the decide lane's core file. A round-4
+        reviewer reassigned four of them in the schema and all 24 tests in this
+        module stayed green. That `DECISIONS.md` had a hardcoded backstop
+        immediately below is the pattern exactly: the case a review named got
+        patched, the general check stayed one round behind.
+
+        The map above is now explicit, and an unmapped path **fails** rather
+        than passing quietly.
+        """
         rows = self.contract_rows()
+        checked = 0
         for f in SCHEMA["files"]:
             owner = f["owner"]
             if owner in ("perry", "user"):
                 continue
             path = f["path"]
-            claimed_by = {lane for lane, owned in rows.items()
-                          if any(path.startswith(o.rstrip("*/")) or o.rstrip("*/") in path
-                                 for o in owned)}
-            if not claimed_by:
-                continue  # not named in the contract table; other tests cover it
+            if path in self.NOT_IN_THE_SIGNED_CONTRACT:
+                continue
+            cell = self.SCHEMA_PATH_TO_CONTRACT.get(path)
+            self.assertIsNotNone(
+                cell,
+                f"schema declares `{path}` owned by `{owner}` and this test "
+                f"has no mapping for it — add one, or add it to "
+                f"NOT_IN_THE_SIGNED_CONTRACT with a reason. Skipping it "
+                f"silently is how five files went unchecked.")
+            claimed_by = {lane for lane, owned in rows.items() if cell in owned}
+            self.assertTrue(
+                claimed_by,
+                f"no lane in the signed contract claims `{cell}`")
             self.assertIn(
                 owner, claimed_by,
                 f"schema says `{path}` is owned by `{owner}`, the signed "
                 f"contract assigns it to {claimed_by}",
             )
+            checked += 1
+        self.assertGreaterEqual(
+            checked, 7,
+            f"only {checked} lane-owned files were checked; the schema has "
+            f"more and they must not fall through")
 
     def test_decisions_specifically_is_owned_by_decide_everywhere(self):
         """The file the contract moved, checked in every place it is declared —
