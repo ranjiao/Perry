@@ -198,6 +198,29 @@ class TopRisk:
     threshold: float | None = None
     max1: float | None = None  # boundary into 'amber'
     max2: float | None = None  # boundary into 'rust'
+    # ── the table form (TASK-040) ──────────────────────────────────────────
+    # `source` says how this row was read, because the two forms carry
+    # genuinely different amounts of truth and a consumer is entitled to know
+    # which it got. A `table` row's `id` was minted by `perry-task risk-add`;
+    # a `bullets` row's `id` is the first word of a sentence and means nothing
+    # — reporting them under one key without saying so is how `id: "Perry"`
+    # reached a payload in the first place.
+    source: str = "bullets"     # 'table' | 'bullets'
+    opened: str = ""            # YYYY-MM-DD, stamped by `perry-task risk-add`
+    status: str = ""            # the raw `Status` cell; "" on a bullet
+    cleared_on: str = ""        # YYYY-MM-DD parsed out of a cleared status
+
+    @property
+    def resolved(self) -> bool:
+        """Whether this risk is no longer live.
+
+        One predicate, so every consumer agrees. Before TASK-040 the only test
+        was `severity == "resolved"`, which the bullet parser set from a
+        `~~strikethrough~~` — real, but invisible to anything that had not read
+        that function. A struck-through risk on Perry's own board was counted
+        as live for exactly that reason.
+        """
+        return self.severity == "resolved"
 
 
 @dataclass
@@ -922,6 +945,16 @@ def _parse_user_input(section: str) -> list[UserInput]:
 
 
 def _parse_risks(section: str) -> list[Risk]:
+    """`BoardState.risks` — the raw per-line view of `## Top risks`.
+
+    Reads the table too. This field has no consumer in this repo today, which
+    is exactly why it needed saying: migrating Perry's board to the table form
+    would have left it silently returning [] forever, and the first consumer to
+    arrive would have found an empty list and no reason for it.
+    """
+    tabular = _parse_risk_table(section)
+    if tabular is not None:
+        return [Risk(text=r.title, resolved=r.resolved) for r in tabular]
     risks: list[Risk] = []
     for line in section.split("\n"):
         if not line.startswith("- "):
@@ -1308,6 +1341,110 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
 _RE_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 
+# A `Status` cell that means "this risk is no longer live". Matched as a
+# PREFIX on the cleaned cell and never as an enum: `perry-task risk-clear`
+# writes `cleared <date> — <reason>`, but the column is free text on any board
+# a human has touched, and `## Top risks` is a section three real projects
+# write by hand today. Imposing an enum on a prose column is the mistake this
+# repo made once already and reverted.
+_RE_CLEARED = re.compile(
+    r"^(?:cleared|resolved|closed|retired|mitigated|已解除|已关闭|已缓解)\b", re.I)
+_RE_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _risk_severity(body: str, resolved: bool) -> str:
+    """The severity heuristic, shared by both forms.
+
+    Deliberately reads the PROSE rather than a `Severity` column. Both real
+    projects checked while writing TASK-040 state severity inside the
+    sentence — `H · Apple developer agreement expired` on one, a `🔴` on the
+    other — so a stored enum column would have been a column nothing on a real
+    board fills, and reading it would have made those two projects look
+    severity-less.
+    """
+    if resolved:
+        return "resolved"
+    if "TOP RISK" in body.upper() or "(NEW top risk" in body:
+        return "top"
+    if "APPROVE" in body or "豁免" in body or "接受" in body:
+        return "accept"
+    return "watch"
+
+
+def _has_risk_header(section: str) -> bool:
+    """Whether any table in `section` declares a risk-statement column.
+
+    Resolved by NAME through the schema glossary, so `| 编号 | 风险 | … |`
+    counts (`schema/README.md § Columns resolve by name`).
+    """
+    wanted = set(_column_keys("Risk"))
+    lines = section.split("\n")
+    for i, line in enumerate(lines):
+        if not re.match(r"^\|\s*:?-{2,}", line.strip()) or i == 0:
+            continue
+        prev = lines[i - 1].strip()
+        if not prev.startswith("|"):
+            continue
+        header = [c.strip().lower() for c in prev.strip("|").split("|")]
+        if wanted & set(header):
+            return True
+    return False
+
+
+def _parse_risk_table(section: str) -> list[TopRisk] | None:
+    """The `## Top risks` table form, or None when the section has no table.
+
+    Returning None rather than [] is the whole contract: an EMPTY table means
+    "this project migrated and currently has no risks", while no table at all
+    means "this project still writes bullets" — and the caller must fall back
+    only in the second case. Collapsing them would make a migrated project with
+    zero risks silently re-parse its own prose preamble as risk bullets.
+
+    Columns resolve by NAME through the schema glossary (`schema/README.md
+    § Columns resolve by name`), never by position.
+    """
+    # Detected from the HEADER, not from the rows: a migrated project that
+    # currently has no risks has a header and zero rows, and asking the rows
+    # whether a table exists would answer "no" and send it back to the bullet
+    # path — where it would re-read its own prose preamble as risks.
+    #
+    # `Risk` is the column that identifies the migrated shape. A table under
+    # this heading with no risk-statement column is something else — a legend,
+    # a severity key — and is left to the bullet path rather than read as rows,
+    # because guessing which cell holds the sentence is exactly the invention
+    # this task exists to remove.
+    if not _has_risk_header(section):
+        return None
+
+    out: list[TopRisk] = []
+    for row in _table_rows(section):
+        statement = _col(row, "Risk")
+        if not statement:
+            continue
+        rid = _col(row, "ID").replace("~", "").replace("*", "").replace("`", "").strip()
+        status = _col(row, "Status")
+        clean_status = status.replace("*", "").replace("~", "").replace("`", "").strip()
+        resolved = bool(_RE_CLEARED.match(clean_status)) or \
+            bool(re.search(r"\*\*RESOLVED", statement)) or statement.strip().startswith("~~")
+        cleared_on = ""
+        if resolved:
+            d = _RE_ISO_DATE.search(clean_status)
+            cleared_on = d.group(0) if d else ""
+        pct = _RE_PCT.search(statement)
+        out.append(TopRisk(
+            id=rid or "?",
+            title=statement,
+            severity=_risk_severity(statement, resolved),
+            meta=statement,
+            value=float(pct.group(1)) if pct else None,
+            source="table",
+            opened=_col(row, "Opened").strip(),
+            status=status,
+            cleared_on=cleared_on,
+        ))
+    return out
+
+
 def parse_top_risks(text: str) -> list[TopRisk]:
     risks: list[TopRisk] = []
     heads = "|".join(re.escape(a) for a in alias("headings", "Top risks"))
@@ -1315,6 +1452,14 @@ def parse_top_risks(text: str) -> list[TopRisk]:
     if not m:
         return risks
     section = m.group(1)
+
+    # Table when present, bullets when not. Projects that have not migrated —
+    # and at the time this shipped that was every project except Perry itself —
+    # must keep parsing exactly as before, so the bullet path below is
+    # untouched rather than reimplemented.
+    tabular = _parse_risk_table(section)
+    if tabular is not None:
+        return tabular
 
     for raw_line in section.split("\n"):
         line = raw_line.strip()
@@ -1368,15 +1513,7 @@ def parse_top_risks(text: str) -> list[TopRisk]:
         pct_match = _RE_PCT.search(body)
         value = float(pct_match.group(1)) if pct_match else None
 
-        # severity heuristic
-        if resolved:
-            sev = "resolved"
-        elif "TOP RISK" in body.upper() or "(NEW top risk" in body:
-            sev = "top"
-        elif "APPROVE" in body or "豁免" in body or "接受" in body:
-            sev = "accept"
-        else:
-            sev = "watch"
+        sev = _risk_severity(body, resolved)
 
         risks.append(
             TopRisk(
@@ -2114,6 +2251,28 @@ class PMOSnapshot:
     linkage: Linkage = field(default_factory=Linkage)
     ops: OpsCounts = field(default_factory=OpsCounts)
     weekly: list[JournalEntry] = field(default_factory=list)
+
+    @property
+    def open_top_risks(self) -> list[TopRisk]:
+        """Risks that are still live.
+
+        `top_risks` deliberately keeps the cleared ones — `viewer/templates/
+        risks.html` shows a resolved list, and dropping them at the snapshot
+        would empty a panel that is doing its job. What was wrong is that every
+        COUNT read the unfiltered list, so a risk struck through on Perry's own
+        board was reported as one of four live risks the day after it was
+        cleared. A count of top risks that includes the cleared ones is not a
+        count of anything.
+        """
+        return [r for r in self.top_risks if not r.resolved]
+
+    @property
+    def risks_source(self) -> str:
+        """'table' | 'bullets' | 'mixed' | 'none' — how the risks were read."""
+        kinds = {r.source for r in self.top_risks}
+        if not kinds:
+            return "none"
+        return kinds.pop() if len(kinds) == 1 else "mixed"
 
 
 def _resolve_project_name(root: Path, board_text: str) -> str:

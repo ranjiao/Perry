@@ -506,7 +506,17 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 f"id {val!r} does not match /{tspec['id_pattern']}/ — "
                                 "attribution resolves on these ids",
                             ))
-        if not found_any and not is_template:
+        # `optional` = this section is allowed to hold something other than a
+        # table. `## Top risks` is the case: it is a bullet list on every
+        # project that has not migrated to the tool-written table, and a bullet
+        # list is a valid `## Top risks` — readers fall back to it. Without
+        # this the table spec added for TASK-040 would have turned every
+        # unmigrated board red for a shape it was never asked to adopt.
+        #
+        # Note this is NOT the same optionality Intake has. Intake is skipped
+        # because `section_body` returns nothing when the SECTION is absent;
+        # here the section is present and merely has no table.
+        if not found_any and not is_template and not tspec.get("optional"):
             findings.append(Finding(
                 "warn", rel, "missing-table",
                 f"no table found under /{tspec['under']}/",

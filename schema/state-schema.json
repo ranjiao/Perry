@@ -681,6 +681,21 @@
         "zh": [
           "显示为"
         ]
+      },
+      "Risk": {
+        "zh": [
+          "风险"
+        ]
+      },
+      "Opened": {
+        "zh": [
+          "提出"
+        ]
+      },
+      "Asked": {
+        "zh": [
+          "提问"
+        ]
       }
     }
   },
@@ -911,6 +926,17 @@
             "Last run": "YYYY-MM-DD the ritual last ran. Stamped by `perry-task cadence-done`. This is the INPUT `Next due` is computed from, and it exists so the due date can be CHECKED rather than trusted: without it, a `Next due` cell asserts a schedule with nothing on the board to derive it from, and an edited `Frequency` silently invalidates it with no way to tell. Same discipline as `Stage since`, `Arrived` and `Asked` — store the event's date, compute the derived value at read time. Absent on a row that has never run, which is not the same as a row that ran long ago.",
             "Last evidence": "Path to the artifact of the most recent run. Was REQUIRED until TASK-021, and a live register that keeps its evidence links inline in `Next due` carried a `table-columns` error for the whole time — a project penalized for a column it had a reason not to have, exactly as `Idle` was before TASK-039. `perry-task cadence-done` creates the column when it needs to write one, so requiring it up front bought nothing."
           }
+        },
+        {
+          "under": "^Top risks\\b|^主要风险",
+          "optional": true,
+          "note": "Written by `perry-task risk-add` / `risk-clear` (TASK-040). OPTIONAL IN A SECOND SENSE than Intake: Intake is skipped when the SECTION is absent, and this table is skipped when the section is present but still holds a BULLET LIST. Every Perry project except Perry itself was on bullets the day this landed, and a bullet list is a valid `## Top risks` — readers fall back to it and `perry-lint` must not report a project red for not having migrated. `optional` is what suppresses the `missing-table` warning; without it this one spec would have turned every unmigrated board red. The section replaces a bullet list that had no writer and, for that reason, two defects nothing could fix: a risk struck through with `~~…~~` stayed in every count forever because strikethrough is decoration and not a field, and the reader split the first sentence on whitespace and reported `id: \"Perry\"` / `title: \"is half-adopted: …\"`. `Status` carries the cleared date inline (`cleared YYYY-MM-DD — reason`), exactly as `## User Input Queue`'s `Status` carries the answer and `## Intake`'s `Outcome` carries the outcome. NOT enum-checked: it holds a human's reason, and imposing an enum on a prose column is a mistake this repo made once and reverted. There is deliberately NO `Severity` column — both real projects surveyed write severity inside the sentence (`H · …`, `🔴 …`), so a stored enum would be a column nothing on a real board fills; severity stays derived from the statement.",
+          "columns": [
+            "ID",
+            "Risk",
+            "Opened",
+            "Status"
+          ]
         }
       ],
       "anchor": "state"

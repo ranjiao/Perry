@@ -54,6 +54,8 @@ Usage:
                           [--owner O] [--on YYYY-MM-DD]
   perry-task cadence-done <CAD-ID> --evidence <path> [--on YYYY-MM-DD]
                           [--frequency F]
+  perry-task risk-add   --title "…" [--opened YYYY-MM-DD]
+  perry-task risk-clear <RX-ID> --reason "…"
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
@@ -112,7 +114,9 @@ class Refused(Exception):
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
 LIST_CONTRACT = "perry-task/list/1.3"
 
-
+# Which events describe a TASK. `## Intake`, `## User Input Queue` and
+# `## Top risks` rows go through the same three-way commit and land in the same
+# event log, but they are not tasks and must never appear in `list`'s `tasks[]`.
 # ── schema ────────────────────────────────────────────────────────────────
 
 
@@ -450,6 +454,26 @@ class Board:
         block = [f"## {shown}", "", render_row(columns),
                  "|" + "|".join(["---"] * len(columns)) + "|", ""]
         self.lines[anchor:anchor] = block
+
+    def named_section(self, heading: str) -> tuple[int, int]:
+        """(heading line index, end index) for a named `## ` section.
+
+        The span, not the table — `section_table` answers "where are this
+        section's columns" and raises when there are none, which is the right
+        answer for a reader and useless to the one caller that has to look at a
+        section precisely BECAUSE it is not a table yet.
+        """
+        rx = heading_re(heading)
+        start = next((i for i, l in enumerate(self.lines) if rx.match(l)), None)
+        if start is None:
+            raise Refused(f"BOARD.md has no `## {heading}` section")
+        end = next((i for i in range(start + 1, len(self.lines))
+                    if self.lines[i].startswith("## ")), len(self.lines))
+        return start, end
+
+    def has_section(self, heading: str) -> bool:
+        rx = heading_re(heading)
+        return any(rx.match(l) for l in self.lines)
 
     def section_table(self, heading: str) -> tuple[int, list[str]]:
         """(separator index, header cells) for a named non-priority section."""
@@ -1479,6 +1503,217 @@ def cmd_cadence_done(args, ctx) -> dict:
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": cid, "last_run": f"{ran:%Y-%m-%d}", "next_due": due, **plan}
+RISK_ID_RE = re.compile(r"\bRX-(\d+)\b")
+
+# The tool owns the row and every computed cell; the agent owns the prose cell.
+# `ID` and `Opened` are stamped, `Status` is a state machine with two moves, and
+# `Risk` is the human's sentence and is never parsed, never enum-checked and
+# never rewritten.
+RISK_COLUMNS = ["ID", "Risk", "Opened", "Status"]
+
+# A bullet that is a placeholder rather than a risk. `BOARD_TEMPLATE.md` ships
+# `- (no active risks)` and several fixtures carry `- none`; migrating those
+# would mint an id for a risk named "none".
+_RISK_PLACEHOLDER = re.compile(
+    r"^\(?\s*(?:no active risks?|none|n/a|na|tbd|—|-|–|无|暂无)\s*\)?[.。]?$", re.I)
+
+_RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
+
+
+def mint_risk_id(board: Board, events: list[dict], state_root: Path) -> str:
+    """Next `RX-NNN` from max(board ∪ journal ∪ events), like `mint_id`.
+
+    Same three sources for the same reason: a cleared risk still owns its
+    number. `## Top risks` holds cleared rows rather than deleting them, so the
+    board alone would nearly always be enough — but "nearly always" is how an id
+    gets reissued the first time somebody prunes the section, and every journal
+    line naming the old risk would then silently re-point.
+    """
+    seen = {int(m) for m in RISK_ID_RE.findall(board.text())}
+    seen |= {int(m) for e in events for m in RISK_ID_RE.findall(e.get("id", ""))}
+    for p in sorted((state_root / "journal").rglob("*.md")):
+        try:
+            seen |= {int(m) for m in RISK_ID_RE.findall(p.read_text(errors="replace"))}
+        except OSError:
+            continue
+    return f"RX-{max(seen, default=0) + 1:03d}"
+
+
+def risk_bullets(board: Board) -> list[tuple[int, str]]:
+    """(line index, bullet text) for every risk bullet, placeholders excluded."""
+    start, end = board.named_section("Top risks")
+    out = []
+    for i in range(start + 1, end):
+        m = _RISK_BULLET.match(board.lines[i].strip())
+        if not m:
+            continue
+        text = m.group(1).strip()
+        if not text or _RISK_PLACEHOLDER.match(text):
+            continue
+        out.append((i, text))
+    return out
+
+
+def ensure_risk_table(board: Board, events: list[dict],
+                      state_root: Path) -> list[dict]:
+    """Put `## Top risks` into its table form, carrying any bullets across.
+
+    Three states, three answers:
+
+    - **no section** — create it, with the table. Same as `ensure_section`
+      does for `## Intake`.
+    - **a table already** — add any column it lacks, and touch nothing else.
+    - **a bullet list** — convert it, in this same write.
+
+    The third is the one with a real choice in it, and the two alternatives are
+    both worse. *Refusing* would make `risk-add` unusable on every project that
+    exists — on the day this shipped that was every project except Perry — for
+    the crime of not having migrated yet. *Appending a table above the bullets*
+    would leave the board holding both, and since the reader prefers the table,
+    every existing risk would vanish from every count while still sitting in the
+    file. Silent loss is the worse failure of the two by a distance.
+
+    **What the conversion may and may not invent.** The bullet's text is copied
+    into `Risk` byte-for-byte — it is the human's sentence and this function has
+    no opinion about it. `Opened` is left **EMPTY**, because the date a
+    pre-existing risk was raised is genuinely not recorded anywhere and stamping
+    today would assert that a nine-month-old risk is new. An empty `Opened`
+    reads back as `age_days: null`, which is already the honest answer for a
+    bullet and stays honest here.
+
+    `Status` is the one derived cell, and it is derived from the reader's OWN
+    two markers and nothing else: a bullet is migrated as `cleared` exactly when
+    `~~strikethrough~~` or `**RESOLVED` made the old parser call it resolved.
+    So the conversion is verdict-preserving — the set of (statement, resolved)
+    pairs is identical either side of it — which is a property a test can check
+    rather than a claim a reviewer has to believe. Any date the human wrote into
+    a cleared bullet is carried onto the cell; when they wrote none, the cell
+    says `cleared` with no date rather than today's, for the same reason
+    `Opened` stays blank.
+    """
+    if not board.has_section("Top risks"):
+        board.ensure_section("Top risks", RISK_COLUMNS, before_p0=False)
+        return []
+    try:
+        board.section_table("Top risks")
+    except Refused:
+        pass
+    else:
+        board.ensure_section_columns("Top risks", RISK_COLUMNS)
+        return []
+
+    bullets = risk_bullets(board)
+    start, end = board.named_section("Top risks")
+    try:
+        lang = header_language(board.table("P0")[2])
+    except Refused:
+        lang = "en"
+    header = [display_name(c, lang) for c in RISK_COLUMNS]
+
+    base = int(mint_risk_id(board, events, state_root).split("-")[1])
+    migrated, rows = [], []
+    for n, (_, text) in enumerate(bullets):
+        rid = f"RX-{base + n:03d}"
+        resolved = text.startswith("~~") or bool(re.search(r"\*\*RESOLVED", text))
+        status = "open"
+        if resolved:
+            d = re.search(r"\d{4}-\d{2}-\d{2}", text)
+            status = f"cleared {d.group(0)}" if d else "cleared"
+        rows.append(render_row([rid, text, "", status]))
+        migrated.append({"id": rid, "risk": text, "status": status})
+
+    block = [render_row(header),
+             "|" + "|".join(["---"] * len(header)) + "|"] + rows
+    # Replace the whole body of the section, preserving the heading line and
+    # any prose the project keeps under it. Only the bullet lines go.
+    keep = [l for i, l in enumerate(board.lines[start + 1:end], start + 1)
+            if not _RISK_BULLET.match(l.strip())]
+    while keep and not keep[0].strip():
+        keep.pop(0)
+    while keep and not keep[-1].strip():
+        keep.pop()
+    body = ([""] + keep if keep else []) + [""] + block + [""]
+    board.lines[start + 1:end] = body
+    return migrated
+
+
+def cmd_risk_add(args, ctx) -> dict:
+    """Raise a risk: the tool mints the id and stamps the date.
+
+    `## Top risks` was a bullet list with no writer, and it carried the two
+    defects that shape always carries. **A cleared risk stayed live forever**:
+    the only way to retire one was `~~strikethrough~~`, which is decoration, so
+    a risk cleared on Perry's own board the day before was still one of the four
+    that `perry-state` reported. And **the reader invented ids out of prose** —
+    with no id column it split the first sentence on whitespace and published
+    `id: "Perry"`, `title: "is half-adopted: …"`, a handle that names nothing
+    and cannot be passed back to anything.
+
+    Neither is fixable by writing the bullets more carefully. An id has to be
+    minted against the ones already issued, and a status has to be a cell
+    something can read — both are properties of a writer, not of a convention.
+    """
+    if not args.title:
+        raise Refused(
+            "--title is required: it is the risk statement, in your words. A "
+            "risk row with no sentence in it is an id and a date")
+    sr = ctx["state_root"]
+    migrated = ensure_risk_table(ctx["board"], ctx["events"], sr)
+    rid = mint_risk_id(ctx["board"], ctx["events"], sr)
+    opened = args.opened or f"{date.today():%Y-%m-%d}"
+    line = ctx["board"].append_section_row("Top risks", {
+        "id": rid, "risk": args.title, "opened": opened, "status": "open"})
+    tail = (f" · migrated {len(migrated)} bullet(s) into the table"
+            if migrated else "")
+    jline = f"- [{rid}] — → open · {args.title}{tail}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "risk-add", "id": rid, "title": args.title,
+             "opened": opened, "actor": args.actor,
+             "from": None, "to": "open",
+             "migrated": [m["id"] for m in migrated]}
+    plan = commit(ctx["project_root"], sr, ctx["board"], jline, event, args.dry_run)
+    return {"id": rid, "opened": opened, "row": line,
+            "migrated": migrated, **plan}
+
+
+def cmd_risk_clear(args, ctx) -> dict:
+    """Retire a risk, with the reason and the date it stopped being one.
+
+    The cleared row STAYS on the board. A risk that was real and is now over is
+    the most useful thing in this section — it is the record that the mitigation
+    worked — and deleting it would leave the same hole the strikethrough was
+    trying to fill. It simply stops counting.
+    """
+    if not args.reason:
+        raise Refused(
+            f"{args.id}: --reason is required. A risk that leaves the live set "
+            f"without one is indistinguishable from a risk everyone got tired of")
+    try:
+        idx, header, cells = ctx["board"].find_section_row("Top risks", args.id)
+    except Refused as exc:
+        if "has no table" in str(exc):
+            raise Refused(
+                "`## Top risks` is still a bullet list, so nothing in it has an "
+                "id to clear. `perry-task risk-add` migrates the section (it "
+                "carries every bullet across verbatim), after which the rows "
+                "have ids") from None
+        raise
+    keys = [norm(h) for h in header]
+    values = dict(zip(keys, cells))
+    prev = (values.get("status", "") or "").strip()
+    if re.match(r"^(?:cleared|resolved|closed)\b", prev.strip("*~` "), re.I):
+        raise Refused(f"{args.id} is already cleared: {prev[:60]}")
+    today = f"{date.today():%Y-%m-%d}"
+    values["status"] = f"cleared {today} — {args.reason}"
+    ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
+    jline = f"- [{args.id}] open → cleared · {args.reason}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "risk-clear", "id": args.id,
+             "title": values.get("risk", ""), "reason": args.reason,
+             "actor": args.actor, "from": "open", "to": "cleared"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": args.id, "cleared": today, **plan}
 
 
 def cmd_route(args, ctx) -> dict:
@@ -1655,16 +1890,24 @@ def cmd_list(args, ctx) -> dict:
     for e in ctx["events"]:
         tid = e.get("id", "")
         if not tid or e.get("event") not in TASK_EVENTS:
-            # `## User Input Queue` and `## Cadence` rows are not tasks and
-            # `schema/task-list-contract.md § What this contract does not
-            # cover` says so in as many words. This loop folded EVERY event
-            # carrying an id, so a `USER-015` arrived here as a task with
-            # `status: "pending"` and `open: false` — a row in the closed count
-            # that was never work, on a payload whose whole purpose is that a
-            # front-end can trust it without a second parser. `cadence-add`
-            # would have put `CAD-001 · status: "registered"` in the same
-            # place. The board half of this was always right: `_task_sections`
-            # skips both headings. Only the event fold was not.
+            # The log is one stream for the whole project, and not everything
+            # in it is a task. `## User Input Queue`, `## Cadence`, `## Intake`
+            # and `## Top risks` are not tasks, and
+            # `schema/task-list-contract.md § What this contract does not cover`
+            # says so — but this loop folded EVERY event carrying an id. `ask`
+            # writes a `USER-` id and `risk-add` writes an `RX-` one; absorbed
+            # here they became rows in `tasks[]` with no title, no priority and
+            # `open: false`, counted as closed work. Measured on a board with
+            # one `ask` and nothing else: `list --all` returned exactly one
+            # "task", the question.
+            #
+            # The board half was always right — `_task_sections` skips those
+            # headings. Only the event fold was not. **The id shape cannot be
+            # the filter, because project ids are project-defined; the event
+            # name can, because this file mints it.**
+            #
+            # Found independently by two agents working in separate worktrees,
+            # neither aware of the other. That is corroboration, not noise.
             continue
         t = tasks.setdefault(tid, blank(tid))
         # A row that has left the board is closed; one still on it stays open,
@@ -1767,6 +2010,7 @@ def parse(argv: list[str]) -> Args:
     a.arrived = a.reason = a.outcome = a.status = None
     a.needed = a.blocks = a.answer = None
     a.frequency = a.on = None
+    a.needed = a.blocks = a.answer = a.opened = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -1777,7 +2021,8 @@ def parse(argv: list[str]) -> Args:
              "--outcome": "outcome", "--status": "status",
              "--actor": "actor", "--needed": "needed",
              "--blocks": "blocks", "--answer": "answer",
-             "--frequency": "frequency", "--on": "on"}
+             "--frequency": "frequency", "--on": "on",
+             "--opened": "opened"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):
@@ -1818,11 +2063,13 @@ def parse(argv: list[str]) -> Args:
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "ask", "answer",
-                            "cadence-add", "cadence-done"})
+                            "cadence-add", "cadence-done",
+                            "risk-add", "risk-clear"})
 
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "ask": cmd_ask, "answer": cmd_answer,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
+            "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "status": cmd_status, "list": cmd_list}

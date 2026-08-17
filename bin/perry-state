@@ -543,6 +543,20 @@ def encode(obj):
     return obj
 
 
+def encode_risk(r):
+    """One risk, with its age computed rather than stored.
+
+    Same rule as `Asked`/`Idle` on the User Input Queue: the board stores
+    `Opened`, a date, and the number of days is derived at read time — a stored
+    age is stale the morning after it is written. `age_days` is `null` on a
+    bullet, which has no date at all, and that is the honest answer rather than
+    a zero a reader would take for "raised today".
+    """
+    out = encode(r)
+    out["age_days"] = days_since(getattr(r, "opened", "") or "")
+    return out
+
+
 # ── payload ───────────────────────────────────────────────────────────────
 
 
@@ -738,6 +752,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         m = re.search(r"(\d+)", u.idle or "")
         return int(m.group(1)) if m else -1
     oldest_uiq = max(uiq, key=idle_days) if uiq else None
+    open_risks = snap.open_top_risks
 
     cadence = cadence_report(board)
 
@@ -866,9 +881,22 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "items": [encode(u) for u in uiq],
         },
         "cadence": cadence,
+        # OPEN risks only. `count` used to be `len(snap.top_risks)`, which
+        # counted the cleared ones: a risk struck through on Perry's own board
+        # the day before was still one of the four this number reported, and
+        # `top` could have been it. A risk that is over is not a top risk.
+        #
+        # `source` says whether these came from the `## Top risks` table or from
+        # the bullet list that predates it, because the two carry different
+        # amounts of truth — a bullet has no id and no `Opened`, so `id` and
+        # `age_days` are absent-or-invented there and real in a table. A reader
+        # that cannot tell which it got will trust both equally.
         "risks": {
-            "top": None if not snap.top_risks else encode(snap.top_risks[0]),
-            "count": len(snap.top_risks),
+            "top": None if not open_risks else encode_risk(open_risks[0]),
+            "count": len(open_risks),
+            "cleared": len(snap.top_risks) - len(open_risks),
+            "source": snap.risks_source,
+            "items": [encode_risk(r) for r in open_risks],
         },
         "decisions": {
             "count": len(snap.adrs),

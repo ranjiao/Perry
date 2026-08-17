@@ -353,6 +353,69 @@ user chooses Roles first. Task IDs minted at handoff.
 Phase F is the pass condition in DESIGN-003's sense: the abstraction survives
 contact with a real non-software role, or the extraction report says why not.
 
+### 6.1 · Handoff payload (for PMO `add-task`)
+
+Written into the doc rather than printed to chat because the PMO session
+consuming it is not this one. Each block is in `add-task` schema; PMO mints the
+`TASK-` ids at write time and hands the `kr:` edges to `goals` for linkage.
+Evidence files must back-reference `DESIGN-006` in their first lines.
+
+**A — Knowledge card schema + `perry-lint --knowledge`** · `kr:KR-O5.1` · P0 · Coding Agent
+- Deliverable: knowledge-card fields in `schema/state-schema.json` (`Kind`,
+  `Owner role`, `Source`, `Last verified`, `Invalidated by`) + staleness
+  threshold; `## Cards by topic` section in
+  `work/state/knowledge_INDEX_TEMPLATE.md`; `perry-lint --knowledge` validating
+  the four mandatory provenance fields, dangling `Source:`, and staleness.
+- Verification: V3 — tests: a card missing any provenance field fails lint; a
+  `Source:` resolving to nothing fails; reverting the fix must break the test.
+- Dependencies: — · Out of scope: capture points, role cards.
+
+**B — Promotion at the three capture points** · `kr:KR-O5.2` · P1 · Coding Agent
+- Deliverable: one promotion question added to `close-task`,
+  `end-phase-retro`, and incident close (`Source:` pre-filled from the evidence
+  just written; user confirms; `work` lane writes the card).
+- Verification: V3 — a real `close-task` run produces a card; a sourceless
+  write is refused.
+- Dependencies: A · Out of scope: bulk import; a standalone add-knowledge
+  ritual (Non-Goal).
+
+**C — Role card schema + `.perry/roles/` + shipped defaults** · `kr:KR-O5.3` · P1 · Coding Agent
+- Deliverable: role-card schema (`Context` / `Loads` / `May touch` /
+  `Must escalate` + `Accepted by`, `Default rung`, `Executors`);
+  `packs/software-ops/` ships `coding` / `research` / `review` template cards;
+  lint rejects a `## Workflow` heading in a role card.
+- Verification: V3 — schema tests + the workflow-heading rejection case.
+- Dependencies: — (parallel with B) · Out of scope: delegate/dispatch wiring.
+
+**D — `delegate`/`dispatch` role integration** · `kr:KR-O5.3` · P1 · Coding Agent
+- Deliverable: `delegate <task-id> <role>` renders from the card; subscribed
+  topics injected with stale flags; `Must escalate` backtick extraction
+  **unioned** with `.perry/hook.md`'s high-stakes list in the dispatch
+  pre-flight; the hardcoded three agent types in `work/reference/delegate.md`
+  removed.
+- Verification: V3 — union test (a role-added escalation term must trip the
+  pre-flight scan); an escalation line with zero backticks raises a lint
+  warning.
+- Dependencies: A, C · Out of scope: `bin/perry-dispatch-limit` (executor
+  axis, untouched).
+
+**E — Task contract `role` field + triage staleness line** · `kr:KR-O5.3` · P2 · Coding Agent
+- Deliverable: `schema/task-list-contract.md` minor bump — `role` required
+  when roles declared, absent otherwise; `perry-task add` refuses a roleless
+  row in a role-declaring project; triage gains the stale-knowledge line.
+- Verification: V3 — the refusal case + the byte-identical case for a project
+  with no roles declared (Goal 7).
+- Dependencies: C · Out of scope: viewer / aiMark rendering (downstream).
+
+**F — Finance-shaped role end to end (pass condition)** · `kr:KR-O5.4` · P1 · Coding Agent + User
+- Deliverable: `Kind: source-of-truth` card type, plus a finance role on one
+  real project (candidate: `~/proj/gimegime-pmo`) running one real task from
+  delegation to acceptance; extraction report written to evidence.
+- Verification: **V5** — user signs: knowledge was injected, the escalation
+  union blocked what it should, output accepted by the card's `Accepted by`.
+- Dependencies: B, D, E · Out of scope: cross-project role sharing (§ 8,
+  deferred).
+
 ## 7. Risks & mitigations
 
 | Risk | Detection | Mitigation |
@@ -381,7 +444,9 @@ contact with a real non-software role, or the extraction report says why not.
 
 ## 9. Changes (append-only after lock)
 
-—
+- 2026-08-17 — § 6.1 handoff payload written into the doc — the PMO session
+  consuming it is a different session; chat output would be invisible to it.
+  Content is the lock-time `add-task` rendering, not new scope.
 
 ## 10. References
 
