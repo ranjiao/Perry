@@ -429,6 +429,45 @@ If Perry state already exists (a partially adopted project, or one adopted at
   the worse direction: silently dropping real work.
 - Existing state is never overwritten. Adoption only adds.
 
+## Migration — the project that already has state
+
+Adoption converts a project that has *no* Perry state. A different case turns up
+just as often: a project whose `BOARD.md`, `OKR.md` and `design/` already exist,
+written by hand or by an older Perry, in a shape today's readers cannot parse.
+ADR-004 says those files are **read-only until they migrate**, and this is where
+that happens.
+
+**Do not do it by hand, and do not describe it here.** Run it:
+
+```
+python3 "$PERRY_HOME/bin/perry-migrate" --root .          # the complete diff, writes nothing
+python3 "$PERRY_HOME/bin/perry-migrate" apply --root .    # writes, declares, names a restore point
+```
+
+Prose cannot assert that the id set before equals the id set after. The tool
+does — for every file, before it writes it — and refuses the file if it cannot.
+It also holds the rule this file's § "The one rule" states, in the one place it
+is hardest to hold: **the sections it creates are empty**. A project that files
+work under `## Open — 工程线` keeps that heading and every row under it; nothing
+is moved into `## P0`, because nothing in the file says which work is P0 and
+inferring it is exactly what this pipeline forbids.
+
+What the agent does around it:
+
+1. **Show the dry run.** All of it. It is the artifact the user is agreeing to.
+2. **Read back the files it will not touch**, and why. A file it refuses is
+   left byte-identical — an unresolvable status word, a table Perry does not
+   recognise, a file over its size cap. Each is one hand edit, and after it
+   `perry-migrate apply` finishes the job.
+3. **Never run `apply` without being asked.** ADR-004 § 4: mandatory migration
+   means the tool may refuse without it; it never means the tool may perform it
+   unasked.
+4. **Hand the restore point to the user by name.** `perry-migrate restore
+   <run-id>` puts every byte back, including the declarations the run made.
+
+`perry-migrate` refuses outright on a project with no Perry state — that project
+wants `/perry adopt`, above, which writes Perry's shape in the first place.
+
 ## Post-adoption report
 
 The first standup after adoption is a special case — the user needs to see what
@@ -461,6 +500,9 @@ Then hand off to the normal standup.
   `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Two sources of truth means a board that
   rots within a month.
 - **Never fuzzy-matches** — not for attribution, not for dedupe.
+- **Never migrates existing state as a side effect.** A project whose files
+  predate Perry's shape is converted by `bin/perry-migrate`, on the user's
+  explicit instruction, after they have read the diff — see § Migration.
 - **Never re-asks a question the user already answered.** A banked declaration is
   re-rendered for confirmation, never discarded and re-put.
 - **Never resumes without being asked to.** Detection is automatic; continuation
@@ -469,6 +511,8 @@ Then hand off to the normal standup.
 
 ## See also
 
+- [../bin/perry-migrate](../bin/perry-migrate) — the migration itself, and the
+  five guarantees it holds. § Migration above calls it; it does not restate it.
 - [adoption-sources.md](adoption-sources.md) — the source catalog: detectors, trust
   tiers, what each source may emit, and the depth matrix. Non-code projects are
   handled here, not in this file.

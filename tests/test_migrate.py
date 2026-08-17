@@ -1,0 +1,830 @@
+"""TASK-044: migration is dry-runnable, lossless, recoverable, and declared.
+
+The claim under test: **a project can be brought to Perry's shape by a program
+whose preview cannot diverge from what it does, which refuses rather than lose
+a character of somebody's writing, which can be undone, and which never runs
+unasked.**
+
+Three of ADR-004's five guarantees are assertions, and an assertion an agent
+performs by reading is not one. So the shape of this suite is deliberate:
+
+- the losslessness tests run against a board that Perry did NOT write. A board
+  Perry generated is already Perry-shaped and proves nothing; `LEGACY_BOARD`
+  below is modelled on `~/proj/gimegime-pmo` — work filed under headings its
+  author chose, a four-column priority table, a status word Perry has no value
+  for, and prose in a cell the schema has nowhere to put.
+- `TestDryRunIsTheRealRun` compares bytes, not intentions.
+- `TestRecoverable` exercises the recovery path rather than describing it.
+
+Run: python3 -m unittest discover -s tests   (or ./tests/run)
+"""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+PERRY_HOME = Path(__file__).resolve().parent.parent
+MIGRATE = PERRY_HOME / "bin" / "perry-migrate"
+CONFORM = PERRY_HOME / "bin" / "perry-conform"
+LINT = PERRY_HOME / "bin" / "perry-lint"
+TASK = PERRY_HOME / "bin" / "perry-task"
+
+SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
+
+
+def load(name: str, path: Path):
+    spec = importlib.util.spec_from_loader(
+        name, importlib.machinery.SourceFileLoader(name, str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+M = load("perry_migrate_under_test", MIGRATE)
+
+
+# ── fixtures ──────────────────────────────────────────────────────────────
+
+#: Not a board Perry wrote. Modelled on the year-old real one this task was
+#: built against: 41 tasks under `## Open — <workstream>`, one hand-kept `## P2`
+#: with four columns, a status word its author invented, and free prose in
+#: cells the schema does not model.
+LEGACY_BOARD = """# Board — Legacy
+
+> Last updated: 2026-01-04
+
+## ID prefixes (canonical)
+
+`INV-*` investments · `ENG-*` engineering.
+
+## Open — investment line (policy · allocation)
+
+| ID | Title | Owner | Status | Next action |
+|---|---|---|---|---|
+| INV-DRAFT-1 | policy draft, **blocked on the RM reply** (see `policy/INDEX.md`) | User | not_started | chase the RM |
+| INV-ALLOC-2 | rebalance band ~200bp, defensive not tactical | User | in_progress | wait for Q3 |
+
+## Open — engineering line · phase #004
+
+| ID | Title | Owner | Status | Next action |
+|---|---|---|---|---|
+| ENG-7 | fd leak in the scheduler; 17 jobs re-registered | Coding Agent | done | — |
+
+## P2 (low priority carry)
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |
+
+## Cadence
+
+| ID | Recurring task | Owner | Frequency | Next due |
+|---|---|---|---|---|
+| CAD-1 | weekly reconcile | User | weekly | 2026-01-11 |
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Status |
+|---|---|---|---|
+| USER-3 | pick a broker | INV-DRAFT-1 | open |
+
+## Top risks
+
+- the RM has not replied since November
+"""
+
+#: The same board with a status word Perry has no value for. This is the real
+#: one: `半解` ("half-solved") on gimegime-pmo's `## P2`.
+UNRESOLVABLE_BOARD = LEGACY_BOARD.replace(
+    "| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |",
+    "| ENG-9 | conftest has no DB isolation | Coding Agent | half-done |")
+
+LEGACY_DESIGN = """# DESIGN-001: the thing
+
+> **Status**: v1.1 LOCKED 2026-05-19 PM BJT** (Amendments A+B applied; v1.0 LOCKED 2026-05-18)
+> **Owner**: User
+> **Date**: 2026-05-18
+
+## 1. Problem
+
+It is broken.
+
+## 2. Goals
+
+Fix it.
+
+## 3. Non-Goals
+
+Everything else.
+
+## 4. User Decisions
+
+D-1: go.
+
+## 5. Architecture
+
+A box.
+
+## 6. Implementation plan
+
+Do the thing.
+
+## 7. Risks & mitigations
+
+None.
+"""
+
+CONFIG_EN = ("# Perry configuration\n\n- Document language: English\n"
+             "- Repo layout: single\n- State root: .\n")
+CONFIG_ZH = ("# Perry configuration\n\n- Document language: 中文\n"
+             "- Repo layout: single\n- State root: .\n")
+
+HOOK = "# Hook\n\n## High-stakes operations\n\n- anything that spends money\n"
+
+
+class Project:
+    """A throwaway project holding whatever files a test needs."""
+
+    def __init__(self, files: dict[str, str] | None = None,
+                 config: str = CONFIG_EN):
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name)
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(config)
+        (self.root / ".perry" / "hook.md").write_text(HOOK)
+        for rel, text in (files or {"BOARD.md": LEGACY_BOARD}).items():
+            p = self.root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(text)
+
+    def run(self, *argv, tool: Path = MIGRATE, json_out: bool = True):
+        argv = [*argv, "--root", str(self.root)]
+        if json_out:
+            argv.append("--json")
+        r = subprocess.run(["python3", str(tool), *argv],
+                           capture_output=True, text=True, env=dict(os.environ))
+        try:
+            return r.returncode, json.loads(r.stdout or "{}"), r.stderr
+        except json.JSONDecodeError:
+            return r.returncode, r.stdout, r.stderr
+
+    def text(self, rel: str) -> str:
+        return (self.root / rel).read_text()
+
+    def tree(self) -> dict[str, str]:
+        return {str(f.relative_to(self.root)):
+                hashlib.sha256(f.read_bytes()).hexdigest()
+                for f in sorted(self.root.rglob("*")) if f.is_file()}
+
+    def lint_errors(self) -> int:
+        r = subprocess.run(["python3", str(LINT), "--root", str(self.root),
+                            "--json"], capture_output=True, text=True)
+        return json.loads(r.stdout)["errors"]
+
+    def plan(self):
+        return M.plan_project(self.root, self.root, SCHEMA)
+
+    def __del__(self):
+        self.dir.cleanup()
+
+
+def edit_for(plan, key: str):
+    return next((e for e in plan.edits if e.key == key), None)
+
+
+# ── 1 · dry run first, always ─────────────────────────────────────────────
+
+
+class TestDryRunIsTheRealRun(unittest.TestCase):
+
+    def test_the_default_subcommand_writes_nothing(self):
+        """Asserted on bytes, not by reading the code — every file in the
+        project, hashed before and after."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        before = p.tree()
+        rc, out, _ = p.run()
+        self.assertEqual(p.tree(), before)
+        self.assertEqual(out["mode"], "dry-run")
+
+    def test_the_dry_run_prints_the_complete_diff_not_a_summary(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, out, _ = p.run(json_out=False)
+        self.assertIn("--- a/BOARD.md", out)
+        self.assertIn("+++ b/BOARD.md", out)
+        self.assertIn("## P0", out)
+        self.assertIn("+| ID | Title | Owner | Status | Next action | Evidence |",
+                      out.replace(" ", " "))
+
+    def test_the_bytes_the_dry_run_showed_are_the_bytes_apply_writes(self):
+        """The guarantee: a preview that can diverge is worse than none. It
+        cannot diverge here because the plan carries the post-image and `apply`
+        writes exactly that — this asserts the property, not the mechanism."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        _, dry, _ = p.run()
+        _, real, _ = p.run("apply")
+        for f in dry["files"]:
+            if not f["writable"]:
+                continue
+            on_disk = hashlib.sha256(p.text(f["path"]).encode()).hexdigest()
+            self.assertEqual(f["after_sha256"], on_disk,
+                             f"{f['path']} on disk is not what the dry run showed")
+
+    def test_the_dry_run_and_the_real_run_report_the_same_files_and_changes(self):
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        _, dry, _ = p.run()
+        _, real, _ = p.run("apply")
+        strip = lambda d: [(f["path"], f["before_sha256"], f["after_sha256"],
+                            [c["kind"] for c in f["changes"]]) for f in d["files"]]
+        self.assertEqual(strip(dry), strip(real))
+
+    def test_planning_twice_produces_the_same_plan(self):
+        """A plan that is not a pure function of the project's bytes cannot be
+        previewed. Nothing here may depend on the clock: a dry run read on
+        Monday and applied on Tuesday has to be the same edit."""
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "knowledge/a/note.md": "# note\n\n> Source: a paste\n"})
+        a = [e.after for e in p.plan().edits]
+        b = [e.after for e in p.plan().edits]
+        self.assertEqual(a, b)
+        inserted = "\n".join(l for e in p.plan().edits
+                             for l in e.after.split("\n")
+                             if l not in e.before.split("\n"))
+        self.assertNotRegex(inserted, r"\d{4}-\d{2}-\d{2}",
+                            "migration writes no date: a plan read on Monday "
+                            "and applied on Tuesday must be the same edit")
+
+    def test_the_cross_file_consequence_is_reported_in_the_dry_run_too(self):
+        """Normalizing a design doc's Status makes `locked-design-has-plan`
+        readable for the first time. The dry run says so; a preview that hides
+        a consequence only `apply` would reveal is the divergence § 1 forbids."""
+        doc = LEGACY_DESIGN.replace("## 6. Implementation plan\n\nDo the thing.\n",
+                                    "## 6. Implementation plan\n\n")
+        doc = doc.replace("> **Status**: v1.1 LOCKED 2026-05-19 PM BJT**",
+                          "> **Status**: Design locked（2026-06-03；D1**")
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-002-y.md": doc})
+        _, dry, _ = p.run()
+        rules = [f["rule"] for f in dry["newly_visible"]]
+        self.assertIn("locked-design-has-plan", rules)
+
+
+# ── 2 · nothing is lost ───────────────────────────────────────────────────
+
+
+class TestNothingIsLost(unittest.TestCase):
+
+    def test_every_id_present_before_is_present_after(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        before = M.ids(p.text("BOARD.md"))
+        p.run("apply")
+        after = M.ids(p.text("BOARD.md"))
+        self.assertTrue(before, "the fixture must actually carry ids")
+        self.assertEqual(before - after, set())
+
+    def test_no_character_the_author_wrote_is_dropped(self):
+        """Character granularity, not word: `> **状态**：进行中` is a single
+        whitespace-delimited token, so a word-level check both misses damage
+        inside it and reports the whole line as lost when its value is
+        normalized."""
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        before = {k: p.text(k) for k in ("BOARD.md", "design/DESIGN-001-x.md")}
+        p.run("apply")
+        for k, was in before.items():
+            missing = M.characters(was) - M.characters(p.text(k))
+            self.assertEqual(missing, {}.__class__() if False else missing.__class__(),
+                             f"{k} lost characters: {missing}")
+
+    def test_free_prose_in_a_cell_the_schema_does_not_model_is_carried(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        after = p.text("BOARD.md")
+        self.assertIn("policy draft, **blocked on the RM reply** "
+                      "(see `policy/INDEX.md`)", after)
+        self.assertIn("rebalance band ~200bp, defensive not tactical", after)
+
+    def test_the_value_an_enum_field_had_is_kept_verbatim_beside_the_canonical_one(self):
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        p.run("apply")
+        line = next(l for l in p.text("design/DESIGN-001-x.md").split("\n")
+                    if "Status" in l)
+        self.assertTrue(line.split("|")[0].strip().endswith("locked"), line)
+        self.assertIn("v1.1 LOCKED 2026-05-19 PM BJT", line)
+
+    def test_row_counts_per_section_are_preserved(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        before = M.rows_by_section(p.text("BOARD.md").split("\n"))
+        p.run("apply")
+        after = M.rows_by_section(p.text("BOARD.md").split("\n"))
+        for section, n in before.items():
+            self.assertEqual(after.get(section), n, section)
+
+    def test_a_transform_that_loses_something_is_refused_rather_than_written(self):
+        """The assertion is the tool's, not the reader's. Injecting a lossy
+        transform must stop the write, not produce a report nobody checks."""
+        text = LEGACY_BOARD
+        before = text
+        after = text.replace("| CAD-1 | weekly reconcile | User | weekly | 2026-01-11 |",
+                             "| CAD-1 | weekly reconcile | User | weekly |  |")
+        bad = M.losslessness(before, after, [])
+        self.assertTrue(bad, "dropping a cell must be caught")
+        self.assertTrue(any("character" in b or "cell" in b for b in bad), bad)
+
+    def test_a_dropped_row_is_caught_even_when_every_character_survives(self):
+        """Row counts are a separate check because a row moved out of its
+        section keeps every character it had."""
+        before = LEGACY_BOARD
+        after = before.replace(
+            "| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |\n", "")
+        after += "\n| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |\n"
+        bad = M.losslessness(before, after, [])
+        self.assertTrue(any("row(s)" in b for b in bad), bad)
+
+    def test_a_character_can_be_lost_with_no_cell_or_row_going_missing(self):
+        """Why the character check is separate. Prose outside a table is
+        invisible to the cell check, and `~200bp` losing its tilde is a change
+        to what the sentence says."""
+        before = "a note about ~200bp, defensive"
+        after = "a note about 200bp, defensive"
+        bad = M.losslessness(before, after, [before])
+        self.assertEqual([b for b in bad if "character" not in b], [],
+                         "no other check may fire on this input")
+        self.assertTrue(any("character" in b for b in bad), bad)
+
+    def test_an_id_can_be_lost_while_every_character_survives(self):
+        """Why the id set is checked on its own. Characters are whitespace-
+        blind, so a handle can be broken without a single one going missing —
+        and an id is what attribution and every citation resolve on."""
+        bad = M.losslessness("ADR-005 x", "ADR-005x", ["ADR-005 x"])
+        self.assertEqual([b for b in bad if "id(s)" not in b], [],
+                         "no other check may fire on this input")
+        self.assertTrue(any("id(s)" in b for b in bad), bad)
+
+    def test_a_write_that_does_not_match_the_plan_rolls_the_whole_run_back(self):
+        """The tool checks its own writing. If the bytes on disk are not the
+        bytes the preview showed, the run is undone rather than left half
+        applied."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        before = p.tree()
+        plan = p.plan()
+        real = M.write_atomic
+        calls = []
+
+        def corrupt_the_first_write(path, text):
+            calls.append(path)
+            real(path, text + "\n" if len(calls) == 1 else text)
+
+        M.write_atomic = corrupt_the_first_write
+        try:
+            with self.assertRaises(M.Refused):
+                M.apply_plan(plan, SCHEMA)
+        finally:
+            M.write_atomic = real
+        for path, digest in before.items():
+            self.assertEqual(p.tree().get(path), digest, path)
+
+    def test_a_line_edited_without_being_recorded_is_caught(self):
+        """`rewritten` is the tool's own claim about what it changed. A
+        transform that edits a line it did not declare fails here — the same
+        discipline the mutation table is scored on."""
+        before = "> **Owner**: User\n\n## P0\n"
+        after = "> **Owner**: Someone Else User\n\n## P0\n"
+        self.assertTrue(any("not recorded as rewritten" in b
+                            for b in M.losslessness(before, after, [])))
+        self.assertEqual(M.losslessness(before, after, ["> **Owner**: User"]), [])
+
+
+# ── 3 · recoverable ───────────────────────────────────────────────────────
+
+
+class TestRecoverable(unittest.TestCase):
+
+    def test_a_run_writes_a_restore_point_and_names_it(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, out, _ = p.run("apply", json_out=False)
+        self.assertIn(".perry/migrate/", out)
+        self.assertIn("perry-migrate restore", out)
+        points = list((p.root / ".perry" / "migrate").glob("*.json"))
+        self.assertEqual(len(points), 1)
+
+    def test_restore_puts_every_byte_back(self):
+        """Exercised, not described."""
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        before = p.tree()
+        p.run("apply")
+        self.assertNotEqual(p.tree(), before)
+        rc, _, err = p.run("restore")
+        self.assertEqual(rc, 0, err)
+        after = p.tree()
+        for path, digest in before.items():
+            self.assertEqual(after.get(path), digest, path)
+
+    def test_restore_also_withdraws_the_declarations_the_run_wrote(self):
+        """A restore that put the files back and left the record standing would
+        claim conformance for files that no longer have it."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        self.assertTrue((p.root / ".perry" / "conformance.md").exists())
+        p.run("restore")
+        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+                         "the record was created by the run and must go back "
+                         "to not existing")
+
+    def test_a_dirty_git_tree_is_reported_and_not_refused(self):
+        """Refusing on a dirty tree answers the question only for projects
+        under git, and the project this was built against is a local-only repo
+        whose state files are routinely uncommitted."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        subprocess.run(["git", "init", "-q", str(p.root)], capture_output=True)
+        (p.root / "untracked.txt").write_text("x")
+        rc, out, _ = p.run(json_out=False)
+        self.assertIn("uncommitted", out)
+        rc, _, _ = p.run("apply")
+        self.assertIn("BOARD.md", [f for f in p.tree()])
+        self.assertTrue((p.root / ".perry" / "migrate").is_dir(),
+                        "a dirty tree must not stop the run — the restore "
+                        "point is what makes it recoverable")
+
+    def test_the_restore_point_is_invisible_to_the_namespace_check(self):
+        """`perry-lint --claims` globs `*.md`; a restore point that landed as
+        markdown under `.perry/` would report Perry colliding with Perry, which
+        is the defect TASK-043 shipped and fixed."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        r = subprocess.run(["python3", str(LINT), "--claims", "--root",
+                            str(p.root), "--json"], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["collisions"], 0)
+
+
+# ── 4 · the user declares ─────────────────────────────────────────────────
+
+
+class TestTheUserDeclares(unittest.TestCase):
+
+    def test_migration_never_runs_as_a_side_effect_of_another_command(self):
+        """Nothing in `bin/` may invoke this. A migration that fires from a
+        `perry-task add` is TASK-040 B-2 with a bigger blast radius."""
+        callers = []
+        for tool in sorted((PERRY_HOME / "bin").glob("perry-*")):
+            if tool.name == "perry-migrate":
+                continue
+            body = tool.read_text()
+            for line in body.split("\n"):
+                if "perry-migrate" in line and not line.lstrip().startswith(("#", "*")):
+                    if re.search(r"(subprocess|import|_load|exec)", line):
+                        callers.append(f"{tool.name}: {line.strip()}")
+        self.assertEqual(callers, [])
+
+    def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        record = p.root / ".perry" / "conformance.md"
+        self.assertTrue(record.exists())
+        self.assertIn("| BOARD.md | 2 | ", record.read_text())
+        self.assertIn("| migrate |", record.read_text(),
+                      "the route field exists so a declaration says how it was "
+                      "made; a migration's is not a hand `declare`")
+        others = [f for f in (p.root / ".perry").rglob("*")
+                  if f.is_file() and "conform" in f.name and f != record]
+        self.assertEqual(others, [], "there must be exactly one record")
+
+    def test_a_dry_run_declares_nothing(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run()
+        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+
+    def test_no_declare_migrates_without_declaring(self):
+        """The two acts are separable: a user may want the shape fixed and
+        want to read it before saying it is theirs."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, out, _ = p.run("apply", "--no-declare")
+        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+        self.assertEqual(p.lint_errors(), 0)
+
+    def test_the_gate_refusal_names_the_migration_and_the_dry_run(self):
+        """`risk-add`'s shape: the count, the command, and the preview. Before
+        this task the only command it could name reported the problem and
+        fixed nothing."""
+        C = load("perry_conform_for_message", CONFORM)
+        v = C.Verdict(path="BOARD.md", state=C.UNDECLARED, shape_version=2,
+                      errors=[object(), object(), object()])
+        msg = C.message_for(v, "perry-task", None)
+        commands = [l.strip() for l in msg.split("\n")]
+        self.assertIn("3 error(s)", msg)
+        self.assertIn("perry-migrate", commands, "the dry run, on its own line")
+        self.assertIn("perry-migrate apply", commands)
+        for line in msg.split("\n"):
+            if line.strip().startswith("perry-"):
+                self.assertTrue((PERRY_HOME / "bin" / line.split()[0]).exists(),
+                                f"names a tool that does not exist: {line}")
+
+    def test_a_migrated_file_can_be_written_to_under_an_enforcing_gate(self):
+        """The point of the whole exercise: after migration the writers work."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        env = dict(os.environ, PERRY_CONFORMANCE="enforce")
+        add = ["add", "--title", "a row", "--group", "P2",
+               "--deliverable", "a thing that exists afterwards",
+               "--verification", "the suite is green", "--root", str(p.root)]
+        r = subprocess.run(["python3", str(TASK), *add], capture_output=True,
+                           text=True, env=env)
+        self.assertEqual(r.returncode, 1, "unmigrated must refuse")
+        p.run("apply")
+        r = subprocess.run(["python3", str(TASK), *add], capture_output=True,
+                           text=True, env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+# ── 5 · partial migration is a state, not a failure ───────────────────────
+
+
+class TestPartialIsAState(unittest.TestCase):
+
+    def test_a_file_that_cannot_reach_conformance_is_left_byte_identical(self):
+        """"Valid" for an incomplete migration means: every file is either
+        exactly as its author left it, or conformant. Never in between — a file
+        that changed and is still read-only is the worst of both."""
+        p = Project({"BOARD.md": UNRESOLVABLE_BOARD})
+        before = p.text("BOARD.md")
+        rc, out, _ = p.run("apply")
+        self.assertEqual(p.text("BOARD.md"), before)
+        self.assertEqual(rc, 1)
+        blocked = edit_for(p.plan(), "BOARD.md")
+        self.assertTrue(blocked.residual)
+        self.assertFalse(blocked.writable)
+
+    def test_one_file_migrates_while_another_does_not_and_both_halves_work(self):
+        p = Project({"BOARD.md": UNRESOLVABLE_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        board_before = p.text("BOARD.md")
+        p.run("apply")
+        self.assertEqual(p.text("BOARD.md"), board_before)
+        rc, out, _ = p.run("check", "design/DESIGN-001-x.md", tool=CONFORM)
+        self.assertEqual(out["state"], "conformant")
+        rc, out, _ = p.run("check", "BOARD.md", tool=CONFORM)
+        self.assertEqual(out["state"], "undeclared")
+
+    def test_only_migrates_the_named_file_and_nothing_else(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        design_before = p.text("design/DESIGN-001-x.md")
+        p.run("apply", "--only", "BOARD.md")
+        self.assertEqual(p.text("design/DESIGN-001-x.md"), design_before)
+        self.assertNotEqual(p.text("BOARD.md"), LEGACY_BOARD)
+
+    def test_the_refusal_names_the_finding_that_blocked_the_file(self):
+        p = Project({"BOARD.md": UNRESOLVABLE_BOARD})
+        rc, out, _ = p.run(json_out=False)
+        self.assertIn("left byte-identical", out)
+        self.assertIn("half-done", out)
+
+
+# ── 6 · what must change, and what is merely different ────────────────────
+
+
+class TestTheVocabularyIsNotRewritten(unittest.TestCase):
+
+    def test_a_heading_the_project_chose_is_never_renamed_or_moved(self):
+        """`## Open — investment line` is 41 rows on the real project.
+        `bin/perry-task` already reads such a section as a `group`; renaming it
+        would be Perry deciding what someone's workstream is called."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        after = p.text("BOARD.md")
+        self.assertIn("## Open — investment line (policy · allocation)", after)
+        self.assertIn("## Open — engineering line · phase #004", after)
+        self.assertIn("## P2 (low priority carry)", after,
+                      "the parenthetical is the author's; only the P2 prefix "
+                      "is Perry's")
+
+    def test_rows_are_never_moved_into_the_priority_sections_perry_creates(self):
+        """The sections Perry adds are empty. Filing someone's task as P0 or P1
+        is a decision about their work, and nothing in the file states it."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        lines = p.text("BOARD.md").split("\n")
+        i = lines.index("## P0")
+        block = lines[i:i + 6]
+        self.assertFalse([l for l in block if l.startswith("|") and "---" not in l
+                          and "ID" not in l],
+                         f"## P0 must be created empty, got {block}")
+        own = p.text("BOARD.md").split("## Open — investment line")[1].split("\n##")[0]
+        self.assertIn("| INV-DRAFT-1 |", own,
+                      "the rows must still be under the heading their author "
+                      "filed them under")
+
+    def test_a_table_sharing_no_column_with_the_schemas_is_not_widened(self):
+        """A `| seed | Owner | Deliverable |` under `## Objective 1` is not
+        Perry's phase-KR table. Bolting four empty columns onto it would be
+        writing into a table Perry does not recognise."""
+        phase = ("# Phase #001 — x\n\n> **Started**: 2026-01-01\n"
+                 "> **Status**: active\n\n"
+                 "## Phase Focus\n\nf\n\n## Operating Rules\n\nr\n\n"
+                 "## Cost Ceiling\n\nc\n\n## User Commitments\n\nu\n\n"
+                 "## User-Unavailable Degradation\n\nd\n\n"
+                 "## Phase Scope Reduction Rule\n\ns\n\n"
+                 "## Objective 1 — a\n\n| seed | Owner | Deliverable |\n|---|---|---|\n"
+                 "| s1 | User | a thing |\n\n"
+                 "## Definition of Done\n\nd\n\n## Not Doing in this phase\n\nn\n\n"
+                 "## Process Note\n\np\n")
+        p = Project({"BOARD.md": LEGACY_BOARD, "phase/001-x.md": phase})
+        p.run("apply")
+        self.assertEqual(p.text("phase/001-x.md"), phase,
+                         "the file must be left exactly as found")
+        e = edit_for(p.plan(), "phase/001-x.md")
+        self.assertTrue(any(f.rule == "table-columns" for f in e.residual))
+
+    def test_a_table_perry_recognises_is_widened_and_every_row_padded(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        after = p.text("BOARD.md")
+        block = after.split("## P2 (low priority carry)")[1].split("\n##")[0]
+        self.assertIn("| ID | Title | Owner | Status | Next action | Evidence |", block)
+        row = next(l for l in block.split("\n") if "ENG-9" in l)
+        self.assertEqual(len(row.strip().strip("|").split("|")), 6, row)
+        self.assertIn("conftest has no DB isolation", row)
+
+    def test_an_ambiguous_enum_value_is_never_guessed(self):
+        """Two candidates means the migration does not know. A tool that picked
+        one would be inventing a fact about somebody's design doc."""
+        doc = LEGACY_DESIGN.replace(
+            "> **Status**: v1.1 LOCKED 2026-05-19 PM BJT** (Amendments A+B applied; v1.0 LOCKED 2026-05-18)",
+            "> **Status**: superseded by the locked v2")
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": doc})
+        p.run("apply")
+        self.assertEqual(p.text("design/DESIGN-001-x.md"), doc)
+
+    def test_an_enum_spelling_resolves_only_through_the_declared_glossary(self):
+        allowed = SCHEMA["enums"]["phase_status"]
+        aliases = SCHEMA["migration"]["enum_aliases"]["phase_status"]
+        self.assertEqual(M.enum_candidates("进行中", allowed, aliases), ["active"])
+        self.assertEqual(M.enum_candidates("已评分（2026-06-10 score-phase；承诺 10/11）",
+                                           allowed, aliases), ["scored"])
+        self.assertEqual(M.enum_candidates("洽谈中", allowed, aliases), [],
+                         "an unlisted spelling is not guessed at")
+
+    def test_a_localized_project_gets_localized_headings_and_columns(self):
+        """`bin/perry-task.ensure_section` localizes the sections it creates.
+        A migration that hardcoded English would leave a board in two
+        languages."""
+        board = LEGACY_BOARD.replace("## Cadence\n", "## 例行节奏 (was Cadence)\n")
+        board = board.replace("## Top risks\n\n- the RM has not replied since November\n", "")
+        p = Project({"BOARD.md": board}, config=CONFIG_ZH)
+        p.run("apply")
+        after = p.text("BOARD.md")
+        self.assertIn("| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |", after)
+        self.assertIn("## 主要风险", after,
+                      "a section Perry creates is named in the project's own "
+                      "language, like the ones `perry-task` creates")
+        self.assertEqual(p.lint_errors(), 0,
+                         "a localized board Perry created must lint clean")
+
+    def test_a_column_added_to_a_localized_table_matches_the_table_it_joins(self):
+        """The spelling comes off the table's own header, not off the config:
+        a new column has to match the row it is joining, and the header is the
+        only thing that states that without a second file being right."""
+        board = LEGACY_BOARD.replace(
+            "| ID | Title | Owner | Status |\n|---|---|---|---|\n"
+            "| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |",
+            "| 编号 | 标题 | 负责人 | 状态 |\n|---|---|---|---|\n"
+            "| ENG-9 | conftest has no DB isolation | Coding Agent | not_started |")
+        p = Project({"BOARD.md": board}, config=CONFIG_ZH)
+        p.run("apply")
+        block = p.text("BOARD.md").split("## P2 (low priority carry)")[1].split("\n##")[0]
+        self.assertIn("| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |", block)
+
+    def test_a_field_that_only_appears_in_a_table_row_is_never_rewritten(self):
+        """`perry-lint` searches the whole file, so the field it validates is
+        whichever comes first. Rewriting one that lives in a table row would
+        put a `|` inside the row and turn one cell into two."""
+        lines = ["| Status: draft | x |", "> **Status**: locked"]
+        idx, _ = M.field_line(lines, "Status")
+        self.assertIsNone(idx)
+
+    def test_a_minted_source_id_never_collides_with_one_already_in_the_tree(self):
+        """An id is an address, not a claim — but an address that is already
+        taken re-points somebody's citation."""
+        old = ("# old\n\n> Id: SRC-9\n> Source: x\n> Received: 2026-01-01\n"
+               "> Status: active\n")
+        p = Project({"BOARD.md": LEGACY_BOARD, "knowledge/a/old.md": old,
+                     "knowledge/a/new.md": "# new\n\n> Source: y\n"})
+        p.run("apply")
+        self.assertIn("SRC-10", p.text("knowledge/a/new.md"))
+        self.assertEqual(p.text("knowledge/a/old.md"), old)
+
+    def test_warnings_are_never_acted_on(self):
+        """Migration changes shape, not quality. Some of this schema's warnings
+        are time-dependent, and a migration that chased them would rewrite a
+        file because a calendar boundary passed."""
+        # A design doc in `draft` with no `## Implementation plan` (a warning
+        # today, an error the moment its Status says `locked`) AND no `Date`
+        # (an error now). The migration must fix the second and leave the
+        # first — a file with a real error is exactly where a transform driven
+        # off the spec rather than off the findings starts overreaching.
+        doc = LEGACY_DESIGN.replace(
+            "> **Status**: v1.1 LOCKED 2026-05-19 PM BJT** (Amendments A+B applied; v1.0 LOCKED 2026-05-18)",
+            "> **Status**: draft").replace(
+            "## 6. Implementation plan\n\nDo the thing.\n", "").replace(
+            "> **Date**: 2026-05-18\n", "")
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": doc})
+        p.run("apply")
+        after = p.text("design/DESIGN-001-x.md")
+        self.assertIn("Date", after, "the error must be fixed")
+        self.assertNotIn("## Implementation plan", after,
+                         "a section that is only a warning must not be inserted")
+        r = subprocess.run(["python3", str(LINT), "--root", str(p.root), "--json"],
+                           capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["errors"], 0)
+        self.assertTrue([f for f in out["findings"] if f["severity"] == "warn"],
+                        "the fixture must still carry a warning afterwards")
+
+    def test_perrys_own_machine_written_files_are_never_edited(self):
+        """A shape error in a diagnosis or an adoption dossier is a defect in
+        the tool that wrote it. Rewriting a finding's status to satisfy an enum
+        would be editing a diagnostic record."""
+        dossier = ("---\ndiagnosis: 1\nstage: read\nfindings:\n"
+                   "  - id: LOAD-02\n    severity: error\n    source: read\n"
+                   "    status: false_positive\n---\n\n# Diagnosis\n")
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     ".perry/diagnose/2026-08-17-diagnosis.md": dossier})
+        rc, out, _ = p.run("apply")
+        self.assertEqual(p.text(".perry/diagnose/2026-08-17-diagnosis.md"), dossier)
+        self.assertTrue(any(s["path"].endswith("diagnosis.md")
+                            for s in out["skipped"]), out["skipped"])
+
+
+# ── 7 · the near-empty project ────────────────────────────────────────────
+
+
+class TestTheNearEmptyProject(unittest.TestCase):
+
+    def test_a_project_with_no_perry_state_is_refused_in_one_sentence(self):
+        """The other real case. The failure mode here is a tool that finds
+        nothing to do and says so at length, or half-builds a structure."""
+        p = Project({"README.md": "# hello\n"}, config="")
+        (p.root / ".perry" / "config.md").unlink()
+        rc, out, err = p.run(json_out=False)
+        self.assertEqual(rc, 1)
+        said = (out if isinstance(out, str) else "") + err
+        self.assertIn("perry adopt", said)
+        self.assertLess(len(said.strip().split("\n")), 8)
+        self.assertEqual(p.text("README.md"), "# hello\n")
+
+    def test_a_conformant_project_is_told_there_is_nothing_to_do(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        rc, out, _ = p.run(json_out=False)
+        self.assertEqual(rc, 0)
+        self.assertIn("nothing to migrate", out)
+
+
+# ── 8 · one definition of the shape ───────────────────────────────────────
+
+
+class TestOneDefinitionOfTheShape(unittest.TestCase):
+
+    def test_the_migration_holds_no_opinion_about_what_perrys_shape_is(self):
+        """It proposes edits; `perry-lint.check_file` judges them. If this file
+        grew its own copy of the rules, the two would drift — which is the
+        defect ADR-004 exists to end."""
+        body = MIGRATE.read_text()
+        self.assertNotIn("def check_file", body)
+        self.assertIn("lint().check_file", body)
+
+    def test_every_file_it_writes_lints_clean_by_perry_lints_own_reckoning(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        rc, out, _ = p.run("apply")
+        self.assertEqual(p.lint_errors(), 0)
+        for f in out["files"]:
+            if f["writable"]:
+                self.assertEqual(f["after_errors"], 0, f["path"])
+
+    def test_the_shape_version_declared_is_the_schemas_own(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        _, out, _ = p.run()
+        self.assertEqual(out["shape_version"], SCHEMA["schema_version"])
+
+    def test_a_section_label_that_is_a_pattern_is_never_written_as_a_heading(self):
+        """`## Objective <N> — <title>` and `## §1 … §8 (eight fixed sections)`
+        describe a family. Writing one verbatim would insert punctuation as a
+        section title."""
+        for spec in SCHEMA["files"]:
+            for req in spec.get("headings", []):
+                label = M.literal_label(req)
+                if label is None:
+                    continue
+                self.assertNotRegex(label, r"[<>…()]", f"{spec['path']}: {label}")
+
+
+if __name__ == "__main__":
+    unittest.main()

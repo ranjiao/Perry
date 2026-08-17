@@ -1,0 +1,1233 @@
+#!/usr/bin/env python3
+"""
+perry-migrate — bring a project's existing state files to Perry's shape, once.
+
+ADR-004 makes migration the price of using Perry's write features, which makes
+this the only thing in Perry that rewrites a stranger's files. Its five
+guarantees are in `perry/evidence/2026-08/TASK-044-spec.md`; three of them are
+*assertions*, and that is why this is a program and not a paragraph:
+
+  1. **Dry run first, always.** `perry-migrate` with no subcommand plans and
+     prints the complete diff. It cannot write — `apply` is a different word.
+     The plan carries the full post-image of every file, so `apply` is
+     `path.write_text(plan.after)` and nothing else. The dry run and the real
+     run cannot diverge because there is one computation, not two.
+  2. **Nothing is lost.** Four assertions run over every file before it is
+     written, and a file that fails any of them is not written at all:
+     every non-whitespace character, every table cell, every id, and every
+     per-section row count. See `losslessness()`.
+  3. **Recoverable.** Every run writes a restore point naming every file it
+     touched, with the bytes it found there. `perry-migrate restore` puts them
+     back. See § "Dirty tree or restore point" below.
+  4. **The user declares.** `apply` is the user's act, and it records the
+     declaration through `bin/perry-conform` — the one writer of
+     `.perry/conformance.md` — with `route: migrate`. There is no second record.
+  5. **Partial migration is a state.** Per file, never per project. A file is
+     migrated only if the plan takes it to zero shape errors; otherwise it is
+     left byte-identical and its remaining findings are named. So after any
+     run, every file is either exactly as its author left it, or conformant.
+
+Usage:
+  perry-migrate         [--root <project>] [--only <file>]... [--json]
+  perry-migrate apply   [--root <project>] [--only <file>]... [--json]
+                        [--no-declare]
+  perry-migrate restore [<run-id>] [--root <project>] [--list] [--json]
+
+Exit codes:
+  0  the plan is complete / everything planned was applied
+  1  something could not be migrated, or a run was refused
+  2  bad invocation
+
+No LLM, no external dependencies (stdlib only). The default subcommand is
+read-only; `apply` and `restore` are the only writers.
+
+── What migration changes, and what it never touches ──────────────────────
+
+**Must change to be Perry-shaped** — the things a *reader* keys on by name:
+
+  · the presence of a required section heading (readers select by heading)
+  · the columns parsers resolve by name, in a table Perry already recognises
+  · the token in an enum-valued header field (behaviour gates on it)
+  · the presence of a required header field
+
+**Merely different** — never touched, in any file:
+
+  · any heading the schema does not require. `## Open — 工程线 · phase #004`
+    is 41 tasks under a name its author chose; `bin/perry-task` already reads
+    it as a `group`, and renaming it would be Perry deciding what someone's
+    workstream is called.
+  · heading text beyond the part the schema matches (`## P2 (低优先 carry)`
+    keeps its parenthetical)
+  · column order, row order, section order, extra columns, extra sections
+  · every cell, every line of prose, the language it is written in
+  · anything only a *warning* fires on. Warnings in this schema are quality
+    signals and some are time-dependent (`stale-run`); a migration that acted
+    on them would be a quality pass, which this is not.
+
+**Must change, but Perry may not decide** — reported, never guessed:
+
+  · an enum value that resolves to two candidates, or to none
+  · a table under a required heading that shares *no* column with the schema's
+    — Perry does not recognise it, and widening it would be writing columns
+    into somebody else's table
+  · a file over its size cap: splitting it is a content decision
+  · a required section whose *content* the schema constrains
+
+── Dirty tree or restore point ────────────────────────────────────────────
+
+TASK-044 § 3 asks for one of the two, and says why the choice needs stating.
+
+This writes a **restore point**, and does not refuse on a dirty tree.
+
+Refusing on a dirty working tree answers the question only for projects under
+git, and `~/proj/gimegime-pmo` — the project this was built against — is a
+local-only repo whose state files are routinely uncommitted. A guarantee that
+is absent exactly where the risk is highest is not a guarantee. It is also
+weaker than it looks on projects that *do* use git: state files are frequently
+untracked or ignored, and `git checkout` cannot restore what git never saw.
+
+So recovery is Perry's own, works identically in both cases, and is exercised
+rather than described: `.perry/migrate/<run-id>.json` holds the bytes of every
+file the run touched — including `.perry/conformance.md`, because the run
+wrote that too and a restore that left the record behind would claim
+conformance for files that no longer have it.
+
+The cost, stated: this is state Perry now owns, and it holds a copy of the
+project's own writing. It lives under `.perry/`, which is already Perry's
+namespace; it is JSON, so it is invisible to `perry-lint --claims`, which
+globs `*.md`; and `perry-migrate restore --list` is how you find one.
+
+A dirty git tree is *reported* in the output, because it changes what a `git
+checkout` would undo — but it is not a refusal.
+"""
+
+from __future__ import annotations
+
+import atexit
+import difflib
+import hashlib
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+import parsers as P  # noqa: E402
+from tables import render_row, split_row  # noqa: E402
+
+MIGRATE_DIR = ".perry/migrate"
+
+_MODULES: dict[str, object] = {}
+
+
+def _load(name: str, filename: str):
+    """A `bin/` script with a dash in its name, as an importable module.
+
+    Same loader `bin/perry-conform` uses on `bin/perry-lint`, and for the same
+    reason: this tool must contain no second definition of Perry's shape, no
+    second definition of the conformance record, and no second copy of the
+    column glossary. It proposes edits; the linter judges them."""
+    if name not in _MODULES:
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            name, importlib.machinery.SourceFileLoader(
+                name, str(PERRY_HOME / "bin" / filename)))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault(name, mod)
+        spec.loader.exec_module(mod)
+        _MODULES[name] = mod
+    return _MODULES[name]
+
+
+def conform():
+    return _load("perry_conform", "perry-conform")
+
+
+def lint():
+    """`bin/perry-lint`, and specifically **the instance `perry-conform` armed**.
+
+    Not `_load("perry_lint", ...)`. `perry-conform.load_schema` calls
+    `load_glossary`, which populates module-level tables that decide whether
+    `编号` satisfies the `ID` column. Loading a second copy of the linter gives
+    this file its own unarmed globals, and the first symptom was the migration
+    creating a `| 编号 | 标题 | …` header on a Chinese board and then reporting
+    its own output as missing every column."""
+    return conform().lint()
+
+
+def task():
+    """`bin/perry-task`, for `display_name` / `header_language` only.
+
+    A column this tool adds has to be spelled the way the rest of that table is
+    spelled, and `perry-task` is where that glossary lookup lives. Copying it
+    here would be the two-implementations defect ADR-004 is about."""
+    return _load("perry_task", "perry-task")
+
+
+class Refused(Exception):
+    """A refusal is an outcome, not a crash. Nothing was written."""
+
+
+# ── the language a file is written in ─────────────────────────────────────
+
+
+def doc_language(project_root: Path) -> str:
+    """`zh` or `en`, from `.perry/config.md § Document language`.
+
+    A section this tool creates in a Chinese project reads `## 流程说明`, not
+    `## Process Note` — `bin/perry-task.ensure_section` already localizes the
+    sections *it* creates, and a migration that hardcoded English would leave a
+    board written in two languages."""
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return "en"
+    m = re.search(r"Document language\s*[:：]\s*([^\n]+)",
+                  cfg.read_text(errors="replace"), re.I)
+    value = (m.group(1) if m else "").lower()
+    if "中文" in value or "zh" in value or "chinese" in value:
+        return "zh"
+    return "en"
+
+
+def heading_spelling(schema: dict, label: str, lang: str) -> str:
+    """The heading text to write, in the project's own language."""
+    per_lang = ((schema.get("i18n") or {}).get("headings") or {}).get(label) or {}
+    names = per_lang.get(lang) or []
+    return names[0] if names else label
+
+
+def field_spelling(schema: dict, name: str, lang: str) -> str:
+    per_lang = ((schema.get("i18n") or {}).get("fields") or {}).get(name) or {}
+    names = per_lang.get(lang) or []
+    return names[0] if names else name
+
+
+# ── the change record ─────────────────────────────────────────────────────
+
+
+@dataclass
+class Change:
+    kind: str
+    detail: str
+    line: int | None = None
+
+    def as_dict(self) -> dict:
+        return {"kind": self.kind, "detail": self.detail, "line": self.line}
+
+
+@dataclass
+class Edit:
+    """One file's planned post-image, and everything asserted about it."""
+    key: str
+    path: Path
+    before: str
+    after: str
+    #: the same file relative to the *project* root. `key` is relative to the
+    #: state root (or to the project root for the `.perry/` entries), which is
+    #: what the schema declares and what a declaration is filed under; the
+    #: restore point needs a path it can resolve without knowing which.
+    key_rel: str = ""
+    changes: list[Change] = field(default_factory=list)
+    rewritten: list[str] = field(default_factory=list)   # original line texts
+    residual: list = field(default_factory=list)          # perry-lint Findings
+    before_errors: int = 0
+    violations: list[str] = field(default_factory=list)
+    minted: list[str] = field(default_factory=list)
+
+    @property
+    def touched(self) -> bool:
+        return self.after != self.before
+
+    @property
+    def writable(self) -> bool:
+        """Written only if it lands *conformant*. See § 5 in the module docstring.
+
+        A file migrated halfway is the worst of both outcomes: the author's file
+        changed and they gained nothing, because a writer still refuses it. So
+        "valid" for an incomplete migration means every file is either exactly
+        as its author left it or conformant — never in between."""
+        return self.touched and not self.residual and not self.violations
+
+    def as_dict(self) -> dict:
+        return {
+            "path": self.key,
+            "before_sha256": sha(self.before),
+            "after_sha256": sha(self.after),
+            "before_errors": self.before_errors,
+            "after_errors": len(self.residual),
+            "changes": [c.as_dict() for c in self.changes],
+            "residual": [f.as_dict() for f in self.residual],
+            "assertion_failures": self.violations,
+            "minted_ids": self.minted,
+            "writable": self.writable,
+        }
+
+
+def sha(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+# ── locating things in a file ─────────────────────────────────────────────
+
+
+SEP_RE = re.compile(r"^\|\s*:?-{2,}")
+
+
+def is_separator(line: str) -> bool:
+    return bool(SEP_RE.match(line.strip()))
+
+
+def is_row(line: str) -> bool:
+    s = line.strip()
+    return s.startswith("|") and not is_separator(s)
+
+
+def heads(lines: list[str]) -> list[tuple[int, str, int]]:
+    """`(level, text, 0-based index)` for every ATX heading.
+
+    `bin/perry-lint.headings` is the definition — including its fenced-code
+    skipping — reused rather than re-derived, and shifted to 0-based here
+    because this file edits a list of lines rather than reporting positions."""
+    return [(lvl, text, no - 1) for lvl, text, no in lint().headings("\n".join(lines))]
+
+
+def section_bounds(lines: list[str], level: int, matcher: re.Pattern) -> list[tuple[int, int]]:
+    """`(start, end)` line indices of every section whose heading matches."""
+    hs = heads(lines)
+    out = []
+    for i, (lvl, text, idx) in enumerate(hs):
+        if lvl != level or not matcher.search(text):
+            continue
+        end = len(lines)
+        for lvl2, _, idx2 in hs[i + 1:]:
+            if lvl2 <= level:
+                end = idx2
+                break
+        out.append((idx + 1, end))
+    return out
+
+
+def tables_in(lines: list[str], start: int, end: int) -> list[tuple[int, int, list[int]]]:
+    """`(header index, separator index, row indices)` for each table in a range."""
+    out = []
+    i = start
+    while i < end:
+        if is_separator(lines[i]) and i > start and is_row(lines[i - 1]):
+            rows = []
+            j = i + 1
+            while j < end and is_row(lines[j]):
+                rows.append(j)
+                j += 1
+            out.append((i - 1, i, rows))
+            i = j
+            continue
+        i += 1
+    return out
+
+
+# ── T1 · a required section that is not there ─────────────────────────────
+
+
+def literal_label(req: dict) -> str | None:
+    """The heading text to write for this requirement, or None if it is a shape.
+
+    `## P0` is a name. `## Objective <N> — <title>` and
+    `## §1 … §8 (eight fixed sections)` are descriptions of a family, and
+    writing one verbatim into someone's file would be Perry inserting
+    punctuation as a section title. The test is both directions: the label must
+    carry no placeholder syntax AND must satisfy its own `match` regex, so a
+    label that only *looks* literal cannot slip through."""
+    text = req["label"].lstrip("#").strip()
+    if re.search(r"[<>…()]", text):
+        return None
+    if not re.compile(req["match"]).search(text):
+        return None
+    return text
+
+
+def table_for_heading(spec: dict, req: dict) -> dict | None:
+    for tspec in spec.get("tables", []):
+        if tspec.get("under_level", 2) != req["level"]:
+            continue
+        if re.compile(tspec["under"]).search(req["label"].lstrip("#").strip()):
+            return tspec
+    return None
+
+
+def present(lines: list[str], req: dict) -> int | None:
+    m = re.compile(req["match"])
+    for lvl, text, idx in heads(lines):
+        if lvl == req["level"] and m.search(text):
+            return idx
+    return None
+
+
+def fix_sections(lines: list[str], spec: dict, schema: dict, lang: str,
+                 errors: list, changes: list[Change]) -> list[str]:
+    """Insert missing required sections, in the schema's own order.
+
+    Position is chosen so the file still reads in the order Perry's templates
+    put things: after the last required section that precedes it and is
+    present, or before the first that follows it, or at the end. Nothing
+    existing moves, and no section body is ever split.
+
+    Driven off the linter's **errors**, not off the spec. `missing-section` is
+    the one finding in this schema whose severity varies: a design doc in
+    `draft` may be incomplete, and only `locked` makes its sections mandatory.
+    Reading the spec directly inserted `## Implementation plan` into a draft —
+    a migration acting on a warning, which is a quality pass, which this is
+    not. The gate that decides is `check_file`'s, and it stays there.
+    """
+    reqs = spec.get("headings", [])
+    wanted = {f.message for f in errors if f.rule == "missing-section"}
+    for i, req in enumerate(reqs):
+        if f"required section not found: {req['label']}" not in wanted:
+            continue
+        if present(lines, req) is not None:
+            continue
+        label = literal_label(req)
+        if label is None:
+            continue
+        shown = heading_spelling(schema, label, lang)
+        at = insertion_point(lines, reqs, i)
+        lead = [] if at == 0 or not lines[at - 1].strip() else [""]
+        block = lead + ["#" * req["level"] + f" {shown}", ""]
+        tspec = table_for_heading(spec, req)
+        if tspec:
+            cols = [task().display_name(c, lang) for c in tspec["columns"]]
+            block += [render_row(cols),
+                      "|" + "|".join(["---"] * len(cols)) + "|", ""]
+        lines[at:at] = block
+        changes.append(Change("section-added",
+                              f"`{'#' * req['level']} {shown}`"
+                              + (" with its column header" if tspec else "")
+                              + " — empty; nothing was moved into it",
+                              at + 2))
+    return lines
+
+
+def insertion_point(lines: list[str], reqs: list[dict], i: int) -> int:
+    for j in range(i - 1, -1, -1):
+        at = present(lines, reqs[j])
+        if at is None:
+            continue
+        level = reqs[j]["level"]
+        for lvl, _, idx in heads(lines):
+            if idx > at and lvl <= level:
+                return idx
+        return len(lines)
+    for j in range(i + 1, len(reqs)):
+        at = present(lines, reqs[j])
+        if at is not None:
+            return at
+    return len(lines)
+
+
+# ── T2 · a table missing the columns parsers key on ───────────────────────
+
+
+def fix_tables(lines: list[str], spec: dict, schema: dict,
+               changes: list[Change], rewritten: list[str]) -> list[str]:
+    L = lint()
+    for tspec in spec.get("tables", []):
+        matcher = re.compile(tspec["under"])
+        level = tspec.get("under_level", 2)
+        prefix = tspec.get("column_match") == "prefix"
+
+        def satisfied(col: str, got: list[str]) -> bool:
+            return any(any(g.startswith(a) for g in got) if prefix else a in got
+                       for a in L.accepted(col))
+
+        for start, end in section_bounds(lines, level, matcher):
+            for hdr_i, sep_i, row_is in tables_in(lines, start, end):
+                header = split_row(lines[hdr_i])
+                got = [L.norm(c) for c in header]
+                if not got:
+                    continue
+                missing = [c for c in tspec["columns"] if not satisfied(c, got)]
+                if not missing:
+                    continue
+                if len(missing) == len(tspec["columns"]):
+                    # Not the schema's table. A `| 种子 | Owner | Deliverable |`
+                    # under `## 目标 1` shares nothing with Perry's phase-KR
+                    # table, and bolting four empty columns onto it would be
+                    # Perry writing into a table it does not recognise. Left
+                    # alone; `perry-lint` still reports it, and the report says
+                    # why it was not touched.
+                    continue
+                lang = task().header_language(header)
+                added = [task().display_name(c, lang) for c in missing]
+                rewritten.append(lines[hdr_i])
+                rewritten.append(lines[sep_i])
+                lines[hdr_i] = render_row(header + added)
+                lines[sep_i] = "|" + "|".join(["---"] * (len(header) + len(added))) + "|"
+                for r in row_is:
+                    rewritten.append(lines[r])
+                    lines[r] = render_row(split_row(lines[r]) + [""] * len(missing))
+                changes.append(Change(
+                    "columns-added",
+                    f"{added} appended to the table under "
+                    f"`{lines[start - 1].lstrip('#').strip()}`; "
+                    f"{len(row_is)} row(s) padded with empty cells",
+                    hdr_i + 1))
+    return lines
+
+
+# ── T3 · an enum-valued header field carrying prose ───────────────────────
+
+
+def enum_candidates(value: str, allowed: list[str], aliases: dict) -> list[str]:
+    """Every canonical value this text could be saying. Never fewer, never more.
+
+    Resolution is by *declared* vocabulary only — the enum's own tokens, and
+    the localized spellings `schema/state-schema.json § migration.enum_aliases`
+    records. There is no keyword scoring and no default: two candidates or
+    none means the migration does not know, and a migration that guessed the
+    status of somebody's design doc would be inventing a fact about their
+    project."""
+    text = value.strip().strip("*`> ")
+    low = text.lower()
+    if low in [a.lower() for a in allowed]:
+        return [a for a in allowed if a.lower() == low]
+    hits: list[str] = []
+    for canon in allowed:
+        if re.search(rf"(?<![A-Za-z0-9]){re.escape(canon)}(?![A-Za-z0-9])", low):
+            hits.append(canon)
+    for spelling, canon in (aliases or {}).items():
+        if spelling.lower() in low and canon in allowed and canon not in hits:
+            hits.append(canon)
+    return hits
+
+
+def field_line(lines: list[str], name_re: str) -> tuple[int, re.Match] | None:
+    """The first line carrying this header field, skipping table rows.
+
+    `bin/perry-lint` searches the whole file text, so the field it validates is
+    whichever comes first. That is almost always a blockquote header line — but
+    if it were a table cell, rewriting it would put a `|` inside a row and turn
+    one cell into two. Table rows are therefore never rewritten as fields; the
+    finding is left for the report."""
+    pat = re.compile(rf"{name_re}\s*\**\s*[:：]\s*\**\s*([^\n]+)")
+    for i, line in enumerate(lines):
+        m = pat.search(line)
+        if m:
+            return (None if is_row(line) or is_separator(line) else i), m
+    return None
+
+
+def fix_enum_fields(lines: list[str], spec: dict, schema: dict,
+                    changes: list[Change], rewritten: list[str]) -> list[str]:
+    L = lint()
+    aliases = ((schema.get("migration") or {}).get("enum_aliases") or {})
+    for fspec in spec.get("header_fields", []):
+        if not fspec.get("enum"):
+            continue
+        allowed = schema["enums"][fspec["enum"]]
+        found = field_line(lines, L.field_re(fspec["name"]))
+        if not found:
+            continue
+        idx, m = found
+        if idx is None:
+            continue
+        raw = m.group(1)
+        current = re.split(r"[|/,]", raw.strip().strip("*`> "))[0].strip()
+        if current in allowed:
+            continue
+        hits = enum_candidates(raw, allowed, aliases.get(fspec["enum"]) or {})
+        if len(hits) != 1:
+            continue
+        canon = hits[0]
+        start = m.start(1)
+        rewritten.append(lines[idx])
+        # The author's value is kept, verbatim, on its own line after a `|`.
+        # `viewer/parsers.parse_phase` already reads a Status cell as
+        # `split("|")[0]` and `perry-lint` splits the same way, so this is the
+        # separator Perry already treats as "canonical value, then whatever
+        # else this project wanted to say".
+        lines[idx] = lines[idx][:start] + f"{canon} | " + raw
+        changes.append(Change(
+            "enum-normalized",
+            f"`{fspec['name']}` reads `{canon}`; the value as written "
+            f"is kept on the same line after `|`",
+            idx + 1))
+    return lines
+
+
+# ── T4 · a required header field that is not there ────────────────────────
+
+
+SRC_RE = re.compile(r"\bSRC-(\d+)\b")
+
+
+def header_block_end(lines: list[str]) -> tuple[int, bool]:
+    """Where a header field goes, and whether this file bolds its field names.
+
+    After the last line of the leading `>` block, so a new field joins the ones
+    already there instead of landing in the prose. The bold question is not
+    cosmetic: `perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`, which a
+    bolded `> **Id**:` does not satisfy — so a digest whose neighbours are
+    plain must get a plain line."""
+    first_quote = None
+    last_quote = None
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("## "):
+            break
+        if s.startswith(">"):
+            if first_quote is None:
+                first_quote = i
+            last_quote = i
+    if last_quote is not None:
+        block = [lines[i] for i in range(first_quote, last_quote + 1)]
+        bold = sum(1 for b in block if re.search(r">\s*\*\*[^*]+\*\*\s*[:：]", b))
+        return last_quote + 1, bold * 2 >= len([b for b in block if "：" in b or ":" in b])
+    for i, line in enumerate(lines):
+        if line.startswith("# "):
+            return i + 1, True
+    return 0, True
+
+
+def fix_missing_fields(lines: list[str], spec: dict, schema: dict, lang: str,
+                       changes: list[Change], mint, minted: list[str]) -> list[str]:
+    L = lint()
+    for fspec in spec.get("header_fields", []):
+        if fspec.get("required") is False:
+            continue
+        if field_line(lines, L.field_re(fspec["name"])):
+            continue
+        at, bold = header_block_end(lines)
+        name = field_spelling(schema, fspec["name"], lang)
+        pattern = fspec.get("pattern") or ""
+        if pattern == r"SRC-\d+":
+            # An id is an address, not a claim: nothing about the project is
+            # asserted by giving a digest a handle it never had. Minted from
+            # the highest id already in the tree, in sorted key order, so the
+            # plan is a pure function of the project's bytes.
+            value = mint()
+            minted.append(value)
+        else:
+            # Everything else gets `—`. A date Perry does not know is not a
+            # date Perry may write down; `—` is the schema's own way of saying
+            # so (`design.Date` accepts it outright) and it never reads as fact.
+            value = "—"
+        label = f"**{name}**" if bold else name
+        sep = "：" if lang == "zh" else ": "
+        blank = "" if at == 0 or not lines[at - 1].strip().startswith(">") else None
+        line = f"> {label}{sep}{value}"
+        lines[at:at] = [line] if blank is None else ["", line]
+        changes.append(Change("field-added", f"`{name}: {value}`", at + 1))
+    return lines
+
+
+# ── the four assertions ───────────────────────────────────────────────────
+
+
+ID_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:-[A-Z0-9][A-Za-z0-9.]*)+\b")
+
+
+def characters(text: str) -> Counter:
+    """Every non-whitespace character, with multiplicity, ignoring table rules.
+
+    Deliberately at character granularity and not at word granularity. Words
+    are a Latin-script idea: `> **状态**：进行中` is a *single* whitespace-
+    delimited token, so a word-level check would report the whole line as lost
+    the moment the value inside it was normalized, and — worse — would pass
+    anything that mangled the inside of a token. Characters are the same
+    question in every language.
+
+    Separator rows (`|---|---|`) are excluded because they carry no content and
+    widening a table necessarily rewrites them."""
+    c: Counter = Counter()
+    for line in text.split("\n"):
+        if is_separator(line):
+            continue
+        c.update(ch for ch in line if not ch.isspace())
+    return c
+
+
+def cells(text: str) -> Counter:
+    out: Counter = Counter()
+    for line in text.split("\n"):
+        if is_row(line):
+            out.update(c for c in split_row(line) if c.strip())
+    return out
+
+
+def ids(text: str) -> set[str]:
+    return set(ID_RE.findall(text))
+
+
+def rows_by_section(lines: list[str]) -> dict[str, int]:
+    """Data rows under each `## ` heading — the count § 2 asks to preserve."""
+    out: dict[str, int] = {}
+    current = "(preamble)"
+    for line in lines:
+        s = line.strip()
+        if s.startswith("## "):
+            current = s[3:].strip()
+            out.setdefault(current, 0)
+        elif is_row(s):
+            out[current] = out.get(current, 0) + 1
+    return out
+
+
+def losslessness(before: str, after: str, rewritten: list[str]) -> list[str]:
+    """Why this edit would lose something, or `[]`.
+
+    Asserted by the tool and refused if it fails — TASK-044 § 2 is explicit
+    that this may not be left for the reader's eye. Four independent checks,
+    because each is fooled by something the others catch."""
+    bad: list[str] = []
+
+    missing = characters(before) - characters(after)
+    if missing:
+        sample = "".join(sorted(missing))[:40]
+        bad.append(f"{sum(missing.values())} character(s) present before and "
+                   f"not after (e.g. {sample!r})")
+
+    lost_cells = cells(before) - cells(after)
+    if lost_cells:
+        bad.append(f"{sum(lost_cells.values())} table cell(s) lost, e.g. "
+                   f"{list(lost_cells)[0]!r}")
+
+    gone = ids(before) - ids(after)
+    if gone:
+        bad.append(f"{len(gone)} id(s) present before and not after: "
+                   f"{sorted(gone)[:6]}")
+
+    b_rows = rows_by_section(before.split("\n"))
+    a_rows = rows_by_section(after.split("\n"))
+    for section, n in b_rows.items():
+        if a_rows.get(section, 0) != n:
+            bad.append(f"section {section!r} had {n} row(s) and now has "
+                       f"{a_rows.get(section, 0)}")
+
+    # Every line the author wrote is either still there or was declared
+    # rewritten. This is the check that makes "revert exactly what you claim"
+    # true of the tool itself: a transform that quietly edits a line it did not
+    # record fails here even when every character survives elsewhere.
+    b_lines = Counter(l for l in before.split("\n") if l.strip())
+    a_lines = Counter(l for l in after.split("\n") if l.strip())
+    declared = Counter(l for l in rewritten if l.strip())
+    for line, n in b_lines.items():
+        if a_lines.get(line, 0) + declared.get(line, 0) < n:
+            bad.append(f"line {line.strip()[:60]!r} disappeared and was not "
+                       f"recorded as rewritten")
+            break
+    return bad
+
+
+# ── planning ──────────────────────────────────────────────────────────────
+
+
+MAX_PASSES = 4
+
+
+@dataclass
+class Plan:
+    project_root: Path
+    state_root: Path
+    shape_version: int
+    edits: list[Edit] = field(default_factory=list)
+    skipped: list[dict] = field(default_factory=list)
+    dirty_git: bool = False
+    newly_visible: list = field(default_factory=list)
+
+    @property
+    def writable(self) -> list[Edit]:
+        return [e for e in self.edits if e.writable]
+
+    @property
+    def blocked(self) -> list[Edit]:
+        return [e for e in self.edits if e.residual or e.violations]
+
+
+class Linter:
+    """`perry-lint.check_file` against a candidate text, in a scratch file.
+
+    The migration proposes; the linter judges. Nothing here decides whether a
+    file is Perry's shape — that answer comes from the same function
+    `bin/perry-conform` calls and `perry-lint` prints, so a transform that only
+    *looks* correct is caught by the shape definition itself rather than by a
+    second opinion this tool would otherwise have to hold."""
+
+    #: One scratch directory per process, removed at exit. Per-Linter
+    #: directories left a `ResourceWarning` in every in-process test that built
+    #: a plan, which is noise a suite has to learn to ignore.
+    _scratch: tempfile.TemporaryDirectory | None = None
+
+    def __init__(self, schema: dict):
+        self.schema = schema
+        if Linter._scratch is None:
+            Linter._scratch = tempfile.TemporaryDirectory(prefix="perry-migrate-")
+            atexit.register(Linter._scratch.cleanup)
+
+    def errors(self, text: str, key: str, spec: dict) -> list:
+        path = Path(Linter._scratch.name) / Path(key).name
+        path.write_text(text)
+        return [f for f in lint().check_file(path, key, spec,
+                                             self.schema["enums"], is_template=False)
+                if f.severity == "error"]
+
+
+def migrate_text(text: str, key: str, spec: dict, schema: dict, lang: str,
+                 linter: Linter, mint) -> Edit:
+    """One file's whole plan: the post-image, what changed, and what is left.
+
+    Runs the transforms until the linter stops finding anything they can fix,
+    at most `MAX_PASSES` times. The loop is there because the fixes interact:
+    normalizing a design doc's `Status` to `locked` flips its
+    `required_at_status` gate, and sections that were warnings a moment ago
+    become errors. Driving off the schema and re-asking the linter after each
+    pass is how that stays correct without this file knowing the rule."""
+    edit = Edit(key=key, path=Path(key), before=text, after=text)
+    edit.before_errors = len(linter.errors(text, key, spec))
+    lines = text.split("\n")
+    for _ in range(MAX_PASSES):
+        before_pass = list(lines)
+        errors = linter.errors("\n".join(lines), key, spec)
+        if not errors:
+            break
+        lines = fix_enum_fields(lines, spec, schema, edit.changes, edit.rewritten)
+        lines = fix_missing_fields(lines, spec, schema, lang, edit.changes,
+                                   mint, edit.minted)
+        lines = fix_sections(lines, spec, schema, lang, errors, edit.changes)
+        lines = fix_tables(lines, spec, schema, edit.changes, edit.rewritten)
+        if lines == before_pass:
+            break
+    edit.after = "\n".join(lines)
+    edit.residual = linter.errors(edit.after, key, spec)
+    edit.violations = losslessness(edit.before, edit.after, edit.rewritten)
+    return edit
+
+
+#: What `perry-lint.check_cross_file` reads. Mirrored rather than copying the
+#: whole state root, which on a real project is mostly `knowledge/` and can be
+#: tens of megabytes for a question about six files.
+CROSS_FILE_INPUTS = ("phase", "design", "BOARD.md")
+
+
+def cross_file_delta(plan: Plan, schema: dict) -> list:
+    """Cross-file findings the migration would make appear. Never hidden.
+
+    A migration that normalizes `Status: Design locked（2026-06-03；D1` to
+    `locked` does not create a defect — it lets an existing one be seen. Six of
+    gimegime-pmo's design docs are locked with no implementation plan, and
+    `check_cross_file` could not say so while it could not read the status.
+
+    That is a true finding and a useful one, but it arrives as new red text
+    right after a tool rewrote your files, so the run says it up front. It is
+    computed the same way in both modes — the dry run mirrors the plan into a
+    scratch tree rather than reporting something only `apply` could know, since
+    a preview that omits a consequence is the divergence § 1 forbids."""
+    L = lint()
+    before = {(f.file, f.rule, f.message)
+              for f in L.check_cross_file(plan.state_root, schema["enums"],
+                                          plan.project_root)}
+    if not plan.writable:
+        return []
+    with tempfile.TemporaryDirectory(prefix="perry-migrate-xf-") as tmp:
+        mirror = Path(tmp) / "state"
+        mirror.mkdir(parents=True)
+        (mirror.parent / "project").mkdir(exist_ok=True)
+        for name in CROSS_FILE_INPUTS:
+            src = plan.state_root / name
+            if src.is_dir():
+                shutil.copytree(src, mirror / name)
+            elif src.is_file():
+                shutil.copy2(src, mirror / name)
+        hook = plan.project_root / ".perry" / "hook.md"
+        if hook.exists():
+            (mirror.parent / "project" / ".perry").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(hook, mirror.parent / "project" / ".perry" / "hook.md")
+        for e in plan.writable:
+            rel = Path(e.key)
+            if rel.parts[0] not in CROSS_FILE_INPUTS and rel.name not in CROSS_FILE_INPUTS:
+                continue
+            target = mirror / rel
+            if target.parent.exists():
+                target.write_text(e.after)
+        after = L.check_cross_file(mirror, schema["enums"], mirror.parent / "project")
+    return [f for f in after if (f.file, f.rule, f.message) not in before]
+
+
+def id_minter(state_root: Path):
+    """`SRC-<n>` allocator, seeded from the highest id already in the tree."""
+    highest = 0
+    for md in sorted(state_root.rglob("*.md")):
+        try:
+            for n in SRC_RE.findall(md.read_text(errors="replace")):
+                highest = max(highest, int(n))
+        except OSError:
+            continue
+    counter = {"n": highest}
+
+    def mint() -> str:
+        counter["n"] += 1
+        return f"SRC-{counter['n']}"
+    return mint
+
+
+def git_dirty(project_root: Path) -> bool:
+    try:
+        out = subprocess.run(["git", "-C", str(project_root), "status",
+                              "--porcelain"], capture_output=True, text=True,
+                             timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out.returncode == 0 and bool(out.stdout.strip())
+
+
+def plan_project(project_root: Path, state_root: Path, schema: dict,
+                 only: list[str] | None = None) -> Plan:
+    C = conform()
+    plan = Plan(project_root=project_root, state_root=state_root,
+                shape_version=C.shape_version(schema))
+    plan.dirty_git = git_dirty(project_root)
+    linter = Linter(schema)
+    lang = doc_language(project_root)
+    mint = id_minter(state_root)
+    for key, path, spec in C.state_files(project_root, state_root, schema):
+        if only and key not in only:
+            continue
+        if spec.get("format") == "yaml-frontmatter":
+            # Perry's own machine-written records: the linkage graph, an
+            # adoption dossier, a diagnosis. A shape error in one of those is a
+            # defect in the tool that wrote it, and rewriting a diagnosis's
+            # findings to satisfy an enum would be editing a diagnostic record
+            # rather than migrating a project's writing.
+            errs = linter.errors(path.read_text(errors="replace"), key, spec)
+            if errs:
+                plan.skipped.append({
+                    "path": key, "errors": len(errs),
+                    "reason": "Perry wrote this file itself (YAML frontmatter). "
+                              "Its findings belong to the tool that produced it, "
+                              "not to this project's shape."})
+            continue
+        edit = migrate_text(path.read_text(errors="replace"), key, spec, schema,
+                            lang, linter, mint)
+        edit.path = path
+        edit.key_rel = path.relative_to(project_root).as_posix()
+        if edit.touched or edit.residual:
+            plan.edits.append(edit)
+    plan.newly_visible = cross_file_delta(plan, schema)
+    return plan
+
+
+# ── applying ──────────────────────────────────────────────────────────────
+
+
+def write_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text)
+    tmp.replace(path)
+
+
+def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
+    """The bytes of every file this run is about to touch, before it touches it.
+
+    Includes `.perry/conformance.md`: the run writes that too, through
+    `perry-conform`, and a restore that put the state files back while leaving
+    the declarations standing would leave the record claiming conformance for
+    files that no longer have it."""
+    record = plan.project_root / P.CONFORMANCE_FILE
+    files = {e.key_rel: e.before for e in edits}
+    # `None` means "did not exist before the run", and restore deletes it.
+    files[P.CONFORMANCE_FILE] = (record.read_text(errors="replace")
+                                 if record.exists() else None)
+    payload = {
+        "run": run_id,
+        "created": datetime.now().isoformat(timespec="seconds"),
+        "project_root": str(plan.project_root),
+        "tool": "perry-migrate",
+        "files": files,
+        "expected_after": {e.key_rel: sha(e.after) for e in edits},
+    }
+    out = plan.project_root / MIGRATE_DIR / f"{run_id}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1))
+    tmp.replace(out)
+    return out
+
+
+def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
+    """Write the plan's post-images, then declare what landed. In that order.
+
+    Every write is `write_text(edit.after)` — the exact bytes the dry run
+    printed. Nothing is recomputed here, which is the whole reason the plan
+    carries post-images instead of instructions."""
+    edits = plan.writable
+    if not edits:
+        return {"applied": [], "restore_point": None, "declared": [],
+                "refused": []}
+    run_id = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    point = restore_point(plan, run_id, edits)
+    applied = []
+    for e in edits:
+        write_atomic(e.path, e.after)
+        got = sha(e.path.read_text(errors="replace"))
+        if got != sha(e.after):
+            # The bytes on disk are not the bytes the preview showed. Undo the
+            # whole run rather than leave a project half-written.
+            undo(point)
+            raise Refused(
+                f"{e.key} was written but does not match the plan "
+                f"({got[:12]} vs {sha(e.after)[:12]}). The run was rolled back "
+                f"from {point}.")
+        applied.append(e)
+    result = {"applied": [e.key for e in applied], "restore_point": str(point),
+              "run": run_id, "declared": [], "refused": []}
+    if declare:
+        C = conform()
+        # Through `bin/perry-conform`, never beside it: ADR-004 § 4 makes the
+        # declaration one fact with one record, and `declare()` re-checks each
+        # file rather than trusting this tool's word for it.
+        out = C.declare(plan.project_root, plan.state_root,
+                        [e.key for e in applied], schema, route="migrate")
+        result["declared"] = [d["path"] for d in out["declared"]]
+        result["refused"] = out["refused"]
+        result["record"] = out["record"]
+    return result
+
+
+def undo(point: Path) -> list[str]:
+    payload = json.loads(point.read_text())
+    root = Path(payload["project_root"])
+    back = []
+    for rel, text in payload["files"].items():
+        target = root / rel
+        if text is None:
+            if target.exists():
+                target.unlink()
+                back.append(f"{rel} (removed — it did not exist before the run)")
+            continue
+        write_atomic(target, text)
+        back.append(rel)
+    return back
+
+
+# ── rendering ─────────────────────────────────────────────────────────────
+
+
+def diff(edit: Edit) -> str:
+    return "".join(difflib.unified_diff(
+        edit.before.splitlines(keepends=True),
+        edit.after.splitlines(keepends=True),
+        fromfile=f"a/{edit.key}", tofile=f"b/{edit.key}", n=2))
+
+
+def render(plan: Plan, applied: dict | None, root_arg: str | None) -> None:
+    """The complete diff. Not a summary and not a count — TASK-044 § 1."""
+    verb = "migrated" if applied else "would migrate"
+    r = f" --root {root_arg}" if root_arg else ""
+    print(f"\n🔧 Migration · {plan.project_root.name} · shape version "
+          f"{plan.shape_version} · {'apply' if applied else 'dry run'}\n")
+    if not plan.edits and not plan.skipped:
+        print("   ✓ nothing to migrate — every file this schema claims already "
+              "matches Perry's shape\n")
+        return
+    for e in plan.edits:
+        if not e.touched:
+            continue
+        mark = "✓" if e.writable else "·"
+        print(f"   {mark} {e.key}  ({e.before_errors} error(s) → "
+              f"{len(e.residual)})")
+        for c in e.changes:
+            print(f"       + {c.kind}: {c.detail}")
+        body = diff(e)
+        if body:
+            print("".join(f"       {l}\n" for l in body.rstrip("\n").split("\n")))
+    for e in plan.blocked:
+        print(f"   ✗ {e.key} — left byte-identical. The edits above are not "
+              f"applied to it until this is resolved by hand:")
+        for f in e.residual:
+            print(f"       · [{f.rule}] {f.message}")
+        for v in e.violations:
+            print(f"       · assertion: {v}")
+    for s in plan.skipped:
+        print(f"   · {s['path']} — {s['errors']} error(s), not migrated: "
+              f"{s['reason']}")
+    n_ok, n_bad = len(plan.writable), len(plan.blocked)
+    print(f"\n   {n_ok} file(s) {verb}, {n_bad} left as found.")
+    if plan.newly_visible:
+        print(f"   · {len(plan.newly_visible)} cross-file finding(s) become "
+              f"visible once these files are readable. Migration did not "
+              f"create them; it stopped hiding them:")
+        for f in plan.newly_visible:
+            print(f"       · {f.file} [{f.rule}] {f.message}")
+    if plan.dirty_git:
+        print("   · this project's git tree has uncommitted changes — a `git "
+              "checkout` will not undo only this run. The restore point below "
+              "will.")
+    if applied:
+        print(f"   · restore point: {applied['restore_point']}")
+        print(f"     undo with: perry-migrate restore {applied['run']}{r}")
+        if applied["declared"]:
+            print(f"   · declared conformant ({len(applied['declared'])}): "
+                  f"{', '.join(applied['declared'])}")
+        for ref in applied["refused"]:
+            print(f"   ✗ not declared: {ref['path']} — {ref['reason']}")
+    elif plan.writable:
+        print(f"   Nothing was written. Apply it with:\n"
+              f"       perry-migrate apply{r}")
+    print()
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────
+
+
+def _roots(root_arg: str | None) -> tuple[Path, Path]:
+    project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                    else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+    return project_root, P.resolve_state_root(project_root)
+
+
+def main(argv: list[str]) -> int:
+    cmd = "plan"
+    root_arg = None
+    only: list[str] = []
+    positional: list[str] = []
+    as_json = do_list = no_declare = False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif a == "--root":
+            i += 1
+            root_arg = argv[i] if i < len(argv) else None
+        elif a == "--only":
+            i += 1
+            if i < len(argv):
+                only.append(argv[i])
+        elif a == "--json":
+            as_json = True
+        elif a == "--list":
+            do_list = True
+        elif a == "--no-declare":
+            no_declare = True
+        elif a.startswith("-"):
+            print(f"perry-migrate: unknown argument {a!r} (try --help)",
+                  file=sys.stderr)
+            return 2
+        elif a in ("plan", "apply", "restore") and not positional and cmd == "plan":
+            cmd = a
+        else:
+            positional.append(a)
+        i += 1
+
+    try:
+        schema = conform().load_schema()
+        project_root, state_root = _roots(root_arg)
+
+        if cmd == "restore":
+            return do_restore(project_root, positional, do_list, as_json)
+
+        if not lint().is_adopted(project_root, state_root):
+            # One sentence, not a wall. The near-empty project is the other
+            # real case in TASK-044's measurement, and the failure mode there
+            # is a tool that finds nothing to do and says so at length.
+            tail = ""
+            n = perry_written_findings(project_root, state_root, schema)
+            if n:
+                tail = (f" ({n} lint finding(s) here are in files Perry wrote "
+                        f"itself under .perry/; migration never edits those — "
+                        f"they belong to the tool that produced them.)")
+            raise Refused(
+                f"{project_root.name} has no Perry state to migrate — there is "
+                f"no BOARD.md, no OKR.md, no phase/ and no .perry/config.md. "
+                f"Migration converts state a project already has; a project "
+                f"that has none starts with `/perry adopt`, which writes "
+                f"Perry's shape in the first place.{tail}")
+
+        plan = plan_project(project_root, state_root, schema, only or None)
+        applied = None
+        if cmd == "apply":
+            applied = apply_plan(plan, schema, declare=not no_declare)
+
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "state_root": state_root.relative_to(project_root).as_posix() or ".",
+                "shape_version": plan.shape_version,
+                "mode": "apply" if applied else "dry-run",
+                "dirty_git": plan.dirty_git,
+                "files": [e.as_dict() for e in plan.edits],
+                "skipped": plan.skipped,
+                "newly_visible": [f.as_dict() for f in plan.newly_visible],
+                "applied": applied,
+            }, ensure_ascii=False, indent=2))
+        else:
+            render(plan, applied, root_arg)
+        return 0 if not plan.blocked and not plan.skipped else 1
+    except Refused as exc:
+        if as_json:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-migrate: refused — {exc}", file=sys.stderr)
+        return 1
+
+
+def perry_written_findings(project_root: Path, state_root: Path,
+                           schema: dict) -> int:
+    """Errors in the files Perry writes for itself — the YAML-frontmatter ones."""
+    linter = Linter(schema)
+    n = 0
+    for key, path, spec in conform().state_files(project_root, state_root, schema):
+        if spec.get("format") != "yaml-frontmatter":
+            continue
+        n += len(linter.errors(path.read_text(errors="replace"), key, spec))
+    return n
+
+
+def do_restore(project_root: Path, positional: list[str], do_list: bool,
+               as_json: bool) -> int:
+    base = project_root / MIGRATE_DIR
+    points = sorted(base.glob("*.json")) if base.is_dir() else []
+    if do_list or not positional and len(points) != 1:
+        if not points:
+            raise Refused(f"no restore points under {MIGRATE_DIR}/ — nothing "
+                          f"to undo")
+        if as_json:
+            print(json.dumps({"restore_points": [p.stem for p in points]},
+                             ensure_ascii=False, indent=2))
+        else:
+            print(f"\n🔧 Restore points · {project_root.name}\n")
+            for p in points:
+                payload = json.loads(p.read_text())
+                n = len([k for k in payload["files"]])
+                print(f"   {p.stem}   {n} file(s)   {payload['created']}")
+            print(f"\n   perry-migrate restore <run-id>\n")
+        return 0 if do_list else 1
+    point = base / f"{positional[0]}.json" if positional else points[0]
+    if not point.exists():
+        raise Refused(f"no restore point {point.stem!r} under {MIGRATE_DIR}/")
+    back = undo(point)
+    if as_json:
+        print(json.dumps({"restored": back, "from": str(point)},
+                         ensure_ascii=False, indent=2))
+    else:
+        print(f"\n🔧 Restored {len(back)} file(s) from {point.name}\n")
+        for b in back:
+            print(f"   ← {b}")
+        print(f"\n   {point} is kept — it is the record that the run happened.\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

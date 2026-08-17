@@ -699,6 +699,15 @@
       }
     }
   },
+  "migration": {
+    "description": "Read only by bin/perry-migrate. It does NOT widen what perry-lint accepts, and it is not an exception to i18n.invariant - enum values stay ASCII in every language, and making that true of a file that predates the rule is exactly what the migration is for. This table declares the localized spellings that have been SEEN standing where a canonical enum value belongs, so that resolving one is a lookup in a declared vocabulary rather than a translation performed in code. A spelling that is not listed here is not guessed at: perry-migrate reports the field and leaves the file alone. Extend it when a real project shows a new spelling; never from imagination, because an entry here decides what somebody's file is asserting.",
+    "enum_aliases": {
+      "phase_status": {
+        "进行中": "active",
+        "已评分": "scored"
+      }
+    }
+  },
   "thresholds": {
     "stale_run_days": {
       "value": 30,

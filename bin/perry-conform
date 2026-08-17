@@ -305,13 +305,22 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"Reading is unaffected — `{tool} list` and `perry-state` work "
             f"either way.{tail}")
     if v.state == UNDECLARED:
+        # `risk-add`'s refusal is the shape: name the count, name the command,
+        # point at the dry run. Until TASK-044 landed the only command this
+        # could name was `perry-lint`, which reports the problem and fixes
+        # nothing — a wall with a diagnosis nailed to it.
         return (
             f"{v.path} is not Perry's shape: {len(v.errors)} error(s) against "
             f"schema/state-schema.json. A project migrates once (ADR-004); until "
-            f"then this file is read-only. See what is wrong with:\n"
-            f"    perry-lint{r}\n"
-            f"then, once it is clean:\n"
-            f"    perry-conform declare {v.path}{r}\n"
+            f"then this file is read-only. See the complete diff, with nothing "
+            f"written:\n"
+            f"    perry-migrate{r}\n"
+            f"then, when it is the diff you want:\n"
+            f"    perry-migrate apply{r}\n"
+            f"which declares every file it migrates, names a restore point, and "
+            f"leaves anything it will not touch byte-identical with the reason. "
+            f"The unfiltered list of findings is `perry-lint{r}`; a file you fix "
+            f"by hand is declared with `perry-conform declare {v.path}{r}`.\n"
             f"Reading is unaffected — `{tool} list` and `perry-state` work "
             f"either way.{tail}")
     if v.state == STALE:
@@ -384,8 +393,17 @@ def write_atomic(path: Path, text: str) -> None:
 
 
 def declare(project_root: Path, state_root: Path, keys: list[str],
-            schema: dict, dry_run: bool = False) -> dict:
+            schema: dict, dry_run: bool = False, route: str = "declare") -> dict:
     """Record the user's declaration for each named file.
+
+    `route` is how the declaration was made — `declare` for this command,
+    `migrate` for `bin/perry-migrate`, which the docstring above always said
+    would be the second caller. It is the record's own column, and it exists so
+    a reader can tell a hand declaration from one a migration made on the
+    user's instruction. **It is not a second record**: the migration calls this
+    function, so the file still has exactly one writer, and the per-file
+    re-check below still runs — a migration cannot record a claim this
+    function would refuse.
 
     Refuses per file rather than in bulk: a project that can declare its board
     and not its risks is a *state*, not a failure (ADR-004 § 5), and the rows
@@ -411,7 +429,7 @@ def declare(project_root: Path, state_root: Path, keys: list[str],
             continue
         record.declarations[key] = P.Declaration(
             path=key, shape_version=now, declared=f"{date.today():%Y-%m-%d}",
-            route="declare", line=0)
+            route=route, line=0)
         declared.append({"path": key, "shape_version": now})
     if declared and not dry_run:
         write_atomic(project_root / P.CONFORMANCE_FILE, render(record.declarations))
