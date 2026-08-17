@@ -102,6 +102,29 @@ of it apart — `confidence: none` means nothing distinguishing was found at all
 `confidence: low` means two modes tied — and both are reported as *cannot tell*
 rather than rounded up.
 
+**Two of those columns have two owners, and the scan scores them for both.**
+`modes/*.md` is the source the scanner is derived from, and read line by line it
+gives `Stage since` to pipeline (the *stage clock*) **and** to inquiry (the
+*question clock*, whose triage step measures the same subtraction), and
+`Commitment` to pipeline (the *commitment link*) **and** to queue (the cell a
+routed intake row takes, and the promise an SLA breach is named with). A signal
+two modes own cannot tell those two apart — so it is scored for each of them, at
+a reduced weight, which leaves the margin between its own owners at exactly
+zero. It still separates them from the other two modes, which is why it is
+scored at all rather than dropped. The report that follows from this: a board
+whose only mode-ish column is `Stage since` is **cannot tell**, not pipeline.
+That case was a live defect — a correctly-declared `inquiry` track of root
+questions, whose `Parent` cells are legitimately empty and whose stage
+vocabulary is its own, scored `pipeline: 3, inquiry: 0` and was reported as
+mislabelled.
+
+**`high` costs more than one column.** The scan's floor for it is a score no
+single signal can reach, plus a lead of a whole structural signal over the
+runner-up — so a `high` verdict always rests on at least two signals, and on at
+least one that exactly one mode owns. Anything that scores but clears neither
+bar is `medium`: a mode worth naming in the report, on evidence too thin to
+contradict a user with. This matters because `MODE-01` fires on `high` alone.
+
 **Report the mode with the evidence that produced it, never bare.** "Looks like
 `queue` — the board carries eleven rows with an `Arrived` date and `## Intake`
 has four requests waiting" is a claim the user can check and argue with. "Looks
@@ -475,6 +498,11 @@ which is which. It is described in § What the scan reports about work mode
 below; the short version is that it fires only when the register **declared** a
 mode, the evidence points somewhere else, and the margin is wide. Under any
 other combination the honest output is the mode line, not a finding.
+
+*Wide* is a stated number, not an impression: `confidence: high`, which no
+single column can produce and which no evidence shared between two mode
+contracts can produce on its own. One column used to be enough, and one of the
+columns it counted belonged to the mode being accused.
 
 The `LOAD-*` family measures something different from the rest: not whether the
 project is well-formed, but whether a **human** can still follow it. See

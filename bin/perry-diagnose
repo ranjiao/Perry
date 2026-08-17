@@ -1162,6 +1162,50 @@ def _perry_shaped(path: Path, schema: dict) -> bool:
 
 MODE_NAMES = ("project", "pipeline", "queue", "inquiry")
 
+# Weights, and the rule for a signal two contracts claim.
+#
+# `STRUCTURAL` is a column, a directory or a board section that exactly **one**
+# mode's contract table in `modes/*.md` defines. `CORROBORATING` is a signal
+# that mode owns alone but which a project can carry for other reasons.
+#
+# `SHARED` is the third case, and getting it wrong is what this scanner shipped
+# for a release. Two of the columns it reads are named by two contracts:
+#
+#   `Stage since` — pipeline's *Stage clock* (`modes/pipeline.md` § contract,
+#                   and triage step 1 computes `today − Stage since`) **and**
+#                   inquiry's *Question clock* (`modes/inquiry.md` § contract,
+#                   whose triage step 2 computes the same subtraction).
+#   `Commitment`  — pipeline's *Commitment link* (`modes/pipeline.md` §
+#                   contract) **and** the cell a routed intake row takes in
+#                   `modes/queue.md § triage drains intake first`, carries in
+#                   § Standing commitments, and is named by when it breaches
+#                   SLA in that file's triage step 2.
+#
+# A signal two modes own cannot tell those two apart. It can still tell them
+# apart from the other two, so dropping it would throw away a real fact. It is
+# therefore scored **for every owner** — which makes its contribution to the
+# margin between them exactly zero — and at a **reduced** weight, because a
+# fact that halves the field is not a fact that names a mode.
+#
+# The consequence to hold onto: with these numbers no verdict resting only on
+# shared evidence can reach `high`, and `high` is the only confidence `MODE-01`
+# fires on. An accusation is never assembled out of evidence two modes share.
+STRUCTURAL, CORROBORATING, SHARED = 3, 2, 2
+
+# `high` is that gate, so it takes more than one fact. `HIGH_SCORE` is set
+# above the largest single signal on purpose: **no one signal can reach it**,
+# so a `high` verdict always rests on at least two, and — since two shared
+# signals sum to 4 — on at least one signal exactly one mode owns. `top >= 3`,
+# one weight-3 signal, used to satisfy what `reference/diagnose.md` sells as
+# *"with a clear margin"*, which meant a single column was enough to tell a
+# user their own written declaration was wrong. `HIGH_MARGIN` is the second
+# half: a lead of a whole structural signal over the runner-up, so a mode that
+# merely edges ahead is reported as `medium` and accuses nobody.
+#
+# Both numbers are load-bearing rather than decorative, and
+# `tests/test_diagnose.py` reverts each one on its own to prove it.
+HIGH_SCORE, HIGH_MARGIN = 5, 3
+
 # The default stage vocabularies from `modes/*.md`, minus every member that is
 # ALSO a global `Status` value or another mode's stage. `review` is pipeline's
 # and the status enum's; `in_progress` is queue's and the status enum's. A cell
@@ -1171,6 +1215,23 @@ STAGE_VOCAB = {
     "queue": {"new", "triaged", "resolved"},
     "inquiry": {"open", "researching", "answered"},
 }
+
+# Board columns, and the modes each one belongs to — read off the four contract
+# tables in `modes/*.md`, which is the source this scanner is derived from.
+#
+#   `Stage since` · `Commitment` — two owners each; see the SHARED note above.
+#   `Arrived` — queue's alone (`modes/queue.md § contract` → Arrival).
+#       `modes/pipeline.md § What this mode does not assume` sends work that
+#       arrives to a second track in queue mode rather than bending pipeline,
+#       so no other contract wants the column.
+#   `Parent` — inquiry's alone (`modes/inquiry.md § contract` → Question tree,
+#       Spine). No other mode has a tree to record.
+COLUMN_SIGNALS = (
+    ("stage since", ("pipeline", "inquiry"), "carry a `Stage since` date"),
+    ("commitment", ("pipeline", "queue"), "name the `Commitment` they discharge"),
+    ("arrived", ("queue",), "carry an `Arrived` date"),
+    ("parent", ("inquiry",), "name a `Parent` question"),
+)
 
 DATEISH = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 BLANK_CELL = {"", "—", "-", "–", "n/a", "none"}
@@ -1254,6 +1315,21 @@ def _filled(rows: list[dict], col: str) -> int:
     return sum(1 for r in rows if (r.get(col) or "").strip().lower() not in BLANK_CELL)
 
 
+def _award(ev: dict[str, list], owners: tuple[str, ...], weight: int,
+           label: str) -> None:
+    """Score one signal for every mode `modes/*.md` gives it.
+
+    One owner scores at `weight`. More than one scores each of them at `SHARED`
+    — the same number for each, so a shared signal moves both scores together
+    and can never open a margin between its own owners. The label is identical
+    in every mode's evidence list, so a reader of the payload sees the fact
+    once per mode that claims it rather than once, silently attributed.
+    """
+    w = weight if len(owners) == 1 else min(weight, SHARED)
+    for m in owners:
+        ev[m].append((w, label))
+
+
 def _verdict(evidence: dict[str, list]) -> tuple[str | None, str, dict[str, int]]:
     """Score → (mode or None, confidence, scores).
 
@@ -1261,6 +1337,11 @@ def _verdict(evidence: dict[str, list]) -> tuple[str | None, str, dict[str, int]
     keeps apart: `none` means nothing distinguishing was found at all, `low`
     means two modes tied. Neither is a verdict, and neither may be rounded up
     into one.
+
+    `high` is the fourth answer and the strictest, because `MODE-01` is gated
+    on it — see the `HIGH_SCORE` note. Everything else that scores is `medium`:
+    a mode worth naming in the report, on evidence too thin to contradict a
+    user with.
     """
     scores = {m: sum(w for w, _ in evidence[m]) for m in MODE_NAMES}
     ranked = sorted(scores.items(), key=lambda kv: -kv[1])
@@ -1269,7 +1350,7 @@ def _verdict(evidence: dict[str, list]) -> tuple[str | None, str, dict[str, int]
         return None, "none", scores
     if top[1] == second[1]:
         return None, "low", scores
-    if top[1] >= 3 and top[1] - second[1] >= 3:
+    if top[1] >= HIGH_SCORE and top[1] - second[1] >= HIGH_MARGIN:
         return top[0], "high", scores
     return top[0], "medium", scores
 
@@ -1326,22 +1407,29 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     # Project-wide signals. They can only be attributed when there is exactly
     # one track to attribute them to — `phase/` and `## Intake` carry no track
     # column, so on a multi-track project they say nothing about any one track.
+    # Each of these belongs to exactly one contract. `phase/` is project's
+    # horizon and `modes/queue.md § Standing commitments` says in as many words
+    # that Perry's phase machinery is not used by that mode; the objectives
+    # cascade is disclaimed by the other three; `## Intake` is the organ
+    # `modes/queue.md` opens by saying no other mode needs; the answer file and
+    # the SRC- digest are `modes/inquiry.md`'s deliverable and its sources.
     file_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
     if phase_files or has_current:
-        file_ev["project"].append(
-            (3, f"phase/ holds {len(phase_files)} numbered phase file(s)"
-                + (" and a CURRENT pointer" if has_current else "")))
+        _award(file_ev, ("project",), STRUCTURAL,
+               f"phase/ holds {len(phase_files)} numbered phase file(s)"
+               + (" and a CURRENT pointer" if has_current else ""))
     if objectives:
-        file_ev["project"].append((2, f"OKR.md declares {objectives} objective(s)"))
+        _award(file_ev, ("project",), CORROBORATING,
+               f"OKR.md declares {objectives} objective(s)")
     if intake_rows:
-        file_ev["queue"].append(
-            (3, f"BOARD.md § Intake carries {intake_rows} arrived request(s)"))
+        _award(file_ev, ("queue",), STRUCTURAL,
+               f"BOARD.md § Intake carries {intake_rows} arrived request(s)")
     if answers:
-        file_ev["inquiry"].append(
-            (3, f"{len(answers)} answer file(s) under evidence/"))
+        _award(file_ev, ("inquiry",), STRUCTURAL,
+               f"{len(answers)} answer file(s) under evidence/")
     if digests:
-        file_ev["inquiry"].append(
-            (2, f"{digests} source digest(s) under knowledge/ carrying an SRC- id"))
+        _award(file_ev, ("inquiry",), CORROBORATING,
+               f"{digests} source digest(s) under knowledge/ carrying an SRC- id")
 
     single = len(tracks) == 1
 
@@ -1351,39 +1439,41 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         mine = [r for r in rows if single
                 or (r.get("track") or "").strip().lower() == name.lower()]
         n = lambda col: _filled(mine, col)  # noqa: E731
-        if n("stage since"):
-            ev["pipeline"].append(
-                (3, f"{n('stage since')} board row(s) carry a `Stage since` date"))
-        if n("commitment"):
-            ev["pipeline"].append(
-                (3, f"{n('commitment')} board row(s) name the `Commitment` they discharge"))
-        if n("arrived"):
-            ev["queue"].append(
-                (3, f"{n('arrived')} board row(s) carry an `Arrived` date"))
-        if n("parent"):
-            ev["inquiry"].append(
-                (3, f"{n('parent')} board row(s) name a `Parent` question"))
+        for col, owners, phrase in COLUMN_SIGNALS:
+            filled = n(col)
+            if filled:
+                _award(ev, owners, STRUCTURAL,
+                       f"{filled} board row(s) {phrase}")
         seen = {(r.get("stage") or "").strip().lower() for r in mine}
         for mode, vocab in STAGE_VOCAB.items():
             hit = sorted(seen & vocab)
             if hit:
-                ev[mode].append((2, f"stage vocabulary in use: {', '.join(hit)}"))
+                _award(ev, (mode,), CORROBORATING,
+                       f"stage vocabulary in use: {', '.join(hit)}")
         krs = sum(1 for r in mine
                   if re.search(r"\bkr:\s*\S", " ".join(r.values()), re.I))
         if krs:
-            ev["project"].append((2, f"{krs} board row(s) attribute work to a KR"))
+            _award(ev, ("project",), CORROBORATING,
+                   f"{krs} board row(s) attribute work to a KR")
         mine_c = [c for c in commitments if single
                   or (c.get("track") or "").strip().lower() == name.lower()]
         dated = sum(1 for c in mine_c if DATEISH.search(c.get("by when") or ""))
         prose = sum(1 for c in mine_c
                     if (c.get("by when") or "").strip().lower() not in BLANK_CELL
                     and not DATEISH.search(c.get("by when") or ""))
+        # `OKR.md § Commitments` is the spine of **both** pipeline and queue, so
+        # the table's existence distinguishes nothing. The cell does: `By when`
+        # "is a **date** for pipeline rows; queue rows in the same table may
+        # carry prose" (`modes/pipeline.md § contract`), and `modes/queue.md §
+        # Standing commitments` says the queue value is prose and the clock
+        # lives once, in the register's `SLA`. So the form of the cell is the
+        # signal, and each form has one owner.
         if dated:
-            ev["pipeline"].append(
-                (3, f"{dated} commitment(s) promise a dated `By when`"))
+            _award(ev, ("pipeline",), STRUCTURAL,
+                   f"{dated} commitment(s) promise a dated `By when`")
         if prose:
-            ev["queue"].append(
-                (2, f"{prose} standing commitment(s) whose `By when` is prose, not a date"))
+            _award(ev, ("queue",), CORROBORATING,
+                   f"{prose} standing commitment(s) whose `By when` is prose, not a date")
         return ev
 
     out = []
