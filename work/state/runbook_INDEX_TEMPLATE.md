@@ -6,7 +6,7 @@
 > Gaps (deployed components with no runbook): 0
 > Last rebuilt: {{YYYY-MM-DD}}
 
-Auto-maintained by `/pmo runbook-check` and incrementally on every runbook create/update. Do not hand-edit the counts; they're recomputed.
+Auto-maintained by `/perry work runbook-check` and incrementally on every runbook create/update. Do not hand-edit the counts; they're recomputed.
 
 ## Active
 

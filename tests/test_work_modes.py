@@ -862,20 +862,54 @@ class TestRouterNamesOnlyRealThings(unittest.TestCase):
             self.assertTrue((PERRY_HOME / name).is_dir(),
                             f"router says $PERRY_HOME contains {name}/, which does not exist")
 
+    # A withdrawn command, in every shape the router actually writes one.
+    #
+    # The first version of this guard matched three literals — "`/okr ",
+    # "`/pmo ", "`/design " — backtick, slash, name, trailing space. A round-4
+    # reviewer pasted four withdrawn forms into SKILL.md and every one passed:
+    # a form with no trailing space (`` `/okr` ``), a form with no leading
+    # slash (`` `pmo triage` ``), and any line at all that began with `>` or
+    # merely contained the word "shorthand". The no-leading-slash shape was not
+    # hypothetical — SKILL.md:677/679/686 already carried `okr score`,
+    # `pmo triage`, `design decide` and `pmo dispatch`.
+    WITHDRAWN = re.compile(
+        # /okr, /pmo, /design in any position — `/perry work` is untouched
+        # because the lookbehind rejects a name-char before the slash.
+        r"(?<!\w)/(?:okr|pmo|design)\b"
+        # `okr score`, `pmo triage`, `design decide` — backticked, no slash.
+        r"|`(?:okr|pmo|design)\s+[a-z]"
+    )
+
+    # The two lines whose subject IS the withdrawn vocabulary. Named
+    # individually rather than by shape: the old guard exempted every
+    # blockquote and every line containing the word "shorthand", which is how
+    # `> Tip: run `/pmo triage`` would have sailed through.
+    CARVE_OUTS = (
+        "are written in shorthand",          # SKILL.md § Reading the lane docs
+        "Earlier versions symlinked them",   # SKILL.md, why the siblings went
+    )
+
     def test_the_router_does_not_tell_users_to_run_withdrawn_commands(self):
         """`/okr` and `/design` resolve to other people's skills on a host with
         lark-okr or the design: plugin family installed — which is the reason
-        the siblings were withdrawn in the first place."""
+        the siblings were withdrawn in the first place.
+
+        `SKILL.md:41` scopes the shorthand carve-out to lane SKILL.md files and
+        `*/reference/`. It does not exempt the router itself, so this file is
+        held to the user-facing vocabulary throughout.
+        """
         router = (PERRY_HOME / "SKILL.md").read_text()
-        for line in router.split("\n"):
-            if line.strip().startswith(">") or "shorthand" in line:
+        offenders = []
+        for n, line in enumerate(router.split("\n"), 1):
+            if any(c in line for c in self.CARVE_OUTS):
                 continue
-            for withdrawn in ("`/okr ", "`/pmo ", "`/design "):
-                self.assertNotIn(
-                    withdrawn, line,
-                    f"router quotes the withdrawn command {withdrawn.strip('` ')} "
-                    f"back to the user: {line[:90]}",
-                )
+            for hit in self.WITHDRAWN.findall(line):
+                offenders.append(f"SKILL.md:{n} → {line.strip()[:90]}")
+                break
+        self.assertEqual(
+            offenders, [],
+            "the router quotes a withdrawn command back to the user:\n    "
+            + "\n    ".join(offenders))
 
 
 class TestTheHookTemplateIsNotBlind(unittest.TestCase):

@@ -44,7 +44,7 @@
 - {{trigger 1: date / metric threshold / event}}
 - {{trigger 2: ...}}
 
-Any trigger firing → run `/pmo decide --expire ADR-{{N}} "<trigger-note>"`.
+Any trigger firing → run `/perry decide adr --expire ADR-{{N}} "<trigger-note>"`.
 Date-based triggers are auto-checked at every standup; metric/event-based triggers are surfaced by the user.
 -->
 

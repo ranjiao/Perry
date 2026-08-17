@@ -1,6 +1,6 @@
 # Decisions index — {{project_name}}
 
-> Auto-maintained by PMO on every `/pmo decide` / status flip.
+> Auto-maintained by the `decide` lane on every `/perry decide adr` / status flip.
 > Per-decision content lives in `decisions/ADR-NNN-<slug>.md`. This file is index only — keep ≤ 200 lines.
 > Active: 0 · Superseded: 0 · Expired: 0 · Archived: 0
 > Last updated: {{today}}

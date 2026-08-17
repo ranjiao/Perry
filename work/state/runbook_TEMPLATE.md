@@ -39,14 +39,14 @@ For each known failure mode: symptom + diagnose command + fix command. Both runn
 - **Diagnose**: ...
 - **Canned fix**: ...
 
-<!-- Add new failure modes as incidents reveal them (see /pmo incident close 3-question gate). -->
+<!-- Add new failure modes as incidents reveal them (see /perry work incident close 3-question gate). -->
 
 ## Escalation
 
 When canned ops fail, in order:
 
 1. {{First diagnostic step the user takes}}
-2. {{Who/what to invoke — usually `/pmo incident <slug>` to open a postmortem record}}
+2. {{Who/what to invoke — usually `/perry work incident <slug>` to open a postmortem record}}
 3. {{Worst case: shutdown command — exact syntax}}
 
 ## Change log

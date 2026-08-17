@@ -51,7 +51,7 @@ restore_point: "{{branch name, or .perry/diagnose/<date>-backup/, or null}}"
 
 > **Owner**: the top-level `perry` skill, via `/perry diagnose`. It is the
 > **only** file diagnose writes. Changes to Perry state files go through
-> `/okr`, `/pmo`, `/design`; changes to the project's own documents are made
+> `/perry goals`, `/perry work`, `/perry decide`; changes to the project's own documents are made
 > directly at stage 4, and every one of them is recorded in `moves[]`.
 > **Tier**: 2 (agent-state, no line cap).
 > **Spec**: `diagnosis: 1`. Procedure in `$PERRY_HOME/reference/diagnose.md`;

@@ -14,7 +14,7 @@ This document is the long-term reference for the system. The `okr` skill uses it
 ## Operating Principles
 
 > Invariants the system must hold across all Objectives, all versions, all months.
-> Edit only via `okr revise` (which bumps the version).
+> Edit only via `/perry goals revise` (which bumps the version).
 
 - {{principle 1}}
 - {{principle 2}}

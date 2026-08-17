@@ -313,7 +313,7 @@ When `/perry` is invoked, always run this before doing anything else.
    `bash "$PERRY_HOME/bin/perry-explain" <ID>` rather than printing the bare ID
    or inventing a name.
 
-5. **Suggest 1–3 next actions** combining OKR, PMO, and design concerns:
+5. **Suggest 1–3 next actions** combining `goals`, `work`, and `decide` concerns:
    - "phase #002 commit KRs ≥80% → run `/perry work end-phase-retro`, `/perry goals score-phase`, `/perry work rollover`, `/perry goals plan-phase <new-slug>`"
    - "USER-014 (\"Confirm staging env default\") idle 6d, weekly is 8d old → run `/perry work nudge` then `/perry work friday-review`"
    - "no current phase → run `/perry goals plan-phase <slug>`, then `/perry goals plan-week`, then `/perry work` to add the tasks"
@@ -674,16 +674,16 @@ Whenever a Perry skill (top-level or any child) needs the user to make a choice 
 
 ### When to use it
 
-- Any subcommand that branches based on a user choice with a small bounded option set (e.g., `okr score` per-KR `achieved | partial | missed | dropped`, `pmo triage` per-row `apply | edit | skip`, `design decide` per-User-Decision row).
+- Any subcommand that branches based on a user choice with a small bounded option set (e.g., `/perry goals score-phase` per-KR `achieved | partial | missed | dropped`, `/perry work triage` per-row `apply | edit | skip`, `/perry decide resolve` per-User-Decision row).
 - First-time setup choices (document language, repo layout).
-- Per-spec dispatch choice when the spec doesn't pin an executor (`pmo dispatch` → falls back to asking `claude-subagent | codex | manual`).
+- Per-spec dispatch choice when the spec doesn't pin an executor (`/perry work dispatch` → falls back to asking `claude-subagent | codex | manual`).
 - Multi-select when you offer up to 4 candidate items the user may approve all/some/none of (use `multiSelect: true`).
 
 ### When NOT to use it
 
 - Open-ended questions that need a sentence or paragraph (e.g., "What is this project's mission?"). Free-text only.
 - Choice sets larger than 4 options. Either narrow first (recommend 1–4 + leave "Other" as the auto-filled fallback), or split into two `AskUserQuestion` calls.
-- Confirmations that should always block on explicit user words (e.g., authorizing a high-stakes operation per the project hook). The auto-update check, `pmo dispatch` pre-flight refusals, and similar safety gates STILL ask in chat — `AskUserQuestion` is not a permission grant.
+- Confirmations that should always block on explicit user words (e.g., authorizing a high-stakes operation per the project hook). The auto-update check, `/perry work dispatch` pre-flight refusals, and similar safety gates STILL ask in chat — `AskUserQuestion` is not a permission grant.
 
 ### Conventions
 
@@ -741,7 +741,7 @@ The script is invoked from the standup ritual of every lane, so any `/perry …`
 - [reference/project-archetypes.md](reference/project-archetypes.md) — the research diagnose applies: the three failure modes of agent projects, the isolation ladder, the tier discipline for documents, the minimum viable spine, three archetypes, and an explicit account of where the evidence is thin.
 - [templates/](templates/) — runnable scaffolds for the three archetypes, including a verification loop for the two that have none natively (`kb-lint`, `deliverable-lint`).
 - [reference/adoption-sources.md](reference/adoption-sources.md) — the harvest catalog: source detectors, A/B/C trust tiers (which cap derived confidence), the depth matrix, scale limits, non-code projects, and the citation forms every piece of evidence must produce.
-- [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by okr / design / pmo before writing user-authored content to tier 1 files (advisory + override).
+- [reference/input-quality.md](reference/input-quality.md) — shared input-quality rubric run by `goals` / `decide` / `work` before writing user-authored content to tier 1 files (advisory + override).
 - [reference/okr-linkage.md](reference/okr-linkage.md) — shared O→KR→Project attribution gate: resolve a Project/Task's KR by stable ID via `phase/<NNN>-linkage.md`, and when it's unclear **ask the user, never guess** (hard gate; unresolved → `unlinked`, excluded from roll-up).
 - [goals/SKILL.md](goals/SKILL.md) — full goal-setting subcommands and templates.
 - [work/SKILL.md](work/SKILL.md) — full execution stewardship subcommands and templates.

@@ -490,6 +490,69 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
             "a lane's reference page instructs a write the signed contract "
             "forbids:\n    " + "\n    ".join(offenders))
 
+    # Every way a shared page names a lane, mapped to the lane it names. The
+    # aliases are here on purpose: a page that still says `/pmo decide` is
+    # routing `work`, and the whole point of B-3 was that the routing was
+    # wrong regardless of which vocabulary it was written in.
+    LANE_TOKENS = (
+        (re.compile(r"/perry\s+goals\b|(?<!\w)/okr\b|`okr\s"), "goals"),
+        (re.compile(r"/perry\s+work\b|(?<!\w)/pmo\b|`pmo\s"), "work"),
+        (re.compile(r"/perry\s+decide\b|(?<!\w)/design\b|`design\s"), "decide"),
+    )
+
+    # Pages that carry procedures but belong to no single lane. The lane-scoped
+    # loop above could never reach them, and `reference/adoption.md § 4 Commit`
+    # — the table `/perry adopt` walks to materialize a whole project — routed
+    # `decisions/ADR-NNN-*.md` to `work`, a lane the signed contract forbids to
+    # write it. `modes/` is listed for the same reason and is allowed not to
+    # exist yet; a glob over a missing directory is empty, not an error.
+    SHARED_DIRS = ("reference", "modes", "packs")
+
+    def _shared_pages(self):
+        for d in self.SHARED_DIRS:
+            yield from sorted((PERRY_HOME / d).rglob("*.md"))
+
+    def test_no_shared_page_routes_a_write_to_a_lane_that_may_not_perform_it(self):
+        """The lane-scoped test above globs `<lane>/reference/*.md` only, so
+        the shared root `reference/`, `modes/` and `packs/` were outside every
+        ownership check Perry had.
+
+        That is where `/perry adopt`'s commit table lives, and it sent ADR
+        materialization to `/pmo decide` — a subcommand the contract deleted,
+        naming a path the contract moved. Stage 4 on any project with ADR
+        candidates walked straight into it.
+
+        A shared page has no lane of its own, so the lane is read off the line:
+        whichever lane the line tells the user to run is the lane that must be
+        allowed to write the paths on that same line.
+        """
+        offenders = []
+        for page in self._shared_pages():
+            rel = page.relative_to(PERRY_HOME).as_posix()
+            for n, line in enumerate(page.read_text().splitlines(), 1):
+                lanes = {lane for rx, lane in self.LANE_TOKENS if rx.search(line)}
+                if len(lanes) != 1:
+                    continue  # no lane named, or the line compares several
+                lane = lanes.pop()
+                # Same exclusions as the lane-scoped test: a line that forbids,
+                # hands off, or narrates history is the fix, not the defect.
+                if re.search(r"\bnot\b|\bdon'?t\b|\bdoesn'?t\b|never|belong|"
+                             r"hand (it |the |off)|owned by|moved to|refuse|"
+                             r"instead of|used to|read(s)? ",
+                             line, re.I):
+                    continue
+                for span in re.findall(r"`([^`]+)`", line):
+                    if any(span == p or span.startswith(p)
+                           for p in self.FOREIGN_WRITES[lane]):
+                        offenders.append(
+                            f"{rel}:{n} → routes `{span}` to `{lane}`\n"
+                            f"      {line.strip()[:110]}")
+                        break
+        self.assertFalse(
+            offenders,
+            "a shared page routes a write to a lane the signed contract "
+            "forbids:\n    " + "\n    ".join(offenders))
+
     def test_no_other_lane_claims_the_moved_files_in_its_own_prose(self):
         """Every lane SKILL.md states the contract in its own words, and
         `goals/SKILL.md` kept the pre-move sentence — "PMO is the only writer

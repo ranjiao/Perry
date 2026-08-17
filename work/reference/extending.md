@@ -55,6 +55,6 @@ Beyond the generic block above, two more-specific profile blocks are recognized 
 
 - `## Architecture profile` block — see `$PERRY_HOME/packs/software-ops/architecture.md`. Drives eager creation of `ARCHITECTURE.md` at bootstrap.
 - `## Operational profile` block — see `$PERRY_HOME/packs/software-ops/runbooks.md`. Drives eager creation of `runbook/` at bootstrap.
-- `## ADR conventions` block — see `reference/decisions.md`. Overrides the default ADR type list.
+- `## ADR conventions` block — see `$PERRY_HOME/decide/reference/decisions.md`. Overrides the default ADR type list.
 
 All hook blocks are optional and additive.
