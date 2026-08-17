@@ -21,9 +21,10 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-019 | `modes/pipeline.md` | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; WIP limit has no home or default; Commitments has no track key/owner). Fix B1+B3, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
-| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; `Arrived` is destroyed on routing so SLA triage is uncomputable; Commitments ownership). Fix B1+B2, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-019 | `modes/pipeline.md` | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage/Stage since columns created by columns_for; WIP defaults exist (pipeline review:3, inquiry open:5) in schema work_modes; Commitments owned by goals in the signed contract. NO re-review has run — that is what this row waits on. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage column; Arrived carried through route (P1 table header reads Arrived, value preserved); Commitments ownership settled. Intake drain + resolve-intake shipped. NO re-review has run. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
+| TASK-041 | perry-task: correct a Next action without a status change | Coding Agent | not_started | Found in triage 2026-08-17. TASK-034's next action cites a closed task; the only way to fix it is a status change the row does not warrant, or a hand edit. `status` refuses a no-op transition (correctly). The most common triage action has no tool path. | — |  |
 
 ## P2
 
@@ -35,6 +36,7 @@
 | TASK-037 | perry-goals writer | Coding Agent | not_started | DESIGN-005 step 3 — byte-identity test against existing OKR.md BEFORE any write path ships | — |  |
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | review | Table + risk-add/risk-clear landed; Top risks migrated (RX-001..004). Needs review of the column set and the list-contract leak fix. | — |  |
+| TASK-042 | OKR.md § Commitments — the half TASK-021 did not do | Coding Agent | not_started | Split out 2026-08-17 so TASK-021 can close honestly on the cadence half alone. Commitments is the spine for pipeline/queue tracks (modes/pipeline.md, modes/queue.md) and is owned by the goals lane; a writer for it is DESIGN-005 step 3 territory, not the work lane's. | — |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
