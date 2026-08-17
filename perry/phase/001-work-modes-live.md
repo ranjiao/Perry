@@ -128,6 +128,48 @@ Close the review debt blocking the mode work, then declare and exercise a `pipel
 
 ---
 
+## Objective 3 — A real project can become Perry-shaped, once
+
+Added mid-phase on 2026-08-17 by `ADR-004`. Until that decision, landing on a
+real project meant teaching every tool one more shape, and the round-5 review
+showed where that ends: two tolerance branches disagreeing with each other and
+losing a project's live risks between them. The strategy changed from *adapt
+forever* to *migrate once*, which turns an unbounded surface into one pipeline —
+and creates work that serves no KR this phase had.
+
+### Key Results
+
+| Id | KR text | Metric / Target | Linked overall KR |
+|----|---------|-----------------|---------------------|
+| P-O3.1 | A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration (baseline: `is_adopted()` answers only "is there any Perry file here") | 1 marker, all 3 writers gating | KR-O3.4 |
+| P-O3.2 | Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked) | id set before == id set after | KR-O3.4 |
+
+`ADR-004`'s own reopening criterion is that migration proves unbuildable to its
+five guarantees. P-O3.2 is that criterion, made measurable — it is the KR whose
+failure retires the decision rather than the phase.
+
+### Projects
+
+- **TASK-043 — Conformance marker**
+  - Owner: Coding Agent
+  - User role: none
+  - Deliverable: a declared, versioned, per-file marker plus the gate every writer calls
+  - Verification: a writer refuses on an unmarked file and names the way forward; reading is unaffected; the three published contracts do not change shape
+
+- **TASK-044 — Migration is dry-runnable, lossless, recoverable, user-declared**
+  - Owner: Coding Agent
+  - User role: none
+  - Deliverable: `/perry adopt` gains the five guarantees `ADR-004` names
+  - Verification: run against copies of `gimegime-pmo` and `PolyForge` — the dry run shows the whole diff, every pre-existing id survives, a dirty tree refuses
+
+- **TASK-045 — Retire the runtime tolerance branches**
+  - Owner: Coding Agent
+  - User role: none
+  - Deliverable: the steady-state tools stop carrying fallbacks the marker makes unnecessary
+  - Verification: each removal is its own commit whose test proves the strict path refuses rather than mis-parses. **Blocked by construction** — nothing may be removed before TASK-043 ships.
+
+---
+
 ## Week-by-week breakdown
 
 > `okr plan-week` reads the row for the current ISO week, proposes tasks, and (after user approval) PMO appends them to `BOARD.md`. Fill `TASK-IDs` as the week unfolds. Weeks below are loose ISO-week labels — they do NOT bound the phase; the phase ends on `score-phase`, not when the table runs out.
@@ -177,6 +219,7 @@ PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, En
 
 ## Changes / Pivots     <!-- append-only -->
 
+- 2026-08-17 — **Objective 3 added mid-phase.** `ADR-004` changed how a real project gets landed — migrate once rather than adapt forever — and opened TASK-043/044/045, which served no KR this phase had. Recording where they serve is bookkeeping for a decision already signed; the Objective is the smallest honest way to do it. If the phase should not carry O3, drop it and declare the three `unlinked` instead.
 - 2026-08-17 — Phase created. Slug written as `work-modes-live`, not the `helloworld` given on the command line — reason: the slug is the searchable half of the filename and `helloworld` describes no work. Focus chosen by the user from three evidence-backed options.
 
 ## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->

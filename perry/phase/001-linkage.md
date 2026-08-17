@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "001-work-modes-live"
-updated: "2026-08-17T04:22:43Z"
+updated: "2026-08-17T08:56:00Z"
 objectives:
   - id: O1
     title: "The three non-`project` modes run on a live track"
@@ -29,7 +29,7 @@ objectives:
         title: "Blocking review findings open against the mode work"
         metric: "0 open (baseline 6 — 3 on TASK-019, 3 on TASK-020)"
         target: 0
-        current: 6
+        current: 0
         stretch: false
         tasks: ["TASK-027"]
   - id: O2
@@ -41,7 +41,7 @@ objectives:
         target: 3
         current: 2
         stretch: false
-        tasks: ["TASK-037"]
+        tasks: ["TASK-037", "TASK-042"]
       - id: P-O2.2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
         metric: "1 passing test (baseline: no such test)"
@@ -49,14 +49,30 @@ objectives:
         current: 0
         stretch: false
         tasks: []
+  - id: O3
+    title: "A real project can become Perry-shaped, once"
+    krs:
+      - id: P-O3.1
+        title: "A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration"
+        metric: "1 marker, all 3 writers gating (baseline: `is_adopted()` answers only whether any Perry file exists)"
+        target: 3
+        current: 0
+        stretch: false
+        tasks: ["TASK-043", "TASK-045"]
+      - id: P-O3.2
+        title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
+        metric: "id set before == id set after (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked)"
+        target: 1
+        current: 0
+        stretch: false
+        tasks: ["TASK-044"]
 unlinked:
   - "TASK-034"
   - "TASK-038"
-  - "TASK-039"
   - "TASK-040"
 agents:
   - id: "Coding Agent"
-    tasks: ["TASK-019", "TASK-020", "TASK-021", "TASK-027", "TASK-037"]
+    tasks: ["TASK-019", "TASK-020", "TASK-021", "TASK-027", "TASK-037", "TASK-042", "TASK-043", "TASK-044", "TASK-045"]
   - id: "User + Agent"
     tasks: ["TASK-028"]
 projects:
@@ -96,6 +112,30 @@ projects:
     name: "perry-goals writer"
     aliases: []
     status: active
+  - id: "TASK-042"
+    serves: P-O2.1
+    objective: O2
+    name: "OKR.md § Commitments — the half TASK-021 did not do"
+    aliases: []
+    status: active
+  - id: "TASK-043"
+    serves: P-O3.1
+    objective: O3
+    name: "Conformance marker"
+    aliases: []
+    status: active
+  - id: "TASK-044"
+    serves: P-O3.2
+    objective: O3
+    name: "Migration is dry-runnable, lossless, recoverable, user-declared"
+    aliases: []
+    status: active
+  - id: "TASK-045"
+    serves: P-O3.1
+    objective: O3
+    name: "Retire the runtime tolerance branches"
+    aliases: []
+    status: active
 ---
 
 # Phase #001 — O→KR→task linkage
@@ -108,16 +148,37 @@ projects:
 
 ## Coverage as written
 
-All 10 currently-open board tasks are resolved: 6 carry a KR edge, 4 are declared `unlinked`.
-Nothing is left to inference.
+All 13 currently-open board tasks are resolved: 10 carry a KR edge, 3 are declared
+`unlinked`. Nothing is left to inference.
 
 | Task | Resolution |
 |---|---|
 | TASK-019, TASK-021, TASK-028 | P-O1.1 |
 | TASK-020 | P-O1.2 |
 | TASK-027 | P-O1.4 |
-| TASK-037 | P-O2.1 |
-| TASK-034, TASK-038, TASK-039, TASK-040 | `unlinked` — declared, matching `## Not Doing in this phase` |
+| TASK-037, TASK-042 | P-O2.1 |
+| TASK-043, TASK-045 | P-O3.1 |
+| TASK-044 | P-O3.2 |
+| TASK-034, TASK-038, TASK-040 | `unlinked` — declared, matching `## Not Doing in this phase` |
+
+**`unlinked` is a declaration, not a gap.** The three rows there are real work
+that serves no KR *this phase*: TASK-034 is aiMark's write lifecycle (overall
+`KR-O4.3`, no phase objective), TASK-038 is `DESIGN-005` step 4 (`KR-O2.2`,
+which the phase deliberately did not take on), and TASK-040 is board tooling
+that no KR asks for. Recording them as unlinked is what keeps "nobody got round
+to it" distinguishable from "this serves nothing", which the graph's own
+contract requires.
+
+**Objective 3 was added mid-phase**, on 2026-08-17, by `ADR-004`. TASK-043/044/045
+did not exist when this phase was planned; the decision that created them also
+changed how a real project gets landed. See `001-work-modes-live.md § Changes /
+Pivots` — and if the phase should not carry O3, dropping it and declaring the
+three `unlinked` is the alternative.
+
+**`P-O1.4` moved from 6 to 0**, not by being re-planned but because the six
+blocking findings it counts were closed on 2026-08-17. It is a stored number for
+a fact that is derivable from the review documents, which is the shape this
+project keeps finding and has not yet fixed here.
 
 The four `unlinked` entries mean *this work serves no KR in phase #001*, not *we have not got
 round to attributing it*. Each one is named in the phase file's `## Not Doing in this phase`
