@@ -2850,5 +2850,89 @@ class TestOnePriorityValidator(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
 
+class TestTheRungIsWritableAndCorrectable(unittest.TestCase):
+    """`add --rung V4` parsed, and wrote nothing. The flag existed, the cell
+    did not get it, and the caller had no way to notice. `--rung NONSENSE` was
+    accepted the same way.
+
+    A flag that is silently ignored is worse than a missing one: a missing
+    flag refuses, and this one reported success.
+
+    And there was no writer at all for an open row — `--rung` lived only on
+    `done`, which is far too late to argue about it. Third instance of one
+    gap: `next` closed it for `Next action`, `retitle` for `Title`.
+
+    `ADR-005` is what makes it load-bearing. The rung is now a claim about who
+    is hurt when the work is wrong, and a claim nobody can correct without a
+    hand edit is one nobody corrects.
+    """
+
+    def cell(self, p, tid):
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        row = next(l for l in board.split("\n") if l.startswith(f"| {tid} |"))
+        return dict(zip([PT.norm(h) for h in PT.split_row(header)],
+                        PT.split_row(row))).get("verification", "")
+
+    def test_add_writes_the_rung_it_was_given(self):
+        p = Project()
+        code, a = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V4")
+        self.assertEqual(code, 0, a)
+        self.assertEqual("V4", self.cell(p, a["id"]))
+
+    def test_an_unknown_rung_is_refused_not_dropped(self):
+        p = Project()
+        code, out = p.run("add", "--title", "x", "--priority", "P0",
+                          "--rung", "NONSENSE")
+        self.assertEqual(code, 1)
+        self.assertIn("not one of", str(out))
+
+    def test_the_refusal_does_not_offer_a_rung_it_will_refuse(self):
+        """V0 is in the enum so a linter can name it. Listing it as a choice
+        advertises a value the next check rejects."""
+        p = Project()
+        _, out = p.run("add", "--title", "x", "--priority", "P0",
+                       "--rung", "NONSENSE")
+        self.assertNotIn("V0", str(out))
+
+    def test_v0_is_refused_by_name(self):
+        p = Project()
+        code, out = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V0")
+        self.assertEqual(code, 1)
+        self.assertIn("asserted", str(out))
+
+    def test_rung_corrects_an_open_row(self):
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V4")
+        code, _ = p.run("rung", a["id"], "--rung", "V5")
+        self.assertEqual(code, 0)
+        self.assertEqual("V5", self.cell(p, a["id"]))
+
+    def test_the_same_rung_is_refused(self):
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0", "--rung", "V4")
+        code, _ = p.run("rung", a["id"], "--rung", "V4")
+        self.assertEqual(code, 1)
+
+    def test_it_is_its_own_event(self):
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        p.run("rung", a["id"], "--rung", "V4")
+        events = [json.loads(l)["event"]
+                  for l in (p.root / ".perry" / "events.jsonl").read_text()
+                  .strip().split("\n")]
+        self.assertEqual(["add", "rung"], events)
+
+    def test_add_and_done_answer_the_same_way(self):
+        """Two validators for one enum is how they drift. `done` had one and
+        `add` had none."""
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        _, add_out = p.run("add", "--title", "y", "--priority", "P0",
+                           "--rung", "ZZZ")
+        _, done_out = p.run("done", a["id"], "--evidence", "e", "--rung", "ZZZ")
+        self.assertEqual(str(add_out), str(done_out))
+
+
 if __name__ == "__main__":
     unittest.main()

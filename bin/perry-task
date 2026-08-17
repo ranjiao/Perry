@@ -69,6 +69,7 @@ Usage:
                     [--reason "…"] [--next "…"]
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
+  perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -829,6 +830,33 @@ def heading_spellings(name: str) -> list[str]:
     return out
 
 
+def check_rung(rung: str, schema: dict) -> str:
+    """One validator, because `done` had one and `add` had none.
+
+    `add --rung V4` was accepted and silently dropped — the flag parsed, the
+    cell was never written, and the row carried no rung. `--rung NONSENSE` was
+    accepted the same way. A flag that does nothing is worse than a missing
+    one: the caller believes the value landed.
+
+    `V0` is refused by name wherever a rung is written. It is the label for
+    what is being rejected, never a rung a row may carry.
+    """
+    if not rung:
+        return ""
+    rungs = schema["enums"]["verification_rung"]
+    if rung not in rungs:
+        # V0 is left out of the list on purpose: it is in the enum because a
+        # linter must be able to name it, and offering it here would advertise
+        # a value the next line refuses.
+        raise Refused(f"rung {rung!r} is not one of "
+                      f"{'/'.join(r for r in rungs if r != 'V0')}")
+    if rung == "V0":
+        raise Refused(
+            "V0 is 'asserted' — it is the name for what is being refused, "
+            "never a rung a row may carry")
+    return rung
+
+
 def check_priority(priority: str) -> str:
     """One validator, because there were two and only one of them ran.
 
@@ -1252,6 +1280,9 @@ def cmd_add(args, ctx) -> dict:
             values["parent"] = args.parent
     if args.commitment:
         values["commitment"] = args.commitment
+    rung = check_rung(args.rung, ctx["schema"])
+    if rung:
+        values["verification"] = rung
 
     # Run the real path in both cases. `commit()` is what `--dry-run` skips;
     # everything up to it happens for real against the in-memory Board, which is
@@ -1346,14 +1377,7 @@ def cmd_done(args, ctx) -> dict:
             f"{tid}: --evidence is required. Perry refuses `done` without it — "
             f"a claim of done that cites nothing is a claim about confidence, "
             f"not about the work")
-    rungs = ctx["schema"]["enums"]["verification_rung"]
-    rung = args.rung
-    if rung and rung not in rungs:
-        raise Refused(f"rung {rung!r} is not one of {rungs}")
-    if rung == "V0":
-        raise Refused(
-            "V0 is 'asserted' — it is the name for what is being refused, "
-            "never a rung a row may carry")
+    rung = check_rung(args.rung, ctx["schema"])
     pri, idx, header, cells = ctx["board"].find(tid)
     values = dict(zip([norm(h) for h in header], cells))
     prev = values.get("status", "")
@@ -1543,6 +1567,44 @@ def cmd_retitle(args, ctx) -> dict:
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": tid, "title": args.title, "row": line, **plan}
+
+
+def cmd_rung(args, ctx) -> dict:
+    """Rewrite a row's `Verification` and nothing else.
+
+    The third instance of one gap: `next` closed it for `Next action`,
+    `retitle` for `Title`, and the rung had no writer at all on an open row —
+    `--rung` existed only on `done`, which is far too late to be arguing about
+    it.
+
+    `ADR-005` is what makes this load-bearing. The rung is no longer a habit,
+    it is a claim about who is hurt when the work is wrong, and a claim that
+    cannot be corrected without a hand edit is one nobody will correct.
+    """
+    tid = args.id
+    if not args.rung:
+        raise Refused("--rung is required: this subcommand exists to write "
+                      "that cell")
+    rung = check_rung(args.rung, ctx["schema"])
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("verification", "")
+    if prev.strip() == rung:
+        raise Refused(f"{tid} is already {rung}")
+    values["verification"] = rung
+    ctx["board"].ensure_columns(pri, ["Verification"])
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    values["verification"] = rung
+    line = ctx["board"].replace_row(idx, header, values)
+    jline = f"- [{tid}] rung · {prev or '—'} → {rung}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "rung",
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"), "actor": args.actor,
+             "from": prev, "to": rung}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "rung": rung, "row": line, **plan}
 
 
 def cmd_drop(args, ctx) -> dict:
@@ -2898,7 +2960,7 @@ def parse(argv: list[str]) -> Args:
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "retitle", "done", "drop"})
+                         "retitle", "rung", "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
@@ -2911,7 +2973,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "risk-migrate": cmd_risk_migrate,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
-            "retitle": cmd_retitle,
+            "retitle": cmd_retitle, "rung": cmd_rung,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "list": cmd_list}
 

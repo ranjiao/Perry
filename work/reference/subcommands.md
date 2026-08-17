@@ -206,6 +206,25 @@ Safe because the `Id` is the identity and never moves — a `Commitment` cell, a
 linkage graph and every event point at the id, and none of them reads the
 title. That is also why there is no subcommand for changing an id.
 
+**A rung is set when the row is opened, and corrected the same way.**
+
+```
+"$PERRY_HOME/bin/perry-task" add   --title "…" --rung V4
+"$PERRY_HOME/bin/perry-task" rung  <TASK-ID> --rung V4
+```
+
+`--rung` used to exist only on `done`, which is far too late to argue about
+it. `add --rung` parsed and wrote nothing — a flag that is silently ignored is
+worse than a missing one, because a missing flag refuses and this one reported
+success.
+
+`ADR-005` is what makes the cell load-bearing: the rung is a claim about **who
+is hurt when the work is wrong**, not about who wrote it. V4 for what runs on a
+project Perry did not create; V3 for what is internal to this repo; V5 wherever
+`.perry/hook.md § High-stakes operations` matches, overriding both. A claim
+like that has to be arguable in review, and one nobody can correct without a
+hand edit is one nobody corrects.
+
 **Every status change that is not a close goes through the tool too.**
 
 ```
