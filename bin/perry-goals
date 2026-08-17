@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-perry-goals — the deterministic read of a project's goals.
+perry-goals — the deterministic read of a project's goals, and its writer.
 
-DESIGN-005 step 2. The third of Perry's read contracts, after
+DESIGN-005 steps 2 and 3. The third of Perry's read contracts, after
 `perry-task/list/*` and `perry-decide/list/*`, and the last one needed before a
 front-end can show a whole project without opening a single markdown file.
 
@@ -21,32 +21,76 @@ sits and how far along it is" — walking objectives→krs and re-deriving progr
 is exactly the estimating `schema/README.md` forbids, done in a repo Perry's
 tests cannot reach.
 
+## The write side (TASK-037 / TASK-042)
+
+`commit` is the first write path, because `OKR.md § Commitments` is the one
+section with a live consumer and no writer at all: `modes/pipeline.md` and
+`modes/queue.md` both name it as their spine, and until now the procedure was
+prose in `goals/reference/phases.md § commit <promise>` that an agent followed
+by hand. That page is this tool's acceptance criteria, rule for rule.
+
+**`OKR.md` is never re-rendered.** `Okr` below edits lines in place, and cells
+in place inside those lines — see `splice_cell`. A writer that round-trips
+prose through a parsed model produces a file that still passes `perry-lint` and
+no longer reads the way its author wrote it, which DESIGN-005 § 5.5 rates worse
+than having no writer at all.
+
+**The log is the truth, the file is the view** — accepted by the user on
+2026-08-17 (DESIGN-005 § 9, last entry) *before* this writer was built, exactly
+so it would not be built against "the file is the truth". Every write appends
+an event to `.perry/events.jsonl`, and a row the tool wrote whose cells no
+longer match the log is a **hand edit**: reported and reconciled with the
+user's value, never overwritten with the log's.
+
+**This tool writes `OKR.md` and `phase/` and nothing else.** `BOARD.md`,
+`journal/` and `DECISIONS.md` belong to other lanes, and `SKILL.md § The
+hand-off contract` names all three as cases that must refuse. `assert_owned`
+is that rule as code, and the board-side link — a `Commitment` cell carrying an
+`Id` from this table — is printed as a hand-off for `/perry work` to write.
+
 Usage:
   perry-goals list [--json] [--level overall|phase]
 
+  perry-goals commit --track <t> --promise <text> --to <whom> --by <when>
+  perry-goals commit --id <Id> [--by <when>] [--promise <t>] [--to <whom>]
+                                [--discharged-by <text>]
+  perry-goals commit --close <Id> [--discharged-by <text>]
+  perry-goals commit --miss <Id> --reason <text>
+
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --json          machine-readable result
+  --dry-run       print the plan; write nothing
+  --accept-hand-edit
+                  proceed over a row the log and the file disagree about,
+                  taking the FILE's value as the new truth
 
 Exit codes:
-  0  read
-  1  refused — the reason is printed
+  0  read, or written
+  1  refused — the reason is printed, and nothing was written
   2  bad invocation
 
-Read-only. No LLM, no external dependencies (stdlib only). DESIGN-005.
+No LLM, no external dependencies (stdlib only). DESIGN-005.
 """
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
+import hashlib
 import json
 import os
 import sys
 import re
+import tempfile
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
+TEMPLATE_PATH = PERRY_HOME / "goals" / "state" / "OKR_TEMPLATE.md"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
@@ -54,7 +98,215 @@ from tables import render_row, split_row, squash  # noqa: E402
 
 
 class Refused(Exception):
-    """A refusal is a first-class outcome, not a crash."""
+    """A refusal is a first-class outcome, not a crash. Nothing was written."""
+
+
+_SCHEMA = None
+
+
+def load_schema() -> dict:
+    global _SCHEMA
+    if _SCHEMA is None:
+        if not SCHEMA_PATH.exists():
+            raise Refused(f"schema not found at {SCHEMA_PATH}")
+        _SCHEMA = json.loads(SCHEMA_PATH.read_text())
+    return _SCHEMA
+
+
+def okr_table_spec(under: str) -> dict:
+    """The schema's own declaration of one `OKR.md` table.
+
+    Read rather than restated. The Commitments table's heading regex, its six
+    columns and its one optional column are all declared in
+    `schema/state-schema.json`, and a writer that hardcoded a second copy of
+    them would be the "one rule, two implementations" defect this project has
+    now found in five review rounds — with the added twist that `perry-lint`
+    validates against the schema's copy, so the two would disagree silently
+    until a project used a spelling only one of them knew.
+    """
+    for spec in load_schema()["files"]:
+        if spec.get("path") != "OKR.md":
+            continue
+        for table in spec.get("tables", []):
+            if table.get("under") == under:
+                return table
+    raise Refused(f"schema/state-schema.json declares no OKR.md table under "
+                  f"{under!r}; this tool cannot invent one")
+
+
+#: `^Commitments\b|^承诺` at the time of writing — taken from the schema so the
+#: heading this tool finds and the heading `perry-lint` validates are one
+#: string.
+COMMITMENTS_UNDER = "^Commitments\\b|^承诺"
+
+
+def heading_pattern(under: str) -> str:
+    """A schema `under` regex, as a pattern that matches *after* the hashes.
+
+    The schema anchors every alternative with `^` because `perry-lint` applies
+    it to a heading line whose `## ` has already been stripped. `Okr.section`
+    applies it after `^##\\s+`, where a second `^` can never match — so a
+    literal hand-off of the schema's string silently finds no section at all,
+    and the tool reports a missing `## Commitments` on a file that has one.
+    Dropping the anchors is the entire translation; the alternatives stay the
+    schema's, which is the point of reading them from there.
+    """
+    return re.sub(r"(?:^|(?<=\|))\^", "", under)
+
+
+COMMITMENTS_HEADING = heading_pattern(COMMITMENTS_UNDER)
+
+
+def column_spellings(canonical: str) -> list[str]:
+    """Every squashed spelling of one column name, English first.
+
+    Resolution here is deliberately **table-local**: "which header cell of THIS
+    table is `By when`", not "what does this header cell mean anywhere". The
+    global direction is ambiguous and the ambiguity is real — `schema/
+    state-schema.json § i18n.columns` maps both `Deadline` and `By when` onto
+    the same Chinese word `截止`, because a KR table's deadline and a
+    commitment's due date are the same word in Chinese and different columns in
+    Perry. Asked globally, `截止` resolves to `Deadline` and a Chinese
+    Commitments table loses its `By when` column. Asked table-locally, the
+    question has one answer.
+    """
+    i18n = load_schema().get("i18n", {}).get("columns", {}) or {}
+    out = [squash(canonical)]
+    for lang_spellings in (i18n.get(canonical) or {}).values():
+        out += [squash(s) for s in lang_spellings]
+    return out
+
+
+def column_at(header: list[str], canonical: str) -> int:
+    """Index of `canonical` in `header`, or -1. By NAME, never by position."""
+    want = set(column_spellings(canonical))
+    for i, cell in enumerate(header):
+        if squash(cell) in want:
+            return i
+    return -1
+
+
+def header_language(header: list[str], declared: list[str]) -> str:
+    """Which language THIS table's headers are written in, `en` by default.
+
+    Table-local like everything else here, and for a further reason: a file may
+    hold an English KR table and a Chinese Commitments table, because the two
+    were written at different times by different hands. Asking the document is
+    asking the wrong scope.
+    """
+    i18n = load_schema().get("i18n", {}).get("columns", {}) or {}
+    cells = {squash(c) for c in header}
+    for canonical in declared:
+        for lang, spellings in (i18n.get(canonical) or {}).items():
+            if cells & {squash(s) for s in spellings}:
+                return lang
+    return "en"
+
+
+def display_name(canonical: str, lang: str) -> str:
+    """How to WRITE a column name into a table in `lang`.
+
+    A widened Chinese table gets a Chinese header. Writing `Discharged by` into
+    `| 编号 | 轨道 | … |` produces a table this tool can still read and a human
+    cannot, which is the same failure as reformatting prose — the file stops
+    being the user's.
+    """
+    spellings = (load_schema().get("i18n", {}).get("columns", {})
+                 .get(canonical) or {}).get(lang) or []
+    return spellings[0] if spellings else canonical
+
+
+# ── one cell, without re-spacing the rest of its row ───────────────────────
+
+
+def cell_spans(line: str) -> list[tuple[int, int]]:
+    """(start, end) offsets of each cell's raw text, escapes respected.
+
+    The same scan `viewer/tables.py § split_row` does — that one returns the
+    values, this one returns where they were. Having both is what lets a write
+    replace one cell and leave every other cell in the row byte-identical,
+    including whoever's hand-alignment is padding it. `render_row` on a parsed
+    row would be correct markdown and a diff across the whole line.
+    """
+    n = len(line)
+    lo = 0
+    while lo < n and line[lo].isspace():
+        lo += 1
+    if lo < n and line[lo] == "|":
+        lo += 1
+    hi = n
+    while hi > lo and line[hi - 1].isspace():
+        hi -= 1
+    if hi > lo and line[hi - 1] == "|" and not line[max(lo, hi - 2):hi] == "\\|":
+        hi -= 1
+    spans = []
+    start = lo
+    i = lo
+    while i < hi:
+        if line[i] == "\\" and i + 1 < hi and line[i + 1] == "|":
+            i += 2
+        elif line[i] == "|":
+            spans.append((start, i))
+            i += 1
+            start = i
+        else:
+            i += 1
+    spans.append((start, hi))
+    return spans
+
+
+def splice_cell(line: str, index: int, value: str) -> str:
+    """`line` with cell `index` set to `value`, everything else untouched.
+
+    The cell's own padding is preserved, so a table someone aligned by hand
+    stays aligned everywhere the edit did not reach.
+    """
+    spans = cell_spans(line)
+    if not 0 <= index < len(spans):
+        raise Refused(f"row has {len(spans)} cell(s); cannot write cell "
+                      f"{index + 1}. Nothing was written")
+    a, b = spans[index]
+    raw = line[a:b]
+    if raw.strip():
+        lead = raw[:len(raw) - len(raw.lstrip())]
+        trail = raw[len(raw.rstrip()):]
+    else:
+        lead = trail = " " if raw else ""
+    value = str(value).replace("\n", " ").replace("|", "\\|").strip()
+    return line[:a] + lead + value + trail + line[b:]
+
+
+def append_cell(line: str, value: str) -> str:
+    """`line` with one more cell on the end, the existing cells untouched.
+
+    Widening a table is the one edit that touches every row, so it touches them
+    as little as possible: a trailing cell appended textually rather than the
+    row re-rendered. A separator row widens the same way, keeping whatever
+    dashes-and-colons style the file already uses.
+    """
+    body = line.rstrip()
+    value = str(value).replace("\n", " ").replace("|", "\\|").strip()
+    if not body.endswith("|") or body.endswith("\\|"):
+        # No trailing pipe: markdown allows it, and appending one would close
+        # the last cell rather than open a new one. Re-render instead — this
+        # row's shape is changing anyway.
+        return render_row(split_row(line) + [value])
+    return body + (f" {value} |" if value else "  |")
+
+
+SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
+
+
+def append_separator_cell(line: str) -> str:
+    """One more column on a table's separator row, in that row's own style.
+
+    `|---|---|` and `|-------|:-----:|` are both real and both in this repo.
+    Copying the last cell keeps whichever one the file uses instead of
+    imposing a third.
+    """
+    spans = cell_spans(line)
+    last = line[spans[-1][0]:spans[-1][1]] if spans else " --- "
+    return line.rstrip() + last + "|"
 
 
 class Okr:
@@ -156,11 +408,304 @@ class Okr:
             out.append((i, dict(zip(keys, split_row(line)))))
         return out
 
+    def row_indexes(self, lo: int, hi: int) -> list[int]:
+        """Just the line numbers of the data rows, in file order."""
+        return [i for i, _ in self.rows(lo, hi)]
+
+    # -- editing
+
+    def set_cell(self, index: int, column: int, value: str) -> None:
+        """One cell of one row. Every other cell keeps its own bytes."""
+        self.lines[index] = splice_cell(self.lines[index], column, value)
+
+    def widen(self, lo: int, hi: int, name: str) -> list[str]:
+        """Add one column to a section's table, and pad every row for it.
+
+        The only edit here that touches lines the caller did not name, which is
+        why it is reported to the user rather than done quietly. It is still
+        the right answer: `Discharged by` is optional in the schema, `--miss`
+        has nowhere to put its reason without it, and refusing would strand a
+        real promise on a table that is not malformed.
+        """
+        sep, header = self.table(lo, hi)
+        rows = self.row_indexes(lo, hi)
+        self.lines[sep - 1] = append_cell(self.lines[sep - 1], name)
+        self.lines[sep] = append_separator_cell(self.lines[sep])
+        for i in rows:
+            self.lines[i] = append_cell(self.lines[i], "")
+        return header + [name]
+
+    def append_table_row(self, lo: int, hi: int, cells: list[str]) -> tuple[int, str]:
+        """Insert a rendered row after the table's last row. (index, line)."""
+        sep, _ = self.table(lo, hi)
+        rows = self.row_indexes(lo, hi)
+        at = (rows[-1] if rows else sep) + 1
+        line = render_row(cells)
+        self.lines.insert(at, line)
+        return at, line
+
+    def insert_section(self, block: list[str], before: list[str]) -> int:
+        """Insert a `## ` section before the first heading in `before`.
+
+        Falls back to the end of the file. Placement is by the file's own
+        headings rather than by line number, because the four real `OKR.md`
+        files on this machine agree about almost nothing else — one nests
+        `### Anti-Goals` inside a version, one carries a section Perry's
+        template has never heard of, and one has versions `v2` and `v4` with no
+        `v3`. Appending at a computed offset would land inside a version block
+        on at least one of them.
+        """
+        at = None
+        for pattern in before:
+            if self.has_section(pattern):
+                at = self.section(pattern)[0]
+                break
+        if at is None:
+            at = len(self.lines)
+            # Land after the file's last non-blank line, keeping however many
+            # trailing newlines it had — `render` is byte-exact and a section
+            # appended past them would move them.
+            while at > 0 and not self.lines[at - 1].strip():
+                at -= 1
+            self.lines[at:at] = [""] + block
+            return at + 1
+        self.lines[at:at] = block + [""]
+        return at
+
 
 # Versioned independently of the other two (DESIGN-005 § 4 decision 5). Goals
 # move on a different clock from tasks; tying the versions together would make
 # a consumer re-check code for a change in a domain it does not read.
+#
+# TASK-037 shipped the writer and did NOT move this. See
+# `schema/goals-list-contract.md § Changelog`: a writer is not a read-contract
+# change, and the commitments register gained no key here.
 LIST_CONTRACT = "perry-goals/list/2.0"
+
+#: `list` only reads, and reading is never gated (ADR-004). Every other
+#: subcommand writes `OKR.md`, which is the one file this lane gates on — one
+#: key, one file, per ADR-004 § 5.
+READ_ONLY_COMMANDS = {"list"}
+GATED_FILE = "OKR.md"
+
+_PERRY_CONFORM = None
+_PERRY_STATE = None
+
+
+def _sibling(name: str):
+    """`bin/<name>` as a module, loaded once. The pattern `perry-task` and
+    `perry-decide` already use to reach each other's rules rather than copy
+    them."""
+    import importlib.machinery
+    import importlib.util
+    mod_name = name.replace("-", "_")
+    sys.path.insert(0, str(PERRY_HOME / "bin"))
+    spec = importlib.util.spec_from_loader(
+        mod_name, importlib.machinery.SourceFileLoader(
+            mod_name, str(PERRY_HOME / "bin" / name)))
+    mod = importlib.util.module_from_spec(spec)
+    # See the identical note in `bin/perry-task`: `dataclasses` resolves
+    # `from __future__ import annotations` strings through `sys.modules`.
+    sys.modules[mod_name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def perry_conform():
+    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
+    global _PERRY_CONFORM
+    if _PERRY_CONFORM is None:
+        _PERRY_CONFORM = _sibling("perry-conform")
+    return _PERRY_CONFORM
+
+
+def perry_state():
+    """`bin/perry-state` as a module — for `parse_tracks` and nothing else.
+
+    The track register lives in `.perry/config.md § Tracks` and one reader of
+    it already exists. A second would be a second opinion about which track is
+    `queue` mode, and this tool refuses a promise based on that answer.
+    """
+    global _PERRY_STATE
+    if _PERRY_STATE is None:
+        _PERRY_STATE = _sibling("perry-state")
+    return _PERRY_STATE
+
+
+# ── the hand-off contract, as code ────────────────────────────────────────
+
+#: Everything the `goals` lane may write, as paths relative to the state root.
+#: `SKILL.md § The hand-off contract`. Stated as a predicate over the whole
+#: filesystem rather than as a blacklist of the three files that lane keeps
+#: getting wrong: the rule is "no lane writes outside its own", and a list of
+#: forbidden names would pass a write to `weekly/` or `evidence/` that the same
+#: rule forbids for the same reason.
+def owned_by_goals(relative: str) -> bool:
+    return relative == "OKR.md" or relative.startswith("phase/")
+
+
+HANDOFF = {
+    "BOARD.md": "work", "journal": "work", "PROJECT_STATE.md": "work",
+    "evidence": "work", "weekly": "work", "handoff": "work",
+    "DECISIONS.md": "decide", "decisions": "decide", "design": "decide",
+}
+
+
+def assert_owned(state_root: Path, path: Path) -> None:
+    """Refuse, by name, any write outside the `goals` lane's own files.
+
+    A lane that needs a change in another lane's file **asks in chat and
+    stops** — it does not write and apologise. This is that sentence with a
+    stack trace attached, so the rule cannot be broken by a future subcommand
+    forgetting it.
+    """
+    try:
+        rel = path.resolve().relative_to(state_root.resolve()).as_posix()
+    except ValueError:
+        rel = str(path)
+    if owned_by_goals(rel):
+        return
+    lane = HANDOFF.get(rel) or HANDOFF.get(rel.split("/", 1)[0]) or "another lane"
+    raise Refused(
+        f"`goals` does not write {rel} — it belongs to `{lane}` "
+        f"(SKILL.md § The hand-off contract). Hand it off: say what needs to "
+        f"change and let `/perry {lane}` write it. Nothing was written")
+
+
+def write_atomic(state_root: Path, path: Path, text: str) -> None:
+    assert_owned(state_root, path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+@contextlib.contextmanager
+def project_lock(state_root: Path, timeout: float = 10.0):
+    """The same lock `perry-task` and `perry-decide` take, on the same key.
+
+    One lock per project, not one per lane: a `goals` write and a `work` write
+    touch different files but the same project, and a reader that catches them
+    mid-flight sees a state neither lane intended (DESIGN-005 § 5.4).
+    """
+    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
+    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
+    fh = open(lock_path, "w")
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise Refused(
+                        f"another Perry write is holding {lock_path} and did "
+                        f"not release it within {timeout:.0f}s. Nothing was "
+                        f"written; retry, or remove the file if no process is live")
+                time.sleep(0.05)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        fh.close()
+
+
+# ── events ────────────────────────────────────────────────────────────────
+#
+# `.perry/events.jsonl` is the project's log, not a lane's file — `perry-task`
+# appends to it today and DESIGN-005 § 5.2 makes it canonical for tasks in step
+# 4. The user accepted that direction on 2026-08-17, BEFORE this writer existed
+# and explicitly so that it would not be built against "the file is the truth"
+# (DESIGN-005 § 9, last entry). So every write here emits an event, and the
+# reconcile direction below is the one that decision implies.
+#
+# Event names are prefixed `commit-` and never reuse `add` / `route` / `done` /
+# `drop`: `perry-state § reconcile_drift` keys the board's orphan detector on
+# those four names, and a commitment id it had never seen carrying one of them
+# would be reported as a task whose row went missing.
+
+
+def events_path(project_root: Path) -> Path:
+    return project_root / ".perry" / "events.jsonl"
+
+
+def read_events(project_root: Path) -> list[dict]:
+    p = events_path(project_root)
+    if not p.exists():
+        return []
+    try:
+        text = p.read_text(errors="replace")
+    except OSError:
+        # The log is derived and disposable (DESIGN-004 § 5.3). An unreadable
+        # one costs history resolution; it must not be able to stop a write to
+        # the canonical file, or the derived record would be load-bearing after
+        # all.
+        return []
+    out = []
+    for line in text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # a corrupt line is not a reason to refuse a write
+    return out
+
+
+COMMIT_EVENTS = ("commit", "commit-update", "commit-close", "commit-miss")
+
+
+def commitment_events(events: list[dict], cid: str = "") -> list[dict]:
+    return [e for e in events if e.get("event") in COMMIT_EVENTS
+            and (not cid or e.get("id") == cid)]
+
+
+def logged_status(events: list[dict], cid: str) -> str | None:
+    """What the log says this commitment's `Status` is, or None if it has
+    never heard of it.
+
+    None is not "unknown", it is **"predates the tool"** — and the two must not
+    be conflated. Every Commitments table alive today was written by hand, and
+    treating those rows as hand-edits would make the first write on every real
+    project a wall of reconcile prompts about work that was done correctly
+    under the old rules. `perry-state § reconcile_drift` makes exactly this
+    correction for board rows and gives the reason: a check people learn to
+    ignore is worse than no check.
+    """
+    seen = commitment_events(events, cid)
+    return seen[-1].get("to") if seen else None
+
+
+def append_event(project_root: Path, event: dict) -> bool:
+    """Append one event. The canonical file has already landed.
+
+    Same failure direction `perry-task § commit` chose and documents:
+    `OKR.md` never disagrees with itself, and the derived record may be
+    missing. Losing an event costs history resolution; losing the write costs
+    the truth.
+    """
+    ev = events_path(project_root)
+    try:
+        ev.parent.mkdir(parents=True, exist_ok=True)
+        with open(ev, "a") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+        return True
+    except OSError as exc:
+        print(f"perry-goals: warning — OKR.md was written, but the event could "
+              f"not be appended to {ev}: {exc}. State is correct; this row will "
+              f"read as unrecorded until the log is writable again.",
+              file=sys.stderr)
+        return False
 
 
 def plain(x):
@@ -363,6 +908,427 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     }
 
 
+# ── commit: the commitments register ──────────────────────────────────────
+#
+# `goals/reference/phases.md § commit <promise>` is this section's
+# specification, rule for rule, and TASK-042 closes when that page stops being
+# an agent procedure. Every refusal below quotes the sentence it implements.
+
+#: The two column sets, read from the schema rather than restated here.
+def commitment_columns() -> tuple[list[str], list[str]]:
+    spec = okr_table_spec(COMMITMENTS_UNDER)
+    return list(spec.get("columns") or []), list(spec.get("optional_columns") or {})
+
+
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+#: What it means for `By when` to **name a clock**. Stated as the category —
+#: "a date, the register's SLA, or a unit of time" — and not as a blacklist of
+#: `soon` / `ASAP` / `when we get to it`. Those three are the examples
+#: `phases.md` happens to give; the rule is about every phrase that names no
+#: clock, and a writer built from the examples would pass `eventually`,
+#: `next time we look` and `有空再说` while claiming to implement the rule.
+#:
+#: The honest limit, said out loud: this checks that a clock is NAMED, not that
+#: the naming is sincere. "one day" passes. No parser can do better, and the
+#: refusal message says what is accepted so a user is never guessing.
+CLOCK_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\bSLA\b|时限"
+    r"|\b(?:day|days|week|weeks|hour|hours|minute|minutes|month|months|"
+    r"quarter|quarters|year|years|daily|weekly|monthly|hourly)\b"
+    r"|[天日周月年]|小时|分钟|工作日|季度",
+    re.I)
+
+
+def real_date(value: str) -> date | None:
+    m = DATE_RE.search(value or "")
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(0), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def tracks_of(project_root: Path) -> list[dict]:
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return []
+    return perry_state().parse_tracks(cfg.read_text(errors="replace"))
+
+
+def track_named(tracks: list[dict], name: str) -> dict:
+    for t in tracks:
+        if t.get("track") == name:
+            return t
+    declared = [t.get("track") for t in tracks if t.get("declared")]
+    raise Refused(
+        f"track {name!r} is not declared in `.perry/config.md § Tracks`; "
+        f"declared: {declared or '(none)'}. A commitment is filed against a "
+        f"track, and an undeclared one has no mode and no SLA. Nothing was written")
+
+
+def check_by_when(track: dict, value: str) -> None:
+    """`phases.md § commit` step 4 — the column carries two formats.
+
+    | pipeline | a date            | prose is refused: triage compares this
+    |          |                   | cell against today and cannot compare prose
+    | queue    | prose naming the  | prose that names no clock is refused
+    |          | SLA, or a date    |
+    """
+    mode = (track.get("mode") or "project").lower()
+    if not (value or "").strip():
+        raise Refused(
+            "--by is required and has no default. A promise with no date and "
+            "no named clock is not a commitment. Nothing was written")
+    if mode == "pipeline":
+        if real_date(value) is None:
+            raise Refused(
+                f"track {track.get('track')!r} is `pipeline` mode, so `By when` "
+                f"must be a date (2026-09-30) — triage compares this cell "
+                f"against today and cannot compare prose. Got {value!r}. "
+                f"Nothing was written")
+        return
+    if mode == "queue":
+        if not track.get("sla"):
+            raise Refused(
+                f"track {track.get('track')!r} is `queue` mode and "
+                f"`.perry/config.md § Tracks` gives it no `SLA`. "
+                f"\"within the track SLA\" pointing at an empty register is a "
+                f"promise with no clock at all. Set the track's SLA first. "
+                f"Nothing was written")
+        if not CLOCK_RE.search(value):
+            raise Refused(
+                f"`By when` names no clock: {value!r}. On a `queue` track it "
+                f"must be a date, or prose that names one — the track SLA "
+                f"(\"within the track SLA\"), or a unit of time (\"same "
+                f"business day\", \"5 days\"). Nothing was written")
+
+
+def commitments_table(okr: Okr) -> tuple[int, int, list[str]]:
+    lo, hi = okr.section(COMMITMENTS_HEADING)
+    _, header = okr.table(lo, hi)
+    return lo, hi, header
+
+
+def read_commitments(okr: Okr) -> list[dict]:
+    """Every row of the register, keyed by canonical column name."""
+    lo, hi, header = commitments_table(okr)
+    required, optional = commitment_columns()
+    at = {c: column_at(header, c) for c in required + optional}
+    at["Id"] = commitment_id_at(header)
+    out = []
+    for i, _ in okr.rows(lo, hi):
+        cells = split_row(okr.lines[i])
+        row = {"_line": i, "_cells": cells}
+        for name, k in at.items():
+            row[name] = cells[k] if 0 <= k < len(cells) else ""
+        out.append(row)
+    return out
+
+
+def commitment_id_at(header: list[str]) -> int:
+    at = column_at(header, "Id")
+    if at < 0:
+        at = column_at(header, "ID")
+    if at < 0:
+        raise Refused(
+            "`## Commitments` has no `Id` column. Board rows point here by "
+            "that id and nothing else, so a register without one cannot be "
+            "written to. Nothing was written")
+    return at
+
+
+ID_N_RE = re.compile(r"^(?P<track>.+)/(?P<n>\d+)$")
+
+
+def mint_commitment_id(track: str, rows: list[dict], events: list[dict]) -> str:
+    """`<track>/<n>`, `<n>` one greater than the highest **for that track**.
+
+    `phases.md`: *"Ids are never reused and never renumbered."* So the search
+    is over the table AND the event log — a row created by this tool and later
+    deleted from the file by hand is gone from the table and still in the log,
+    and reusing its number would silently re-point every board row that carries
+    it at a different promise. That is the one failure mode worse than a
+    dangling link, because nothing looks broken.
+    """
+    seen = [r.get("Id", "") for r in rows]
+    seen += [e.get("id", "") for e in commitment_events(events)]
+    highest = 0
+    for cid in seen:
+        m = ID_N_RE.match((cid or "").strip().strip("*` "))
+        if m and m.group("track") == track:
+            highest = max(highest, int(m.group("n")))
+    return f"{track}/{highest + 1}"
+
+
+def find_commitment(rows: list[dict], cid: str) -> dict:
+    for r in rows:
+        if r.get("Id", "").strip().strip("*` ") == cid:
+            return r
+    known = [r.get("Id", "") for r in rows]
+    raise Refused(f"{cid!r} is not a row in `OKR.md § Commitments`; "
+                  f"present: {known or '(none)'}. Nothing was written")
+
+
+def check_hand_edit(events: list[dict], row: dict, accept: bool) -> str:
+    """The reconcile step DESIGN-005 § 9 requires, in the direction it names.
+
+    The log became canonical for tasks on the user's signature, and the cost
+    accepted with it was that a hand edit *"raises a reconcile prompt instead —
+    never silently overwritten, and never silently authoritative either"*. So
+    the file's value is never replaced by the log's; the disagreement is
+    reported, and `--accept-hand-edit` records the FILE's value as the new
+    truth. A row the log has never heard of predates the tool and is not an
+    edit at all — see `logged_status`.
+    """
+    expected = logged_status(events, row.get("Id", ""))
+    actual = (row.get("Status") or "").strip().strip("*` ")
+    if expected is None or squash(expected) == squash(actual):
+        return actual
+    if not accept:
+        raise Refused(
+            f"{row.get('Id')} was last written by this tool as "
+            f"`{expected}` and `OKR.md` now reads `{actual or '(empty)'}` — "
+            f"someone edited the row by hand. That edit is not overwritten and "
+            f"not ignored: re-run with `--accept-hand-edit` to take "
+            f"`{actual or '(empty)'}` as the truth and record it, or fix the "
+            f"row first. Nothing was written")
+    return actual
+
+
+COMMITMENTS_NOTE_FROM_TEMPLATE = "the section is copied from OKR_TEMPLATE.md"
+
+
+def template_commitments_block() -> list[str]:
+    """`goals/state/OKR_TEMPLATE.md § Commitments`, header and note included,
+    minus the placeholder row.
+
+    Copied, not restated — `phases.md` says to create the section *from the
+    template*, and a second wording of that note in this file would be one more
+    place for it to drift out of step with the one users read.
+    """
+    if not TEMPLATE_PATH.exists():
+        raise Refused(f"no template at {TEMPLATE_PATH}; cannot create the "
+                      f"`## Commitments` section. Nothing was written")
+    doc = Okr(TEMPLATE_PATH)
+    lo, hi = doc.section(COMMITMENTS_HEADING)
+    sep, _ = doc.table(lo, hi)
+    block = [l for l in doc.lines[lo:sep + 1]]
+    while block and not block[-1].strip():
+        block.pop()
+    return block
+
+
+def cmd_commit(args, ctx) -> dict:
+    """Add, update, close or miss one row of `OKR.md § Commitments`."""
+    okr, sr = ctx["okr"], ctx["state_root"]
+    events = ctx["events"]
+    ending = args.close or args.miss
+    if args.close and args.miss:
+        raise Refused("--close and --miss end a commitment two different ways; "
+                      "pass one. Nothing was written")
+
+    created_section = False
+    if not okr.has_section(COMMITMENTS_HEADING):
+        if ending or args.id:
+            raise Refused(
+                "`OKR.md` has no `## Commitments` section, so there is no row "
+                "to end. Nothing was written")
+        # `phases.md` step 1: refuse if the section is absent and no track is
+        # `pipeline` or `queue`. `OKR_TEMPLATE.md` says to omit the section
+        # entirely on an all-`project` project, so creating it because someone
+        # typed `commit` would add a spine to a shape that has no use for one.
+        modes = {(t.get("mode") or "project").lower() for t in ctx["tracks"]}
+        if not modes & {"pipeline", "queue"}:
+            raise Refused(
+                "`OKR.md` has no `## Commitments` section and no track in "
+                "`.perry/config.md § Tracks` is `pipeline` or `queue` mode. "
+                "That section is the spine for exactly those two modes "
+                "(modes/pipeline.md, modes/queue.md); on an all-`project` "
+                "project a KR is the commitment, and the party is the project "
+                "itself. Nothing was written")
+        # Where the template puts it: after Mission / Operating Principles and
+        # BEFORE the version blocks. The fallbacks are in that order for a
+        # reason a real file made visible — gimegime-pmo has no level-2
+        # `## Anti-Goals` (it nests one inside each version) and its
+        # `## Versioning` sits at the very bottom, so an Anti-Goals-then-
+        # Versioning rule dropped the section between the last version block
+        # and the log, which is the one place in that file it does not belong.
+        okr.insert_section(
+            template_commitments_block(),
+            before=[r"Anti-Goals\b|反目标", r"v\d+\s*[::]", r"Versioning|版本记录"])
+        created_section = True
+
+    lo, hi, header = commitments_table(okr)
+    rows = read_commitments(okr)
+    required, optional = commitment_columns()
+    widened = []
+
+    def ensure(column: str) -> int:
+        nonlocal lo, hi, header, rows
+        at = column_at(header, column)
+        if at >= 0:
+            return at
+        lang = header_language(header, required + optional)
+        header = okr.widen(lo, hi, display_name(column, lang))
+        widened.append(column)
+        lo, hi = okr.section(COMMITMENTS_HEADING)
+        rows = read_commitments(okr)
+        return column_at(header, column)
+
+    if ending:
+        cid = args.close or args.miss
+        row = find_commitment(rows, cid)
+        was = check_hand_edit(events, row, args.accept_hand_edit)
+        to = "closed" if args.close else "missed"
+        if squash(was) == to:
+            raise Refused(f"{cid} is already `{to}`. Nothing was written")
+        if args.miss and not (args.reason or "").strip():
+            raise Refused(
+                "--miss needs a reason: it is the record of what happened, and "
+                "the party the promise was made to is the one person who "
+                "cannot see the row. Nothing was written")
+        if args.close and not (row.get("Discharged by") or "").strip() \
+                and not (args.discharged_by or "").strip():
+            raise Refused(
+                f"{cid} has an empty `Discharged by`. A promise closed with no "
+                f"account of how is indistinguishable from one abandoned "
+                f"quietly — pass `--discharged-by <one line>`. Nothing was written")
+
+        okr.set_cell(row["_line"], column_at(header, "Status"), to)
+        note = (args.reason if args.miss else args.discharged_by) or ""
+        if note.strip():
+            at = ensure("Discharged by")
+            row = find_commitment(read_commitments(okr), cid)
+            existing = (row.get("Discharged by") or "").strip()
+            okr.set_cell(row["_line"], at,
+                         f"{existing} · {note.strip()}" if existing else note.strip())
+        result = {"id": cid, "from": was, "to": to}
+        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+                 "event": "commit-close" if args.close else "commit-miss",
+                 "id": cid, "track": row.get("Track", ""),
+                 "promise": row.get("Promise", ""),
+                 "note": note.strip(), "actor": args.actor,
+                 "from": was, "to": to}
+
+    elif args.id:
+        row = find_commitment(rows, args.id)
+        was = check_hand_edit(events, row, args.accept_hand_edit)
+        changes = {}
+        if args.by is not None:
+            # `phases.md`: *"A missed commitment is recorded, never silently
+            # re-dated."* Editing `By when` on a promise whose date has passed
+            # erases the fact that it was missed, and the party it was made to
+            # is the one person who cannot see the edit.
+            current = real_date(row.get("By when", ""))
+            if current and current < date.today() and squash(was) == "active":
+                raise Refused(
+                    f"{args.id}'s `By when` is {current:%Y-%m-%d}, which is in "
+                    f"the past, and its `Status` is `active` — that promise was "
+                    f"missed. Re-dating it here would erase the fact, and the "
+                    f"party it was made to is the one person who cannot see the "
+                    f"edit. Use `--miss {args.id} --reason <what happened>`, "
+                    f"then `commit` a new row under the new date. "
+                    f"Nothing was written")
+            check_by_when(track_named(ctx["tracks"], row.get("Track", "")), args.by)
+            changes["By when"] = args.by
+        if args.promise is not None:
+            changes["Promise"] = args.promise
+        if args.to is not None:
+            changes["To whom"] = args.to
+        if args.discharged_by is not None:
+            changes["Discharged by"] = args.discharged_by
+        if not changes:
+            raise Refused(
+                f"--id {args.id} with nothing to change. Pass --by / --promise "
+                f"/ --to / --discharged-by, or use --close / --miss. "
+                f"Nothing was written")
+        for column, value in changes.items():
+            at = ensure(column)
+            line = find_commitment(read_commitments(okr), args.id)["_line"]
+            okr.set_cell(line, at, value)
+        result = {"id": args.id, "changed": sorted(changes)}
+        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+                 "event": "commit-update", "id": args.id,
+                 "track": row.get("Track", ""), "changed": changes,
+                 "actor": args.actor, "from": was, "to": was}
+
+    else:
+        if not (args.track or "").strip():
+            raise Refused("--track is required: a commitment is filed against a "
+                          "track, and the track's mode decides what `By when` "
+                          "may say. Nothing was written")
+        if not (args.promise or "").strip():
+            raise Refused("--promise is required. Nothing was written")
+        if not (args.to or "").strip():
+            # `phases.md` step 3, and it is a routing rule, not a validation
+            # one: the tool says where the thing belongs instead.
+            raise Refused(
+                "--to is required and has no default. A promise with no named "
+                "party is a KR, and belongs under an Objective in this file "
+                "rather than in the commitments register. Nothing was written")
+        track = track_named(ctx["tracks"], args.track)
+        check_by_when(track, args.by or "")
+        cid = mint_commitment_id(args.track, rows, events)
+        values = {"Id": cid, "Track": args.track, "Promise": args.promise,
+                  "To whom": args.to, "By when": args.by,
+                  # `phases.md` step 5: `Status: active`, `Discharged by` empty.
+                  # That cell is free prose describing HOW the promise gets
+                  # satisfied; it is never a list of row ids.
+                  "Status": "active",
+                  "Discharged by": args.discharged_by or ""}
+        missing = [c for c in required if column_at(header, c) < 0]
+        if missing:
+            raise Refused(
+                f"`## Commitments` is missing the column(s) {missing}, which "
+                f"`schema/state-schema.json` declares required. Fix the table's "
+                f"header first — widening it here would pad every row of a "
+                f"register this tool did not write. Nothing was written")
+        if values["Discharged by"]:
+            ensure("Discharged by")
+        _, line = okr.append_table_row(
+            lo, hi, [values.get(c, "") for c in
+                     [canonical_of(h, required + optional) for h in header]])
+        result = {"id": cid, "row": line, "track": args.track}
+        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+                 "event": "commit", "id": cid, "track": args.track,
+                 "mode": (track.get("mode") or "project").lower(),
+                 "promise": args.promise, "to_whom": args.to,
+                 "by_when": args.by, "actor": args.actor,
+                 "from": None, "to": "active"}
+
+    result["created_section"] = created_section
+    result["widened"] = widened
+    result["file"] = str(okr.path)
+    result["event"] = event
+    if args.dry_run:
+        result["dry_run"] = True
+        result["would_write"] = okr.render() != okr.text
+        return result
+    write_atomic(sr, okr.path, okr.render())
+    result["event_written"] = append_event(ctx["project_root"], event)
+    return result
+
+
+def canonical_of(header_cell: str, names: list[str]) -> str:
+    """Which declared column this header cell is, or the cell itself.
+
+    Table-local, for the reason `column_spellings` gives. A cell the schema
+    does not declare keeps its own name so a project's extra column is filled
+    from `values` if the caller named it and left empty otherwise — never
+    dropped, and never shifted into by position.
+    """
+    for name in names:
+        if squash(header_cell) in set(column_spellings(name)):
+            return name
+    return squash(header_cell)
+
+
+COMMANDS = {"list": None, "commit": cmd_commit}
+
+
 class Args:
     pass
 
@@ -370,7 +1336,15 @@ class Args:
 def parse(argv: list[str]) -> Args:
     a = Args()
     a.cmd = a.root = a.level = None
-    a.as_json = False
+    a.id = a.track = a.promise = a.to = a.by = None
+    a.close = a.miss = a.reason = a.discharged_by = None
+    a.actor = "agent"
+    a.as_json = a.dry_run = a.accept_hand_edit = False
+    flags = {"--root": "root", "--level": "level", "--id": "id",
+             "--track": "track", "--promise": "promise", "--to": "to",
+             "--by": "by", "--close": "close", "--miss": "miss",
+             "--reason": "reason", "--discharged-by": "discharged_by",
+             "--actor": "actor"}
     i = 0
     while i < len(argv):
         t = argv[i]
@@ -379,19 +1353,35 @@ def parse(argv: list[str]) -> Args:
             sys.exit(0)
         elif t == "--json":
             a.as_json = True
-        elif t in ("--root", "--level"):
+        elif t == "--dry-run":
+            a.dry_run = True
+        elif t == "--accept-hand-edit":
+            a.accept_hand_edit = True
+        elif t in flags:
             i += 1
-            setattr(a, t[2:], argv[i] if i < len(argv) else None)
+            setattr(a, flags[t], argv[i] if i < len(argv) else None)
         elif a.cmd is None:
             a.cmd = t
         i += 1
     return a
 
 
+#: Printed after a `commit` write. The board-side link — a row's `Commitment`
+#: cell carrying an `Id` from this table — is the `work` lane's write, and this
+#: tool asks in chat rather than reaching across (`SKILL.md § The hand-off
+#: contract`). The link runs from the board side on purpose, so this register
+#: never accumulates ids that rot as rows close.
+def handoff_line(cid: str) -> str:
+    return (f"  ↪ hand-off: to point work at this promise, `/perry work` puts "
+            f"`{cid}` in a board row's `Commitment` cell. `goals` does not "
+            f"write BOARD.md.")
+
+
 def main(argv: list[str]) -> int:
     args = parse(argv)
-    if args.cmd != "list":
-        print("perry-goals: expected `list` (try --help)", file=sys.stderr)
+    if args.cmd not in COMMANDS:
+        print(f"perry-goals: expected one of {' / '.join(COMMANDS)} "
+              f"(try --help)", file=sys.stderr)
         return 2
     try:
         if args.level and args.level not in ("overall", "phase"):
@@ -399,7 +1389,30 @@ def main(argv: list[str]) -> int:
         project_root = (Path(args.root).expanduser().resolve() if args.root
                         else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
         state_root = P.resolve_state_root(project_root)
-        result = build(project_root, state_root, args.level)
+        if args.cmd == "list":
+            result = build(project_root, state_root, args.level)
+        else:
+            # ADR-004, before the lock and before the command runs: a refusal
+            # must mean nothing was written, and a dry run must preview the
+            # refusal rather than the write it would not be allowed to perform.
+            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
+                                        tool="perry-goals", root_arg=args.root)
+            if not gate.ok:
+                raise Refused(gate.message)
+            if gate.message and not args.as_json:
+                print(f"perry-goals: ⚠ conformance (advisory) — {gate.message}",
+                      file=sys.stderr)
+            with project_lock(state_root):
+                ctx = {"project_root": project_root, "state_root": state_root,
+                       "okr": Okr(state_root / "OKR.md"),
+                       "tracks": tracks_of(project_root),
+                       "events": read_events(project_root)}
+                result = COMMANDS[args.cmd](args, ctx)
+            # `list` is a published contract and gets nothing added to it.
+            # Every other payload is Perry-internal, so the verdict rides along
+            # there rather than making an agent shell out to a second tool to
+            # learn its write was allowed under protest.
+            result["conformance"] = gate.as_dict()
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
@@ -409,6 +1422,17 @@ def main(argv: list[str]) -> int:
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "commit":
+        verb = "would write" if args.dry_run else "wrote"
+        print(f"perry-goals: {verb} OKR.md § Commitments — {result['id']}"
+              f"{' → ' + result['to'] if result.get('to') else ''}")
+        if result.get("created_section"):
+            print("  · created the `## Commitments` section from "
+                  "goals/state/OKR_TEMPLATE.md — header and note included")
+        for column in result.get("widened") or []:
+            print(f"  · widened the table with a `{column}` column; every row "
+                  f"was padded for it")
+        print(handoff_line(result["id"]))
     else:
         o = result["okr"]
         print(f"  OKR {o['version'] or '—'} · {o['mission'][:60] or '—'}")
