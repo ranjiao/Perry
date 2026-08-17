@@ -343,9 +343,16 @@ supposed to protect.
    `schema/state-schema.json § claims[]` against this folder and returns
    `collisions` plus a `suggested_state_root`.
 
-   - **`collisions: 0`** → write `State root: .` and **ask nothing.** The clean
-     case must cost the user zero questions; that is the whole reason this is a
-     check rather than a standing question.
+   - **`collisions: 0`** → write `State root: perry` and **ask nothing.** The
+     clean case must cost the user zero questions; that is the whole reason
+     this is a check rather than a standing question.
+
+     **`perry` is the default, not `.`.** Two shapes in circulation is two code
+     paths a reader can disagree about, and one already did: `bin/perry-goals`
+     passed the project root where the state root was wanted, and the bug was
+     invisible on every `.`-rooted project — including the test fixture. A
+     subdirectory also removes the whole namespace-collision class rather than
+     detecting it, which is what the check above exists for.
    - **`collisions > 0`** → add State root as a **third question in the same
      `AskUserQuestion` call** below. No extra round trip.
 
@@ -530,7 +537,11 @@ The field **names** above stay English in every language — this is the file th
 
 ### `State root` — where Perry's files live
 
-Default `.` (the project root), which is what every Perry project written before this field existed assumes. **Ask the user** when the project already uses a directory Perry claims — `design/` is the usual collision, and a project's own design docs are not Perry design docs. Setting `State root: perry` puts Perry's whole tree under `perry/`, leaving the project's own untouched.
+**`perry` is the default that setup writes**, as of 2026-08-17. It puts Perry's whole tree under `perry/`, leaving the project's own `design/`, `evidence/` and `knowledge/` untouched — removing the namespace-collision class rather than detecting it case by case.
+
+**The code fallback is still the project root, and must stay that way.** A project whose config has no `State root` line keeps its files exactly where they are. Changing the fallback would send every reader into a subdirectory that does not exist and make an adopted project's entire history vanish from every tool at once. **The default governs what setup writes; it never governs where an existing project is looked for.** Earlier projects wrote `.` and are not migrated — `perry relocate` is there for anyone who wants to move, and "no automatic rewrite of a project's existing structure" is an Anti-Goal.
+
+Two shapes in circulation is two code paths a reader can disagree about, and one already did: `bin/perry-goals` passed the project root where the state root was wanted, and the bug was invisible on every `.`-rooted project — including the test fixture. That is why the default moved, and why `tests/test_claims.py` now asserts every tool resolves through `resolve_state_root` rather than reaching for the project root itself.
 
 **Do not enumerate the claimed paths here.** `schema/state-schema.json § claims[]` is the one authoritative list, and `perry-lint --claims --root .` computes the collision against it. This paragraph used to name five paths while the skills wrote eighteen, so a project owning `evidence/` or `knowledge/` collided silently — a second, hand-maintained copy is what drifted. Run the check; don't recite a list.
 

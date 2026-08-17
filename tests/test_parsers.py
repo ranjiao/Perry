@@ -13,6 +13,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -552,3 +553,77 @@ class Linter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
+    """`count` was `len(section)` — every row ever added.
+
+    On Perry's own board both rows carried `**answered 2026-08-16: …**` and
+    the dashboard still reported "2 items waiting on you". That is the single
+    number in the whole payload the user is meant to act on, and it was
+    counting work they had already done.
+
+    Second location of a defect fixed once already this session:
+    `perry-diagnose`'s LOAD-03 counted every USER- id regardless of status.
+    """
+
+    BOARD = """# BOARD
+
+## P0
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P1
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Idle | Status |
+|---|---|---|---|---|
+| USER-001 | Answered one | TASK-005 | 3d | **answered 2026-08-16: 30 days** |
+| USER-002 | Still waiting | TASK-006 | 9d | pending |
+| USER-003 | Also waiting | — | 1d | — |
+
+## Cadence
+
+| ID | Recurring task | Frequency | Next due | Owner | Last evidence |
+|---|---|---|---|---|---|
+
+## Top risks
+
+- none
+"""
+
+    def payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: .\n")
+            (root / "BOARD.md").write_text(self.BOARD)
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+                 "--root", str(root), "--json"], capture_output=True, text=True)
+            return json.loads(r.stdout)
+
+    def test_an_answered_row_is_not_counted(self):
+        q = self.payload()["user_input_queue"]
+        self.assertEqual(q["count"], 2,
+                         "an answered row is still being counted as pending")
+
+    def test_the_oldest_is_chosen_from_the_unanswered_only(self):
+        """Reporting an answered row as the oldest blocker sends the user to
+        re-answer something they already closed."""
+        q = self.payload()["user_input_queue"]
+        self.assertEqual(q["oldest"]["id"], "USER-002")
+
+    def test_a_dash_and_an_empty_status_both_mean_still_waiting(self):
+        """`—` is the board's own way of writing "nothing yet". Treating it as
+        an answer would hide the request entirely."""
+        q = self.payload()["user_input_queue"]
+        self.assertIn("USER-003", [i["id"] for i in q["items"]])

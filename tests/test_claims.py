@@ -272,3 +272,59 @@ class TestNoProseListSurvives(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
+    """No tool may reach for the project root to find a state file.
+
+    `bin/perry-goals` shipped passing `project_root` to `load_snapshot`, which
+    takes the **state** root and reads `root / "OKR.md"` directly. On every
+    project whose state root is not `.` it read the wrong directory and
+    reported `okr_present: false` inside a payload that looked entirely
+    well-formed — Perry and aiMark both keep state under `perry/`, and both
+    were reported as having no goals.
+
+    Two shapes in circulation is two code paths a reader can disagree about.
+    The fix is not to remove the option — `gimegime-pmo` is a PMO repo whose
+    whole purpose is Perry state and nesting it would be redundant — but to
+    make one function the only way to find it.
+    """
+
+    STATE_FILES = ("BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md")
+    TOOLS = ("perry-task", "perry-goals", "perry-decide", "perry-state")
+
+    def test_no_tool_joins_a_state_file_onto_the_project_root(self):
+        offenders = []
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            for n, line in enumerate(src.splitlines(), 1):
+                if line.lstrip().startswith("#") or "resolve_state_root" in line:
+                    continue
+                for f in self.STATE_FILES:
+                    if re.search(rf'project_root\s*/\s*["\']{re.escape(f)}', line):
+                        offenders.append(f"bin/{name}:{n}  {line.strip()[:80]}")
+        self.assertFalse(
+            offenders,
+            "a tool built a state-file path from the project root instead of "
+            "the state root:\n    " + "\n    ".join(offenders))
+
+    def test_no_tool_passes_the_project_root_to_load_snapshot(self):
+        """The exact form the bug took. `load_snapshot` takes the state root;
+        the name does not say so, which is what made it easy to get wrong."""
+        offenders = []
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            for n, line in enumerate(src.splitlines(), 1):
+                if "load_snapshot(" in line and "project_root" in line:
+                    offenders.append(f"bin/{name}:{n}  {line.strip()[:80]}")
+        self.assertFalse(
+            offenders,
+            "load_snapshot takes the STATE root:\n    " + "\n    ".join(offenders))
+
+    def test_every_tool_actually_calls_the_resolver(self):
+        """A tool that never resolves cannot honour a declared state root at
+        all — the failure this pair exists to prevent, one step earlier."""
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            self.assertIn("resolve_state_root", src,
+                          f"bin/{name} never resolves the state root")

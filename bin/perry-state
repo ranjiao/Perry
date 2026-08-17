@@ -648,7 +648,21 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         else:
             unlinked.append({"id": t.id, "title": t.title})
 
-    uiq = board.user_input_queue
+    # Only what the user still owes an answer to. `len(section)` counted every
+    # row ever added — on Perry's own board both rows were answered on
+    # 2026-08-16 and the dashboard still said "2 items waiting on you", which
+    # is the one number in the whole payload the user is supposed to act on.
+    #
+    # Second location of a defect already fixed once this session:
+    # `perry-diagnose`'s LOAD-03 counted every USER- id regardless of status.
+    # Same shape, different file — which is why this is a shared predicate now
+    # rather than a second inline filter.
+    def answered(u) -> bool:
+        s = (u.status or "").strip().strip("*` ").lower()
+        return bool(s) and not s.startswith(("pending", "waiting", "open", "—", "-"))
+
+    uiq = [u for u in board.user_input_queue if not answered(u)]
+
     def idle_days(u):
         m = re.search(r"(\d+)", u.idle or "")
         return int(m.group(1)) if m else -1
