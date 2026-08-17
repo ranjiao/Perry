@@ -21,6 +21,7 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-goals`](perry-goals) | read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. |
 | [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `DECISIONS.md`, mint ADRs, supersede, set status, list. |
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
+| [`perry-conform`](perry-conform) | read + writes `.perry/conformance.md` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. |
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P-O1.2`) to what it actually means, where it was defined, and everywhere it is referenced. |
 | [`perry-viewer`](perry-viewer) | read | Launches the opt-in read-only local web console (`viewer/`). Builds its own venv. |
@@ -162,6 +163,54 @@ its writer is strict.
 
 `DECISIONS.md` is **rendered** from the ADR files on every write. Never hand-edit
 it, never append to it.
+
+### Both writers gate on the conformance marker
+
+Under [ADR-004](../perry/decisions/ADR-004-mandatory-migration.md) a project
+migrates to Perry's shape once, and after that both the reader and the writer
+may assume that shape. The fact that makes it safe to assume is **declared and
+checkable**, and it is not `perry-lint`'s `is_adopted()` — that answers "does
+this folder hold any Perry file at all", which is a different and still-correct
+question.
+
+```bash
+"$PERRY_HOME/bin/perry-conform" status                  # every file, every verdict
+"$PERRY_HOME/bin/perry-conform" check BOARD.md          # one file; exit 1 if not conformant
+"$PERRY_HOME/bin/perry-conform" declare BOARD.md        # the user's declaration
+"$PERRY_HOME/bin/perry-conform" declare --all
+```
+
+Two facts, kept apart on purpose:
+
+| | Where it lives | Who produces it |
+|---|---|---|
+| **the declaration** — the user said this file is Perry's, at shape version N | `.perry/conformance.md` | only `perry-conform declare`, or a migration the user asked for. **No tool stamps it on its own initiative.** |
+| **the shape** — does it still match `schema/state-schema.json` | nowhere; recomputed every call | `perry-lint`'s own `check_file`, imported rather than reimplemented |
+
+A stored verdict would be a cache that goes wrong, and a content hash would
+revoke itself on every legitimate `perry-task add`. A stored *decision* plus a
+live *check* can disagree — and that disagreement (`drifted`) is a finding, not
+a crash and not a silent correction.
+
+Five verdicts: `conformant`, `undeclared`, `stale` (declared at an older shape
+version), `drifted` (declared, no longer matches), `absent` (nothing there yet,
+so nothing is gated). Conformance means **zero lint errors** for that one file —
+warnings are quality signals and one of them, `stale-run`, becomes true with the
+passage of time alone.
+
+Conformance is **per file**: a project may migrate its board and not its risks,
+so `perry-task` gates on `BOARD.md` and `perry-decide` on `DECISIONS.md`, and
+neither looks at the other.
+
+**Reading is never gated.** `perry-state`, `perry-task list`, `perry-goals list`,
+`perry-decide list` and the viewer answer on an unmarked project, whatever the
+gate is set to.
+
+The gate ships **advisory**: the writer proceeds and says what it found, on
+stderr and in the `conformance` block of its (non-contract) `--json` result. Set
+`- Conformance gate: enforce` in `.perry/config.md`, or `PERRY_CONFORMANCE=enforce`
+in the environment, to make it refuse instead. It becomes the default when the
+migration exists and non-conformant projects have somewhere to go.
 
 ### Lint after every tier‑1 write
 

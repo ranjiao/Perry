@@ -514,6 +514,7 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 - Repo layout: <single | split>
 - State root: <. | relative path>
 - Packs: <comma-separated pack names, or absent for software-ops>
+- Conformance gate: <advisory | enforce>   (optional; default advisory)
 - PMO repo path: <absolute path>
 - Code repo path: <absolute path or — if single>
 - Last updated: <YYYY-MM-DD>
@@ -548,6 +549,25 @@ Two shapes in circulation is two code paths a reader can disagree about, and one
 `.perry/` itself **never moves**: it is the anchor that marks the folder as a Perry project and it holds this pointer, so it cannot sit behind the pointer. Every reader resolves the root the same way — `viewer/parsers.py § resolve_state_root` is the one implementation, and `schema/state-schema.json` declares which files are anchored at the project root (`anchor: project`) rather than the state root.
 
 Adoption asks this question during `confirm`, before anything is materialized (`reference/adoption.md`).
+
+### `Conformance gate` — and the one thing the agent must not do
+
+Under [ADR-004](perry/decisions/ADR-004-mandatory-migration.md) a project
+migrates to Perry's shape once, and every writer then gates on a **declared**
+marker: *this file matches Perry's shape, at shape version N, and the user said
+so*. The declarations live in `.perry/conformance.md`; `bin/perry-conform`
+computes the verdict and is the only thing that writes them.
+
+Today the gate is **advisory** — `perry-task` and `perry-decide` write anyway
+and print what they found. Set `Conformance gate: enforce` (or export
+`PERRY_CONFORMANCE=enforce`) to make them refuse instead. **Reading is never
+gated in either mode.**
+
+When a write prints a conformance line, **relay it and let the user decide.** Do
+not run `perry-conform declare` on the user's behalf: `perry/OKR.md` — *"adoption
+proposes; the user declares"* — is the rule the marker exists to encode, and a
+tool or an agent stamping it unasked is the violation, not the shortcut. Say
+which file, which verdict, and which command; then wait.
 
 ## Routing reference
 
