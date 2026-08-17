@@ -44,8 +44,10 @@
      stamps `Opened` and owns `Status`; `Risk` is your sentence. A cleared row
      STAYS here — it is the record that the mitigation worked — and simply
      stops counting. A bullet list is still read, so an older board keeps
-     working; `risk-add` converts it on first use, carrying every bullet
-     across verbatim. -->
+     working — but `risk-add` REFUSES there rather than converting it: a
+     section you wrote is not one this tool rewrites unasked. Run
+     `perry-task risk-migrate` (or `--dry-run --json` first) to convert every
+     bullet verbatim, once, and then add. -->
 
 | ID | Risk | Opened | Status |
 |---|---|---|---|
