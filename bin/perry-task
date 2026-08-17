@@ -1366,6 +1366,7 @@ def cmd_list(args, ctx) -> dict:
                    "rows_with_unrecognized_id": [], "off_enum_status": [],
                    "rows_with_no_status": [], "evidence_not_found": [],
                    "rows_with_no_computable_age": [],
+                   "next_action_cites_closed": [],
                    "has_event_log": bool(ctx["events"])}
     statuses = set(ctx["schema"]["enums"]["task_status"])
     terminal = {"done", "dropped"}
@@ -1480,6 +1481,24 @@ def cmd_list(args, ctx) -> dict:
         t["id"] for t in tasks.values()
         if t["open"] and not t["updated"]
         and not t["stage_since"] and not t["arrived"])
+
+    # An open row whose `Next action` points at a task that has since closed.
+    # Orthogonal to the age check and catches a different case: a row can be
+    # touched yesterday and still be waiting on something that finished.
+    #
+    # **Only ids in this payload are resolved.** `DESIGN-`, `ADR-` and `USER-`
+    # ids appear in these cells constantly and are NOT checked here — saying
+    # "cites nothing closed" while silently skipping three id families would
+    # be a stronger claim than the data supports.
+    for t in tasks.values():
+        if not t["open"]:
+            continue
+        for cited in sorted(set(ID_RE.findall(t["next_action"]))):
+            cid = f"TASK-{int(cited):03d}"
+            other = tasks.get(cid)
+            if other is not None and not other["open"]:
+                conformance["next_action_cites_closed"].append(
+                    {"id": t["id"], "cites": cid, "status": other["status"]})
 
     rows = sorted(tasks.values(), key=lambda t: t["id"])
     if args.track:

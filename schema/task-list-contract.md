@@ -117,6 +117,7 @@ rendering 12 and dropping one.
 | `off_enum_status` | array | `{id, status}` — the cell said something, and after stripping emphasis it is still not one of the six. `status` is `""` for these and `status_text` has the original. |
 | `rows_with_no_status` | array | `{id, section}` — the row's `Status` cell was empty, usually because its section's table has no `Status` column. **`open` is an assumption for these**, see below. |
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. |
+| `next_action_cites_closed` | array | `{id, cites, status}` — an open row whose `Next action` points at a task that has since closed. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
 
@@ -171,6 +172,14 @@ deserves to know when a value's *meaning* changed under it.
 
 ### 1.3 — 2026-08-17
 
+- **added** `conformance.next_action_cites_closed` — an open row still pointing
+  at finished work. Orthogonal to the age check: a row can have been touched
+  yesterday and still be waiting on something that closed. Measured before
+  shipping, it fires **once** on Perry's own board, and it does **not** catch
+  the three rows that motivated it — their `Next action` is prose about a
+  review verdict and cites no id at all. Those are surfaced by
+  `rows_with_no_computable_age` instead. Two signals, neither a substitute for
+  the other.
 - **added** `conformance.rows_with_no_computable_age`. The six standard board
   columns carry no date, so a row written before the event log has no age at
   all — and every staleness rule is an age comparison, which made those rows

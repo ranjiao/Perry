@@ -40,6 +40,7 @@ from pathlib import Path
 
 SKIP_DIRS = {
     ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
+    ".claude", ".agents", ".trae",
     "target", ".next", "vendor", "site-packages", ".pytest_cache", ".tox",
 }
 
@@ -131,7 +132,14 @@ def strip_md(s: str) -> str:
 
 def walk_md(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        # A directory carrying its own `.git` is a different project — a
+        # vendored checkout, a submodule, an agent worktree. Skipping by name
+        # never finishes, and this walk feeds `perry-diagnose`'s user-load
+        # scan, which reported a dangling id that existed in no file of this
+        # repo: it was reading a subagent's half-written source out of a
+        # worktree. `.git` is a directory in a clone and a file in a worktree.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
+                       and not (Path(dirpath) / d / ".git").exists()]
         for fn in filenames:
             if fn.lower().endswith((".md", ".markdown")):
                 yield Path(dirpath) / fn

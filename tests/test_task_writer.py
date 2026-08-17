@@ -1318,7 +1318,8 @@ class TestListContract(unittest.TestCase):
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
-                        "rows_with_no_computable_age", "has_event_log"}
+                        "rows_with_no_computable_age",
+                        "next_action_cites_closed", "has_event_log"}
     EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
 
     TRACKS = TestModeAwareWrites.TRACKS
@@ -1858,3 +1859,64 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
         p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
         _, d = p.run("list", "--all")
         self.assertNotIn(a["id"], d["conformance"]["rows_with_no_computable_age"])
+
+
+class TestNextActionPointingAtFinishedWork(unittest.TestCase):
+    """An open row still waiting on something that closed.
+
+    Orthogonal to the age check: a row can have been touched yesterday and
+    still cite work that finished. Measured before shipping — it fires once on
+    Perry's own board, and it does NOT catch the three rows that motivated the
+    whole question, whose `Next action` is prose about a review verdict and
+    cites no id. Those are caught by `rows_with_no_computable_age`. Two
+    signals; neither replaces the other, and saying otherwise would oversell
+    both.
+    """
+
+    def board_citing(self, cited: str) -> "Project":
+        """A citation in the cell is scanned by `mint_id` — correctly, so a
+        number named anywhere is never reissued. The first version of this
+        helper hardcoded the id it expected to be minted next and collided
+        with its own citation."""
+        return Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            f"| TASK-900 | waiting | User | not_started | blocked-by {cited} | — |\n\n## P1", 1))
+
+    def blocked_by_a_closed_task(self):
+        """Create the blocker, close it, THEN point the waiting row at it."""
+        p = self.board_citing("nothing yet")
+        _, a = p.run("add", "--title", "the blocker", "--priority", "P1")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        p.run("status", "TASK-900", "--status", "blocked",
+              "--reason", f"blocked-by {a['id']}")
+        return p, a["id"]
+
+    def test_a_row_citing_a_closed_task_is_reported(self):
+        p, blocker = self.blocked_by_a_closed_task()
+        _, d = p.run("list", "--all")
+        self.assertEqual(
+            d["conformance"]["next_action_cites_closed"],
+            [{"id": "TASK-900", "cites": blocker, "status": "done"}])
+
+    def test_a_row_citing_an_open_task_is_not_reported(self):
+        p = self.board_citing("nothing yet")
+        _, a = p.run("add", "--title", "still open", "--priority", "P1")
+        p.run("status", "TASK-900", "--status", "blocked",
+              "--reason", f"blocked-by {a['id']}")
+        _, d = p.run("list", "--all")
+        self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
+
+    def test_a_closed_row_citing_a_closed_task_is_not_reported(self):
+        """The question is what still needs doing."""
+        p, _ = self.blocked_by_a_closed_task()
+        p.run("done", "TASK-900", "--evidence", "e.md", "--rung", "V3")
+        _, d = p.run("list", "--all")
+        self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
+
+    def test_an_id_family_this_payload_cannot_resolve_is_not_claimed_on(self):
+        """`DESIGN-` and `USER-` ids are all over these cells. Reporting them
+        as "not closed" would assert something the payload cannot know."""
+        p = self.board_citing("DESIGN-003")
+        _, d = p.run("list", "--all")
+        self.assertEqual(d["conformance"]["next_action_cites_closed"], [])

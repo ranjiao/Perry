@@ -56,6 +56,7 @@ triage-shaped question the old walk had no way to ask:
 | `off_enum_status` | The cell says something the enum does not cover. Often legitimate (a composite state); sometimes a typo. Surface, never rewrite. |
 | `evidence_not_found` | A path in the `Evidence` cell resolves under neither root. Usually a symbol or a note, not a broken link — check before treating it as one. |
 | `sections_skipped` | A `## ` section holding a table with no `ID`+`Title`. If it is actually work, its table needs those columns. |
+| `next_action_cites_closed` | The row is waiting on work that finished. Re-read the `Next action` with the user — it is usually one edit from correct, and it is the cheapest stale row to fix. Only `TASK-` ids are resolved; a cell citing a `DESIGN-` or `USER-` id is not checked and you still have to read it. |
 | `rows_with_no_computable_age` | No age exists for these. Every staleness rule below is an age comparison, so they were being read as fresh forever. Ask about each rather than skipping it. |
 | `has_event_log: false` | The project predates the writer. `created` / `updated` / `timeline` are empty for every row and **that is not an error** — fall back to the row's own date cells. |
 

@@ -639,3 +639,113 @@ class UserAskAnswerState(unittest.TestCase):
                 "| USER-002 | B | — | 3d | pending |\n"
                 "| USER-003 | C | — | 9d | waiting on you |\n"),
             2)
+
+
+class NestedRepositoriesAreNotScanned(unittest.TestCase):
+    """A directory with its own `.git` is a different project.
+
+    Found live: `perry-diagnose` reported a dangling `USER-` id that existed in
+    no file of this repo. It was reading a subagent's half-written
+    `bin/perry-task` out of a git worktree under `.claude/`, so Perry's own
+    diagnostics were non-deterministic for as long as another agent was
+    running — the number changed between two runs a minute apart.
+
+    Skipping by directory name never finishes. A vendored checkout, a
+    submodule, an agent worktree and a sibling repo dropped in by accident are
+    the same shape, and only some of them have predictable names. `.git` is a
+    directory in a clone and a FILE in a worktree; both mark a boundary.
+    """
+
+    def test_a_nested_clone_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: .\n")
+            (root / "BOARD.md").write_text(
+                "# BOARD\n\n## P0\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n\n## P1\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n\n## P2\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n")
+
+            other = root / "vendored"
+            (other / ".git").mkdir(parents=True)      # a clone
+            (other / "NOTES.md").write_text("blocked on TASK-777 and USER-777\n")
+
+            wt = root / "wt"
+            wt.mkdir()
+            (wt / ".git").write_text("gitdir: /elsewhere\n")   # a worktree
+            (wt / "NOTES.md").write_text("blocked on TASK-778\n")
+
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-diagnose"),
+                 "--root", str(root), "--json"], capture_output=True, text=True)
+            payload = json.loads(r.stdout)
+            blob = json.dumps(payload, ensure_ascii=False)
+            for stray in ("TASK-777", "USER-777", "TASK-778"):
+                self.assertNotIn(
+                    stray, blob,
+                    f"{stray} came from a nested repository and was counted as "
+                    f"this project's")
+
+
+class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
+    """LOAD-03 measures decisions **queued on the user**.
+
+    A `TBD` inside `## Implementation plan` waits on the handoff, not on a
+    person — the common form is a task-id column reading `TBD at handoff`. The
+    section that queues decisions on the user is `## User Decisions`, which has
+    its own `Chosen` column and its own convention.
+
+    Found when a 402-line design doc put six of them in one table and tripped
+    LOAD-03 on Perry's own repo. A check that counts every planning placeholder
+    trains the user to ignore it, which is the failure `reference/diagnose.md`
+    names as worse than no check.
+    """
+
+    DOC = """# DESIGN-900: Example
+
+## 4. User Decisions
+
+| # | Decision | Options | Chosen | Date |
+|---|---|---|---|---|
+| 1 | Which store | a / b | TBD | — |
+
+## 6. Implementation plan
+
+| Phase | Scope | Proposed task(s) | Owner |
+|---|---|---|---|
+| A | schema | TBD at handoff | Coding Agent |
+| B | writer | TBD at handoff | Coding Agent |
+
+## 7. Risks & mitigations
+
+—
+"""
+
+    def payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: .\n")
+            (root / "design").mkdir()
+            (root / "design" / "DESIGN-900-example.md").write_text(self.DOC)
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-diagnose"),
+                 "--root", str(root), "--json"], capture_output=True, text=True)
+            return json.loads(r.stdout)
+
+    def test_the_user_decision_row_is_counted(self):
+        """The real queue must still be measured — this is not a licence to
+        stop counting."""
+        d = self.payload()["user_load"]
+        self.assertEqual(d["open_decisions"], 1)
+
+    def test_the_plan_placeholders_are_not(self):
+        d = self.payload()["user_load"]
+        self.assertFalse(
+            [s for s in d["open_decision_samples"] if "Implementation" in s],
+            "a planning placeholder was counted as a decision queued on the user")
+        self.assertLess(d["open_decisions"], 3,
+                        "the two `TBD at handoff` cells were counted")
