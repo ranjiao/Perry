@@ -46,6 +46,7 @@ Usage:
                    [--depends "…"] [--out-of-scope "…"] [--kr KR-ID]
                    [--track T] [--owner O] [--priority P0|P1|P2]
                    [--group "<board heading>"]   file under a project's own section
+                   [--prefix AIM]                mint into the board's own id family
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
                    [--arrived YYYY-MM-DD]
   perry-task start <ID> [--next "…"]
@@ -61,6 +62,8 @@ Usage:
   perry-task risk-clear <RX-ID> --reason "…"
   perry-task risk-migrate                  `## Top risks` bullets → the table
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
+                   [--group "<board heading>"]   file under a project's own section
+                   [--prefix AIM]                mint into the board's own id family
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
   perry-task intake-sweep                  discharged intake rows → journal
@@ -122,7 +125,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.4"
+LIST_CONTRACT = "perry-task/list/1.5"
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
 # `## Top risks` rows go through the same three-way commit and land in the same
@@ -934,9 +937,111 @@ def widening_columns(header: list[str], values: dict) -> list[str]:
 
 ID_RE = re.compile(r"\bTASK-(\d+)\b")
 
+#: The default family, and the one every project that has never said otherwise
+#: gets. Not special beyond being the default.
+DEFAULT_PREFIX = "TASK"
 
-def mint_id(board: Board, events: list[dict], state_root: Path | None = None) -> str:
-    """Next id from max(board ∪ journal ∪ events).
+#: A prefix is one or more `-`-joined segments, each starting with a LETTER.
+#: `AIM`, `ARCH-V2` and `RW` pass; `TASK-001` does not, because `001` starts
+#: with a digit — which is exactly the rule that keeps a whole id from being
+#: mistaken for a prefix.
+PREFIX_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*$")
+
+#: Prefixes this file mints for OTHER registers. A task minted as `RX-005`
+#: would collide with the risk register's own numbering, and both writers would
+#: then be right about their own file and wrong about the project.
+RESERVED_PREFIXES = {"USER", "RX", "CAD", "CADENCE"}
+
+#: An id cell → `(prefix, number-or-None)`. The contract says an id is opaque
+#: and that some carry no number at all, so the number half is optional.
+_ID_SHAPE = re.compile(r"^(?P<prefix>.+?)-(?P<tail>[^-]*)$")
+
+
+def board_id_prefixes(board: Board) -> dict[str, int]:
+    """`{prefix: how many NUMBERED ids the board files under it}`.
+
+    Read from the `ID` cell of every readable TASK table, never from the whole
+    document: `## Top risks`, `## Cadence` and `## User Input Queue` have their
+    own families, and a `## ID prefixes` reference table is prose about ids
+    rather than ids. A prefix with a zero count is one the board uses without
+    numbers — it is a family, so it counts toward "how many families", but
+    nothing can be minted into it.
+    """
+    counts: dict[str, int] = {}
+    for tbl in board.task_tables():
+        if not tbl["readable"]:
+            continue
+        for cells in tbl["rows"]:
+            raw = (cells.get("id") or "").replace("~", "").replace(
+                "*", "").replace("`", "").strip()
+            m = _ID_SHAPE.match(raw)
+            if not m or not PREFIX_RE.match(m.group("prefix")):
+                continue
+            p = m.group("prefix")
+            counts[p] = counts.get(p, 0) + (1 if m.group("tail").isdigit() else 0)
+    return counts
+
+
+def resolve_prefix(board: Board, requested: str | None) -> str:
+    """Which family a NEW id is minted into (TASK-060).
+
+    On a board whose 17 rows are `AIM-001`…`AIM-017`, `add` minted `TASK-001`.
+    Legitimate — the contract says ids are opaque and a board may carry several
+    project-declared prefixes — but a user creating a task from a front-end
+    watched their board sprout a second id family, and there was no flag with
+    which to ask for the first. aiMark passes no id and *cannot*: nothing in
+    the surface would let it.
+
+    **The rule, and why it is not "adopt the most common prefix".**
+
+    1. `--prefix` wins. It is the answer for every case, and it is the only
+       answer for a board that carries several families or wants a new one.
+    2. Otherwise, adopt the board's prefix **only when the board has exactly
+       one**. Then there is nothing to guess: it is the only family the board
+       has ever used.
+    3. Otherwise `TASK`, unchanged.
+
+    Rule 2 stops at one on purpose. `~/proj/gimegime-pmo` carries **36**
+    families across its task tables, a dozen of them declared in its own
+    `## ID prefixes (canonical)` section, and they are not stylistic:
+    `IPS-*` / `ALLOC-*` / `DUE-*` mean 投资线 and `TECH-*` /
+    `DATA-*` mean 工程线, filed in physically separate sections for a reason
+    the board states. A plurality winner there mints an id that ASSERTS the row
+    belongs to a workstream nobody chose — and an id is permanent and never
+    reissued, so that assertion cannot be taken back. A foreign-looking
+    `TASK-001` on such a board is visibly Perry's and obviously not a claim
+    about the work; a wrong-family `IPS-014` is a claim, and a false one.
+    Guessing is only safe where there is exactly one thing to guess.
+    """
+    if requested:
+        p = requested.strip().rstrip("-")
+        if not PREFIX_RE.match(p):
+            raise Refused(
+                f"--prefix {requested!r} is not an id prefix. Segments are "
+                f"joined by `-` and each starts with a letter (`AIM`, "
+                f"`ARCH-V2`); the number is appended by Perry, so pass "
+                f"`AIM`, not `AIM-018`")
+        if p.upper() in RESERVED_PREFIXES:
+            raise Refused(
+                f"--prefix {p!r} is the family `perry-task` mints for another "
+                f"register on this same board ({sorted(RESERVED_PREFIXES)}). "
+                f"A task numbered in it would collide with rows the tool "
+                f"writes itself")
+        return p
+    families = board_id_prefixes(board)
+    if len(families) == 1:
+        only, numbered = next(iter(families.items()))
+        # A family with no numbered id has nothing to count from, so minting
+        # into it would start at 001 beside ids that are not numbers — Perry
+        # would be inventing a numbering the project did not choose.
+        if numbered and only.upper() not in RESERVED_PREFIXES:
+            return only
+    return DEFAULT_PREFIX
+
+
+def mint_id(board: Board, events: list[dict], state_root: Path | None = None,
+            prefix: str | None = None) -> str:
+    """Next id from max(board ∪ journal ∪ events), within one prefix.
 
     A task whose row has closed still owns its number — reading only the board
     would hand a live id to a second task and silently re-point every reference
@@ -956,17 +1061,25 @@ def mint_id(board: Board, events: list[dict], state_root: Path | None = None) ->
     forbids editing, including on drop and close. So an id is never reissued as
     long as the canonical files survive, and the disposable file is genuinely
     disposable again.
+
+    **The three sources are scanned for the prefix being minted into, not for
+    `TASK-`.** They were scanned for `TASK-` while the id was always `TASK-`,
+    and once `resolve_prefix` could return `AIM` that spelling would have made
+    the counter read a different family's numbers than the one it was about to
+    write — `AIM-001` minted onto a board already holding `AIM-017`, which is
+    the reissue this function exists to make impossible.
     """
-    seen = {int(m) for _, line, _ in board.rows() for m in ID_RE.findall(line)}
-    seen |= {int(m) for e in events for m in ID_RE.findall(e.get("id", ""))}
-    seen |= {int(m) for m in ID_RE.findall(board.text())}
+    pat = re.compile(rf"\b{re.escape(prefix or DEFAULT_PREFIX)}-(\d+)\b")
+    seen = {int(m) for _, line, _ in board.rows() for m in pat.findall(line)}
+    seen |= {int(m) for e in events for m in pat.findall(e.get("id", ""))}
+    seen |= {int(m) for m in pat.findall(board.text())}
     if state_root is not None:
         for p in sorted((state_root / "journal").rglob("*.md")):
             try:
-                seen |= {int(m) for m in ID_RE.findall(p.read_text(errors="replace"))}
+                seen |= {int(m) for m in pat.findall(p.read_text(errors="replace"))}
             except OSError:
                 continue
-    return f"TASK-{max(seen, default=0) + 1:03d}"
+    return f"{prefix or DEFAULT_PREFIX}-{max(seen, default=0) + 1:03d}"
 
 
 # ── events ────────────────────────────────────────────────────────────────
@@ -1210,6 +1323,64 @@ def track_of(config: dict, name: str) -> dict:
     return {"track": "main", "mode": "project", "default_rung": ""}
 
 
+def target_section(board: "Board", args) -> tuple[str, str]:
+    """Where a NEW row is filed: `(priority, group)`, one of them empty.
+
+    One function because it was one function and a hole. `cmd_add` grew the
+    `--group` branch — parse the flag, skip the `## P<n>` requirement, file
+    under the project's own heading — and `cmd_route` grew nothing: `--group`
+    parsed into `args.group` and `cmd_route` never read it. So on a board with
+    no `## P0`/`## P1`/`## P2` at all, which is `~/proj/gimegime-pmo`'s actual
+    shape, the intake drain had no landing site and could not be given one.
+
+    Worse than a missing feature: `check_priority`'s refusal *recommends* the
+    flag — "pass the whole heading to `--group` instead" — so the tool's own
+    advice, followed exactly, produced the same refusal a second time. The
+    round-5 fix repaired the narrow-columns half of this and its guard's
+    fixture carries a `## P1`, so the guard could not fail on the missing
+    heading half. `--group` is now read in the one place every writer that
+    files a row asks the question.
+    """
+    group = args.group or ""
+    # A group names the section outright, so there is no priority to default:
+    # defaulting one would file the row under `## P1` on a board that has none.
+    priority = check_priority(args.priority or ("" if group else "P1"))
+    if not group:
+        try:
+            board.table(priority)
+        except Refused:
+            headings = board.task_section_headings()
+            raise Refused(
+                f"BOARD.md has no `## {priority}` section, and this project "
+                f"files work under its own headings. Name one with --group: "
+                f"{headings or '(none carry ID+Title columns)'}. Perry will "
+                f"not create a priority section on a board that does not use "
+                f"them — rewriting a project's structure is an Anti-Goal")
+    return priority, group
+
+
+def widen_target_section(board: "Board", priority: str, group: str,
+                         values: dict) -> None:
+    """Add the columns `values` needs to whichever section was named.
+
+    Existing rows are widened with empty cells; nothing is moved.
+
+    **Both branches, because the board does not care which flag named the
+    section.** The widening landed on `--group` alone once already, so on the
+    one real adopted project available `add --group P2` succeeded and
+    `add --priority P2` refused with "columns cannot be resolved" on the same
+    four-column `## P2` — the narrow-section case is *more* likely under a
+    priority heading, because a hand-written `## P2 (低优先 carry)` is the
+    shape a project reaches for when it wants a short list.
+    """
+    if group:
+        _, header = board.section_table(group)
+        board.ensure_section_columns(group, widening_columns(header, values))
+    else:
+        _, _, header = board.table(priority)
+        board.ensure_columns(priority, widening_columns(header, values))
+
+
 def cmd_add(args, ctx) -> dict:
     if not args.title:
         raise Refused("--title is required")
@@ -1233,20 +1404,9 @@ def cmd_add(args, ctx) -> dict:
             "cannot honestly close above V1")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
-    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
-    group = args.group or ""
-    priority = check_priority(args.priority or ("" if group else "P1"))
-    if not group:
-        try:
-            ctx["board"].table(priority)
-        except Refused:
-            headings = ctx["board"].task_section_headings()
-            raise Refused(
-                f"BOARD.md has no `## {priority}` section, and this project "
-                f"files work under its own headings. Name one with --group: "
-                f"{headings or '(none carry ID+Title columns)'}. Perry will "
-                f"not create a priority section on a board that does not use "
-                f"them — rewriting a project's structure is an Anti-Goal")
+    prefix = resolve_prefix(ctx["board"], args.prefix)
+    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"], prefix)
+    priority, group = target_section(ctx["board"], args)
 
     if mode == "project" and args.stage:
         # Project mode has no stages at all, so there is no vocabulary to check
@@ -1296,23 +1456,7 @@ def cmd_add(args, ctx) -> dict:
     # hardcoded six-name tuple, so `--commitment` and `--track` were invisible
     # in the preview while the real write set them. A preview that is not the
     # write is worse than no preview.
-    # Existing rows are widened with empty cells; nothing is moved.
-    #
-    # **Both branches, because the board does not care which flag named the
-    # section.** This widening landed on `--group` alone, so on the one real
-    # adopted project available `add --group P2` succeeded and
-    # `add --priority P2` refused with "columns cannot be resolved" on the same
-    # four-column `## P2` — the narrow-section case is *more* likely under a
-    # priority heading, because a hand-written `## P2 (低优先 carry)` is the
-    # shape a project reaches for when it wants a short list.
-    if group:
-        _, header = ctx["board"].section_table(group)
-        ctx["board"].ensure_section_columns(
-            group, widening_columns(header, values))
-    else:
-        _, _, header = ctx["board"].table(priority)
-        ctx["board"].ensure_columns(
-            priority, widening_columns(header, values))
+    widen_target_section(ctx["board"], priority, group, values)
     if mode == "queue":
         # The section `triage` step 0 walks. Nothing created it before, so
         # step 0's "only applies when the section exists" gate no-opped
@@ -1339,7 +1483,8 @@ def cmd_add(args, ctx) -> dict:
              "from": None, "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition)
-    return {"id": tid, "priority": priority, "row": line, **plan}
+    return {"id": tid, "priority": priority, "prefix": prefix,
+            "row": line, **plan}
 
 
 def cmd_start(args, ctx) -> dict:
@@ -2448,8 +2593,13 @@ def cmd_route(args, ctx) -> dict:
     if track["mode"] == "project":
         raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
                       f"queue-mode operation (`modes/queue.md`)")
-    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
-    priority = check_priority(args.priority or "P1")
+    prefix = resolve_prefix(ctx["board"], args.prefix)
+    tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"], prefix)
+    # Same function `cmd_add` calls, so `--group` cannot be a flag one of them
+    # reads and the other throws away. It was: the drain could not run at all
+    # on a board with no `## P0`/`## P1`/`## P2`, and `check_priority`'s
+    # refusal sent the user to this exact flag to fix it.
+    priority, group = target_section(ctx["board"], args)
     stages = stages_of(ctx["schema"], track)
     check_stage(track, stages, args.stage)
     # Same function `cmd_add` calls, so the two cannot disagree about where a
@@ -2486,14 +2636,13 @@ def cmd_route(args, ctx) -> dict:
             values["arrived"] = arrived
     if args.commitment:
         values["commitment"] = args.commitment
-    # Widened exactly as `cmd_add` does — see the comment there. This is where
-    # it mattered most: `## Intake` is created by the tool and fills on a board
-    # whose own `## P2` predates Perry, so the drain refused on the one project
-    # that had an intake to drain. The section filled and could never be
-    # emptied, which turns `triage` step 1 into a step that cannot run.
-    _, _, header = ctx["board"].table(priority)
-    ctx["board"].ensure_columns(priority, widening_columns(header, values))
-    line = ctx["board"].append_row(priority, values)
+    # Widened by the same function `cmd_add` calls. This is where it mattered
+    # most: `## Intake` is created by the tool and fills on a board whose own
+    # `## P2` predates Perry, so the drain refused on the one project that had
+    # an intake to drain. The section filled and could never be emptied, which
+    # turns `triage` step 1 into a step that cannot run.
+    widen_target_section(ctx["board"], priority, group, values)
+    line = ctx["board"].append_row(priority, values, group=group)
     # The intake row keeps its record; `Outcome` says where it went.
     ctx["board"].lines[idx] = render_row(
         [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
@@ -2505,7 +2654,11 @@ def cmd_route(args, ctx) -> dict:
              "from": "intake", "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
-    return {"id": tid, "arrived": arrived, "row": line, **plan}
+    # `priority` and `group` say where the row landed. A caller that passed
+    # `--group` has to be able to read back the section it named, and one that
+    # passed neither has to see the default it got.
+    return {"id": tid, "arrived": arrived, "row": line,
+            "priority": priority, "group": group, "prefix": prefix, **plan}
 
 
 def cmd_list(args, ctx) -> dict:
@@ -2595,11 +2748,6 @@ def cmd_list(args, ctx) -> dict:
             elif not st:
                 conformance["off_enum_status"].append(
                     {"id": tid, "status": raw})
-            ev_found, ev_missing = evidence_paths(
-                c.get("evidence", ""), ctx["state_root"], ctx["project_root"])
-            if ev_missing:
-                conformance["evidence_not_found"].append(
-                    {"id": tid, "paths": ev_missing})
             t = blank(tid)
             t.update({
                 "title": c.get("title", ""), "owner": c.get("owner", ""),
@@ -2612,7 +2760,6 @@ def cmd_list(args, ctx) -> dict:
                 "commitment": c.get("commitment", ""),
                 "next_action": c.get("next action", ""),
                 "evidence": c.get("evidence", ""),
-                "evidence_paths": ev_found,
                 "verification": c.get("verification", ""),
                 # `open` used to mean "still on the board", which was true when
                 # the board held only P0/P1/P2 and closing removed the row.
@@ -2688,6 +2835,35 @@ def cmd_list(args, ctx) -> dict:
     modes = {t["track"]: t.get("mode", "") for t in declared}
     for t in tasks.values():
         t["mode"] = modes.get(t["track"], "")
+
+    # `evidence_paths` is resolved HERE, after the event merge, for EVERY row.
+    #
+    # It used to be resolved inside the board walk, which meant it was resolved
+    # only for rows that are ON the board — and closed rows leave the board.
+    # Measured on Perry's own board: **32 closed rows, every one carrying an
+    # evidence cell, every one with `evidence_paths: []`, and every file
+    # present on disk.** The identical path on the identical board resolved
+    # while the row was open and stopped the day it closed. `evidence` was not
+    # empty, so nothing looked wrong; `conformance.evidence_not_found` was
+    # empty too, so a consumer could not tell "Perry did not resolve this" from
+    # "the file is gone" — and aiMark rendered the document that JUSTIFIES a
+    # close as a dead link. The one row a reader most wants the artifact for.
+    #
+    # Two other things fall out of resolving after the merge rather than
+    # during the walk. A closed row's `evidence` comes off the `done` event,
+    # which the merge above applies — resolving before it ran would have
+    # resolved a cell the payload then replaced. And a row that is on the
+    # board but closed had exactly that divergence: `evidence` from the event,
+    # `evidence_paths` from the board cell.
+    #
+    # Sorted by id so the report is stable across board and log ordering.
+    for t in sorted(tasks.values(), key=lambda r: r["id"]):
+        found, missing = evidence_paths(
+            t["evidence"], ctx["state_root"], ctx["project_root"])
+        t["evidence_paths"] = found
+        if missing:
+            conformance["evidence_not_found"].append(
+                {"id": t["id"], "paths": missing})
 
     # A row with no event AND no date cell has no age at all. Every staleness
     # rule triage runs is "idle ≥ N days", so such a row reads as fresh
@@ -2873,7 +3049,7 @@ def parse(argv: list[str]) -> Args:
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
-    a.group = None
+    a.group = a.prefix = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -2888,7 +3064,7 @@ def parse(argv: list[str]) -> Args:
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
              "--out-of-scope": "out_of_scope", "--kr": "kr",
-             "--group": "group"}
+             "--group": "group", "--prefix": "prefix"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):

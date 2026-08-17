@@ -33,7 +33,7 @@ same file rests its overflow argument on it: intake pressure is supposed to mean
 
 **Step 0 — drain `BOARD.md § Intake`, before anything else.** Applies to every queue-mode track. If the track exists and the section does not, it is created by the first `perry-task add` on a queue track or by `perry-task intake`; do not hand-write it, and do not skip the step — a self-skipping step is indistinguishable from a step that has nothing to do. Walk it top to bottom; every row gets exactly one outcome, and none may be left as-is:
 
-- **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1]`, where `<n>` is the intake row's position. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
+- **Routed** to a track → `"$PERRY_HOME/bin/perry-task" route <n> --track <track> [--priority P1 | --group "<heading>"]`, where `<n>` is the intake row's position. `--group` names the project's own heading on a board that does not use `P0`/`P1`/`P2` — the same flag, and the same meaning, as on `add`. The tool carries `Arrived` onto the new row, sets `Stage` to the track's first post-intake stage, and writes the destination back into the intake row's `Outcome` so the request's record is complete. Carrying `Arrived` is not bookkeeping: `today − Arrived` is the number every SLA check measures, so a routing that drops it makes the mode's own breach check uncomputable and silently exempts the row from the only clock governing it (`modes/queue.md`). It was dropped, by this procedure, until the tool did it structurally.
 - **Dropped** → `"$PERRY_HOME/bin/perry-task" resolve-intake <n> --outcome dropped --reason "…"`. "We are not doing this" is a real answer, and an undropped request is one that gets re-asked. The tool writes the `Outcome` cell, the journal line and the event, so a declined request is as visible as a routed one.
 - **Deferred** → same command with `--outcome deferred --reason "<the named condition>"` — never a bare "later".
 
@@ -441,12 +441,42 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
        [--parent <ID>] [--commitment <Id>]
    ```
 
-   It mints the ID from board ∪ events (never reused, never accidentally
-   gapped), stamps the timestamp at call time, sets `Stage` / `Stage since` /
-   `Arrived` for the track's mode, **creates any column or section the mode
-   needs and the board lacks**, and writes the board row, the journal line and
-   the event — the row and the journal line atomically with each other, the
-   event appended after and reported if it fails.
+   It mints the ID from board ∪ journal ∪ events (never reused, never
+   accidentally gapped), stamps the timestamp at call time, sets `Stage` /
+   `Stage since` / `Arrived` for the track's mode, **creates any column or
+   section the mode needs and the board lacks**, and writes the board row, the
+   journal line and the event — the row and the journal line atomically with
+   each other, the event appended after and reported if it fails.
+
+   **Which id family it mints into.** `TASK-NNN` unless the board says
+   otherwise, and the board says otherwise in exactly one way: if every
+   numbered id in its task tables shares one prefix, a new id joins it. A board
+   of `AIM-001`…`AIM-017` gets `AIM-018`, where it used to get `TASK-001` — a
+   second id family appearing on a board that had one, with no way to ask for
+   the first (TASK-060, reported by aiMark).
+
+   Perry stops at *exactly one* and does not take the most common. A real board
+   here carries 36 families in its task tables, declared in its own
+   `## ID prefixes` section, and they are not stylistic — `IPS-*` / `ALLOC-*` /
+   `DUE-*` mean one workstream and `TECH-*` / `DATA-*` another, filed in
+   separate sections. Picking the plurality winner would mint an id that
+   asserts a workstream nobody chose, and an id is permanent. A `TASK-001` on
+   such a board is visibly Perry's and claims nothing.
+
+   ```
+   "$PERRY_HOME/bin/perry-task" add --title "…" --deliverable "…" \
+       --verification "…" --prefix AIM
+   ```
+
+   `--prefix` names the family outright and wins over adoption. It is how a
+   front-end that cannot supply an id asks for one in the right family, and it
+   is the only answer on a board carrying several. Pass the prefix, not an id
+   (`AIM`, not `AIM-018`); segments join with `-` and each starts with a letter,
+   so `ARCH-V2` is a prefix and `AIM-018` is refused. `USER`, `RX`, `CAD` and
+   `CADENCE` are refused too — `perry-task` mints those for the queue, risk and
+   cadence registers on the same board, and a task numbered in one of them
+   would collide with rows the tool writes itself. `route` takes `--prefix` and
+   adopts by the same rule; both verbs mint, so both had to.
 
    Do not hand-write the row. Every field above was one an agent supplied and
    got wrong at least once: malformed pipes, a reused ID, a timestamp that was
@@ -470,6 +500,14 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    widening existing rows with empty cells rather than dropping the data that
    does not fit. Run `add` without `--group` to see the sections a board
    actually offers; the refusal lists them.
+
+   **`route` takes `--group` too, and means the same thing by it.** It did not
+   until TASK-053: the flag parsed and `route` never read it, so the intake
+   drain could not run at all on a board with no `## P0`/`## P1`/`## P2` — and
+   the refusal that told the user to pass the heading to `--group` was telling
+   them to pass it to a flag that verb threw away. Both verbs resolve the
+   landing section through one function now, so a board Perry can `add` into
+   is a board Perry can `route` into.
 
    **Refusals are outcomes, not errors.** The tool exits 1 and writes nothing on
    a missing title, an undeclared track, a priority outside `P0`/`P1`/`P2`, a

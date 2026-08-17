@@ -248,6 +248,77 @@ class BoardColumnsResolveByName(unittest.TestCase):
         self.assertEqual((t.owner, t.status), ("Coding Agent", "in_progress"))
 
 
+class EveryTableResolvesADecoratedHeader(unittest.TestCase):
+    """TASK-050, applied to every table this reader has, not only the one the
+    finding was found on.
+
+    `**Status**` is a header cell someone bolded, not a different column. The
+    reader lowered header cells and left the decoration on, so it resolved
+    nothing and fell back to position — and where the fallback happened to be
+    right the defect was invisible, which is how it survived. The risk table
+    has no fallback, so that is where it finally showed.
+
+    `tests/test_risks.py::TestOneNormalizationForAHeaderCell` holds the task
+    table and the risk table and the reader/writer agreement. These are the
+    three remaining tables, each given a header that is BOTH decorated and
+    reordered — decoration alone is caught by the fallback landing on the right
+    cell by luck, and that is exactly the guard that would not fail.
+    """
+
+    def test_the_cadence_register_resolves_a_decorated_header(self):
+        items = P._parse_cadence(
+            "| **Frequency** | **ID** | **Next due** | **Recurring task** | "
+            "**Owner** |\n"
+            "|---|---|---|---|---|\n"
+            "| weekly | CAD-001 | 2026-09-01 | the Monday close | Coding Agent |\n")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].id, "CAD-001")
+        self.assertEqual(items[0].frequency, "weekly")
+        self.assertEqual(items[0].title, "the Monday close")
+        self.assertEqual(items[0].next_due, "2026-09-01")
+
+    def test_a_decorated_cadence_header_row_is_not_read_as_a_cadence(self):
+        self.assertEqual(P._parse_cadence(
+            "| **ID** | **Recurring task** | **Owner** | **Frequency** | "
+            "**Next due** |\n"
+            "|---|---|---|---|---|\n"
+            "| **ID** | **Recurring task** | **Owner** | **Frequency** | "
+            "**Next due** |\n"), [])
+
+    def test_the_user_input_queue_resolves_a_decorated_header(self):
+        items = P._parse_user_input(
+            "| **Status** | **USER-id** | **Blocks** | **Needed from user** | "
+            "**Asked** |\n"
+            "|---|---|---|---|---|\n"
+            "| open | USER-001 | TASK-003 | which staging default? | 2026-08-01 |\n")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].id, "USER-001")
+        self.assertEqual(items[0].status, "open")
+        self.assertEqual(items[0].blocks, "TASK-003")
+
+    def test_a_decorated_user_input_header_row_is_not_read_as_a_question(self):
+        self.assertEqual(P._parse_user_input(
+            "| **USER-id** | **Needed from user** | **Blocks** | **Idle** | "
+            "**Status** |\n"
+            "|---|---|---|---|---|\n"
+            "| **USER-id** | **Needed from user** | **Blocks** | **Idle** | "
+            "**Status** |\n"), [])
+
+    def test_a_decorated_carry_forward_header_row_is_not_a_carry_forward(self):
+        """`## Cross-monthly carry-forwards` is read positionally and has no
+        header index at all — the only header question it asks is "is this row
+        the header?", and it asked it with `.lower()`."""
+        ps = P.parse_project_state(
+            "# Project state\n\n"
+            "## Cross-monthly carry-forwards\n"
+            "| **ID** | **Origin** | **Description** | **Owner** | **Target** |\n"
+            "|---|---|---|---|---|\n"
+            "| **ID** | **Origin** | **Description** | **Owner** | **Target** |\n"
+            "| CF-001 | 2026-07 | the vendor review | Coding Agent | 2026-09 |\n"
+            "\n## Phase\n")
+        self.assertEqual([c.id for c in ps.carry_forwards], ["CF-001"])
+
+
 class Attribution(unittest.TestCase):
     """reference/okr-linkage.md: resolve by stable ID / exact name / registered
     alias — never by fuzzy name. A near-match is not a match."""

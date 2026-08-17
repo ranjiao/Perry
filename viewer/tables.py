@@ -83,5 +83,16 @@ def squash(s: str) -> str:
 
     `bin/perry-lint` defined this same function character-for-character under
     the name `norm`. It now imports this one.
+
+    `viewer/parsers.py` — the read side — spelled the same idea
+    `.strip().lower()` at eleven sites, which is NOT this function: it leaves
+    the decoration on. So on `| ID | **Risk** | Opened | Status |` the writer
+    said risk-table and the reader said not, and `risk-add` wrote rows that
+    `perry-state` counted as zero. It imports this one too now (TASK-050), so
+    "is this cell that column?" has exactly one answer in this repository.
+
+    This is why the function is in `tables.py` and not in either caller: it is
+    the only module both a writer and a reader could import without one of
+    them depending on the other.
     """
     return re.sub(r"[\s`*]+", " ", s).strip().lower()

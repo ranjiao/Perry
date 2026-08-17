@@ -869,5 +869,170 @@ class TestOneRuleForWhatABulletIs(unittest.TestCase):
             [bool(PT._RISK_BULLET.match(s.strip())) for s in corpus])
 
 
+class TestOneNormalizationForAHeaderCell(unittest.TestCase):
+    """TASK-050. The same "one rule, two implementations" shape as above, one
+    level down: what a *header cell* normalizes to before a column is resolved.
+
+    `viewer/parsers.py` spelled it `.strip().lower()` at eleven sites;
+    `bin/perry-task`, `bin/perry-goals` and `bin/perry-lint` spelled it
+    `squash`, which also takes off markdown decoration. So on
+
+        | ID | **Risk** | Opened | Status |
+
+    the writer squashed `**Risk**` to `risk` and said "risk table", and the
+    reader lowered it to `**risk**` and said "not a risk table". Every exit a
+    user could reach was closed by that one disagreement: `risk-add` wrote the
+    row, `perry-state` reported zero risks, `perry-lint` reported the board
+    clean, and `risk-migrate` said it had already migrated. The board was
+    fine; nothing would show it.
+
+    The task tables survived only because every column there has a positional
+    fallback — which is to say a decorated header was being read by position,
+    the thing `_parse_task_table`'s own comment says must never happen.
+
+    These are the CATEGORY tests. `test_..._on_every_written_header_cell`
+    compares the two predicates over a corpus of forms rather than checking one
+    behaviour on one fixture, because a fixture only ever covers the decoration
+    someone happened to think of.
+    """
+
+    # Every way a person writes a header cell, crossed with every column that
+    # has a reader and a writer. Decoration, case, padding, both languages,
+    # plus near-misses that must resolve to nothing on BOTH sides.
+    DECORATIONS = ("{}", "**{}**", "`{}`", "*{}*", "  {}  ", "**`{}`**",
+                   "{} ", "__{}__")
+    COLUMNS = ("ID", "Title", "Owner", "Status", "Next action", "Evidence",
+               "Verification", "Risk", "Opened", "USER-id")
+    NEAR_MISSES = ("Risks", "Risk level", "Severity", "risk ", "  ", "",
+                   "**Meaning**", "`Note`", "IDs", "编号x")
+
+    def _corpus(self) -> list[str]:
+        cells: list[str] = []
+        for col in self.COLUMNS:
+            for lang_spelling in P.alias("columns", col):
+                for deco in self.DECORATIONS:
+                    cells.append(deco.format(lang_spelling))
+                    cells.append(deco.format(lang_spelling.upper()))
+                    cells.append(deco.format(lang_spelling.lower()))
+        cells.extend(self.NEAR_MISSES)
+        return cells
+
+    def test_the_reader_and_the_writer_normalize_with_the_same_function(self):
+        """Not "two functions that agree today" — one function, imported by
+        both. The corpus tests below would keep passing if someone reinlined a
+        copy that happens to agree; this is what stops the copy."""
+        self.assertIs(P.squash, PT.squash)
+
+    def test_the_reader_and_the_writer_resolve_every_written_header_cell_alike(self):
+        """The reader asks "is this cell one of this column's spellings?" by
+        membership in a glossary-built key set; the writer asks it by mapping
+        the cell through an alias table. Two implementations, one rule — and
+        nothing but this asserts they are the same rule."""
+        corpus = self._corpus()
+        for canonical in self.COLUMNS:
+            reader = [P.squash(c) in P._column_keys(canonical) for c in corpus]
+            writer = [PT.norm(c) == PT.norm(canonical) for c in corpus]
+            disagreements = [c for c, r, w in zip(corpus, reader, writer)
+                             if r != w]
+            self.assertEqual(disagreements, [], f"column {canonical!r}")
+
+    def test_the_reader_and_the_writer_agree_on_every_risk_header_form(self):
+        """The predicate the four closed exits actually hung on: the reader's
+        `_has_risk_header` against the writer's `is_risk_header`, over headers
+        rather than over cells."""
+        headers = [
+            ["ID", "Risk", "Opened", "Status"],
+            ["ID", "**Risk**", "Opened", "Status"],
+            ["ID", "`Risk`", "Opened", "Status"],
+            ["**ID**", "**Risk**", "**Opened**", "**Status**"],
+            ["Status", "Opened", "*Risk*", "ID"],
+            ["编号", "风险", "提出", "状态"],
+            ["编号", "**风险**", "提出", "状态"],
+            ["ID", "RISK", "Opened", "Status"],
+            ["Severity", "Meaning"],
+            ["**Severity**", "**Meaning**"],
+            ["ID", "Risks", "Opened"],
+            ["ID", "Title", "Owner", "Status"],
+        ]
+        reader = [P._has_risk_header(self._section(h)) for h in headers]
+        writer = [PT.is_risk_header(h) for h in headers]
+        self.assertEqual(reader, writer,
+                         [h for h, r, w in zip(headers, reader, writer) if r != w])
+
+    @staticmethod
+    def _section(header: list[str]) -> str:
+        sep = "|" + "|".join(["---"] * len(header)) + "|"
+        return "| " + " | ".join(header) + " |\n" + sep + "\n"
+
+    # ── and the four exits, on the header the finding was found on ─────────
+
+    BOLD_HEADER = ("| ID | **Risk** | Opened | Status |\n"
+                   "|---|---|---|---|\n"
+                   "| RX-001 | the vendor contract lapses | 2026-08-01 | open |\n")
+
+    def test_the_reader_sees_the_row_the_writer_wrote(self):
+        self.assertEqual([r.id for r in risks(board_with(self.BOLD_HEADER))],
+                         ["RX-001"])
+
+    def test_perry_state_counts_a_risk_under_a_decorated_header(self):
+        """Exit one. It reported 0 while the risk sat in the file."""
+        p = Project(board=board_with(self.BOLD_HEADER))
+        self.assertEqual(state(p.root)["risks"]["count"], 1)
+        self.assertEqual(state(p.root)["risks"]["source"], "table")
+
+    def test_risk_migrate_does_not_offer_to_migrate_a_migrated_board(self):
+        """Exit two. It answered "still bullets" and would have appended a
+        second table under the heading."""
+        p = Project(board=board_with(self.BOLD_HEADER))
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 1, out)
+        self.assertIn("already a table", out["refused"])
+
+    def test_risk_add_appends_to_the_table_that_is_already_there(self):
+        """Exit three. It wrote a row the reader could not count."""
+        p = Project(board=board_with(self.BOLD_HEADER))
+        code, out = p.run("risk-add", "--title", "a second statement")
+        self.assertEqual(code, 0, out)
+        self.assertEqual([r.id for r in risks(p.board())], ["RX-001", "RX-002"])
+
+    def test_the_decorated_header_is_still_one_table_afterwards(self):
+        p = Project(board=board_with(self.BOLD_HEADER))
+        p.run("risk-add", "--title", "a second statement")
+        self.assertEqual(
+            p.board().split("\n").count("|---|---|---|---|"), 1, p.board())
+
+    # ── the task table, which was surviving on its positional fallbacks ────
+
+    def test_a_decorated_task_header_resolves_by_name_not_by_position(self):
+        """`_parse_task_table` falls back to the canonical position for any
+        header cell it cannot resolve, so a decorated header parsed *correctly*
+        only while the columns stayed in canonical order. Reorder them and the
+        fallback reads the wrong cell — owner from the track column, and so on.
+        """
+        board = board_with(
+            "- none\n",
+            headers="| **ID** | **Title** | **Track** | **Owner** | "
+                    "**Status** | **Next action** | **Evidence** |")
+        rows = ("| TASK-001 | a title | web | Coding Agent | in_progress | "
+                "do the thing | — |")
+        board = board.replace(
+            "## P1", rows + "\n\n## P1", 1)
+        tasks = P.parse_board(board).all_tasks
+        self.assertEqual(len(tasks), 1, board)
+        self.assertEqual(tasks[0].owner, "Coding Agent")
+        self.assertEqual(tasks[0].status, "in_progress")
+        self.assertEqual(tasks[0].next_action, "do the thing")
+
+    def test_a_decorated_header_row_is_never_read_as_a_row(self):
+        """The other half of resolving the id column by name: `| **ID** | … |`
+        under a second separator would otherwise mint a task called `**ID**`."""
+        board = board_with("- none\n")
+        board = board.replace(
+            "## P1",
+            "| **ID** | **Title** | **Owner** | **Status** | **Next action** | "
+            "**Evidence** |\n\n## P1", 1)
+        self.assertEqual(P.parse_board(board).all_tasks, [])
+
+
 if __name__ == "__main__":
     unittest.main()
