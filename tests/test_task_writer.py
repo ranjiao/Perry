@@ -2408,5 +2408,73 @@ class TestModeColumnsOnBoardsPerryDidNotBuild(unittest.TestCase):
             "having sat in `draft` since 2020")
 
 
+class TestRetitle(unittest.TestCase):
+    """The gap `next` closed, one column over.
+
+    TASK-021 was filed as "Recurrence register + `OKR.md § Commitments`". The
+    second half turned out to belong to a different lane and was split into
+    its own row, leaving a title describing work this row would never do —
+    and no tool could correct it. `status` refuses a no-op, `next` writes a
+    different cell, so the row could not close honestly without a hand edit.
+    """
+
+    def test_it_rewrites_the_title_and_touches_nothing_else(self):
+        p = Project()
+        _, a = p.run("add", "--title", "two things at once", "--priority", "P0")
+        before = next(l for l in p.board().split("\n")
+                      if l.startswith(f"| {a['id']} |"))
+        code, out = p.run("retitle", a["id"], "--title", "one thing")
+        self.assertEqual(code, 0, out)
+        after = next(l for l in p.board().split("\n")
+                     if l.startswith(f"| {a['id']} |"))
+        self.assertIn("one thing", after)
+        self.assertNotIn("two things at once", after)
+        self.assertEqual(
+            [c for c in PT.split_row(before)[2:]],
+            [c for c in PT.split_row(after)[2:]],
+            "retitle changed a cell that is not the title")
+
+    def test_the_same_title_is_refused(self):
+        """Same reason `status` refuses a no-op: a journal line asserting a
+        change that did not happen."""
+        p = Project()
+        _, a = p.run("add", "--title", "a name", "--priority", "P0")
+        code, _ = p.run("retitle", a["id"], "--title", "a name")
+        self.assertEqual(code, 1)
+
+    def test_an_empty_title_is_refused(self):
+        p = Project()
+        _, a = p.run("add", "--title", "a name", "--priority", "P0")
+        code, out = p.run("retitle", a["id"])
+        self.assertEqual(code, 1)
+        self.assertIn("nobody can find", str(out))
+
+    def test_it_is_its_own_event(self):
+        """A reader has to be able to tell "what this is called changed" from
+        "where this got to"; folding them loses both facts forever."""
+        p = Project()
+        _, a = p.run("add", "--title", "a name", "--priority", "P0")
+        p.run("retitle", a["id"], "--title", "a better name")
+        events = [json.loads(l)["event"]
+                  for l in (p.root / ".perry" / "events.jsonl").read_text()
+                  .strip().split("\n")]
+        self.assertEqual(["add", "retitle"], events)
+
+    def test_the_journal_records_what_it_used_to_be_called(self):
+        """A title that changes with no record of the old one makes every
+        earlier mention of this row unfindable."""
+        p = Project()
+        _, a = p.run("add", "--title", "old name", "--priority", "P0")
+        p.run("retitle", a["id"], "--title", "new name")
+        journal = "\n".join(
+            f.read_text() for f in sorted((p.root / "journal").rglob("*.md")))
+        # The retitle line specifically. Asserting "old name" appears anywhere
+        # in the journal passes on `add`'s own line and cannot fail on the bug
+        # it names — a mutation run proved exactly that.
+        line = next(l for l in journal.split("\n") if "retitled" in l)
+        self.assertIn("old name", line, "no record of what it used to be called")
+        self.assertIn("new name", line)
+
+
 if __name__ == "__main__":
     unittest.main()

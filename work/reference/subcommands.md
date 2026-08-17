@@ -191,6 +191,21 @@ happened keeps `conformance.next_action_cites_closed` firing and re-reads as
 stale at every triage; what happened is already in the journal and the event
 log.
 
+**A wrong `Title` is corrected the same way.**
+
+```
+"$PERRY_HOME/bin/perry-task" retitle <TASK-ID> --title "<what this row is now>"
+```
+
+The same gap, one column over. A row filed as two pieces of work whose second
+half later splits out to its own row carries a title describing work it will
+never do, and until this existed it could not close honestly without a hand
+edit. TASK-021 was the case that surfaced it.
+
+Safe because the `Id` is the identity and never moves — a `Commitment` cell, a
+linkage graph and every event point at the id, and none of them reads the
+title. That is also why there is no subcommand for changing an id.
+
 **Every status change that is not a close goes through the tool too.**
 
 ```

@@ -67,6 +67,7 @@ Usage:
   perry-task status <ID> --status blocked|review|not_started|in_progress
                     [--reason "…"] [--next "…"]
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
+  perry-task retitle <ID> --title "…"      rewrite Title, nothing else
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -1327,6 +1328,48 @@ def cmd_next(args, ctx) -> dict:
     return {"id": tid, "next": args.next, "row": line, **plan}
 
 
+def cmd_retitle(args, ctx) -> dict:
+    """Rewrite a row's `Title` and nothing else.
+
+    Same gap `next` closed, one column over. A title is how a human finds a
+    row, and it goes wrong the same way a next step does: TASK-021 was filed
+    as "Recurrence register + `OKR.md § Commitments`", the second half was
+    split out to its own row, and the title then described work this row would
+    never do. `status` refuses a no-op, `next` writes a different cell, and
+    there was nothing else — so the row could not close honestly without a
+    hand edit.
+
+    The `Id` is the identity and never moves; the title is prose about it.
+    That is exactly why this is safe and why `Id` has no equivalent
+    subcommand: every reference — a board `Commitment` cell, a linkage graph,
+    an event — points at the id, and none of them reads the title.
+
+    Its own event name, for the reason `next` has one: "what this row is
+    called changed" and "where this row got to" are different facts, and a
+    reader who cannot separate them cannot reconstruct either.
+    """
+    tid = args.id
+    if not args.title:
+        raise Refused(
+            "--title is required: this subcommand exists to write that cell, "
+            "and a row with no title is one nobody can find")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = values.get("title", "")
+    if prev.strip() == args.title.strip():
+        raise Refused(f"{tid} is already titled that")
+    values["title"] = args.title
+    line = ctx["board"].replace_row(idx, header, values)
+    jline = f"- [{tid}] retitled · {prev} → {args.title}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "retitle", "id": tid, "title": args.title,
+             "track": values.get("track", "main"), "actor": args.actor,
+             "from": prev, "to": args.title}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "title": args.title, "row": line, **plan}
+
+
 def cmd_drop(args, ctx) -> dict:
     """Remove a row deliberately, with a reason, and record why.
 
@@ -2396,7 +2439,7 @@ def parse(argv: list[str]) -> Args:
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "done", "drop"})
+                         "retitle", "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
@@ -2408,6 +2451,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
+            "retitle": cmd_retitle,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "list": cmd_list}
 
