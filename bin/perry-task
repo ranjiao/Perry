@@ -74,6 +74,10 @@ Usage:
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
   perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
   perry-task evidence <ID> --evidence "…"  rewrite Evidence, nothing else
+  perry-task prioritize <ID> --priority P0|P1|P2 [--reason "…"]
+                    move an existing row between priority sections; keeps its
+                    id and every cell. --group "<heading>" on a board that
+                    files work under its own headings instead of P0/P1/P2.
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -2661,6 +2665,98 @@ def cmd_route(args, ctx) -> dict:
             "priority": priority, "group": group, "prefix": prefix, **plan}
 
 
+def cmd_prioritize(args, ctx) -> dict:
+    """Move an existing row to another priority section, or to a named group.
+
+    **Triage's central act had no writer.** `perry-task` shipped 22
+    subcommands and not one of them could change a row's priority: `add` sets
+    it once at creation, and `route` — the only other thing that writes a
+    priority cell — takes an *intake row number*, mints a *new* id, and refuses
+    on any track in `project` mode. So the operation `triage`, `monday-plan`,
+    `friday-review` and `mid-phase-review` all end in could only be performed
+    by hand-editing `BOARD.md`.
+
+    That is not a cosmetic gap. A hand edit lands with **no event**, so
+    `perry-state § reconcile_drift` reports it as unrecorded drift — the exact
+    failure `DESIGN-004` was written against — and `priority` is a published
+    field of `perry-task/list`, which aiMark's Projects view sorts on. A
+    front-end could therefore display a priority no caller could change.
+
+    Found by trying to execute a triage verdict, not by reading the code:
+    TASK-038 was judged P1 and stayed P2 because the tool could not say so.
+
+    **The row keeps its id and every cell.** This is a move, not a re-file:
+    re-adding under a new priority would mint a second id, and an id is
+    permanent and never reissued. The destination is resolved by the same
+    `target_section` / `widen_target_section` pair `add` and `route` use, so a
+    board that files work under its own headings (`## Open — 工程线`) is
+    reachable with `--group` here exactly as it is there — the alternative
+    being a subcommand that works only on boards shaped like Perry's own.
+    """
+    tid = args.id
+    if not tid:
+        raise Refused("prioritize takes a task id: "
+                      "perry-task prioritize TASK-001 --priority P1")
+    if not (args.priority or args.group):
+        raise Refused(
+            f"{tid}: name where it goes — --priority P0|P1|P2, or --group "
+            f"'<heading>' on a board that files work under its own headings")
+
+    was, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    priority, group = target_section(ctx["board"], args)
+    now = group or priority
+
+    # A no-op that still emitted an event would put a move in the timeline that
+    # did not happen, and the timeline is what `list` reports as history.
+    if now == was:
+        raise Refused(f"{tid} is already under `{was}` — nothing to move")
+
+    # `idx` was computed before the widening, and `remove_row` pops by index
+    # without looking at what it pops. Today that is safe because both widening
+    # paths — `ensure_columns` and `ensure_section_columns` — rewrite lines in
+    # place and never insert, so no index moves. That is an assumption about
+    # two other functions, held across a call, protecting the one operation on
+    # this board that deletes a line. It is checked rather than trusted:
+    # a widener that ever grows to insert a row would otherwise silently delete
+    # somebody else's task and append this one, and both boards would still
+    # parse.
+    #
+    # (An earlier version of this comment claimed the opposite — that widening
+    # after the removal would drop cells. It would not; `values` is already
+    # extracted. The mutation that was supposed to prove the ordering came back
+    # green, which is how the real invariant was found.)
+    widen_target_section(ctx["board"], priority, group, values)
+    if split_row(ctx["board"].lines[idx])[0].replace("*", "").replace(
+            "~", "").strip() != tid:
+        raise Refused(
+            f"{tid}: the board shifted under the write — line {idx} no longer "
+            f"holds this row. Nothing was written. This means a widening "
+            f"function started inserting lines; `cmd_prioritize` locates the "
+            f"row before widening and removes it after")
+    ctx["board"].remove_row(idx)
+    line = ctx["board"].append_row(priority, values, group=group)
+
+    jline = f"- [{tid}] {was} → {now} · reprioritized"
+    if args.reason:
+        jline += f" · reason: {args.reason}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "prioritize", "id": tid,
+             "title": values.get("title", ""),
+             "track": values.get("track", "main"),
+             "actor": args.actor,
+             # `from`/`to` are the SECTION, not the status — every other event
+             # uses them for status, and a consumer that assumed so would read
+             # a move as a status change. `field` says which cell moved, so the
+             # timeline stays readable without a per-event special case.
+             "field": "priority", "from": was, "to": now,
+             "reason": args.reason or ""}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "from": was, "to": now, "row": line,
+            "priority": priority, "group": group, **plan}
+
+
 def cmd_list(args, ctx) -> dict:
     """The full task set, from one call.
 
@@ -3104,7 +3200,8 @@ def parse(argv: list[str]) -> Args:
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "retitle", "rung", "evidence", "done", "drop"})
+                         "retitle", "rung", "evidence", "prioritize",
+                         "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
@@ -3118,7 +3215,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "retitle": cmd_retitle, "rung": cmd_rung,
-            "evidence": cmd_evidence,
+            "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "list": cmd_list}
 
