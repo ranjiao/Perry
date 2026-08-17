@@ -55,6 +55,10 @@ def withdrawn_hits(text: str) -> list[str]:
     return WITHDRAWN.findall(text)
 
 
+def read(rel: str) -> str:
+    return (PERRY_HOME / rel).read_text(encoding="utf-8")
+
+
 class TestBinPrintsOnlyLiveCommands(unittest.TestCase):
     """`bin/` output is the quote, already rendered.
 
@@ -377,6 +381,290 @@ class TestLaneReferencePointersResolve(unittest.TestCase):
             offenders, [],
             "a work/reference page cites a page that left the lane:\n    "
             + "\n    ".join(offenders))
+
+
+ALIASES = {"okr": "goals", "pmo": "work", "design": "decide"}
+
+# `/perry` with no lane at all, plus the pipelines that belong to the router
+# rather than to any lane. Harvested from `SKILL.md` rather than listed, so a
+# router that gains or loses one does not need this file edited.
+ROUTER_LANES = set(LANES) | set(ALIASES)
+
+
+def lane_of(word: str) -> str | None:
+    w = word.lower()
+    return w if w in LANES else ALIASES.get(w)
+
+
+class TestEveryCommandTheReadmeShowsExists(unittest.TestCase):
+    """`TASK-027-round4-review.md § i-1`: both READMEs advertised
+    `/perry pmo decide <topic>`. The lane alias resolves — `pmo` → `work` — and
+    then the command dies on a subcommand that changed lanes, because the
+    signed hand-off contract of 2026-08-16 deleted `decide` from `work` and
+    `work/SKILL.md` tombstones the row.
+
+    A reader who types a command that does not exist gets nothing and no error,
+    which is the worst failure mode available. `tests/test_entrance.py` already
+    guards the *lane* half of this (no bare `/okr`, `/pmo`, `/design`); this
+    guards the *subcommand* half, which is the half that was wrong.
+
+    The declared set is computed from the router and the three lane indexes.
+    Nothing here is hand-listed, so the guard cannot drift away from what the
+    lanes actually ship.
+    """
+
+    READMES = ("README.md", "README_cn.md")
+
+    # A row of a lane's subcommand index: `| \`plan-week\` | … |`. A row whose
+    # first cell carries `~~` is a tombstone — `work/SKILL.md` keeps the
+    # withdrawn `decide` row visible so a reader learns where it went, and
+    # counting it as declared would re-legalise the exact command i-1 found.
+    ROW = re.compile(r"^\|\s*([^|]+?)\s*\|")
+    TOKEN = re.compile(r"`([^`]+)`")
+    WORD = re.compile(r"^[a-z][a-z0-9-]*$")
+    # `/perry work triage`, `/perry goals plan-phase`, and the lane docs'
+    # shorthand `/pmo viewer` — which is where `viewer` is declared, since it
+    # lives in `work/SKILL.md`'s reference table and not in its index.
+    INLINE = re.compile(
+        r"/(?:perry\s+)?(goals|work|decide|okr|pmo|design)\s+([a-z][a-z0-9-]*)")
+
+    @classmethod
+    def declared(cls) -> tuple[set[tuple[str, str]], set[str]]:
+        """(lane, subcommand) pairs, and the router's own bare commands."""
+        pairs: set[tuple[str, str]] = set()
+        for lane in LANES:
+            text = (PERRY_HOME / lane / "SKILL.md").read_text()
+            for line in text.splitlines():
+                m = cls.ROW.match(line)
+                if not m or "~~" in m.group(1):
+                    continue
+                for span in cls.TOKEN.findall(m.group(1)):
+                    head = span.strip().split()[0] if span.strip() else ""
+                    if cls.WORD.match(head):
+                        pairs.add((lane, head))
+            for found_lane, sub in cls.INLINE.findall(text):
+                pairs.add((lane_of(found_lane), sub))
+
+        router = (PERRY_HOME / "SKILL.md").read_text()
+        for found_lane, sub in cls.INLINE.findall(router):
+            pairs.add((lane_of(found_lane), sub))
+        bare = {w for w in re.findall(r"/perry\s+([a-z][a-z0-9-]*)", router)
+                if w not in ROUTER_LANES}
+        return pairs, bare
+
+    @classmethod
+    def commands_in(cls, text: str) -> list[tuple[str, str | None, str]]:
+        """Every command a README shows, as (raw, lane or None, subcommand).
+
+        Two shapes, because the READMEs use both: a full `/perry <lane> <sub>`
+        anywhere in the page, and a bare subcommand in the first cell of a row
+        of one of the three per-lane tables under a `### \\`<lane>\\`` heading.
+        The second shape is the one i-1 lived in.
+        """
+        out: list[tuple[str, str | None, str]] = []
+        lane_here: str | None = None
+        fenced = False
+        for line in text.splitlines():
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            h = re.match(r"^###\s+`([a-z]+)`", line)
+            if h:
+                lane_here = lane_of(h.group(1))
+            elif line.startswith("## "):
+                lane_here = None
+            # Only look where a command is actually being *shown*: inside
+            # backticks, or on a fenced line that begins with the command.
+            # The install snippet's "3. Confirm /perry is available." is prose
+            # that happens to sit in a fence, and reading `is` out of it would
+            # make this guard cry wolf on its own README.
+            if fenced:
+                scan = line if re.match(r"^\s*/perry\b", line) else ""
+            else:
+                scan = " ".join(re.findall(r"`([^`]+)`", line))
+            for m in re.finditer(r"/perry\s+([a-z][a-z0-9-]*)"
+                                 r"(?:\s+([a-z][a-z0-9-]*))?", scan):
+                first, second = m.group(1), m.group(2)
+                lane = lane_of(first)
+                if lane and second:
+                    out.append((m.group(0), lane, second))
+                elif not lane:
+                    out.append((m.group(0), None, first))
+            if lane_here:
+                m = cls.ROW.match(line)
+                if m and "~~" not in m.group(1):
+                    for span in cls.TOKEN.findall(m.group(1)):
+                        head = span.strip().split()[0] if span.strip() else ""
+                        if cls.WORD.match(head):
+                            out.append((f"{lane_here} {head}", lane_here, head))
+        return out
+
+    def offenders(self, text: str) -> list[str]:
+        pairs, bare = self.declared()
+        subs = {s for _, s in pairs}
+        bad = []
+        for raw, lane, sub in self.commands_in(text):
+            if lane is None:
+                # No lane written. Legal when the subcommand is unambiguous
+                # (`SKILL.md`: "/perry plan-phase and /perry goals plan-phase
+                # are the same thing"), or when it is a router command.
+                if sub in bare or sub in subs:
+                    continue
+                bad.append(f"`{raw}` — no lane declares `{sub}`")
+            elif (lane, sub) not in pairs:
+                bad.append(f"`{raw}` — the `{lane}` lane declares no `{sub}`")
+        return bad
+
+    def test_the_declared_set_is_not_empty_or_trivial(self):
+        """Guard against the guard. If the harvest broke, every assertion
+        below would pass over an empty set and say nothing."""
+        pairs, bare = self.declared()
+        self.assertGreater(len(pairs), 40,
+                           f"only {len(pairs)} lane subcommands harvested — "
+                           f"the lane index tables have moved")
+        for expected in (("goals", "plan-phase"), ("goals", "score-phase"),
+                         ("work", "triage"), ("work", "close-task"),
+                         ("work", "viewer"), ("decide", "adr"),
+                         ("decide", "resolve"), ("decide", "lock")):
+            self.assertIn(expected, pairs)
+        self.assertIn("diagnose", bare)
+        self.assertIn("adopt", bare)
+
+    def test_the_tombstoned_subcommand_is_not_harvested_as_declared(self):
+        """`work/SKILL.md` keeps the withdrawn `decide` row visible, struck
+        through, so a reader learns where it went. If the harvest counted it,
+        this whole file would bless the command it exists to catch."""
+        pairs, _ = self.declared()
+        self.assertNotIn(("work", "decide"), pairs,
+                         "the strikethrough row was read as a live command")
+
+    def test_the_scan_finds_the_commands_the_readmes_actually_show(self):
+        """The other half of the anti-vacuity guard: the extractor has to be
+        seeing the page, not an empty list."""
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                found = self.commands_in(read(doc))
+                self.assertGreater(len(found), 30,
+                                   f"{doc}: only {len(found)} commands seen")
+                self.assertIn(("work", "triage"),
+                              [(l, s) for _, l, s in found])
+
+    def test_the_scan_would_catch_the_command_that_was_wrong(self):
+        """i-1, replayed. Both READMEs carried `/perry pmo decide <topic>` and
+        a `decide <id>` row in the design lane's table; a guard that does not
+        go red on either of those is not the guard this task owes."""
+        replay = (
+            "| Write down a decision | `/perry pmo decide <topic>` |\n"
+            "\n### `design`\n\n"
+            "| `decide <id>` | Answer the open questions one by one |\n"
+        )
+        bad = self.offenders(replay)
+        self.assertEqual(len(bad), 2, f"expected both shapes caught, got {bad}")
+        self.assertTrue(all("decide" in b for b in bad))
+
+    def test_neither_readme_shows_a_command_that_does_not_exist(self):
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                bad = self.offenders(read(doc))
+                self.assertEqual(
+                    bad, [],
+                    f"{doc} advertises commands the lanes do not declare:\n    "
+                    + "\n    ".join(bad))
+
+
+class TestTheReadmesNameTheFourModes(unittest.TestCase):
+    """`DESIGN-003` is the largest thing built this phase and
+    `grep -c mode README.md README_cn.md` returned 0 and 0. A reader deciding
+    whether Perry fits their project could not find out that it is not only
+    for software sprints."""
+
+    READMES = ("README.md", "README_cn.md")
+    MODES = ("project", "pipeline", "queue", "inquiry")
+
+    def test_both_readmes_name_all_four_modes(self):
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                text = read(doc)
+                for mode in self.MODES:
+                    self.assertIn(f"`{mode}`", text,
+                                  f"{doc} never names the `{mode}` mode")
+
+    def test_both_readmes_say_how_a_project_declares_one(self):
+        """Naming the modes without the register is a feature list. The
+        register is the only thing that turns three of the four on."""
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                text = read(doc)
+                self.assertIn("## Tracks", text,
+                              f"{doc} names the modes but not the register "
+                              f"that declares one")
+                self.assertIn(".perry/config.md", text)
+
+    def test_both_readmes_link_the_mode_file_that_carries_each_rule(self):
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                text = read(doc)
+                for mode in self.MODES:
+                    self.assertIn(f"modes/{mode}.md", text,
+                                  f"{doc} does not point at modes/{mode}.md")
+
+    def test_the_mode_files_the_readmes_point_at_exist(self):
+        for mode in self.MODES:
+            self.assertTrue((PERRY_HOME / "modes" / f"{mode}.md").is_file())
+
+    def test_both_readmes_reflect_that_migration_is_mandatory(self):
+        """`ADR-004`. A front door that promises drop-in compatibility is now
+        false, and the README is the place a user forms that expectation."""
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                text = read(doc)
+                self.assertIn("ADR-004-mandatory-migration.md", text,
+                              f"{doc} never cites the decision")
+                self.assertIn("/perry adopt", text)
+
+    def test_the_readmes_show_where_state_actually_lands(self):
+        """Found while fixing i-1, and the same class of defect. The default
+        state root moved to `perry/` on 2026-08-17 so that a project's own
+        `design/` and `evidence/` stop colliding — and both READMEs still drew
+        the tree with `OKR.md` and `BOARD.md` at the top level. A reader who
+        checked would have found neither file where the front door said.
+
+        Pinned against the router's declaration rather than a literal, so
+        moving the default again fails here instead of drifting.
+        """
+        m = re.search(r"write `State root:\s*([^\s`]+)`", read("SKILL.md"))
+        self.assertIsNotNone(
+            m, "SKILL.md no longer declares the default state root — this "
+               "test would otherwise pass against nothing")
+        default = m.group(1)
+        for doc in self.READMES:
+            with self.subTest(doc=doc):
+                text = read(doc)
+                tree = re.search(r"```\n(your-project/.*?)```", text, re.S)
+                self.assertIsNotNone(tree, f"{doc} no longer draws the tree")
+                body = tree.group(1)
+                lines = body.splitlines()
+                self.assertGreater(len(lines), 8, f"{doc}'s tree is a stub")
+                # `.perry/` is a different directory and always at the top —
+                # a bare `assertIn("perry/")` is satisfied by it, which is
+                # exactly the shape of guard this repo keeps catching.
+                root = [i for i, ln in enumerate(lines)
+                        if re.search(rf"(?<![.\w]){re.escape(default)}/", ln)]
+                self.assertTrue(
+                    root,
+                    f"{doc}'s tree never shows the `{default}/` container "
+                    f"setup actually writes state into")
+                okr = [i for i, ln in enumerate(lines) if "OKR.md" in ln]
+                self.assertTrue(okr, f"{doc}'s tree does not show OKR.md")
+                self.assertGreater(
+                    okr[0], root[0],
+                    f"{doc} draws OKR.md outside `{default}/`")
+
+    def test_the_adr_the_readmes_cite_exists_and_is_active(self):
+        adr = PERRY_HOME / "perry" / "decisions" / "ADR-004-mandatory-migration.md"
+        self.assertTrue(adr.is_file())
+        self.assertRegex(adr.read_text(),
+                         re.compile(r"^>\s*Status:\s*active", re.M))
 
 
 if __name__ == "__main__":

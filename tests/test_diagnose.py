@@ -363,11 +363,18 @@ class TestFindingsExplainThemselves(unittest.TestCase):
             self.assertGreater(len(f["why"]), 60, f"{f['id']} why is too thin")
 
     def test_the_why_table_covers_every_id_the_scanner_can_emit(self):
+        """The family prefix is 2-4 letters — `NS`, `CTX`, `LOAD`, `MODE`. An
+        earlier `[A-Z]{3}` here matched neither `NS-01` nor any `LOAD-*`, so
+        five of the scanner's finding IDs were ungraded by both this test and
+        `test_scanner_finding_ids_are_documented` and neither said so."""
         src = DIAGNOSE.read_text()
         import re as _re
-        emitted = set(_re.findall(r'"([A-Z]{3}-\d{2})", "(?:error|warn|info)"', src))
-        declared = set(_re.findall(r'^    "([A-Z]{3}-\d{2})":', src, _re.M))
+        emitted = set(_re.findall(r'"([A-Z]{2,4}-\d{2})", "(?:error|warn|info)"', src))
+        declared = set(_re.findall(r'^    "([A-Z]{2,4}-\d{2})":', src, _re.M))
         self.assertTrue(emitted, "no findings parsed out of the scanner")
+        for family in ("NS-01", "LOAD-01", "MODE-01"):
+            self.assertIn(family, emitted,
+                          f"the ID pattern no longer matches {family}")
         self.assertEqual(emitted - declared, set(),
                          "emitted findings with no entry in WHY")
 
@@ -573,11 +580,35 @@ class TestSchemaAgreement(unittest.TestCase):
         """Every ID the scanner can emit must appear in the reference doc, or a
         user reading a finding has nowhere to go."""
         src = DIAGNOSE.read_text()
-        emitted = set(__import__("re").findall(r'"([A-Z]{3}-\d{2})", "', src))
+        emitted = set(__import__("re").findall(r'"([A-Z]{2,4}-\d{2})", "', src))
         docs = (PERRY_HOME / "reference" / "diagnose.md").read_text() + \
                (PERRY_HOME / "state" / "diagnosis_TEMPLATE.md").read_text()
+        self.assertGreaterEqual(len(emitted), 20,
+                                "the ID pattern stopped matching — this test "
+                                "would pass over an empty set")
         for fid in sorted(emitted):
             self.assertIn(fid, docs, f"{fid} is emitted but never documented")
+
+    def test_every_finding_id_has_a_row_in_the_catalog_table(self):
+        """Mentioned somewhere in the prose is not the same as looked-up-able.
+        `reference/diagnose.md § Finding catalog` calls itself *the lookup*, and
+        a stable ID with nowhere to look it up is worse than prose — so the row,
+        with its severity, its trigger and its usual prescription, is what the
+        contract actually is."""
+        import re as _re
+        src = DIAGNOSE.read_text()
+        emitted = set(_re.findall(r'"([A-Z]{2,4}-\d{2})", "', src))
+        doc = (PERRY_HOME / "reference" / "diagnose.md").read_text()
+        body = doc.split("## Finding catalog", 1)
+        self.assertEqual(len(body), 2, "the finding catalog heading is gone")
+        table = body[1].split("\n## ", 1)[0]
+        rows = dict(_re.findall(
+            r"^\|\s*`([A-Z]{2,4}-\d{2})`\s*\|\s*(error|warn|info)\s*\|",
+            table, _re.M))
+        self.assertGreaterEqual(len(rows), 20, "the catalog table did not parse")
+        for fid in sorted(emitted):
+            self.assertIn(fid, rows,
+                          f"{fid} has no row in the finding catalog table")
 
 
 class UserAskAnswerState(unittest.TestCase):
@@ -801,6 +832,351 @@ oldest: ZZZ-405 @ 224d
         e = self.harvest("# Notes\n\n```\nZZZ-404\n```\n\nWaiting on `TASK-902`.\n")
         self.assertTrue(e.get("TASK-902", {}).get("in_tracking_doc"),
                         "a stray fence swallowed every line after it")
+
+
+# ── work modes ────────────────────────────────────────────────────────────
+
+CONFIG = "# Perry configuration\n\n- Document language: English\n- Repo layout: single\n"
+
+
+def tracks_section(*rows: str) -> str:
+    return ("\n## Tracks\n\n"
+            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+            "|---|---|---|---|---|---|---|---|\n" + "".join(rows))
+
+
+def board(*sections: str) -> str:
+    return "# BOARD\n\n" + "\n".join(sections)
+
+
+def okr(*extra: str) -> str:
+    return "# OKR\n\n## v1: 2026-08-01\n\n### Objective 1: ship it\n\n" + "\n".join(extra)
+
+
+def modes_of(payload: dict) -> dict:
+    return {t["track"]: t for t in payload["work_modes"]["tracks"]}
+
+
+class TestWorkModeDetection(unittest.TestCase):
+    """`diagnose` names which of DESIGN-003's four shapes a track's work fits.
+
+    The load-bearing half is the refusal. Three of the four modes are read off
+    columns a project may simply not have, and a scanner that fell back to
+    `project` on an absent signal would print a verdict for every folder on
+    earth having measured none of them — the same defect `reference/diagnose.md`
+    names when it calls a signal that never clears worse than no check, facing
+    the other way.
+    """
+
+    def test_a_folder_with_no_distinguishing_signal_gets_cannot_tell(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "AGENTS.md", "# rules\nrun make test\n")
+            write(root, "Makefile", "test:\n\techo ok\n")
+            t = modes_of(scan(root))["main"]
+        self.assertIsNone(t["mode"], f"a bare folder was assigned {t['mode']}")
+        self.assertEqual(t["confidence"], "none")
+        self.assertEqual(t["scores"], {"project": 0, "pipeline": 0,
+                                       "queue": 0, "inquiry": 0})
+
+    def test_cannot_tell_is_printed_as_itself(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, "AGENTS.md", "# rules\n")
+            out = subprocess.run(
+                [sys.executable, str(DIAGNOSE), "--root", str(root), "--text"],
+                capture_output=True, text=True, timeout=120).stdout
+        self.assertIn("evidence says cannot tell", out)
+        self.assertNotIn("evidence says project", out)
+
+    def test_a_phase_and_objective_spine_reads_as_project(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md", okr())
+            write(root, "phase/CURRENT", "001-mvp\n")
+            write(root, "phase/001-mvp.md", "# Phase 001\n")
+            write(root, "BOARD.md", board(
+                "## P0\n\n| ID | Title | Owner | Status |\n|---|---|---|---|\n"
+                "| REL-1 | Ship it | Agent | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "project")
+        self.assertEqual(t["confidence"], "high")
+        # Each signal named separately, so dropping any one of them goes red
+        # rather than being absorbed by the others' margin.
+        self.assertTrue(any("phase/" in e for e in t["evidence"]["project"]))
+        self.assertTrue(any("objective" in e for e in t["evidence"]["project"]))
+
+    def test_intake_and_arrived_dates_read_as_queue(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
+                "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
+                "## P1\n\n| ID | Title | Owner | Status | Arrived | Stage |\n"
+                "|---|---|---|---|---|---|\n"
+                "| OPS-1 | Vendor invoice | Agent | in_progress | 2026-08-14 | triaged |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "queue")
+        self.assertEqual(t["confidence"], "high")
+        self.assertTrue(any("Intake" in e for e in t["evidence"]["queue"]))
+        self.assertTrue(any("Arrived" in e for e in t["evidence"]["queue"]))
+        self.assertTrue(any("stage vocabulary" in e
+                            for e in t["evidence"]["queue"]))
+
+    def test_a_parent_column_and_answer_files_read_as_inquiry(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Stage | Parent |\n"
+                "|---|---|---|---|---|---|\n"
+                "| Q-1 | Does batching cut cost? | Agent | in_progress | researching | — |\n"
+                "| Q-2 | Per-call cost today? | Agent | done | answered | Q-1 |\n"))
+            write(root, "evidence/2026-08/Q-2-answer.md", "# Answer\n$0.004 [SRC-1]\n")
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "inquiry")
+        self.assertEqual(t["confidence"], "high")
+        self.assertTrue(any("Parent" in e for e in t["evidence"]["inquiry"]))
+        self.assertTrue(any("answer file" in e for e in t["evidence"]["inquiry"]))
+        self.assertTrue(any("stage vocabulary" in e
+                            for e in t["evidence"]["inquiry"]))
+
+    def test_stage_since_and_dated_commitments_read_as_pipeline(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| Id | Track | Promise | To whom | By when | Status |\n"
+                  "|---|---|---|---|---|---|\n"
+                  "| blog/1 | blog | Launch post | Marketing | 2026-09-30 | active |\n")
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Stage | Stage since | Commitment |\n"
+                "|---|---|---|---|---|---|---|\n"
+                "| POST-1 | Launch post | Agent | in_progress | draft | 2026-08-12 | blog/1 |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "pipeline")
+        self.assertEqual(t["confidence"], "high")
+        self.assertTrue(any("Stage since" in e
+                            for e in t["evidence"]["pipeline"]))
+        self.assertTrue(any("Commitment" in e for e in t["evidence"]["pipeline"]))
+        self.assertTrue(any("dated `By when`" in e
+                            for e in t["evidence"]["pipeline"]))
+        self.assertTrue(any("stage vocabulary" in e
+                            for e in t["evidence"]["pipeline"]))
+
+    def test_conflicting_signals_are_reported_as_a_tie_not_a_winner(self):
+        """`low` and `none` are both 'cannot tell', and the payload keeps them
+        apart: nothing found is a different fact from two things found that
+        disagree."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Arrived | Parent |\n"
+                "|---|---|---|---|---|---|\n"
+                "| X-1 | Something | Agent | in_progress | 2026-08-14 | X-0 |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertIsNone(t["mode"])
+        self.assertEqual(t["confidence"], "low")
+        self.assertEqual(t["scores"]["queue"], t["scores"]["inquiry"])
+
+    def test_the_declaration_is_never_its_own_evidence(self):
+        """A register row carries `Stages`, `SLA` and `Cycle`. Scoring those
+        would let a declaration confirm itself, and MODE-01 could never fire."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| blog | pipeline | commitments | brief→draft→review→approved→published "
+                "| review:2 | 5d | 2026-W34 | V5 |\n"))
+            write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
+            t = modes_of(scan(root))["blog"]
+        self.assertIsNone(t["mode"], "the register scored itself as evidence")
+        self.assertEqual(t["scores"]["pipeline"], 0)
+
+
+class TestModeDisagreementIsAFinding(unittest.TestCase):
+    """MODE-01. A project whose register says `pipeline` and whose board shows
+    a steady-state queue has one of the two wrong, and which one is the user's
+    to say."""
+
+    @staticmethod
+    def queue_shaped(root: Path, declared_mode: str) -> None:
+        write(root, ".perry/config.md", CONFIG + tracks_section(
+            f"| ops | {declared_mode} | commitments | new→triaged→resolved | — | 5d | monthly | V2 |\n"))
+        write(root, "BOARD.md", board(
+            "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
+            "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
+            "## P1\n\n| ID | Title | Owner | Status | Track | Arrived | Stage |\n"
+            "|---|---|---|---|---|---|---|\n"
+            "| OPS-1 | Vendor invoice | Agent | in_progress | ops | 2026-08-14 | triaged |\n"))
+
+    def test_a_pipeline_label_over_queue_work_is_reported(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.queue_shaped(root, "pipeline")
+            payload = scan(root)
+        self.assertIn("MODE-01", ids(payload))
+        f = next(x for x in payload["findings"] if x["id"] == "MODE-01")
+        self.assertIn("pipeline", f["title"])
+        self.assertIn("queue", f["title"])
+        self.assertTrue(f["evidence"], "the finding cites no evidence")
+        self.assertTrue(any("Intake" in e for e in f["evidence"]))
+
+    def test_the_same_board_labelled_queue_is_not_a_finding(self):
+        """The clearing case. A finding whose signal survives the fix is worse
+        than no finding at all."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self.queue_shaped(root, "queue")
+            payload = scan(root)
+        self.assertNotIn("MODE-01", ids(payload))
+        self.assertEqual(modes_of(payload)["ops"]["mode"], "queue")
+
+    def test_an_undeclared_project_is_never_told_its_mode_is_wrong(self):
+        """The implicit `main` track is a default, not a claim. Reporting a
+        disagreement with a value the user never wrote would fire on every
+        project Perry has ever adopted."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## Intake\n\n| Arrived | Request | Outcome |\n|---|---|---|\n"
+                "| 2026-08-14 | Reconcile Q3 vendor spend | — |\n",
+                "## P1\n\n| ID | Title | Owner | Status | Arrived | Stage |\n"
+                "|---|---|---|---|---|---|\n"
+                "| OPS-1 | Vendor invoice | Agent | in_progress | 2026-08-14 | triaged |\n"))
+            payload = scan(root)
+        self.assertNotIn("MODE-01", ids(payload))
+        self.assertEqual(modes_of(payload)["main"]["mode"], "queue")
+
+    def test_cannot_tell_never_produces_a_disagreement(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n"))
+            write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
+            payload = scan(root)
+        self.assertIsNone(modes_of(payload)["ops"]["mode"])
+        self.assertNotIn("MODE-01", ids(payload))
+
+
+class TestPerTrackAttribution(unittest.TestCase):
+    def test_two_tracks_are_judged_from_their_own_rows(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | queue | commitments | new→triaged→resolved | — | 5d | monthly | V2 |\n",
+                "| study | inquiry | questions | open→researching→answered | open:5 | — | — | V4 |\n"))
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status | Track | Arrived | Parent | Stage |\n"
+                "|---|---|---|---|---|---|---|---|\n"
+                "| OPS-1 | Vendor invoice | Agent | in_progress | ops | 2026-08-14 | — | triaged |\n"
+                "| Q-2 | Per-call cost? | Agent | in_progress | study | — | Q-1 | researching |\n"))
+            m = modes_of(scan(root))
+        self.assertEqual(m["ops"]["mode"], "queue")
+        self.assertEqual(m["study"]["mode"], "inquiry")
+        self.assertEqual(m["ops"]["scores"]["inquiry"], 0,
+                         "the study track's rows leaked into ops")
+        self.assertEqual(m["study"]["scores"]["queue"], 0,
+                         "the ops track's rows leaked into study")
+
+    def test_project_wide_signals_are_withheld_when_they_cannot_be_attributed(self):
+        """`phase/` and `## Intake` carry no track column. On a two-track
+        project they say nothing about either one, and a scanner that spread
+        them across both would hand every track the same evidence."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| ops | queue | commitments | — | — | 5d | monthly | V2 |\n",
+                "| build | project | phase/ | — | — | — | — | V3 |\n"))
+            write(root, "OKR.md", okr())
+            write(root, "phase/CURRENT", "001-mvp\n")
+            write(root, "phase/001-mvp.md", "# Phase 001\n")
+            write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
+            m = modes_of(scan(root))
+        for name in ("ops", "build"):
+            self.assertEqual(m[name]["scores"]["project"], 0,
+                             f"phase/ was attributed to `{name}` anyway")
+            self.assertIsNone(m[name]["mode"])
+
+    def test_a_single_declared_track_does_get_the_project_wide_signals(self):
+        """The other half of the same rule — with one track there is exactly
+        one thing to attribute them to, so withholding them would throw away
+        the strongest evidence a Perry project has."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG + tracks_section(
+                "| build | project | phase/ | — | — | — | — | V3 |\n"))
+            write(root, "OKR.md", okr())
+            write(root, "phase/CURRENT", "001-mvp\n")
+            write(root, "phase/001-mvp.md", "# Phase 001\n")
+            write(root, "BOARD.md", board("## P1\n\n| ID | Title |\n|---|---|\n"))
+            t = modes_of(scan(root))["build"]
+        self.assertEqual(t["mode"], "project")
+
+
+class TestModeColumnsResolveByName(unittest.TestCase):
+    def test_a_reordered_header_still_resolves(self):
+        """Board columns are optional and reorderable. A positional read
+        attributes one column's value to another the moment a project omits
+        one — the bug a V4 review already found twice in this repo."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## P1\n\n| Parent | Status | ID | Stage | Title |\n"
+                "|---|---|---|---|---|\n"
+                "| Q-1 | in_progress | Q-2 | researching | Per-call cost? |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "inquiry")
+
+    def test_the_chinese_column_names_resolve(self):
+        """`schema/state-schema.json § i18n.columns` is the one list of these,
+        and this scanner reads it rather than carrying a copy."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## P1\n\n| 编号 | 标题 | 状态 | 到达 | 阶段 |\n"
+                "|---|---|---|---|---|\n"
+                "| OPS-1 | 对账 | in_progress | 2026-08-14 | triaged |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertEqual(t["mode"], "queue")
+        self.assertTrue(any("Arrived" in e for e in t["evidence"]["queue"]),
+                        "`到达` no longer resolves to the Arrived column")
+        self.assertTrue(any("stage vocabulary" in e
+                            for e in t["evidence"]["queue"]),
+                        "`阶段` no longer resolves to the Stage column")
+
+    def test_a_shared_stage_word_distinguishes_nothing(self):
+        """`review` is pipeline's default stage AND a global Status value;
+        `in_progress` is queue's AND a global Status value. Counting either
+        would hand a mode to any board that uses the status enum."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Status | Stage |\n|---|---|---|---|\n"
+                "| A-1 | Thing | review | review |\n"
+                "| A-2 | Other | in_progress | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertIsNone(t["mode"])
+        self.assertEqual(t["confidence"], "none")
+
+
+class TestModeScannerReportsItsOwnAbsence(unittest.TestCase):
+    def test_the_scanner_is_available_on_every_shipped_fixture(self):
+        """`available: false` is the honest answer when the track parser cannot
+        be loaded — and it must not be the answer anywhere real, or every test
+        above passes over a scanner that ran on nothing."""
+        for name in ("sample-project", "sample-project-zh"):
+            with self.subTest(fixture=name):
+                p = scan(PERRY_HOME / "tests" / "fixtures" / name)
+                self.assertTrue(p["work_modes"]["available"])
+                self.assertTrue(p["work_modes"]["tracks"])
 
 
 if __name__ == "__main__":
