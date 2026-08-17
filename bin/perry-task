@@ -219,6 +219,43 @@ def canonical_column(key: str) -> str:
 PRIORITY_RE = {p: re.compile(rf"^##\s+{p}\b") for p in ("P0", "P1", "P2")}
 
 
+# Why a task subcommand will not touch a row in each non-task section, and what
+# to run instead. Keyed by the canonical `Board.NON_TASK_SECTIONS` name.
+#
+# `Board.find()` answered all five of these with "is not a row on the board",
+# which is false about a row the same tool wrote one command earlier and which
+# `perry-state --json` lists. A refusal that misdescribes the state sends the
+# reader looking for a missing row instead of for the rule; a refusal that names
+# the rule ends the question. The rule is per-section because the reasons are
+# different — a recurrence has no end, an intake row is not yet work, a question
+# is answered rather than finished — and one shared sentence would have to be
+# vague enough to be true of all three, which is how the false one got written.
+NON_TASK_REFUSAL = {
+    "Cadence": (
+        "{id} is a row in `## Cadence`, which is a recurrence register, not a "
+        "task section. A recurrence has no end, so it is never `done`, "
+        "`dropped` or moved through a status: closing it would delete the only "
+        "record that the ritual is supposed to keep happening.\n"
+        "  · record a run:  perry-task cadence-done {id} --evidence <path>\n"
+        "  · retire it:     delete the row from `## Cadence` "
+        "(`modes/queue.md § What recurs`)"),
+    "Intake": (
+        "{id} is a row in `## Intake`, which holds requests that are not yet "
+        "work — they carry no `Status` to change and no owner to hold them.\n"
+        "  · make it work:  perry-task route <row number> --track <track>\n"
+        "  · discharge it:  perry-task resolve-intake <row number> --outcome "
+        "dropped|deferred --reason <why>"),
+    "User Input Queue": (
+        "{id} is a row in `## User Input Queue`, which holds questions waiting "
+        "on the user. A question is answered, not finished.\n"
+        "  · answer it:     perry-task answer {id} --answer <text>"),
+    "Top risks": (
+        "{id} is a row in `## Top risks`. A risk is not a task: it is closed by "
+        "being retired or accepted, not by being done.\n"
+        "  · retire it:     perry-task risk-clear {id} --reason <why>"),
+}
+
+
 class Board:
     """`BOARD.md` as lines, edited in place and rendered back byte-for-byte.
 
@@ -388,7 +425,41 @@ class Board:
                 cells = split_row(self.lines[i])
                 if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
                     return pri or title, i, header, cells
+        section = self._non_task_row(task_id)
+        if section:
+            raise Refused(NON_TASK_REFUSAL[section].format(id=task_id))
         raise Refused(f"{task_id} is not a row on the board")
+
+    def _non_task_row(self, task_id: str) -> str | None:
+        """The canonical `NON_TASK_SECTIONS` name holding this id, or `None`.
+
+        `find()` used to answer "is not a row on the board" for these, which is
+        the defect `_task_sections` documents four docstrings up — *"a message
+        that was false, about rows the same tool had just printed"* — and it was
+        reintroduced the moment `Cadence` joined the skip list. `perry-task
+        cadence-add` writes `CAD-001`, `perry-state --json` lists it, and
+        `done` / `status` / `next` / `drop` / `retitle` all said it did not
+        exist. Naming the section is half the fix; `NON_TASK_REFUSAL` carries
+        the other half, which is the rule and the way forward.
+        """
+        aliases = {s.lower(): name for name in self.NON_TASK_SECTIONS
+                   for s in heading_spellings(name)}
+        heads = [(i, l) for i, l in enumerate(self.lines) if l.startswith("## ")]
+        for n, (start, line) in enumerate(heads):
+            end = heads[n + 1][0] if n + 1 < len(heads) else len(self.lines)
+            title = line[3:].strip().lower()
+            canonical = next((c for s, c in aliases.items()
+                              if title.startswith(s)), None)
+            if not canonical:
+                continue
+            for i in range(start + 1, end):
+                s = self.lines[i].strip()
+                if not s.startswith("|"):
+                    continue
+                cells = split_row(self.lines[i])
+                if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
+                    return canonical
+        return None
 
     # -- writing
 
@@ -496,6 +567,20 @@ class Board:
         raise Refused(f"`## {heading}` has no table")
 
     def section_rows(self, heading: str) -> list[tuple[int, list[str]]]:
+        """Every row of a named section, across `###` sub-groups.
+
+        The reader tolerates a `###` label inside `## Cadence` or `## Intake`
+        and resumes on the same header (`viewer/parsers.py § _parse_cadence`,
+        `_parse_task_table`); this stopped at the first one. The two then
+        disagreed about what the section contained, and the writers answered the
+        disagreement with another false message: `cadence-done` refused a
+        sub-grouped row as "not a row in `## Cadence`" while `cadence-add`
+        succeeded and widened the header past rows it never padded, leaving a
+        ragged table that lints clean. A `>` note is skipped for the same
+        reason. Anything else still ends the section — prose after a table is
+        the boundary, and reading past it is how a writer starts editing text
+        that is not a row.
+        """
         sep, _ = self.section_table(heading)
         out = []
         for i in range(sep + 1, len(self.lines)):
@@ -503,7 +588,7 @@ class Board:
             if s.startswith("## "):
                 break
             if not s.startswith("|"):
-                if s:
+                if s and not s.startswith(("#", ">")):
                     break
                 continue
             cells = split_row(self.lines[i])
@@ -742,6 +827,27 @@ def check_header(header: list[str]) -> None:
             f"nothing was written")
 
 
+def widening_columns(header: list[str], values: dict) -> list[str]:
+    """Every column this row needs that the section may be widened to carry.
+
+    A project's own section can be NARROWER than the six required columns — one
+    real board files work under `| ID | Title | Owner | Status |` — and writing
+    only what fits drops `Next action` and `Evidence` silently. So the required
+    six are added, not just the mode extras.
+
+    **A header whose IDENTITY columns cannot be resolved is refused instead.**
+    That is not a narrow table, it is an unknown one: appending `ID` and `Title`
+    beside `甲` and `乙` produces a row whose first two cells are blank and an
+    exit code of 0, which is `check_header`'s own reason for existing wearing a
+    disguise. Narrow means "this project wrote fewer columns"; unreadable means
+    "we do not know what these columns are", and only the first can be fixed by
+    adding more.
+    """
+    if not {"id", "title"} <= {norm(h) for h in header}:
+        check_header(header)
+    return [canonical_column(k) for k in REQUIRED_KEYS] + columns_for(values)
+
+
 # ── ids ───────────────────────────────────────────────────────────────────
 
 
@@ -965,9 +1071,37 @@ def append_status_change(text: str, line: str) -> str:
 
 
 def stages_of(schema: dict, track: dict) -> list[str]:
-    """The track's declared stage vocabulary, else its mode's default."""
-    return (split_stages(track.get("stages", ""))
-            or default_stages(schema, track["mode"]))
+    """The track's declared stage vocabulary, else its mode's default.
+
+    Consumes `parse_tracks`'s computed `stage_list` rather than re-splitting
+    `stages`. Both readings existed and nothing asserted they agreed — the
+    register was parsed once into a list and then parsed again here from the
+    raw cell, which is the same "one rule, two implementations" shape that put
+    the `->` / `→` separator bug in circulation to begin with.
+    """
+    declared = track.get("stage_list")
+    if declared is None:
+        declared = split_stages(track.get("stages", ""))
+    return list(declared) or default_stages(schema, track["mode"])
+
+
+def entry_stage(mode: str, stages: list[str]) -> str:
+    """The stage a row is born in.
+
+    A QUEUE row skips `stages[0]`, because that stage means "sitting in
+    intake" and the row has either just left intake (`route`) or never was
+    there (`add`). A pipeline or inquiry row has no such stage to skip and must
+    enter at the first one — routing those to `stages[1]` silently skipped
+    `brief` / `open`.
+
+    One function because it was two: `cmd_add` and `cmd_route` each carried the
+    expression, both written in the same round. The rule is per-mode and it is
+    the moment a row's clock starts, so a future mode that enters somewhere
+    else has exactly one place to say so.
+    """
+    if mode == "queue" and len(stages) > 1:
+        return stages[1]
+    return stages[0] if stages else ""
 
 
 def check_stage(track: dict, stages: list[str], stage: str) -> None:
@@ -1057,11 +1191,9 @@ def cmd_add(args, ctx) -> dict:
         stages = stages_of(ctx["schema"], track)
         check_stage(track, stages, args.stage)
         # Queue rows raised directly skip intake, so they start at the first
-        # POST-intake stage — the same one `route` assigns. `new` means "sitting
-        # in intake", and a row that never was there should not claim it.
-        first = (stages[1] if mode == "queue" and len(stages) > 1
-                 else (stages[0] if stages else ""))
-        values["stage"] = args.stage or first
+        # POST-intake stage — the same one `route` assigns, from the same
+        # function.
+        values["stage"] = args.stage or entry_stage(mode, stages)
         if mode == "queue":
             values["arrived"] = args.arrived or today
         else:
@@ -1082,17 +1214,23 @@ def cmd_add(args, ctx) -> dict:
     # hardcoded six-name tuple, so `--commitment` and `--track` were invisible
     # in the preview while the real write set them. A preview that is not the
     # write is worse than no preview.
+    # Existing rows are widened with empty cells; nothing is moved.
+    #
+    # **Both branches, because the board does not care which flag named the
+    # section.** This widening landed on `--group` alone, so on the one real
+    # adopted project available `add --group P2` succeeded and
+    # `add --priority P2` refused with "columns cannot be resolved" on the same
+    # four-column `## P2` — the narrow-section case is *more* likely under a
+    # priority heading, because a hand-written `## P2 (低优先 carry)` is the
+    # shape a project reaches for when it wants a short list.
     if group:
-        # The six required columns too, not just the mode extras. A real
-        # board's own section can be narrower — one files work under
-        # `| ID | Title | Owner | Status |` — and writing only what fits would
-        # drop `Next action` silently, which is exactly how `--commitment` was
-        # lost. Existing rows are widened with empty cells; nothing is moved.
+        _, header = ctx["board"].section_table(group)
         ctx["board"].ensure_section_columns(
-            group, [canonical_column(k) for k in REQUIRED_KEYS]
-                   + columns_for(values))
+            group, widening_columns(header, values))
     else:
-        ctx["board"].ensure_columns(priority, columns_for(values))
+        _, _, header = ctx["board"].table(priority)
+        ctx["board"].ensure_columns(
+            priority, widening_columns(header, values))
     if mode == "queue":
         # The section `triage` step 0 walks. Nothing created it before, so
         # step 0's "only applies when the section exists" gate no-opped
@@ -1366,6 +1504,18 @@ def cmd_drop(args, ctx) -> dict:
     `add` event with no row and no close, which is drift's second condition, so
     every drop done by hand permanently manufactured the exact false drift
     § 5.7 exists to prevent.
+
+    **The row leaves the board and the stage it died in does not.** Removing
+    the row is deliberate: `BOARD.md` holds open work, a dropped item is not
+    open work, and every count in both queue and pipeline mode is defined over
+    rows that are still there. But `modes/pipeline.md` asks the record to say
+    *where* an item died — that is the whole diagnostic value of a drop in a
+    staged mode, since three items dying at `review` is a fact about the review
+    stage and not about the three items. That fact used to be destroyed: the
+    only cell holding it went with the row, and neither the journal line nor
+    the event carried it. So `Stage` is written into both surfaces that
+    survive, which is where every other post-removal question is already
+    answered from.
     """
     tid = args.id
     if not args.reason:
@@ -1375,11 +1525,18 @@ def cmd_drop(args, ctx) -> dict:
     pri, idx, header, cells = ctx["board"].find(tid)
     values = dict(zip([norm(h) for h in header], cells))
     prev = values.get("status", "")
+    stage = values.get("stage", "").strip()
     line = ctx["board"].remove_row(idx)
-    jline = f"- [{tid}] {prev or '—'} → dropped · reason: {args.reason}"
+    jline = (f"- [{tid}] {prev or '—'} → dropped · "
+             + (f"at stage: {stage} · " if stage else "")
+             + f"reason: {args.reason}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "drop",
              "id": tid, "title": values.get("title", ""),
-             "track": values.get("track", "main"), "actor": args.actor,
+             "track": values.get("track", "main"),
+             # Empty on a project-mode row, which has no stages at all — the
+             # key is always present, because a consumer that has to branch on
+             # a missing key is a consumer that will forget to.
+             "stage": stage, "actor": args.actor,
              "from": prev, "to": "dropped", "reason": args.reason}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
@@ -2042,14 +2199,9 @@ def cmd_route(args, ctx) -> dict:
     priority = args.priority or "P1"
     stages = stages_of(ctx["schema"], track)
     check_stage(track, stages, args.stage)
-    # `stages[1]` is the QUEUE rule — a queue row skips `new`, which means
-    # "sitting in intake", because it has just left. A pipeline or inquiry row
-    # has no such stage to skip and must enter at the first one, exactly as
-    # `cmd_add` does. Routing them to `stages[1]` silently skipped `brief` /
-    # `open`.
-    first = (stages[1] if track["mode"] == "queue" and len(stages) > 1
-             else (stages[0] if stages else ""))
-    stage = args.stage or first
+    # Same function `cmd_add` calls, so the two cannot disagree about where a
+    # row is born.
+    stage = args.stage or entry_stage(track["mode"], stages)
 
     values = {"id": tid, "title": intake.get("request", ""),
               "owner": args.owner or "Coding Agent", "status": "not_started",
@@ -2081,7 +2233,13 @@ def cmd_route(args, ctx) -> dict:
             values["arrived"] = arrived
     if args.commitment:
         values["commitment"] = args.commitment
-    ctx["board"].ensure_columns(priority, columns_for(values))
+    # Widened exactly as `cmd_add` does — see the comment there. This is where
+    # it mattered most: `## Intake` is created by the tool and fills on a board
+    # whose own `## P2` predates Perry, so the drain refused on the one project
+    # that had an intake to drain. The section filled and could never be
+    # emptied, which turns `triage` step 1 into a step that cannot run.
+    _, _, header = ctx["board"].table(priority)
+    ctx["board"].ensure_columns(priority, widening_columns(header, values))
     line = ctx["board"].append_row(priority, values)
     # The intake row keeps its record; `Outcome` says where it went.
     ctx["board"].lines[idx] = render_row(
@@ -2246,7 +2404,6 @@ def cmd_list(args, ctx) -> dict:
             t["priority"] = e.get("priority") or t["priority"]
             t["evidence"] = e.get("evidence") or t["evidence"]
             t["verification"] = e.get("rung") or t["verification"]
-        t["mode"] = e.get("mode") or t["mode"]
         ts = e.get("ts") or ""
         if e.get("event") in ("add", "route") and ts:
             t["created"] = ts
@@ -2254,6 +2411,30 @@ def cmd_list(args, ctx) -> dict:
             t["updated"] = ts
         t["timeline"].append(
             {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")})
+
+    # `mode` is DERIVED, from `track` + `.perry/config.md § Tracks` — the same
+    # register `track_of` reads and the only place a project declares which
+    # `modes/<mode>.md` governs a track.
+    #
+    # It used to be read back out of the event log, which made it a stored copy
+    # of a derived value and wrong in two ways at once: only `cmd_add` ever
+    # wrote it, so every row `route` created shipped `mode: ""` on a queue
+    # track — the one mode where routing is the normal way a row is born — and
+    # deleting `.perry/events.jsonl` blanked it for every row on the board. The
+    # log is declared DERIVED AND DISPOSABLE at the top of this file, so
+    # nothing in a frozen contract may depend on it for a value the markdown
+    # already determines.
+    #
+    # The fallback mirrors `parse_tracks`: a project that never declared a
+    # track has exactly one, named `main`, mode `project`. A row on a track the
+    # register does not declare gets `""` — the payload says it does not know,
+    # which is the documented meaning of `""` for this field and better than
+    # naming a mode the project never chose.
+    declared = ctx["config"].get("tracks") or [{"track": "main",
+                                                "mode": "project"}]
+    modes = {t["track"]: t.get("mode", "") for t in declared}
+    for t in tasks.values():
+        t["mode"] = modes.get(t["track"], "")
 
     # A row with no event AND no date cell has no age at all. Every staleness
     # rule triage runs is "idle ≥ N days", so such a row reads as fresh
@@ -2341,11 +2522,44 @@ def cmd_list(args, ctx) -> dict:
             "untitled": untitled}
 
 
+_PERRY_STATE = None
+
+
+def perry_state():
+    """`bin/perry-state` as a module, loaded once per process.
+
+    The loader was inline in `main()` and gated on `.perry/config.md` existing,
+    so anything else that wanted a rule from `perry-state` had to copy it
+    instead — which is what `split_stages` below was. Hoisted and cached so
+    there is one way to reach that file and no reason to reimplement anything
+    in it.
+    """
+    global _PERRY_STATE
+    if _PERRY_STATE is None:
+        import importlib.machinery
+        import importlib.util
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            "perry_state", importlib.machinery.SourceFileLoader(
+                "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _PERRY_STATE = mod
+    return _PERRY_STATE
+
+
 def split_stages(cell: str) -> list[str]:
-    s = (cell or "").replace("→", "->").strip()
-    if not s or s == "—":
-        return []
-    return [x.strip() for x in s.split("->") if x.strip()]
+    """The stage vocabulary of a `Stages` cell — `perry-state`'s implementation.
+
+    There were two, differing only in a loop variable, with the docstring that
+    explains the normalization on one of them. Three spellings of the separator
+    are in circulation (`->`, `→`, `→` with spaces) and "the first stage" and
+    "the terminal stage" are both load-bearing rules, so the two copies were one
+    edit away from disagreeing about where every row in a track begins and ends
+    — silently, because nothing compared them. This file already loads
+    `perry-state` to reuse `parse_tracks`; reusing this costs nothing more.
+    """
+    return perry_state().split_stages(cell)
 
 
 def default_stages(schema: dict, mode: str) -> list[str]:
@@ -2522,15 +2736,7 @@ def main(argv: list[str]) -> int:
         cfg_path = project_root / ".perry" / "config.md"
         config = {"tracks": []}
         if cfg_path.exists():
-            sys.path.insert(0, str(PERRY_HOME / "bin"))
-            import importlib.machinery
-            import importlib.util
-            spec = importlib.util.spec_from_loader(
-                "perry_state", importlib.machinery.SourceFileLoader(
-                    "perry_state", str(PERRY_HOME / "bin" / "perry-state")))
-            ps = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(ps)
-            config = {"tracks": ps.parse_tracks(cfg_path.read_text())}
+            config = {"tracks": perry_state().parse_tracks(cfg_path.read_text())}
         with project_lock(state_root):
             ctx = {"schema": schema, "project_root": project_root,
                    "state_root": state_root, "config": config,

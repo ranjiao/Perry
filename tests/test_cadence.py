@@ -107,6 +107,13 @@ class Project:
             capture_output=True, text=True)
         return json.loads(r.stdout)["cadence"]
 
+    def dashboard(self) -> str:
+        """The human surface. A payload key nothing renders reaches nobody."""
+        r = subprocess.run(
+            ["python3", str(STATE), "--root", str(self.root), "--dashboard"],
+            capture_output=True, text=True)
+        return r.stdout + r.stderr
+
     def board(self) -> str:
         return (self.root / "BOARD.md").read_text()
 
@@ -188,6 +195,38 @@ class TestNextDueIsReadTolerantly(unittest.TestCase):
         report every weekly row as up to six days overdue inside its own week."""
         self.assertEqual(P.parse_due("2026-W32"), date(2026, 8, 9))
         self.assertEqual(P.parse_due("2026-W32").isoweekday(), 7)
+
+    def test_a_date_inside_a_trailing_note_is_not_the_due_date(self):
+        """Both cells are from a live register, and both were reported overdue.
+
+        The old rule searched the WHOLE cell for `\\d{4}-\\d{2}-\\d{2}`, so a
+        row saying `n/a` came back due `2026-08-03` — scraped out of an
+        evidence *filename* — and a quarterly row came back 224 days overdue on
+        the date of its LAST run. `parse_frequency`'s docstring states the rule
+        this enforces: a confidently wrong value is worse than an admitted
+        unreadable one, and an unreadable `Next due` is a reported finding
+        (`cadence.undated`), not a silent pass."""
+        self.assertIsNone(
+            P.parse_due("n/a （见 evidence/2026-08/2026-08-03-retro.md）"),
+            "a date inside a cited path became the due date")
+        self.assertEqual(
+            P.parse_due("2026-W40（上次 2026-01-05 完成）"),
+            date(2026, 10, 4),
+            "the note about the last run overruled the ISO week before it")
+
+    def test_a_leading_n_a_is_never_a_date_however_the_note_is_written(self):
+        """The cell says there is no date. Reading on to find one anyway is the
+        failure mode, not the tolerance."""
+        for cell in ("n/a", "n/a (2026-01-05 完成)", "n/a — see 2026-01-05",
+                     "na 2026-01-05", "—", "continuous 2026-01-05"):
+            self.assertIsNone(P.parse_due(cell), cell)
+
+    def test_a_bare_path_yields_no_date(self):
+        """An evidence path cites the LAST run. Mining it for digits is how a
+        finished ritual gets reported as overdue by the width of its own
+        filing convention."""
+        self.assertIsNone(P.parse_due("evidence/2026-08/2026-08-03-retro.md"))
+        self.assertIsNone(P.parse_due("`weekly/2026-32.md`"))
 
 
 class TestColumnsResolveByName(unittest.TestCase):
@@ -407,6 +446,41 @@ class TestCadenceDone(unittest.TestCase):
                       if l.startswith("| ID | Recurring task"))
         self.assertEqual(header.count("|"), 8, header)
 
+    def test_a_sub_grouped_register_is_written_the_way_it_is_read(self):
+        """The reader tolerates a `###` label inside `## Cadence`; the writers
+        stopped at the first one, and the two then disagreed about what the
+        section contained.
+
+        On such a board `cadence-done` refused with "not a row in `## Cadence`"
+        — false, and the third false "not a row" message in this file's history
+        — while `cadence-add` SUCCEEDED, widening the header to seven columns
+        and padding none of the sub-grouped rows. The result is a ragged table
+        that `perry-lint` reports clean, produced by the tool whose entire claim
+        is that it mechanizes the format rather than breaking it.
+        """
+        p = Project(BOARD.replace(
+            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
+            "|---|---|---|---|---|---|",
+            "### Weekly\n\n"
+            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
+            "|---|---|---|---|---|---|\n"
+            "| CAD-100 | friday review | PMO | weekly | 2026-01-01 | w/x.md |\n"
+            "\n### Monthly\n\n"
+            "| CAD-200 | month close | PMO | monthly | 2026-01-31 | m/x.md |"))
+        code, out = p.run("cadence-done", "CAD-200", "--evidence", "runbook/y.md")
+        self.assertEqual(code, 0, f"a sub-grouped row was unreachable: {out}")
+        self.assertEqual(p.row("CAD-200").last_evidence, "runbook/y.md")
+
+        # And the widening `cadence-done` just did reaches every row, including
+        # the ones above the sub-group label.
+        rows = [l for l in p.board().split("\n") if l.startswith("| CAD-")]
+        header = next(l for l in p.board().split("\n")
+                      if l.startswith("| ID | Recurring task"))
+        width = header.count("|")
+        for r in rows:
+            self.assertEqual(r.count("|"), width,
+                             f"row width diverged from the header:\n  {r}")
+
     def test_last_evidence_is_created_on_a_register_that_lacks_the_column(self):
         p = Project(BOARD.replace(
             "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n|---|---|---|---|---|---|",
@@ -420,15 +494,29 @@ class TestCadenceDone(unittest.TestCase):
 class TestOverdueReport(unittest.TestCase):
 
     def test_overdue_rows_are_reported_by_age_oldest_first(self):
+        """The NEWER row is registered first, so board order and sorted order
+        differ — which is the only arrangement that can fail on the sort.
+
+        This test used to add `old` before `newer`, so the rows arrived already
+        in the order the assertion wanted and `perry-state`'s sort line could be
+        deleted with the whole 600-test suite still green. The claim it guards
+        is not a nicety: `work/reference/subcommands.md § triage` now tells the
+        agent in bold that the list "is already sorted oldest-first" and to stop
+        scanning the table by eye, and that promise is the only thing standing
+        between the procedure and the eyeball it replaced.
+        """
         p = Project()
-        p.run("cadence-add", "--title", "old", "--frequency", "weekly",
-              "--on", f"{TODAY - timedelta(days=37):%Y-%m-%d}")
         p.run("cadence-add", "--title", "newer", "--frequency", "weekly",
               "--on", f"{TODAY - timedelta(days=12):%Y-%m-%d}")
+        p.run("cadence-add", "--title", "old", "--frequency", "weekly",
+              "--on", f"{TODAY - timedelta(days=37):%Y-%m-%d}")
         p.run("cadence-add", "--title", "future", "--frequency", "monthly")
+        # Board order: CAD-001 (5 days overdue) then CAD-002 (30).
+        self.assertEqual([r.id for r in p.rows()],
+                         ["CAD-001", "CAD-002", "CAD-003"])
         rep = p.state()
         self.assertEqual(rep["count"], 3)
-        self.assertEqual([r["id"] for r in rep["overdue"]], ["CAD-001", "CAD-002"])
+        self.assertEqual([r["id"] for r in rep["overdue"]], ["CAD-002", "CAD-001"])
         self.assertEqual([r["days_overdue"] for r in rep["overdue"]], [30, 5])
 
     def test_a_row_due_today_is_not_yet_overdue(self):
@@ -477,17 +565,34 @@ class TestOverdueReport(unittest.TestCase):
 
     def test_the_dashboard_line_appears_only_when_there_is_a_register(self):
         empty = Project(BOARD_NO_SECTION)
-        self.assertNotIn("Cadence", self._dash(empty))
+        self.assertNotIn("Cadence", empty.dashboard())
         p = Project()
         p.run("cadence-add", "--title", "x", "--frequency", "weekly",
               "--on", f"{TODAY - timedelta(days=30):%Y-%m-%d}")
-        self.assertIn("1 overdue", self._dash(p))
+        self.assertIn("1 overdue", p.dashboard())
 
-    @staticmethod
-    def _dash(p: Project) -> str:
-        return subprocess.run(
-            ["python3", str(STATE), "--root", str(p.root), "--dashboard"],
-            capture_output=True, text=True).stdout
+    def test_an_unreadable_frequency_reaches_the_human_surface(self):
+        """The third list, which the dashboard line dropped.
+
+        A row unreadable on BOTH axes is in `unreadable_frequency` ONLY — the
+        `undated` branch is gated on `frequency_kind == "period"` — so it was in
+        the JSON and nowhere a human looks. That is the row nothing can schedule
+        and nothing was saying so about, which is the failure the register
+        exists to catch. Both procedures that read this payload name all three
+        lists (`work/reference/subcommands.md § triage`, `modes/queue.md`
+        step 5); the line they read from named two.
+        """
+        p = Project(BOARD.replace(
+            "|---|---|---|---|---|---|",
+            "|---|---|---|---|---|---|\n"
+            "| CAD-009 | mystery | X | 每周五 | — | — |"))
+        rep = p.state()
+        self.assertEqual([r["id"] for r in rep["unreadable_frequency"]], ["CAD-009"])
+        self.assertEqual(rep["undated"], [], "the setup no longer reaches the "
+                                             "only-unreadable_frequency case")
+        line = next(l for l in p.dashboard().split("\n") if "Cadence" in l)
+        self.assertIn("unreadable Frequency", line,
+                      f"the only list this row is in reaches nobody: {line}")
 
 
 class TestCadenceIsNotATask(unittest.TestCase):
@@ -529,6 +634,56 @@ class TestCadenceIsNotATask(unittest.TestCase):
         code, out = p.run("done", "CAD-001", "--evidence", "e.md")
         self.assertEqual(code, 1)
         self.assertIn("CAD-001", p.board())
+
+    def test_the_refusal_is_true_and_says_why(self):
+        """Rubric item 5 is "refuses **and says why**", and only the first half
+        held.
+
+        All five task subcommands answered `CAD-001 is not a row on the board`
+        — about a row the same tool had written one command earlier and which
+        `perry-state --json` lists. That is verbatim the defect class
+        `bin/perry-task § _task_sections` documents ("a message that was false,
+        about rows the same tool had just printed"), reintroduced for a
+        different section. A refusal that misdescribes the state sends the
+        reader hunting for a missing row instead of reading the rule.
+        """
+        p = Project()
+        p.run("cadence-add", "--title", "x", "--frequency", "weekly")
+        for argv in (("done", "CAD-001", "--evidence", "e.md"),
+                     ("status", "CAD-001", "--status", "blocked"),
+                     ("next", "CAD-001", "--next", "do the thing"),
+                     ("drop", "CAD-001", "--reason", "no longer needed"),
+                     ("retitle", "CAD-001", "--title", "y")):
+            code, out = p.run(*argv)
+            msg = str(out)
+            self.assertEqual(code, 1, f"{argv[0]} did not refuse: {out}")
+            self.assertNotIn(
+                "is not a row on the board", msg,
+                f"{argv[0]} refused with a false statement about a row the "
+                f"tool wrote and `perry-state` lists")
+            self.assertIn("Cadence", msg, f"{argv[0]} named no section")
+            self.assertIn("cadence-done", msg,
+                          f"{argv[0]} named no way forward")
+        self.assertIn("CAD-001", p.board())
+
+    def test_every_non_task_section_has_a_refusal_to_offer(self):
+        """The partition that keeps the fix above from becoming a crash. A
+        section added to `NON_TASK_SECTIONS` and not to `NON_TASK_REFUSAL`
+        would raise `KeyError` out of `find()` — a traceback in place of a
+        refusal, on the write path."""
+        self.assertEqual(set(PT.Board.NON_TASK_SECTIONS),
+                         set(PT.NON_TASK_REFUSAL))
+        for name, text in PT.NON_TASK_REFUSAL.items():
+            self.assertIn("{id}", text, f"{name}: the message names no row")
+            self.assertIn("perry-task", text, f"{name}: no way forward")
+
+    def test_the_refusal_still_says_not_on_the_board_for_an_id_that_is_not(self):
+        """The specific message must not swallow the general one — an id that
+        genuinely is nowhere has to keep saying so."""
+        p = Project()
+        code, out = p.run("done", "TASK-404", "--evidence", "e.md")
+        self.assertEqual(code, 1)
+        self.assertIn("is not a row on the board", str(out))
 
 
 class TestTheLegacyProjectionIsUnchanged(unittest.TestCase):

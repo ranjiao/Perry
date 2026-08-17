@@ -71,7 +71,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `status` | string | one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — **or `""`**. Markdown emphasis is stripped before matching, so a board cell of `**done**` arrives as `done`. `""` means the board did not say, or said something that is not one state; `status_text` has the cell verbatim and `conformance` says which case it was. |
 | `status_text` | string | the `Status` cell exactly as written, emphasis and all. Some cells are genuinely not one state — `迁移 done，占比目标 not_started` is two, and rounding it to either is a lie about the work. |
 | `track` | string | declared track name; `main` when the project declares none |
-| `mode` | string | `project` \| `pipeline` \| `queue` \| `inquiry`, or `""` if no event recorded it |
+| `mode` | string | `project` \| `pipeline` \| `queue` \| `inquiry`. **Derived** from this row's `track` and `.perry/config.md § Tracks`, never stored — a project with no track register reports `project` for `main`, and a row on a track the register does not declare reports `""`. It was read out of the event log until a review found that `route`-created rows shipped `""` on exactly the mode where routing is normal, and that deleting the derived-and-disposable event log blanked it for every row. |
 | `stage` | string | non-`project` modes only; `""` otherwise |
 | `stage_since` | string | `YYYY-MM-DD`; pipeline/inquiry. Dwell time is `today − stage_since`. |
 | `arrived` | string | `YYYY-MM-DD`; queue mode. **Every SLA number is `today − arrived`.** |
