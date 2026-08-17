@@ -1697,6 +1697,310 @@ class TestFromAimarksProductionReport(unittest.TestCase):
                       f"the current version {major_minor} has no changelog entry")
 
 
+class TestANewIdJoinsTheFamilyTheBoardAlreadyUses(unittest.TestCase):
+    """TASK-060, from aiMark §4. On a board whose 17 rows are `AIM-001`…
+    `AIM-017`, `add` minted `TASK-001`.
+
+    Legitimate under the contract — ids are opaque and a board may carry
+    several project-declared prefixes — but a user creating a task from a
+    front-end watched their board sprout a second id family, and there was no
+    flag with which to ask for the first. aiMark passes no id and *cannot*:
+    nothing in the surface would let it.
+
+    **The decision, and the failure mode it is avoiding.** Both halves shipped:
+    `--prefix` names the family outright, and Perry adopts the board's own
+    prefix *only when the board has exactly one*. It deliberately does NOT pick
+    the most common one. `~/proj/gimegime-pmo` carries **36** families in its
+    task tables, declared in its own `## ID prefixes (canonical)` section, and
+    they are not stylistic — `IPS-*`/`ALLOC-*`/`DUE-*` mean 投资线 and
+    `TECH-*`/`DATA-*` mean 工程线, filed in separate sections for a reason the
+    board states. A plurality winner there mints an id that ASSERTS a
+    workstream nobody chose, and an id is permanent. A foreign-looking
+    `TASK-001` is visibly Perry's and claims nothing; a wrong-family `IPS-014`
+    claims something false.
+
+    So the guard for the category is not "adoption happens" — it is
+    `test_a_board_with_several_families_is_not_guessed_at`, which is the case
+    adoption must decline.
+    """
+
+    HDR = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
+           "|---|---|---|---|---|---|\n")
+
+    def board(self, *ids: str) -> str:
+        rows = "".join(f"| {i} | row | Coding Agent | not_started | — | — |\n"
+                       for i in ids)
+        return (f"# BOARD\n\n## P0 (must finish this period)\n\n{self.HDR}{rows}"
+                f"\n## P1\n\n{self.HDR}\n## P2\n\n{self.HDR}")
+
+    AIMARK = None  # set in setUp; the shape aiMark reported
+
+    def setUp(self):
+        self.AIMARK = self.board(*(f"AIM-{i:03d}" for i in range(1, 18)))
+
+    def test_a_single_family_board_mints_into_its_own_family(self):
+        p = Project(board=self.AIMARK)
+        code, a = p.run("add", "--title", "from the front-end")
+        self.assertEqual(code, 0, a)
+        self.assertEqual(a["id"], "AIM-018")
+
+    def test_the_number_continues_the_family_rather_than_restarting_it(self):
+        """`mint_id` counted `TASK-` specifically. Adopting `AIM` without
+        moving the counter with it would have minted `AIM-001` onto a board
+        already holding `AIM-017` — the id reuse the function exists to make
+        impossible, arrived by a new route."""
+        p = Project(board=self.AIMARK)
+        _, a = p.run("add", "--title", "X")
+        self.assertNotIn(f"| {a['id']} |", self.AIMARK,
+                         f"{a['id']} was already a row on this board")
+        self.assertEqual(a["id"], "AIM-018")
+        _, b = p.run("add", "--title", "Y")
+        self.assertEqual(b["id"], "AIM-019")
+
+    def test_an_adopted_id_is_never_reissued_either(self):
+        """The uniqueness guarantee is per family, and the journal is what
+        makes it survive the disposable log — under `AIM` as under `TASK`."""
+        p = Project(board=self.AIMARK)
+        _, a = p.run("add", "--title", "first")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        (p.root / ".perry" / "events.jsonl").unlink()
+        _, b = p.run("add", "--title", "second")
+        self.assertNotEqual(b["id"], a["id"],
+                            f"{a['id']} was reissued after the derived log went")
+
+    def test_a_board_with_several_families_is_not_guessed_at(self):
+        """**The load-bearing one.** Three `IPS-` rows and one `TECH-` row: the
+        most common family is `IPS`, and Perry must not take it. The families
+        on a real board mean different workstreams, and an id that names the
+        wrong one is a false claim that can never be withdrawn."""
+        p = Project(board=self.board("IPS-001", "IPS-002", "IPS-003", "TECH-001"))
+        code, a = p.run("add", "--title", "X")
+        self.assertEqual(code, 0, a)
+        self.assertEqual(a["prefix"], "TASK")
+        self.assertTrue(a["id"].startswith("TASK-"),
+                        f"Perry guessed a workstream from a plurality: {a['id']}")
+
+    def test_a_family_with_no_numbers_is_not_given_one(self):
+        """`RW-alpha` and `RW-beta` are one family and there is nothing to
+        count from. Minting `RW-001` beside them would invent a numbering the
+        project did not choose."""
+        p = Project(board=self.board("RW-alpha", "RW-beta"))
+        _, a = p.run("add", "--title", "X")
+        self.assertEqual(a["prefix"], "TASK")
+
+    def test_a_task_board_still_mints_task(self):
+        """The bound. Every project that has never said otherwise is
+        untouched — including Perry's own board, whose single family is
+        `TASK`."""
+        p = Project()
+        _, a = p.run("add", "--title", "X")
+        self.assertEqual(a["id"], "TASK-001")
+        self.assertEqual(a["prefix"], "TASK")
+
+    def test_prefix_names_the_family_outright(self):
+        """The half the finding actually asked for: a front-end that cannot
+        pass an id must be able to ask for a family."""
+        p = Project(board=self.AIMARK)
+        _, a = p.run("add", "--title", "X", "--prefix", "DOC")
+        self.assertEqual(a["id"], "DOC-001")
+
+    def test_prefix_beats_what_the_board_would_have_adopted(self):
+        p = Project(board=self.AIMARK)
+        _, a = p.run("add", "--title", "X", "--prefix", "DOC")
+        self.assertEqual(a["prefix"], "DOC")
+
+    def test_prefix_refuses_a_family_the_tool_mints_for_another_register(self):
+        """`RX-005` as a task would collide with the risk register's own
+        numbering on the same board, and both writers would then be right
+        about their own file and wrong about the project."""
+        for reserved in ("RX", "USER", "CAD"):
+            p = Project(board=self.AIMARK)
+            code, out = p.run("add", "--title", "X", "--prefix", reserved)
+            self.assertEqual(code, 1, f"--prefix {reserved} was accepted: {out}")
+            self.assertNotIn(f"{reserved}-001", p.board())
+
+    def test_prefix_refuses_a_whole_id(self):
+        """`--prefix AIM-018` is the obvious mistake, and it has to refuse
+        rather than mint `AIM-018-001`."""
+        p = Project(board=self.AIMARK)
+        code, out = p.run("add", "--title", "X", "--prefix", "AIM-018")
+        self.assertEqual(code, 1, out)
+        self.assertIn("--prefix", str(out))
+
+    def test_a_multi_segment_prefix_is_allowed(self):
+        """`ARCH-V2-*` is a real family on a real board. Each segment starts
+        with a letter, which is the rule that separates it from an id."""
+        p = Project(board=self.AIMARK)
+        code, a = p.run("add", "--title", "X", "--prefix", "ARCH-V2")
+        self.assertEqual(code, 0, a)
+        self.assertEqual(a["id"], "ARCH-V2-001")
+
+    def test_route_mints_from_the_same_rule_add_does(self):
+        """Both verbs mint. A family adopted by one and not the other is the
+        same divergence `--group` had, in the id column."""
+        p = Project(tracks=TestModeAwareWrites.TRACKS, board=self.AIMARK)
+        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
+        code, out = p.run("route", "1", "--track", "blog")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["id"], "AIM-018")
+
+    def test_route_takes_prefix_too(self):
+        p = Project(tracks=TestModeAwareWrites.TRACKS, board=self.AIMARK)
+        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
+        code, out = p.run("route", "1", "--track", "blog", "--prefix", "DOC")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["id"], "DOC-001")
+
+    def test_ids_in_the_non_task_registers_are_not_a_family(self):
+        """`## Top risks`, `## Cadence` and `## User Input Queue` carry their
+        own prefixes and are not work. Counting them would make every board
+        multi-family and adoption would never fire — or worse, a board with one
+        `USER-001` and no tasks would adopt `USER`."""
+        p = Project(board=self.AIMARK)
+        p.run("ask", "--needed", "which staging default?")
+        p.run("risk-add", "--title", "a risk")
+        _, a = p.run("add", "--title", "X")
+        self.assertEqual(a["prefix"], "AIM")
+
+
+class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
+    """TASK-057, from aiMark's 2026-08-17 contract report.
+
+    `evidence_paths` was resolved inside the board walk, and a closed row is
+    not on the board — `done` removes it. So the field was empty for every
+    closed row on every project. Measured on Perry's own board: **32 closed
+    rows, every one carrying an evidence cell, every one `evidence_paths: []`,
+    every file present on disk.**
+
+    Two things made it invisible. `evidence` was populated, so the row did not
+    look empty; and `conformance.evidence_not_found` was empty too, so a
+    consumer could not tell *"Perry did not resolve this"* from *"the file is
+    gone"*. aiMark rendered the document that JUSTIFIES a close as a dead
+    link — the one row a reader most wants the artifact for.
+
+    **The category is "a declared field is resolved for every row the contract
+    declares it for", not "closed rows work".** A guard written as "a closed
+    row resolves its evidence" would pass on a build that resolved closed rows
+    and dropped, say, event-only ones. So the load-bearing assertion here is
+    `test_no_row_names_an_artifact_the_payload_neither_finds_nor_reports`,
+    which is an invariant over every row in the payload, and
+    `test_the_same_file_resolves_open_and_closed`, which compares the two
+    states on one board against one file.
+    """
+
+    def populated(self) -> "Project":
+        """One board, one real file, and every row shape that carries a cell:
+        open, closed, closed-with-a-file-that-is-gone, and a dash."""
+        p = Project()
+        _, live = p.run("add", "--title", "still going", "--priority", "P0")
+        p.run("evidence", live["id"], "--evidence", "`BOARD.md`")
+        _, closed = p.run("add", "--title", "finished", "--priority", "P1")
+        p.run("done", closed["id"], "--evidence", "`BOARD.md`", "--rung", "V3")
+        _, gone = p.run("add", "--title", "finished, artifact moved",
+                        "--priority", "P2")
+        p.run("done", gone["id"], "--evidence", "`evidence/2026-07/gone.md`",
+              "--rung", "V3")
+        p.run("add", "--title", "no evidence yet", "--priority", "P2")
+        self.live, self.closed, self.gone = live["id"], closed["id"], gone["id"]
+        return p
+
+    def payload(self, p: "Project") -> dict:
+        _, d = p.run("list", "--all")
+        return d
+
+    def row(self, d: dict, tid: str) -> dict:
+        return next(t for t in d["tasks"] if t["id"] == tid)
+
+    def test_a_closed_row_resolves_the_document_that_justifies_its_close(self):
+        p = self.populated()
+        t = self.row(self.payload(p), self.closed)
+        self.assertFalse(t["open"], "the fixture's closed row is not closed")
+        self.assertEqual(t["evidence_paths"], ["BOARD.md"])
+
+    def test_the_same_file_resolves_open_and_closed(self):
+        """The finding in one assertion: same board, same path, two rows whose
+        only difference is that one of them finished."""
+        d = self.payload(self.populated())
+        self.assertEqual(self.row(d, self.closed)["evidence_paths"],
+                         self.row(d, self.live)["evidence_paths"],
+                         "a path stopped resolving the day the row closed")
+
+    def test_a_closed_rows_missing_file_is_reported_not_silently_empty(self):
+        """The other half. `[]` used to mean both "gone" and "never looked",
+        so a consumer had no way to tell a dead link from an unread field."""
+        d = self.payload(self.populated())
+        self.assertEqual(self.row(d, self.gone)["evidence_paths"], [])
+        self.assertIn({"id": self.gone, "paths": ["evidence/2026-07/gone.md"]},
+                      d["conformance"]["evidence_not_found"])
+
+    def test_no_row_names_an_artifact_the_payload_neither_finds_nor_reports(self):
+        """The invariant, over every row. A non-empty `Evidence` cell must
+        produce either a resolved path or a `conformance` entry — `[]` and
+        silence together is the state that cannot be interpreted."""
+        d = self.payload(self.populated())
+        reported = {e["id"] for e in d["conformance"]["evidence_not_found"]}
+        self.assertTrue(d["tasks"])
+        for t in d["tasks"]:
+            if t["evidence"].strip().lower() in PT.ABSENT:
+                continue
+            self.assertTrue(
+                t["evidence_paths"] or t["id"] in reported,
+                f"{t['id']} names {t['evidence']!r} and the payload neither "
+                f"resolved it nor reported it")
+
+    def test_a_row_with_no_evidence_still_reports_neither(self):
+        """The bound: resolving more must not start inventing entries for the
+        rows that legitimately cite nothing. aiMark once rendered an openable
+        document named `perry/—`."""
+        d = self.payload(self.populated())
+        reported = {e["id"] for e in d["conformance"]["evidence_not_found"]}
+        for t in d["tasks"]:
+            if t["evidence"].strip() == "—":
+                self.assertEqual(t["evidence_paths"], [])
+                self.assertNotIn(t["id"], reported)
+
+    def test_a_finished_row_still_on_the_board_resolves_too(self):
+        """The third row shape, and the one that had the field and the cell
+        disagreeing: a project that stages finished work under its own heading
+        keeps the row, so `evidence` came off the event and `evidence_paths`
+        off the board cell. Resolving after the merge makes them one cell."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n"
+            "| TASK-900 | Staged | User | done | — | `BOARD.md` |\n\n## P1", 1))
+        t = self.row(self.payload(p), "TASK-900")
+        self.assertFalse(t["open"])
+        self.assertEqual(t["evidence_paths"], ["BOARD.md"])
+
+    def test_the_report_is_ordered_by_id_not_by_where_the_row_sat(self):
+        """`evidence_not_found` used to be appended during the board walk, so
+        its order was board order — and a closed row has no board position at
+        all. Ordered by id, a consumer diffing two payloads of an unchanged
+        project sees nothing, whichever section a row moved between.
+
+        The fixture puts the ids on the board in DESCENDING order, so board
+        order and id order are different lists and the assertion can fail.
+        """
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n"
+            "| TASK-903 | c | User | not_started | — | `c-gone.md` |\n"
+            "| TASK-902 | b | User | not_started | — | `b-gone.md` |\n"
+            "| TASK-901 | a | User | not_started | — | `a-gone.md` |\n\n## P1", 1))
+        reported = [e["id"] for e in
+                    self.payload(p)["conformance"]["evidence_not_found"]]
+        self.assertEqual(reported, ["TASK-901", "TASK-902", "TASK-903"])
+
+    def test_the_report_is_stable_across_two_reads(self):
+        p = self.populated()
+        self.assertEqual(self.payload(p)["conformance"]["evidence_not_found"],
+                         self.payload(p)["conformance"]["evidence_not_found"])
+
+
 class TestUserInputQueueHasAWriter(unittest.TestCase):
     """TASK-039. The section had readers, a dashboard row, and no writer.
 
@@ -2373,6 +2677,160 @@ class TestANarrowSectionIsWidenedWhicheverFlagNamedIt(unittest.TestCase):
                                       f"header: {out}")
             self.assertIn("i18n.columns", str(out))
             self.assertNotIn("TASK-001", p.board())
+
+
+class TestEveryWriterThatFilesARowReadsGroup(unittest.TestCase):
+    """TASK-053. `--group` parsed into `args.group` and `cmd_route` never read
+    it, so the intake drain could not run on a board with no `## P0`/`## P1`/
+    `## P2` at all — which is `~/proj/gimegime-pmo`'s actual shape.
+
+    The flag was added for `cmd_add`, and `cmd_add` is where it stayed. What
+    makes it worse than a missing feature is that `check_priority`'s own
+    refusal recommends it — *"pass the whole heading to `--group` instead"* —
+    so a user who read the refusal and did exactly what it said got refused a
+    second time by the same tool.
+
+    **Why this is a different fixture, not a stronger assertion.** The guard
+    that was supposed to cover this is
+    `TestANarrowSectionIsWidenedWhicheverFlagNamedIt`'s
+    `test_the_intake_drain_runs_on_a_narrow_pre_existing_board`, and its board
+    **has a `## P1`**. It grades narrow COLUMNS. A guard whose fixture carries
+    the heading cannot fail on the heading being missing, however hard it
+    asserts — the round-5 fix repaired one half of "the board does not care
+    which flag named the section" and the guard was built out of the half that
+    had been repaired. The category here is *a board that does not use
+    priority headings*, so the fixture has none.
+    """
+
+    # `~/proj/gimegime-pmo`'s shape, minus the rows: work filed under the
+    # project's own workstream headings, and not a `## P0`/`## P1`/`## P2`
+    # anywhere in the file.
+    WORKSTREAM = """# BOARD
+
+## Open — 工程线 · phase #004 W24（流程层）
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| TECH-1 | pre-existing | Coding Agent | not_started |
+
+## Backbone
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+"""
+    HEADING = "Open — 工程线 · phase #004 W24（流程层）"
+
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | commitments | new->triaged->resolved | — | 5d "
+              "| monthly | V2 |\n")
+
+    def drained(self, *extra) -> tuple[Project, int, dict]:
+        p = Project(tracks=self.TRACKS, board=self.WORKSTREAM)
+        code, _ = p.run("intake", "--title", "客户要对账", "--arrived", "2026-08-05")
+        self.assertEqual(code, 0)
+        code, out = p.run("route", "1", "--track", "ops", *extra)
+        return p, code, out
+
+    def section_of(self, p: Project, heading: str) -> str:
+        return p.board().split(f"## {heading}", 1)[1].split("\n## ", 1)[0]
+
+    def test_route_files_the_row_under_the_projects_own_heading(self):
+        """The statement of the defect. Before this, exit 1 on every form of
+        the command — there was no landing site and no way to name one."""
+        p, code, out = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0, f"the drain refused a board that files work "
+                                  f"under its own headings: {out}")
+        self.assertIn(out["id"], self.section_of(p, self.HEADING),
+                      "the row did not land in the section --group named")
+        self.assertNotIn("## P1", p.board(),
+                         "a priority section was created on a board that has none")
+
+    def test_the_routed_row_still_carries_its_clock(self):
+        """`--group` must not buy the landing site by dropping `Arrived` —
+        `today − Arrived` is the only clock a queue row has."""
+        p, code, out = self.drained("--group", self.HEADING)
+        row = next(l for l in p.board().split("\n")
+                   if l.startswith(f"| {out['id']} |"))
+        self.assertIn("2026-08-05", row, "the SLA clock was lost at routing")
+        self.assertIn("客户要对账", row)
+
+    def test_the_intake_row_is_discharged_by_a_grouped_route(self):
+        p, code, out = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"routed → {out['id']}", p.board())
+
+    def test_route_reports_the_section_it_filed_into(self):
+        """A caller that named a section has to be able to read back the one
+        the row actually reached."""
+        _, code, out = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["group"], self.HEADING)
+        self.assertEqual(out["priority"], "")
+
+    def test_the_flag_the_refusal_recommends_is_the_flag_that_works(self):
+        """The defect's sharpest edge, asserted as a loop rather than as two
+        independent facts: take the refusal the tool gives, do exactly what it
+        says, and it must not refuse again."""
+        p, code, refusal = self.drained()
+        self.assertEqual(code, 1, refusal)
+        self.assertIn("--group", str(refusal))
+        named = [h for h in (self.HEADING, "Backbone") if h in str(refusal)]
+        self.assertIn(self.HEADING, named, f"refusal named no usable "
+                                           f"section: {refusal}")
+        code, out = p.run("route", "1", "--track", "ops", "--group", self.HEADING)
+        self.assertEqual(code, 0, f"the tool refused the flag its own refusal "
+                                  f"recommended: {out}")
+
+    def test_add_and_route_reach_the_same_section_from_the_same_flag(self):
+        """The category, stated once. Every subcommand that FILES A NEW ROW
+        takes `--group` and means the same thing by it; a writer that reads
+        `--priority` and ignores `--group` is a board Perry can write into and
+        then not write into, depending on which verb you used.
+
+        A new row-filing writer belongs in this list.
+        """
+        for verb in ("add", "route"):
+            p = Project(tracks=self.TRACKS, board=self.WORKSTREAM)
+            if verb == "add":
+                code, out = p.run("add", "--title", "客户要对账",
+                                  "--group", self.HEADING)
+            else:
+                p.run("intake", "--title", "客户要对账", "--arrived", "2026-08-05")
+                code, out = p.run("route", "1", "--track", "ops",
+                                  "--group", self.HEADING)
+            self.assertEqual(code, 0, f"{verb} --group refused: {out}")
+            self.assertIn(out["id"], self.section_of(p, self.HEADING),
+                          f"{verb} filed the row somewhere else")
+
+    def test_a_group_is_not_silently_upgraded_to_a_priority(self):
+        """`route` defaulted `--priority P1` unconditionally. Keeping that
+        default alongside `--group` would file the row under a heading that
+        does not exist and refuse — the same failure, one line further on."""
+        _, code, out = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["priority"], "")
+
+    def test_a_priority_board_routes_exactly_as_before(self):
+        """The bound. A project that does use P0/P1/P2 must be untouched, and
+        must still get `P1` when it names nothing."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
+        code, out = p.run("route", "1", "--track", "ops")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["priority"], "P1")
+        self.assertIn(out["id"], self.section_of(p, "P1"))
+
+    def test_route_still_refuses_a_priority_that_is_not_one(self):
+        """`check_priority` must keep running on the route path — it is the
+        function whose refusal sends people to `--group` in the first place."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request", "--arrived", "2026-08-05")
+        code, out = p.run("route", "1", "--track", "ops",
+                          "--priority", "P2 (低优先 carry)")
+        self.assertEqual(code, 1, out)
+        self.assertIn("--group", str(out))
 
 
 class TestModeColumnsOnBoardsPerryDidNotBuild(unittest.TestCase):

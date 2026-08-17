@@ -15,6 +15,28 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
+# ── one normalization for a header cell ───────────────────────────────────
+#
+# `squash` is the single rule for turning a written header cell into the key
+# a column is resolved by: whitespace and markdown decoration off, lowercased.
+# It lives in `tables.py` because `bin/perry-task`, `bin/perry-goals` and
+# `bin/perry-lint` already import it from there; this reader used to spell the
+# same idea `.strip().lower()` at eleven sites, and the two rules were not the
+# same rule.
+#
+# What that cost (TASK-050): on `| ID | **Risk** | Opened | Status |` the
+# writer's `is_risk_header` squashed `**Risk**` to `risk` and said "risk
+# table"; this reader lowered it to `**risk**` and said "not a risk table".
+# So `risk-add` wrote rows, `perry-state` reported 0 risks, `perry-lint` was
+# clean and `risk-migrate` said "already migrated" — four exits, all closed,
+# and the user's live risks invisible in every one. The task tables survived
+# only because every column there has a positional fallback, which is to say
+# they were being read by position, not by name.
+#
+# `tests/test_risks.py::TestOneNormalizationForAHeaderCell` compares the
+# reader's predicate against the writer's over a corpus of header forms.
+from tables import squash  # noqa: E402
+
 # ── localization glossary ─────────────────────────────────────────────────
 #
 # A project writes its state files in the language declared by
@@ -61,22 +83,25 @@ def heading_is(head: str, canonical: str) -> bool:
 
 @lru_cache(maxsize=1)
 def _column_index() -> dict[str, tuple[str, ...]]:
-    """Lowered column spelling -> every lowered spelling of the same column.
+    """Squashed column spelling -> every squashed spelling of the same column.
 
     Keyed by alias as well as by canonical name so a lookup succeeds whichever
-    spelling the caller happens to hold."""
+    spelling the caller happens to hold. Squashed with the same `squash` the
+    header cells are squashed with, or the two sides of the lookup would be
+    normalized by different rules — which is the defect this index exists to
+    prevent one level up."""
     idx: dict[str, tuple[str, ...]] = {}
     for canonical, per_lang in (_i18n().get("columns") or {}).items():
         spellings = [canonical, *[s for v in per_lang.values() for s in v]]
-        lowered = tuple(dict.fromkeys(s.strip().lower() for s in spellings))
+        lowered = tuple(dict.fromkeys(squash(s) for s in spellings))
         for s in lowered:
             idx[s] = lowered
     return idx
 
 
 def _column_keys(canonical: str) -> tuple[str, ...]:
-    """Lowercased header keys that satisfy `canonical`, in any language."""
-    key = canonical.strip().lower()
+    """Squashed header keys that satisfy `canonical`, in any language."""
+    key = squash(canonical)
     return _column_index().get(key, (key,))
 
 
@@ -653,7 +678,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
     for line in lines:
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Title", "Owner", "Status", "Next action",
@@ -689,7 +714,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             return cells[i] if 0 <= i < len(cells) else ""
 
         tid = cell("ID", 0)
-        if not tid or tid.strip().lower() in _column_keys("ID"):
+        if not tid or squash(tid) in _column_keys("ID"):
             continue
         base_status, status_note = _split_status(cell("Status", 3))
         tasks.append(
@@ -917,7 +942,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Recurring task", "Title", "Owner", "Frequency",
@@ -947,7 +972,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
             return cells[i] if 0 <= i < len(cells) else ""
 
         cid = cell("ID", 0)
-        if not cid or cid.strip().lower() in _column_keys("ID"):
+        if not cid or squash(cid) in _column_keys("ID"):
             continue
         items.append(
             Cadence(
@@ -1007,7 +1032,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+            header = ([squash(c) for c in prev.strip().strip("|").split("|")]
                       if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("USER-id", "Needed from user", "Blocks", "Asked",
@@ -1025,7 +1050,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 4:
             continue
-        if cells[0].strip().lower() in {"", *_column_keys("USER-id")}:
+        if squash(cells[0]) in {"", *_column_keys("USER-id")}:
             continue
 
         def cell(name: str, fallback: int = -1) -> str:
@@ -1123,15 +1148,16 @@ _RE_KR_BULLET = re.compile(
 def _table_rows(section: str) -> list[dict[str, str]]:
     """Parse every markdown table in `section` into header-keyed row dicts.
 
-    Header keys are lowercased and stripped. Rows shorter than the header are
-    padded; longer rows are truncated. Returns [] when no table is present."""
+    Header keys are `squash`ed — the one rule every Perry tool normalizes a
+    header cell by. Rows shorter than the header are padded; longer rows are
+    truncated. Returns [] when no table is present."""
     rows: list[dict[str, str]] = []
     header: list[str] = []
     prev_cells: list[str] = []
     for line in section.split("\n"):
         stripped = line.strip()
         if re.match(r"^\|\s*:?-{2,}", stripped):
-            header = [c.strip().lower() for c in prev_cells]
+            header = [squash(c) for c in prev_cells]
             continue
         if not stripped.startswith("|"):
             prev_cells = []
@@ -1503,7 +1529,9 @@ def _has_risk_header(section: str) -> bool:
     """Whether any table in `section` declares a risk-statement column.
 
     Resolved by NAME through the schema glossary, so `| 编号 | 风险 | … |`
-    counts (`schema/README.md § Columns resolve by name`).
+    counts (`schema/README.md § Columns resolve by name`), and by the same
+    `squash` the writer's `is_risk_header` uses, so `| ID | **Risk** | … |`
+    counts here exactly when it counts there.
     """
     wanted = set(_column_keys("Risk"))
     lines = section.split("\n")
@@ -1513,7 +1541,7 @@ def _has_risk_header(section: str) -> bool:
         prev = lines[i - 1].strip()
         if not prev.startswith("|"):
             continue
-        header = [c.strip().lower() for c in prev.strip("|").split("|")]
+        header = [squash(c) for c in prev.strip("|").split("|")]
         if wanted & set(header):
             return True
     return False
@@ -1965,7 +1993,7 @@ def parse_project_state(text: str) -> ProjectState:
             if not in_table or not line.startswith("|"):
                 continue
             cells = [c.strip() for c in line.strip("|").split("|")]
-            if len(cells) < 5 or cells[0].lower() == "id":
+            if len(cells) < 5 or squash(cells[0]) == "id":
                 continue
             ps.carry_forwards.append(
                 CarryForward(

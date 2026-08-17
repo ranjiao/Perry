@@ -367,7 +367,11 @@ class TestReadingIsNotGated(unittest.TestCase):
     #: gains or loses a top-level key breaks a consumer that does not read
     #: Perry's changelog.
     CONTRACTS = {
-        "perry-task/list/1.4": (
+        # 1.5 is 1.4's key set exactly — the minor moved for two corrected
+        # VALUES (`evidence_paths` and `conformance.evidence_not_found` on
+        # closed rows, TASK-057), which is what this table is here to let
+        # through while a gained or lost key is not.
+        "perry-task/list/1.5": (
             TASK, ("list", "--all"),
             {"project_root", "state_root", "contract", "tasks", "open", "closed",
              "events", "untitled", "conformance", "intake"}),

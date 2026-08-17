@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.4`**
+> Contract: **`perry-task/list/1.5`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,7 +47,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.4",   // check this before anything else
+  "contract":     "perry-task/list/1.5",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
@@ -79,7 +79,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `commitment` | string | the commitment id this row discharges |
 | `next_action` | string | |
 | `evidence` | string | the cell verbatim. Free text: often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
-| `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. |
+| `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. **Resolved for closed rows as well as open ones** — it was not until 1.5, and a closed row's evidence is the document that justifies the close, which is the one a reader most wants to open. |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
 | `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
 | `open` | bool | **`true` unless the work is finished** — the row left the board with a `done`/`drop` event, or its status is `done`/`dropped`. Still the live/closed test; do not derive it from `status` yourself, because a row can be closed by either route. **One limit, stated because it cannot be fixed from here:** a row whose `Status` cell is empty is reported `open: true`, and Perry cannot know better. Perry's own board stages finished work under `## Done this period (leaves the board at next triage)` in a table with no `Status` column — 20 rows that are done and say nothing. `conformance.rows_with_no_status` names every one. |
@@ -117,7 +117,7 @@ rendering 12 and dropping one.
 | `rows_with_unrecognized_id` | array | `{section, cell}` — a row whose first cell is prose rather than a handle. **These are not in `tasks`.** |
 | `off_enum_status` | array | `{id, status}` — the cell said something, and after stripping emphasis it is still not one of the six. `status` is `""` for these and `status_text` has the original. |
 | `rows_with_no_status` | array | `{id, section}` — the row's `Status` cell was empty, usually because its section's table has no `Status` column. **`open` is an assumption for these**, see below. |
-| `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. |
+| `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. Covers open and closed rows alike, ordered by `id`. Together with `evidence_paths` this is the pair that lets you tell **"the file is gone"** from **"Perry did not look"**: a row whose cell names something reaches exactly one of the two, never neither. |
 | `next_action_cites_closed` | array | `{id, cites, status}` — an open row whose `Next action` points at a task that has since closed. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
@@ -202,6 +202,32 @@ One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer
 deserves to know when a value's *meaning* changed under it.
+
+### 1.5 — 2026-08-17
+
+No new keys. The minor moves anyway, because two values changed meaning under
+a consumer and the version handle is the only way that consumer finds out —
+which is the whole reason this changelog exists.
+
+- **corrected** `evidence_paths` on closed rows. It was resolved inside the
+  board walk, and a closed row is not on the board — `done` removes it. So the
+  field was empty for every closed row on every project: **32 closed rows on
+  Perry's own board, every one carrying an evidence cell, every one
+  `evidence_paths: []`, every file present on disk.** The identical path on the
+  identical board resolved while the row was open and stopped the day it
+  closed. It is resolved after the event merge now, for every row, from the
+  same `evidence` string the payload publishes.
+- **corrected** `conformance.evidence_not_found`, which was populated in the
+  same walk and so was silent about closed rows too. `[]` and silence together
+  meant a consumer could not tell *"Perry did not resolve this"* from *"the
+  file is gone"* — aiMark rendered the document that justifies a close as a
+  dead link. It now reports closed rows, and is ordered by id rather than by
+  board position so two reads of an unchanged project are identical.
+
+**What a consumer sees.** Rows that reported `evidence_paths: []` now report
+paths; `evidence_not_found` gains entries for closed rows whose cell names
+something that is not a file — usually a symbol or a prose note, as documented.
+No key was added, removed or retyped.
 
 ### 1.4 — 2026-08-17
 
