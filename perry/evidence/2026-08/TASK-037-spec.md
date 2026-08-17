@@ -42,9 +42,16 @@ rule applies harder.
 `render_row`, `norm`, `ensure_columns`, `append_row`, `replace_row` — lives in
 `bin/perry-task` today and nowhere else. Duplicating it into `bin/perry-goals`
 creates two implementations of one rule, which is the single defect class the
-last five review rounds kept finding: `norm` already exists three times
-(`perry-task`, `perry-lint`, `perry-diagnose`) and the third positional-column
-parser was a review finding in its own right.
+last five review rounds kept finding — "the third positional-column parser"
+was a finding in its own right.
+
+There is already one instance to fold in while doing it: `perry-task`'s
+`squash()` and `perry-lint`'s `norm()` are character-for-character the same
+function under two names. (An earlier draft of this spec said `norm` existed
+in three tools including `perry-diagnose`; `perry-diagnose` has `norm_title`,
+which is a different function. Checked, not assumed — the claim was wrong in
+the direction that would have made the extraction touch a file it has no
+business touching.)
 
 So the first commit of this task is an extraction, not a feature:
 
