@@ -189,6 +189,18 @@ deserves to know when a value's *meaning* changed under it.
   standard board. A fallback that names a source which is not there is the
   defect this project keeps finding; the honest answer is that the age is
   unknown and the payload now says so.
+- **corrected** which events reach `tasks`. The board half of "these sections
+  are not tasks" was always right — the reader skips `## Intake`,
+  `## Cadence`, `## User Input Queue` and `## Top risks` by heading. The
+  *event* half folded every event that carried an id, so a user-input row
+  raised by `perry-task ask` arrived as a task with `status: "pending"`,
+  `open: false`, no priority and no group, counted in `closed`, and listed in
+  `untitled` when the question predated the `title` field. `perry-task
+  cadence-add` would have put its rows in the same place. Only events from
+  the subcommands that write a priority-table row are folded now. **This
+  changes a value, not a shape**: a consumer sees fewer rows, and the ones
+  that leave were never work. Section rows stay out of this payload — that is
+  still a `1.x` addition if a front-end asks for them.
 
 ### 1.2 — 2026-08-17
 

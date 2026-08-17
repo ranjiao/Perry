@@ -11,7 +11,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -151,6 +151,35 @@ class UserInput:
 
 
 @dataclass
+class Cadence:
+    """One row of `BOARD.md § Cadence` — a recurring ritual, not a task.
+
+    The section had readers and no writer until TASK-021, and the only reader
+    was `_parse_task_table`, which is built for a table this is not. On the
+    canonical cadence header its positional fallbacks land `Frequency` in
+    `status`, `Next due` in `next_action` and `Last evidence` in `evidence` —
+    so every cadence row in `perry-state --json` claimed a status of `weekly`,
+    a value the task enum does not contain and `tests/test_i18n.py` has to
+    special-case by heading to stay green.
+
+    This is the shape the register actually has. `next_due` is a stamped
+    absolute date — an assertion, not a clock — and `last_run` is the input it
+    was computed from, so a reader can check it instead of trusting it. Both
+    cells are free text on a real board: `n/a`, `continuous`, `2026-W32`, and
+    `**2026-08-31**（…）` are all live in one project's register today, and
+    none of them is a date this dataclass may reject. Parsing them is
+    `bin/perry-state`'s job and it reports what it could not read.
+    """
+    id: str
+    title: str
+    owner: str
+    frequency: str
+    next_due: str
+    last_run: str = ""
+    last_evidence: str = ""
+
+
+@dataclass
 class Risk:
     """A single risk line. `text` is the raw markdown."""
     text: str
@@ -192,6 +221,13 @@ class BoardState:
     p0: list[Task] = field(default_factory=list)
     p1: list[Task] = field(default_factory=list)
     p2: list[Task] = field(default_factory=list)
+    # Both views of `## Cadence`, produced by ONE parse. `cadence_items` is the
+    # register's real shape; `cadence` is the task-shaped projection the viewer
+    # template, `all_tasks` and the drift exclusion have always consumed. They
+    # are derived from each other rather than parsed separately, because two
+    # parsers of one table is the defect this repository has now fixed three
+    # times (`schema/README.md § Columns resolve by name`).
+    cadence_items: list[Cadence] = field(default_factory=list)
     cadence: list[Task] = field(default_factory=list)
     backbone_groups: list[tuple[str, list[Task]]] = field(default_factory=list)
     user_input_queue: list[UserInput] = field(default_factory=list)
@@ -442,7 +478,8 @@ def parse_board(text: str) -> BoardState:
         elif head.startswith("P2"):
             state.p2 = _parse_task_table(chunk, "P2")
         elif heading_is(head, "Cadence"):
-            state.cadence = _parse_task_table(chunk, "Cadence")
+            state.cadence_items = _parse_cadence(chunk)
+            state.cadence = [_cadence_as_task(c) for c in state.cadence_items]
         elif heading_is(head, "User Input Queue"):
             state.user_input_queue = _parse_user_input(chunk)
         elif heading_is(head, "Top risks"):
@@ -575,6 +612,252 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             )
         )
     return tasks
+
+
+# ── recurrence arithmetic ─────────────────────────────────────────────────
+#
+# ONE implementation, here, because it has two callers that must agree:
+# `bin/perry-task cadence-add/cadence-done` STAMPS `Next due` from it and
+# `bin/perry-state` READS the cell back to decide what is overdue. A writer
+# and a reader with separate copies of a period table is the same shape as a
+# writer and a reader with separate copies of a column order, and this
+# repository has now paid for that three times.
+#
+# The vocabulary comes off two real registers, not out of a design. `weekly`,
+# `monthly`, `quarterly` and `Nd` are the four the task named; `continuous`
+# and `hourly` are in a live project's `Frequency` column today and are
+# recognized as APERIODIC rather than rejected — a register whose whole
+# purpose is to record what repeats may not refuse the words a project uses
+# for the things that repeat constantly. An aperiodic row simply has no
+# computable due date, which is exactly what that project already writes in
+# its `Next due` cell (`n/a`, `continuous`).
+
+_NAMED_PERIODS: dict[str, tuple[int, str]] = {
+    "daily": (1, "d"), "nightly": (1, "d"), "every day": (1, "d"),
+    "weekly": (1, "w"), "every week": (1, "w"),
+    "biweekly": (2, "w"), "fortnightly": (2, "w"), "every other week": (2, "w"),
+    "monthly": (1, "m"), "every month": (1, "m"),
+    "bimonthly": (2, "m"),
+    "quarterly": (3, "m"), "every quarter": (3, "m"),
+    "semiannually": (6, "m"), "semi-annually": (6, "m"), "half-yearly": (6, "m"),
+    "yearly": (12, "m"), "annually": (12, "m"), "every year": (12, "m"),
+}
+
+# Recognized, and deliberately without a period. These are not errors.
+_APERIODIC = {
+    "continuous", "continuously", "ongoing", "hourly", "ad hoc", "adhoc",
+    "ad-hoc", "on demand", "on-demand", "as needed", "as-needed", "n/a", "na",
+}
+
+_UNITS = {"d": "d", "day": "d", "days": "d",
+          "w": "w", "week": "w", "weeks": "w",
+          "m": "m", "month": "m", "months": "m",
+          "q": "q", "quarter": "q", "quarters": "q",
+          "y": "y", "year": "y", "years": "y"}
+
+_EVERY_N = re.compile(r"^(?:every\s+)?(\d+)\s*([a-z]+)$")
+
+
+def parse_frequency(cell: str) -> tuple[str, int, str] | None:
+    """A `Frequency` cell → `("period", n, unit)` or `("aperiodic", 0, "")`.
+
+    `None` means the cell says something this build does not recognize. That is
+    reported by every caller and never guessed at: a frequency read wrongly
+    produces a due date that is confidently wrong, which is worse than a cell
+    the tool admits it cannot schedule from.
+    """
+    s = re.sub(r"[\s`*_]+", " ", cell or "").strip().lower()
+    if not s:
+        return None
+    if s in _APERIODIC:
+        return ("aperiodic", 0, "")
+    if s in _NAMED_PERIODS:
+        n, unit = _NAMED_PERIODS[s]
+        return ("period", n, unit)
+    m = _EVERY_N.match(s)
+    if m and _UNITS.get(m.group(2)):
+        n, unit = int(m.group(1)), _UNITS[m.group(2)]
+        if n <= 0:
+            return None
+        if unit == "q":
+            n, unit = n * 3, "m"
+        elif unit == "y":
+            n, unit = n * 12, "m"
+        return ("period", n, unit)
+    return None
+
+
+def advance(start: date, n: int, unit: str) -> date:
+    """`start` plus n days / weeks / months, clamping a short month.
+
+    Month arithmetic is calendar-based rather than 30-day, because the rituals
+    this register holds are calendar rituals: a month-end close moved 30 days
+    from 31 January lands on 2 March and stops being month-end. The clamp puts
+    it on 28 February instead, which is what a human running the close would do.
+    """
+    if unit == "d":
+        return start + timedelta(days=n)
+    if unit == "w":
+        return start + timedelta(weeks=n)
+    if unit != "m":
+        raise ValueError(f"unknown unit {unit!r}")
+    total = (start.year * 12 + start.month - 1) + n
+    year, month = divmod(total, 12)
+    month += 1
+    # Last day of the target month, so 31 Jan + 1 month is 28/29 Feb.
+    first_of_next = (date(year + 1, 1, 1) if month == 12
+                     else date(year, month + 1, 1))
+    last = (first_of_next - timedelta(days=1)).day
+    return date(year, month, min(start.day, last))
+
+
+def next_due_after(run: date, frequency: str) -> date | None:
+    """The date a ritual with this frequency is next due, having run on `run`.
+
+    `None` for an aperiodic or unrecognized frequency — there is nothing to
+    compute and the caller says so rather than inventing a date.
+    """
+    parsed = parse_frequency(frequency)
+    if not parsed or parsed[0] != "period":
+        return None
+    _, n, unit = parsed
+    return advance(run, n, unit)
+
+
+_ISO_WEEK = re.compile(r"(\d{4})-W(\d{1,2})\b", re.I)
+
+
+def parse_due(cell: str) -> date | None:
+    """A `Next due` cell → the date it is late after, or `None`.
+
+    The cell is prose on a real board and this function is the tolerant half of
+    the contract. Three live examples from one project's register:
+
+        n/a
+        **2026-08-31**（7 月版 ✅ 8/3 补作 → `evidence/2026-08/retro-2026-07.md`）
+        **2026-W32 friday-review (8/7)**（W31 版 ✅ 8/3 补作…）
+
+    A bare date wins. Failing that, an ISO week resolves to its **Sunday** —
+    a week-scoped ritual is not late on Monday, and taking the Monday would
+    report every weekly row as six days overdue for most of its own week.
+    Anything else returns `None` and is reported as unreadable rather than
+    treated as never due, which would silently exempt it from the only clock
+    governing it.
+    """
+    raw = cell or ""
+    m = re.search(r"\d{4}-\d{2}-\d{2}", raw)
+    if m:
+        try:
+            return datetime.strptime(m.group(0), "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    w = _ISO_WEEK.search(raw)
+    if w:
+        try:
+            return date.fromisocalendar(int(w.group(1)), int(w.group(2)), 7)
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_cadence(section: str) -> list[Cadence]:
+    """`BOARD.md § Cadence` — columns resolved by NAME, never by position.
+
+    Fourth implementation of this rule in this file, and the first one written
+    knowing what the real tables look like. Two shapes are live right now:
+
+    - `ID | Recurring task | Owner | Frequency | Next due | Last evidence` —
+      the template and the schema;
+    - `ID | Recurring task | Owner | Frequency | Next due` — a project that
+      keeps its evidence links inline in the `Next due` cell and has been
+      carrying a `table-columns` lint error for it.
+
+    A third appears the first time `perry-task cadence-done` runs on a board:
+    `Last run` joins at the end, because `ensure_section_columns` appends. Under
+    a positional rule that column would be read as `Last evidence` on one board
+    and as nothing on another. It is resolved by name here, and `Last run` has
+    no positional fallback at all — there is no position it has ever occupied,
+    and inventing one is how a reader starts making things up.
+
+    The positional fallbacks that DO exist reproduce, exactly, what
+    `_parse_task_table` did for this section before it had a parser of its own,
+    so a board whose headers this build cannot resolve keeps parsing as it did.
+    """
+    items: list[Cadence] = []
+    idx: dict[str, int] = {}
+    prev = ""
+    in_table = False
+    for line in section.split("\n"):
+        if re.match(r"^\|\s*---", line):
+            in_table = True
+            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+                      if prev.strip().startswith("|") else [])
+            idx = {}
+            for name in ("ID", "Recurring task", "Title", "Owner", "Frequency",
+                         "Next due", "Last run", "Last evidence", "Evidence"):
+                keys = _column_keys(name)
+                pos = next((i for i, h in enumerate(header) if h in keys), -1)
+                if pos >= 0:
+                    idx[name] = pos
+            continue
+        prev = line
+        if not in_table:
+            continue
+        stripped = line.strip()
+        if stripped == "" or stripped.startswith("###"):
+            # A `###` sub-group label or a blank line inside the section. Rows
+            # resume under the same header — same rule as `_parse_task_table`.
+            continue
+        if not line.startswith("|"):
+            in_table = False
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+
+        def cell(name: str, fallback: int = -1) -> str:
+            i = idx.get(name, fallback)
+            return cells[i] if 0 <= i < len(cells) else ""
+
+        cid = cell("ID", 0)
+        if not cid or cid.strip().lower() in _column_keys("ID"):
+            continue
+        items.append(
+            Cadence(
+                id=cid,
+                # `Recurring task` is this table's name for the column every
+                # other table calls `Title`; both resolve, and the canonical
+                # position is the same either way.
+                title=cell("Recurring task", -1) or cell("Title", 1),
+                owner=cell("Owner", 2),
+                frequency=cell("Frequency", 3),
+                next_due=cell("Next due", 4),
+                last_run=cell("Last run"),
+                last_evidence=cell("Last evidence", -1) or cell("Evidence", 5),
+            )
+        )
+    return items
+
+
+def _cadence_as_task(c: Cadence) -> Task:
+    """The task-shaped projection of a cadence row, for the consumers that
+    predate `Cadence` — `BoardState.all_tasks`, the viewer's board template and
+    `perry-state`'s drift exclusion, which keys on `priority == "Cadence"`.
+
+    It is deliberately lossy and deliberately unchanged: `status` carries the
+    frequency, which is not a task status and never was. Keeping it means this
+    refactor changes no payload; the honest reading is `cadence_items`.
+    """
+    return Task(
+        id=c.id,
+        title=c.title,
+        owner=c.owner,
+        status=_split_status(c.frequency)[0],
+        next_action=c.next_due,
+        evidence=c.last_evidence,
+        priority="Cadence",
+        status_note=_split_status(c.frequency)[1],
+    )
 
 
 def _parse_user_input(section: str) -> list[UserInput]:

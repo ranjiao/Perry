@@ -50,6 +50,10 @@ Usage:
   perry-task intake --title "…" [--arrived YYYY-MM-DD]
   perry-task ask    --needed "…" [--blocks <ID>] [--arrived YYYY-MM-DD]
   perry-task answer <USER-ID> --answer "…"
+  perry-task cadence-add  --title "…" --frequency <weekly|monthly|quarterly|Nd|…>
+                          [--owner O] [--on YYYY-MM-DD]
+  perry-task cadence-done <CAD-ID> --evidence <path> [--on YYYY-MM-DD]
+                          [--frequency F]
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
@@ -1273,6 +1277,210 @@ def cmd_answer(args, ctx) -> dict:
     return {"id": args.id, "answered": today, **plan}
 
 
+CAD_ID_RE = re.compile(r"\bCAD(?:ENCE)?-(\d+)\b")
+
+# The section's own columns. `Last run` is new and optional: it is the INPUT
+# `Next due` is computed from, and without it the due date is an assertion with
+# nothing on the board to check it against. `Last evidence` moved the other way
+# — from required to optional — because a real register does not have it and
+# was carrying a `table-columns` lint error for being right, exactly as `Idle`
+# was before TASK-039.
+CADENCE_COLUMNS = ["ID", "Recurring task", "Owner", "Frequency",
+                   "Last run", "Next due", "Last evidence"]
+
+FREQ_HELP = ("a period — `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`, "
+             "`yearly`, or `Nd`/`Nw`/`Nm` (`14d`, `every 3 weeks`) — or one of "
+             "the aperiodic words a real register already uses "
+             "(`continuous`, `hourly`, `ad hoc`, `on demand`), which record a "
+             "recurrence with no computable due date")
+
+
+def mint_cadence_id(board: Board, events: list[dict], state_root: Path) -> str:
+    """Next `CAD-NNN` from max(board ∪ journal ∪ events), like `mint_id`.
+
+    It counts `CADENCE-NNN` as well as `CAD-NNN`. That is not hypothetical
+    tidiness: a live register numbers its rows `CADENCE-000`, `CADENCE-002`,
+    `CADENCE-003`, and a minter blind to that prefix would hand out `CAD-001`
+    beside `CADENCE-002` and then `CAD-004` later — two numbering schemes in
+    one five-row table, with `CAD-002` and `CADENCE-002` both live and neither
+    obviously the other's neighbour. Reading both and minting one keeps the
+    sequence continuous on a board that already has a history.
+
+    Rows whose id carries no number at all (`CADENCE-NIGHTLY-RESEARCH`, also
+    live) are simply not part of the sequence — they cannot collide with a
+    number, so nothing needs to be done about them.
+    """
+    seen = {int(m) for m in CAD_ID_RE.findall(board.text())}
+    seen |= {int(m) for e in events for m in CAD_ID_RE.findall(e.get("id", ""))}
+    for p in sorted((state_root / "journal").rglob("*.md")):
+        try:
+            seen |= {int(m) for m in CAD_ID_RE.findall(p.read_text(errors="replace"))}
+        except OSError:
+            continue
+    return f"CAD-{max(seen, default=0) + 1:03d}"
+
+
+def check_frequency(freq: str, hint: str = "") -> tuple[str, int, str]:
+    parsed = P.parse_frequency(freq)
+    if parsed is None:
+        raise Refused(
+            f"frequency {freq!r} cannot be scheduled from. Give {FREQ_HELP}. "
+            f"A frequency this tool cannot read would produce a `Next due` that "
+            f"is confidently wrong, which is worse than refusing to stamp one"
+            + (f". {hint}" if hint else ""))
+    return parsed
+
+
+def parse_on(value: str | None, label: str) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except ValueError:
+        raise Refused(f"--on must be YYYY-MM-DD ({label}); got {value!r}")
+
+
+def stamp_due(run: date | None, freq: str) -> str:
+    """The `Next due` cell for a ritual with this frequency.
+
+    `n/a` for an aperiodic one, matching what a live register already writes in
+    that cell rather than introducing a second spelling for the same idea.
+    """
+    due = P.next_due_after(run or date.today(), freq)
+    return f"{due:%Y-%m-%d}" if due else "n/a"
+
+
+def cmd_cadence_add(args, ctx) -> dict:
+    """Register a recurring ritual, and stamp the first `Next due`.
+
+    `BOARD.md § Cadence` is the register `modes/queue.md` builds its highest-
+    value triage question on ("what recurs?"), `work/reference/subcommands.md`
+    tells triage to surface rows past their `Next due`, and
+    `perry-state --json` reported a count of them. Three readers, no writer:
+    every row, every id and every due date was typed by hand.
+
+    `Next due` is the cell that made that expensive. It is COMPUTED — frequency
+    plus the last run — so a human had to redo the arithmetic after every
+    single occurrence, and a register nobody re-dates is a register that reports
+    everything as either permanently overdue or permanently fine. Both of those
+    were live: one project's rows read `2026-W32` and `**2026-08-31**` with a
+    parenthetical explaining which occurrences had been skipped, which is what
+    a human keeping a computed cell by hand actually produces.
+
+    So the tool owns the id, the frequency, the dates and the arithmetic. The
+    prose — what the ritual is — stays the agent's, exactly as `ask` splits it.
+    """
+    if not args.title:
+        raise Refused("--title is required: it is what recurs")
+    if not args.frequency:
+        raise Refused(f"--frequency is required. Give {FREQ_HELP}")
+    kind, _, _ = check_frequency(args.frequency)
+    sr = ctx["state_root"]
+    # A registration is not a run. `--on` is for a ritual that already has a
+    # history — "it last ran on this date" — and when it is absent `Last run`
+    # stays empty rather than being stamped with today, because stamping it
+    # would assert an occurrence that did not happen and make the very first
+    # `Next due` unverifiable in the same stroke.
+    ran = parse_on(args.on, "the date the ritual last ran")
+    cid = mint_cadence_id(ctx["board"], ctx["events"], sr)
+    due = stamp_due(ran, args.frequency)
+
+    ctx["board"].ensure_section("Cadence", CADENCE_COLUMNS, before_p0=False)
+    ctx["board"].ensure_section_columns(
+        "Cadence", ["Frequency", "Next due", "Last run"])
+    line = ctx["board"].append_section_row("Cadence", {
+        "id": cid, "recurring task": args.title, "title": args.title,
+        "owner": args.owner or "Coding Agent",
+        "frequency": args.frequency,
+        "last run": f"{ran:%Y-%m-%d}" if ran else "—",
+        "next due": due,
+        "last evidence": "—", "evidence": "—"})
+    jline = (f"- [{cid}] — → registered · {args.title} · "
+             f"frequency: {args.frequency} · next due {due}")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "cadence-add", "id": cid, "title": args.title,
+             "frequency": args.frequency, "kind": kind,
+             "last_run": f"{ran:%Y-%m-%d}" if ran else "",
+             "next_due": due, "actor": args.actor,
+             "from": None, "to": "registered"}
+    plan = commit(ctx["project_root"], sr, ctx["board"], jline, event, args.dry_run)
+    return {"id": cid, "next_due": due, "row": line, **plan}
+
+
+def cmd_cadence_done(args, ctx) -> dict:
+    """Record one occurrence, and RECOMPUTE `Next due` in the same write.
+
+    This is the half that makes the register self-maintaining. `done` on a task
+    removes a row; a ritual has no such end — the only thing that changes is
+    that its clock restarts. So the run is stamped into `Last run`, the
+    evidence into `Last evidence`, and `Next due` is derived from the row's own
+    `Frequency` rather than from anything the caller asserts.
+
+    `--evidence` is required for the same reason `done` requires it: a claim
+    that the month-end close ran, citing nothing, is a claim about confidence.
+    """
+    cid = args.id
+    if not cid:
+        raise Refused("cadence-done takes the row's id: perry-task cadence-done "
+                      "CAD-001 --evidence <path>")
+    if not args.evidence:
+        raise Refused(
+            f"{cid}: --evidence is required. A recurring task that reports "
+            f"itself run, citing nothing, is exactly the ritual nobody notices "
+            f"has stopped happening")
+    idx, header, cells = ctx["board"].find_section_row("Cadence", cid)
+    keys = [norm(h) for h in header]
+    values = dict(zip(keys, cells))
+    # By NAME. The register has at least two live column counts and a third
+    # appears the moment `Last run` is added, so the frequency is not at a
+    # fixed offset on any board this will ever run against.
+    freq = (args.frequency or values.get("frequency", "")).strip()
+    if not freq:
+        raise Refused(
+            f"{cid} has no readable `Frequency` cell, so `Next due` cannot be "
+            f"recomputed. Pass --frequency to set it in this same write")
+    # A row whose `Frequency` is prose the tool cannot read blocks the run from
+    # being recorded, which is why the refusal names the way through: the same
+    # write can set the frequency. Refusing without that would trade one lost
+    # record for another.
+    check_frequency(freq, f"Pass --frequency to correct {cid}'s cell in this "
+                          f"same write")
+    ran = parse_on(args.on, "the date the run happened") or date.today()
+    due = stamp_due(ran, freq)
+
+    ctx["board"].ensure_section_columns("Cadence", ["Last run", "Next due"])
+    _, header = ctx["board"].section_table("Cadence")
+    keys = [norm(h) for h in header]
+    prev_due = values.get("next due", "")
+    values["frequency"] = freq
+    values["last run"] = f"{ran:%Y-%m-%d}"
+    values["next due"] = due
+    # `Last evidence` is optional in the schema because a live register does
+    # not have it. So the column is resolved, then created if the board has
+    # neither spelling — never dropped. A path silently discarded here is the
+    # `--commitment` defect again, and what it would lose is the only artifact
+    # proving the run happened.
+    ev_key = next((k for k in ("last evidence", "evidence") if k in keys), None)
+    if ev_key is None:
+        header = ctx["board"].ensure_section_columns("Cadence", ["Last evidence"])
+        keys = [norm(h) for h in header]
+        ev_key = "last evidence"
+    values[ev_key] = args.evidence
+    ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
+
+    jline = (f"- [{cid}] ran {ran:%Y-%m-%d} · {values.get('recurring task', '')} · "
+             f"evidence: `{args.evidence}` · next due {due}")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "cadence-done", "id": cid,
+             "title": values.get("recurring task", ""), "frequency": freq,
+             "last_run": f"{ran:%Y-%m-%d}", "next_due": due,
+             "previous_due": prev_due, "evidence": args.evidence,
+             "actor": args.actor, "from": "due", "to": "ran"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": cid, "last_run": f"{ran:%Y-%m-%d}", "next_due": due, **plan}
+
+
 def cmd_route(args, ctx) -> dict:
     """Move an intake row onto the board, carrying `Arrived` with it.
 
@@ -1446,7 +1654,17 @@ def cmd_list(args, ctx) -> dict:
 
     for e in ctx["events"]:
         tid = e.get("id", "")
-        if not tid:
+        if not tid or e.get("event") not in TASK_EVENTS:
+            # `## User Input Queue` and `## Cadence` rows are not tasks and
+            # `schema/task-list-contract.md § What this contract does not
+            # cover` says so in as many words. This loop folded EVERY event
+            # carrying an id, so a `USER-015` arrived here as a task with
+            # `status: "pending"` and `open: false` — a row in the closed count
+            # that was never work, on a payload whose whole purpose is that a
+            # front-end can trust it without a second parser. `cadence-add`
+            # would have put `CAD-001 · status: "registered"` in the same
+            # place. The board half of this was always right: `_task_sections`
+            # skips both headings. Only the event fold was not.
             continue
         t = tasks.setdefault(tid, blank(tid))
         # A row that has left the board is closed; one still on it stays open,
@@ -1548,6 +1766,7 @@ def parse(argv: list[str]) -> Args:
     a.actor = "agent"
     a.arrived = a.reason = a.outcome = a.status = None
     a.needed = a.blocks = a.answer = None
+    a.frequency = a.on = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -1557,7 +1776,8 @@ def parse(argv: list[str]) -> Args:
              "--arrived": "arrived", "--reason": "reason",
              "--outcome": "outcome", "--status": "status",
              "--actor": "actor", "--needed": "needed",
-             "--blocks": "blocks", "--answer": "answer"}
+             "--blocks": "blocks", "--answer": "answer",
+             "--frequency": "frequency", "--on": "on"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):
@@ -1589,8 +1809,20 @@ def parse(argv: list[str]) -> Args:
 # leaving `drop` accepted but undispatched (a bare KeyError), once leaving
 # `drop`, `status` and `resolve-intake` out of the "expected one of" line. A
 # name added here is reachable, dispatchable and advertised in one edit.
+# Which events describe a `## P0`/`## P1`/`## P2` row, and which describe one of
+# the board sections that are explicitly not tasks. Written as a partition of
+# `COMMANDS` rather than as one list, and checked to BE a partition by
+# `tests/test_cadence.py`, because the alternative shapes both fail silently: an
+# allowlist drops a future event from the payload, a denylist leaks one into it,
+# and either way nobody finds out until a consumer reports it. This file has
+# already lost that bet twice with a tuple and a dict holding "the same" list.
+TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "done", "drop"})
+SECTION_EVENTS = frozenset({"intake", "resolve-intake", "ask", "answer",
+                            "cadence-add", "cadence-done"})
+
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "ask": cmd_ask, "answer": cmd_answer,
+            "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "status": cmd_status, "list": cmd_list}

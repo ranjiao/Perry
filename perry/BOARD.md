@@ -29,7 +29,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | not_started | DESIGN-003 phase D — blocked-by TASK-020 | — | V4 |
+| TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | review | Cadence half shipped: perry-task cadence-add/cadence-done, overdue reporting in perry-state, schema + 42 tests. Evidence: `evidence/2026-08/TASK-021-recurrence-register.md`. The `OKR.md § Commitments` half of this row's title is descoped to the goals lane — re-title or split before closing | — | V4 |
 | TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F — blocked-by TASK-030; **needs your V5**, it is the one a different program's user has to accept | — | V5 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 | TASK-037 | perry-goals writer | Coding Agent | not_started | DESIGN-005 step 3 — byte-identity test against existing OKR.md BEFORE any write path ships | — |  |

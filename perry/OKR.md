@@ -87,8 +87,70 @@ aiMark reads tasks through `perry-task/list/1.2` and its OKR chain view still pa
 
 —
 
+## v2: 2026-08-17
+
+Adds Objective 5 — the runtime layer `DESIGN-006` defines: roles that execute
+tasks and the revisable domain knowledge they load. v1 (set the same day) had
+no objective covering it; forcing attribution under O3 would be the guessed
+linkage `reference/okr-linkage.md` forbids. O1–O4 carry over from v1 unchanged
+and are restated below because the current-version block is what every reader
+parses; see `## v1` for their original rationale paragraphs.
+
+### Objective 1 — The four work modes are usable, not just declared
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O1.1 | Non-`project` modes running on live tracks in real projects (baseline 0 of 3) | 3 of 3 modes live | no | 2026-10-15 |
+| KR-O1.2 | Each live track's mode-specific triage question produces real output — pipeline WIP, queue SLA age, inquiry provenance | 3 of 3 | no | 2026-11-01 |
+| KR-O1.3 | Declaring or changing a track's mode requires editing exactly one file (`.perry/config.md`) and rewriting no state | 1 file, 0 rewrites | no | 2026-10-15 |
+
+### Objective 2 — Every piece of state is queryable and writable by deterministic code
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O2.1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | no | 2026-09-15 |
+| KR-O2.2 | `DESIGN-005` step 4 done — the append-only log is canonical for tasks, `BOARD.md` is a rendered view, and a hand edit raises a reconcile prompt rather than being overwritten. V5, user-signed | signed | no | 2026-10-31 |
+| KR-O2.3 | Lane procedures instructing a hand-write for state a tool covers, found by the mechanical guard (baseline 0 after round 4; the number that must stay there) | 0 | no | 2026-11-17 |
+| KR-O2.4 | Contract-payload keys documented but not emitted, or emitted but not documented, across all three contracts | 0 | yes | 2026-09-30 |
+
+### Objective 3 — Perry is landed on three named real projects
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O3.1 | `PolyForge` adopted — `.perry/` anchor, a board, at least one KR, and `perry-lint` reporting zero errors (baseline: not adopted) | 0 errors | no | 2026-09-30 |
+| KR-O3.2 | `gimegime-pmo` lint errors (baseline 61) | 0 errors | no | 2026-10-15 |
+| KR-O3.3 | Rows/decisions/KRs present in a project's files but absent from its contract payload, across all three projects | 0 dropped | no | 2026-10-31 |
+| KR-O3.4 | Adoption of each project required zero rewrites of files Perry did not author | 0 rewrites | no | 2026-09-30 |
+
+### Objective 4 — aiMark manages projects through Perry
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O4.1 | Lines in aiMark parsing Perry's markdown (baseline: the whole chain view) | 0 lines | no | 2026-09-30 |
+| KR-O4.2 | A versioned, test-locked **write** contract exists, so a front-end can create, advance and close a task without knowing a file format | 1 contract | no | 2026-10-15 |
+| KR-O4.3 | A full task lifecycle — create → start → close with evidence — driven end to end from the aiMark UI against a real project | 1 lifecycle | no | 2026-11-17 |
+| KR-O4.4 | Goals and decisions writable from aiMark on the same contract shape | 2 of 2 lanes | yes | 2026-11-17 |
+
+### Objective 5 — Tasks are executed by roles that know things
+
+`DESIGN-006` (in_review): a role card is a hiring contract the harness
+instantiates, never a workflow; a knowledge card cannot exist without
+provenance. Ordered knowledge-first per its decision #1.
+
+| Id | KR | Metric / Target | Stretch? | Deadline |
+|----|----|------------------|----------|----------|
+| KR-O5.1 | Knowledge cards enforce provenance — owner role, source, last-verified, invalidation trigger — via `perry-lint --knowledge` (baseline: no card schema) | lint live · 0 violations | no | 2026-09-30 |
+| KR-O5.2 | Capture points offering promotion of an evidence finding into a knowledge card — `close-task`, `end-phase-retro`, incident close (baseline 0 of 3) | 3 of 3 | no | 2026-10-31 |
+| KR-O5.3 | Delegation prompts rendered from role cards; hardcoded agent types in `work/reference/delegate.md` (baseline 3) | 0 hardcoded | no | 2026-11-01 |
+| KR-O5.4 | One finance-shaped role runs a real task end to end — role card + subscribed knowledge injected + escalation union armed (`DESIGN-006` phase F pass condition) | 1 lifecycle | no | 2026-11-17 |
+
+### Retro — v2     <!-- filled when the version closes; until then, leave empty -->
+
+—
+
 ## Versioning log
 
 | Version | Date | What changed | Why |
 |---|---|---|---|
 | v1 | 2026-08-17 | First OKR. Perry had tracked itself with `work` only since `ADR-001`; goals were never set up. | The `goals` lane and `perry-goals/list/2.0` shipped, and nothing was exercising them — including the `linkage` path, which no project reaches. |
+| v2 | 2026-08-17 | Added Objective 5 — the runtime layer (roles + revisable domain knowledge, `DESIGN-006`). O1–O4 unchanged. | v1 covered no runtime-layer work; `DESIGN-006` resolved its user decisions the same day, and an unlinked implementation would be excluded from every KR roll-up. |

@@ -162,10 +162,19 @@ next-due. `BOARD.md § Cadence` is that register, and it already exists:
 ```markdown
 ## Cadence (recurring; doesn't consume P0 slots)
 
-| ID | Recurring task | Owner | Frequency | Next due | Last evidence |
-|---|---|---|---|---|---|
-| CAD-01 | Month-end vendor reconciliation | User + Agent | monthly | 2026-09-01 | runbook/month-end-close.md |
+| ID | Recurring task | Owner | Frequency | Last run | Next due | Last evidence |
+|---|---|---|---|---|---|---|
+| CAD-001 | Month-end vendor reconciliation | User + Agent | monthly | 2026-08-01 | 2026-09-01 | runbook/month-end-close.md |
 ```
+
+**The register has a writer.** `perry-task cadence-add` mints the id and stamps
+the first `Next due`; `perry-task cadence-done <id> --evidence <path>` records
+an occurrence and recomputes `Next due` from the row's `Frequency`. `Next due`
+is a derived cell, and until it had a writer a human redid that arithmetic after
+every occurrence — which nobody does, so the register drifts into reporting
+everything as permanently overdue or permanently fine. `Last run` stores the
+input the due date is computed from, so it can be checked instead of trusted.
+See `work/reference/subcommands.md`.
 
 The **procedure** goes in `runbook/<slug>.md` — an existing claimed path
 (`schema/state-schema.json § claims[]`), so converting a recurring request into
@@ -234,7 +243,10 @@ Ordered:
 4. **What recurs** — anything seen three times becomes a Cadence row with a
    runbook, or is explicitly declined.
 5. **Overdue recurrences** — Cadence rows past `Next due`, surfaced exactly the
-   way a stale User Input Queue item is.
+   way a stale User Input Queue item is. Read `cadence.overdue` out of
+   `perry-state --json`, sorted and aged for you; a periodic ritual whose
+   `Next due` cell yields no date at all is in `cadence.undated` and is the row
+   most likely to have stopped happening without anyone noticing.
 
 **The review period** is the track's `Cycle` cell (`.perry/config.md § Tracks`)
 — `monthly`, `2026-W34`, whatever fits. It reports throughput, breaches and

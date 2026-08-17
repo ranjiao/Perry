@@ -561,6 +561,11 @@
           "最近证据"
         ]
       },
+      "Last run": {
+        "zh": [
+          "上次执行"
+        ]
+      },
       "Metric / Target": {
         "zh": [
           "指标 / 目标值"
@@ -894,14 +899,18 @@
         },
         {
           "under": "^Cadence\\b|^例行节奏",
+          "note": "The recurrence register (DESIGN-003, `modes/queue.md` § Recurrence is a first-class object here). Written by `perry-task cadence-add` / `cadence-done`, read by `perry-state`, which reports rows past `Next due` by age. `Frequency` is NOT enum-checked: `weekly`, `monthly`, `quarterly` and `Nd` are what the tool writes, but `continuous` and `hourly` are live in a real project's register and mean a recurrence with no computable due date. Reading is tolerant and writing is strict — `perry-task` refuses a frequency it cannot schedule from; nothing rejects a cell a project already wrote. `Next due` is likewise free text: `n/a`, `2026-W32` and `**2026-08-31**（…）` are all live, and `bin/perry-state` reports the cells it could not read rather than treating them as never due.",
           "columns": [
             "ID",
             "Recurring task",
             "Owner",
             "Frequency",
-            "Next due",
-            "Last evidence"
-          ]
+            "Next due"
+          ],
+          "optional_columns": {
+            "Last run": "YYYY-MM-DD the ritual last ran. Stamped by `perry-task cadence-done`. This is the INPUT `Next due` is computed from, and it exists so the due date can be CHECKED rather than trusted: without it, a `Next due` cell asserts a schedule with nothing on the board to derive it from, and an edited `Frequency` silently invalidates it with no way to tell. Same discipline as `Stage since`, `Arrived` and `Asked` — store the event's date, compute the derived value at read time. Absent on a row that has never run, which is not the same as a row that ran long ago.",
+            "Last evidence": "Path to the artifact of the most recent run. Was REQUIRED until TASK-021, and a live register that keeps its evidence links inline in `Next due` carried a `table-columns` error for the whole time — a project penalized for a column it had a reason not to have, exactly as `Idle` was before TASK-039. `perry-task cadence-done` creates the column when it needs to write one, so requiring it up front bought nothing."
+          }
         }
       ],
       "anchor": "state"
