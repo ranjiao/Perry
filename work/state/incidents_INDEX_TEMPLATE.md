@@ -7,7 +7,7 @@
 > With derived changes: 0 / 0
 > Last rebuilt: {{YYYY-MM-DD}}
 
-Auto-maintained by the `/pmo incident` subcommands. The "with derived changes" ratio is the feedback-loop health metric — high ratio = incidents are driving structural improvements; low ratio = fixes are happening but lessons are being lost.
+Auto-maintained by the `/perry work incident` subcommands. The "with derived changes" ratio is the feedback-loop health metric — high ratio = incidents are driving structural improvements; low ratio = fixes are happening but lessons are being lost.
 
 ## Open
 

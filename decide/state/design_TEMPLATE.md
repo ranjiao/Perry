@@ -28,7 +28,7 @@ What this design will deliberately NOT do. Often more important than Goals.
 
 ALL rows must be resolved before this doc can move to `Status: locked`.
 
-The **Options** column uses pipe-separated short labels (≤ 5 words each, 2–4 options) so `design decide` can map each cell directly to `AskUserQuestion` button options without rephrasing. If you need longer explanations, add them as bullets below the table — keep the cell terse.
+The **Options** column uses pipe-separated short labels (≤ 5 words each, 2–4 options) so `/perry decide resolve` can map each cell directly to `AskUserQuestion` button options without rephrasing. If you need longer explanations, add them as bullets below the table — keep the cell terse.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|

@@ -60,8 +60,8 @@ The honest record, because DESIGN-003 § 7 made this task the test of whether th
 pack abstraction survives contact with real material. It did — with two
 corrections that the design did not anticipate.
 
-**1 · `git-boundaries.md` is not software-ops, and was left in core.**
-TASK-024's deliverable named four files. Only three moved. `git-boundaries.md`
+**1 · `$PERRY_HOME/work/reference/git-boundaries.md` is not software-ops, and was left in core.**
+TASK-024's deliverable named four files. Only three moved. `$PERRY_HOME/work/reference/git-boundaries.md`
 declares which *role* may commit, push, open a PR and merge — Coding Agent
 commits its own work on a feature branch, PMO Agent never commits code, nobody
 merges their own PR. None of that is about software: a research vault, a content

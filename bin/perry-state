@@ -800,7 +800,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     board_path = root / "BOARD.md"
     board_lines = len(board_path.read_text(errors="replace").split("\n")) if board_path.exists() else 0
     if board_lines > 200:
-        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /pmo triage.")
+        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /perry work triage.")
 
     phase_rel = f"phase/{snap.phase.slug}.md" if snap.phase else None
     caps = tier1_caps(root, phase_rel)
@@ -817,20 +817,20 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     hook = hook_profile(perry_root)
     if not hook["high_stakes_armed"]:
         warnings.append(
-            "No high-stakes list in .perry/hook.md — /pmo dispatch and /pmo autopilot "
+            "No high-stakes list in .perry/hook.md — /perry work dispatch and /perry work autopilot "
             "have nothing to match against; the safety scan is unarmed."
         )
 
     sunsets = expired_sunsets(snap.adrs)
     for s in sunsets:
-        warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /pmo decide --expire {s['id']}.")
+        warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /perry decide adr --expire {s['id']}.")
 
     if snap.arch_meta.exists:
         if snap.arch_meta.status.lower().startswith("draft"):
             warnings.append("ARCHITECTURE.md is still Status: draft.")
         rev = days_since(snap.arch_meta.last_reviewed)
         if rev is not None and rev > 180:
-            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /pmo architecture review.")
+            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
 
     payload = {
         "schema": 1,

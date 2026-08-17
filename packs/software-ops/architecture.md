@@ -125,7 +125,7 @@ Quick read-only: show `git diff` of `ARCHITECTURE.md` since last standup. Useful
 
 ## Dispatch integration — the enforcement loop
 
-See `dispatch.md § Pre-flight` and `§ Architecture compliance` for the wire-level detail. Summary here:
+See `$PERRY_HOME/work/reference/dispatch.md § Pre-flight` and `§ Architecture compliance` for the wire-level detail. Summary here:
 
 ### Pre-flight — inject the doc
 
@@ -186,7 +186,7 @@ The review agent's output is appended to the dispatch evidence file under `## Ar
 
 ### close-task gate
 
-`close-task` (see `subcommands.md § close-task`) gains one more check, BEFORE the runbook gate:
+`close-task` (see `$PERRY_HOME/work/reference/subcommands.md § close-task`) gains one more check, BEFORE the runbook gate:
 
 > If the spec has `Touches architecture:` non-empty, the latest dispatch's evidence file must contain an `## Architecture review` section ending in `PASS`. If `FAIL` or missing, refuse close. Override path exists (same shape as runbook override) — written reason, journal-logged.
 
@@ -206,7 +206,7 @@ Empty field → spec is malformed; `add-task` refuses to write.
 
 ## Autopilot integration
 
-`autopilot` (see `autopilot.md`):
+`autopilot` (see `$PERRY_HOME/work/reference/autopilot.md`):
 - A spec with hard non-negotiables in `Touches architecture:` is **skipped — high-stakes** (cannot be auto-dispatched).
 - A spec with only soft sections touched runs through the same pre-flight + review agent gate; autopilot doesn't get to bypass.
 - Cost note: every autopilot dispatch now includes the review agent call → roughly 2x token consumption per task. Per-project `## Autopilot defaults` hook may tighten `max_dispatches` accordingly.

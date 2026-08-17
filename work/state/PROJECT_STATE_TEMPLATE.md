@@ -20,7 +20,7 @@
 
 ## Risks
 
-> Format: severity (H/M/L) · description · owner · mitigation · status. Triaged via `pmo risk`.
+> Format: severity (H/M/L) · description · owner · mitigation · status. Triaged via `/perry work risk`.
 
 - [ ] H · {{risk}} · {{owner}} · {{mitigation}} · open
 - [ ] M · {{risk}} · {{owner}} · {{mitigation}} · open

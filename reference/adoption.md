@@ -264,15 +264,15 @@ Write in dependency order, each through its owning subcommand:
 | Candidate kind | Target | Written by |
 |---|---|---|
 | — | `.perry/config.md` | `/perry` setup (language + repo layout) |
-| `objective`, `kr` | `OKR.md` | `/okr init` |
-| `phase`, phase KRs | `phase/001-<slug>.md` + `phase/<NNN>-linkage.md` | `/okr plan-phase` |
-| `design` | `design/<ID>-<slug>.md` | `/design new` |
-| `task` | `BOARD.md` + journal | `/pmo add-task` |
-| — | linkage `tasks[]` edges | `/okr link` (from the cluster→KR map) |
-| `decision` | `decisions/ADR-NNN-*.md` | `/pmo decide` |
-| `knowledge` | `knowledge/<topic>/` | `/pmo digest` |
-| `arch` | `ARCHITECTURE.md` | `/pmo architecture init` |
-| `risk` | `PROJECT_STATE.md § Risks` | `/pmo risk` |
+| `objective`, `kr` | `OKR.md` | `/perry goals init` |
+| `phase`, phase KRs | `phase/001-<slug>.md` + `phase/<NNN>-linkage.md` | `/perry goals plan-phase` |
+| `design` | `design/<ID>-<slug>.md` | `/perry decide new` |
+| `task` | `BOARD.md` + journal | `/perry work add-task` |
+| — | linkage `tasks[]` edges | `/perry goals link` (from the cluster→KR map) |
+| `decision` | `decisions/ADR-NNN-*.md` | `/perry decide adr` |
+| `knowledge` | `knowledge/<topic>/` | `/perry work digest` |
+| `arch` | `ARCHITECTURE.md` | `/perry work architecture init` |
+| `risk` | `PROJECT_STATE.md § Risks` | `/perry work risk` |
 
 **`commit` is resumable and idempotent.** It writes through nine subcommands, and
 a session that dies partway leaves some of them done. Two rules make re-entry
@@ -380,7 +380,7 @@ that `schema/README.md § The linkage contract` calls out.
 **So attribution is done per cluster.** After the OKR and phase are confirmed,
 render the accepted clusters against the phase KRs (`AskUserQuestion`, header =
 cluster name, options = candidate KR ids + "none of these → unlinked"). Every task
-in the cluster inherits the edge; the edges are handed to `/okr link`, which owns
+in the cluster inherits the edge; the edges are handed to `/perry goals link`, which owns
 `phase/<NNN>-linkage.md`.
 
 This is ~6 decisions instead of ~40, and every edge is still **declared by the

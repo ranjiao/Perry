@@ -38,7 +38,7 @@ Naming: ISO date + 1–3 word slug. Examples: `2026-05-12-deploy-stuck.md`, `202
 
 1. Compute filename: `incidents/<today>-<slug>.md`.
 2. If file exists already today with that slug, prompt: `Append to existing | Make new with -2 suffix | Cancel`.
-3. Create file from `state/incident_TEMPLATE.md`. Pre-fill: date, slug, status `open`, opened-by `user` or `pmo`.
+3. Create file from `$PERRY_HOME/work/state/incident_TEMPLATE.md`. Pre-fill: date, slug, status `open`, opened-by `user` or `pmo`.
 4. Ask the user to fill the **Symptom** field via free-text prompt (the only mandatory at-open field). Everything else can be filled later.
 5. Append a one-line entry to today's journal under `## Notes`: `Incident opened: <slug> (<symptom one-liner>)`.
 6. Update `incidents/INDEX.md`.
@@ -90,7 +90,7 @@ Default: list open incidents (status ≠ `resolved` and ≠ `archived`). With `-
 
 Manually mark an incident `archived` (no longer relevant, e.g., the component itself was deprecated). Preserves the file; only flips status. Surfaced separately in `INDEX.md`.
 
-## Incident template (`state/incident_TEMPLATE.md`)
+## Incident template (`$PERRY_HOME/work/state/incident_TEMPLATE.md`)
 
 ```markdown
 # Incident — {{YYYY-MM-DD}} — {{slug}}
@@ -152,7 +152,7 @@ Filled at close-time by the 3-question gate:
 PMO does NOT create `incidents/` at project bootstrap. It's created lazily on first `/pmo incident <slug>`. On that event:
 
 1. `mkdir -p incidents/`
-2. Create `incidents/INDEX.md` from `state/incidents_INDEX_TEMPLATE.md`.
+2. Create `incidents/INDEX.md` from `$PERRY_HOME/work/state/incidents_INDEX_TEMPLATE.md`.
 3. Proceed with incident creation.
 
 ## Why the 3-question gate is non-negotiable

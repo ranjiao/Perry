@@ -10,7 +10,7 @@ A **deployed component** is anything that runs unattended after the dispatch clo
 - A scheduled deploy, alert, ingest job, or any other process that touches real state on its own.
 - A canned op the user invokes by name (e.g., a Slack command, a CLI alias).
 
-A **runbook** is a markdown file at `runbook/<component>.md` that answers — at minimum — four questions, in this fixed order: **What it does · How to tell it's healthy · Common failures + canned ops · Escalation**. Template: `state/runbook_TEMPLATE.md`.
+A **runbook** is a markdown file at `runbook/<component>.md` that answers — at minimum — four questions, in this fixed order: **What it does · How to tell it's healthy · Common failures + canned ops · Escalation**. Template: `$PERRY_HOME/work/state/runbook_TEMPLATE.md`.
 
 **Tier 1 hard cap: ≤ 150 lines.** Runbooks live or die by being readable in a moment of crisis. PMO refuses writes that would exceed. Overflow → split troubleshooting matrix to `runbook/<component>-troubleshooting.md` (still tier 1, just chaptered). The main `runbook/<component>.md` keeps the four mandatory sections in their canonical short form; the companion `-troubleshooting.md` carries the long failure-mode reference. See `work/SKILL.md § Two file models § Axis B`.
 
@@ -50,7 +50,7 @@ These three are not narrative — they're machinery. "It will log on success" is
 
 ## `close-task` gate (the enforcement)
 
-When `/pmo close-task <id>` fires (see `subcommands.md § close-task`), before flipping to `done`:
+When `/pmo close-task <id>` fires (see `$PERRY_HOME/work/reference/subcommands.md § close-task`), before flipping to `done`:
 
 1. Open `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Grep for `Deployed:`.
 2. If `Deployed: yes`:
@@ -91,12 +91,12 @@ Gaps with no user response are surfaced in the next standup as a `🚧` line: `R
 PMO does NOT create `runbook/` at project bootstrap by default. It's created lazily, the first time a task spec uses `Deployed: yes`. On that event:
 
 1. `mkdir -p runbook/`
-2. Create `runbook/INDEX.md` from `state/runbook_INDEX_TEMPLATE.md` (empty catalog).
+2. Create `runbook/INDEX.md` from `$PERRY_HOME/work/state/runbook_INDEX_TEMPLATE.md` (empty catalog).
 3. Tell the user: "First deployed component in this project. Runbook required at close-task time. See `runbook/INDEX.md`."
 
 For projects with a `.perry/hook.md` declaring an `## Operational profile` section (see § Per-project hooks below), bootstrap creates `runbook/` immediately and seeds it with known components.
 
-## Runbook template (`state/runbook_TEMPLATE.md`)
+## Runbook template (`$PERRY_HOME/work/state/runbook_TEMPLATE.md`)
 
 ```markdown
 # Runbook — {{component-slug}}

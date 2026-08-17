@@ -2,13 +2,13 @@
 
 > **Tier 1** (user-read-and-edit). Written once at PMO bootstrap, then owned by you.
 > Hooks are **pure additions** to Perry's generic behavior — they never override a core rule.
-> Read at every standup by `/pmo`, `/okr`, `/design`.
+> Read at every standup by `/perry work`, `/perry goals`, `/perry decide`.
 
 ## High-stakes operations
 
-> **This section is a safety gate, not documentation.** `/pmo dispatch` scans
+> **This section is a safety gate, not documentation.** `/perry work dispatch` scans
 > every spec's `Files in scope` / `Deliverable` against this list and refuses on
-> a match; `/pmo autopilot` skips matching rows outright and **refuses to run at
+> a match; `/perry work autopilot` skips matching rows outright and **refuses to run at
 > all if this list is empty**. An empty list does not mean "nothing is
 > dangerous" — it means the gate has nothing to match, so Perry treats it as
 > unarmed.

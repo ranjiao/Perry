@@ -37,7 +37,7 @@
 
 ## Blockers
 
-> Open `blocked` items + idle items flagged by `pmo triage`.
+> Open `blocked` items + idle items flagged by `/perry work triage`.
 
 - ⚠️ [{{TASK-ID}}] {{title}} — blocked-by:{{dep}} — idle {{n}}d
 

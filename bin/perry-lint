@@ -618,8 +618,8 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     if not armed:
         findings.append(Finding(
             "warn", ".perry/hook.md", "hook-high-stakes-armed",
-            "no high-stakes operations list — /pmo dispatch's safety re-validation and "
-            "/pmo autopilot's safety scan have nothing to match against",
+            "no high-stakes operations list — /perry work dispatch's safety re-validation and "
+            "/perry work autopilot's safety scan have nothing to match against",
         ))
     return findings
 

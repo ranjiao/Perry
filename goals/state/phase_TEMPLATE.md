@@ -108,7 +108,7 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 ## Week-by-week breakdown
 
-> `okr plan-week` reads the row for the current ISO week, proposes tasks, and (after user approval) PMO appends them to `BOARD.md`. Fill `TASK-IDs` as the week unfolds. Weeks below are loose ISO-week labels — they do NOT bound the phase; the phase ends on `score-phase`, not when the table runs out.
+> `/perry goals plan-week` reads the row for the current ISO week, proposes tasks, and (after user approval) PMO appends them to `BOARD.md`. Fill `TASK-IDs` as the week unfolds. Weeks below are loose ISO-week labels — they do NOT bound the phase; the phase ends on `score-phase`, not when the table runs out.
 
 | ISO week | Focus | Target KRs to advance | TASK-IDs (filled by `plan-week`) |
 |----------|-------|------------------------|------------------------------------|
@@ -150,14 +150,14 @@ PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, En
 
 - {{date}} — {{what changed}} — reason: {{rationale}}
 
-## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->
+## Mid-phase check     <!-- filled by `/perry goals dashboard` or `/perry work mid-phase-review` -->
 
 - **Pace**: {{ahead | on-pace | behind}}
 - **Risks surfaced**:
 - **Adjustments**:
 - **Scope-reduction rule status**: {{armed / disarmed / tripped}}
 
-## Retro — phase scored     <!-- filled by `okr score-phase` when the phase closes -->
+## Retro — phase scored     <!-- filled by `/perry goals score-phase` when the phase closes -->
 
 - **Scored on**: {{YYYY-MM-DD}}
 - **P-O1 score**: —

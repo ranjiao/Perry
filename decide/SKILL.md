@@ -1,6 +1,6 @@
 ---
 name: decide
-description: Design-doc steward for Perry. Owns design/<DESIGN-ID>-<slug>.md — RFC-style architecture / process / interface design documents that lock decisions BEFORE PMO opens implementation tasks. Use when the user invokes /design, asks to draft an RFC or architecture doc, lock a design decision, or add user-decision rows to a design. Hands off to PMO once a doc reaches "Design locked": PMO opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
+description: The `decide` lane of the `perry` skill — not a separate command. Loaded on demand by $PERRY_HOME/SKILL.md when a request is reached as /perry decide … (alias /perry design …). Design-doc and decision steward. Owns design/<DESIGN-ID>-<slug>.md, DECISIONS.md and decisions/ — RFC-style architecture / process / interface design documents and ADRs that lock decisions BEFORE the `work` lane opens implementation tasks. Read this lane when the user asks to draft an RFC or architecture doc, record or expire an ADR, lock a design decision, or add user-decision rows to a design. Hands off to the `work` lane once a doc reaches "Design locked": `work` opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
 ---
 
 # design — Perry's design-doc steward
