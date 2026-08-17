@@ -66,6 +66,21 @@ PERRY_BULLETS = (
     "- DESIGN-003 phase G rewrites `SKILL.md § The hand-off contract`.\n"
 )
 
+# A table under `## Top risks` that is NOT a risk register — a severity legend,
+# with the live risks still in bullets underneath it. The reader has had a test
+# for this shape since the day the table landed; the writer had none, and
+# `risk-add` bolted the four risk columns onto the legend and swallowed both
+# bullets. One constant now, read by the reader test and by the writer tests,
+# so the two can never be given different inputs for "the same" shape.
+LEGEND_SECTION = (
+    "| Severity | Meaning |\n"
+    "|---|---|\n"
+    "| H | drop everything |\n"
+    "\n"
+    "- H · Apple developer agreement expired\n"
+    "- M · KR-O2.2 carries zero tasks\n"
+)
+
 
 def risks(text: str) -> list:
     return P.parse_top_risks(text)
@@ -139,6 +154,7 @@ class TestClearedRisksStopCounting(unittest.TestCase):
         trying to fill.
         """
         p = Project(board=board_with(PERRY_BULLETS))
+        self.assertEqual(p.run("risk-migrate")[0], 0)
         p.run("risk-add", "--title", "new one")
         code, out = p.run("risk-clear", "RX-001", "--reason", "adoption finished")
         self.assertEqual(code, 0, out)
@@ -210,15 +226,9 @@ class TestBulletsKeepParsing(unittest.TestCase):
         Guessing which cell holds the sentence is the same invention this task
         removed; with no `Risk` column there is nothing to read.
         """
-        board = board_with(
-            "| Severity | Meaning |\n"
-            "|---|---|\n"
-            "| H | drop everything |\n"
-            "\n"
-            "- H · Apple developer agreement expired\n")
-        parsed = risks(board)
-        self.assertEqual(len(parsed), 1)
-        self.assertEqual(parsed[0].source, "bullets")
+        parsed = risks(board_with(LEGEND_SECTION))
+        self.assertEqual(len(parsed), 2)
+        self.assertTrue(all(r.source == "bullets" for r in parsed))
 
     def test_an_empty_table_means_no_risks_not_fall_back(self):
         """Migrated-and-currently-clear is not the same as never-migrated.
@@ -281,9 +291,12 @@ class TestColumnsResolveByName(unittest.TestCase):
         p = Project(board=board_with(
             "- 一个风险\n",
             headers="| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |"))
+        self.assertEqual(p.run("risk-migrate")[0], 0)
+        self.assertIn("| 编号 | 风险 | 提出 | 状态 |", p.board())
         code, out = p.run("risk-add", "--title", "另一个风险")
         self.assertEqual(code, 0, out)
-        self.assertIn("| 编号 | 风险 | 提出 | 状态 |", p.board())
+        self.assertEqual([r.title for r in risks(p.board())],
+                         ["一个风险", "另一个风险"])
 
 
 class TestMigrationLosesNothing(unittest.TestCase):
@@ -296,7 +309,7 @@ class TestMigrationLosesNothing(unittest.TestCase):
         links, Chinese, backticks.
         """
         p = Project(board=board_with(AIMARK_BULLETS))
-        code, out = p.run("risk-add", "--title", "a new one")
+        code, out = p.run("risk-migrate")
         self.assertEqual(code, 0, out)
         migrated = [m["risk"] for m in out["migrated"]]
         self.assertEqual(migrated, [
@@ -315,8 +328,13 @@ class TestMigrationLosesNothing(unittest.TestCase):
         """
         before = risks(board_with(PERRY_BULLETS))
         p = Project(board=board_with(PERRY_BULLETS))
-        p.run("risk-add", "--title", "sentinel")
-        after = [r for r in risks(p.board()) if r.title != "sentinel"]
+        code, out = p.run("risk-migrate")
+        # Asserted, because without it this test passes on a tool that refuses
+        # to migrate at all: an unconverted board is trivially identical to
+        # itself, and the property under test is about the conversion.
+        self.assertEqual(code, 0, out)
+        after = risks(p.board())
+        self.assertTrue(all(r.source == "table" for r in after), "did not convert")
         self.assertEqual([r.meta for r in before], [r.meta for r in after])
         self.assertEqual([r.resolved for r in before], [r.resolved for r in after])
 
@@ -327,14 +345,16 @@ class TestMigrationLosesNothing(unittest.TestCase):
         reads back as `age_days: null`, which is the honest answer.
         """
         p = Project(board=board_with(PERRY_BULLETS))
-        p.run("risk-add", "--title", "sentinel")
-        migrated = [r for r in risks(p.board()) if r.title != "sentinel"]
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 0, out)
+        migrated = risks(p.board())
+        self.assertEqual(len(migrated), 3)
         self.assertTrue(all(r.opened == "" for r in migrated),
                         [r.opened for r in migrated])
 
     def test_a_struck_through_bullet_carries_its_stated_date_across(self):
         p = Project(board=board_with(PERRY_BULLETS))
-        code, out = p.run("risk-add", "--title", "sentinel")
+        code, out = p.run("risk-migrate")
         self.assertEqual(code, 0, out)
         cleared = [m for m in out["migrated"] if m["status"].startswith("cleared")]
         self.assertEqual(len(cleared), 1)
@@ -345,8 +365,9 @@ class TestMigrationLosesNothing(unittest.TestCase):
         p = Project(board=board_with("- (no active risks)\n"))
         code, out = p.run("risk-add", "--title", "the first real one")
         self.assertEqual(code, 0, out)
-        self.assertEqual(out["migrated"], [])
-        self.assertEqual(len(risks(p.board())), 1)
+        self.assertEqual([r.title for r in risks(p.board())],
+                         ["the first real one"])
+        self.assertNotIn("no active risks", p.board())
 
 
 class TestTheToolOwnsTheComputedCells(unittest.TestCase):
@@ -400,7 +421,7 @@ class TestTheToolOwnsTheComputedCells(unittest.TestCase):
         p = Project(board=board_with(AIMARK_BULLETS))
         code, out = p.run("risk-clear", "RX-001", "--reason", "x")
         self.assertEqual(code, 1)
-        self.assertIn("risk-add", out["refused"])
+        self.assertIn("risk-migrate", out["refused"])
 
     def test_risk_add_refuses_without_a_statement(self):
         p = Project(board=board_with("- none\n"))
@@ -489,6 +510,363 @@ class TestPerrysOwnBoard(unittest.TestCase):
     def test_no_risk_id_is_a_word_from_the_sentence(self):
         for r in risks(self.text):
             self.assertRegex(r.id, r"^RX-\d{3}$")
+
+
+class TestTheWriterAsksTheReadersQuestion(unittest.TestCase):
+    """B-1. Two implementations of "is this section already a table?".
+
+    The reader asked `_has_risk_header` — a table with a `Risk` column. The
+    writer asked `section_table()` — **any** table. On a severity legend they
+    disagreed, and the writer took the already-a-table branch: it bolted the
+    four risk columns onto the legend, appended the new row into it, and left
+    the live bullets below, where the reader could no longer see them because
+    the legend now had a `Risk` header. Count 2 → 1, exit 0, no warning.
+
+    These are the writer twins of `TestBulletsKeepParsing`, on the reader's own
+    fixture — the systematic gap the V4 review named: every writer test started
+    from a bullet list or an empty section, so the branch that destroyed data
+    was the one branch nothing exercised.
+    """
+
+    def test_risk_add_refuses_a_table_that_is_not_a_risk_table(self):
+        p = Project(board=board_with(LEGEND_SECTION))
+        before = p.board()
+        code, out = p.run("risk-add", "--title", "a new risk")
+        self.assertEqual(code, 1, out)
+        self.assertIn("no `Risk` column", out["refused"])
+        self.assertEqual(p.board(), before, "the board was written to anyway")
+
+    def test_the_bullets_under_a_legend_are_still_there_afterwards(self):
+        """The failure was silent loss, so this asserts on the count."""
+        p = Project(board=board_with(LEGEND_SECTION))
+        p.run("risk-add", "--title", "a new risk")
+        parsed = risks(p.board())
+        self.assertEqual(len(parsed), 2)
+        self.assertIn("Apple developer agreement expired", parsed[0].meta)
+
+    def test_no_risk_column_is_ever_added_to_a_legend(self):
+        p = Project(board=board_with(LEGEND_SECTION))
+        p.run("risk-add", "--title", "a new risk")
+        self.assertIn("| Severity | Meaning |", p.board())
+        self.assertNotIn("| Severity | Meaning | ID | Risk |", p.board())
+
+    def test_risk_migrate_refuses_it_too(self):
+        """Consent does not make an unwritable shape writable."""
+        p = Project(board=board_with(LEGEND_SECTION))
+        before = p.board()
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 1, out)
+        self.assertIn("no `Risk` column", out["refused"])
+        self.assertEqual(p.board(), before)
+
+    def test_a_second_table_in_the_section_is_refused(self):
+        """`section_table` addresses the first table and `section_rows` reads
+        straight through a blank line into the next one, so a row appended to a
+        section holding two tables lands in whichever one the scan reached."""
+        p = Project(board=board_with(
+            "| ID | Risk | Opened | Status |\n"
+            "|---|---|---|---|\n"
+            "| RX-001 | a real risk | 2026-08-01 | open |\n"
+            "\n"
+            "| Severity | Meaning |\n"
+            "|---|---|\n"
+            "| H | drop everything |\n"))
+        before = p.board()
+        code, out = p.run("risk-add", "--title", "another")
+        self.assertEqual(code, 1, out)
+        self.assertIn("more than one table", out["refused"])
+        self.assertEqual(p.board(), before)
+
+
+class TestConversionIsAskedForNotPerformed(unittest.TestCase):
+    """B-2. `perry/OKR.md:37` — "No automatic rewrite of a project's existing
+    structure. Adoption proposes; the user declares." `risk-add` used to
+    convert the whole section on the way past: 9 bullets on a copy of a real
+    board became 9 rows, exit 0, and the human-readable line said only
+    `wrote RX-010 (risk-add)`."""
+
+    def test_risk_add_refuses_to_convert_a_section_it_did_not_write(self):
+        p = Project(board=board_with(PERRY_BULLETS))
+        before = p.board()
+        code, out = p.run("risk-add", "--title", "a new risk")
+        self.assertEqual(code, 1, out)
+        self.assertEqual(p.board(), before)
+
+    def test_the_refusal_counts_the_lines_it_would_rewrite(self):
+        """A refusal that does not say how much is at stake is not a question."""
+        p = Project(board=board_with(PERRY_BULLETS))
+        _, out = p.run("risk-add", "--title", "a new risk")
+        self.assertIn("3 risk(s)", out["refused"])
+
+    def test_the_refusal_prints_the_command_that_does_it(self):
+        p = Project(board=board_with(AIMARK_BULLETS))
+        _, out = p.run("risk-add", "--title", "a new risk")
+        self.assertIn("perry-task risk-migrate", out["refused"])
+        # And the command it prints is one the tool actually has.
+        self.assertIn("risk-migrate", PT.COMMANDS)
+
+    def test_nothing_is_minted_by_a_refused_risk_add(self):
+        """A refusal that has already burned RX-001 is not a refusal."""
+        p = Project(board=board_with(AIMARK_BULLETS))
+        p.run("risk-add", "--title", "a new risk")
+        self.assertEqual(p.events(), [])
+        self.assertEqual(p.journal(), "")
+        p.run("risk-migrate")
+        code, out = p.run("risk-add", "--title", "a new risk")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["id"], "RX-003")
+
+    def test_an_empty_section_is_not_asked_about(self):
+        """There is no consent to collect for a section holding nothing of the
+        user's — the thing being protected is their own writing."""
+        p = Project(board=board_with("- none\n"))
+        code, out = p.run("risk-add", "--title", "the first one")
+        self.assertEqual(code, 0, out)
+
+    def test_risk_migrate_refuses_a_board_that_has_already_migrated(self):
+        p = Project(board=board_with("- none\n"))
+        p.run("risk-add", "--title", "a risk")
+        before = p.board()
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 1, out)
+        self.assertIn("already a table", out["refused"])
+        self.assertEqual(p.board(), before)
+
+    def test_risk_migrate_refuses_when_there_is_nothing_to_convert(self):
+        p = Project(board=board_with("- (no active risks)\n"))
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 1, out)
+        self.assertIn("no risk bullets", out["refused"])
+
+    def test_dry_run_shows_every_row_and_writes_nothing(self):
+        """The preview that makes the refusal actionable."""
+        p = Project(board=board_with(PERRY_BULLETS))
+        before = p.board()
+        code, out = p.run("risk-migrate", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(out["migrated"]), 3)
+        self.assertEqual(p.board(), before)
+        self.assertEqual(p.events(), [])
+
+    def test_the_conversion_is_its_own_event_and_its_own_journal_line(self):
+        """It is a fact about the project, not a field on an unrelated risk."""
+        p = Project(board=board_with(AIMARK_BULLETS))
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 0, out)
+        self.assertEqual([e["event"] for e in p.events()], ["risk-migrate"])
+        self.assertEqual(p.events()[0]["count"], 2)
+        self.assertIn("`## Top risks` migrated", p.journal())
+
+    def test_risk_migrate_is_a_section_event_not_a_task_event(self):
+        """`tests/test_cadence.py` asserts the two sets partition `COMMANDS`;
+        this asserts which side of the partition this one is on. A risk row is
+        not a task row, and `perry-task list` folds `TASK_EVENTS` only."""
+        self.assertIn("risk-migrate", PT.SECTION_EVENTS)
+        self.assertNotIn("risk-migrate", PT.TASK_EVENTS)
+
+    def test_the_frozen_list_contract_never_sees_a_migration(self):
+        p = Project(board=board_with(AIMARK_BULLETS))
+        p.run("risk-migrate")
+        code, out = p.run("list", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out["tasks"], [])
+        self.assertEqual(out["untitled"], [])
+
+    def test_risk_add_no_longer_reports_a_migration_it_did_not_do(self):
+        p = Project(board=board_with("- none\n"))
+        _, out = p.run("risk-add", "--title", "a risk")
+        self.assertNotIn("migrated", out)
+        self.assertNotIn("migrated", p.events()[0])
+
+
+class TestTheWriterResolvesTheIdColumnByName(unittest.TestCase):
+    """M-2. The write twin of `test_a_reordered_header_reads_the_same`.
+
+    `find_section_row` matched `cells[0]`, so on a board that lists its columns
+    in another order `perry-state` reported a risk that `risk-clear` insisted
+    did not exist:
+
+        board: | Status | Opened | Risk | ID |
+        reader (parse_top_risks):    id='RX-001'
+        writer (risk-clear RX-001):  "RX-001 is not a row in `## Top risks`"
+    """
+
+    REORDERED = (
+        "| Status | Opened | Risk | ID |\n"
+        "|---|---|---|---|\n"
+        "| open | 2026-08-01 | the statement | RX-001 |\n")
+
+    def test_risk_clear_finds_a_row_the_reader_can_see(self):
+        p = Project(board=board_with(self.REORDERED))
+        self.assertEqual(risks(p.board())[0].id, "RX-001")
+        code, out = p.run("risk-clear", "RX-001", "--reason", "it stopped")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(risks(p.board())[0].resolved)
+
+    def test_the_cleared_cell_lands_in_the_status_column(self):
+        """Resolving the id by name is only half of it — the write back has to
+        respect the same order, or the reason lands in `Opened`."""
+        p = Project(board=board_with(self.REORDERED))
+        p.run("risk-clear", "RX-001", "--reason", "it stopped")
+        r = risks(p.board())[0]
+        self.assertIn("it stopped", r.status)
+        self.assertEqual(r.opened, "2026-08-01")
+        self.assertEqual(r.title, "the statement")
+
+    def test_a_new_row_lands_in_the_right_columns_too(self):
+        p = Project(board=board_with(self.REORDERED))
+        code, out = p.run("risk-add", "--title", "a second statement")
+        self.assertEqual(code, 0, out)
+        second = risks(p.board())[1]
+        self.assertEqual(second.id, "RX-002")
+        self.assertEqual(second.title, "a second statement")
+        self.assertEqual(second.status, "open")
+
+    def test_a_localized_header_clears_the_same(self):
+        p = Project(board=board_with(
+            "| 状态 | 提出 | 风险 | 编号 |\n"
+            "|---|---|---|---|\n"
+            "| open | 2026-08-01 | 一个风险 | RX-001 |\n"))
+        code, out = p.run("risk-clear", "RX-001", "--reason", "上游修好了")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(risks(p.board())[0].resolved)
+
+    def test_the_user_input_queue_still_answers_by_id(self):
+        """`find_section_row`'s other caller. `USER-id` is an id column too, and
+        resolving by name must not have narrowed the rule to `ID`."""
+        p = Project()
+        p.run("ask", "--needed", "which staging default?")
+        code, out = p.run("answer", "USER-001", "--answer", "the second one")
+        self.assertEqual(code, 0, out)
+
+
+class TestOneRegisterNotTwo(unittest.TestCase):
+    """M-1. What happens when a project keeps risks in both files.
+
+    **The rule: once `BOARD.md § Top risks` is a table, that table is the
+    register and `PROJECT_STATE.md` is no longer merged into it.**
+
+    Both files used to hold bullets, both ids were invented out of the prose,
+    and a risk written into both collapsed because the invented ids matched —
+    the first word of each sentence. Minting real ids guarantees that key can
+    never match again, so the merge silently stopped deduping: on one real
+    project adding a single risk took the total from 13 to 15, and one risk was
+    reported open (board) and cleared (`PROJECT_STATE.md`) at the same time.
+    """
+
+    STATE = (
+        "# Project state\n\n"
+        "## Top risks\n\n"
+        "- GAVI — ~~the vendor contract lapses~~ cleared 2026-08-10\n"
+        "- LEDGER — reconciliation is manual\n")
+
+    def snapshot(self, p: Project):
+        (p.root / "PROJECT_STATE.md").write_text(self.STATE)
+        return P.load_snapshot(p.root)
+
+    def test_a_migrated_board_is_the_whole_register(self):
+        p = Project(board=board_with(
+            "| ID | Risk | Opened | Status |\n"
+            "|---|---|---|---|\n"
+            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n"))
+        snap = self.snapshot(p)
+        self.assertEqual([r.id for r in snap.top_risks], ["RX-001"])
+        self.assertEqual(snap.risks_source, "table")
+
+    def test_no_risk_is_reported_open_and_cleared_at_the_same_time(self):
+        """The measured symptom, asserted as the property it violates."""
+        p = Project(board=board_with(
+            "| ID | Risk | Opened | Status |\n"
+            "|---|---|---|---|\n"
+            "| RX-001 | GAVI — the vendor contract lapses | 2026-08-01 | open |\n"))
+        snap = self.snapshot(p)
+        gavi = [r for r in snap.top_risks if "GAVI" in r.meta]
+        self.assertEqual(len(gavi), 1)
+        self.assertEqual([r.resolved for r in gavi], [False])
+
+    def test_migrating_does_not_raise_the_count(self):
+        """End to end through the writer, which is how the count moved: 2 → 4
+        for a board and a state file naming the same two risks."""
+        p = Project(board=board_with(
+            "- GAVI — the vendor contract lapses\n"
+            "- LEDGER — reconciliation is manual\n"))
+        before = len(self.snapshot(p).top_risks)
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(self.snapshot(p).top_risks), before)
+
+    def test_an_unmigrated_board_still_merges_both_files(self):
+        """The rule is about what migration means, not about dropping a file:
+        before it, nothing changes."""
+        p = Project(board=board_with("- ONLY-ON-THE-BOARD — a third thing\n"))
+        metas = " ".join(r.meta for r in self.snapshot(p).top_risks)
+        self.assertIn("ONLY-ON-THE-BOARD", metas)
+        self.assertIn("LEDGER", metas)
+
+    def test_an_empty_migrated_table_is_still_a_migrated_board(self):
+        """Migrated-and-currently-clear must not read as never-migrated, or the
+        rule would switch itself off the moment the last risk is cleared."""
+        p = Project(board=board_with(
+            "| ID | Risk | Opened | Status |\n"
+            "|---|---|---|---|\n"))
+        self.assertEqual(self.snapshot(p).top_risks, [])
+
+
+class TestOneRuleForWhatABulletIs(unittest.TestCase):
+    """m-1 and m-2 — the same "three implementations of one rule" shape as B-1.
+
+    `viewer/parsers.py` matched `- ` in one reader and `- ` or `1. ` in the
+    other, so a numbered list read as 0 risks through one and 2 through the
+    other. And only the writer knew what a placeholder was, so the reader
+    turned `BOARD_TEMPLATE.md`'s own `- (no active risks)` into a risk with
+    `id='(no'` — an id split out of prose at the first space.
+    """
+
+    NUMBERED = ("1. the vendor contract lapses\n"
+                "2. reconciliation is manual\n")
+
+    def test_a_numbered_list_reads_the_same_through_both_readers(self):
+        board = board_with(self.NUMBERED)
+        self.assertEqual(len(risks(board)), 2)
+        self.assertEqual(len(P.parse_board(board).risks), 2)
+
+    def test_the_writer_sees_the_same_bullets_the_reader_does(self):
+        """And the conversion is verdict-preserving on this shape too — the
+        reader's fixture, put through the writer."""
+        p = Project(board=board_with(self.NUMBERED))
+        code, out = p.run("risk-migrate")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(len(out["migrated"]), 2)
+        self.assertEqual([r.title for r in risks(p.board())],
+                         ["the vendor contract lapses",
+                          "reconciliation is manual"])
+
+    def test_the_placeholder_the_template_ships_is_not_a_risk(self):
+        self.assertEqual(risks(board_with("- (no active risks)\n")), [])
+        self.assertEqual(P.parse_board(board_with("- none\n")).risks, [])
+
+    def test_the_placeholder_is_never_an_id_split_out_of_prose(self):
+        for line in ("- (no active risks)\n", "- none\n", "- 暂无\n", "- —\n"):
+            self.assertEqual(risks(board_with(line)), [], line)
+
+    def test_the_reader_and_the_writer_agree_on_every_placeholder(self):
+        """Two copies of one rule, checked to be one rule. They live in
+        different files because `bin/perry-task` is a script and
+        `viewer/parsers.py` is a module; nothing enforces that but this."""
+        corpus = ["(no active risks)", "no active risk", "none", "N/A", "na",
+                  "TBD", "—", "-", "–", "无", "暂无", "None.",
+                  "a real risk", "no active risks are pending — except one",
+                  "nonetheless the vendor lapsed"]
+        self.assertEqual(
+            [bool(P._RE_RISK_PLACEHOLDER.match(s)) for s in corpus],
+            [bool(PT._RISK_PLACEHOLDER.match(s)) for s in corpus])
+
+    def test_the_reader_and_the_writer_agree_on_every_bullet_form(self):
+        corpus = ["- a risk", "1. a risk", "10. a risk", "-a risk",
+                  "* a risk", "  - a risk", "a risk", "-", "- "]
+        self.assertEqual(
+            [bool(P._RE_RISK_BULLET.match(s.strip())) for s in corpus],
+            [bool(PT._RISK_BULLET.match(s.strip())) for s in corpus])
 
 
 if __name__ == "__main__":

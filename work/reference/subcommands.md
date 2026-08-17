@@ -285,6 +285,7 @@ The old-monolithic-`DECISIONS.md` migration moved with it.
 ```bash
 "$PERRY_HOME/bin/perry-task" risk-add   --title "<the risk, in your words>" [--opened YYYY-MM-DD]
 "$PERRY_HOME/bin/perry-task" risk-clear <RX-ID> --reason "<why it is over>"
+"$PERRY_HOME/bin/perry-task" risk-migrate            # bullets → the table, once
 ```
 
 `BOARD.md § Top risks` is a table — `| ID | Risk | Opened | Status |` — and the
@@ -306,24 +307,58 @@ that the mitigation worked. It simply stops counting.
 
 **`perry-state` reports open risks only**, with `age_days` computed from
 `Opened` at read time — the same rule as `Asked`/`Idle` on the User Input
-Queue, and for the same reason. `risks.source` says whether the payload came
-from the table or from bullets; on a bullet the `id` is invented and
-`age_days` is `null`, and a reader is entitled to know which it got.
+Queue, and for the same reason. `risks.source` is one of four values —
+`table`, `bullets`, `mixed`, `none` — saying which form the payload was read
+from; on a bullet the `id` is invented and `age_days` is `null`, and a reader
+is entitled to know which it got. `mixed` means the rows came from more than
+one form, which now only happens on a board that has not migrated: **once
+`BOARD.md § Top risks` is a table, that table is the register and
+`PROJECT_STATE.md` is no longer merged into it.** Before the table existed both
+files held bullets and both ids were invented out of the prose, so a risk
+written into both collapsed by accident — the invented ids were the first word
+of each sentence. Minted ids can never collide with invented ones, so the merge
+would double-report every shared risk, once open and once cleared. Migrating is
+the project saying where its risks live, and it is read as exactly that — so a
+project that kept a second list in `PROJECT_STATE.md` should `risk-add` the
+still-live ones onto the board, because after migrating they stop being
+counted. Measured on one real project: the merged count went 13 → 9. Four
+`PROJECT_STATE.md` entries left it, three of them already marked closed there
+and one still live — that one is the `risk-add` the migration asks for. The
+alternative, on the same board, was 15: every shared risk counted twice, one
+of them reported open and cleared at once.
 
-**An older board keeps working.** A bullet list is still read. The first
-`risk-add` converts the section, carrying every bullet across **verbatim** into
-its own row with `Opened` left empty — the date a pre-existing risk was raised
-is not recorded anywhere and stamping today would assert it is new. A bullet
-the reader already treated as resolved (`~~strike~~` or `**RESOLVED`) migrates
-as `cleared`, with whatever date the human wrote in it.
+**An older board keeps working, and is never converted behind your back.** A
+bullet list is still read, and `risk-add` on one **refuses**: it says how many
+bullets it would have to rewrite and prints `perry-task risk-migrate`, which is
+the command that does it (`--dry-run --json` first shows every row it would
+write). "No automatic rewrite of a project's existing structure. Adoption
+proposes; the user declares" is an Anti-Goal, and a section of hand-written
+risks is exactly the kind of structure it protects.
+
+The conversion carries every bullet across **verbatim** into its own row with
+`Opened` left empty — the date a pre-existing risk was raised is not recorded
+anywhere and stamping today would assert it is new. A bullet the reader already
+treated as resolved (`~~strike~~` or `**RESOLVED`) migrates as `cleared`, with
+whatever date the human wrote in it. A placeholder (`- (no active risks)`) is
+not a risk and is not migrated; a section holding only one is not asked about,
+because there is nothing of yours to protect. A table under this heading with
+no `Risk` column — a legend, a severity key — is refused by both commands
+rather than written into: the reader reads that section's bullets, and adding
+the risk columns to a legend would make it stop.
 
 There is deliberately **no `Severity` column**: both real projects surveyed
 write severity inside the sentence (`H · …`, `🔴 …`), so it stays derived from
 the statement rather than becoming a column nothing on a real board fills.
 
-Triage still asks the questions it always did — for each open risk: still
-valid? severity changed? mitigation in place? — and discharges the answer
-through `risk-clear` or a rewritten statement rather than an edit.
+**Triage has no risk step.** This section used to claim it did — "triage still
+asks, for each open risk: still valid? severity changed? mitigation in place?"
+— and the `triage` procedure above has never contained the word *risk*. What
+exists instead is the payload: `perry-state` reports the open rows with
+`age_days`, so a risk open ninety days and untouched is visible without a
+procedure asking about it. Retiring one is `risk-clear`; changing what it says
+is a rewrite of the `Risk` cell, which is yours. If a triage step is ever
+written, note that the schema has nowhere to record "mitigation in place" —
+`Status` is a binary plus a closing reason — so it would need a column first.
 
 ### `nudge`
 For every User Input Queue item idle ≥5 days, surface a one-line reminder in chat with: USER-id, what's needed, what it blocks, days idle, original ask context.

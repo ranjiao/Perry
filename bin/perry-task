@@ -59,6 +59,7 @@ Usage:
                           [--frequency F]
   perry-task risk-add   --title "…" [--opened YYYY-MM-DD]
   perry-task risk-clear <RX-ID> --reason "…"
+  perry-task risk-migrate                  `## Top risks` bullets → the table
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
@@ -534,10 +535,31 @@ class Board:
         return header
 
     def find_section_row(self, heading: str, row_id: str):
-        """(line index, header, cells) for one row of a named section."""
+        """(line index, header, cells) for one row of a named section.
+
+        The id column is resolved by NAME through the glossary, like every
+        other column this file touches (`schema/README.md § Columns resolve by
+        name`). It used to read `cells[0]`, which made the writer disagree with
+        the reader on a board that lists its columns in another order:
+
+            board: | Status | Opened | Risk | ID |
+            reader (parse_top_risks):    id='RX-001'
+            writer (risk-clear RX-001):  "RX-001 is not a row in `## Top risks`"
+
+        `perry-state` reporting a risk that `risk-clear` insists does not exist
+        is the same defect class as a column resolved by position anywhere
+        else — the row is there, and the tool cannot see it.
+
+        Position stays as the fallback for a section whose header names no id
+        column at all: those tables predate the glossary and their first cell
+        is the handle by convention.
+        """
         _, header = self.section_table(heading)
+        keys = [norm(h) for h in header]
+        at = next((i for i, k in enumerate(keys) if k in id_column_keys()), 0)
         for i, cells in self.section_rows(heading):
-            if cells and cells[0].replace("*", "").replace("~", "").strip() == row_id:
+            cell = cells[at] if at < len(cells) else ""
+            if cell.replace("*", "").replace("~", "").strip() == row_id:
                 return i, header, cells
         raise Refused(f"{row_id} is not a row in `## {heading}`")
 
@@ -660,6 +682,16 @@ def norm(s: str) -> str:
         _build_column_maps()
     k = squash(s)
     return _ALIASES.get(k, k)
+
+
+# The columns that hold a row's handle, in every section that has one. A set
+# rather than a single name because `## User Input Queue` calls it `USER-id`
+# and the rest call it `ID`; both resolve through the glossary, so `编号` and
+# `用户输入编号` land here too. Computed on demand, never at import: `norm()`
+# caches the glossary the first time it is called, and calling it while the
+# module is still loading would cache an empty one.
+def id_column_keys() -> set[str]:
+    return {norm("ID"), norm("USER-id")}
 
 
 def header_language(header: list[str]) -> str:
@@ -1740,6 +1772,75 @@ _RISK_PLACEHOLDER = re.compile(
 
 _RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
 
+_TABLE_SEP = re.compile(r"^\|\s*:?-{2,}")
+
+
+def risk_section_tables(board: Board) -> list[list[str]]:
+    """Every table header under `## Top risks`, in document order.
+
+    Deliberately NOT `Board.section_table`, which answers "the first table in
+    this section" and cannot see a second one. This is the same scan
+    `viewer/parsers.py:_has_risk_header` runs, asking the same question of the
+    same section — and the writer has to ask it the same way, because the two
+    answering it differently is what B-1 was.
+    """
+    start, end = board.named_section("Top risks")
+    out = []
+    for i in range(start + 1, end):
+        if not _TABLE_SEP.match(board.lines[i].strip()):
+            continue
+        prev = board.lines[i - 1].strip()
+        if prev.startswith("|"):
+            out.append(split_row(board.lines[i - 1]))
+    return out
+
+
+def is_risk_header(header: list[str]) -> bool:
+    """Whether a header declares the risk-statement column, resolved by name.
+
+    `Risk` is the column that identifies the migrated shape — the reader says
+    so at `viewer/parsers.py:_parse_risk_table`, and it is the cell that holds
+    the sentence, so a table without it is not a risk table no matter what
+    else it has.
+    """
+    return any(norm(h) == norm("Risk") for h in header)
+
+
+def risk_section_shape(board: Board) -> tuple[str, list[list[str]]]:
+    """How `## Top risks` is currently written: `table` | `bullets` | `foreign`.
+
+    `foreign` covers both shapes this writer must not touch: a table under the
+    heading that has no `Risk` column (a legend, a severity key), and a section
+    holding two tables. Neither is malformed — the reader handles both — but
+    `Board.section_table` and `Board.section_rows` address the FIRST table in a
+    section and read straight through a blank line into the next one, so a
+    write into either shape lands in the wrong table. Refusing is the only
+    answer available that does not invent one.
+    """
+    tables = risk_section_tables(board)
+    if len(tables) == 1 and is_risk_header(tables[0]):
+        return "table", tables
+    if tables:
+        return "foreign", tables
+    return "bullets", tables
+
+
+def refuse_foreign_risk_table(tables: list[list[str]]) -> None:
+    if len(tables) > 1:
+        raise Refused(
+            "`## Top risks` holds more than one table, and this tool writes "
+            "into a section's first one — so a row would land in the wrong "
+            "table. Nothing was written. Move the other table under its own "
+            "heading, then run this again")
+    raise Refused(
+        f"`## Top risks` holds a table with no `Risk` column ({tables[0]}), so "
+        f"it is not a risk register — a legend or a severity key reads exactly "
+        f"like this. Nothing was written, and no column was added to it: "
+        f"bolting the risk columns onto it would make the reader treat it as "
+        f"the register and stop seeing every bullet below it. Give that table "
+        f"its own `###` heading, or add a `Risk` column to it if it really is "
+        f"the register")
+
 
 def mint_risk_id(board: Board, events: list[dict], state_root: Path) -> str:
     """Next `RX-NNN` from max(board ∪ journal ∪ events), like `mint_id`.
@@ -1779,20 +1880,29 @@ def ensure_risk_table(board: Board, events: list[dict],
                       state_root: Path) -> list[dict]:
     """Put `## Top risks` into its table form, carrying any bullets across.
 
-    Three states, three answers:
+    Four states, four answers:
 
     - **no section** — create it, with the table. Same as `ensure_section`
       does for `## Intake`.
-    - **a table already** — add any column it lacks, and touch nothing else.
-    - **a bullet list** — convert it, in this same write.
+    - **a risk table already** — add any column it lacks, and touch nothing
+      else. "A risk table" means a table with a `Risk` column, which is the
+      reader's test (`is_risk_header`) and not "any table": deciding this with
+      `section_table()` alone bolted the four risk columns onto a legend and
+      left the live bullets below it invisible, because the legend then had a
+      `Risk` header and the reader prefers the table.
+    - **a table that is not a risk table** — refuse. See
+      `refuse_foreign_risk_table`.
+    - **a bullet list** — convert it.
 
-    The third is the one with a real choice in it, and the two alternatives are
-    both worse. *Refusing* would make `risk-add` unusable on every project that
-    exists — on the day this shipped that was every project except Perry — for
-    the crime of not having migrated yet. *Appending a table above the bullets*
-    would leave the board holding both, and since the reader prefers the table,
-    every existing risk would vanish from every count while still sitting in the
-    file. Silent loss is the worse failure of the two by a distance.
+    The conversion is what `risk-migrate` exists to ask for. It does not happen
+    on the way to some other write: *appending a table above the bullets* would
+    leave the board holding both, and since the reader prefers the table, every
+    existing risk would vanish from every count while still sitting in the
+    file — but rewriting a project's section as a side effect of `risk-add` is
+    the Anti-Goal at `perry/OKR.md:37` ("no automatic rewrite of a project's
+    existing structure. Adoption proposes; the user declares"), which
+    `Board.append_row` cites 1,300 lines above to refuse a *smaller* rewrite.
+    So the caller asks first, and this function does exactly what it is told.
 
     **What the conversion may and may not invent.** The bullet's text is copied
     into `Risk` byte-for-byte — it is the human's sentence and this function has
@@ -1815,13 +1925,12 @@ def ensure_risk_table(board: Board, events: list[dict],
     if not board.has_section("Top risks"):
         board.ensure_section("Top risks", RISK_COLUMNS, before_p0=False)
         return []
-    try:
-        board.section_table("Top risks")
-    except Refused:
-        pass
-    else:
+    shape, tables = risk_section_shape(board)
+    if shape == "table":
         board.ensure_section_columns("Top risks", RISK_COLUMNS)
         return []
+    if shape == "foreign":
+        refuse_foreign_risk_table(tables)
 
     bullets = risk_bullets(board)
     start, end = board.named_section("Top risks")
@@ -1858,6 +1967,99 @@ def ensure_risk_table(board: Board, events: list[dict],
     return migrated
 
 
+def require_migrated(board: Board) -> None:
+    """Refuse to write a risk row into a section that has not migrated.
+
+    **Consent, not disclosure.** `risk-add` used to convert the whole section
+    on the way past — 9 bullets rewritten as 9 rows on a copy of a real board,
+    exit 0, and the human-readable line said only `wrote RX-010 (risk-add)`.
+    The rubric names automatic conversion as a defect, and `perry/OKR.md:37`
+    names it an Anti-Goal: *"No automatic rewrite of a project's existing
+    structure. Adoption proposes; the user declares."*
+
+    So the refusal carries the two things a user needs to declare: **how many
+    of their lines it would rewrite**, and **the command that does it**. A
+    warning after the fact would be disclosure; this is the ask.
+
+    A section with nothing in it to convert is not asked about — there is no
+    consent to collect for creating a table out of an empty section or out of
+    the `- (no active risks)` placeholder that `BOARD_TEMPLATE.md` ships. The
+    thing being protected is the user's own writing, and there is none.
+    """
+    if not board.has_section("Top risks"):
+        return
+    shape, tables = risk_section_shape(board)
+    if shape == "table":
+        return
+    if shape == "foreign":
+        refuse_foreign_risk_table(tables)
+    bullets = risk_bullets(board)
+    if not bullets:
+        return
+    raise Refused(
+        f"`## Top risks` is still a bullet list: {len(bullets)} risk(s) would "
+        f"have to be rewritten as table rows before a row can be added, and "
+        f"this tool does not rewrite a section you wrote without being asked. "
+        f"Nothing was written. Run `perry-task risk-migrate` to convert them "
+        f"(every bullet crosses verbatim; `risk-migrate --dry-run --json` "
+        f"shows exactly what it would write), then run this again")
+
+
+def cmd_risk_migrate(args, ctx) -> dict:
+    """Convert `## Top risks` from bullets to the table, and nothing else.
+
+    **Why a subcommand and not a `risk-add --migrate` flag.** Three reasons,
+    in the order they decided it:
+
+    - A flag makes you invent a risk in order to convert a section. On the
+      real board this was measured against — 9 bullets, nothing new to
+      say — `risk-add --migrate --title …` demands a tenth risk as the price
+      of migrating the other nine.
+    - The conversion is a fact about the project, and the event log is where
+      facts about the project go. As a flag it was a `migrated: [...]` field
+      hanging off a `risk-add` event, so the record that a project converted
+      its risk register was attached to an unrelated new risk, and the journal
+      line for the conversion was that risk's line.
+    - It is reversible-by-inspection before it runs: `--dry-run --json`
+      returns every row it would write, which is a preview a flag on another
+      command cannot offer without also previewing that command's write.
+
+    It joins `SECTION_EVENTS`, with `intake-sweep` — the other subcommand that
+    acts on a section rather than on a row.
+    """
+    board = ctx["board"]
+    if not board.has_section("Top risks"):
+        raise Refused(
+            "BOARD.md has no `## Top risks` section, so there is nothing to "
+            "migrate. `perry-task risk-add` creates the section and its table")
+    shape, tables = risk_section_shape(board)
+    if shape == "foreign":
+        refuse_foreign_risk_table(tables)
+    if shape == "table":
+        rows = len(board.section_rows("Top risks"))
+        raise Refused(
+            f"`## Top risks` is already a table ({rows} row(s)) — nothing to "
+            f"migrate, and this command will not touch a row that has an id. "
+            f"`perry-task risk-add` adds one; `risk-clear` retires one")
+    if not risk_bullets(board):
+        raise Refused(
+            "`## Top risks` holds no risk bullets to migrate — only prose, or "
+            "the `(no active risks)` placeholder. `perry-task risk-add` writes "
+            "the table on its own when there is nothing of yours to convert")
+
+    migrated = ensure_risk_table(board, ctx["events"], ctx["state_root"])
+    ids = [m["id"] for m in migrated]
+    jline = (f"- [risks] {len(migrated)} bullet(s) → table rows "
+             f"({ids[0]}–{ids[-1]}) · `## Top risks` migrated")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "risk-migrate", "id": "", "title": "",
+             "count": len(migrated), "migrated": ids, "actor": args.actor,
+             "from": "bullets", "to": "table"}
+    plan = commit(ctx["project_root"], ctx["state_root"], board,
+                  jline, event, args.dry_run)
+    return {"migrated": migrated, "count": len(migrated), **plan}
+
+
 def cmd_risk_add(args, ctx) -> dict:
     """Raise a risk: the tool mints the id and stamps the date.
 
@@ -1879,22 +2081,25 @@ def cmd_risk_add(args, ctx) -> dict:
             "--title is required: it is the risk statement, in your words. A "
             "risk row with no sentence in it is an id and a date")
     sr = ctx["state_root"]
-    migrated = ensure_risk_table(ctx["board"], ctx["events"], sr)
+    # The gate, before anything is minted: on a section this tool did not
+    # write, `risk-add` asks rather than converts. `migrated` is therefore
+    # always empty here and is no longer a field of this command's payload or
+    # of its event — the conversion has its own subcommand, its own journal
+    # line and its own event, and a `migrated: []` on every risk-add was a
+    # field that only ever described something another command does.
+    require_migrated(ctx["board"])
+    ensure_risk_table(ctx["board"], ctx["events"], sr)
     rid = mint_risk_id(ctx["board"], ctx["events"], sr)
     opened = args.opened or f"{date.today():%Y-%m-%d}"
     line = ctx["board"].append_section_row("Top risks", {
         "id": rid, "risk": args.title, "opened": opened, "status": "open"})
-    tail = (f" · migrated {len(migrated)} bullet(s) into the table"
-            if migrated else "")
-    jline = f"- [{rid}] — → open · {args.title}{tail}"
+    jline = f"- [{rid}] — → open · {args.title}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"),
              "event": "risk-add", "id": rid, "title": args.title,
              "opened": opened, "actor": args.actor,
-             "from": None, "to": "open",
-             "migrated": [m["id"] for m in migrated]}
+             "from": None, "to": "open"}
     plan = commit(ctx["project_root"], sr, ctx["board"], jline, event, args.dry_run)
-    return {"id": rid, "opened": opened, "row": line,
-            "migrated": migrated, **plan}
+    return {"id": rid, "opened": opened, "row": line, **plan}
 
 
 def cmd_risk_clear(args, ctx) -> dict:
@@ -1915,9 +2120,9 @@ def cmd_risk_clear(args, ctx) -> dict:
         if "has no table" in str(exc):
             raise Refused(
                 "`## Top risks` is still a bullet list, so nothing in it has an "
-                "id to clear. `perry-task risk-add` migrates the section (it "
-                "carries every bullet across verbatim), after which the rows "
-                "have ids") from None
+                "id to clear. `perry-task risk-migrate` converts the section "
+                "(every bullet crosses verbatim), after which the rows have "
+                "ids") from None
         raise
     keys = [norm(h) for h in header]
     values = dict(zip(keys, cells))
@@ -2430,12 +2635,13 @@ TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
-                            "risk-add", "risk-clear"})
+                            "risk-add", "risk-clear", "risk-migrate"})
 
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "ask": cmd_ask, "answer": cmd_answer, "next": cmd_next,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
+            "risk-migrate": cmd_risk_migrate,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "retitle": cmd_retitle,
@@ -2571,6 +2777,7 @@ def main(argv: list[str]) -> int:
         # user the write had no subject when it had a perfectly good one.
         subject = (result.get("id")
                    or (f"{result['swept']} row(s)" if "swept" in result else "")
+                   or (f"{result['count']} risk(s)" if "count" in result else "")
                    or (f"intake row {args.id}" if args.id else "the row"))
         print(f"perry-task: {verb} {subject} ({args.cmd}) → {tail}")
     return 0
