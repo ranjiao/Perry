@@ -1697,14 +1697,6 @@ class TestFromAimarksProductionReport(unittest.TestCase):
                       f"the current version {major_minor} has no changelog entry")
 
 
-if __name__ == "__main__":
-    # At the END of the file, not the middle. It used to sit after the fifth of
-    # thirteen classes, so `python3 tests/test_task_writer.py` ran five and
-    # exited 0 — every drift, localization, mode-aware-write, status-coverage
-    # and lane-procedure test silently skipped, with a passing report.
-    unittest.main()
-
-
 class TestUserInputQueueHasAWriter(unittest.TestCase):
     """TASK-039. The section had readers, a dashboard row, and no writer.
 
@@ -2286,3 +2278,10 @@ class TestWritingToAProjectsOwnSections(unittest.TestCase):
         code, a = p.run("add", "--title", "X", "--priority", "P0")
         self.assertEqual(code, 0, a)
         self.assertIn(a["id"], p.board().split("## P1")[0])
+
+
+
+
+
+if __name__ == "__main__":
+    unittest.main()

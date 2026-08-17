@@ -551,10 +551,6 @@ class Linter(unittest.TestCase):
             self.assertEqual(P.resolve_state_root(proj), proj)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
     """`count` was `len(section)` — every row ever added.
 
@@ -627,3 +623,7 @@ class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
         an answer would hide the request entirely."""
         q = self.payload()["user_input_queue"]
         self.assertIn("USER-003", [i["id"] for i in q["items"]])
+
+
+if __name__ == "__main__":
+    unittest.main()

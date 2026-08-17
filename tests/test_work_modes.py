@@ -594,9 +594,6 @@ class TestI18n(unittest.TestCase):
         self.assertIn("收件", table_spec("board", "Intake")["under"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class TestInquiryHasDataForEveryControl(unittest.TestCase):
     """The defect that failed two prior reviews: a control described in prose
@@ -1006,3 +1003,7 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
         rated nothing."""
         root = self.project("V3", "ordinary work", hook="`evidence/`")
         self.assertNotIn("consequence-needs-signoff", self.lint(root))
+
+
+if __name__ == "__main__":
+    unittest.main()

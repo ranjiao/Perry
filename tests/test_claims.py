@@ -28,6 +28,9 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+import subprocess
+import pathlib
 import unittest
 from pathlib import Path
 
@@ -270,8 +273,73 @@ class TestNoProseListSurvives(unittest.TestCase):
                         f"drifted.\n  {line.strip()[:140]}")
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestNoTestFileEndsEarly(unittest.TestCase):
+    """`tests/test_work_modes.py` had `unittest.main()` two thirds of the way
+    down. `python3 -m unittest discover` imported the module and saw all 78
+    tests, but running the file directly — the natural thing to do while
+    iterating on it — executed main() before the remaining classes were
+    defined, ran 48, and printed **OK**.
+
+    A green result over a silently truncated set is the worst thing a suite
+    can report: success for work it never looked at. Found as m-9 in the V4
+    review of TASK-019/020, and `test_task_writer.py` still carries a comment
+    from the first time the same defect was fixed there — which is why this
+    is a guard and not a one-line move.
+    """
+
+    DRIVER = """
+import os, runpy, sys, unittest
+sys.path.insert(0, os.path.dirname(os.path.abspath(sys.argv[1])))
+ns = {}
+seen = {}
+def count():
+    seen["at_entry"] = len([v for v in ns.values()
+        if isinstance(v, type) and issubclass(v, unittest.TestCase)])
+    raise SystemExit
+unittest.main = count
+try:
+    ns.update(runpy.run_path(sys.argv[1], run_name="__main__"))
+except SystemExit:
+    pass
+total = len([v for v in ns.values()
+    if isinstance(v, type) and issubclass(v, unittest.TestCase)])
+print(seen.get("at_entry", total), total)
+"""
+
+    def files(self):
+        here = pathlib.Path(__file__).parent
+        return [f for f in sorted(here.glob("test_*.py"))
+                if "unittest.main()" in f.read_text()]
+
+    def test_the_entry_point_is_the_last_statement_in_every_test_file(self):
+        for f in self.files():
+            tail = f.read_text().rstrip().split("\n")[-2:]
+            self.assertEqual(
+                ['if __name__ == "__main__":', "    unittest.main()"], tail,
+                f"{f.name}: unittest.main() is not the last statement, so "
+                f"running the file directly skips everything after it")
+
+    def test_every_class_is_defined_before_the_entry_point_runs(self):
+        """The guard above is structural — it checks where the block sits.
+        This checks the consequence: how many TestCases exist at the moment
+        `unittest.main()` is reached. A file could satisfy the first and still
+        truncate, by carrying a second `main()` higher up.
+
+        It does not run the suites. Running them to count them took 80s, which
+        would make the cheapest guard in the repo the slowest; the driver
+        replaces `unittest.main` with a counter, so nothing past import runs.
+        """
+        for f in self.files():
+            r = subprocess.run(
+                [sys.executable, "-c", self.DRIVER, str(f)],
+                capture_output=True, text=True, cwd=f.parent.parent)
+            self.assertEqual(0, r.returncode, r.stderr[-800:])
+            at_entry, total = r.stdout.split()
+            self.assertEqual(
+                total, at_entry,
+                f"{f.name}: the file defines {total} TestCase classes but only "
+                f"{at_entry} existed when unittest.main() ran — running the "
+                f"file directly skips the rest and still reports OK")
 
 
 class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
@@ -328,3 +396,7 @@ class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
             src = (PERRY_HOME / "bin" / name).read_text()
             self.assertIn("resolve_state_root", src,
                           f"bin/{name} never resolves the state root")
+
+
+if __name__ == "__main__":
+    unittest.main()

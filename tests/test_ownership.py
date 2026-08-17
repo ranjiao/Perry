@@ -181,10 +181,6 @@ class TestDraftStatusIsHonest(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestLaneAliases(unittest.TestCase):
     """Renaming the lanes must cost an existing user nothing.
 
@@ -525,3 +521,7 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                         path, claim,
                         f"{lane}/SKILL.md still claims `{path}`, which moved to "
                         f"`decide` on 2026-08-16:\n  …only writer of{claim}")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -291,10 +291,6 @@ class InvariantsHoldInTheFixture(unittest.TestCase):
             self.assertIn(p, board)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestChatProseRule(unittest.TestCase):
     """The rule added after Perry wrote a session's worth of Chinese that a
     fifteen-year industry veteran could not read.
@@ -331,3 +327,7 @@ class TestChatProseRule(unittest.TestCase):
         router = (PERRY_HOME / "SKILL.md").read_text()
         for fragment in ("stays English", "idiom", "one language end to end"):
             self.assertIn(fragment, router, f"the router lost {fragment!r}")
+
+
+if __name__ == "__main__":
+    unittest.main()

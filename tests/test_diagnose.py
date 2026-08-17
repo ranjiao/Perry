@@ -579,10 +579,6 @@ class TestSchemaAgreement(unittest.TestCase):
             self.assertIn(fid, docs, f"{fid} is emitted but never documented")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class UserAskAnswerState(unittest.TestCase):
     """LOAD-03 must count asks that are *waiting*, not asks that ever existed.
 
@@ -749,3 +745,7 @@ class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
             "a planning placeholder was counted as a decision queued on the user")
         self.assertLess(d["open_decisions"], 3,
                         "the two `TBD at handoff` cells were counted")
+
+
+if __name__ == "__main__":
+    unittest.main()
