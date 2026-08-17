@@ -2213,3 +2213,76 @@ class TestIntakeIsReadableAndSweepable(unittest.TestCase):
         self.assertEqual(d["intake"]["rows"], [])
         self.assertEqual(d["intake"]["undischarged"], 0)
         self.assertIsNone(d["intake"]["oldest_undischarged"])
+
+
+class TestWritingToAProjectsOwnSections(unittest.TestCase):
+    """V4 review M-8. On the only year-old real project available, `add`
+    refused: "BOARD.md has no `## P1` section".
+
+    That board files work under `## Open — 投资线` and `## Open — 工程线 ·
+    phase #004`. The read side learned to see every section in 1.1; the write
+    side stayed on P0/P1/P2, so arrivals could be recorded and never routed.
+
+    Creating the missing priority section would have been the wrong fix —
+    "no automatic rewrite of a project's existing structure" is an Anti-Goal,
+    and a board filed by workstream is not malformed. The project says where
+    the row goes instead.
+    """
+
+    WORKSTREAM = """# BOARD
+
+## Open — 工程线
+
+| ID | Title | Owner | Status |
+|---|---|---|---|
+| TECH-1 | pre-existing | Coding Agent | not_started |
+
+## Backbone
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+"""
+
+    def test_a_board_with_no_priority_section_is_refused_with_its_own_headings(self):
+        """A refusal that names what the project actually has is the
+        difference between a wall and a door."""
+        p = Project(board=self.WORKSTREAM)
+        code, out = p.run("add", "--title", "X")
+        self.assertEqual(code, 1)
+        self.assertIn("Open — 工程线", str(out), "the refusal listed no sections")
+        self.assertIn("--group", str(out))
+
+    def test_group_files_the_row_under_the_projects_own_heading(self):
+        p = Project(board=self.WORKSTREAM)
+        code, a = p.run("add", "--title", "new work", "--group", "Open — 工程线")
+        self.assertEqual(code, 0, a)
+        section = p.board().split("## Backbone")[0]
+        self.assertIn(a["id"], section, "the row did not land in the named section")
+
+    def test_a_narrower_section_gains_the_columns_rather_than_losing_the_data(self):
+        """Writing only what fits would drop `Next action` silently — exactly
+        how `--commitment` was lost."""
+        p = Project(board=self.WORKSTREAM)
+        _, a = p.run("add", "--title", "new work", "--group", "Open — 工程线",
+                     "--next", "the actual next step")
+        self.assertIn("the actual next step", p.board())
+        old = next(l for l in p.board().split("\n") if l.startswith("| TECH-1 |"))
+        header = next(l for l in p.board().split("\n") if l.startswith("| ID |"))
+        self.assertEqual(len(PT.split_row(old)), len(PT.split_row(header)),
+                         "an existing row was not widened with the new columns")
+        self.assertIn("pre-existing", old, "existing data was disturbed")
+
+    def test_a_heading_ending_in_punctuation_resolves(self):
+        """`\\b` needs a word char on one side, so `## P2 (低优先 carry)` never
+        matched and `--group` refused a section the same tool had just listed."""
+        p = Project(board=self.WORKSTREAM.replace(
+            "## Open — 工程线", "## P2 (低优先 carry)", 1))
+        code, out = p.run("add", "--title", "X", "--group", "P2 (低优先 carry)")
+        self.assertEqual(code, 0, out)
+
+    def test_a_priority_board_is_unaffected(self):
+        """The default path must not change for a project using P0/P1/P2."""
+        p = Project()
+        code, a = p.run("add", "--title", "X", "--priority", "P0")
+        self.assertEqual(code, 0, a)
+        self.assertIn(a["id"], p.board().split("## P1")[0])

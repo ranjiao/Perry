@@ -45,6 +45,7 @@ Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
                    [--depends "…"] [--out-of-scope "…"] [--kr KR-ID]
                    [--track T] [--owner O] [--priority P0|P1|P2]
+                   [--group "<board heading>"]   file under a project's own section
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
                    [--arrived YYYY-MM-DD]
   perry-task start <ID> [--next "…"]
@@ -546,13 +547,39 @@ class Board:
         self.lines.insert(at, line)
         return line
 
-    def append_row(self, priority: str, values: dict) -> str:
-        _, _, header = self.table(priority)
-        check_header(header)
+    def append_row(self, priority: str, values: dict, group: str = "") -> str:
+        """Append to a priority table, or to a named section when `group` is
+        given.
+
+        The write side required `## P0` / `## P1` / `## P2` long after the read
+        side learned to see every section. On the only year-old real project
+        available — a board filed under `## Open — 投资线` and
+        `## Open — 工程线 · phase #004` — `add` refused with "BOARD.md has no
+        `## P1` section", so arrivals could be recorded and never routed.
+
+        Creating the missing priority section would have been the wrong fix:
+        "no automatic rewrite of a project's existing structure" is an
+        Anti-Goal, and a project that files work by workstream is not
+        malformed. So the project says where the row goes instead.
+        """
+        if group:
+            sep, header = self.section_table(group)
+            check_header(header)
+            rows = self.section_rows(group)
+            at = (rows[-1][0] if rows else sep) + 1
+        else:
+            _, _, header = self.table(priority)
+            check_header(header)
+            at = self.last_row(priority) + 1
         cells = [values.get(norm(h), "") for h in header]
         line = render_row(cells)
-        self.lines.insert(self.last_row(priority) + 1, line)
+        self.lines.insert(at, line)
         return line
+
+    def task_section_headings(self) -> list[str]:
+        """Headings a row could be filed under, for a refusal that helps."""
+        return [title for title, _, _, header, _ in self._task_sections()
+                if {"id", "title"} <= {norm(h) for h in header}]
 
     def replace_row(self, index: int, header: list[str], values: dict) -> str:
         check_header(header)
@@ -698,7 +725,11 @@ def heading_spellings(name: str) -> list[str]:
 
 
 def heading_re(name: str) -> re.Pattern:
-    return re.compile(r"^##\s+(?:%s)\b" %
+    # `(?!\w)` rather than `\b`: a word boundary needs a word char on one
+    # side, so a heading ending in punctuation — `## P2 (低优先 carry)` on a
+    # real board — never matched, and `--group` refused a section the same
+    # tool had just listed as available.
+    return re.compile(r"^##\s+(?:%s)(?!\w)" %
                       "|".join(re.escape(s) for s in heading_spellings(name)))
 
 
@@ -1000,9 +1031,21 @@ def cmd_add(args, ctx) -> dict:
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
-    priority = args.priority or "P1"
-    if priority not in ("P0", "P1", "P2"):
+    group = args.group or ""
+    priority = args.priority or ("" if group else "P1")
+    if priority and priority not in ("P0", "P1", "P2"):
         raise Refused(f"priority {priority!r} is not one of P0/P1/P2")
+    if not group:
+        try:
+            ctx["board"].table(priority)
+        except Refused:
+            headings = ctx["board"].task_section_headings()
+            raise Refused(
+                f"BOARD.md has no `## {priority}` section, and this project "
+                f"files work under its own headings. Name one with --group: "
+                f"{headings or '(none carry ID+Title columns)'}. Perry will "
+                f"not create a priority section on a board that does not use "
+                f"them — rewriting a project's structure is an Anti-Goal")
 
     if mode == "project" and args.stage:
         # Project mode has no stages at all, so there is no vocabulary to check
@@ -1051,14 +1094,24 @@ def cmd_add(args, ctx) -> dict:
     # hardcoded six-name tuple, so `--commitment` and `--track` were invisible
     # in the preview while the real write set them. A preview that is not the
     # write is worse than no preview.
-    ctx["board"].ensure_columns(priority, columns_for(values))
+    if group:
+        # The six required columns too, not just the mode extras. A real
+        # board's own section can be narrower — one files work under
+        # `| ID | Title | Owner | Status |` — and writing only what fits would
+        # drop `Next action` silently, which is exactly how `--commitment` was
+        # lost. Existing rows are widened with empty cells; nothing is moved.
+        ctx["board"].ensure_section_columns(
+            group, [canonical_column(k) for k in REQUIRED_KEYS]
+                   + columns_for(values))
+    else:
+        ctx["board"].ensure_columns(priority, columns_for(values))
     if mode == "queue":
         # The section `triage` step 0 walks. Nothing created it before, so
         # step 0's "only applies when the section exists" gate no-opped
         # forever for every queue track ever made.
         ctx["board"].ensure_section("Intake", ["Arrived", "Request", "Outcome"])
 
-    line = ctx["board"].append_row(priority, values)
+    line = ctx["board"].append_row(priority, values, group=group)
     jline = (f"- [{tid}] — → not_started · {args.title} · "
              f"owner: {values['owner']} · priority: {priority}")
     definition = "\n".join([
@@ -2275,6 +2328,7 @@ def parse(argv: list[str]) -> Args:
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
+    a.group = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -2288,7 +2342,8 @@ def parse(argv: list[str]) -> Args:
              "--frequency": "frequency", "--on": "on",
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
-             "--out-of-scope": "out_of_scope", "--kr": "kr"}
+             "--out-of-scope": "out_of_scope", "--kr": "kr",
+             "--group": "group"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):

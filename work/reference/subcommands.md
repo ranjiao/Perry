@@ -367,6 +367,22 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    your own markdown is legitimate; but it is visible, and that visibility is
    the point.
 
+   **On a board that does not use `P0`/`P1`/`P2`**, name the project's own
+   heading instead:
+
+   ```
+   "$PERRY_HOME/bin/perry-task" add --title "…" --deliverable "…" \
+       --verification "…" --group "Open — 工程线"
+   ```
+
+   A real year-old project files work under headings like that, and `add`
+   refused it outright until TASK-019/020's review found it. Perry will **not**
+   create a priority section on such a board — rewriting a project's structure
+   is an Anti-Goal — but it will add the columns it needs to write a row,
+   widening existing rows with empty cells rather than dropping the data that
+   does not fit. Run `add` without `--group` to see the sections a board
+   actually offers; the refusal lists them.
+
    **Refusals are outcomes, not errors.** The tool exits 1 and writes nothing on
    a missing title, an undeclared track, a priority outside `P0`/`P1`/`P2`, a
    stage outside a track's vocabulary, or a `--stage` on a `project`-mode track
