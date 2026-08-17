@@ -221,6 +221,29 @@ def parse_tracks(text: str) -> list[dict]:
     return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
 
 
+def raw_events(project_root: Path) -> list[dict]:
+    """Every event, parsed. One reader, because there were about to be three.
+
+    `reconcile_drift` parsed this file inline and `verification_distribution`
+    needed it too; a second inline copy is how the four "same rule, two
+    implementations" defects in this repo started. A corrupt line is skipped,
+    never fatal — the log is derived and must not be able to break a read.
+    """
+    path = project_root / ".perry" / "events.jsonl"
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
 def read_event_log(project_root: Path) -> dict:
     """`.perry/events.jsonl` — the history `BOARD.md` cannot hold.
 
@@ -414,8 +437,8 @@ def cadence_report(board) -> dict:
             "unreadable_frequency": unreadable, "items": items}
 
 
-def verification_distribution(tasks) -> dict:
-    """How closures on this board were verified (DESIGN-003 § 5.3).
+def verification_distribution(tasks, events=None) -> dict:
+    """How closures on this project were verified (DESIGN-003 § 5.3).
 
     `unrated` is reported separately from the rungs rather than folded into
     V1, because "nobody said" and "someone said an artifact exists" are
@@ -424,17 +447,32 @@ def verification_distribution(tasks) -> dict:
     the rung optional for one cycle precisely so this count can be watched
     instead of forcing a migration.
     """
-    closed = [t for t in tasks if t.status == "done"]
+    # Board rows AND close events. Reading only rows measured an empty set:
+    # `perry-task done` REMOVES the row it closes, so on this repo 29 closures
+    # carrying rungs (28 V3, one V4) reported `closed: 0`. The verification
+    # ladder — the whole of DESIGN-003 § 5.3, including the rule that anything
+    # outward-facing or carrying money needs V5 — was grading nothing the tool
+    # had ever closed, which by then was all of them.
+    #
+    # A row still on the board wins over its event: the board is canonical and
+    # a hand-edited rung is a legitimate correction.
+    rungs: dict[str, str] = {}
+    for e in (events or []):
+        if e.get("event") == "done" and e.get("id"):
+            rungs[e["id"]] = (e.get("rung") or "").strip().upper()
+    for t in tasks:
+        if t.status == "done" and getattr(t, "id", ""):
+            rungs[t.id] = (getattr(t, "verification", "") or "").strip().upper()
+
     by_rung: dict[str, int] = {}
     unrated = 0
-    for t in closed:
-        rung = (getattr(t, "verification", "") or "").strip().upper()
+    for rung in rungs.values():
         if re.fullmatch(r"V[0-6]", rung):
             by_rung[rung] = by_rung.get(rung, 0) + 1
         else:
             unrated += 1
     return {
-        "closed": len(closed),
+        "closed": len(rungs),
         "by_rung": dict(sorted(by_rung.items())),
         "unrated": unrated,
     }
@@ -842,7 +880,8 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "cadence": len(board.cadence),
             "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
             "open": sum(1 for t in all_tasks if t.status in open_states),
-            "verification": verification_distribution(all_tasks),
+            "verification": verification_distribution(all_tasks,
+                                                      raw_events(project_root)),
             "events": read_event_log(project_root),
             "drift": reconcile_drift(project_root, board,
                                      read_event_log(project_root)),

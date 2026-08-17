@@ -934,3 +934,75 @@ class TestTheHookTemplateIsNotBlind(unittest.TestCase):
         for tid, title in self.OUTWARD:
             self.assertIn(tid, hits,
                           f"{title!r} closed at V2 and the gate said nothing")
+
+
+class TestVerificationSeesToolClosedWork(unittest.TestCase):
+    """V4 review M-4. The verification ladder was grading an empty set.
+
+    `perry-task done` REMOVES the row it closes, and both readers — the linter
+    and `perry-state` — looked only at board rows. On Perry itself: 29 close
+    events carrying rungs (28 V3, one V4), and both reported zero. So the whole
+    of DESIGN-003 § 5.3, including the rule that anything outward-facing or
+    carrying money needs V5 regardless of mode, could never fire on a task the
+    tool had closed — which by then was all of them.
+    """
+
+    def project(self, rung: str, title: str, hook: str = ""):
+        tmp = tempfile.mkdtemp()
+        root = Path(tmp)
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- Document language: English\n"
+            "- Repo layout: single\n- State root: .\n")
+        if hook:
+            (root / ".perry" / "hook.md").write_text(
+                f"# hook\n\n## High-stakes operations\n\n- {hook}\n")
+        (root / "BOARD.md").write_text(
+            "# BOARD\n\n## P0\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n\n## P1\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n\n## P2\n| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n")
+        tool = str(PERRY_HOME / "bin" / "perry-task")
+        subprocess.run(["python3", tool, "add", "--title", title,
+                        "--deliverable", "d", "--verification", "v",
+                        "--priority", "P0", "--root", str(root)],
+                       capture_output=True, text=True)
+        subprocess.run(["python3", tool, "done", "TASK-001",
+                        "--evidence", "e.md", "--rung", rung,
+                        "--root", str(root)], capture_output=True, text=True)
+        return root
+
+    def lint(self, root: Path) -> str:
+        return subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-lint"),
+             "--verification", "--root", str(root)],
+            capture_output=True, text=True).stdout
+
+    def test_a_closed_row_is_counted_after_it_leaves_the_board(self):
+        root = self.project("V3", "ordinary work")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(root), "--json"], capture_output=True, text=True)
+        v = json.loads(r.stdout)["board"]["verification"]
+        self.assertEqual(v["closed"], 1, "a tool-closed task was not counted")
+        self.assertEqual(v["by_rung"], {"V3": 1})
+
+    def test_the_consequence_rule_fires_on_tool_closed_work(self):
+        """The rule that overrides the mode default in every mode, and which
+        could not reach a single tool-closed task."""
+        root = self.project("V3", "send the wire transfer", hook="`wire transfer`")
+        self.assertIn("consequence-needs-signoff", self.lint(root))
+
+    def test_v5_satisfies_it(self):
+        root = self.project("V5", "send the wire transfer", hook="`wire transfer`")
+        self.assertNotIn("consequence-needs-signoff", self.lint(root))
+
+    def test_an_evidence_path_is_not_a_consequence(self):
+        """The haystack used to include the evidence path, so a hook listing
+        `evidence/` under "destructive filesystem operations" matched every
+        task that had evidence — all 29 on Perry's own board, the moment this
+        check started working. A latent bug that could not fire while the check
+        rated nothing."""
+        root = self.project("V3", "ordinary work", hook="`evidence/`")
+        self.assertNotIn("consequence-needs-signoff", self.lint(root))

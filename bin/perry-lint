@@ -694,6 +694,44 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     board = state_root / "BOARD.md"
     if not board.exists():
         return findings
+
+    def judge(where: str, tid: str, title: str, ev: str, rung: str,
+              stakes: list[str]) -> int:
+        """One closure, judged. Called for board rows AND for close events.
+
+        Reading only board rows measured an empty set: `perry-task done`
+        REMOVES the row it closes, so on this repo 29 closures carrying rungs
+        produced "no done rows to rate". The consequence rule below — anything
+        outward-facing or carrying money needs V5 regardless of mode — could
+        therefore never fire on a task the tool had closed, which by then was
+        every task.
+        """
+        if not rung:
+            findings.append(Finding(
+                "warn", where, "no-verification-rung",
+                f"{tid} is done with no verification rung — "
+                f"'evidence exists' does not say what was checked"))
+            return 0
+        why = rung_satisfied(rung, ev)
+        if why:
+            findings.append(Finding("warn", where, "rung-not-satisfied",
+                                    f"{tid}: {why}"))
+        # The id and the title — what the work IS. NOT the evidence path:
+        # that is where the proof lives, not what was done, and matching
+        # fragments inside it made every task high-stakes. Perry's own hook
+        # lists `evidence/` under "destructive filesystem operations —
+        # overwriting a project's own design/, evidence/, …", so once this
+        # check started seeing tool-closed tasks it flagged all 29 of them.
+        # A latent bug that could not fire while the check rated nothing.
+        hay = f"{tid} {title}".lower()
+        hit = next((f for f in stakes if f in hay), None)
+        if hit and rung < "V5":
+            findings.append(Finding(
+                "warn", where, "consequence-needs-signoff",
+                f"{tid} matches the project's own high-stakes list "
+                f"({hit!r}) but closed at {rung}; outward-facing or "
+                f"irreversible work needs V5 regardless of mode"))
+        return 1
     # `seen` is returned alongside the findings so the caller can tell "every
     # done row is fine" from "there were no done rows" — printing a checkmark
     # for an empty scan is how a gate quietly stops being one.
@@ -702,6 +740,7 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     stakes = high_stakes_fragments(perry_dir)
 
     rows_seen = rows_ranked = 0
+    seen_ids: set[str] = set()
     for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
             got = [norm(c) for c in header]
@@ -717,31 +756,32 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
                     continue
                 rows_seen += 1
                 tid = cell(ci_id) or "(unnamed row)"
-                ev, rung = cell(ci_ev), cell(ci_v)
-                if not rung:
-                    findings.append(Finding(
-                        "warn", "BOARD.md", "no-verification-rung",
-                        f"{tid} is done with no verification rung — "
-                        f"'evidence exists' does not say what was checked",
-                    ))
-                    continue
-                rows_ranked += 1
-                why = rung_satisfied(rung, ev)
-                if why:
-                    findings.append(Finding(
-                        "warn", "BOARD.md", "rung-not-satisfied",
-                        f"{tid}: {why}",
-                    ))
-                # The consequence rule overrides the mode default in every mode.
-                hay = f"{tid} {cell(ci_ti)} {ev}".lower()
-                hit = next((f for f in stakes if f in hay), None)
-                if hit and rung < "V5":
-                    findings.append(Finding(
-                        "warn", "BOARD.md", "consequence-needs-signoff",
-                        f"{tid} matches the project's own high-stakes list "
-                        f"({hit!r}) but closed at {rung}; outward-facing or "
-                        f"irreversible work needs V5 regardless of mode",
-                    ))
+                seen_ids.add(tid)
+                rows_ranked += judge("BOARD.md", tid, cell(ci_ti),
+                                     cell(ci_ev), cell(ci_v), stakes)
+
+    # The closures that have already left the board. `done` removes the row,
+    # so without this pass the check rated only work closed by hand — and on a
+    # project using the tool, that is none of it.
+    log = perry_dir / "events.jsonl"
+    if log.exists():
+        for line in log.read_text(errors="replace").split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if e.get("event") != "done" or not e.get("id"):
+                continue
+            if e["id"] in seen_ids:
+                continue          # still on the board; the row is canonical
+            seen_ids.add(e["id"])
+            rows_seen += 1
+            rows_ranked += judge(".perry/events.jsonl", e["id"],
+                                 e.get("title", ""), e.get("evidence", ""),
+                                 (e.get("rung") or "").strip().upper(), stakes)
 
     if rows_seen and not rows_ranked:
         findings.append(Finding(
