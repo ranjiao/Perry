@@ -32,10 +32,10 @@
 | TASK-021 | Recurrence register (cadence-add / cadence-done) | Coding Agent | review | cadence half complete and evidenced; the Commitments half is now TASK-042. Title corrected with perry-task retitle. Ready for its V4. | — | V4 |
 | TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F, unblocked. Needs your V5 — the one acceptance another program's user has to give. Scope: one call answers both questions in DESIGN-004 §1.3. | — | V5 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
-| TASK-037 | perry-goals writer | Coding Agent | not_started | DESIGN-005 step 3 — byte-identity test against existing OKR.md BEFORE any write path ships | — |  |
+| TASK-037 | perry-goals writer | Coding Agent | not_started | spec written: evidence/2026-08/TASK-037-spec.md. First commit is an extraction, not a feature — the table surgery must move out of perry-task and be shared, not copied. Gate: byte-identity over 4 real OKR.md files before any write path. | — |  |
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | review | Table + risk-add/risk-clear landed; Top risks migrated (RX-001..004). Needs review of the column set and the list-contract leak fix. | — |  |
-| TASK-042 | OKR.md § Commitments — the half TASK-021 did not do | Coding Agent | not_started | Split out 2026-08-17 so TASK-021 can close honestly on the cadence half alone. Commitments is the spine for pipeline/queue tracks (modes/pipeline.md, modes/queue.md) and is owned by the goals lane; a writer for it is DESIGN-005 step 3 territory, not the work lane's. | — |  |
+| TASK-042 | OKR.md § Commitments — the half TASK-021 did not do | Coding Agent | not_started | blocked on TASK-037's extraction. Acceptance is goals/reference/phases.md § commit <promise> — the procedure shipped 2026-08-17 states the rules the tool must implement; this row closes when commit stops being prose. | — |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
