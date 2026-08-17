@@ -151,6 +151,24 @@ the escape hatch when a row's existing cell is prose the tool cannot read.
 
 `perry-task` cannot close a Cadence row with `done` and never could — `## Cadence` is not a task section. A recurrence has no end; it is retired by removing the row.
 
+**A wrong `Next action` is corrected with its own subcommand.**
+
+```
+"$PERRY_HOME/bin/perry-task" next <TASK-ID> --next "<the real next step>"
+```
+
+The most common thing a triage does, and it had no tool path until TASK-041:
+`status` is the only other writer of that cell and it refuses a no-op
+transition, so correcting a plan meant changing a status the row did not
+warrant, or hand-editing. `next` is its own event — a reader has to be able to
+tell "the plan changed" from "the state changed", and folding them makes that
+impossible forever.
+
+**Write the next step, not the history.** A cell that explains what already
+happened keeps `conformance.next_action_cites_closed` firing and re-reads as
+stale at every triage; what happened is already in the journal and the event
+log.
+
 **Every status change that is not a close goes through the tool too.**
 
 ```

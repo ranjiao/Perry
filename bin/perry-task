@@ -62,6 +62,7 @@ Usage:
   perry-task drop  <ID> --reason "…"
   perry-task status <ID> --status blocked|review|not_started|in_progress
                     [--reason "…"] [--next "…"]
+  perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
 
@@ -1137,6 +1138,51 @@ def cmd_status(args, ctx) -> dict:
     return {"id": tid, "status": want, "row": line, **plan}
 
 
+def cmd_next(args, ctx) -> dict:
+    """Rewrite a row's `Next action` and nothing else.
+
+    Found by running a triage: `next_action_cites_closed` reported a row whose
+    next step named work that had finished, and there was **no way to correct
+    it**. `status` is the only writer of that cell and it refuses a no-op
+    transition — correctly, since a journal line asserting `not_started →
+    not_started` records a change that did not happen. So the alternatives were
+    a status change the row did not warrant, or a hand edit, and the single
+    most common triage action had no tool path.
+
+    Relaxing `status` was the wrong fix. A status change and a correction are
+    different events and a reader should be able to tell them apart; folding
+    them would make "the plan changed" and "the state changed" the same line in
+    the journal forever.
+
+    Refuses a closed row: a row that has left the board has no next step, and
+    writing one would put a live-looking instruction on finished work.
+    """
+    tid = args.id
+    if not args.next:
+        raise Refused(
+            "--next is required: this subcommand exists to write that cell, "
+            "and clearing it would leave the row with no stated next step")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    if values.get("status", "").strip().strip("*` ").lower() in ("done", "dropped"):
+        raise Refused(
+            f"{tid} is {values.get('status', '').strip()} — a row that has "
+            f"finished has no next step")
+    prev = values.get("next action", "")
+    if prev.strip() == args.next.strip():
+        raise Refused(f"{tid}'s next action is already that text")
+    values["next action"] = args.next
+    line = ctx["board"].replace_row(idx, header, values)
+    jline = f"- [{tid}] next action · {args.next}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "next",
+             "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"), "actor": args.actor,
+             "from": prev, "to": args.next}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "next": args.next, "row": line, **plan}
+
+
 def cmd_drop(args, ctx) -> dict:
     """Remove a row deliberately, with a reason, and record why.
 
@@ -2061,13 +2107,14 @@ def parse(argv: list[str]) -> Args:
 # allowlist drops a future event from the payload, a denylist leaks one into it,
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
-TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "done", "drop"})
+TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
+                         "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "ask", "answer",
                             "cadence-add", "cadence-done",
                             "risk-add", "risk-clear"})
 
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
-            "ask": cmd_ask, "answer": cmd_answer,
+            "ask": cmd_ask, "answer": cmd_answer, "next": cmd_next,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,

@@ -24,14 +24,13 @@
 | TASK-019 | `modes/pipeline.md` | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage/Stage since columns created by columns_for; WIP defaults exist (pipeline review:3, inquiry open:5) in schema work_modes; Commitments owned by goals in the signed contract. NO re-review has run — that is what this row waits on. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage column; Arrived carried through route (P1 table header reads Arrived, value preserved); Commitments ownership settled. Intake drain + resolve-intake shipped. NO re-review has run. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
-| TASK-041 | perry-task: correct a Next action without a status change | Coding Agent | not_started | Found in triage 2026-08-17. TASK-034's next action cites a closed task; the only way to fix it is a status change the row does not warrant, or a hand edit. `status` refuses a no-op transition (correctly). The most common triage action has no tool path. | — |  |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
 | TASK-021 | Recurrence register + `OKR.md § Commitments` | Coding Agent | review | Cadence half shipped: perry-task cadence-add/cadence-done, overdue reporting in perry-state, schema + 42 tests. Evidence: `evidence/2026-08/TASK-021-recurrence-register.md`. The `OKR.md § Commitments` half of this row's title is descoped to the goals lane — re-title or split before closing | — | V4 |
-| TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F — blocked-by TASK-030; **needs your V5**, it is the one a different program's user has to accept | — | V5 |
+| TASK-034 | aimark integration — one call answers both of §1.3's questions | User + Agent | not_started | DESIGN-004 phase F, unblocked. Needs your V5 — the one acceptance another program's user has to give. Scope: one call answers both questions in DESIGN-004 §1.3. | — | V5 |
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 | TASK-037 | perry-goals writer | Coding Agent | not_started | DESIGN-005 step 3 — byte-identity test against existing OKR.md BEFORE any write path ships | — |  |
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |

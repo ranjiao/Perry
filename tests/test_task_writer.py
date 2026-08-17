@@ -1920,3 +1920,73 @@ class TestNextActionPointingAtFinishedWork(unittest.TestCase):
         p = self.board_citing("DESIGN-003")
         _, d = p.run("list", "--all")
         self.assertEqual(d["conformance"]["next_action_cites_closed"], [])
+
+
+class TestCorrectingANextAction(unittest.TestCase):
+    """TASK-041. Found by running a triage rather than by reading code.
+
+    `next_action_cites_closed` reported a row whose next step named work that
+    had finished, and there was **no way to correct it**. `status` is the only
+    writer of that cell and it refuses a no-op transition — correctly, because
+    a journal line asserting `not_started → not_started` records a change that
+    did not happen. So the alternatives were a status change the row did not
+    warrant, or a hand edit, and the single most common triage action had no
+    tool path.
+
+    Relaxing `status` was the wrong fix. A status change and a correction are
+    different events; folding them would make "the plan changed" and "the state
+    changed" the same journal line forever.
+    """
+
+    def test_the_cell_is_rewritten_and_the_status_is_untouched(self):
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0", "--next", "old plan")
+        code, out = p.run("next", a["id"], "--next", "new plan")
+        self.assertEqual(code, 0, out)
+        row = next(l for l in p.board().split("\n") if l.startswith(f"| {a['id']} |"))
+        self.assertIn("new plan", row)
+        self.assertNotIn("old plan", row)
+        self.assertIn("not_started", row, "the status moved")
+
+    def test_it_is_its_own_event_not_a_status_change(self):
+        """A reader has to be able to tell a corrected plan from a moved row."""
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0")
+        p.run("next", a["id"], "--next", "revised")
+        self.assertEqual([e["event"] for e in p.events()], ["add", "next"])
+        self.assertIn("next action · revised", p.journal())
+
+    def test_rewriting_to_the_same_text_is_refused(self):
+        """Same reason `status` refuses a no-op: a journal line recording a
+        change that did not happen."""
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0", "--next", "same")
+        code, out = p.run("next", a["id"], "--next", "same")
+        self.assertEqual(code, 1)
+        self.assertIn("already", str(out))
+
+    def test_an_empty_next_is_refused(self):
+        p = Project()
+        _, a = p.run("add", "--title", "X", "--priority", "P0")
+        code, out = p.run("next", a["id"])
+        self.assertEqual(code, 1)
+        self.assertIn("--next", str(out))
+
+    def test_a_finished_row_still_on_the_board_is_refused(self):
+        """A row that has finished has no next step, and writing one would put
+        a live-looking instruction on completed work. `done` removes the row,
+        so the case that matters is a board that stages finished work in place
+        — which Perry's own did, for twenty rows."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | finished in place | User | done | — | e.md |\n\n## P1", 1))
+        code, out = p.run("next", "TASK-900", "--next", "something")
+        self.assertEqual(code, 1)
+        self.assertIn("finished", str(out))
+
+    def test_it_is_classified_as_a_task_event(self):
+        """`TASK_EVENTS` / `SECTION_EVENTS` is a partition, and a subcommand
+        that forgets to join one silently stops appearing in `list`."""
+        self.assertIn("next", PT.TASK_EVENTS)
+        self.assertNotIn("next", PT.SECTION_EVENTS)
