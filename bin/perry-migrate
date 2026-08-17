@@ -12,10 +12,16 @@ guarantees are in `perry/evidence/2026-08/TASK-044-spec.md`; three of them are
      The plan carries the full post-image of every file, so `apply` is
      `path.write_text(plan.after)` and nothing else. The dry run and the real
      run cannot diverge because there is one computation, not two.
-  2. **Nothing is lost.** Four assertions run over every file before it is
-     written, and a file that fails any of them is not written at all:
-     every non-whitespace character, every table cell, every id, and every
-     per-section row count. See `losslessness()`.
+  2. **Nothing is lost, and nothing is changed into something else.** Two
+     groups of assertions run over every file before it is written, and a file
+     that fails any of them is not written at all. `losslessness()` asks
+     whether it is all still there — every non-whitespace character, every
+     table cell, every id, every per-section row count, and every line
+     accounted for. `meaning()` asks whether it still says the same thing —
+     because a legend widened into a task table, a `not yet locked` normalized
+     to `locked`, and a token spliced into a sentence about a vendor contract
+     all pass every check in the first group. Each part of `meaning()` states
+     what it cannot see; see the note above it.
   3. **Recoverable.** Every run writes a restore point naming every file it
      touched, with the bytes it found there. `perry-migrate restore` puts them
      back. See § "Dirty tree or restore point" below.
@@ -66,10 +72,16 @@ read-only; `apply` and `restore` are the only writers.
 
 **Must change, but Perry may not decide** — reported, never guessed:
 
-  · an enum value that resolves to two candidates, or to none
-  · a table under a required heading that shares *no* column with the schema's
-    — Perry does not recognise it, and widening it would be writing columns
-    into somebody else's table
+  · an enum value that resolves to two candidates, or to none — including a
+    value that says only what it is *not*
+  · a table under a required heading that does not speak the schema's
+    vocabulary — Perry does not recognise it, and widening it would be writing
+    columns into somebody else's table. Sharing one column name is not
+    vocabulary: `ID`, `Status` and `Owner` are the commonest words in any
+    markdown table, and a two-row legend under `## P0` has an `ID` column.
+    `is_the_schemas_table()` states the test and what it cannot see.
+  · a field-shaped sentence in the body. `Status:` in a paragraph is prose;
+    only the header block is Perry's to write into
   · a file over its size cap: splitting it is a content decision
   · a required section whose *content* the schema constrains
 
@@ -438,6 +450,51 @@ def insertion_point(lines: list[str], reqs: list[dict], i: int) -> int:
 # ── T2 · a table missing the columns parsers key on ───────────────────────
 
 
+def is_the_schemas_table(tspec: dict, got: list[str], satisfied) -> bool:
+    """Is this the schema's table, or somebody else's that shares a word?
+
+    **It is the schema's when more of the schema's names are already in its
+    header than are missing from it.**
+
+    The rule used to be "it is Perry's unless it shares *zero* column names",
+    which is the weakest test the sentence in the module docstring can be read
+    as, and `ID` / `Status` / `Owner` / `Title` / `Date` are the commonest words
+    in any markdown table ever written. A two-row legend under `## P0 holding`
+
+        | ID     | Meaning     |
+        | INV-*  | investments |
+
+    shares `ID`, so migration bolted five columns onto it, `perry-lint` went 6
+    errors → 0, the conformance marker declared the board conformant, and
+    `perry-task list` then returned two tasks with the ids `INV-` and `ENG-` and
+    no titles — through a frozen contract. ADR-004's own Context table cites
+    this exact shape (a legend under a section heading getting columns bolted
+    on) as the reason ADR-004 exists.
+
+    Recognition is therefore by **vocabulary**, the way `is_header_block` tells a
+    header block from a quoted disclaimer: one shared word is a coincidence, a
+    majority is a table speaking the schema's language. `| ID | Title | Owner |
+    Status |` under `## P2` is 4 of the board's 6 — that table, missing two
+    columns, which is precisely what widening is for. Extra columns the author
+    added cost nothing: the test counts the schema's names, not the table's.
+
+    What it cannot see, stated:
+
+    - **a genuine table written with only two of six names is refused.**
+      `| ID | Title |` under `## P0` is a board table by intent and a minority
+      by this test, so it is reported and left byte-identical — the same
+      outcome as any other table Perry does not recognise, and one hand edit
+      away from migrating. That is the safe direction of the two.
+    - **it counts names, not meaning.** A legend whose columns happened to be a
+      majority of the schema's would pass. `meaning()`'s reading assertion is
+      the second line of defence there, and it is a different question asked by
+      a different reader.
+    """
+    cols = tspec["columns"]
+    present = [c for c in cols if satisfied(c, got)]
+    return len(present) > len(cols) - len(present)
+
+
 def fix_tables(lines: list[str], spec: dict, schema: dict,
                changes: list[Change], rewritten: list[str]) -> list[str]:
     L = lint()
@@ -459,13 +516,14 @@ def fix_tables(lines: list[str], spec: dict, schema: dict,
                 missing = [c for c in tspec["columns"] if not satisfied(c, got)]
                 if not missing:
                     continue
-                if len(missing) == len(tspec["columns"]):
+                if not is_the_schemas_table(tspec, got, satisfied):
                     # Not the schema's table. A `| 种子 | Owner | Deliverable |`
                     # under `## 目标 1` shares nothing with Perry's phase-KR
-                    # table, and bolting four empty columns onto it would be
-                    # Perry writing into a table it does not recognise. Left
-                    # alone; `perry-lint` still reports it, and the report says
-                    # why it was not touched.
+                    # table, and a `| ID | Meaning |` legend under `## P0`
+                    # shares one word out of six — bolting empty columns onto
+                    # either would be Perry writing into a table it does not
+                    # recognise. Left alone; `perry-lint` still reports it, and
+                    # the report says why it was not touched.
                     continue
                 lang = task().header_language(header)
                 added = [task().display_name(c, lang) for c in missing]
@@ -488,42 +546,112 @@ def fix_tables(lines: list[str], spec: dict, schema: dict,
 # ── T3 · an enum-valued header field carrying prose ───────────────────────
 
 
-def enum_candidates(value: str, allowed: list[str], aliases: dict) -> list[str]:
+#: Where the clause before a token starts. A negator only denies the token it
+#: governs: in `locked — do not build from this` the `not` is on the far side of
+#: the dash and denies `build`, not `locked`. `-` is deliberately absent — a
+#: hyphen joins words far more often than it separates clauses.
+CLAUSE_START = re.compile(r"[.;:,!?()\[\]|/—–。；：，、（）]")
+
+
+def negated(low: str, at: int, negators: list[str]) -> bool:
+    """Is the token at offset `at` denied by the clause it sits in?
+
+    Only what stands *before* it, and only back to the nearest clause boundary.
+    `已评分，不再改动` says scored and then says something else; `not yet locked`
+    says it is not locked."""
+    cut = 0
+    for m in CLAUSE_START.finditer(low, 0, at):
+        cut = m.end()
+    window = low[cut:at]
+    for n in negators or []:
+        n = n.lower()
+        if n.isascii():
+            if re.search(rf"(?<![A-Za-z0-9]){re.escape(n)}(?![A-Za-z0-9])",
+                         window):
+                return True
+        elif n in window:
+            return True
+    return False
+
+
+def enum_candidates(value: str, allowed: list[str], aliases: dict,
+                    negators: list[str] | None = None) -> list[str]:
     """Every canonical value this text could be saying. Never fewer, never more.
 
-    Resolution is by *declared* vocabulary only — the enum's own tokens, and
-    the localized spellings `schema/state-schema.json § migration.enum_aliases`
-    records. There is no keyword scoring and no default: two candidates or
-    none means the migration does not know, and a migration that guessed the
-    status of somebody's design doc would be inventing a fact about their
-    project."""
+    Resolution is by *declared* vocabulary only — the enum's own tokens, the
+    localized spellings `schema/state-schema.json § migration.enum_aliases`
+    records, and the negators `§ migration.negations` records. There is no
+    keyword scoring and no default: two candidates or none means the migration
+    does not know, and a migration that guessed the status of somebody's design
+    doc would be inventing a fact about their project.
+
+    **A word standing in a sentence is not the same as a word standing alone.**
+    Plain substring search read `> Status: not yet locked — do not build from
+    this` as `locked` and wrote it into the file, keeping the author's sentence
+    verbatim beside it — every character preserved, the claim reversed. One hit
+    was treated as certainty because nothing here could see the word in front of
+    it. A negated candidate is dropped rather than counted, so a value that says
+    only what it is *not* resolves to nothing and is reported, which is what the
+    module docstring promises for a value Perry cannot read.
+
+    What it cannot see, stated: negation carried by grammar rather than by a
+    word — `we un-locked it on Tuesday`, `locked? no longer` — and a negator
+    separated from its token by a clause boundary. It reads a declared list of
+    denial words in the clause before the token, and nothing more."""
     text = value.strip().strip("*`> ")
     low = text.lower()
     if low in [a.lower() for a in allowed]:
         return [a for a in allowed if a.lower() == low]
     hits: list[str] = []
     for canon in allowed:
-        if re.search(rf"(?<![A-Za-z0-9]){re.escape(canon)}(?![A-Za-z0-9])", low):
+        found = [m for m in re.finditer(
+            rf"(?<![A-Za-z0-9]){re.escape(canon)}(?![A-Za-z0-9])", low)]
+        if found and not all(negated(low, m.start(), negators) for m in found):
             hits.append(canon)
     for spelling, canon in (aliases or {}).items():
-        if spelling.lower() in low and canon in allowed and canon not in hits:
+        if canon not in allowed or canon in hits:
+            continue
+        found = [m for m in re.finditer(re.escape(spelling.lower()), low)]
+        if found and not all(negated(low, m.start(), negators) for m in found):
             hits.append(canon)
     return hits
 
 
-def field_line(lines: list[str], name_re: str) -> tuple[int, re.Match] | None:
-    """The first line carrying this header field, skipping table rows.
+def field_line(lines: list[str], name_re: str, spec: dict,
+               schema: dict) -> tuple[int, re.Match] | None:
+    """The first line carrying this header field, and whether it may be rewritten.
 
     `bin/perry-lint` searches the whole file text, so the field it validates is
-    whichever comes first. That is almost always a blockquote header line — but
-    if it were a table cell, rewriting it would put a `|` inside a row and turn
-    one cell into two. Table rows are therefore never rewritten as fields; the
-    finding is left for the report."""
+    whichever comes first. That is the line this returns, because *presence* has
+    to mean what the linter means by it — a caller asking "does this file have a
+    `Status`" must get the same answer the linter got, or migration adds a
+    second one and the linter goes on reading the first.
+
+    The index is separate, and is `None` when the line is one Perry may not
+    write into. Two ways that happens:
+
+    - **a table row or separator.** Rewriting one would put a `|` inside a row
+      and turn one cell into two.
+    - **a line that is not in this file's header block.** This guarded only the
+      table case, and body prose is field-shaped: `Background: the vendor
+      contract Status: superseded by the 2025 MSA, so we rebuilt.` became
+      `… Status: superseded | superseded by the 2025 MSA, so we rebuilt.` — a
+      token spliced into the middle of somebody's sentence, while the real
+      header field two lines below was left alone. Perry's own repo carries the
+      shape at `perry/design/DESIGN-001-resumable-pipelines.md:126`: *"ALL rows
+      must be resolved before this doc can move to `Status: locked`."*
+
+    `is_header_block` was written for exactly this — *"Sentences are field-
+    shaped; only the vocabulary tells them apart"* — and was applied to
+    `header_block_end` and not here. It is the same span both use now."""
     pat = re.compile(rf"{name_re}\s*\**\s*[:：]\s*\**\s*([^\n]+)")
+    span = header_block_span(lines, spec, schema)
     for i, line in enumerate(lines):
         m = pat.search(line)
         if m:
-            return (None if is_row(line) or is_separator(line) else i), m
+            inside = span is not None and span[0] <= i <= span[1]
+            return (i if inside and not is_row(line) and not is_separator(line)
+                    else None), m
     return None
 
 
@@ -531,11 +659,12 @@ def fix_enum_fields(lines: list[str], spec: dict, schema: dict,
                     changes: list[Change], rewritten: list[str]) -> list[str]:
     L = lint()
     aliases = ((schema.get("migration") or {}).get("enum_aliases") or {})
+    negators = ((schema.get("migration") or {}).get("negations") or [])
     for fspec in spec.get("header_fields", []):
         if not fspec.get("enum"):
             continue
         allowed = schema["enums"][fspec["enum"]]
-        found = field_line(lines, L.field_re(fspec["name"]))
+        found = field_line(lines, L.field_re(fspec["name"]), spec, schema)
         if not found:
             continue
         idx, m = found
@@ -545,7 +674,8 @@ def fix_enum_fields(lines: list[str], spec: dict, schema: dict,
         current = re.split(r"[|/,]", raw.strip().strip("*`> "))[0].strip()
         if current in allowed:
             continue
-        hits = enum_candidates(raw, allowed, aliases.get(fspec["enum"]) or {})
+        hits = enum_candidates(raw, allowed, aliases.get(fspec["enum"]) or {},
+                               negators)
         if len(hits) != 1:
             continue
         canon = hits[0]
@@ -600,17 +730,13 @@ def is_header_block(lines, first, last, spec, schema) -> bool:
     return len(before) == 1 and before[0].startswith("# ")
 
 
-def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, bool, bool]:
-    """Where a header field goes, and whether this file bolds its field names.
+def header_block_span(lines: list[str], spec: dict,
+                      schema: dict) -> tuple[int, int] | None:
+    """`(first, last)` line indices of this file's header block, or None.
 
-    After the last line of the leading `>` block **when that block holds header
-    fields**, so a new field joins the ones already there instead of landing in
-    the prose — and after the H1 otherwise, as a block of its own. The third
-    return value says which happened, because a joined field follows its
-    neighbours' spelling and a new block uses the schema's. The bold question is not
-    cosmetic: `perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`, which a
-    bolded `> **Id**:` does not satisfy — so a digest whose neighbours are
-    plain must get a plain line."""
+    The one definition of "where Perry's metadata lives in this file", shared by
+    `header_block_end` (which writes into it) and `field_line` (which refuses to
+    write anywhere else)."""
     # The FIRST CONTIGUOUS run of `>` lines, not every quoted line above the
     # first `## `. Treating them as one block put `Id` under the H1 and then
     # `Source` back inside a disclaimer four lines further down, because the
@@ -634,10 +760,26 @@ def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, b
     # as the last sentence of that disclaimer — no character lost, the meaning
     # changed. Found by the user reading the migrated file; thirty mutations
     # had passed over it.
-    if last_quote is not None and not is_header_block(
+    if last_quote is None or not is_header_block(
             lines, first_quote, last_quote, spec, schema):
-        first_quote = last_quote = None
-    if last_quote is not None:
+        return None
+    return (first_quote, last_quote)
+
+
+def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, bool, bool]:
+    """Where a header field goes, and whether this file bolds its field names.
+
+    After the last line of the leading `>` block **when that block holds header
+    fields**, so a new field joins the ones already there instead of landing in
+    the prose — and after the H1 otherwise, as a block of its own. The third
+    return value says which happened, because a joined field follows its
+    neighbours' spelling and a new block uses the schema's. The bold question is not
+    cosmetic: `perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`, which a
+    bolded `> **Id**:` does not satisfy — so a digest whose neighbours are
+    plain must get a plain line."""
+    span = header_block_span(lines, spec, schema)
+    if span is not None:
+        first_quote, last_quote = span
         block = [lines[i] for i in range(first_quote, last_quote + 1)]
         bold = sum(1 for b in block if re.search(r">\s*\*\*[^*]+\*\*\s*[:：]", b))
         return (last_quote + 1,
@@ -664,7 +806,7 @@ def fix_missing_fields(lines: list[str], spec: dict, schema: dict, lang: str,
     for fspec in spec.get("header_fields", []):
         if fspec.get("required") is False:
             continue
-        if field_line(lines, L.field_re(fspec["name"])):
+        if field_line(lines, L.field_re(fspec["name"]), spec, schema):
             continue
         at, _, _ = header_block_end(lines, spec, schema)
         # Joining an existing block follows that block. Starting a new one uses
@@ -795,6 +937,205 @@ def losslessness(before: str, after: str, rewritten: list[str]) -> list[str]:
     return bad
 
 
+# ── the fifth assertion: what the file now says ───────────────────────────
+#
+# The four above all answer *is it all still there*. None answers *does it
+# still mean that*, which is why thirty mutations passed over a migration that
+# appended Perry's metadata to somebody else's disclaimer, and why three more of
+# the same class shipped after it: a legend widened into a task table, a status
+# field that said `not yet locked` rewritten to `locked`, and a token spliced
+# into the middle of a sentence about a vendor contract. Every one of them
+# preserves every character, every cell, every id, every row count, and declares
+# every line it rewrote.
+#
+# There is no single check that sees all three, and pretending otherwise would
+# be worse than saying so. What they have in common is only that a *reader* can
+# tell — so the checks below are three readings, each stated with what it cannot
+# see:
+#
+#   · `records`     — Perry's own parsers must extract the same records after as
+#                     before. Migration exists to make a *field* readable; it
+#                     does not exist to turn a *row* into a record.
+#   · `prose`       — a line Perry rewrote must be a line the schema gives it a
+#                     place to write: a table row, or the header block.
+#   · `enum_claims` — a canonical value written into a field must still be what
+#                     the author's own words, kept beside it, are saying.
+
+
+def records(text: str, key: str) -> dict[str, list]:
+    """What Perry's own readers turn this file's *rows* into.
+
+    `viewer/parsers` and nothing else — the readers `bin/perry-task`,
+    `bin/perry-state` and the viewer all go through. A second reading written
+    here would be the two-implementations defect ADR-004 is about, and would
+    also miss the point: the question is what the tools that consume this file
+    will see, not what a checker thinks they should.
+
+    Header-derived values are deliberately absent (`Phase.status`,
+    `Phase.started`). Normalizing a header field *is* the migration, and a check
+    that forbade it would forbid the tool."""
+    name = Path(key).name
+    parts = Path(key).parts
+    try:
+        if name == "BOARD.md":
+            b = P.parse_board(text)
+            return {
+                "task": [(t.id, t.title, t.owner, t.status, t.priority)
+                         for t in b.all_tasks],
+                "user input": [(u.id, u.needed_from_user, u.blocks, u.status)
+                               for u in b.user_input_queue],
+                "cadence": [(c.id, c.title, c.frequency, c.next_due)
+                            for c in b.cadence_items],
+                "risk": [(r.text, r.resolved) for r in b.risks],
+            }
+        if name == "OKR.md":
+            o = P.parse_okr(text)
+            return {"objective": [ob.title for ob in o.objectives],
+                    "KR": [(k.id, k.text, k.metric, k.stretch)
+                           for ob in o.objectives for k in ob.krs]}
+        if name == "DECISIONS.md":
+            return {"ADR": [(a.id, a.title, a.type, a.date)
+                            for a in P.parse_decisions(text)]}
+        if parts and parts[0] == "phase":
+            ph = P.parse_phase(Path(key).stem, text)
+            return {"objective": [ob.title for ob in ph.objectives],
+                    "KR": [(k.id, k.text, k.metric, k.linked) for k in ph.krs]}
+    except Exception as exc:                       # noqa: BLE001
+        # A reader that raises is itself a reading. Before/after are both run
+        # through this, so a file that only *becomes* unreadable is caught.
+        return {"unreadable": [repr(exc)[:80]]}
+    return {}
+
+
+def reading_changed(before: str, after: str, key: str) -> list[str]:
+    """The records Perry reads must be the ones it read before.
+
+    Widening `| ID | Title | Owner | Status |` under `## P2` to the board's six
+    columns does not change what `perry-task list` returns: three rows in, three
+    rows out, the same ids and titles, with two more columns now resolvable by
+    name. That is what widening is for, and the module docstring says so — the
+    columns parsers key on, **in a table Perry already recognises**.
+
+    Widening `| ID | Meaning |` under `## P0 holding` takes a section
+    `perry-task` reported as skipped ("table has no ID and Title columns") and
+    turns two legend rows into two tasks with the ids `INV-` and `ENG-` and no
+    titles. Nothing was lost; two records were invented.
+
+    What it cannot see, stated:
+
+    - **design docs and knowledge digests have no records.** Their tables are
+      not in the schema and `viewer/parsers` has no row reader for them, so this
+      check is silent on every file whose only migration is a header field.
+    - **it compares records, not truth.** A cell rewritten from `done` to
+      `blocked` in place would change a record and be caught; a cell rewritten
+      to another value that reads the same would not.
+    - **it cannot see a change no reader keys on.** A column the schema does not
+      name is invisible to it, exactly as it is to `perry-task`."""
+    bad = []
+    b, a = records(before, key), records(after, key)
+    for kind in sorted(set(b) | set(a)):
+        was, now = b.get(kind, []), a.get(kind, [])
+        if was == now:
+            continue
+        gained = [r for r in now if r not in was]
+        lost = [r for r in was if r not in now]
+        if gained:
+            bad.append(f"{len(gained)} {kind}(s) Perry did not read before and "
+                       f"reads now: {gained[:3]}")
+        if lost:
+            bad.append(f"{len(lost)} {kind}(s) Perry read before and does not "
+                       f"read now: {lost[:3]}")
+    return bad
+
+
+def prose_rewritten(before: str, after: str, spec: dict,
+                    schema: dict) -> list[str]:
+    """A line Perry rewrote must be one the schema gives it a place to write.
+
+    Migration has exactly two places it may put a token into an existing line: a
+    table row (widening appends cells) and the header block (an enum field gains
+    its canonical value). Everything else in the file is a sentence somebody
+    wrote, and a sentence that gained a word is a sentence that says something
+    else — `Background: the vendor contract Status: superseded by the 2025 MSA`
+    became `… Status: superseded | superseded by the 2025 MSA` and every
+    character survived.
+
+    What it cannot see, stated: this is about lines that **changed**. A line
+    Perry *inserted* next to somebody's paragraph is not a rewrite, and the
+    disclaimer defect — four header fields appended to a quoted disclaimer — is
+    invisible here. `is_header_block` is what holds that, and this check is why
+    `field_line` now uses the same span."""
+    b, a = before.split("\n"), after.split("\n")
+    span = header_block_span(b, spec, schema)
+    bad = []
+    for tag, i1, i2, _, _ in difflib.SequenceMatcher(
+            a=b, b=a, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        for i in range(i1, i2):
+            line = b[i]
+            if not line.strip() or is_row(line) or is_separator(line):
+                continue
+            if span is not None and span[0] <= i <= span[1]:
+                continue
+            bad.append(f"line {i + 1} is neither a table row nor part of the "
+                       f"header block and was rewritten: {line.strip()[:60]!r}")
+    return bad
+
+
+def enum_claims(before: str, after: str, spec: dict, schema: dict) -> list[str]:
+    """A canonical value must still be what the words kept beside it are saying.
+
+    `fix_enum_fields` writes `<canon> | <the author's value, verbatim>`, so the
+    file carries its own evidence and this can re-read it: the retained text
+    must still resolve to the value Perry wrote. `not yet locked — do not build
+    from this` resolves to nothing once negation is in the vocabulary, so
+    `locked | not yet locked …` fails here.
+
+    What it cannot see, stated: this is the **same vocabulary** `enum_candidates`
+    resolves with, applied to the post-image instead of to the candidate. It is
+    defence in depth, not an independent opinion — a spelling the vocabulary
+    does not contain is invisible to both. What it adds is that any *future*
+    path that writes a canonical value is held to the same standard without
+    knowing this rule exists."""
+    L = lint()
+    aliases = ((schema.get("migration") or {}).get("enum_aliases") or {})
+    negators = ((schema.get("migration") or {}).get("negations") or [])
+    b, a = before.split("\n"), after.split("\n")
+    bad = []
+    for fspec in spec.get("header_fields", []):
+        if not fspec.get("enum"):
+            continue
+        allowed = schema["enums"][fspec["enum"]]
+        was = field_line(b, L.field_re(fspec["name"]), spec, schema)
+        now = field_line(a, L.field_re(fspec["name"]), spec, schema)
+        if not now or (was and was[1].group(1) == now[1].group(1)):
+            continue
+        head, sep, rest = now[1].group(1).partition("|")
+        canon = head.strip().strip("*`> ")
+        if not sep or canon not in allowed:
+            continue
+        if canon not in enum_candidates(rest, allowed,
+                                        aliases.get(fspec["enum"]) or {},
+                                        negators):
+            bad.append(f"`{fspec['name']}` was written as {canon!r}, which the "
+                       f"author's own value kept beside it does not say: "
+                       f"{rest.strip()[:60]!r}")
+    return bad
+
+
+def meaning(before: str, after: str, key: str, spec: dict,
+            schema: dict) -> list[str]:
+    """Why this edit would change what the file says, or `[]`.
+
+    Asserted and refused on the same terms as `losslessness()`, and for the same
+    reason TASK-044 § 2 gives: an assertion an agent performs by reading is not
+    one. See the note above this block for what each part can and cannot see."""
+    return (reading_changed(before, after, key)
+            + prose_rewritten(before, after, spec, schema)
+            + enum_claims(before, after, spec, schema))
+
+
 # ── planning ──────────────────────────────────────────────────────────────
 
 
@@ -875,7 +1216,8 @@ def migrate_text(text: str, key: str, spec: dict, schema: dict, lang: str,
             break
     edit.after = "\n".join(lines)
     edit.residual = linter.errors(edit.after, key, spec)
-    edit.violations = losslessness(edit.before, edit.after, edit.rewritten)
+    edit.violations = (losslessness(edit.before, edit.after, edit.rewritten)
+                       + meaning(edit.before, edit.after, key, spec, schema))
     return edit
 
 

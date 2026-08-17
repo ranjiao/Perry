@@ -203,6 +203,15 @@ def edit_for(plan, key: str):
     return next((e for e in plan.edits if e.key == key), None)
 
 
+def spec_for(path: str) -> dict:
+    """The schema's entry for a state file, by its declared path."""
+    return next(f for f in SCHEMA["files"] if f["path"] == path)
+
+
+BOARD_SPEC = spec_for("BOARD.md")
+DESIGN_SPEC = spec_for("design/*.md")
+
+
 # ── 1 · dry run first, always ─────────────────────────────────────────────
 
 
@@ -706,7 +715,7 @@ class TestTheVocabularyIsNotRewritten(unittest.TestCase):
         whichever comes first. Rewriting one that lives in a table row would
         put a `|` inside the row and turn one cell into two."""
         lines = ["| Status: draft | x |", "> **Status**: locked"]
-        idx, _ = M.field_line(lines, "Status")
+        idx, _ = M.field_line(lines, "Status", DESIGN_SPEC, SCHEMA)
         self.assertIsNone(idx)
 
     def test_a_minted_source_id_never_collides_with_one_already_in_the_tree(self):
@@ -943,6 +952,307 @@ class TestAHeaderBlockIsNotAnyQuotedText(unittest.TestCase):
         self.assertEqual(list(range(quoted[0], quoted[0] + len(quoted))), quoted,
                          "the digest's header block was split")
         self.assertEqual(4, len(quoted))
+
+
+# ── 9 · a table, a value and a sentence are recognised by vocabulary ───────
+
+
+class TestRecognitionIsByVocabularyNotByShape(unittest.TestCase):
+    """TASK-051. Three transforms recognised their target by shape, and the
+    three commonest words in any markdown table — `ID`, `Status`, `Owner` — are
+    enough shape to be mistaken for Perry's.
+
+    Every case below preserves every character, every cell, every id, every
+    per-section row count, and declares every line it rewrites. That is TASK-052
+    and it is asserted in § 10.
+    """
+
+    #: A legend under a heading `^P[012]\b` matches. Two rows, two columns, one
+    #: of which is `ID` — and ADR-004's own Context table cites this exact shape
+    #: as the reason ADR-004 exists.
+    LEGEND_BOARD = """# Board — Legacy
+
+> Last updated: 2026-01-04
+
+## P0 holding
+
+A legend, not a task table:
+
+| ID | Meaning |
+|---|---|
+| INV-* | investments |
+| ENG-* | engineering |
+
+## Cadence
+
+| ID | Recurring task | Owner | Frequency | Next due |
+|---|---|---|---|---|
+| CAD-1 | weekly reconcile | User | weekly | 2026-01-11 |
+"""
+
+    def test_a_legend_that_shares_one_column_name_is_not_widened(self):
+        """One shared word is a coincidence, not a vocabulary. Before this,
+        migration appended five columns to the legend, every lint error went to
+        zero, the conformance marker declared the board conformant, and
+        `perry-task list` returned two tasks with the ids `INV-` and `ENG-` and
+        no titles — through a frozen contract, on a board a reader had
+        correctly refused."""
+        p = Project({"BOARD.md": self.LEGEND_BOARD})
+        before = p.text("BOARD.md")
+        p.run("apply")
+        self.assertEqual(p.text("BOARD.md"), before,
+                         "the legend was widened into a task table")
+        self.assertNotIn("| ID | Meaning | Title |", p.text("BOARD.md"))
+        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+                         "a board that was correctly refused must not be "
+                         "declared conformant")
+
+    def test_the_reader_still_refuses_the_legend_after_the_run(self):
+        """The harm was never the columns; it was `perry-task list` returning
+        rows built from the legend's own cells. Asserted through the reader, not
+        through the file."""
+        p = Project({"BOARD.md": self.LEGEND_BOARD})
+        p.run("apply")
+        r = subprocess.run(["python3", str(TASK), "list", "--all", "--json",
+                            "--root", str(p.root)], capture_output=True, text=True)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["tasks"], [], "the legend's rows became tasks")
+        self.assertEqual(
+            [s["heading"] for s in out["conformance"]["sections_skipped"]],
+            ["P0 holding"])
+
+    def test_a_table_missing_a_minority_of_the_schemas_names_is_still_widened(self):
+        """The discrimination must not cost the behaviour it protects. The
+        four-column `## P2` this suite was built around — the real one on
+        `~/proj/gimegime-pmo` — is 4 of the board's 6 and must still widen.
+        Covered by `test_a_table_perry_recognises_is_widened_and_every_row_padded`
+        end to end; stated here at the boundary."""
+        cols = ["ID", "Title", "Owner", "Status", "Next action", "Evidence"]
+        L = M.lint()
+        sat = lambda c, got: any(a in got for a in L.accepted(c))
+        got = lambda names: [L.norm(n) for n in names]
+        self.assertTrue(M.is_the_schemas_table(
+            {"columns": cols}, got(["ID", "Title", "Owner", "Status"]), sat),
+            "4 of 6 is the table this transform exists for")
+        self.assertTrue(M.is_the_schemas_table(
+            {"columns": cols},
+            got(["ID", "Title", "Owner", "Status", "備考", "负责小组"]), sat),
+            "columns the author added are not counted against the table")
+
+    def test_a_minority_of_the_schemas_names_is_not_a_vocabulary(self):
+        """The boundary itself. `| ID | Meaning |` is one of six and
+        `| ID | Title |` is two of six: both are refused, and refusing the
+        second is the stated cost of the rule — that file is reported and left
+        byte-identical rather than turned into a table by Perry."""
+        cols = ["ID", "Title", "Owner", "Status", "Next action", "Evidence"]
+        L = M.lint()
+        sat = lambda c, got: any(a in got for a in L.accepted(c))
+        got = lambda names: [L.norm(n) for n in names]
+        self.assertFalse(M.is_the_schemas_table(
+            {"columns": cols}, got(["ID", "Meaning"]), sat))
+        self.assertFalse(M.is_the_schemas_table(
+            {"columns": cols}, got(["ID", "Title"]), sat))
+        self.assertFalse(M.is_the_schemas_table(
+            {"columns": cols}, got(["ID", "Title", "Owner"]), sat),
+            "three of six is a tie, and a tie is not a majority")
+
+    def test_a_status_that_says_it_is_not_locked_is_not_read_as_locked(self):
+        """`test_an_ambiguous_enum_value_is_never_guessed` covers two candidates
+        and none. It cannot cover *one wrong* candidate, and one hit was treated
+        as certainty: `> Status: not yet locked — do not build from this` was
+        written as `locked | not yet locked — do not build from this`. Every
+        character survives and the claim is reversed."""
+        doc = LEGACY_DESIGN.replace(
+            "> **Status**: v1.1 LOCKED 2026-05-19 PM BJT** "
+            "(Amendments A+B applied; v1.0 LOCKED 2026-05-18)",
+            "> **Status**: not yet locked — do not build from this")
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": doc})
+        p.run("apply")
+        self.assertEqual(p.text("design/DESIGN-001-x.md"), doc,
+                         "a value that says only what it is NOT was resolved")
+        allowed = SCHEMA["enums"]["design_status"]
+        neg = SCHEMA["migration"]["negations"]
+        self.assertEqual(
+            M.enum_candidates("not yet locked — do not build from this",
+                              allowed, {}, neg), [])
+
+    def test_a_negator_past_a_clause_boundary_does_not_deny_the_value(self):
+        """The window is the clause the token sits in, not the whole value. A
+        negator that governs a different clause — `not a draft; locked
+        2026-05-19` — must leave `locked` standing, or every value carrying the
+        word `not` anywhere becomes unresolvable."""
+        allowed = SCHEMA["enums"]["design_status"]
+        neg = SCHEMA["migration"]["negations"]
+        self.assertEqual(
+            M.enum_candidates("not a draft; locked 2026-05-19", allowed, {}, neg),
+            ["locked"])
+        self.assertEqual(
+            M.enum_candidates("已评分，不再改动",
+                              SCHEMA["enums"]["phase_status"],
+                              SCHEMA["migration"]["enum_aliases"]["phase_status"],
+                              neg),
+            ["scored"], "a denial after the token denies the clause after it")
+
+    def test_body_prose_that_mentions_a_field_is_never_rewritten(self):
+        """`field_line` guarded only `is_row`/`is_separator`, and sentences are
+        field-shaped. Perry's own repo carries the trigger at
+        `perry/design/DESIGN-001-resumable-pipelines.md:126`."""
+        doc = LEGACY_DESIGN.replace(
+            "# DESIGN-001: the thing\n",
+            "# DESIGN-001: the thing\n\nBackground: the vendor contract "
+            "Status: superseded by the 2025 MSA, so we rebuilt.\n")
+        p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": doc})
+        p.run("apply")
+        after = p.text("design/DESIGN-001-x.md")
+        self.assertIn("Background: the vendor contract Status: superseded by "
+                      "the 2025 MSA, so we rebuilt.", after)
+        self.assertNotIn("superseded | superseded", after)
+
+    def test_a_field_shaped_sentence_in_the_body_is_not_the_header_field(self):
+        """At the unit, because two mechanisms now produce the same file: the
+        transform declines the line and `meaning()` would refuse the write. This
+        is the first of them, and the second assertion is the contract that
+        keeps them from disagreeing — *presence* has to stay what `perry-lint`
+        means by it, or `fix_missing_fields` adds a second `Status` while the
+        linter goes on reading the first."""
+        lines = ["# D", "",
+                 "Background: the vendor contract Status: superseded by the "
+                 "2025 MSA, so we rebuilt.", "", "> **Status**: draft"]
+        idx, m = M.field_line(lines, "Status", DESIGN_SPEC, SCHEMA)
+        self.assertIsNone(idx, "a sentence is not Perry's to write into")
+        self.assertIn("superseded", m.group(1),
+                      "the line reported must be the one the linter validates")
+
+    def test_the_field_the_header_block_holds_is_still_rewritten(self):
+        """The counterpart: refusing prose must not cost the transform. The
+        same document with no prose sentence still gets its status
+        normalized."""
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        p.run("apply")
+        line = next(l for l in p.text("design/DESIGN-001-x.md").split("\n")
+                    if "Status" in l)
+        self.assertTrue(line.split("|")[0].strip().endswith("locked"), line)
+
+
+# ── 10 · what the file now says ───────────────────────────────────────────
+
+
+class TestTheAssertionsAskWhatTheFileSays(unittest.TestCase):
+    """TASK-052. Every assertion in `losslessness()` answers *is it all still
+    there*. None answers *does it still mean that*, which is why thirty
+    mutations found none of § 9.
+
+    There is no single check that sees all three; `meaning()` is three readings,
+    each stating what it cannot see. These tests assert the split explicitly —
+    that the old assertions are silent on inputs the new ones refuse — because a
+    claim that a check is needed is only worth as much as the demonstration that
+    the existing ones do not make it.
+    """
+
+    BEFORE = ("# Board\n\n## P0 holding\n\n| ID | Meaning |\n|---|---|\n"
+              "| INV-* | investments |\n")
+    AFTER = ("# Board\n\n## P0 holding\n\n"
+             "| ID | Meaning | Title | Owner | Status | Next action | Evidence |\n"
+             "|---|---|---|---|---|---|---|\n"
+             "| INV-* | investments |  |  |  |  |  |\n")
+
+    def test_inventing_a_record_survives_every_losslessness_assertion(self):
+        """The premise of the whole task, asserted rather than argued."""
+        rewritten = [l for l in self.BEFORE.split("\n") if l.startswith("|")]
+        self.assertEqual(M.losslessness(self.BEFORE, self.AFTER, rewritten), [],
+                         "if this ever fails, `meaning()` has a cheaper twin")
+
+    def test_a_record_perry_could_not_read_before_and_reads_now_is_refused(self):
+        """`viewer/parsers` is the reader, not a second opinion written here."""
+        bad = M.meaning(self.BEFORE, self.AFTER, "BOARD.md", BOARD_SPEC, SCHEMA)
+        self.assertTrue(any("task(s) Perry did not read before" in b
+                            for b in bad), bad)
+
+    def test_widening_a_table_perry_recognises_changes_no_reading(self):
+        """The negative control. A check that refused every widening would pass
+        the test above and destroy the transform."""
+        before = ("# Board\n\n## P2\n\n| ID | Title | Owner | Status |\n"
+                  "|---|---|---|---|\n| ENG-9 | no DB isolation | User | done |\n")
+        after = ("# Board\n\n## P2\n\n"
+                 "| ID | Title | Owner | Status | Next action | Evidence |\n"
+                 "|---|---|---|---|---|---|\n"
+                 "| ENG-9 | no DB isolation | User | done |  |  |\n")
+        self.assertEqual(M.meaning(before, after, "BOARD.md", BOARD_SPEC, SCHEMA),
+                         [])
+
+    def test_a_sentence_that_gained_a_word_is_refused(self):
+        """Prose is not Perry's to write into, and this is the check that says
+        so without knowing which transform did it."""
+        before = ("# D\n\nBackground: the vendor contract Status: superseded "
+                  "by the 2025 MSA.\n\n> **Status**: draft\n")
+        after = before.replace("Status: superseded by",
+                               "Status: superseded | superseded by")
+        self.assertEqual(M.losslessness(
+            before, after, [l for l in before.split("\n") if l.strip()]), [],
+            "the byte-level assertions are silent on this")
+        bad = M.meaning(before, after, "design/DESIGN-001-x.md", DESIGN_SPEC,
+                        SCHEMA)
+        self.assertTrue(any("neither a table row nor part of the header block"
+                            in b for b in bad), bad)
+
+    def test_a_canonical_value_the_authors_own_words_deny_is_refused(self):
+        """The migration keeps the author's value beside the one it wrote, so
+        the file carries its own evidence and this can re-read it."""
+        before = "# D\n\n> **Status**: not yet locked — do not build\n"
+        after = "# D\n\n> **Status**: locked | not yet locked — do not build\n"
+        self.assertEqual(M.losslessness(
+            before, after, ["> **Status**: not yet locked — do not build"]), [],
+            "the byte-level assertions are silent on this")
+        bad = M.meaning(before, after, "design/DESIGN-001-x.md", DESIGN_SPEC,
+                        SCHEMA)
+        self.assertTrue(any("does not say" in b for b in bad), bad)
+
+    def test_a_cell_can_be_lost_while_every_character_survives(self):
+        """Why the cell count is checked on its own — and the test it did not
+        have. Replacing `cells(before) - cells(after)` with an empty `Counter()`
+        left all 823 tests green, so the assertion was unguarded: every input
+        that lost a cell also lost a character, a row or an id.
+
+        Two cells re-cut across the same boundary keep every character, every
+        `|`, the row, the section and the id set, and are not the same two
+        cells."""
+        before = "| ab | c |"
+        after = "| a | bc |"
+        bad = M.losslessness(before, after, [before])
+        self.assertEqual([b for b in bad if "cell(s)" not in b], [],
+                         "no other check may fire on this input")
+        self.assertTrue(any("cell(s) lost" in b for b in bad), bad)
+
+    def test_the_assertion_catches_what_the_transform_lets_through(self):
+        """Why it is an assertion and not a code review, and the only test that
+        can see the wiring: with the vocabulary test disabled — the defect
+        exactly as it shipped — the legend is widened and the file is refused
+        anyway, by the reading, before a byte is written.
+
+        Both lines of defence are now live, which is why every other test here
+        calls `meaning()` directly: the transforms no longer produce an input
+        for it. This one puts the defect back."""
+        p = Project({"BOARD.md": TestRecognitionIsByVocabularyNotByShape
+                     .LEGEND_BOARD})
+        real = M.is_the_schemas_table
+        M.is_the_schemas_table = lambda *a, **kw: True
+        try:
+            plan = p.plan()
+        finally:
+            M.is_the_schemas_table = real
+        e = edit_for(plan, "BOARD.md")
+        self.assertTrue(e.touched, "the transform must have widened the legend")
+        self.assertEqual(e.residual, [], "and taken it to zero shape errors")
+        self.assertTrue(any("did not read before" in v for v in e.violations),
+                        e.violations)
+        self.assertFalse(e.writable, "an assertion nobody acts on is a comment")
+
+    def test_a_refused_file_is_left_byte_identical_and_the_reason_is_printed(self):
+        p = Project({"BOARD.md": TestRecognitionIsByVocabularyNotByShape
+                     .LEGEND_BOARD})
+        rc, out, _ = p.run(json_out=False)
+        self.assertIn("left byte-identical", out)
 
 
 if __name__ == "__main__":
