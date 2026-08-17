@@ -90,7 +90,19 @@ class Project:
             "- Repo layout: single\n- State root: .\n" + tracks)
         (self.root / "BOARD.md").write_text(board)
 
+    # `add` requires a deliverable and a verification in production — a task
+    # whose only record is a title cannot be picked up by anyone who was not in
+    # the conversation that created it. Supplying defaults HERE rather than
+    # relaxing the tool keeps 70-odd tests about ids, columns and drift free of
+    # noise they do not exercise, while the refusals stay real and are covered
+    # by `TestATaskMustCarryItsDefinition`.
+    ADD_DEFAULTS = ("--deliverable", "a thing that exists afterwards",
+                    "--verification", "the suite is green")
+
     def run(self, *argv) -> tuple[int, dict | str]:
+        if argv and argv[0] == "add" and "--deliverable" not in argv \
+                and "--title" in argv:
+            argv = (*argv, *self.ADD_DEFAULTS)
         r = subprocess.run(
             ["python3", str(TOOL), *argv, "--root", str(self.root), "--json"],
             capture_output=True, text=True)
@@ -199,7 +211,8 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         n = 8
         procs = [subprocess.Popen(
             ["python3", str(TOOL), "add", "--title", f"concurrent {i}",
-             "--priority", "P0", "--root", str(p.root), "--json"],
+             "--priority", "P0", *Project.ADD_DEFAULTS,
+             "--root", str(p.root), "--json"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             for i in range(n)]
         for proc in procs:
@@ -1990,3 +2003,142 @@ class TestCorrectingANextAction(unittest.TestCase):
         that forgets to join one silently stops appearing in `list`."""
         self.assertIn("next", PT.TASK_EVENTS)
         self.assertNotIn("next", PT.SECTION_EVENTS)
+
+
+class TestTheStageClockHasOneWriter(unittest.TestCase):
+    """V4 review 2026-08-17, three blocking findings. 543 tests passed at the
+    time and not one of them covered these.
+
+    `Status` and `Stage` are orthogonal by design. Every defect here came from
+    a path that forgot that.
+    """
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    def cells(self, p: "Project", tid: str) -> dict:
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        row = next(l for l in board.split("\n") if l.startswith(f"| {tid} |"))
+        return dict(zip([PT.norm(h) for h in PT.split_row(header)], PT.split_row(row)))
+
+    def age(self, p: "Project", tid: str, days_ago: str):
+        b = p.root / "BOARD.md"
+        b.write_text(b.read_text().replace(self.cells(p, tid)["stage since"], days_ago))
+
+    def test_start_does_not_restamp_the_stage_clock(self):
+        """B-1. `dispatch` calls `start` on every automated run, so an item
+        that had sat in `review` for a fortnight reported zero days' dwell —
+        blinding pipeline triage's first question, the one aimed at that
+        mode's signature failure."""
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        self.age(p, a["id"], "2026-08-01")
+        p.run("start", a["id"])
+        c = self.cells(p, a["id"])
+        self.assertEqual(c["stage since"], "2026-08-01",
+                         "starting work moved the stage clock without the "
+                         "stage changing")
+        self.assertEqual(c["stage"], "brief", "the stage moved")
+
+    def test_a_stage_move_still_restamps_it(self):
+        """The other half — removing the restamp entirely would be the 2026-08
+        defect the clock was added to fix."""
+        p = Project(tracks=self.TRACKS)
+        _, a = p.run("add", "--title", "post", "--track", "blog", "--priority", "P0")
+        self.age(p, a["id"], "2020-01-01")
+        p.run("stage", a["id"], "--stage", "draft")
+        self.assertNotEqual(self.cells(p, a["id"])["stage since"], "2020-01-01")
+
+    def test_stage_creates_the_column_it_writes_into(self):
+        """B-2b. `replace_row` maps values onto headers, so a missing header
+        discards the value and the call still exits 0."""
+        p = Project(tracks=self.TRACKS, board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence | Track | Stage |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| TASK-900 | no clock | User | not_started | — | — | blog | brief |\n\n## P1", 1))
+        code, out = p.run("stage", "TASK-900", "--stage", "draft")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Stage since", p.board(), "the column was not created")
+        self.assertTrue(self.cells(p, "TASK-900")["stage since"],
+                        "the stamp was silently dropped")
+
+
+class TestRoutingRespectsTheTracksMode(unittest.TestCase):
+    """B-2a. `stages[1]` is the QUEUE rule — a queue row skips `new`, which
+    means "sitting in intake", because it has just left. A pipeline or inquiry
+    row has no such stage to skip, and routing them to `stages[1]` silently
+    skipped `brief` / `open`."""
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    def routed(self, track: str):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request", "--arrived", "2026-08-10")
+        _, r = p.run("route", "1", "--track", track, "--priority", "P1")
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |") and "Track" in l)
+        row = next(l for l in board.split("\n") if l.startswith(f"| {r['id']} |"))
+        return dict(zip([PT.norm(h) for h in PT.split_row(header)], PT.split_row(row)))
+
+    def test_a_pipeline_row_enters_at_the_first_stage(self):
+        self.assertEqual(self.routed("blog")["stage"], "brief")
+
+    def test_a_queue_row_still_skips_the_intake_stage(self):
+        self.assertEqual(self.routed("ops")["stage"], "triaged")
+
+    def test_a_pipeline_row_gets_the_clock_its_mode_reads(self):
+        """Routing gave every row `Arrived` regardless, so a pipeline row
+        arrived with no dwell clock — and `rows_with_no_computable_age` could
+        not report it, because `arrived` was non-empty."""
+        c = self.routed("blog")
+        self.assertTrue(c.get("stage since"), "no dwell clock on a pipeline row")
+
+    def test_a_queue_row_keeps_the_arrival_date(self):
+        """Every SLA number is `today − Arrived`."""
+        self.assertEqual(self.routed("ops")["arrived"], "2026-08-10")
+
+
+class TestAnIntakeRowTakesExactlyOneOutcome(unittest.TestCase):
+    """B-3. Both `modes/queue.md` and `subcommands.md` state the rule; nothing
+    enforced it. `answer`, `status`, `stage` and `risk-clear` all refuse a
+    repeat transition — this was the fourth implementation and the only one
+    that did not.
+
+    Live rather than theoretical: discharged rows stay in intake until the
+    review period closes, so the next drain walks them again.
+    """
+
+    TRACKS = TestModeAwareWrites.TRACKS
+
+    def test_routing_twice_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        _, first = p.run("route", "1", "--track", "ops")
+        code, out = p.run("route", "1", "--track", "ops")
+        self.assertEqual(code, 1, "a second task was minted for one request")
+        self.assertIn("already has an outcome", str(out))
+        self.assertIn(first["id"], p.board(), "the first routing was erased")
+
+    def test_resolving_a_routed_row_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        p.run("route", "1", "--track", "ops")
+        code, _ = p.run("resolve-intake", "1", "--outcome", "dropped",
+                        "--reason", "changed our mind")
+        self.assertEqual(code, 1)
+
+    def test_resolving_twice_is_refused(self):
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        p.run("resolve-intake", "1", "--outcome", "dropped", "--reason", "no")
+        code, out = p.run("resolve-intake", "1", "--outcome", "deferred",
+                          "--reason", "later")
+        self.assertEqual(code, 1, "a recorded drop was flipped to a defer")
+
+    def test_a_placeholder_outcome_is_not_a_discharge(self):
+        """`—` is how the board writes "nothing yet"."""
+        p = Project(tracks=self.TRACKS)
+        p.run("intake", "--title", "a request")
+        code, out = p.run("route", "1", "--track", "ops")
+        self.assertEqual(code, 0, out)

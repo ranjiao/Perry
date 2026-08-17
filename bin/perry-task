@@ -42,7 +42,9 @@ same class — the file is allowed to make Perry *slower to explain itself*, nev
 *wrong*.
 
 Usage:
-  perry-task add   --title "…" [--track T] [--owner O] [--priority P0|P1|P2]
+  perry-task add   --title "…" --deliverable "…" --verification "…"
+                   [--depends "…"] [--out-of-scope "…"] [--kr KR-ID]
+                   [--track T] [--owner O] [--priority P0|P1|P2]
                    [--next "…"] [--parent ID] [--commitment ID] [--stage S]
                    [--arrived YYYY-MM-DD]
   perry-task start <ID> [--next "…"]
@@ -777,7 +779,8 @@ def read_events(project_root: Path) -> list[dict]:
 
 
 def commit(project_root: Path, state_root: Path, board: Board,
-           journal_line: str, event: dict, dry_run: bool) -> dict:
+           journal_line: str, event: dict, dry_run: bool,
+           definition: str = "") -> dict:
     """Write the two canonical files together, then the derived event.
 
     **The guarantee, stated exactly.** `BOARD.md` and the journal are staged to
@@ -815,6 +818,15 @@ def commit(project_root: Path, state_root: Path, board: Board,
     elif not jpath.parent.exists():
         jpath.parent.mkdir(parents=True, exist_ok=True)
     jtext = append_status_change(jtext, journal_line)
+    if definition:
+        # The task's full definition, written at creation. It used to be the
+        # agent's job — `add-task` step 2 said "the tool writes the one-line
+        # status change; this block is the rich record and is still written by
+        # hand" — and the hand never wrote it. Measured the day this landed:
+        # `## New tasks added` appeared 3 times in the journal of the day
+        # BEFORE the tool existed and 0 times after, so every tool-created task
+        # was one title and nothing else.
+        jtext = append_block(jtext, "New tasks added", definition)
 
     # Stage both canonical files before renaming either.
     staged: list[tuple[str, Path]] = []
@@ -856,6 +868,33 @@ def commit(project_root: Path, state_root: Path, board: Board,
               f"State is correct; this row will show as `unrecorded` at the "
               f"next standup until the log is writable again.", file=sys.stderr)
     return plan
+
+
+def append_block(text: str, heading: str, block: str) -> str:
+    """Append a multi-line block under the LAST `## <heading>` of the day.
+
+    Same walk as `append_status_change` and for the same reason — a day's
+    journal accumulates several of each heading, and appending to the first
+    buries this afternoon's entry inside this morning's.
+    """
+    if not text.strip():
+        text = f"# {date.today():%Y-%m-%d}\n"
+    lines = text.split("\n")
+    starts = [i for i, l in enumerate(lines) if l.strip() == f"## {heading}"]
+    if not starts:
+        return text.rstrip("\n") + f"\n\n## {heading}\n\n" + block.rstrip("\n") + "\n"
+    start = starts[-1]
+    i = start + 1
+    end = start
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("## "):
+            break
+        if s:
+            end = i
+        i += 1
+    lines[end + 1:end + 1] = ["", block.rstrip("\n")]
+    return "\n".join(lines)
 
 
 def append_status_change(text: str, line: str) -> str:
@@ -929,6 +968,24 @@ def track_of(config: dict, name: str) -> dict:
 def cmd_add(args, ctx) -> dict:
     if not args.title:
         raise Refused("--title is required")
+    # A task whose only record is a title cannot be picked up by anyone who was
+    # not in the conversation that created it. `add-task` step 2 asked an agent
+    # to write the definition block by hand and nothing checked; the day this
+    # landed, `## New tasks added` appeared three times in the journal written
+    # BEFORE the tool existed and zero times after, and 6 of 10 open rows had
+    # no written definition at all.
+    if not args.deliverable:
+        raise Refused(
+            "--deliverable is required: name the ARTIFACT that exists when "
+            "this is done, not the activity. 'refactor the parser' is an "
+            "activity; 'parser resolves columns by name, with a test' is an "
+            "artifact somebody else can check")
+    if not args.verification:
+        raise Refused(
+            "--verification is required and must be falsifiable. 'looks good' "
+            "is not a check; 'perry-lint clean on gimegime-pmo' is. This is "
+            "the field the V-rungs are graded against, so a task without it "
+            "cannot honestly close above V1")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     tid = mint_id(ctx["board"], ctx["events"], ctx["state_root"])
@@ -993,12 +1050,23 @@ def cmd_add(args, ctx) -> dict:
     line = ctx["board"].append_row(priority, values)
     jline = (f"- [{tid}] — → not_started · {args.title} · "
              f"owner: {values['owner']} · priority: {priority}")
+    definition = "\n".join([
+        f"### {tid} — {args.title}", "",
+        f"- **Owner**: {values['owner']}",
+        f"- **Priority**: {priority}",
+        f"- **Track / mode**: {track['track']} / {mode}",
+        f"- **Deliverable**: {args.deliverable}",
+        f"- **Verification**: {args.verification}",
+        f"- **Dependencies**: {args.depends or '—'}",
+        f"- **Out of scope**: {args.out_of_scope or '—'}",
+        f"- **KR linkage**: {args.kr or 'unlinked'}",
+    ])
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
              "from": None, "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run)
+                  jline, event, args.dry_run, definition=definition)
     return {"id": tid, "priority": priority, "row": line, **plan}
 
 
@@ -1012,8 +1080,14 @@ def cmd_start(args, ctx) -> dict:
     values["status"] = "in_progress"
     if args.next:
         values["next action"] = args.next
-    if "stage since" in values:
-        values["stage since"] = f"{date.today():%Y-%m-%d}"
+    # `Stage since` is NOT touched here. It used to be, and `Status` and
+    # `Stage` are orthogonal by design — starting work does not move a row to a
+    # new stage, so restamping the clock reported 0 days' dwell for an item
+    # that had sat in `review` for a fortnight. `dispatch` calls `start` on
+    # every automated run, so this was the automated path, not a manual slip,
+    # and it blinded pipeline triage's first question — the one aimed at that
+    # mode's signature failure. The schema says this cell is "the date the row
+    # entered its current Stage"; `cmd_stage` is its only writer.
     line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] {prev or '—'} → in_progress · started"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "start",
@@ -1081,6 +1155,12 @@ def cmd_stage(args, ctx) -> dict:
         raise Refused(f"{tid} is already at stage {stage!r}")
     values["stage"] = stage
     values["stage since"] = f"{date.today():%Y-%m-%d}"
+    # Create the column before writing to it. Without this the stamp was
+    # dropped on any board that lacked `Stage since` — `replace_row` maps
+    # values onto headers, so a missing header silently discards the value and
+    # the call still exits 0. Same defect that lost `--commitment`.
+    header = ctx["board"].ensure_columns(pri, ["Stage since"]) \
+        if pri in ("P0", "P1", "P2") else header
     line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] stage {prev or '—'} → {stage}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "stage",
@@ -1233,6 +1313,7 @@ def cmd_resolve_intake(args, ctx) -> dict:
     sep, header = ctx["board"].section_table("Intake")
     keys = [norm(h) for h in header]
     intake = dict(zip(keys, cells))
+    check_intake_undischarged(intake, str(n))
     outcome = args.outcome or "dropped"
     if outcome not in ("dropped", "deferred"):
         raise Refused("--outcome is `dropped` or `deferred`; routing uses `route`")
@@ -1762,6 +1843,33 @@ def cmd_risk_clear(args, ctx) -> dict:
     return {"id": args.id, "cleared": today, **plan}
 
 
+INTAKE_UNSET = {"", "—", "-", "–", "n/a", "tbd", "pending", "none"}
+
+
+def check_intake_undischarged(intake: dict, n: str) -> None:
+    """An intake row takes exactly one outcome — the rule both `modes/queue.md`
+    and `subcommands.md` state, and which nothing enforced.
+
+    Re-routing a request minted a SECOND task for it and overwrote the cell, so
+    the first task's provenance was destroyed and two live rows carried one
+    title. Re-resolving flipped a recorded drop into a defer. Neither refused.
+
+    It is not theoretical: discharged rows stay in intake until the review
+    period closes, so the next drain walks them again.
+
+    `answer`, `status`, `stage` and `risk-clear` all refuse a repeat
+    transition. This was the fourth implementation of "already discharged" and
+    the only one that did not.
+    """
+    outcome = (intake.get("outcome") or "").strip().strip("*` ").lower()
+    if outcome and outcome not in INTAKE_UNSET:
+        raise Refused(
+            f"intake row {n} already has an outcome: "
+            f"{intake.get('outcome', '').strip()[:60]!r}. A row takes exactly "
+            f"one — re-routing would mint a second task for one request and "
+            f"erase where the first went")
+
+
 def cmd_route(args, ctx) -> dict:
     """Move an intake row onto the board, carrying `Arrived` with it.
 
@@ -1783,6 +1891,7 @@ def cmd_route(args, ctx) -> dict:
     keys = [norm(h) for h in header]
     intake = dict(zip(keys, cells))
 
+    check_intake_undischarged(intake, args.id)
     track = track_of(ctx["config"], args.track or "main")
     if track["mode"] == "project":
         raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
@@ -1791,13 +1900,30 @@ def cmd_route(args, ctx) -> dict:
     priority = args.priority or "P1"
     stages = stages_of(ctx["schema"], track)
     check_stage(track, stages, args.stage)
-    stage = args.stage or (stages[1] if len(stages) > 1 else (stages[0] if stages else ""))
+    # `stages[1]` is the QUEUE rule — a queue row skips `new`, which means
+    # "sitting in intake", because it has just left. A pipeline or inquiry row
+    # has no such stage to skip and must enter at the first one, exactly as
+    # `cmd_add` does. Routing them to `stages[1]` silently skipped `brief` /
+    # `open`.
+    first = (stages[1] if track["mode"] == "queue" and len(stages) > 1
+             else (stages[0] if stages else ""))
+    stage = args.stage or first
 
     values = {"id": tid, "title": intake.get("request", ""),
               "owner": args.owner or "Coding Agent", "status": "not_started",
               "next action": "—", "evidence": "—",
-              "track": track["track"], "stage": stage,
-              "arrived": intake.get("arrived", "")}
+              "track": track["track"], "stage": stage}
+    # The clock each mode actually reads. A queue row is measured from
+    # `Arrived`; a pipeline or inquiry row from `Stage since`. Routing gave
+    # every row `Arrived` regardless, so a pipeline row arrived with no dwell
+    # clock at all — and `rows_with_no_computable_age` could not report it,
+    # because `arrived` was non-empty.
+    if track["mode"] == "queue":
+        values["arrived"] = intake.get("arrived", "")
+    else:
+        values["stage since"] = f"{date.today():%Y-%m-%d}"
+        if intake.get("arrived"):
+            values["arrived"] = intake["arrived"]
     if args.commitment:
         values["commitment"] = args.commitment
     ctx["board"].ensure_columns(priority, columns_for(values))
@@ -2057,6 +2183,7 @@ def parse(argv: list[str]) -> Args:
     a.needed = a.blocks = a.answer = None
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
+    a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -2068,7 +2195,9 @@ def parse(argv: list[str]) -> Args:
              "--actor": "actor", "--needed": "needed",
              "--blocks": "blocks", "--answer": "answer",
              "--frequency": "frequency", "--on": "on",
-             "--opened": "opened"}
+             "--opened": "opened", "--deliverable": "deliverable",
+             "--verification": "verification", "--depends": "depends",
+             "--out-of-scope": "out_of_scope", "--kr": "kr"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):
