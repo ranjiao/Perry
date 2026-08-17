@@ -133,5 +133,40 @@ filled from the linkage register when it names one and left `""` otherwise.
 Deriving `O1`, `O2` from order would mint a key the file never stated, and a
 consumer would key on it right up until two headings were reordered.
 
-**Writes.** `perry-goals` is read-only. `OKR.md` and `phase/` are still
-hand-authored — DESIGN-005 § 6 step 3.
+**The commitments register.** `OKR.md § Commitments` is written by
+`perry-goals commit` (TASK-042) and is **not** carried in this payload. See the
+Changelog below for why that was a decision rather than an oversight.
+
+**Writes, in this command.** `list` is read-only, takes no lock, and is not
+gated. The tool as a whole is no longer read-only — see `perry-goals --help`
+and `goals/reference/phases.md § commit <promise>`.
+
+## Changelog
+
+| Version | Date | Change |
+|---|---|---|
+| `1.0` | 2026-08-17 | first published. Carried a per-KR `progress` percentage. |
+| `2.0` | 2026-08-17 | **breaking**: `progress` removed. Perry cannot tell which direction a KR runs, and half of a real OKR's targets are ceilings; a max-drawdown limit rendered two-thirds achieved is the worst thing a dashboard can say. Live for one day, no consumer had adopted it. |
+| `2.0` | 2026-08-18 | **unchanged by TASK-037.** The writer shipped and this payload gained no key. |
+
+**Why the writer did not move the minor.** `OKR.md § Commitments` now has a
+deterministic writer and still has no deterministic *reader* — a consumer that
+wants the register parses the markdown, exactly as `modes/pipeline.md § Triage`
+step 3 already instructs. Adding a `commitments` array here would have been
+additive and useful, and it was declined for two reasons worth writing down:
+
+1. **A writer is not a read-contract change.** These are versioned separately
+   from `perry-task/list/*` precisely so a consumer does not re-check its code
+   for a change in a domain it does not read (DESIGN-005 § 4, decision 5). The
+   same argument applies within this contract: nothing about `krs`,
+   `objectives` or `phase` moved.
+2. **The same call was already made once, deliberately.** TASK-059 declined to
+   add an agents roster to this payload on the grounds that freezing a shape
+   into an additive contract ahead of the design that defines it is the
+   expensive kind of mistake. A commitments array has the same property: the
+   register's consumers are `modes/pipeline.md` and `modes/queue.md`, whose
+   triage steps are still agent procedures. When one of them becomes a tool
+   with a real read, that tool's needs — not a guess at them — should set the
+   shape.
+
+If it is added later it is `2.1`, additive, and this table records it.

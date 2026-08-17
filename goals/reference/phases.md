@@ -13,64 +13,108 @@ Add or update a row in `OKR.md § Commitments` — the spine for `pipeline`- and
 where a commitment is created; the work lane links to it from the board side by
 putting the `Id` in a row's `Commitment` cell, and never the other way round.
 
-**There is no tool yet.** This is an agent procedure that edits `OKR.md`
-directly, the same way `plan-phase` writes a phase file. TASK-042 replaces it
-with a deterministic writer, exactly as `cadence-add` replaced the prose
-procedure for the recurrence register. Until then the rules below are rules an
-agent follows, not rules a script catches — said out loud because
-`modes/pipeline.md` makes the same admission about WIP, and an unstated
-concession is a decorative one.
+**This is a tool, not a procedure.** TASK-042 closed the gap this section used
+to admit to: every rule below is enforced by `bin/perry-goals commit`, each one
+verified by a test that goes red when the line implementing it is reverted. The
+agent's job is to gather the fields — which still needs a conversation — and
+then run the command. Do not edit the table by hand: an id minted by eye can be
+reused, and a reused id does not dangle visibly, it silently re-points every
+board row carrying it at a different promise.
+
+```bash
+# create
+"$PERRY_HOME/bin/perry-goals" commit --root . \
+    --track ops --promise "Vendor invoices reconciled" \
+    --to Finance --by "within the track SLA"
+
+# amend
+"$PERRY_HOME/bin/perry-goals" commit --root . --id ops/1 --by 2026-11-30
+
+# end
+"$PERRY_HOME/bin/perry-goals" commit --root . --close ops/1 \
+    --discharged-by "routed intake, worked oldest-first"
+"$PERRY_HOME/bin/perry-goals" commit --root . --miss rel/1 \
+    --reason "the vendor went quiet in October"
+```
+
+`--dry-run` prints the plan and writes nothing. `--json` returns the payload,
+including the event that was appended.
 
 ### Creating one
 
-1. **Refuse if the section is absent and no track is `pipeline` or `queue`.**
+1. **Refused if the section is absent and no track is `pipeline` or `queue`.**
    `OKR_TEMPLATE.md` says to omit the section entirely on an all-`project`
    project. Creating it because someone typed `commit` would add a spine to a
-   shape that has no use for one. Say which modes it serves and stop.
-   If the section is absent and such a track *does* exist, create it from
-   `goals/state/OKR_TEMPLATE.md § Commitments`, header and note included.
+   shape that has no use for one; the refusal says which modes it serves.
+   If the section is absent and such a track *does* exist, the tool creates it
+   from `goals/state/OKR_TEMPLATE.md § Commitments`, header and note included,
+   in the template's own position — after the Operating Principles and above
+   the version blocks.
 
-2. **Mint the `Id`** as `<track>/<n>`, where `<n>` is one greater than the
-   highest `<n>` already present **for that track** in this table. Ids are
-   never reused and never renumbered: a board row's `Commitment` cell points
-   at this string, and the goals lane rewrites this file wholesale, so an id
-   that moves silently re-points work rather than dangling visibly.
+2. **The `Id` is minted** as `<track>/<n>`, where `<n>` is one greater than the
+   highest `<n>` already present **for that track**. Ids are never reused and
+   never renumbered, so the search covers the table *and* `.perry/events.jsonl`
+   — a row created by the tool and later deleted by hand is gone from the file
+   and still in the log, and its number stays spent.
 
-3. **Ask for `To whom` and `By when`** — one `AskUserQuestion`, both fields.
-   Neither has a default. A promise with no named party is a KR, and belongs
-   under an Objective instead; say so and route it there rather than filing a
-   commitment to nobody.
+3. **`To whom` and `By when` have no defaults.** Ask for both — one
+   `AskUserQuestion`, both fields — before running the command. A promise with
+   no named party is a KR, and belongs under an Objective instead; the tool
+   refuses `--to` with that sentence rather than filing a commitment to nobody.
 
-4. **Check `By when` against the track's mode**, because the column carries two
-   formats in one table:
+4. **`By when` is checked against the track's mode**, because the column
+   carries two formats in one table:
 
    | Track mode | Accepted | Refused |
    |---|---|---|
    | `pipeline` | a date (`2026-09-30`) | prose — triage compares this cell against today, and cannot compare prose |
    | `queue` | prose naming the SLA (`within the track SLA`), or a date | prose that names no clock (`soon`, `ASAP`, `when we get to it`) |
 
-   For a queue track, refuse if `.perry/config.md § Tracks` has no `SLA` cell
-   for it: "within the track SLA" pointing at an empty register is a promise
-   with no clock at all. Name the track and ask for the SLA first.
+   "Names no clock" is enforced as the **category**, not as those three
+   examples: the cell must carry a date, the word `SLA`, or a unit of time.
+   `eventually` and `有空再说` are refused for the same reason `soon` is. What
+   the tool checks is that a clock is *named*, not that the naming is sincere —
+   `one day` passes, and no parser can do better.
 
-5. **Write the row** with `Status: active`, and leave `Discharged by` empty.
+   For a queue track, the tool refuses if `.perry/config.md § Tracks` has no
+   `SLA` cell for it: "within the track SLA" pointing at an empty register is a
+   promise with no clock at all. Set the track's SLA first.
+
+5. **The row is written** with `Status: active` and `Discharged by` empty.
    That cell is free prose describing *how* the promise gets satisfied; it is
    never a list of row ids.
+
+6. **The board-side link is a hand-off, printed and not performed.** `goals`
+   does not write `BOARD.md` (`SKILL.md § The hand-off contract`). Take the
+   printed `Id` to `/perry work` to put in the row's `Commitment` cell.
 
 ### Ending one
 
 | | Writes | Notes |
 |---|---|---|
-| `--close <Id>` | `Status: closed` | Ask for one line in `Discharged by` if it is still empty. A promise closed with no account of how is indistinguishable from one abandoned quietly. |
-| `--miss <Id> <reason>` | `Status: missed`, `<reason>` appended to `Discharged by` | |
+| `--close <Id>` | `Status: closed` | Refused while `Discharged by` is empty and `--discharged-by` was not passed. A promise closed with no account of how is indistinguishable from one abandoned quietly. |
+| `--miss <Id> --reason <text>` | `Status: missed`, `<reason>` appended to `Discharged by` | Appended, never replacing what is already there. |
 
 **A missed commitment is recorded, never silently re-dated.** Editing `By when`
 on a promise whose date has passed erases the fact that it was missed, and the
 party it was made to is the one person who cannot see the edit. If the promise
 still stands under a new date, `--miss` the old row and `commit` a new one; the
-register then reads as what happened. Refuse a `By when` edit on any row whose
-current date is in the past and whose `Status` is `active` — that is the one
-edit this procedure will not make.
+register then reads as what happened. The tool refuses a `By when` edit on any
+row whose current date is in the past and whose `Status` is `active` — that is
+the one edit it will not make, and the refusal names the two commands that do
+it properly.
+
+### A hand edit is reconciled, not overwritten
+
+Every write appends an event to `.perry/events.jsonl`. When a row's `Status` in
+`OKR.md` disagrees with what the log last recorded for it, someone edited the
+row by hand, and the tool refuses rather than writing over it. `--accept-hand-edit`
+proceeds and takes **the file's** value as the truth — never the log's.
+
+A row the log has never heard of is not a hand edit; it predates the tool, and
+every commitments register alive today is in that state. Those are written to
+normally. (DESIGN-005 § 9's last entry is why this direction was settled before
+the writer was built.)
 
 ## `plan-phase <slug>`
 

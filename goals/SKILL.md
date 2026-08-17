@@ -121,7 +121,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 |---|---|---|
 | `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
-| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. `--close <Id>` / `--miss <Id> <reason>` end one | `reference/phases.md` |
+| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `By when` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
@@ -145,13 +145,22 @@ With arg: locate the row for `<subcommand>`, print it, then **read the matching 
 
 | File | Owner | Purpose | Template |
 |------|-------|---------|----------|
-| `OKR.md` | okr | Versioned overall OKR with Operating Principles + Anti-Goals | `state/OKR_TEMPLATE.md` |
+| `OKR.md` | okr | Versioned overall OKR with Operating Principles + Anti-Goals. `## Commitments` is written by `bin/perry-goals commit`, never by hand — see the note below | `state/OKR_TEMPLATE.md` |
 | `phase/<NNN>-<slug>.md` | okr | Phase OKR with Focus, Rules, Cost Ceiling, User Commitments, Degradation, Scope Reduction, Objectives, DoD, Not Doing | `state/phase_TEMPLATE.md` |
 | `phase/CURRENT` | okr | One-line pointer to current phase (`<NNN>-<slug>`). Empty / missing = no current phase | (plain text) |
 | `phase/<NNN>-linkage.md` | okr | **The O→KR→task→agent graph** (tier 2, YAML frontmatter, spec `linkage: 1`). Declares task→KR edges, numeric KR progress, declared-unlinked work, and the stable Project ID ↔ aliases registry that stops attribution from being guessed. Machine-written; read by Perry *and* the frontend. PMO reads, never writes. | `state/linkage_TEMPLATE.md` |
 | `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md` | okr | Frozen point-in-time copies of phase OKR. Auto-written on `score-phase` (with `-final` suffix) or `snapshot` (no suffix) | — |
 | `BOARD.md` | pmo | Read by OKR for cross-check; never written | (in pmo skill) |
 | `evidence/<YYYY-MM>/retro.md` | pmo | Read by OKR `score-phase` after PMO writes it; never written | (in pmo skill) |
+
+**`OKR.md § Commitments` has a deterministic writer.** `bin/perry-goals commit`
+edits that table in place — never re-rendering the file — mints `<track>/<n>`
+ids that are never reused, checks `By when` against the track's mode, refuses
+to silently re-date a missed promise, and appends an event to
+`.perry/events.jsonl` for every write. Full rules and the exact commands:
+`reference/phases.md § commit <promise>`. The rest of `OKR.md` is still written
+by this lane's interviews (`init`, `revise`, `plan-phase`) and the tier-1 cap
+and lint pass in the style rules below still apply to those.
 
 ## Bootstrap
 
