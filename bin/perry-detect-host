@@ -17,6 +17,19 @@
 
 set -e
 
+# ─── 0. --help ───────────────────────────────────────────────
+# Every other tool in bin/ answers --help. This one used to fall through
+# and print `claude-code`, which reads as an answer rather than as the
+# flag being ignored.
+case "${1:-}" in
+  -h|--help)
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    echo
+    echo "Usage: perry-detect-host        (no flags; prints one token, always exits 0)"
+    exit 0
+    ;;
+esac
+
 # ─── 1. Manual override wins ─────────────────────────────────
 if [ -n "${PERRY_HOST:-}" ]; then
   case "$PERRY_HOST" in
@@ -34,7 +47,7 @@ fi
 # ─── 2. Env-var heuristics ───────────────────────────────────
 # IMPORTANT: check CODEX_* BEFORE CLAUDE_* because Codex inherits the
 # parent shell environment when launched from Claude Code (e.g., a
-# `/pmo dispatch` running `codex exec`). Inside that nested session,
+# `/perry work dispatch` running `codex exec`). Inside that nested session,
 # both CLAUDECODE=1 (inherited) AND CODEX_SANDBOX=seatbelt (set by
 # Codex itself) are present — the innermost active runtime is Codex,
 # so CODEX_* takes precedence. Standalone Codex sessions don't have

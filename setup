@@ -585,7 +585,7 @@ log "  source       : $SOURCE_DIR"
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  claude-code  : $CC_DIR"   || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  codex        : $CODEX_DIR" || true
 log "  skill        : /perry  (one entrance; goals / work / decide are lanes inside it)"
-log "  lanes        : /perry okr … · /perry pmo … · /perry design … · /perry diagnose"
+log "  lanes        : /perry goals … · /perry work … · /perry decide … · /perry diagnose"
 log ""
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  Claude Code: invoke /perry inside a project for the combined dashboard." || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  Codex CLI  : invoke /skills, then pick perry — or type \$perry to mention." || true

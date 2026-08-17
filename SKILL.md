@@ -38,7 +38,18 @@ Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design
 
 Name the lane when a request is ambiguous or the user is new.
 
-> **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md` and everything under `*/reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Inside a Perry session that shorthand is unambiguous routing vocabulary for the agent, not a command the user can type, so it is left as-is — including where it still uses the pre-rename lane names. Only translate it when quoting a command back to the user.
+> **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. Inside a Perry session that shorthand is unambiguous routing vocabulary for the agent, not a command the user can type, so it is left as-is — including where it still uses the pre-rename lane names. Only translate it when quoting a command back to the user.
+>
+> The carve-out is defined by **who reads the file last**. It covers exactly the pages an agent loads and re-renders before a user sees them. It does **not** cover, and never covered:
+>
+> - `bin/` — `--help` text, `warnings[]` and `Finding.message` are the quote, already rendered, with no agent step left to translate them;
+> - `*/state/*_TEMPLATE.md` and `state/*_TEMPLATE.md` — copied verbatim into the user's own repository, where they stay;
+> - `setup` — its banner is the first thing a user reads after install;
+> - lane frontmatter `description:` — read by the host, not by an agent that has already loaded this router;
+> - **this file**, `SKILL.md` — the router is the page a new user is shown;
+> - `reference/host-capabilities.md` — the one page that owns per-host translation. A reader follows it to find their entrance, so it must name the live one. It carries its own note saying so.
+>
+> `tests/test_shipped_vocabulary.py` is that list, mechanically. Adding a class here without adding it there is how this carve-out silently grew the last time.
 
 > **Host portability**: Perry runs on **Claude Code** (default install at `~/.claude/skills/perry/`) and **Codex CLI** (default install at `~/.agents/skills/perry/`). Both hosts read SKILL.md frontmatter natively for skill discovery — no AGENTS.md or other routing file is needed. The standup ritual below sets `$PERRY_HOME` from the install location, detects which host is live, and reads `$PERRY_HOME/reference/host-capabilities.md` for the fallback rules (free-text prompts instead of `AskUserQuestion` on Codex, refusal of `Executor: claude-subagent` on Codex, etc.). Where this file or a child SKILL.md names a Claude-Code-specific tool (`AskUserQuestion`, `Agent()`, `Bash run_in_background`), that capability page owns the per-host translation; SKILL.md prose stays single-sourced.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # perry-codex-preflight — verify codex CLI is installed, recent enough,
-# and produces output. Run before /pmo dispatch's first codex invocation
+# and produces output. Run before /perry work dispatch's first codex invocation
 # in any session. Exit 0 → green light. Exit non-0 → refuse + explain.
 #
 # Designed to fail fast (within ~60s) so a background `codex exec` won't
@@ -24,7 +24,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=1; shift ;;
     -h|--help)
       cat <<'USAGE'
-perry-codex-preflight — verify codex CLI before /pmo dispatch.
+perry-codex-preflight — verify codex CLI before /perry work dispatch.
 
 Usage: perry-codex-preflight [--force] [--quiet]
 

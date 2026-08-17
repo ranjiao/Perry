@@ -3,9 +3,9 @@
 perry-state — the single deterministic read of a Perry project's state.
 
 One extractor, two consumers:
-  - the standup ritual (`/perry`, `/pmo`, `/okr`, `/design`) reads `--json`
-    instead of opening a dozen files, so dashboard numbers are computed, never
-    eyeballed;
+  - the standup ritual (`/perry`, and its `goals` / `work` / `decide` lanes)
+    reads `--json` instead of opening a dozen files, so dashboard numbers are
+    computed, never eyeballed;
   - `viewer/serve.py` imports the same `parsers.py` this script does.
 
 The frontend (aiMark) does NOT call this script — it parses the same files
