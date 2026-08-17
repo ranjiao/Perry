@@ -33,11 +33,36 @@ empty while work is clearly happening."
 
 A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
 
-Then walk `BOARD.md` top-to-bottom. For each open row:
-- Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d) → flag
+**Read the payload, then walk what it returns — do not open `BOARD.md` and
+look.** Eyeballing a file for numbers is the one thing Perry's oldest rule
+forbids, and this procedure was written before there was an alternative:
+
+```
+"$PERRY_HOME/bin/perry-task" list --all --json
+"$PERRY_HOME/bin/perry-state" --json
+```
+
+The first carries `updated`, `stage_since` and `arrived` per row — every age
+below is computed from those, not read off the board. The second carries the
+drift block and the User Input Queue.
+
+**Step 0.5 — read `conformance` before judging any row.** It says what the
+board holds that the payload could not classify, and each entry is a
+triage-shaped question the old walk had no way to ask:
+
+| Key | What triage does with it |
+|---|---|
+| `rows_with_no_status` | The row's section has no `Status` column, so `open` is an assumption. Ask whether it is finished — Perry's own board had **20 done tasks reported as open** this way. |
+| `off_enum_status` | The cell says something the enum does not cover. Often legitimate (a composite state); sometimes a typo. Surface, never rewrite. |
+| `evidence_not_found` | A path in the `Evidence` cell resolves under neither root. Usually a symbol or a note, not a broken link — check before treating it as one. |
+| `sections_skipped` | A `## ` section holding a table with no `ID`+`Title`. If it is actually work, its table needs those columns. |
+| `has_event_log: false` | The project predates the writer. `created` / `updated` / `timeline` are empty for every row and **that is not an error** — fall back to the row's own date cells. |
+
+Then walk the rows the payload returned. For each open row:
+- Stale? (P0 idle ≥3d, P1 idle ≥7d, P2 idle ≥14d, measured from `updated`, or from the row's date cells when there is no event log) → flag
 - Same dependency cited in ≥2 rows? → structural blocker
 - `done` claim without evidence file in `evidence/<YYYY-MM>/` → `"$PERRY_HOME/bin/perry-task" status <ID> --status review --next "needs an evidence file before it can close"`
-- Owner is an agent but no recent delegation prompt in chat? → flag
+- Owner is an agent and the row is still `not_started`? → flag. **Read the row, not the chat**: `delegate` now writes `in_progress` with `delegated to <agent>; awaiting paste-back` in `Next action`, so a delegated task is visible in state. This check used to look for "a recent delegation prompt in chat", which is not a surface any tool can read and not a record that survives the session.
 - Row inflated (long inline notes leaking into the board) → propose moving detail to `evidence/<YYYY-MM>/<TASK-ID>-*.md`, leaving only Status + Next action + Evidence path on the board.
 - Spec has `Deployed: yes`, status `review`, but no `Runbook:` field or runbook file missing → flag with "blocks close" annotation (see `$PERRY_HOME/packs/software-ops/runbooks.md`).
 - Spec's `Touches architecture:` non-empty, status `review`, but latest dispatch evidence has no `## Architecture review` PASS → flag with "blocks close — re-dispatch or override" annotation (see `$PERRY_HOME/packs/software-ops/architecture.md`).
