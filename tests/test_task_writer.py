@@ -2934,5 +2934,61 @@ class TestTheRungIsWritableAndCorrectable(unittest.TestCase):
         self.assertEqual(str(add_out), str(done_out))
 
 
+class TestTheDelimiterIsACharacterPeopleWrite(unittest.TestCase):
+    """`render_row` joined on `|` and escaped nothing, so a cell whose value
+    contained a pipe silently became several cells and shifted every column
+    after it.
+
+    Not hypothetical: filing a task whose `Next action` quoted a markdown
+    header — `` | ID | **Risk** | Opened | Status | `` — turned a 7-cell row
+    into a 12-cell row on Perry's own board and pushed the word `Risk` into
+    the `Verification` column, where the enum check caught it.
+
+    Two things that make this worse than an ordinary escaping bug, and both
+    are asserted below:
+
+    - the corruption **survives** later tool writes. A row is read back with
+      `dict(zip(header, cells))`, and a shifted row zips without complaint, so
+      the wrong values are read as right and written out again.
+    - nothing upstream refuses. The value is the user's prose; the delimiter is
+      a character prose contains.
+    """
+
+    def test_a_pipe_in_a_value_round_trips(self):
+        for cells in (["a", "b | c", "d"],
+                      ["a", "|leading", "trailing|"],
+                      ["a", "b || c", "d"]):
+            with self.subTest(cells=cells):
+                self.assertEqual(cells, PT.split_row(PT.render_row(cells)))
+
+    def test_a_row_keeps_its_column_count(self):
+        line = PT.render_row(["TASK-001", "quoting | ID | Title |", "Coding Agent"])
+        self.assertEqual(3, len(PT.split_row(line)),
+                         "a value containing the delimiter became extra cells")
+
+    def test_an_already_escaped_pipe_is_not_double_escaped(self):
+        """Reading a hand-written row that already uses markdown's `\\|` and
+        writing it back must not grow a second backslash each time."""
+        once = PT.render_row(PT.split_row(r"| a | b \| c | d |"))
+        twice = PT.render_row(PT.split_row(once))
+        self.assertEqual(once, twice, "escaping is not idempotent")
+
+    def test_the_cell_survives_the_whole_write_path(self):
+        p = Project()
+        code, a = p.run("add", "--title", "x", "--priority", "P0",
+                        "--next", "see | ID | Title | Owner | in the board")
+        self.assertEqual(code, 0, a)
+        board = p.board()
+        header = next(l for l in board.split("\n") if l.startswith("| ID |"))
+        row = next(l for l in board.split("\n") if l.startswith(f"| {a['id']} |"))
+        self.assertEqual(len(PT.split_row(header)), len(PT.split_row(row)),
+                         "the row and its header stopped agreeing")
+        cells = dict(zip([PT.norm(h) for h in PT.split_row(header)],
+                         PT.split_row(row)))
+        self.assertIn("| ID | Title | Owner |", cells["next action"])
+        self.assertEqual("", cells.get("verification", ""),
+                         "a value leaked into the column after it")
+
+
 if __name__ == "__main__":
     unittest.main()

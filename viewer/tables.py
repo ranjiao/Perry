@@ -23,13 +23,43 @@ from __future__ import annotations
 import re
 
 
+#: A `|` that is part of a value, not a delimiter. Markdown's own convention.
+_ESCAPED_PIPE = "\\|"
+
+
 def split_row(line: str) -> list[str]:
-    """`| a | b |` → `["a", "b"]`.
+    """`| a | b |` → `["a", "b"]`, and `\\|` is a value, not a delimiter.
 
     Leading and trailing pipes are stripped before splitting, so a row and its
     header always yield the same number of cells for the same table.
+
+    The escape half matters because the delimiter is a character people write.
+    Splitting on every `|` turned a three-cell row whose middle cell mentioned
+    a markdown table into a four-cell row, shifting every column after it —
+    found by the conformance gate on Perry's own board, where a task's
+    `Next action` quoting `| ID | Risk | Opened |` pushed the word `Risk` into
+    the `Verification` column and tripped the enum check.
     """
-    return [c.strip() for c in line.strip().strip("|").split("|")]
+    cells, cur = [], []
+    body = line.strip()
+    if body.startswith("|"):
+        body = body[1:]
+    if body.endswith("|") and not body.endswith(_ESCAPED_PIPE):
+        body = body[:-1]
+    i = 0
+    while i < len(body):
+        if body[i] == "\\" and i + 1 < len(body) and body[i + 1] == "|":
+            cur.append("|")
+            i += 2
+        elif body[i] == "|":
+            cells.append("".join(cur).strip())
+            cur = []
+            i += 1
+        else:
+            cur.append(body[i])
+            i += 1
+    cells.append("".join(cur).strip())
+    return cells
 
 
 def render_row(cells: list[str]) -> str:
@@ -39,7 +69,8 @@ def render_row(cells: list[str]) -> str:
     table whenever one cell grew, turning a one-cell edit into a whole-table
     diff and burying the change nobody can then review.
     """
-    return "| " + " | ".join(c.strip() for c in cells) + " |"
+    return "| " + " | ".join(
+        c.strip().replace("|", _ESCAPED_PIPE) for c in cells) + " |"
 
 
 def squash(s: str) -> str:
