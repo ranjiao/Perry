@@ -571,14 +571,51 @@ def fix_enum_fields(lines: list[str], spec: dict, schema: dict,
 SRC_RE = re.compile(r"\bSRC-(\d+)\b")
 
 
-def header_block_end(lines: list[str]) -> tuple[int, bool]:
+def is_header_block(lines, first, last, spec, schema) -> bool:
+    """Is this leading `>` block Perry's header block, or just quoted prose?
+
+    Judged from the **schema**, not from shape. The first attempt matched
+    `> Name:` and `> **Name**:` and still joined
+    `> **注意：** 本文由第三方AI…` — a disclaimer whose colon sits inside the
+    bold, which is field-shaped by any reasonable pattern. Sentences are
+    field-shaped; only the vocabulary tells them apart.
+
+    Two ways to qualify, because a header block can be missing every field the
+    schema names and still obviously be one:
+
+    - it names a field this file's spec declares, in any declared spelling; or
+    - it opens immediately under the H1, which is where the template puts it.
+    """
+    names = set()
+    for f in spec.get("header_fields", []):
+        names.add(f["name"].lower())
+        for spellings in ((schema.get("i18n") or {}).get("fields") or {}).get(
+                f["name"], {}).values():
+            names.update(s.lower() for s in spellings)
+    for i in range(first, last + 1):
+        m = re.match(r"^\s*>\s*\*{0,2}\s*([^:：*]+?)\s*\*{0,2}\s*[:：]", lines[i])
+        if m and m.group(1).strip().lower() in names:
+            return True
+    before = [l for l in lines[:first] if l.strip()]
+    return len(before) == 1 and before[0].startswith("# ")
+
+
+def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, bool, bool]:
     """Where a header field goes, and whether this file bolds its field names.
 
-    After the last line of the leading `>` block, so a new field joins the ones
-    already there instead of landing in the prose. The bold question is not
+    After the last line of the leading `>` block **when that block holds header
+    fields**, so a new field joins the ones already there instead of landing in
+    the prose — and after the H1 otherwise, as a block of its own. The third
+    return value says which happened, because a joined field follows its
+    neighbours' spelling and a new block uses the schema's. The bold question is not
     cosmetic: `perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`, which a
     bolded `> **Id**:` does not satisfy — so a digest whose neighbours are
     plain must get a plain line."""
+    # The FIRST CONTIGUOUS run of `>` lines, not every quoted line above the
+    # first `## `. Treating them as one block put `Id` under the H1 and then
+    # `Source` back inside a disclaimer four lines further down, because the
+    # newly-written `Id` made the whole span qualify. A header block is one
+    # block.
     first_quote = None
     last_quote = None
     for i, line in enumerate(lines):
@@ -589,26 +626,55 @@ def header_block_end(lines: list[str]) -> tuple[int, bool]:
             if first_quote is None:
                 first_quote = i
             last_quote = i
+        elif first_quote is not None and s:
+            break
+    # A leading `>` block is only a header block if it holds header fields.
+    # `knowledge/market-context/caixin-…md` opens with a third-party-AI
+    # disclaimer in a blockquote, and joining it made Perry's metadata render
+    # as the last sentence of that disclaimer — no character lost, the meaning
+    # changed. Found by the user reading the migrated file; thirty mutations
+    # had passed over it.
+    if last_quote is not None and not is_header_block(
+            lines, first_quote, last_quote, spec, schema):
+        first_quote = last_quote = None
     if last_quote is not None:
         block = [lines[i] for i in range(first_quote, last_quote + 1)]
         bold = sum(1 for b in block if re.search(r">\s*\*\*[^*]+\*\*\s*[:：]", b))
-        return last_quote + 1, bold * 2 >= len([b for b in block if "：" in b or ":" in b])
+        return (last_quote + 1,
+                bold * 2 >= len([b for b in block if "：" in b or ":" in b]),
+                True)
+    # A block Perry starts is never bolded: `perry-lint --provenance` matches
+    # `^>\s*Id\s*[:：]` literally, and a bolded `> **Id**:` does not satisfy
+    # it — the same rule this function already applies when joining.
     for i, line in enumerate(lines):
         if line.startswith("# "):
-            return i + 1, True
-    return 0, True
+            return i + 1, False, False
+    return 0, False, False
 
 
 def fix_missing_fields(lines: list[str], spec: dict, schema: dict, lang: str,
                        changes: list[Change], mint, minted: list[str]) -> list[str]:
     L = lint()
+    # Decided ONCE, from the file as its author left it. Recomputing per field
+    # made the first inserted field turn a fresh block into an existing one, so
+    # `Id` was written in the schema's spelling and `Source` / `Status` in the
+    # project's — the mixed-language block this was meant to fix, one iteration
+    # later.
+    _, bold, joining = header_block_end(lines, spec, schema)
     for fspec in spec.get("header_fields", []):
         if fspec.get("required") is False:
             continue
         if field_line(lines, L.field_re(fspec["name"])):
             continue
-        at, bold = header_block_end(lines)
-        name = field_spelling(schema, fspec["name"], lang)
+        at, _, _ = header_block_end(lines, spec, schema)
+        # Joining an existing block follows that block. Starting a new one uses
+        # the schema's own spelling, in English: `i18n.fields` maps `Status`
+        # and not `Id`/`Source`/`Received`, so translating through it produced
+        # `Id：… / 状态：—` — three English names and one Chinese, in one
+        # block, against `reference/i18n.md`'s one-language-per-file rule. And
+        # `perry-lint --provenance` matches `^>\s*Id\s*[:：]` literally, so a
+        # localized `编号` would break the provenance chain this id exists for.
+        name = field_spelling(schema, fspec["name"], lang) if joining else fspec["name"]
         pattern = fspec.get("pattern") or ""
         if pattern == r"SRC-\d+":
             # An id is an address, not a claim: nothing about the project is
@@ -623,7 +689,7 @@ def fix_missing_fields(lines: list[str], spec: dict, schema: dict, lang: str,
             # so (`design.Date` accepts it outright) and it never reads as fact.
             value = "—"
         label = f"**{name}**" if bold else name
-        sep = "：" if lang == "zh" else ": "
+        sep = "：" if (joining and lang == "zh") else ": "
         blank = "" if at == 0 or not lines[at - 1].strip().startswith(">") else None
         line = f"> {label}{sep}{value}"
         lines[at:at] = [line] if blank is None else ["", line]

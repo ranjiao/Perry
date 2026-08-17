@@ -18,7 +18,6 @@
 |---|---|---|---|---|---|---|
 | TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | review | merged; this repo declared 13/13 at shape version 2 by the user. Gate ships advisory — enforcing waits on TASK-044 existing, since today it would name a command nobody can run. Needs its V4. | — |  |
 | TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | merged. All five ADR-004 guarantees hold — verified independently: dry run leaves the tree hash unchanged, apply takes gimegime-pmo 59/28 → 15/14 with 30 files declarable, restore returns it byte-for-byte. ADR-004's reopening criterion is not met. Needs its V4, and one V5 judgement (see below). | — |  |
-| TASK-049 | Migration's injected header block merges into an adjacent blockquote, and mixes languages | Coding Agent | not_started | Found by the user asking to see the actual injection before deciding. Two defects, neither caught by the 30-mutation suite: (1) the lines are prefixed '>' with no blank line after an existing '>' block, so they render as part of the third-party-AI disclaimer — no character lost, but the meaning changed; (2) Id has a zh mapping in the schema and was written 'Id', while Status has one and was written '状态', so display_name gives two answers for two fields that both have mappings. reference/i18n.md requires one language per file end to end. | — |  |
 
 ## P1
 

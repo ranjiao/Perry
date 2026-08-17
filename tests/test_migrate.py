@@ -826,5 +826,124 @@ class TestOneDefinitionOfTheShape(unittest.TestCase):
                 self.assertNotRegex(label, r"[<>…()]", f"{spec['path']}: {label}")
 
 
+class TestAHeaderBlockIsNotAnyQuotedText(unittest.TestCase):
+    """A news article sitting in `knowledge/` opens with a third-party-AI
+    disclaimer in a blockquote. Migration appended its four header fields to
+    that blockquote, so Perry's metadata rendered as the last sentences of
+    somebody else's disclaimer — no character lost, the meaning changed.
+
+    Found by the user reading the migrated file. Thirty mutations had passed
+    over it, because every one of them asked whether the bytes survived and
+    none asked what the file now said.
+    """
+
+    #: The real shape, reduced: an H1, prose, a rule, then a quoted disclaimer
+    #: whose colon sits *inside* the bold — field-shaped to any pattern.
+    ARTICLE = """# AI 船票全球飞涨
+
+**来源：** 财新周刊
+
+---
+
+> **注意：** 本文由第三方AI提炼总结而成，可能与原文真实意图存在偏差。
+
+正文第一段。
+"""
+
+    #: A digest Perry wrote: the header block is directly under the H1 and
+    #: names fields the schema declares.
+    DIGEST = """# Digest — 月度点评
+
+> Source: 用户直接粘贴全文
+> Received: 2026-08-12 by chat paste
+> Status: active
+
+## 摘要
+
+内容。
+"""
+
+    def files(self, text, name="knowledge/market-context/a.md"):
+        return {"BOARD.md": LEGACY_BOARD, name: text}
+
+    def block(self, p, rel="knowledge/market-context/a.md"):
+        """The contiguous run Perry wrote, not every quoted line in the file —
+        the disclaimer is also `> `-prefixed, and counting it was this test's
+        own first bug."""
+        lines = p.text(rel).split("\n")
+        start = next(i for i, l in enumerate(lines) if l.startswith("> Id:"))
+        out = []
+        while start < len(lines) and lines[start].startswith("> "):
+            out.append(lines[start]); start += 1
+        return out
+
+    def test_quoted_prose_is_not_joined(self):
+        p = Project(files=self.files(self.ARTICLE))
+        p.run("apply", "--only", "knowledge/market-context/a.md")
+        text = p.text("knowledge/market-context/a.md")
+        disclaimer = next(i for i, l in enumerate(text.split("\n"))
+                          if "第三方AI" in l)
+        after = text.split("\n")[disclaimer + 1]
+        self.assertNotIn("Id", after,
+                         "the header fields joined a disclaimer that is not a "
+                         "header block")
+
+    def test_a_new_block_sits_directly_under_the_h1(self):
+        p = Project(files=self.files(self.ARTICLE))
+        p.run("apply", "--only", "knowledge/market-context/a.md")
+        lines = p.text("knowledge/market-context/a.md").split("\n")
+        self.assertTrue(lines[0].startswith("# "))
+        self.assertEqual("", lines[1])
+        self.assertTrue(lines[2].startswith("> Id:"), lines[:5])
+
+    def test_a_new_block_is_one_language_and_one_colon(self):
+        """`i18n.fields` maps `Status` and not `Id`/`Source`/`Received`, so
+        translating through it produced three English names and one Chinese in
+        a single block. `reference/i18n.md` requires one language per file."""
+        p = Project(files=self.files(self.ARTICLE), config=CONFIG_ZH)
+        p.run("apply", "--only", "knowledge/market-context/a.md")
+        block = self.block(p)
+        self.assertEqual(4, len(block), block)
+        self.assertTrue(all(": " in l for l in block),
+                        f"mixed colon forms in one block: {block}")
+        self.assertFalse([l for l in block if "：" in l], block)
+
+    def test_a_new_block_is_never_bolded(self):
+        """`perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`; a bolded
+        `> **Id**:` does not satisfy it, so bolding a block Perry starts
+        breaks the provenance chain the id exists for."""
+        p = Project(files=self.files(self.ARTICLE))
+        p.run("apply", "--only", "knowledge/market-context/a.md")
+        self.assertRegex(p.text("knowledge/market-context/a.md"),
+                         r"(?m)^>\s*Id\s*:")
+
+    def test_every_field_lands_in_the_same_block(self):
+        """`joining` was recomputed per field, so the first insertion turned a
+        fresh block into an existing one and the rest followed the project's
+        spelling instead of the schema's."""
+        p = Project(files=self.files(self.ARTICLE), config=CONFIG_ZH)
+        p.run("apply", "--only", "knowledge/market-context/a.md")
+        lines = p.text("knowledge/market-context/a.md").split("\n")
+        run = [i for i, l in enumerate(lines) if l.startswith("> Id:")]
+        start = run[0]
+        contiguous = 0
+        while start + contiguous < len(lines) and \
+                lines[start + contiguous].startswith("> "):
+            contiguous += 1
+        self.assertEqual(4, contiguous,
+                         "the four fields were split across two blocks")
+
+    def test_a_real_header_block_is_still_joined(self):
+        """The discrimination must not cost the behaviour it protects: a
+        digest missing only `Id` gets it appended to the block it has."""
+        p = Project(files=self.files(self.DIGEST, "knowledge/x/d.md"))
+        p.run("apply", "--only", "knowledge/x/d.md")
+        lines = p.text("knowledge/x/d.md").split("\n")
+        quoted = [i for i, l in enumerate(lines) if l.startswith("> ")]
+        self.assertEqual(list(range(quoted[0], quoted[0] + len(quoted))), quoted,
+                         "the digest's header block was split")
+        self.assertEqual(4, len(quoted))
+
+
 if __name__ == "__main__":
     unittest.main()
