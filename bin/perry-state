@@ -664,6 +664,12 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     uiq = [u for u in board.user_input_queue if not answered(u)]
 
     def idle_days(u):
+        # `Asked` is a date and wins: an age computed at read time is right
+        # every morning, and the `Idle` cell was a number someone had to retype
+        # — which is why both rows on Perry's own board read `—`.
+        d = days_since(getattr(u, "asked", "") or "")
+        if d is not None:
+            return d
         m = re.search(r"(\d+)", u.idle or "")
         return int(m.group(1)) if m else -1
     oldest_uiq = max(uiq, key=idle_days) if uiq else None
@@ -781,6 +787,11 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "count": len(uiq),
             "oldest": None if not oldest_uiq else {
                 "id": oldest_uiq.id,
+                "asked": getattr(oldest_uiq, "asked", "") or "",
+                # The number a reader wants. `idle` is the raw cell and is
+                # empty on any board that stores `Asked` instead — handing that
+                # over would make a 7-day-old blocker look like it has no age.
+                "idle_days": (lambda d: d if d >= 0 else None)(idle_days(oldest_uiq)),
                 "needed": oldest_uiq.needed_from_user,
                 "idle": oldest_uiq.idle,
                 "blocks": oldest_uiq.blocks,

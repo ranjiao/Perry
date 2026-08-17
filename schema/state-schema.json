@@ -885,9 +885,12 @@
             "USER-id",
             "Needed from user",
             "Blocks",
-            "Idle",
             "Status"
-          ]
+          ],
+          "optional_columns": {
+            "Asked": "YYYY-MM-DD the question was put to the user. Stamped by `perry-task ask`. This is what should be STORED; idle days are computed from it at read time.",
+            "Idle": "Days the request has waited. DERIVED — a stored age is stale the moment it is written, which is why it is optional and why `Asked` exists. Read when present so no existing board breaks; never required."
+          }
         },
         {
           "under": "^Cadence\\b|^例行节奏",

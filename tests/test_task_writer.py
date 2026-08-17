@@ -1684,3 +1684,122 @@ if __name__ == "__main__":
     # exited 0 — every drift, localization, mode-aware-write, status-coverage
     # and lane-procedure test silently skipped, with a passing report.
     unittest.main()
+
+
+class TestUserInputQueueHasAWriter(unittest.TestCase):
+    """TASK-039. The section had readers, a dashboard row, and no writer.
+
+    The cost was measurable rather than argued: **both rows on Perry's own
+    board carried `Idle: —`** — the one field the queue exists for, unfilled,
+    because a human had to type a number that is wrong the next morning. And
+    `perry-state` counted answered rows as pending, so the dashboard reported
+    two people waiting on the user when both had been answered the day before.
+    """
+
+    def project(self) -> "Project":
+        return Project()
+
+    def test_ask_mints_an_id_and_stamps_the_date(self):
+        p = self.project()
+        code, a = p.run("ask", "--needed", "Staleness threshold", "--blocks", "TASK-005")
+        self.assertEqual(code, 0, a)
+        self.assertEqual(a["id"], "USER-001")
+        self.assertTrue(re.fullmatch(r"\d{4}-\d{2}-\d{2}", a["asked"]))
+        self.assertIn("| USER-001 |", p.board())
+        self.assertIn("TASK-005", p.board())
+
+    def test_the_section_is_created_after_the_priority_tables(self):
+        """`ensure_section` inserted before `## P0`, which is right for
+        `## Intake` — it reads above the work it becomes — and wrong here. A
+        standup does not open with a list of open questions."""
+        p = self.project()
+        p.run("ask", "--needed", "X")
+        heads = [l for l in p.board().split("\n") if l.startswith("## ")]
+        self.assertLess(heads.index("## P0 (must finish this period)"),
+                        next(i for i, h in enumerate(heads)
+                             if h.startswith("## User Input Queue")))
+
+    def test_a_question_with_no_text_is_refused(self):
+        p = self.project()
+        code, out = p.run("ask")
+        self.assertEqual(code, 1)
+        self.assertIn("--needed", str(out))
+
+    def test_answering_records_the_answer_and_the_date(self):
+        p = self.project()
+        p.run("ask", "--needed", "Threshold?")
+        code, out = p.run("answer", "USER-001", "--answer", "30 days")
+        self.assertEqual(code, 0, out)
+        row = next(l for l in p.board().split("\n") if l.startswith("| USER-001 |"))
+        self.assertIn("answered", row)
+        self.assertIn("30 days", row)
+
+    def test_answering_without_the_answer_is_refused(self):
+        """Flipping the status without recording what was decided leaves the
+        row closed and the decision nowhere."""
+        p = self.project()
+        p.run("ask", "--needed", "X")
+        code, out = p.run("answer", "USER-001")
+        self.assertEqual(code, 1)
+        self.assertIn("--answer", str(out))
+
+    def test_answering_twice_is_refused(self):
+        p = self.project()
+        p.run("ask", "--needed", "X")
+        p.run("answer", "USER-001", "--answer", "first")
+        code, out = p.run("answer", "USER-001", "--answer", "second")
+        self.assertEqual(code, 1)
+        self.assertIn("already answered", str(out))
+
+    def test_ids_are_not_reused_after_an_answer(self):
+        p = self.project()
+        p.run("ask", "--needed", "one")
+        p.run("answer", "USER-001", "--answer", "done")
+        _, b = p.run("ask", "--needed", "two")
+        self.assertEqual(b["id"], "USER-002")
+
+    def test_idle_is_computed_from_asked_not_read_from_a_typed_cell(self):
+        """The whole reason `Asked` exists. A stored age is stale the next
+        morning, which is why a real project had already dropped the `Idle`
+        column and why both of Perry's own rows read `—`."""
+        p = self.project()
+        p.run("ask", "--needed", "recent")
+        p.run("ask", "--needed", "old", "--arrived", "2020-01-01")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        q = json.loads(r.stdout)["user_input_queue"]
+        self.assertEqual(q["count"], 2)
+        self.assertEqual(q["oldest"]["id"], "USER-002",
+                         "the oldest was not chosen by asked-date")
+        self.assertGreater(q["oldest"]["idle_days"], 2000)
+
+    def test_an_answered_row_leaves_the_pending_count(self):
+        p = self.project()
+        p.run("ask", "--needed", "X")
+        p.run("answer", "USER-001", "--answer", "y")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(p.root), "--json"], capture_output=True, text=True)
+        self.assertEqual(json.loads(r.stdout)["user_input_queue"]["count"], 0)
+
+    def test_a_board_that_already_has_the_section_gains_the_asked_column(self):
+        """`ensure_columns` existed for the priority tables from the day mode
+        columns landed; its sibling for named sections did not, so the date
+        would have been dropped silently — the defect that lost
+        `--commitment`."""
+        # The fixture already carries the section, in the four-column shape a
+        # real project uses — no `Asked`, and no `Idle` either.
+        p = Project(board=BOARD.replace(
+            "| USER-id | Needed from user | Blocks | Idle | Status |\n|---|---|---|---|---|\n",
+            "| USER-id | Needed from user | Blocks | Status |\n|---|---|---|---|\n"
+            "| USER-900 | pre-existing | — | pending |\n", 1))
+        code, a = p.run("ask", "--needed", "new one")
+        self.assertEqual(code, 0, a)
+        header = next(l for l in p.board().split("\n") if l.startswith("| USER-id |"))
+        self.assertIn("Asked", header)
+        old = next(l for l in p.board().split("\n") if l.startswith("| USER-900 |"))
+        self.assertEqual(len(old.strip("|").split("|")),
+                         len(header.strip("|").split("|")),
+                         "an existing row was not widened with the new column")
+        self.assertEqual(a["id"], "USER-901", "the pre-existing id was reused")

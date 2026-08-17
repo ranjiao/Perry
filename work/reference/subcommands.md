@@ -53,6 +53,35 @@ Then walk `BOARD.md` top-to-bottom. For each open row:
 
 It re-stamps `Stage since` in the same write and refuses a stage outside the track's declared vocabulary. The rule applies wherever `Stage` changes. `close-task` is in this same file and does load it; `dispatch` and `autopilot` are not, so the invariant is restated in `reference/dispatch.md` and `reference/autopilot.md` rather than relying on this one. Hand-editing the cell leaves the clock reading from whenever the row was created, and pipeline triage's first question then measures nothing. Changing a row's `Stage` sets `Stage since` to today **in the same edit**, and writes the move into today's journal `## Status changes` line alongside any `Status` change. This is the rule that makes dwell time real: `Stage` and `Status` are orthogonal by design, so a `draft → review` move produces no `Status` change and would otherwise leave no trace anywhere. A stage moved without its timestamp is a clock that reads whatever it read last.
 
+**Asking the user something, and recording their answer, go through the tool.**
+
+```
+"$PERRY_HOME/bin/perry-task" ask --needed "<the question>" [--blocks <TASK-ID>]
+"$PERRY_HOME/bin/perry-task" answer <USER-ID> --answer "<what they decided>"
+```
+
+`ask` mints the `USER-NNN`, stamps **`Asked`** — a date — and creates
+`## User Input Queue` after the priority tables if the board lacks it, adding
+the `Asked` column to a section that predates it.
+
+**It stamps a date, not an age.** The column used to be `Idle`, a number a
+human retyped, and the result was measurable: both rows on Perry's own board
+read `—`, so the one field the queue exists for was empty, and a live project
+had already dropped the column entirely. `Idle` is now optional in the schema
+and still read where it exists; `today − Asked` is computed at read time and
+comes back as `user_input_queue.oldest.idle_days`.
+
+`answer` refuses without `--answer`: flipping the status without recording what
+was decided leaves the row closed and the decision nowhere. It also refuses a
+row that is already answered.
+
+**`perry-state` counts only unanswered rows.** It used to count the whole
+section — two answered rows on Perry's board were reported as two people
+waiting, which is the single number in the payload a user is meant to act on.
+
+The prose cell stays yours. The tool owns the id, the dates and the status;
+what is being asked, and what was decided, are written by whoever knows.
+
 **Every status change that is not a close goes through the tool too.**
 
 ```

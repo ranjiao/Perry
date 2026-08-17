@@ -48,6 +48,8 @@ Usage:
   perry-task start <ID> [--next "…"]
   perry-task stage <ID> --stage <name>
   perry-task intake --title "…" [--arrived YYYY-MM-DD]
+  perry-task ask    --needed "…" [--blocks <ID>] [--arrived YYYY-MM-DD]
+  perry-task answer <USER-ID> --answer "…"
   perry-task route <n> --track T [--priority P1] [--stage S] [--owner O]
                    [--commitment ID]
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
@@ -405,7 +407,8 @@ class Board:
             self.lines[i] = render_row(cells + [""] * len(missing))
         return header
 
-    def ensure_section(self, heading: str, columns: list[str]) -> None:
+    def ensure_section(self, heading: str, columns: list[str],
+                       before_p0: bool = True) -> None:
         """Create `## <heading>` with its table if the board lacks it.
 
         `## Intake` is the organ queue mode is built on and the first thing
@@ -413,8 +416,12 @@ class Board:
         itself on "only applies when the section exists" and no-opped forever
         for every queue track ever made.
 
-        Inserted before `## P0` so intake reads above the work it becomes,
-        which is the order `modes/queue.md` describes it in.
+        `## Intake` is inserted before `## P0` so it reads above the work it
+        becomes, which is the order `modes/queue.md` describes it in. Every
+        other section is appended, because that is where `BOARD_TEMPLATE.md`
+        puts them — `## User Input Queue` created above the board pushed the
+        work below a list of open questions, which is not what a standup reads
+        first.
 
         Heading and columns are both written in the board's own language.
         `ensure_columns` localized new headers and explained why in the same
@@ -433,8 +440,9 @@ class Board:
         shown = next((s for s in heading_spellings(heading)[1:]
                       if lang != "en"), heading)
         columns = [display_name(c, lang) for c in columns]
-        anchor = next((i for i, l in enumerate(self.lines)
-                       if PRIORITY_RE["P0"].match(l)), len(self.lines))
+        anchor = (next((i for i, l in enumerate(self.lines)
+                        if PRIORITY_RE["P0"].match(l)), len(self.lines))
+                  if before_p0 else len(self.lines))
         block = [f"## {shown}", "", render_row(columns),
                  "|" + "|".join(["---"] * len(columns)) + "|", ""]
         self.lines[anchor:anchor] = block
@@ -467,6 +475,36 @@ class Board:
             if cells and cells[0]:
                 out.append((i, cells))
         return out
+
+    def ensure_section_columns(self, heading: str, needed: list[str]) -> list[str]:
+        """`ensure_columns`, for a named non-priority section.
+
+        Its sibling existed for the priority tables from the day mode columns
+        landed; this one did not, so a board that already had
+        `## User Input Queue` without `Asked` had nowhere to put the date and
+        the tool would have dropped it silently — the same defect that lost
+        `--commitment` on the task tables.
+        """
+        sep, header = self.section_table(heading)
+        missing = [c for c in needed
+                   if not any(norm(h) == norm(c) for h in header)]
+        if not missing:
+            return header
+        lang = header_language(header)
+        header = header + [display_name(c, lang) for c in missing]
+        self.lines[sep - 1] = render_row(header)
+        self.lines[sep] = "|" + "|".join(["---"] * len(header)) + "|"
+        for i, cells in self.section_rows(heading):
+            self.lines[i] = render_row(cells + [""] * len(missing))
+        return header
+
+    def find_section_row(self, heading: str, row_id: str):
+        """(line index, header, cells) for one row of a named section."""
+        _, header = self.section_table(heading)
+        for i, cells in self.section_rows(heading):
+            if cells and cells[0].replace("*", "").replace("~", "").strip() == row_id:
+                return i, header, cells
+        raise Refused(f"{row_id} is not a row in `## {heading}`")
 
     def append_section_row(self, heading: str, values: dict) -> str:
         sep, header = self.section_table(heading)
@@ -1157,6 +1195,84 @@ def cmd_intake(args, ctx) -> dict:
     return {"arrived": arrived, "row": line, **plan}
 
 
+USER_ID_RE = re.compile(r"\bUSER-(\d+)\b")
+
+
+def mint_user_id(board: Board, events: list[dict], state_root: Path) -> str:
+    """Next `USER-NNN` from max(board ∪ journal ∪ events), like `mint_id`."""
+    seen = {int(m) for m in USER_ID_RE.findall(board.text())}
+    seen |= {int(m) for e in events for m in USER_ID_RE.findall(e.get("id", ""))}
+    for p in sorted((state_root / "journal").rglob("*.md")):
+        try:
+            seen |= {int(m) for m in USER_ID_RE.findall(p.read_text(errors="replace"))}
+        except OSError:
+            continue
+    return f"USER-{max(seen, default=0) + 1:03d}"
+
+
+def cmd_ask(args, ctx) -> dict:
+    """Put a question to the user and start its clock.
+
+    `## User Input Queue` had no writer, and the cost was measurable rather
+    than theoretical: **both rows on Perry's own board carried `Idle: —`** —
+    the one field the queue exists for, unfilled, because a human had to type
+    a number that is wrong the next morning.
+
+    So the tool stamps `Asked`, a date, and the age is computed at read time.
+    `Idle` stays readable on boards that have it and is no longer required by
+    the schema: a stored age is stale the moment it is written, and a real
+    project had already dropped the column for exactly that reason.
+    """
+    if not args.needed:
+        raise Refused(
+            "--needed is required: it is the question, and a queue row that "
+            "does not say what is being asked cannot be answered by anyone")
+    sr = ctx["state_root"]
+    uid = mint_user_id(ctx["board"], ctx["events"], sr)
+    asked = args.arrived or f"{date.today():%Y-%m-%d}"
+
+    ctx["board"].ensure_section(
+        "User Input Queue", ["USER-id", "Needed from user", "Blocks", "Asked", "Status"],
+        before_p0=False)
+    ctx["board"].ensure_section_columns("User Input Queue", ["Asked"])
+    line = ctx["board"].append_section_row("User Input Queue", {
+        "user-id": uid, "needed from user": args.needed,
+        "blocks": args.blocks or "—", "asked": asked, "status": "pending"})
+    jline = f"- [{uid}] — → pending · {args.needed}" + (
+        f" · blocks: {args.blocks}" if args.blocks else "")
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "ask",
+             "id": uid, "title": args.needed, "asked": asked,
+             "blocks": args.blocks or "", "actor": args.actor,
+             "from": None, "to": "pending"}
+    plan = commit(ctx["project_root"], sr, ctx["board"], jline, event, args.dry_run)
+    return {"id": uid, "asked": asked, "row": line, **plan}
+
+
+def cmd_answer(args, ctx) -> dict:
+    """Record the user's answer, with the date they gave it."""
+    if not args.answer:
+        raise Refused(
+            "--answer is required. Flipping the status without recording what "
+            "was decided leaves the row closed and the decision nowhere")
+    idx, header, cells = ctx["board"].find_section_row("User Input Queue", args.id)
+    keys = [norm(h) for h in header]
+    values = dict(zip(keys, cells))
+    today = f"{date.today():%Y-%m-%d}"
+    prev = values.get("status", "")
+    if prev.strip().lower().startswith("answered"):
+        raise Refused(f"{args.id} is already answered: {prev.strip()[:60]}")
+    values["status"] = f"answered {today}: {args.answer}"
+    ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
+    jline = f"- [{args.id}] pending → answered · {args.answer}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "answer",
+             "id": args.id, "title": values.get("needed from user", ""),
+             "answer": args.answer, "actor": args.actor,
+             "from": "pending", "to": "answered"}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": args.id, "answered": today, **plan}
+
+
 def cmd_route(args, ctx) -> dict:
     """Move an intake row onto the board, carrying `Arrived` with it.
 
@@ -1396,6 +1512,7 @@ def parse(argv: list[str]) -> Args:
     a.root = None
     a.actor = "agent"
     a.arrived = a.reason = a.outcome = a.status = None
+    a.needed = a.blocks = a.answer = None
     a.dry_run = a.as_json = a.all = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -1404,7 +1521,8 @@ def parse(argv: list[str]) -> Args:
              "--evidence": "evidence", "--rung": "rung", "--root": "root",
              "--arrived": "arrived", "--reason": "reason",
              "--outcome": "outcome", "--status": "status",
-             "--actor": "actor"}
+             "--actor": "actor", "--needed": "needed",
+             "--blocks": "blocks", "--answer": "answer"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):
@@ -1437,6 +1555,7 @@ def parse(argv: list[str]) -> Args:
 # `drop`, `status` and `resolve-intake` out of the "expected one of" line. A
 # name added here is reachable, dispatchable and advertised in one edit.
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
+            "ask": cmd_ask, "answer": cmd_answer,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "status": cmd_status, "list": cmd_list}

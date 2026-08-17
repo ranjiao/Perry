@@ -24,6 +24,7 @@
 | TASK-019 | `modes/pipeline.md` | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; WIP limit has no home or default; Commitments has no track key/owner). Fix B1+B3, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | in_progress | **V4 review FAILED** — 3 blocking (stage has no column; `Arrived` is destroyed on routing so SLA triage is uncomputable; Commitments ownership). Fix B1+B2, then re-review | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
+| TASK-039 | perry-task: User Input Queue — ask/answer subcommands, tool stamps the clock | Coding Agent | not_started | USER-id minted, asked-date stamped, Idle computed, Status flipped with a date. Prose cell stays the agent's. Both rows on Perry's own board have Idle '—' — the field the queue exists for was never filled. | — |  |
 
 ## P2
 
@@ -34,6 +35,7 @@
 | TASK-028 | diagnose/adopt mode detection + both READMEs | User + Agent | not_started | DESIGN-003 phase G — blocked-by TASK-027 | — | V5 |
 | TASK-037 | perry-goals writer | Coding Agent | not_started | DESIGN-005 step 3 — byte-identity test against existing OKR.md BEFORE any write path ships | — |  |
 | TASK-038 | tasks: event log becomes canonical, BOARD.md becomes a projection | Coding Agent | not_started | DESIGN-005 step 4 — V5, blocked on steps 1-3; hand-edit must raise a reconcile prompt, never be overwritten | — |  |
+| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | User decision 2026-08-17. 1 of 4 risks on Perry's board is struck through and still counted; reader invents ids from prose. Tool owns id+dates+status, agent owns the risk statement. | — |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 

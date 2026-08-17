@@ -147,6 +147,7 @@ class UserInput:
     idle: str
     status: str
     priority: str = ""  # inferred P0 if blocks a P0 task
+    asked: str = ""     # YYYY-MM-DD the question was put; idle is derived from it
 
 
 @dataclass
@@ -577,38 +578,63 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
 
 
 def _parse_user_input(section: str) -> list[UserInput]:
+    """Columns resolved by NAME — see `schema/README.md § Columns resolve by name`.
+
+    This read them positionally, assuming cell 3 of a five-column row was
+    `Idle`. Three real shapes are in circulation: five columns with `Idle`
+    (Perry's own board), four without it (a live project dropped the column
+    because a stored age is stale the moment it is written), and five with
+    `Asked` instead. Under the positional rule the third of those puts a date
+    into `idle` and reports every request as having waited zero days.
+
+    Third location of this defect. The first two were `_parse_task_table` and
+    the writer/reader split it caused.
+    """
     items: list[UserInput] = []
-    lines = section.split("\n")
+    idx: dict[str, int] = {}
+    prev = ""
     in_table = False
-    for line in lines:
+    for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
+            header = ([c.strip().lower() for c in prev.strip().strip("|").split("|")]
+                      if prev.strip().startswith("|") else [])
+            idx = {}
+            for name in ("USER-id", "Needed from user", "Blocks", "Asked",
+                         "Idle", "Status"):
+                keys = _column_keys(name)
+                pos = next((i for i, h in enumerate(header) if h in keys), -1)
+                if pos >= 0:
+                    idx[name] = pos
             continue
+        prev = line
         if not in_table:
             continue
         if not line.startswith("|"):
             break
         cells = [c.strip() for c in line.strip("|").split("|")]
-        # Tolerate both the 5-col (USER-id | Needed | Blocks | Idle | Status)
-        # and 4-col (USER-id | Needed | Blocks | Status — no Idle) BOARD formats.
         if len(cells) < 4:
             continue
         if cells[0].strip().lower() in {"", *_column_keys("USER-id")}:
             continue
-        if len(cells) >= 5:
-            items.append(
-                UserInput(
-                    id=cells[0], needed_from_user=cells[1], blocks=cells[2],
-                    idle=cells[3], status=cells[4],
-                )
+
+        def cell(name: str, fallback: int = -1) -> str:
+            i = idx.get(name, fallback)
+            return cells[i] if 0 <= i < len(cells) else ""
+
+        # Positional fallback only for a header this build cannot resolve, and
+        # only in the two shapes that predate `Asked`.
+        status = cell("Status", 4 if len(cells) >= 5 else 3)
+        items.append(
+            UserInput(
+                id=cell("USER-id", 0),
+                needed_from_user=cell("Needed from user", 1),
+                blocks=cell("Blocks", 2),
+                asked=cell("Asked"),
+                idle=cell("Idle", 3 if len(cells) >= 5 and "Asked" not in idx else -1),
+                status=status,
             )
-        else:  # 4 columns — no Idle column
-            items.append(
-                UserInput(
-                    id=cells[0], needed_from_user=cells[1], blocks=cells[2],
-                    idle="", status=cells[3],
-                )
-            )
+        )
     return items
 
 
