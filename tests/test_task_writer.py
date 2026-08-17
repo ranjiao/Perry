@@ -1607,6 +1607,42 @@ class TestFromAimarksProductionReport(unittest.TestCase):
             [r["id"] for r in d["conformance"]["rows_with_no_status"]],
             "a row Perry cannot classify was not declared as such")
 
+    def test_a_row_list_printed_can_also_be_closed(self):
+        """The read path and the write path must agree about what a row is.
+
+        `1.1` taught the reader to see every `## ` section; `find()` was left
+        on `P0`/`P1`/`P2`. So on Perry's own board, 20 rows under
+        `## Done this period (leaves the board at next triage)` were listed by
+        `list` and refused by `done` with "is not an open row on the board" —
+        a false statement, about rows the same tool had just printed, that made
+        every archived row permanently unclosable.
+
+        Needing a priority is a rule about `add`: a new row has to be filed
+        somewhere. It was wrongly applied to the whole write path. Both now go
+        through `Board._task_sections()`, because they drifted the moment they
+        did not.
+        """
+        p = Project(board=self.BOARD_WITH_EMPHASIS)
+        _, listed = p.run("list", "--all")
+        self.assertIn("TASK-010", [t["id"] for t in listed["tasks"]],
+                      "the archived row is not even listed")
+
+        code, out = p.run("done", "TASK-010", "--evidence", "BOARD.md")
+        self.assertEqual(
+            code, 0,
+            f"a row `list` printed could not be closed: {out}")
+        self.assertNotIn("TASK-010", p.board())
+
+    def test_a_struck_through_id_is_still_findable(self):
+        """`~~DATA-007~~` is how a real board retires a row. The reader already
+        strips the emphasis; the writer has to match it."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| ~~TASK-900~~ | Retired | User | done | — | — |\n\n## P1", 1))
+        code, out = p.run("drop", "TASK-900", "--reason", "superseded")
+        self.assertEqual(code, 0, f"a struck-through id was unreachable: {out}")
+
     def test_evidence_is_split_and_resolved_rather_than_handed_over_raw(self):
         """One real cell: three comma-separated backticked paths, relative to
         the PROJECT root while the contract declared `state_root` — and the

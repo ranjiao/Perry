@@ -282,6 +282,34 @@ class Board:
     # skipped for the same reasons an English one is.
     NON_TASK_SECTIONS = ("Intake", "Cadence", "User Input Queue", "Top risks")
 
+    def _task_sections(self):
+        """(heading, priority|None, separator index, header cells, end index).
+
+        The ONE walk over the board's task-bearing sections. `task_tables()`
+        (read) and `find()` (write) both go through it, because they drifted
+        the moment they did not: the reader was taught to see every section and
+        the finder was left on P0/P1/P2, so 20 rows in a project's own
+        `## Done this period` archive were listed by `list` and refused by
+        `done` with "is not an open row on the board" — a message that was
+        false, about rows the same tool had just printed.
+        """
+        skip = {s.lower() for name in self.NON_TASK_SECTIONS
+                for s in heading_spellings(name)}
+        heads = [(i, l) for i, l in enumerate(self.lines) if l.startswith("## ")]
+        for n, (start, line) in enumerate(heads):
+            end = heads[n + 1][0] if n + 1 < len(heads) else len(self.lines)
+            title = line[3:].strip()
+            if any(title.lower().startswith(s) for s in skip):
+                continue
+            sep = next((i for i in range(start, end)
+                        if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > start
+                        and self.lines[i - 1].strip().startswith("|")), None)
+            if sep is None:
+                continue
+            pri = next((p for p in ("P0", "P1", "P2")
+                        if PRIORITY_RE[p].match(line)), None)
+            yield title, pri, sep, split_row(self.lines[sep - 1]), end
+
     def task_tables(self) -> list[dict]:
         """Every section of this board that holds task-shaped rows.
 
@@ -303,21 +331,8 @@ class Board:
         carries its heading as `group` and no priority, because inventing one
         would be claiming the project said something it did not.
         """
-        skip = {s.lower() for name in self.NON_TASK_SECTIONS
-                for s in heading_spellings(name)}
         out = []
-        heads = [(i, l) for i, l in enumerate(self.lines) if l.startswith("## ")]
-        for n, (start, line) in enumerate(heads):
-            end = heads[n + 1][0] if n + 1 < len(heads) else len(self.lines)
-            title = line[3:].strip()
-            if any(title.lower().startswith(s) for s in skip):
-                continue
-            sep = next((i for i in range(start, end)
-                        if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > start
-                        and self.lines[i - 1].strip().startswith("|")), None)
-            if sep is None:
-                continue
-            header = split_row(self.lines[sep - 1])
+        for title, pri, sep, header, end in self._task_sections():
             keys = [norm(h) for h in header]
             if "id" not in keys or "title" not in keys:
                 # A table under a `## ` heading that is not a task table — a
@@ -325,8 +340,6 @@ class Board:
                 out.append({"heading": title, "priority": None, "header": header,
                             "rows": [], "readable": False})
                 continue
-            pri = next((p for p in ("P0", "P1", "P2")
-                        if PRIORITY_RE[p].match(line)), None)
             rows = []
             for i in range(sep + 1, end):
                 s = self.lines[i].strip()
@@ -342,20 +355,23 @@ class Board:
         return out
 
     def find(self, task_id: str) -> tuple[str, int, list[str], list[str]]:
-        """(priority, line index, header, cells) for one row, or refuse."""
-        for pri in ("P0", "P1", "P2"):
-            try:
-                _, sep, header = self.table(pri)
-            except Refused:
-                continue
-            lo, hi = self.section(pri)
-            for i in range(sep + 1, hi):
+        """(priority-or-heading, line index, header, cells) for one row.
+
+        Searches EVERY task-bearing section, not only `P0`/`P1`/`P2`. Needing a
+        priority is a rule about `add` — a new row has to be filed somewhere —
+        and it was wrongly applied to the whole write path. Locating a row that
+        already exists is a different question, and answering it "not on the
+        board" about a row `list` had just printed made every archived row
+        permanently unclosable.
+        """
+        for title, pri, sep, header, end in self._task_sections():
+            for i in range(sep + 1, end):
                 if not self.lines[i].strip().startswith("|"):
                     continue
                 cells = split_row(self.lines[i])
-                if cells and cells[0].replace("*", "").strip() == task_id:
-                    return pri, i, header, cells
-        raise Refused(f"{task_id} is not an open row on the board")
+                if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
+                    return pri or title, i, header, cells
+        raise Refused(f"{task_id} is not a row on the board")
 
     # -- writing
 
