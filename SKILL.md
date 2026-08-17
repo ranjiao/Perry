@@ -652,7 +652,7 @@ With arg `goals`, `work` or `decide` (or their aliases `okr`, `pmo`, `design`): 
   from useless.
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
-- **Write in the configured languages, and don't mix them.** Chat replies follow `Chat language` (or the user's own language when unset); files follow `Document language`. IDs, enum values, file paths, slugs and command names stay English in every language, so a Chinese dashboard line reads `REL-002（"抖动检测器"）blocked，等 USER-014`. Never translate a quoted artifact — a path, a command, an error message, or the user's own words. Full contract in `reference/i18n.md`.
+- **Write in the configured languages.** Chat replies follow `Chat language` (or the user's own language when unset); files follow `Document language`. IDs, enum values, file paths, slugs and command names stay English in every language, so a Chinese dashboard line reads `REL-002（"抖动检测器"）blocked，等 USER-014`. Never translate a quoted artifact — a path, a command, an error message, or the user's own words. **A file stays in one language end to end. A chat reply mixes**: a technical term with no settled equivalent in the chat language stays English — `交付了 contract 2.0`, not `交付了契约 2.0` — and an English idiom is never translated word for word, it is replaced by a plain description of what happened. The test is "would someone doing this job say it out loud?" Perry failed this for a whole session while following every other rule here; `reference/i18n.md § Writing chat prose in a language that is not English` has the specifics.
 - **Don't duplicate child skills' logic.** This file routes; the children own their domains.
 
 ## User-prompt convention (AskUserQuestion)
