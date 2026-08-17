@@ -17,7 +17,7 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
 | TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | review | merged; this repo declared 13/13 at shape version 2 by the user. Gate ships advisory — enforcing waits on TASK-044 existing, since today it would name a command nobody can run. Needs its V4. | — |  |
-| TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | unblocked: TASK-043 merged and this repo is declared conformant at shape version 2. Rubric at evidence/2026-08/TASK-044-spec.md. Agent started. | — |  |
+| TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | merged. All five ADR-004 guarantees hold — verified independently: dry run leaves the tree hash unchanged, apply takes gimegime-pmo 59/28 → 15/14 with 30 files declarable, restore returns it byte-for-byte. ADR-004's reopening criterion is not met. Needs its V4, and one V5 judgement (see below). | — |  |
 
 ## P1
 
@@ -28,6 +28,7 @@
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | round-4's 3 blocking + 4 major all fixed and merged (ea2d4b8): bin/ no longer prints dead commands, 28 template occurrences cleaned, adoption.md re-routed, lane descriptions rewritten, 12 pack pointers repaired, the router guard widened. 47 mutations, all red. Needs a 5th V4. | `evidence/2026-08/TASK-027-spec.md` | V4 |
 | TASK-046 | A queue track must declare an SLA at creation — no default | Coding Agent | not_started | User decision 2026-08-17: force the question at creation, give no default. Rejected a default (5d) because a number the user never declared would start producing 'overdue' verdicts — the confidently-wrong-value class this project keeps fixing. Rejected the status quo because every queue user hits the gap after the fact rather than before. Blocked on TASK-044, which owns schema + perry-lint right now. | — |  |
 | TASK-047 | Flip the conformance gate to enforce | Coding Agent | not_started | User decision 2026-08-17: flip after TASK-044 lands, not before. The advisory default was chosen because enforcing would name a command nobody could run; TASK-044 is what removes that. Blocked on TASK-044. | — |  |
+| TASK-048 | perry-diagnose's own output does not validate against Perry's schema | Coding Agent | not_started | Found by TASK-044: all 13 of PolyForge's lint errors are Perry's own diagnostic output failing schema/state-schema.json — status 'false_positive'/'declined' are not in finding_status, source 'read'/'read+interview' not in finding_source, ids LOAD-02/CON-03b do not match ^[A-Z]{3}-\d{2}$. Migration deliberately refuses to edit it: rewriting a finding's status to satisfy an enum is editing a diagnostic record. | — |  |
 
 ## P2
 
