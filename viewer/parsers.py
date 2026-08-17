@@ -944,6 +944,35 @@ def _parse_user_input(section: str) -> list[UserInput]:
     return items
 
 
+# What counts as a risk bullet, and what counts as a placeholder standing in
+# for none — ONE definition, read by both readers below and mirrored by
+# `bin/perry-task:_RISK_BULLET` / `_RISK_PLACEHOLDER`, which is the writer's
+# copy. There used to be three matchers for the first rule and one for the
+# second, and they disagreed: `_parse_risks` matched `- ` only while
+# `parse_top_risks` matched `- ` and `1. `, so a numbered list read as 0 risks
+# through one and 2 through the other. Only the writer knew about
+# placeholders, so `BOARD_TEMPLATE.md`'s own `- (no active risks)` came back
+# from the reader as a risk with `id='(no'` — an id split out of prose at the
+# first space, which is the exact defect the table form exists to remove.
+_RE_RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
+_RE_RISK_PLACEHOLDER = re.compile(
+    r"^\(?\s*(?:no active risks?|none|n/a|na|tbd|—|-|–|无|暂无)\s*\)?[.。]?$", re.I)
+
+
+def _risk_bullets(section: str) -> list[str]:
+    """Every risk bullet in `section`, placeholders and empties dropped."""
+    out = []
+    for raw in section.split("\n"):
+        m = _RE_RISK_BULLET.match(raw.strip())
+        if not m:
+            continue
+        text = m.group(1).strip()
+        if not text or _RE_RISK_PLACEHOLDER.match(text):
+            continue
+        out.append(text)
+    return out
+
+
 def _parse_risks(section: str) -> list[Risk]:
     """`BoardState.risks` — the raw per-line view of `## Top risks`.
 
@@ -956,12 +985,7 @@ def _parse_risks(section: str) -> list[Risk]:
     if tabular is not None:
         return [Risk(text=r.title, resolved=r.resolved) for r in tabular]
     risks: list[Risk] = []
-    for line in section.split("\n"):
-        if not line.startswith("- "):
-            continue
-        text = line[2:].strip()
-        if not text:
-            continue
+    for text in _risk_bullets(section):
         resolved = bool(re.search(r"\*\*RESOLVED", text)) or text.startswith("~~")
         risks.append(Risk(text=text, resolved=resolved))
     return risks
@@ -1445,13 +1469,31 @@ def _parse_risk_table(section: str) -> list[TopRisk] | None:
     return out
 
 
-def parse_top_risks(text: str) -> list[TopRisk]:
-    risks: list[TopRisk] = []
+def top_risks_section(text: str) -> str | None:
+    """The body of `## Top risks`, or None when the document has no such
+    section. One extractor, so "does this file have a risk table?" and "what
+    are its risks?" can never be answered about different spans of text."""
     heads = "|".join(re.escape(a) for a in alias("headings", "Top risks"))
     m = re.search(rf"## (?:{heads})[^\n]*\n(.+?)(?=\n## |\Z)", text, re.S)
-    if not m:
+    return m.group(1) if m else None
+
+
+def has_risk_table(text: str) -> bool:
+    """Whether this document's `## Top risks` has migrated to the table form.
+
+    The same question `_parse_risk_table` asks, asked about a whole document
+    and separately from its answer: a migrated project that currently has no
+    risks parses to `[]`, and `[]` must not read as "never migrated".
+    """
+    section = top_risks_section(text)
+    return section is not None and _has_risk_header(section)
+
+
+def parse_top_risks(text: str) -> list[TopRisk]:
+    risks: list[TopRisk] = []
+    section = top_risks_section(text)
+    if section is None:
         return risks
-    section = m.group(1)
 
     # Table when present, bullets when not. Projects that have not migrated —
     # and at the time this shipped that was every project except Perry itself —
@@ -1461,13 +1503,7 @@ def parse_top_risks(text: str) -> list[TopRisk]:
     if tabular is not None:
         return tabular
 
-    for raw_line in section.split("\n"):
-        line = raw_line.strip()
-        # Accept both bullet (`- `) and numbered (`0. ` / `1. `) list forms.
-        m_bullet = re.match(r"^(?:-|\d+\.)\s+(.*)$", line)
-        if not m_bullet:
-            continue
-        body = m_bullet.group(1).strip()
+    for body in _risk_bullets(section):
         resolved = bool(re.search(r"\*\*RESOLVED", body)) or body.startswith("~~")
 
         # Strip leading ~~strike~~ markers for ID/title extraction
@@ -2308,9 +2344,27 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
             if linkage_file.exists():
                 linkage = parse_linkage(linkage_file.read_text())
 
-    # Merge top risks from BOARD.md (most-recent, often holds the acute "TOP"
-    # entry) and PROJECT_STATE.md (cross-monthly, more structured). Dedupe by ID.
-    top_risks = parse_top_risks(board_text) + parse_top_risks(project_state_text)
+    # **THE RULE: once `BOARD.md § Top risks` is a table, that table is the
+    # register and `PROJECT_STATE.md` is no longer merged into it.**
+    #
+    # Before the table existed both files held bullets, both ids were invented
+    # out of prose, and a risk written into both collapsed because the invented
+    # ids happened to match — the first word of each sentence. Minting real ids
+    # guarantees that key can never match again, so on a migrated board the
+    # merge stopped deduping anything: measured on one real project, adding a
+    # single risk took the total from 13 to 15, and one risk was reported open
+    # (board, `RX-004`) and cleared (`PROJECT_STATE.md`) at the same time.
+    #
+    # Deduping on the statement instead does not fix it — the two files phrase
+    # the same risk differently, which is why the ids were doing the work — and
+    # a fuzzy key would put the invention back one level down. The migration is
+    # the project declaring where its risks live, so it is read as exactly
+    # that. An unmigrated board is untouched: both files, deduped by id, as
+    # before.
+    if has_risk_table(board_text):
+        top_risks = parse_top_risks(board_text)
+    else:
+        top_risks = parse_top_risks(board_text) + parse_top_risks(project_state_text)
     seen: set[str] = set()
     deduped: list[TopRisk] = []
     for r in top_risks:
