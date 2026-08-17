@@ -104,7 +104,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.1"
+LIST_CONTRACT = "perry-task/list/1.2"
 
 
 # ── schema ────────────────────────────────────────────────────────────────
@@ -140,6 +140,53 @@ def columns_for(values: dict) -> list[str]:
     return [display for key, display in
             ((norm(k), canonical_column(k)) for k in values)
             if key not in REQUIRED_KEYS]
+
+
+ABSENT = {"", "—", "-", "–", "n/a", "na", "tbd", "无", "none"}
+
+
+def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[list[str], list[str]]:
+    """Split an `Evidence` cell into paths, resolved against a real root.
+
+    The column is free text that people put several things in. One real row:
+
+        `schema/state-schema.json`, `state/adoption_dossier_TEMPLATE.md`, …
+
+    — a comma-separated list, each span backticked, and relative to the
+    *project* root while the contract declared `state_root`. Both conventions
+    are live in that same column on that same board, and nothing in the string
+    distinguishes them.
+
+    Perry knows both roots, so Perry resolves. Returning the raw string and a
+    rule would push the guess onto every consumer, and a guess in a consumer is
+    how the last divergence started. Each returned path is relative to
+    `project_root` and **exists**; spans that resolve nowhere come back
+    separately so they can be reported rather than rendered as dead links.
+    """
+    raw = (cell or "").strip()
+    if raw.lower() in ABSENT:
+        return [], []
+    spans = re.findall(r"`([^`]+)`", raw)
+    if not spans:
+        spans = [s.strip() for s in re.split(r"[,，;；]", raw) if s.strip()]
+    found, unresolved = [], []
+    for s in spans:
+        # `path § Section` and `path (12 tests)` are both in circulation; the
+        # path is the head of the span.
+        cand = re.split(r"\s+§|\s+\(", s.strip())[0].strip().rstrip(",.")
+        if not cand or cand.lower() in ABSENT:
+            continue
+        for root in (state_root, project_root):
+            p = (root / cand)
+            if p.exists():
+                try:
+                    found.append(str(p.resolve().relative_to(project_root.resolve())))
+                except ValueError:
+                    found.append(str(p.resolve()))
+                break
+        else:
+            unresolved.append(cand)
+    return found, unresolved
 
 
 def canonical_column(key: str) -> str:
@@ -1175,7 +1222,8 @@ def cmd_list(args, ctx) -> dict:
     def blank(tid: str) -> dict:
         # One template, so a key can never exist on some tasks and not others.
         return {"id": tid, "title": "", "owner": "", "priority": "",
-                "status": "", "track": "main", "mode": "", "stage": "",
+                "status": "", "status_text": "", "track": "main", "mode": "",
+                "stage": "", "evidence_paths": [],
                 "stage_since": "", "arrived": "", "parent": "",
                 "commitment": "", "next_action": "", "evidence": "",
                 "verification": "", "open": False, "group": "",
@@ -1184,8 +1232,10 @@ def cmd_list(args, ctx) -> dict:
     tasks: dict[str, dict] = {}
     conformance = {"sections_read": [], "sections_skipped": [],
                    "rows_with_unrecognized_id": [], "off_enum_status": [],
+                   "rows_with_no_status": [], "evidence_not_found": [],
                    "has_event_log": bool(ctx["events"])}
     statuses = set(ctx["schema"]["enums"]["task_status"])
+    terminal = {"done", "dropped"}
 
     for tbl in ctx["board"].task_tables():
         if not tbl["readable"]:
@@ -1213,14 +1263,33 @@ def cmd_list(args, ctx) -> dict:
                 conformance["rows_with_unrecognized_id"].append(
                     {"section": tbl["heading"], "cell": tid[:60]})
                 continue
-            st = c.get("status", "")
-            if st and st not in statuses:
-                conformance["off_enum_status"].append({"id": tid, "status": st})
+            raw = c.get("status", "")
+            # `**done**` is `done` wearing bold. Formatting is not meaning, and
+            # a consumer that trusts the enum renders a finished task as an
+            # unrecognized state — 17 of 41 rows on one real board. Emphasis is
+            # stripped here so the enum claim is true; `status_text` keeps the
+            # cell verbatim, because some cells genuinely are not one state
+            # ("迁移 done，占比目标 not_started" is two, and rounding it to
+            # either is a lie about the work).
+            st = raw.strip().strip("*_`").strip()
+            if st not in statuses:
+                st = ""
+            if not raw.strip():
+                conformance["rows_with_no_status"].append(
+                    {"id": tid, "section": tbl["heading"]})
+            elif not st:
+                conformance["off_enum_status"].append(
+                    {"id": tid, "status": raw})
+            ev_found, ev_missing = evidence_paths(
+                c.get("evidence", ""), ctx["state_root"], ctx["project_root"])
+            if ev_missing:
+                conformance["evidence_not_found"].append(
+                    {"id": tid, "paths": ev_missing})
             t = blank(tid)
             t.update({
                 "title": c.get("title", ""), "owner": c.get("owner", ""),
                 "priority": pri, "group": tbl["heading"],
-                "status": c.get("status", ""),
+                "status": st, "status_text": raw,
                 "track": c.get("track", "") or "main",
                 "stage": c.get("stage", ""),
                 "stage_since": c.get("stage since", ""),
@@ -1228,8 +1297,16 @@ def cmd_list(args, ctx) -> dict:
                 "commitment": c.get("commitment", ""),
                 "next_action": c.get("next action", ""),
                 "evidence": c.get("evidence", ""),
+                "evidence_paths": ev_found,
                 "verification": c.get("verification", ""),
-                "open": True,
+                # `open` used to mean "still on the board", which was true when
+                # the board held only P0/P1/P2 and closing removed the row.
+                # Once the reader saw every section, a project that stages
+                # finished work under its own heading — Perry's own board has
+                # `## Done this period (leaves the board at next triage)` —
+                # reported 20 done tasks as open. The contract tells consumers
+                # this field IS the live/closed test, so it has to mean that.
+                "open": st not in terminal,
             })
             tasks[tid] = t
 

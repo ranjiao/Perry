@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.1`**
+> Contract: **`perry-task/list/1.2`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,7 +47,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.1",   // check this before anything else
+  "contract":     "perry-task/list/1.2",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
@@ -63,11 +63,12 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `id` | string | `TASK-NNN`. Never reused, including after close. |
+| `id` | string | **An opaque stable string.** Conventionally `TASK-NNN`, but a real board carries ids under several project-declared prefixes, some with no number at all — a board's own `## ID prefixes` section is where a project states them. Never reused, including after close, which is the part you may depend on. **Do not parse a number out of it** or sort by a numeric suffix. |
 | `title` | string | |
 | `owner` | string | free text; the project's own owner model |
 | `priority` | string | `P0` \| `P1` \| `P2`. May be `""` for a closed task whose creating event predates the field. |
-| `status` | string | one of `schema § enums.task_status`: `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` |
+| `status` | string | one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — **or `""`**. Markdown emphasis is stripped before matching, so a board cell of `**done**` arrives as `done`. `""` means the board did not say, or said something that is not one state; `status_text` has the cell verbatim and `conformance` says which case it was. |
+| `status_text` | string | the `Status` cell exactly as written, emphasis and all. Some cells are genuinely not one state — `迁移 done，占比目标 not_started` is two, and rounding it to either is a lie about the work. |
 | `track` | string | declared track name; `main` when the project declares none |
 | `mode` | string | `project` \| `pipeline` \| `queue` \| `inquiry`, or `""` if no event recorded it |
 | `stage` | string | non-`project` modes only; `""` otherwise |
@@ -76,10 +77,11 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `parent` | string | inquiry mode: the question this was split from |
 | `commitment` | string | the commitment id this row discharges |
 | `next_action` | string | |
-| `evidence` | string | path, relative to `state_root` |
+| `evidence` | string | the cell verbatim. Free text: often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
+| `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
 | `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
-| `open` | bool | **`true` iff the row is still on `BOARD.md`.** This, not `status`, is the live/closed test. |
+| `open` | bool | **`true` unless the work is finished** — the row left the board with a `done`/`drop` event, or its status is `done`/`dropped`. Still the live/closed test; do not derive it from `status` yourself, because a row can be closed by either route. **One limit, stated because it cannot be fixed from here:** a row whose `Status` cell is empty is reported `open: true`, and Perry cannot know better. Perry's own board stages finished work under `## Done this period (leaves the board at next triage)` in a table with no `Status` column — 20 rows that are done and say nothing. `conformance.rows_with_no_status` names every one. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
 | `timeline` | array | every event for this id, oldest first |
@@ -112,7 +114,9 @@ rendering 12 and dropping one.
 | `sections_read` | array | `{heading, priority, rows}` per section that yielded tasks. `priority` is `null` unless the heading is `P0`/`P1`/`P2`. |
 | `sections_skipped` | array | `{heading, why, columns}` — a `## ` section with a table that has no `ID`+`Title`. Usually a reference or legend table. |
 | `rows_with_unrecognized_id` | array | `{section, cell}` — a row whose first cell is prose rather than a handle. **These are not in `tasks`.** |
-| `off_enum_status` | array | `{id, status}` — the row IS in `tasks`, and its `status` is not one of the six. Do not assume you can colour it. |
+| `off_enum_status` | array | `{id, status}` — the cell said something, and after stripping emphasis it is still not one of the six. `status` is `""` for these and `status_text` has the original. |
+| `rows_with_no_status` | array | `{id, section}` — the row's `Status` cell was empty, usually because its section's table has no `Status` column. **`open` is an assumption for these**, see below. |
+| `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
 
 Two consequences worth designing for rather than discovering:
@@ -156,3 +160,48 @@ are not tasks and are not in this payload. `## Intake` is queue mode's inbox and
 is likewise absent — `perry-task intake` and `route` write it, and nothing reads
 it back out yet. If a front-end needs any of these, that is a new key in a `1.x`
 bump, not a reason to parse the markdown.
+
+## Changelog
+
+One line per version. `1.x` may only add keys; a removal or a retype is a major
+bump. Semantic corrections — a field that was computed wrongly — are called out
+here explicitly, because "only adds keys" does not cover them and a consumer
+deserves to know when a value's *meaning* changed under it.
+
+### 1.2 — 2026-08-17
+
+Everything here came from aiMark's first production report, measured against
+three real projects rather than against this document.
+
+- **added** `status_text` — the `Status` cell verbatim. `status` now has
+  markdown emphasis stripped before matching the enum, so `**done**` arrives as
+  `done`. 17 of 41 rows on one real board were emphasized, and a consumer
+  trusting the enum rendered every finished task as an unrecognized state.
+- **added** `evidence_paths` — the cell split into paths, resolved by Perry
+  against `state_root` then `project_root`, and filtered to ones that exist.
+  Both conventions were live in that column on the same board, and the
+  document declared only one of them. `evidence` still carries the cell.
+- **added** `conformance.rows_with_no_status` and
+  `conformance.evidence_not_found`.
+- **corrected** `open`. It meant "still on the board", which was true when the
+  board held only `P0`/`P1`/`P2` and closing removed the row. Since 1.1 read
+  every section, a project staging finished work under its own heading reported
+  those rows as open — 20 of them on Perry's own board. `open` now also respects
+  a terminal status. **This changes a value, not a shape**; a consumer using
+  `open` as the live/closed test gets a more correct answer without a code
+  change.
+- **relaxed** the documented shape of `id` to an opaque stable string. Real
+  boards carry several project-declared prefixes, and some ids have no numeric
+  part. Stability was always the guaranteed part; the shape never was.
+
+### 1.1 — 2026-08-17
+
+- **added** `conformance` — what the board did not parse cleanly.
+- **added** `group` — the board section a row came from, verbatim.
+- **corrected** the reader to see every `## ` section holding an `ID`+`Title`
+  table, not only `P0`/`P1`/`P2`. It had reported **3 tasks for a project with
+  41**, two of the three lifted out of a reference table.
+
+### 1.0 — 2026-08-17
+
+First frozen payload.

@@ -1310,13 +1310,14 @@ class TestListContract(unittest.TestCase):
     TASK_KEYS = {
         "id", "title", "owner", "priority", "status", "track", "mode",
         "stage", "stage_since", "arrived", "parent", "commitment",
-        "next_action", "evidence", "verification", "open", "group",
-        "created", "updated", "timeline",
+        "next_action", "evidence", "evidence_paths", "verification", "open",
+        "group", "status_text", "created", "updated", "timeline",
     }
     TOP_KEYS = {"contract", "project_root", "state_root", "conformance",
                 "tasks", "open", "closed", "events", "untitled"}
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
+                        "rows_with_no_status", "evidence_not_found",
                         "has_event_log"}
     EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
 
@@ -1520,6 +1521,125 @@ class TestListContract(unittest.TestCase):
         self.assertFalse(phantom,
                          f"the contract doc documents keys the payload does "
                          f"not emit: {sorted(phantom)}")
+
+
+class TestFromAimarksProductionReport(unittest.TestCase):
+    """Every case here was measured by a consumer against a real project, not
+    read out of the spec. Reported 2026-08-17 after aiMark shipped against
+    `perry-task/list/1.1`.
+
+    None of it was blocking for them, which is the reason to fix it: they had
+    absorbed all of it, and absorbing means guessing at Perry's intent in the
+    consumer — which is how the last divergence started.
+    """
+
+    BOARD_WITH_EMPHASIS = """# BOARD
+
+## P0
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-001 | Bold done | User | **done** | — | — |
+| TASK-002 | Bold not started | User | **not_started** | — | — |
+| TASK-003 | Two states at once | User | **迁移 done，占比目标 not_started** | — | — |
+| TASK-004 | Plain | User | in_progress | — | — |
+
+## P1
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## Done this period (leaves the board at next triage)
+
+| ID | Title | Evidence |
+|---|---|---|
+| TASK-010 | Finished, and the table has no Status column | `BOARD.md` |
+"""
+
+    def payload(self, board: str):
+        p = Project(board=board)
+        _, out = p.run("list", "--all")
+        return p, out
+
+    def test_emphasis_is_stripped_so_the_enum_claim_is_true(self):
+        """`**done**` is `done` wearing bold. Formatting is not meaning, and
+        17 of 41 rows on one real board carried it — every finished task
+        rendered as an unrecognized state by a consumer trusting the enum."""
+        _, d = self.payload(self.BOARD_WITH_EMPHASIS)
+        by = {t["id"]: t for t in d["tasks"]}
+        self.assertEqual(by["TASK-001"]["status"], "done")
+        self.assertEqual(by["TASK-002"]["status"], "not_started")
+        self.assertEqual(by["TASK-001"]["status_text"], "**done**",
+                         "the verbatim cell was lost")
+
+    def test_a_composite_cell_is_not_rounded_to_one_state(self):
+        """`迁移 done，占比目标 not_started` is two states. Picking either is a
+        lie about the work; `status` goes empty and `status_text` keeps it."""
+        _, d = self.payload(self.BOARD_WITH_EMPHASIS)
+        t = next(x for x in d["tasks"] if x["id"] == "TASK-003")
+        self.assertEqual(t["status"], "")
+        self.assertIn("迁移 done", t["status_text"])
+        self.assertIn({"id": "TASK-003", "status": "**迁移 done，占比目标 not_started**"},
+                      d["conformance"]["off_enum_status"])
+
+    def test_open_is_false_for_a_row_whose_status_is_terminal(self):
+        """`open` meant "still on the board", which was true when closing
+        removed the row. Once the reader saw every section, a project staging
+        finished work under its own heading reported those rows as open — 20 of
+        them on Perry's own board."""
+        _, d = self.payload(self.BOARD_WITH_EMPHASIS)
+        by = {t["id"]: t for t in d["tasks"]}
+        self.assertFalse(by["TASK-001"]["open"], "a `**done**` row read as open")
+        self.assertTrue(by["TASK-004"]["open"])
+
+    def test_a_statusless_row_is_open_and_that_assumption_is_declared(self):
+        """The honest limit. A table with no `Status` column says nothing, and
+        Perry cannot know better — so it must say which rows those are rather
+        than let a consumer trust the flag silently."""
+        _, d = self.payload(self.BOARD_WITH_EMPHASIS)
+        t = next(x for x in d["tasks"] if x["id"] == "TASK-010")
+        self.assertEqual(t["status"], "")
+        self.assertTrue(t["open"])
+        self.assertIn(
+            "TASK-010",
+            [r["id"] for r in d["conformance"]["rows_with_no_status"]],
+            "a row Perry cannot classify was not declared as such")
+
+    def test_evidence_is_split_and_resolved_rather_than_handed_over_raw(self):
+        """One real cell: three comma-separated backticked paths, relative to
+        the PROJECT root while the contract declared `state_root` — and the
+        same column on the same board also used state-relative paths. Nothing
+        in the string distinguishes them, so Perry resolves rather than
+        shipping the ambiguity downstream."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | Multi | User | done | — | `BOARD.md`, `.perry/config.md`, `nope.md` |\n\n## P1", 1))
+        _, d = p.run("list", "--all")
+        t = next(x for x in d["tasks"] if x["id"] == "TASK-900")
+        self.assertEqual(t["evidence_paths"], ["BOARD.md", ".perry/config.md"])
+        self.assertIn({"id": "TASK-900", "paths": ["nope.md"]},
+                      d["conformance"]["evidence_not_found"])
+        self.assertIn("`BOARD.md`", t["evidence"], "the raw cell was lost")
+
+    def test_a_dash_means_absent_not_a_file_named_dash(self):
+        """aiMark briefly rendered an openable document named `perry/—`."""
+        _, d = self.payload(self.BOARD_WITH_EMPHASIS)
+        for t in d["tasks"]:
+            if t["evidence"] == "—":
+                self.assertEqual(t["evidence_paths"], [])
+
+    def test_the_changelog_names_every_shipped_version(self):
+        """aiMark saw 1.0 become 1.1 mid-session and could not tell what had
+        been added. "1.x may only add keys" is a strong guarantee; it is more
+        useful when a consumer can see what the new keys are."""
+        doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
+        self.assertIn("## Changelog", doc)
+        major_minor = PT.LIST_CONTRACT.rsplit("/", 1)[1]
+        self.assertIn(f"### {major_minor}", doc,
+                      f"the current version {major_minor} has no changelog entry")
 
 
 if __name__ == "__main__":
