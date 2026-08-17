@@ -21,8 +21,8 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-019 | `modes/pipeline.md` | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage/Stage since columns created by columns_for; WIP defaults exist (pipeline review:3, inquiry open:5) in schema work_modes; Commitments owned by goals in the signed contract. NO re-review has run — that is what this row waits on. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
-| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | All 3 blocking fixed and verified 2026-08-17: Stage column; Arrived carried through route (P1 table header reads Arrived, value preserved); Commitments ownership settled. Intake drain + resolve-intake shipped. NO re-review has run. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-019 | `modes/pipeline.md` | Coding Agent | review | round-4's five items all closed (M-7 M-8 m-9 m-10 m-11) — see evidence/2026-08/TASK-019-020-round5-fixes.md. Waiting on a 5th V4 review; nothing here is self-approved. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
+| TASK-020 | `modes/queue.md` + `BOARD.md § Intake` + triage drain | Coding Agent | review | round-4's five items all closed; routing a hand-typed intake row was crashing and now refuses or carries the date. Waiting on a 5th V4 review. | `evidence/2026-08/TASK-019-020-v4-review.md` | V4 |
 | TASK-027 | Lane rename goals/work/decide + aliases | Coding Agent | review | Round-3 review FAILED it: router named 3 dead dirs, routed `decide` to the wrong lane, quoted withdrawn commands. All fixed + `TestRouterNamesOnlyRealThings`. **4th review pending** | `evidence/2026-08/TASK-027-spec.md` | V4 |
 
 ## P2
