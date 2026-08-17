@@ -16,7 +16,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification |
 |---|---|---|---|---|---|---|
-| TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | not_started | ADR-004 names this as the mechanism that does not exist yet. Everything else in that ADR is blocked on it. | — |  |
+| TASK-043 | Conformance marker: a project declares it is Perry-shaped, at version N | Coding Agent | not_started | rubric written: evidence/2026-08/TASK-043-spec.md. The main thing it decides is the path from 'already conformant, never declared' to 'declared' — every existing Perry project including this one has no marker. Agent started. | — |  |
 | TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | not_started | ADR-004's five guarantees. Mandatory migration is only safe to require if these hold — a migration that mangles a board is worse than every bug it replaces. | — |  |
 
 ## P1
