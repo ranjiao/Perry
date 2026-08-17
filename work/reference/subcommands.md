@@ -180,7 +180,51 @@ is the refusal case the contract names.
 The old-monolithic-`DECISIONS.md` migration moved with it.
 
 ### `risk`
-Print and triage risks in `PROJECT_STATE.md ## Risks`. For each: still valid? severity changed? mitigation in place? owner? Update accordingly.
+
+**Raising a risk and clearing one both go through the tool.**
+
+```bash
+"$PERRY_HOME/bin/perry-task" risk-add   --title "<the risk, in your words>" [--opened YYYY-MM-DD]
+"$PERRY_HOME/bin/perry-task" risk-clear <RX-ID> --reason "<why it is over>"
+```
+
+`BOARD.md § Top risks` is a table — `| ID | Risk | Opened | Status |` — and the
+rule is the one `## Intake` and `## User Input Queue` already follow: **the tool
+owns the row and every computed cell; the agent owns the prose cell.** `risk-add`
+mints the `RX-NNN`, stamps `Opened`, and writes the board row, the journal line
+and the event together. `Risk` is your sentence and nothing rewrites it.
+
+Do not hand-write a row and do not retire a risk by striking it through. That
+was the old shape and it had two defects nothing could fix from the outside: a
+`~~struck-through~~` risk is decoration, not a field, so it stayed in every
+count forever — one on Perry's own board survived a day past being cleared —
+and with no id column the reader split the first sentence on whitespace and
+published `id: "Perry"`, `title: "is half-adopted: …"`.
+
+**A cleared risk stays on the board.** `risk-clear` writes
+`cleared <date> — <reason>` into `Status` and the row remains: it is the record
+that the mitigation worked. It simply stops counting.
+
+**`perry-state` reports open risks only**, with `age_days` computed from
+`Opened` at read time — the same rule as `Asked`/`Idle` on the User Input
+Queue, and for the same reason. `risks.source` says whether the payload came
+from the table or from bullets; on a bullet the `id` is invented and
+`age_days` is `null`, and a reader is entitled to know which it got.
+
+**An older board keeps working.** A bullet list is still read. The first
+`risk-add` converts the section, carrying every bullet across **verbatim** into
+its own row with `Opened` left empty — the date a pre-existing risk was raised
+is not recorded anywhere and stamping today would assert it is new. A bullet
+the reader already treated as resolved (`~~strike~~` or `**RESOLVED`) migrates
+as `cleared`, with whatever date the human wrote in it.
+
+There is deliberately **no `Severity` column**: both real projects surveyed
+write severity inside the sentence (`H · …`, `🔴 …`), so it stays derived from
+the statement rather than becoming a column nothing on a real board fills.
+
+Triage still asks the questions it always did — for each open risk: still
+valid? severity changed? mitigation in place? — and discharges the answer
+through `risk-clear` or a rewritten statement rather than an edit.
 
 ### `nudge`
 For every User Input Queue item idle ≥5 days, surface a one-line reminder in chat with: USER-id, what's needed, what it blocks, days idle, original ask context.

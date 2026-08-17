@@ -40,4 +40,12 @@
 
 ## Top risks (one-line; full list in `PROJECT_STATE.md`)
 
-- (no active risks)
+<!-- Written by `perry-task risk-add` / `risk-clear`. The tool mints the `ID`,
+     stamps `Opened` and owns `Status`; `Risk` is your sentence. A cleared row
+     STAYS here — it is the record that the mitigation worked — and simply
+     stops counting. A bullet list is still read, so an older board keeps
+     working; `risk-add` converts it on first use, carrying every bullet
+     across verbatim. -->
+
+| ID | Risk | Opened | Status |
+|---|---|---|---|

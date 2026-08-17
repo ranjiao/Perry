@@ -676,6 +676,21 @@
         "zh": [
           "显示为"
         ]
+      },
+      "Risk": {
+        "zh": [
+          "风险"
+        ]
+      },
+      "Opened": {
+        "zh": [
+          "提出"
+        ]
+      },
+      "Asked": {
+        "zh": [
+          "提问"
+        ]
       }
     }
   },
@@ -901,6 +916,17 @@
             "Frequency",
             "Next due",
             "Last evidence"
+          ]
+        },
+        {
+          "under": "^Top risks\\b|^主要风险",
+          "optional": true,
+          "note": "Written by `perry-task risk-add` / `risk-clear` (TASK-040). OPTIONAL IN A SECOND SENSE than Intake: Intake is skipped when the SECTION is absent, and this table is skipped when the section is present but still holds a BULLET LIST. Every Perry project except Perry itself was on bullets the day this landed, and a bullet list is a valid `## Top risks` — readers fall back to it and `perry-lint` must not report a project red for not having migrated. `optional` is what suppresses the `missing-table` warning; without it this one spec would have turned every unmigrated board red. The section replaces a bullet list that had no writer and, for that reason, two defects nothing could fix: a risk struck through with `~~…~~` stayed in every count forever because strikethrough is decoration and not a field, and the reader split the first sentence on whitespace and reported `id: \"Perry\"` / `title: \"is half-adopted: …\"`. `Status` carries the cleared date inline (`cleared YYYY-MM-DD — reason`), exactly as `## User Input Queue`'s `Status` carries the answer and `## Intake`'s `Outcome` carries the outcome. NOT enum-checked: it holds a human's reason, and imposing an enum on a prose column is a mistake this repo made once and reverted. There is deliberately NO `Severity` column — both real projects surveyed write severity inside the sentence (`H · …`, `🔴 …`), so a stored enum would be a column nothing on a real board fills; severity stays derived from the statement.",
+          "columns": [
+            "ID",
+            "Risk",
+            "Opened",
+            "Status"
           ]
         }
       ],

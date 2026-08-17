@@ -31,7 +31,7 @@
       ('P0 open', snap.board.p0 | length, p0_blocked ~ ' blocked · ' ~ p0_new ~ ' new', 'var(--rust-ink)', false),
       ('Needs user', snap.board.user_input_queue | length, kpi.user_q_sub, 'var(--amber-ink)', false),
       ('KR done', kr_done ~ '/' ~ kr_total, (((kr_done * 100) // (kr_total or 1)) | string) ~ '% complete', 'var(--moss-ink)', false),
-      ('Top risks', snap.top_risks | length, kpi.risks_sub, 'var(--ink)', false)
+      ('Top risks', snap.open_top_risks | length, kpi.risks_sub, 'var(--ink)', false)
     ] %}
     {% for label, big, sub, color, sp in kpis %}
     <div class="card card-tight">
