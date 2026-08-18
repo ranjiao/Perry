@@ -137,8 +137,10 @@ HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
 from tables import render_row, split_row  # noqa: E402
+from lib import write_atomic  # noqa: E402
 
 MIGRATE_DIR = ".perry/migrate"
 
@@ -1413,13 +1415,11 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
 
 
 # ── applying ──────────────────────────────────────────────────────────────
-
-
-def write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text)
-    tmp.replace(path)
+#
+# `write_atomic` is `lib.write_atomic`, imported at the top. The copy that used
+# to live here staged onto a FIXED name — `BOARD.md.tmp` — and left it behind
+# on failure, in the user's project, during the one operation that rewrites
+# every state file they have.
 
 
 def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:

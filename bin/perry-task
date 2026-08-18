@@ -106,15 +106,10 @@ No LLM, no external dependencies (stdlib only). DESIGN-004.
 
 from __future__ import annotations
 
-import contextlib
-import fcntl
-import hashlib
 import json
 import os
 import re
 import sys
-import tempfile
-import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -123,8 +118,10 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
 from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
+import lib  # noqa: E402
 
 
 class Refused(Exception):
@@ -185,9 +182,7 @@ LIST_SEMANTICS = [
 
 
 def load_schema() -> dict:
-    if not SCHEMA_PATH.exists():
-        raise Refused(f"schema not found at {SCHEMA_PATH}")
-    return json.loads(SCHEMA_PATH.read_text())
+    return lib.load_schema(Refused)
 
 
 def board_table_spec(schema: dict) -> dict:
@@ -1205,11 +1200,13 @@ def heading_matches(line: str, name: str) -> bool:
     return False
 
 
-def heading_re(name: str) -> re.Pattern:
-    """Kept for callers that need a pattern object. Prefer `heading_matches`."""
-    return re.compile(r"^##\s+\**\s*(?:%s)(?!\w)" %
-                      "|".join(re.escape(s) for s in heading_spellings(name)))
-
+# There was a `heading_re` here, "kept for callers that need a pattern object".
+# It had none — in `bin/`, `tests/` or `viewer/` — and it is deleted rather than
+# shared, because the `heading_re` in `bin/perry-lint` is NOT a second copy of
+# it. That one matches heading TEXT (`^High-stakes operations`), because
+# `section_body` hands it a heading with the `##` already stripped; this one
+# matched the raw line (`^##\s+\**\s*…(?!\w)`). Two functions, one name, one of
+# them dead. Live callers use `heading_matches`.
 
 REQUIRED_KEYS = ("id", "title", "owner", "status", "next action", "evidence")
 
@@ -1483,12 +1480,10 @@ def commit(project_root: Path, state_root: Path, board: Board,
     staged: list[tuple[str, Path]] = []
     try:
         for path, text in ((board.path, board.text()), (jpath, jtext)):
-            fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-            with os.fdopen(fd, "w") as fh:
-                fh.write(text)
-                fh.flush()
-                os.fsync(fh.fileno())
-            staged.append((tmp, path))
+            # `lib.stage`, not `lib.write_atomic`: both files are staged before
+            # either is renamed, which is the whole guarantee here and is not
+            # expressible as two atomic writes.
+            staged.append((lib.stage(path, text), path))
         while staged:
             # Pop as we go. Clearing the whole list inside the loop meant a
             # failure on the second rename left the first temp file orphaned
@@ -3947,69 +3942,22 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "list": cmd_list}
 
 
-@contextlib.contextmanager
 def project_lock(state_root: Path, timeout: float = 10.0):
     """Serialize the whole read-modify-write, not just the write.
 
-    `BOARD.md` is read when `Board` is constructed and written in `commit()`.
-    Between those two points another process can do the same thing, and the
-    second rename then discards the first process's row entirely. Measured, not
-    theorized: five concurrent `add` calls left **two** rows on the board, with
-    `TASK-001` and `TASK-002` each issued twice. The event log took all five,
-    because it is opened `O_APPEND` — the append-only file survived exactly the
-    race the read-modify-write document lost.
+    `lib.project_lock` carries the reasoning — it was written here first, and
+    the other three copies were written from it. The lock must wrap the read as
+    well as the write, which is why it is taken here and not inside `commit()`:
+    a lock around the write alone would still let both processes mint the same
+    id from the same stale board. `autopilot` dispatches concurrently by design,
+    so this path is live rather than hypothetical.
 
-    `autopilot` dispatches concurrently by design, so this path is live rather
-    than hypothetical.
-
-    The lock must wrap the read as well as the write, which is why it is taken
-    here and not inside `commit()`: a lock around the write alone would still
-    let both processes mint the same id from the same stale board.
-
-    **It lives outside the project entirely**, in the temp dir, keyed by a hash
-    of the state root. Two earlier placements each broke something real:
-
-    - in `.perry/` — an unwritable `.perry/` made the lock uncreatable and
-      refused the whole call, even though `BOARD.md` and the journal were both
-      writable. The design's entire claim is that `.perry/` is derived and can
-      never make Perry *wrong*.
-    - beside `BOARD.md` — it then appears in the project, and a consumer repo
-      does not inherit Perry's own `.gitignore`. Checked on a real Perry project
-      the same night it shipped: `?? .board.lock`, untracked and unignored. A
-      tool that makes every user edit their `.gitignore` to stay clean has
-      pushed its own bookkeeping onto them.
-
-    It is also not flock on `BOARD.md` itself: `commit()` renames a temp file
-    over it, so every writer after the first would hold a lock on a replaced
-    inode and exclusion would quietly stop working.
-
-    A file outside the tree, never renamed, keyed by the path it guards, is the
-    one shape that survives all three. It is pure runtime state — losing it
-    between reboots costs nothing, because it only ever means "no one is writing
-    right now", which is true after a reboot.
+    **This copy said "another perry-task is holding" on timeout, and the other
+    three said "another Perry write".** The key is the project, not the tool, so
+    the holder is as often `goals`, `decide` or `knowledge` — the shared wording
+    is the true one and is what the caller now gets.
     """
-    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
-    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
-    fh = open(lock_path, "w")
-    deadline = time.monotonic() + timeout
-    try:
-        while True:
-            try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise Refused(
-                        f"another perry-task is holding {lock_path} and did not "
-                        f"release it within {timeout:.0f}s. Nothing was written; "
-                        f"retry, or remove the file if no other process is live")
-                time.sleep(0.05)
-        yield
-    finally:
-        try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        finally:
-            fh.close()
+    return lib.project_lock(state_root, timeout, Refused)
 
 
 def main(argv: list[str]) -> int:

@@ -74,15 +74,10 @@ No LLM, no external dependencies (stdlib only). DESIGN-005.
 
 from __future__ import annotations
 
-import contextlib
-import fcntl
-import hashlib
 import json
 import os
 import sys
 import re
-import tempfile
-import time
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -93,9 +88,11 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 TEMPLATE_PATH = PERRY_HOME / "goals" / "state" / "OKR_TEMPLATE.md"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
 from tables import (UnrenderableCell, append_cell, cell_spans,  # noqa: E402
                     render_row, splice_cell, split_row, squash)
+import lib  # noqa: E402
 
 
 class Refused(Exception):
@@ -106,11 +103,14 @@ _SCHEMA = None
 
 
 def load_schema() -> dict:
+    """`lib.load_schema`, memoized. The memo is this tool's, not the library's.
+
+    `okr_table_spec` and its callers read the schema on nearly every code path,
+    and caching it in the shared function would hand every other tool a cache
+    it never asked for — including the ones a test re-execs in-process."""
     global _SCHEMA
     if _SCHEMA is None:
-        if not SCHEMA_PATH.exists():
-            raise Refused(f"schema not found at {SCHEMA_PATH}")
-        _SCHEMA = json.loads(SCHEMA_PATH.read_text())
+        _SCHEMA = lib.load_schema(Refused)
     return _SCHEMA
 
 
@@ -507,22 +507,16 @@ def assert_owned(state_root: Path, path: Path) -> None:
 
 
 def write_atomic(state_root: Path, path: Path, text: str) -> None:
+    """`lib.write_atomic` behind this lane's hand-off gate.
+
+    The extra argument and the extra line are the whole difference, and they
+    are not part of the primitive: `assert_owned` is the `goals` lane refusing
+    to write another lane's file (`SKILL.md § The hand-off contract`), which
+    only this tool has. The atomic write underneath is everyone's."""
     assert_owned(state_root, path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as fh:
-            fh.write(text)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
+    lib.write_atomic(path, text)
 
 
-@contextlib.contextmanager
 def project_lock(state_root: Path, timeout: float = 10.0):
     """The same lock `perry-task` and `perry-decide` take, on the same key.
 
@@ -530,27 +524,7 @@ def project_lock(state_root: Path, timeout: float = 10.0):
     touch different files but the same project, and a reader that catches them
     mid-flight sees a state neither lane intended (DESIGN-005 § 5.4).
     """
-    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
-    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
-    fh = open(lock_path, "w")
-    deadline = time.monotonic() + timeout
-    try:
-        while True:
-            try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise Refused(
-                        f"another Perry write is holding {lock_path} and did "
-                        f"not release it within {timeout:.0f}s. Nothing was "
-                        f"written; retry, or remove the file if no process is live")
-                time.sleep(0.05)
-        yield
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        fh.close()
+    return lib.project_lock(state_root, timeout, Refused)
 
 
 # ── events ────────────────────────────────────────────────────────────────

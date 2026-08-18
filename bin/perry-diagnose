@@ -51,7 +51,9 @@ HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 from tables import split_row, squash  # noqa: E402
+from lib import resolve_state_root  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
@@ -450,25 +452,20 @@ EXAMPLE_DIR_NAMES = {
 }
 
 
-def resolve_state_root(root: Path) -> Path:
-    """Mirror of viewer/parsers.py § resolve_state_root, kept minimal so this
-    script has no import dependency on the viewer. A state root that escapes
-    the project is ignored rather than honoured."""
-    cfg = root / ".perry" / "config.md"
-    if not cfg.is_file():
-        return root
-    m = re.search(r"^\s*[-*]?\s*State root:\s*(.+?)\s*$", read_text(cfg), re.M | re.I)
-    if not m:
-        return root
-    raw = m.group(1).strip().strip("`")
-    if not raw or raw == ".":
-        return root
-    try:
-        cand = (root / raw).resolve()
-        cand.relative_to(root.resolve())
-    except (ValueError, OSError):
-        return root
-    return cand if cand.is_dir() else root
+# `resolve_state_root` is imported from `lib` — which re-exports
+# `viewer/parsers.py`'s, the one every other tool already calls. The mirror that
+# used to live here called itself "kept minimal so this script has no import
+# dependency on the viewer", and that was no longer true: `split_row` and
+# `squash` are imported from `viewer/tables.py` fourteen lines above.
+#
+# The mirror also **could not read a Chinese config**. It matched `State root:`
+# with an ASCII colon only, while the canonical one accepts `：` as well — so on
+# a project whose `.perry/config.md` declares `State root：docs`, every other
+# tool moved and `perry-diagnose` kept reading the project root. The mirror was
+# stricter in two ways worth naming: it anchored the match to the start of a
+# line, and it returned the project root when the declared path was not a
+# directory. Neither is in the canonical one; both are recorded on the row
+# rather than added here, because they are a change to what every reader does.
 
 
 # ── the walk ──────────────────────────────────────────────────────────────

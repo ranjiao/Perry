@@ -49,15 +49,10 @@ No LLM, no external dependencies (stdlib only). DESIGN-005.
 
 from __future__ import annotations
 
-import contextlib
-import fcntl
-import hashlib
 import json
 import os
 import re
 import sys
-import tempfile
-import time
 from datetime import date
 from pathlib import Path
 
@@ -66,8 +61,10 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
 from tables import render_row  # noqa: E402
+import lib  # noqa: E402
 
 
 class Refused(Exception):
@@ -113,9 +110,7 @@ def perry_conform():
 
 
 def load_schema() -> dict:
-    if not SCHEMA_PATH.exists():
-        raise Refused(f"schema not found at {SCHEMA_PATH}")
-    return json.loads(SCHEMA_PATH.read_text())
+    return lib.load_schema(Refused)
 
 
 # ── reading ───────────────────────────────────────────────────────────────
@@ -266,50 +261,17 @@ def render_index(state_root: Path, project: str) -> str:
     return "\n".join(out) + "\n"
 
 
-def write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as fh:
-            fh.write(text)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
+write_atomic = lib.write_atomic
 
 
-@contextlib.contextmanager
 def project_lock(state_root: Path, timeout: float = 10.0):
-    """The same lock `perry-task` takes, on the same key.
+    """The same lock `perry-task` takes, on the same key — `lib.project_lock`.
 
     One lock per project, not one per lane: a `decide` write and a `work` write
     touch different files but the same project, and a reader that catches them
     mid-flight sees a state neither lane intended.
     """
-    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
-    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
-    fh = open(lock_path, "w")
-    deadline = time.monotonic() + timeout
-    try:
-        while True:
-            try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise Refused(
-                        f"another Perry write is holding {lock_path} and did "
-                        f"not release it within {timeout:.0f}s. Nothing was "
-                        f"written; retry, or remove the file if no process is live")
-                time.sleep(0.05)
-        yield
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        fh.close()
+    return lib.project_lock(state_root, timeout, Refused)
 
 
 # ── commands ──────────────────────────────────────────────────────────────

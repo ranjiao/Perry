@@ -70,17 +70,12 @@ No LLM, no external dependencies (stdlib only). DESIGN-006 section 5.4.
 
 from __future__ import annotations
 
-import contextlib
-import fcntl
-import hashlib
 import importlib.machinery
 import importlib.util
 import json
 import os
 import re
 import sys
-import tempfile
-import time
 from datetime import date
 from pathlib import Path
 
@@ -89,7 +84,9 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
+import lib  # noqa: E402
 
 
 class Refused(Exception):
@@ -141,9 +138,7 @@ def lint():
 
 
 def load_schema() -> dict:
-    if not SCHEMA_PATH.exists():
-        raise Refused(f"schema not found at {SCHEMA_PATH}")
-    return json.loads(SCHEMA_PATH.read_text())
+    return lib.load_schema(Refused)
 
 
 def card_spec() -> dict:
@@ -328,50 +323,22 @@ def patch_index(state_root: Path, cards: list[dict]) -> dict:
     return {"updated": True, "text": text, "path": str(idx)}
 
 
-def write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as fh:
-            fh.write(text)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
+write_atomic = lib.write_atomic
 
 
-@contextlib.contextmanager
 def project_lock(state_root: Path, timeout: float = 10.0):
     """The same lock `perry-task` and `perry-decide` take, on the same key.
 
     One lock per project, not one per lane: this write and a board write touch
     different files but the same project, and a reader that catches them
     mid-flight sees a state neither lane intended.
+
+    This copy had **lost the `time.sleep(0.05)`** from its retry loop, so the
+    wait for a held lock was a busy spin at 100% of a core for the full ten
+    seconds. Nothing observable was wrong with the result, which is why four
+    copies of a loop is how it survived.
     """
-    key = hashlib.sha1(str(state_root.resolve()).encode()).hexdigest()[:16]
-    lock_path = Path(tempfile.gettempdir()) / f"perry-task-{key}.lock"
-    fh = open(lock_path, "w")
-    deadline = time.monotonic() + timeout
-    try:
-        while True:
-            try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise Refused(
-                        f"another Perry write is holding {lock_path} and did "
-                        f"not release it within {timeout:.0f}s. Nothing was "
-                        f"written; retry, or remove the file if no process is "
-                        f"live")
-        yield
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        fh.close()
+    return lib.project_lock(state_root, timeout, Refused)
 
 
 # ── commands ──────────────────────────────────────────────────────────────
