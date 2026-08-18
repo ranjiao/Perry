@@ -1234,7 +1234,18 @@ class Linter:
 
     def errors(self, text: str, key: str, spec: dict) -> list:
         path = Path(Linter._scratch.name) / Path(key).name
-        path.write_text(text)
+        # Perry's own scratch, not the user's project — and guarded anyway
+        # rather than exempted. An exemption list is where a guard like this
+        # rots: the next write added to this function would inherit the
+        # exemption silently. And the last scratch write that was left
+        # unguarded — the planning mirror — killed `--dry-run` with a traceback
+        # naming nothing.
+        try:
+            path.write_text(text)
+        except OSError as exc:
+            raise Refused(
+                f"could not stage {key} for linting ({exc}). Nothing in the "
+                f"project was touched") from None
         return [f for f in lint().check_file(path, key, spec,
                                              self.schema["enums"], is_template=False)
                 if f.severity == "error"]
@@ -1453,7 +1464,16 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         return {"applied": [], "restore_point": None, "run": None,
                 "declared": [], "refused": []}
     run_id = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-    point = restore_point(plan, run_id, edits)
+    try:
+        # **Site 2 of 5.** Pre-write, so a failure here leaves the project
+        # valid — but a traceback where a refusal belongs, and the refusal has
+        # to say nothing was touched, which no traceback does.
+        point = restore_point(plan, run_id, edits)
+    except OSError as exc:
+        raise Refused(
+            f"the restore point could not be written ({exc}). **Nothing was "
+            f"migrated** — the run stops before touching a file rather than "
+            f"proceeding without a way back") from None
     applied = []
     for e in edits:
         try:
@@ -1483,8 +1503,20 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         # Through `bin/perry-conform`, never beside it: ADR-004 § 4 makes the
         # declaration one fact with one record, and `declare()` re-checks each
         # file rather than trusting this tool's word for it.
-        out = C.declare(plan.project_root, plan.state_root,
-                        [e.key for e in applied], schema, route="migrate")
+        # **Site 3 of 5.** Round 1 guarded the edit loop and this sits after
+        # it, so with `.perry/` read-only and `.perry/migrate/` writable — any
+        # project migrated once and then locked down — the project was FULLY
+        # migrated, the restore point was on disk and never named, and the user
+        # got a raw traceback. Round 1's failure mode verbatim, one stage
+        # downstream.
+        try:
+            out = C.declare(plan.project_root, plan.state_root,
+                            [e.key for e in applied], schema, route="migrate")
+        except OSError as exc:
+            raise Refused(rollback_message(
+                point, P.CONFORMANCE_FILE,
+                f"the files were migrated but the declaration could not be "
+                f"written ({exc})")) from None
         result["declared"] = [d["path"] for d in out["declared"]]
         result["refused"] = out["refused"]
         result["record"] = out["record"]
@@ -1728,7 +1760,19 @@ def do_restore(project_root: Path, positional: list[str], do_list: bool,
     point = base / f"{positional[0]}.json" if positional else points[0]
     if not point.exists():
         raise Refused(f"no restore point {point.stem!r} under {MIGRATE_DIR}/")
-    back = undo(point)
+    # **Site 5 of 5 — the recovery path itself.** Unguarded, it restored
+    # `BOARD.md` and then died unlinking `conformance.md`: half restored, with
+    # the record still claiming conformance for a rolled-back file, which is
+    # the exact thing `restore_point`'s own docstring exists to prevent.
+    try:
+        back = undo(point)
+    except OSError as exc:
+        raise Refused(
+            f"the restore is incomplete ({exc}). Some files were put back and "
+            f"some were not, and `{P.CONFORMANCE_FILE}` may still claim "
+            f"conformance for a file that was rolled back. The restore point "
+            f"is still at {point} and re-running is safe once the permission "
+            f"is fixed") from None
     if as_json:
         print(json.dumps({"restored": back, "from": str(point)},
                          ensure_ascii=False, indent=2))

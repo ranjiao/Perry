@@ -1,162 +1,97 @@
 # TASK-034 — one call answers both of DESIGN-004 § 1.3's questions
 
-> Rung: V3 (reproducible run). The V5 — whether this is enough for aiMark — is
-> the user's, and is what this document exists to inform.
-> Run 2026-08-17 in a throwaway project. Perry's own state was not touched;
-> a previous agent's test writes landed in this repo's real board and had to be
-> merged by hand, which is why.
+> ## V5 — signed off: Ran Jiao, 2026-08-18
+>
+> **Checked:** the five-step run table below and the timeline it produced, at
+> `perry-task/list/1.9`; that the closed row leaves `BOARD.md` and is still
+> reported with its whole history and a resolving `evidence_paths`; and the
+> statement of what signing does and does not mean.
+>
+> **Not checked, and recorded because V5's whole value is saying so:** the five
+> steps were not re-run by hand — they were read from this document, which was
+> regenerated for this sign-off rather than trusted from the previous version.
+> aiMark's own reply to `handoff/2026-08-18-aimark-prompt.md` revision 5 had
+> **not been received** at signing, so this is Perry answering the two questions,
+> not aiMark confirming it can build on the answer.
+>
+> Writing "reviewed" here, or inflating it into a hand-run of the lifecycle,
+> would make the rung a label instead of a record.
+
+> **Re-run 2026-08-18 at `perry-task/list/1.9`.** The previous version of this
+> file recorded **1.5**, its § 3 hazard had been fixed by 1.7, and its own
+> commands no longer ran as written — `add` requires `--deliverable` and
+> `--verification` now. A V4 reviewer caught all three. **A stale acceptance
+> document is worse than none: the person signing cannot tell which half is
+> still true.**
+>
+> Rung: **V3 here. The V5 is the user's** and is what this document exists to
+> inform.
 
 ## The two questions
 
 `perry/design/DESIGN-004-deterministic-writes.md § 1.3`, written from aiMark's
 side:
 
-1. **"What is the full set of tasks?"** `BOARD.md` holds open work only; closed
-   rows leave. The full set existed only as a reconstruction from `journal/`.
-2. **"What is being worked on right now?"** The board said `in_progress` when
-   an agent remembered to write it — on one session that lag was tens of
-   minutes at a stretch.
+1. **"What is the full set of tasks?"** `BOARD.md` holds open work only.
+2. **"What is being worked on right now?"**
 
 ## The run
 
 `perry-task list --all --json` after each step. One call, and the only call.
 
-| Step | open | closed | events | status | created | updated | timeline |
-|---|---|---|---|---|---|---|---|
-| empty board | 0 | 0 | 0 | — | — | — | 0 |
-| `add` | 1 | 0 | 1 | `not_started` | 17:47:46 | 17:47:46 | 1 |
-| `start` | 1 | 0 | 2 | `in_progress` | 17:47:46 | 17:47:47 | 2 |
-| `status --status review` | 1 | 0 | 3 | `review` | 17:47:46 | 17:47:48 | 3 |
-| `done --evidence … --rung V3` | 0 | **1** | 4 | `done` | 17:47:46 | 17:47:49 | 4 |
+| Step | open | closed | status | timeline | `evidence_paths` |
+|---|---|---|---|---|---|
+| empty board | 0 | 0 | — | 0 | — |
+| `add` | 1 | 0 | `not_started` | 1 | `[]` |
+| `start` | 1 | 0 | **`in_progress`** | 2 | `[]` |
+| `status --status review` | 1 | 0 | `review` | 3 | `[]` |
+| `done --evidence … --rung V3` | 0 | **1** | `done` | 4 | **resolves** |
 
-**Question 1 answered.** After `done`, `grep -c TASK-001 BOARD.md` is **0** —
-the row has left the board, as designed — and the same call still reports it,
-with its whole history:
+**Question 1.** After `done`, `TASK-001` is **not in `BOARD.md`** and the same
+call still reports it with its whole history and a resolving `evidence_paths` —
+which was empty on every closed row until 1.5 and is the fix aiMark verified
+from its own side.
 
-```
-2026-08-17T17:47:46 add    | —            → not_started
-2026-08-17T17:47:47 start  | not_started  → in_progress
-2026-08-17T17:47:48 status | in_progress  → review
-2026-08-17T17:47:49 done   | review       → done
-rung: V3 | evidence: evidence/2026-08/TASK-001-result.md
-```
+**Question 2.** `start` puts the row in `in_progress`, and the payload says so.
+That state existed before and nothing used it: this project closed 56 rows with
+**54 never started**, so for an entire session `list` could say what existed and
+nothing about what was moving. `done` now prints a note when a row closes
+unstarted, and `was_started` is in the write payload.
 
-**Question 2 answered.** `updated` moves with every write and comes from the
-event, not from a cell an agent has to remember to change. `created` and
-`updated` are one second apart here because the run was scripted; on a real
-project they are the honest answer to "when did this last move".
-
-## Three things aiMark must know, or it will get a wrong answer
-
-1. **`--all` is not optional.** Without it the payload reports `closed: 0`,
-   because `BOARD.md` holds open work only. On this repo the difference is
-   `open 15 / closed 0` versus `open 15 / closed 29`. Question 1's answer is
-   behind that flag.
-2. **`created` is absent for tasks that predate the event log.** 31 of this
-   repo's 44 tasks have none. `conformance.has_event_log` says so explicitly,
-   and the front end must fall back to the row's own date cells rather than
-   rendering them as undated. The contract already documents this; it is listed
-   here because it is the field most likely to be assumed present.
-3. **`mode` is now derived** from `track` + `.perry/config.md § Tracks`, not
-   read back from the event log. Rows created by `route` used to carry `mode:
-   ""` and now do not. Same key, same type — no contract bump was owed and none
-   was taken.
-
-## What the conformance gate does to this
-
-`ADR-004` landed the same day. The run above was made against a hand-written
-minimal board, and every write printed:
+## What the timeline looks like now
 
 ```
-⚠ conformance (advisory) — BOARD.md is not Perry's shape: 5 error(s) …
-Reading is unaffected — `perry-task list` and `perry-state` work either way.
+2026-08-18T16:24:46 add     None        -> not_started  field=status
+2026-08-18T16:24:46 start   not_started -> in_progress  field=status
+2026-08-18T16:24:46 status  in_progress -> review       field=status
+2026-08-18T16:24:46 done    review      -> done         field=status
 ```
 
-The five are missing required sections (`## P1`, `## P2`, `## Cadence`,
-`## User Input Queue`, `## Top risks`) — correct, since that board was typed by
-hand rather than written from the template. Checked, because a gate that fires
-on Perry's own bootstrap output would be a bug rather than a rule: a board
-rendered from `work/state/BOARD_TEMPLATE.md` reports **zero** lint errors and
-`undeclared` rather than `drifted`, so the shape is right and only the
-declaration is missing.
+**All four share one second.** That is the `ts` tie the contract documents at
+1.9 — array order is authoritative, and a consumer re-sorting by `ts` needs a
+stable sort or `start` lands after the `status` that followed it. It is not a
+hazard invented for the document; it happens on a scripted run every time.
 
-**The reads were unaffected throughout, which is the half of ADR-004 aiMark
-depends on.** Verified separately with `PERRY_CONFORMANCE=enforce`: all four
-readers return `rc=0` on both this repo and a copy of gimegime-pmo.
+`field` is on every entry from 1.7, so a consumer needs no hardcoded set of
+events that overload `from`/`to`.
 
-## What is left, and why it is the user's
+## What this does NOT establish
 
-Nothing on Perry's side that this document could find. What remains is aiMark
-performing the same lifecycle against its own copy and its author saying it is
-enough — the one acceptance another program's user has to give, which is why
-this row is V5 and not V4.
+- **That aiMark can drive it.** This is Perry driving Perry. aiMark ran its own
+  lifecycle against a copy of its state on 2026-08-17 and reported it in
+  `doc/perry-contract-gaps.md`; that report is answered in
+  `perry/handoff/2026-08-18-aimark-prompt.md`, and **its reply to revision 5 has
+  not been received**.
+- **That the contract is finished.** It moved 1.4 → 1.9 in one day. Every move
+  that changed a meaning is in `semantics`, which exists because a consumer
+  following the contract's own rule 3 could not see 1.5.
+- **Anything about `perry-goals/list` or `perry-decide/list`.** Neither moved.
 
----
+## What signing means
 
-## Re-run 2026-08-18, on a fresh project — what changed since the above
+That **one call answers both questions well enough for a front end to be built
+on it** — and that the answer arriving intact through a close, with its evidence
+resolving, is what you wanted from DESIGN-004.
 
-The run above was made before three fixes landed. Repeated end to end on a
-throwaway project created from `work/state/BOARD_TEMPLATE.md`. Perry's own state
-was not touched.
-
-`add` → `start` → `status --status review` → **`prioritize --priority P0`** →
-`done --evidence … --rung V3`, then one `perry-task list --all --json`:
-
-```
-contract   : perry-task/list/1.5
-open/closed: 0 / 1
-priority   : P0
-open       : false          ← and `grep -c TASK-001 BOARD.md` is 0
-evidence       : evidence/2026-08/probe.md
-evidence_paths : ["perry/evidence/2026-08/probe.md"]
-timeline:
-  add         —            → not_started
-  start       not_started  → in_progress
-  status      in_progress  → review
-  prioritize  P1           → P0
-  done        review       → done
-```
-
-**Three things are true here that were not true on 2026-08-17.**
-
-1. **`evidence_paths` resolves on a closed row.** It was `[]` for every closed
-   row, and `conformance.evidence_not_found` did not report it either — so the
-   one document justifying a close was the one thing that could not be linked.
-   This was aiMark's first-listed finding. Contract minor 1.4 → 1.5: no key
-   changed shape, but two fields changed meaning under a live consumer, and the
-   version handle is how that consumer finds out.
-
-2. **A task's priority can be changed at all.** There was no writer for it —
-   `add` set it once, `route` mints a new id — so the one act triage *means*
-   could only be done by hand-editing the board, which lands with no event and
-   is then reported as unrecorded drift. `prioritize` is in the timeline above
-   because this run used it.
-
-3. **`prioritize`'s `from`/`to` are the SECTION, not the status.** Every other
-   event uses those keys for status. `event: "prioritize"` is the only thing
-   that disambiguates, and a timeline renderer that maps `from`/`to` onto a
-   status badge will draw a priority move as a status change. This is called
-   out in the aiMark hand-off; it is the one shape in this payload that can be
-   misread while looking correct.
-
-**A defect this re-run found, in the same session that wrote it.** The first
-pass reported `priority: P1` with `prioritize P1 → P0` sitting in its own
-timeline two lines above. A closed row is folded back together from events, and
-the `prioritize` event carried no `priority` key, so the fold silently kept the
-`add` value. Fixed, and the test that guards it compares the field against the
-row's own timeline rather than against a known-good value — a payload that
-contradicts itself is checkable without knowing which merge rule is wrong.
-
-## What the V5 signature is being asked for
-
-Not "do the commands work" — that is the V3 above, and it is reproducible.
-
-**It is whether one call answers both of `DESIGN-004 § 1.3`'s questions well
-enough for aiMark to be built on it**, which only aiMark's author can say. The
-gap report at `~/proj/aimark/doc/perry-contract-gaps.md` is the first half of
-that answer and it was acted on point by point; the hand-off at
-`perry/handoff/2026-08-18-aimark-prompt.md` is the reply. Signing this row means
-saying the loop closed.
-
-A V5 records **name, date, and what was checked**. Writing "reviewed" would make
-the rung a label instead of a record.
+It does not mean the contract is done, and it does not commit you to 1.9 being
+the last version.

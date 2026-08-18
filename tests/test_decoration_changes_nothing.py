@@ -58,10 +58,20 @@ class TestDecorationIsInvisible(unittest.TestCase):
             [sys.executable, str(PERRY_HOME / "bin" / name), *READERS[name],
              "--root", str(root)],
             capture_output=True, text=True)
+        # **A transient subprocess failure must not masquerade as a finding.**
+        # This used to fall back to `{"rc": …, "stdout": …}` on a JSON error, a
+        # different SHAPE — so one side failing for any reason produced a
+        # whole-payload diff and the message "reads a bolded header
+        # differently". It failed that way intermittently under load, which is
+        # the same mistake this module is about one level up: a difference you
+        # created yourself is not evidence.
+        self.assertEqual(r.returncode, 0,
+                         f"{name} exited {r.returncode}: {r.stderr[-400:]}")
         try:
             payload = json.loads(r.stdout)
-        except json.JSONDecodeError:
-            return {"rc": r.returncode, "stdout": r.stdout}
+        except json.JSONDecodeError as exc:
+            self.fail(f"{name} produced no JSON ({exc}): "
+                      f"{r.stdout[:200]!r} / {r.stderr[-300:]!r}")
         # **Every** absolute path is scrubbed, not three named keys. The two
         # fixtures live in different temp directories, so a path anywhere in
         # the payload differs for a reason that has nothing to do with header

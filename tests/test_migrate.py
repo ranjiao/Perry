@@ -1578,5 +1578,87 @@ class TestAReadOnlyFileDoesNotCrashPlanning(unittest.TestCase):
         self.assertIn("> Id:", p.text("knowledge/research/a.md"))
 
 
+class TestEveryWriteSiteIsGuarded(unittest.TestCase):
+    """**Three rounds each guarded the site it had seen, not the class.**
+
+    Round 1 caught the edit loop. Round 2 found the crash was one stage
+    upstream, in planning's scratch mirror. Round 3 stopped guessing and
+    **enumerated all five places migration writes to a project** — and found
+    three of them unguarded, including the recovery path itself.
+
+    That enumeration is the fix, not the three patches. This test is it, made
+    standing: every call that writes must sit inside an `OSError` handler, so a
+    sixth write site cannot be added unguarded without failing here.
+
+    The axis all three rounds missed until the enumeration: a read-only
+    **directory**, not a read-only file. `write_atomic` renames, and a rename
+    needs write permission on the *directory* — which is why every existing
+    test, all driving read-only through a file, passed throughout.
+    """
+
+    #: Attribute/function names whose call puts bytes into the user's project.
+    WRITES = {"write_atomic", "declare", "restore_point", "undo", "unlink",
+              "write_text", "chmod", "replace", "mkdir"}
+
+    #: Functions that ARE the guarded body — the `try` is around their callers,
+    #: so calls inside them are covered by that.
+    INSIDE_GUARDED = {"write_atomic", "undo", "restore_point", "render",
+                      "cross_file_delta", "main"}
+
+    @staticmethod
+    def _name(node):
+        f = node.func
+        return getattr(f, "attr", None) or getattr(f, "id", None)
+
+    def _scan(self):
+        """AST, not a text scan.
+
+        The first version grepped lines and flagged the module docstring, which
+        quotes `path.write_text(...)` while explaining the design. A guard that
+        reports prose is one people switch off.
+        """
+        import ast
+        src = (PERRY_HOME / "bin" / "perry-migrate").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        out = []
+        for fn in ast.walk(tree):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if fn.name in self.INSIDE_GUARDED:
+                continue
+            guarded = set()
+            for t in ast.walk(fn):
+                if isinstance(t, ast.Try) and any(
+                        h.type is not None for h in t.handlers):
+                    for body_node in t.body:
+                        for inner in ast.walk(body_node):
+                            guarded.add(id(inner))
+            for call in ast.walk(fn):
+                if isinstance(call, ast.Call) and self._name(call) in self.WRITES:
+                    if id(call) not in guarded:
+                        out.append(f"perry-migrate:{call.lineno} in "
+                                   f"{fn.name}(): {self._name(call)}()")
+        return out
+
+    def test_every_project_write_sits_inside_an_oserror_handler(self):
+        unguarded = self._scan()
+        self.assertEqual(
+            unguarded, [],
+            "these write to the user's project outside a `try`, so a "
+            "permission or a full disk becomes a traceback instead of a "
+            "refusal naming the restore point:\n  " + "\n  ".join(unguarded))
+
+    def test_the_scan_finds_the_writes_that_are_there(self):
+        """Anti-vacuity. If the scan matched nothing, the test above would pass
+        by finding no writes at all — which is how a guard becomes ceremony."""
+        import ast
+        src = (PERRY_HOME / "bin" / "perry-migrate").read_text(encoding="utf-8")
+        found = {self._name(c) for c in ast.walk(ast.parse(src))
+                 if isinstance(c, ast.Call) and self._name(c) in self.WRITES}
+        self.assertGreaterEqual(len(found), 4,
+                                f"the scan sees almost no writes: {found}")
+        self.assertIn("write_atomic", found)
+
+
 if __name__ == "__main__":
     unittest.main()
