@@ -109,7 +109,7 @@ Perry — virtual project office. One command: /perry
   /perry work <sub>      Execution stewardship (alias: /perry pmo) (BOARD, journal, dispatch, cadence)
             Use when: standup, planning the week, delegating to agents,
             tracking blockers, writing weekly status, phase rollover.
-            Common: triage, plan-week, dispatch, friday-review, handoff
+            Common: triage, plan-week, dispatch, review, friday-review, handoff
             Full list: /perry help work
 
   /perry decide <sub>    Design-doc / RFC / decision stewardship (alias: /perry design) (locked decisions before building)

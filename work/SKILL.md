@@ -61,6 +61,8 @@ Three deterministic scripts back this file and are worth knowing before anything
 
 When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
+**A row whose `Verification` is `V4` cannot be closed from this file.** V4 means *a fresh reviewer ran against written criteria*, and neither half can be produced by the session that wrote the code — that is the rung's entire content. `close-task` sends it to `reference/review.md`, which refuses without a criteria file and returns a verdict block `perry-lint --reviews` can read. Perry ran ten V4 rounds in one night with no convention and they spelled the verdict five different ways; rows then sat at `review` after their review had already failed, and it was the user who noticed rather than any check.
+
 ## Companion skill
 
 Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `DECISIONS.md` and `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
