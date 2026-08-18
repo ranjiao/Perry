@@ -305,6 +305,21 @@ class TopRisk:
     opened: str = ""            # YYYY-MM-DD, stamped by `perry-task risk-add`
     status: str = ""            # the raw `Status` cell; "" on a bullet
     cleared_on: str = ""        # YYYY-MM-DD parsed out of a cleared status
+    # ── the magnitude a human wrote (TASK-058) ────────────────────────────
+    # `severity` above is a STANCE — what we decided to do about the risk —
+    # and it is read out of prose words like `TOP RISK` and `ACCEPT`. It is
+    # not the H/M/L a person writes at the front of a bullet, and folding the
+    # two into one field is why `H · …` and `M · …` on a real board both
+    # arrived as `watch`: the letter was consumed as an ID and the stance
+    # heuristic, finding no stance word, defaulted.
+    #
+    # Two axes, because they answer different questions. `severity_text` is
+    # the marker verbatim (`H`, `🔴`) so a consumer can render exactly what the
+    # project wrote; `severity_rank` normalizes it to `high`/`medium`/`low` so
+    # the same consumer can sort. Both are `""` when the line carries no
+    # marker, which is most of them.
+    severity_text: str = ""
+    severity_rank: str = ""     # 'high' | 'medium' | 'low' | ''
 
     @property
     def resolved(self) -> bool:
@@ -1525,6 +1540,51 @@ def _risk_severity(body: str, resolved: bool) -> str:
     return "watch"
 
 
+#: The magnitude markers real boards put at the front of a risk line, and the
+#: rank each one means. Measured, not invented: `H · …` / `M · …` is aimark's
+#: board and `🔴 …` is gimegime-pmo's — the two projects TASK-040 checked, and
+#: the reason `_risk_severity` reads prose rather than a `Severity` column.
+#: The CJK forms are here because `reference/i18n.md` says a board may be
+#: written in the project's own language and a marker table that only speaks
+#: English would silently rank those boards as unmarked.
+_SEVERITY_RANKS = {
+    "H": "high", "M": "medium", "L": "low",
+    "高": "high", "中": "medium", "低": "low",
+    "🔴": "high", "🟡": "medium", "🟠": "medium", "🟢": "low",
+}
+
+#: A marker only counts when it stands ALONE as the first token — a separator
+#: or whitespace has to follow it. `H · Apple …` and `🔴 9/1 ADR-010 …` are
+#: marked lines; `Hostname resolution is flaky` and `H2 database migration`
+#: are not, because the character after the `H` is a letter or a digit. That
+#: boundary is the whole safety argument: without it this becomes the same
+#: over-eager first-token guess that put `id: "Perry"` into a payload.
+_RE_SEVERITY_MARKER = re.compile(
+    r"^(?P<marker>[HML]|[高中低]|[🔴🟡🟠🟢])(?:\s*[·•・:：\-—–]\s*|\s+)(?=\S)"
+)
+
+
+def split_severity_marker(text: str) -> tuple[str, str, str]:
+    """`("H", "high", "Apple developer agreement expired")`.
+
+    Returns `("", "", text)` unchanged when the line carries no marker, which
+    is the common case and must cost the caller nothing.
+
+    This exists because the marker was being read as the risk's ID. On a real
+    board `- H · Apple developer agreement expired — notarized builds blocked`
+    arrived as `{"id": "H", "title": "· Apple developer agreement expired",
+    "severity": "watch"}`: the letter became the handle, the separator stayed
+    glued to the front of the title, and the one thing the human actually
+    said about severity was thrown away. Three defects, one cause — nothing
+    told the parser that the first token was a severity marker.
+    """
+    m = _RE_SEVERITY_MARKER.match(text.strip())
+    if not m:
+        return "", "", text
+    marker = m.group("marker")
+    return marker, _SEVERITY_RANKS.get(marker, ""), text.strip()[m.end():].strip()
+
+
 def _has_risk_header(section: str) -> bool:
     """Whether any table in `section` declares a risk-statement column.
 
@@ -1587,10 +1647,18 @@ def _parse_risk_table(section: str) -> list[TopRisk] | None:
             d = _RE_ISO_DATE.search(clean_status)
             cleared_on = d.group(0) if d else ""
         pct = _RE_PCT.search(statement)
+        # DETECTED, not stripped. A table's `Risk` cell comes back whole —
+        # `test_the_statement_is_never_split_into_an_id_and_a_remainder` is the
+        # guard on that, and it is the promise that distinguishes the table
+        # form from the bullet guessing it replaced. So a marker written into
+        # a table cell still ranks the row, and still leaves `title` verbatim.
+        sev_text, sev_rank, _ = split_severity_marker(statement)
         out.append(TopRisk(
             id=rid or "?",
             title=statement,
             severity=_risk_severity(statement, resolved),
+            severity_text=sev_text,
+            severity_rank=sev_rank,
             meta=statement,
             value=float(pct.group(1)) if pct else None,
             source="table",
@@ -1642,6 +1710,20 @@ def parse_top_risks(text: str) -> list[TopRisk]:
         # (keep the original body for the meta field).
         clean = re.sub(r"~~([^~]*)~~", r"\1", body).strip()
 
+        # A leading severity marker comes off BEFORE anything looks for an id.
+        # It is read both bare (`- H · …`) and inside the bold chunk the id
+        # scan targets (`- **🔴 9/1 ADR-010 …**`), and both forms were feeding
+        # the marker to `short_id`. Taking it here means the id/title logic
+        # below sees the sentence a human wrote, not the label in front of it.
+        sev_text, sev_rank, clean = split_severity_marker(clean)
+        if not sev_text:
+            bold = re.match(r"\*\*\s*([^*]+?)\s*\*\*", clean)
+            if bold:
+                inner_text, inner_rank, inner_rest = split_severity_marker(bold.group(1))
+                if inner_text:
+                    sev_text, sev_rank = inner_text, inner_rank
+                    clean = f"**{inner_rest}**" + clean[bold.end():]
+
         # ID extraction: first **bold** chunk that's NOT a status word.
         STATUS_BOLDS = {"resolved", "new", "approve", "rejected"}
         id_match = None
@@ -1671,10 +1753,24 @@ def parse_top_risks(text: str) -> list[TopRisk]:
                 after = after.split(" — ")[0].split("·")[0].strip()
                 title = after or title
         else:
-            # No useful bold: fall back to first space-separated token.
+            # No bold at all: THE WHOLE LINE IS THE STATEMENT.
+            #
+            # This used to take the first space-separated token as an id and
+            # publish the remainder as the title, which meant every unbolded
+            # bullet lost its first word. `- H · Apple developer agreement
+            # expired` reported `Apple` as the id and `· Apple` was never in
+            # the title at all; `- Perry is half-adopted: …` reported `Perry`.
+            # `test_the_statement_is_never_split_into_an_id_and_a_remainder`
+            # already states the rule for the table form — "a sentence is not
+            # a record" — and the bullet form is where the sentence actually
+            # lives. Now that a bullet publishes no id, the split has nothing
+            # left to produce and only ever cost a word.
+            #
+            # The trailing-detail split stays: `statement — elaboration` is a
+            # real convention on these lines and the title is the first half.
             first_word = re.match(r"(\S+)", clean)
             short_id = first_word.group(1).rstrip(",.:;") if first_word else "?"
-            title = clean[len(short_id):].strip().split(" — ")[0].strip()
+            title = clean.split(" — ")[0].strip()
 
         meta = body
         # value: first percentage in line
@@ -1685,9 +1781,18 @@ def parse_top_risks(text: str) -> list[TopRisk]:
 
         risks.append(
             TopRisk(
-                id=short_id,
+                # A BULLET HAS NO ID, and saying so is the honest answer.
+                # `short_id` is the first word of somebody's sentence — this
+                # class's own docstring calls it meaningless, and the reader
+                # tests say the same — so publishing it under the same key a
+                # table's minted `RX-001` uses invites a consumer to treat the
+                # two alike. `source` already says which form this came from;
+                # `""` is what that means for the handle.
+                id="",
                 title=title or short_id,
                 severity=sev,
+                severity_text=sev_text,
+                severity_rank=sev_rank,
                 meta=meta,
                 value=value,
             )
@@ -2497,11 +2602,25 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         top_risks = parse_top_risks(board_text)
     else:
         top_risks = parse_top_risks(board_text) + parse_top_risks(project_state_text)
+    # A BULLET HAS NO ID, AND A RISK MUST NEVER BE DROPPED FOR THAT.
+    #
+    # This read `if key and key not in seen`, so a risk with a falsy id was
+    # silently discarded. That branch was unreachable only because the bullet
+    # parser invented an id out of the first word of the sentence — the very
+    # invention TASK-058 removed — and the moment it stopped, "no id" became
+    # "no risks at all" for every unmigrated project. The whole two-file merge
+    # above went to zero.
+    #
+    # So the key falls back to the statement for a row that has no handle,
+    # which is also what the invented id was approximating: the first word of
+    # a sentence is a very coarse hash of that sentence. Prefixed, so a
+    # statement can never collide with a minted `RX-001`.
     seen: set[str] = set()
     deduped: list[TopRisk] = []
     for r in top_risks:
-        key = (r.id or "").lower()
-        if key and key not in seen:
+        key = (r.id or "").lower() or \
+            "stmt:" + " ".join((r.title or r.meta or "").split()).lower()
+        if key not in seen:
             seen.add(key)
             deduped.append(r)
 

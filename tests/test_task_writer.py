@@ -1325,9 +1325,22 @@ class TestListContract(unittest.TestCase):
         "stage", "stage_since", "arrived", "parent", "commitment",
         "next_action", "evidence", "evidence_paths", "verification", "open",
         "group", "status_text", "created", "updated", "timeline",
+        # 1.6 — the dependency edge, and the one question a dashboard asks.
+        "depends_on", "blocked_by", "blocks", "startable",
     }
     TOP_KEYS = {"contract", "project_root", "state_root", "conformance",
-                "intake", "tasks", "open", "closed", "events", "untitled"}
+                "intake", "tasks", "open", "closed", "events", "untitled",
+                # 1.6 — the three blocks that were readable only through
+                # `perry-state --json`, the payload with no version.
+                "risks", "asks", "drift"}
+    RISKS_KEYS = {"items", "open", "cleared", "source"}
+    RISK_KEYS = {"id", "title", "severity", "severity_text", "severity_rank",
+                 "source", "opened", "age_days", "status", "cleared_on", "meta"}
+    ASKS_KEYS = {"items", "open"}
+    ASK_KEYS = {"id", "needed", "blocks", "asked", "idle", "idle_days",
+                "status", "priority"}
+    DRIFT_KEYS = {"checked", "baseline", "drift", "unrecorded",
+                  "unrecorded_sample", "orphaned", "stale_done"}
     INTAKE_KEYS = {"rows", "undischarged", "oldest_undischarged"}
     INTAKE_ROW_KEYS = {"n", "arrived", "request", "outcome", "discharged",
                        "age_days"}
@@ -1335,7 +1348,9 @@ class TestListContract(unittest.TestCase):
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
                         "rows_with_no_computable_age",
-                        "next_action_cites_closed", "has_event_log"}
+                        "next_action_cites_closed",
+                        "depends_on_unknown", "dependency_cycles",
+                        "blocked_without_dependency", "has_event_log"}
     EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
 
     TRACKS = TestModeAwareWrites.TRACKS
@@ -1382,6 +1397,9 @@ class TestListContract(unittest.TestCase):
                          f"extra {set(d) - self.TOP_KEYS}")
         self.assertEqual(set(d["conformance"]), self.CONFORMANCE_KEYS)
         self.assertEqual(set(d["intake"]), self.INTAKE_KEYS)
+        self.assertEqual(set(d["risks"]), self.RISKS_KEYS)
+        self.assertEqual(set(d["asks"]), self.ASKS_KEYS)
+        self.assertEqual(set(d["drift"]), self.DRIFT_KEYS)
 
     def test_open_means_still_on_the_board_not_a_status_value(self):
         """The contract says `open` is the live/closed test, not `status` —
@@ -1531,7 +1549,9 @@ class TestListContract(unittest.TestCase):
         self.assertIn(PT.LIST_CONTRACT, doc, "the doc names a different version")
         documented = set(re.findall(r"^\| `(\w+)` \|", doc, re.M))
         known = (self.TASK_KEYS | self.EVENT_KEYS | self.CONFORMANCE_KEYS
-                 | self.INTAKE_KEYS | self.INTAKE_ROW_KEYS)
+                 | self.INTAKE_KEYS | self.INTAKE_ROW_KEYS
+                 | self.RISKS_KEYS | self.RISK_KEYS
+                 | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "
@@ -3554,6 +3574,376 @@ class TestOneCellWriterNotFour(unittest.TestCase):
         self.assertEqual("evidence/2026-08/x.md", self.cell(p, a["id"], "evidence"))
         self.assertEqual("not_started", self.cell(p, a["id"], "status"),
                          "repairing a cell closed the row")
+
+
+
+class TestADependencyIsQueryable(unittest.TestCase):
+    """TASK-063. `blocked` said a row was stopped and never said on what.
+
+    Found by the user running `perry-task list` and seeing a pile of rows with
+    no way to tell which could be advanced. Three facts made it unanswerable:
+    `add --depends` wrote free text into the journal's definition block, once,
+    at creation, never updatable; `status --status blocked` refused without
+    `--reason` on the stated ground that "a blocked row with no named
+    dependency is a row nobody can unblock" and then put that dependency into
+    prose; and `subcommands.md` told triage to find "the same dependency cited
+    in >= 2 rows" over data nothing could read.
+    """
+
+    def payload(self, p, *extra) -> dict:
+        _, out = p.run("list", "--all", *extra)
+        return out
+
+    def task(self, p, tid, *extra) -> dict:
+        return next(t for t in self.payload(p, *extra)["tasks"] if t["id"] == tid)
+
+    def two(self, p) -> tuple[str, str]:
+        _, a = p.run("add", "--title", "first", "--priority", "P0")
+        _, b = p.run("add", "--title", "second", "--priority", "P0")
+        return a["id"], b["id"]
+
+    # ── the edge is on the board, not in the log ──────────────────────────
+
+    def test_the_edge_survives_deleting_the_event_log(self):
+        """The log is DERIVED AND DISPOSABLE. `mode` already cost this project
+        one released contract for reading a value out of it: deleting
+        `.perry/events.jsonl` blanked the field for every row on the board."""
+        p = Project()
+        a, b = self.two(p)
+        self.assertEqual(0, p.run("depends", b, "--on", a)[0])
+        (p.root / ".perry" / "events.jsonl").unlink()
+        self.assertEqual([a], self.task(p, b)["depends_on"],
+                         "the edge lived in the disposable half")
+
+    def test_the_cell_is_what_the_reader_reads(self):
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        self.assertIn("Depends on", p.board())
+        self.assertIn(a, p.board().split("\n")[
+            next(i for i, l in enumerate(p.board().split("\n")) if l.startswith(f"| {b} "))])
+
+    # ── the four keys ─────────────────────────────────────────────────────
+
+    def test_blocked_by_names_the_unfinished_half_and_blocks_is_the_reverse(self):
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        self.assertEqual([a], self.task(p, b)["blocked_by"])
+        self.assertEqual([b], self.task(p, a)["blocks"],
+                         "closing a row does not say what it frees up")
+
+    def test_a_satisfied_dependency_leaves_blocked_by_and_stays_in_depends_on(self):
+        """Both halves matter. A dependency that vanished when it was met would
+        delete the record of why the row waited; one that kept blocking would
+        make `startable` never true."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
+        t = self.task(p, b)
+        self.assertEqual([a], t["depends_on"], "the satisfied edge was erased")
+        self.assertEqual([], t["blocked_by"])
+        self.assertTrue(t["startable"])
+
+    def test_a_dependency_may_point_at_a_closed_task(self):
+        """It has to: `done` removes the row, so refusing ids that are no
+        longer on the board would mean every satisfied dependency had to be
+        deleted from the record in order to be written at all."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
+        self.assertEqual(0, p.run("depends", b, "--on", a)[0],
+                         "an edge onto finished work was refused")
+        self.assertEqual([], self.task(p, b)["blocked_by"])
+
+    def test_an_id_this_payload_does_not_carry_counts_as_unsatisfied(self):
+        """"I do not know" is not "it is done". Reporting such a row startable
+        is the one error that sends somebody to work on something blocked."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", "DESIGN-006")
+        t = self.task(p, b)
+        self.assertEqual(["DESIGN-006"], t["blocked_by"])
+        self.assertFalse(t["startable"])
+        self.assertEqual([{"id": b, "unknown": ["DESIGN-006"]}],
+                         self.payload(p)["conformance"]["depends_on_unknown"])
+
+    def test_the_edge_is_one_hop_and_not_the_transitive_closure(self):
+        """A waits on B, B waits on C. A's answer is B and only B — A becomes
+        startable the moment B closes, and B's history is not A's business."""
+        p = Project()
+        _, a = p.run("add", "--title", "A", "--priority", "P0")
+        _, b = p.run("add", "--title", "B", "--priority", "P0")
+        _, c = p.run("add", "--title", "C", "--priority", "P0")
+        p.run("depends", a["id"], "--on", b["id"])
+        p.run("depends", b["id"], "--on", c["id"])
+        self.assertEqual([b["id"]], self.task(p, a["id"])["blocked_by"])
+
+    def test_blocks_is_computed_before_the_track_and_all_filters(self):
+        """A row you filtered out still blocks the rows that name it. A graph
+        that changed with the caller's flags would be a different graph per
+        query."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        p.run("done", b, "--evidence", "e.md", "--rung", "V3")
+        without_all = next(t for t in self.payload(p, )["tasks"] if t["id"] == a)
+        _, out = p.run("list")
+        live = next(t for t in out["tasks"] if t["id"] == a)
+        self.assertEqual([b], live["blocks"],
+                         "a closed dependant disappeared from `blocks` when "
+                         "the caller asked for open work only")
+        self.assertEqual([b], without_all["blocks"])
+
+    # ── startable: the question a dashboard asks ──────────────────────────
+
+    def test_startable_is_false_for_a_row_whose_own_status_says_it_is_waiting(self):
+        """The user's actual complaint: a pile of `review` rows read as work
+        that could be picked up. This holds on a board with no declared edge on
+        it at all, which is every board that predates 1.6."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("status", a, "--status", "review")
+        p.run("status", b, "--status", "blocked", "--reason", "waiting on Apple")
+        self.assertFalse(self.task(p, a)["startable"], "a review row read as startable")
+        self.assertFalse(self.task(p, b)["startable"])
+
+    def test_startable_is_false_for_a_closed_row(self):
+        p = Project()
+        a, _ = self.two(p)
+        p.run("done", a, "--evidence", "e.md", "--rung", "V3")
+        self.assertFalse(self.task(p, a)["startable"])
+
+    def test_startable_is_true_for_open_unblocked_work(self):
+        p = Project()
+        a, _ = self.two(p)
+        self.assertTrue(self.task(p, a)["startable"])
+
+    # ── cycles ────────────────────────────────────────────────────────────
+
+    def test_a_cycle_is_refused_at_write_time(self):
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        code, out = p.run("depends", a, "--on", b)
+        self.assertEqual(1, code)
+        self.assertIn("cycle", out["refused"])
+
+    def test_a_row_cannot_depend_on_itself(self):
+        p = Project()
+        a, _ = self.two(p)
+        code, out = p.run("depends", a, "--on", a)
+        self.assertEqual(1, code)
+        self.assertIn("itself", out["refused"])
+
+    def test_a_cycle_already_on_a_hand_edited_board_is_reported_not_refused(self):
+        """A board is hand-editable by design (DESIGN-004 decision 5). A reader
+        that refused a state a human can legitimately create is a reader that
+        stops working."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        p.run("depends", a, "--on", "TASK-999")
+        board = p.board().replace("| TASK-999 |", f"| {b} |")
+        board = board.replace("TASK-999", b)
+        (p.root / "BOARD.md").write_text(board)
+        d = self.payload(p)
+        cycles = d["conformance"]["dependency_cycles"]
+        self.assertTrue(cycles, "a loop on the board was not reported")
+        self.assertEqual({a, b}, set(cycles[0]))
+        self.assertFalse(any(t["startable"] for t in d["tasks"]),
+                         "a row inside a dependency loop read as startable")
+
+    # ── the write paths ───────────────────────────────────────────────────
+
+    def test_blocked_is_satisfied_by_on_as_well_as_by_reason(self):
+        """The refusal was right and the answer landed in prose. `--on` makes
+        the same demand and reaches the payload."""
+        p = Project()
+        a, b = self.two(p)
+        code, _ = p.run("status", b, "--status", "blocked", "--on", a)
+        self.assertEqual(0, code)
+        self.assertEqual([a], self.task(p, b)["depends_on"])
+
+    def test_blocked_with_neither_on_nor_reason_is_still_refused(self):
+        p = Project()
+        a, _ = self.two(p)
+        code, out = p.run("status", a, "--status", "blocked")
+        self.assertEqual(1, code)
+        self.assertIn("unblock", out["refused"])
+
+    def test_add_depends_writes_a_cell_and_not_only_journal_prose(self):
+        p = Project()
+        a, _ = self.two(p)
+        _, b = p.run("add", "--title", "later", "--priority", "P0",
+                     "--depends", a)
+        self.assertEqual([a], self.task(p, b["id"])["depends_on"],
+                         "--depends still only reached the journal")
+        self.assertIn(f"- **Dependencies**: {a}", p.journal())
+
+    def test_prose_in_the_dependency_flag_is_refused(self):
+        """Free text here would rebuild, one column to the right, the very
+        unreadable `- **Dependencies**: <free text>` line this replaces."""
+        p = Project()
+        a, _ = self.two(p)
+        code, out = p.run("depends", a, "--on", "waiting for the design review")
+        self.assertEqual(1, code)
+        self.assertIn("not an id", out["refused"])
+
+    def test_clear_records_that_a_row_waits_on_nothing(self):
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        self.assertEqual(0, p.run("depends", b, "--clear")[0])
+        self.assertEqual([], self.task(p, b)["depends_on"])
+
+    def test_declaring_the_same_edge_twice_is_refused_as_a_no_op(self):
+        p = Project()
+        a, b = self.two(p)
+        p.run("depends", b, "--on", a)
+        code, _ = p.run("depends", b, "--on", a)
+        self.assertEqual(1, code)
+
+    # ── the migration worklist ────────────────────────────────────────────
+
+    def test_a_blocked_row_with_no_declared_edge_is_named(self):
+        """The honest measure of how far the backfill has got. On Perry's own
+        board this is every blocked row: their dependency is prose inside
+        `Next action`, where nothing can read it."""
+        p = Project()
+        a, b = self.two(p)
+        p.run("status", a, "--status", "blocked", "--reason", "waiting on Apple")
+        p.run("status", b, "--status", "blocked", "--on", a)
+        c = self.payload(p)["conformance"]
+        self.assertEqual([a], c["blocked_without_dependency"])
+
+    def test_a_cell_a_project_wrote_in_its_own_language_is_read(self):
+        """`reference/i18n.md`: a board may be written in the project's own
+        language, and a column table that only speaks English would report
+        every such row as declaring nothing — which reads as `startable`."""
+        p = Project()
+        a, b = self.two(p)
+        board = p.board().replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n"
+            "|---|---|---|---|---|---|\n"
+            f"| {a} ", "| ID | Title | Owner | Status | Next action | Evidence | 依赖 |\n"
+            "|---|---|---|---|---|---|---|\n"
+            f"| {a} ", 1)
+        board = board.replace(f"| {a} | first | Coding Agent | not_started | — | — |",
+                              f"| {a} | first | Coding Agent | not_started | — | — | {b} |")
+        (p.root / "BOARD.md").write_text(board)
+        self.assertEqual([b], self.task(p, a)["depends_on"],
+                         "a `依赖` column was invisible to the reader")
+
+
+class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
+    """TASK-058. `risks`, `asks` and `drift` — written by `perry-task`, and
+    readable until 1.6 only through `perry-state --json`, the one payload that
+    carries no version at all. `## User Input Queue` is the *needs-you* list.
+    """
+
+    def payload(self, p) -> dict:
+        _, out = p.run("list", "--all")
+        return out
+
+    def test_an_ask_carries_an_integer_age_beside_the_rendered_string(self):
+        """`idle` was `"9d"` — displayable, unsortable. The needs-you list is
+        what a dashboard sorts on."""
+        p = Project()
+        _, u = p.run("ask", "--needed", "the signing certificate",
+                     "--arrived", "2020-01-01")
+        item = next(a for a in self.payload(p)["asks"]["items"] if a["id"] == u["id"])
+        self.assertIsInstance(item["idle_days"], int)
+        self.assertGreater(item["idle_days"], 1000)
+
+    def test_an_answered_ask_is_not_in_the_needs_you_list(self):
+        """One shared predicate decides this. Counting answered rows is how a
+        dashboard came to say "2 items waiting on you" about two questions
+        answered the same day."""
+        p = Project()
+        _, u = p.run("ask", "--needed", "a decision")
+        self.assertEqual(1, self.payload(p)["asks"]["open"])
+        p.run("answer", u["id"], "--answer", "yes")
+        self.assertEqual(0, self.payload(p)["asks"]["open"])
+
+    def test_a_bullet_risk_does_not_report_its_severity_letter_as_an_id(self):
+        """Measured: `- H · Apple developer agreement expired` arrived as
+        `{"id": "H", "title": "· Apple …", "severity": "watch"}`. Three defects,
+        one cause — nothing told the parser the first token was a marker."""
+        p = Project()
+        board = p.board().replace(
+            "## Top risks\n\n- none",
+            "## Top risks\n\n- H · Apple developer agreement expired")
+        (p.root / "BOARD.md").write_text(board)
+        r = self.payload(p)["risks"]["items"][0]
+        self.assertEqual("", r["id"], "the severity letter was published as an id")
+        self.assertEqual("Apple developer agreement expired", r["title"])
+        self.assertEqual("H", r["severity_text"])
+        self.assertEqual("high", r["severity_rank"])
+
+    def test_two_risks_a_human_ranked_differently_are_ranked_differently(self):
+        """`severity` is the STANCE and is `watch` for both. The magnitude the
+        project wrote is a second axis, and folding them into one is what made
+        an H and an M display identically."""
+        p = Project()
+        board = p.board().replace(
+            "## Top risks\n\n- none",
+            "## Top risks\n\n- H · certificate expired\n- L · docs are thin")
+        (p.root / "BOARD.md").write_text(board)
+        ranks = [r["severity_rank"] for r in self.payload(p)["risks"]["items"]]
+        self.assertEqual(["high", "low"], ranks)
+
+    def test_a_risk_line_with_no_marker_keeps_its_first_word(self):
+        """The narrowing check. A guard written around `H` alone would let a
+        parser eat the first word of every unmarked sentence — which is what it
+        used to do: `- Perry is half-adopted` reported `id: "Perry"`."""
+        p = Project()
+        board = p.board().replace(
+            "## Top risks\n\n- none",
+            "## Top risks\n\n- Hostname resolution is flaky in CI")
+        (p.root / "BOARD.md").write_text(board)
+        r = self.payload(p)["risks"]["items"][0]
+        self.assertEqual("Hostname resolution is flaky in CI", r["title"])
+        self.assertEqual("", r["severity_text"])
+
+    def test_two_risks_with_no_id_both_survive_the_merge(self):
+        """The dedup key was the id, so a risk with a falsy one was silently
+        discarded — unreachable only while the parser was inventing ids out of
+        first words. Removing the invention would have taken every bullet risk
+        on every unmigrated project to zero."""
+        p = Project()
+        board = p.board().replace(
+            "## Top risks\n\n- none",
+            "## Top risks\n\n- H · certificate expired\n- M · vendor is late")
+        (p.root / "BOARD.md").write_text(board)
+        self.assertEqual(2, self.payload(p)["risks"]["open"])
+
+    def test_drift_reports_a_row_the_tool_never_wrote(self):
+        p = Project()
+        p.run("add", "--title", "written by the tool", "--priority", "P0")
+        board = p.board().replace(
+            "## P1", "| HAND-001 | typed in by hand | User | not_started | — | — |\n\n## P1", 1)
+        (p.root / "BOARD.md").write_text(board)
+        d = self.payload(p)["drift"]
+        self.assertTrue(d["checked"])
+        self.assertEqual(1, d["unrecorded"])
+        self.assertIn("HAND-001", d["unrecorded_sample"])
+
+    def test_a_project_with_no_event_log_reports_drift_unchecked_not_broken(self):
+        p = Project()
+        d = self.payload(p)["drift"]
+        self.assertFalse(d["checked"])
+        self.assertEqual(0, d["drift"])
+
+    def test_the_three_blocks_are_present_on_a_board_that_has_none_of_them(self):
+        """Rule 1 of the contract: an unknown value is `""`, `null` or `[]`,
+        never a missing key."""
+        p = Project(board=BOARD.split("## Cadence")[0])
+        d = self.payload(p)
+        self.assertEqual([], d["risks"]["items"])
+        self.assertEqual([], d["asks"]["items"])
+        self.assertEqual(0, d["asks"]["open"])
 
 
 if __name__ == "__main__":
