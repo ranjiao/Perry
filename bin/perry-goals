@@ -232,7 +232,15 @@ def append_separator_cell(line: str) -> str:
     """
     spans = cell_spans(line)
     last = line[spans[-1][0]:spans[-1][1]] if spans else " --- "
-    return line.rstrip() + last + "|"
+    body = line.rstrip()
+    # **A separator row need not end in `|` either.** This assumed one where
+    # `append_cell` explicitly handles its absence, so widening a table written
+    # without trailing pipes produced a 7-cell header, a 6-cell separator and
+    # 7-cell rows — rc 0, no warning, and `perry-lint` silent. The two halves
+    # of one widen have to make the same assumption or the widen is not atomic.
+    if not body.endswith("|") or body.endswith("\\|"):
+        return body + "|" + last + "|"
+    return body + last + "|"
 
 
 class Okr:
@@ -1181,6 +1189,25 @@ def cmd_commit(args, ctx) -> dict:
                     f"Nothing was written")
             check_by_when(track_named(ctx["tracks"], row.get("Track", "")), args.by)
             changes["By when"] = args.by
+        # **Whitespace-only is a refusal on create and was an ERASE on amend.**
+        # `--promise '   '` was rejected outright by the create branch and
+        # silently wiped the cell here, because this path tested `is not None`
+        # where the other tests `.strip()`. The user's promise text was gone,
+        # the event recorded the spaces, and nothing said so. Same tool, same
+        # value, two answers — the defect this whole task is about, one flag
+        # further along.
+        #
+        # `--discharged-by ''` is deliberately NOT swept in: clearing it is how
+        # a mistaken discharge is undone, and there is no other way to say
+        # "this is not discharged after all".
+        for _flag, _column in (("promise", "Promise"), ("to", "To whom")):
+            _v = getattr(args, _flag)
+            if _v is not None and not _v.strip():
+                raise Refused(
+                    f"--{_flag} was given only whitespace, which would erase "
+                    f"the {_column} cell rather than change it. Pass the new "
+                    f"text, or use --close / --miss to retire the row. "
+                    f"Nothing was written")
         if args.promise is not None:
             changes["Promise"] = args.promise
         if args.to is not None:

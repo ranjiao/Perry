@@ -1040,6 +1040,38 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                 self.assertEqual(p.okr_path.read_bytes(),
                                  before, "a refusal wrote to the file")
 
+    def test_whitespace_only_is_refused_rather_than_erasing_the_cell(self):
+        """Refused on create, **silently erasing** on amend — the same shape as
+        the line-break defect, one flag further along.
+
+        The create branch tests `(args.promise or "").strip()`; the amend
+        branch tested `is not None`. So `--promise '   '` was rejected outright
+        by one subcommand and wiped the promise text by the other, with the
+        event recording the spaces and nothing saying so.
+
+        Asserted at CLI level and on the FILE, because the first version of
+        this test asserted that the guard's source construct existed — and
+        stayed green when the condition inside it was mutated to `if False:`.
+        """
+        for flag in ("--promise", "--to"):
+            with self.subTest(flag=flag):
+                p = self.project()
+                before = p.okr_path.read_bytes()
+                out = p.run("commit", "--id", "C-1", flag, "   ")
+                self.assertEqual(out.returncode, 1,
+                                 f"{flag} erased the cell: {out.stderr}")
+                self.assertEqual(p.okr_path.read_bytes(), before,
+                                 "a refusal wrote to the file")
+                self.assertIn("erase", (out.stderr + out.stdout).lower())
+
+    def test_a_real_edit_still_lands(self):
+        """A guard that refuses every amend is not a guard. The neighbouring
+        value must still be writable."""
+        p = self.project()
+        out = p.run("commit", "--id", "C-1", "--promise", "a new promise")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("a new promise", p.okr_path.read_text())
+
     def test_the_refusal_says_what_is_wrong_rather_than_collapsing(self):
         p = self.project()
         out = p.run("commit", "--id", "C-1", "--promise", self.MULTILINE)
