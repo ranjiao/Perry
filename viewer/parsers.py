@@ -249,6 +249,16 @@ class Task:
     priority: str = ""   # P0 / P1 / P2 / Cadence / Backbone
     status_note: str = ""  # parenthetical qualifier, e.g. "dev done" from "review (dev done)"
     verification: str = ""  # V0..V6 rung (DESIGN-003 § 5.3); "" = unrated
+    # **The two columns the non-`project` modes are defined by.** They were
+    # absent, so `bin/perry-state` — which reads the board through this class —
+    # could not see a row's track or stage at all, while `perry-task/list`
+    # parses both with its own row reader. Two readers of one board, and the
+    # one the standup and `triage` use dropped exactly the columns
+    # `modes/pipeline.md` and `modes/queue.md` measure. That is why the mode's
+    # own triage step ("stages at their WIP limit") could only be done by
+    # eyeballing a board the procedure forbids eyeballing.
+    track: str = ""
+    stage: str = ""
 
 
 @dataclass
@@ -712,8 +722,13 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             header = ([squash(c) for c in split_row(prev)]
                       if prev.strip().startswith("|") else [])
             idx = {}
+            # `Track` and `Stage` were absent from this list, so the two
+            # columns the non-`project` modes are DEFINED by resolved to -1 and
+            # every row read them as empty — while `perry-task/list`, with its
+            # own row reader, parsed both. The mode's own triage step could not
+            # run off this payload as a result.
             for name in ("ID", "Title", "Owner", "Status", "Next action",
-                         "Evidence", "Verification"):
+                         "Evidence", "Verification", "Track", "Stage"):
                 keys = _column_keys(name)
                 pos = next((i for i, h in enumerate(header) if h in keys), -1)
                 if pos >= 0:
@@ -759,6 +774,8 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
                 priority=priority,
                 status_note=status_note,
                 verification=cell("Verification", -1).replace("*", "").strip(),
+                track=cell("Track", -1),
+                stage=cell("Stage", -1),
             )
         )
     return tasks

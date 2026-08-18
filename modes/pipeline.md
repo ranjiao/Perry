@@ -112,7 +112,19 @@ is what `done` means", and queue's "`Arrived` is never lost" are all norms the
 agent upholds; none has a lint. WIP is the awkward one, because this mode calls
 it the central control. The checks a future release would build are: WIP
 overflow, an item in no stage, and a `done` row that never reached the terminal
-stage. Until then they are rules an agent follows, not rules a script catches.
+stage.
+
+**One of the three is now a rule a script catches.** `perry-state --json` →
+`project.config.tracks[].wip_breaches` names every stage at or over its declared
+limit, with the count and the limit, and `stage_counts` carries the whole
+distribution — so this mode's triage step 2 reads a number instead of asking an
+agent to eyeball a board the triage procedure forbids eyeballing. A track that
+declares no `WIP` reports counts and no breaches: silence is the right answer
+where the project made no promise.
+
+The other two — an item in no stage, a `done` row that never reached the
+terminal stage — are still norms the agent upholds. This paragraph is the
+record of which is which, and it moves one line at a time as they land.
 
 ## Stages, and why the vocabulary is declared per track
 

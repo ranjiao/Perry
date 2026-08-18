@@ -281,6 +281,82 @@ def track_columns() -> dict[str, tuple[str, ...]]:
 _NO_DEFAULT: dict[str, list[str]] | None = None
 
 
+def parse_wip(cell: str) -> dict[str, int]:
+    """`review:2, draft:5` → `{"review": 2, "draft": 5}`.
+
+    A limit PER STAGE, which is what `modes/pipeline.md § The mode contract`
+    declares; a bare number is not accepted, because the file says outright
+    that a positional grammar was considered and dropped — *"two grammars is one
+    parser too many"*.
+    """
+    out: dict[str, int] = {}
+    for part in re.split(r"[,;，、]+", cell or ""):
+        stage, _, limit = part.partition(":")
+        stage, limit = stage.strip().lower(), limit.strip()
+        if stage and limit.isdigit():
+            out[stage] = int(limit)
+    return out
+
+
+def wip_report(tracks: list[dict], tasks) -> None:
+    """Per-stage counts, and which stages are at or over their WIP limit.
+
+    **`modes/pipeline.md` calls WIP the mode's central control and then says
+    out loud that it has no check** — *"the checks a future release would build
+    are: WIP overflow, an item in no stage, and a `done` row that never reached
+    the terminal stage. Until then they are rules an agent follows, not rules a
+    script catches."* That concession was honest, and it left the mode's own
+    triage step 2 — "stages at their WIP limit" — doable only by eyeballing a
+    board the triage procedure forbids eyeballing.
+
+    This is the first of the three. It counts live rows per stage per track and
+    names every stage at or over its declared limit. A track that declares no
+    WIP reports counts and no breaches: silence is the right answer where the
+    project made no promise, and inventing a limit is the mistake
+    `no_default` exists to prevent.
+    """
+    live = [t for t in tasks if t.status not in {"done", "dropped"}]
+    for tr in tracks:
+        name = tr.get("track", "")
+        limits = parse_wip(tr.get("wip", ""))
+        counts: dict[str, int] = {}
+        for t in live:
+            if (t.track or "main") != (name or "main"):
+                continue
+            st = (t.stage or "").strip().lower()
+            if st:
+                counts[st] = counts.get(st, 0) + 1
+        tr["stage_counts"] = counts
+        tr["wip_breaches"] = [
+            {"stage": st, "count": counts.get(st, 0), "limit": lim}
+            for st, lim in sorted(limits.items())
+            if counts.get(st, 0) >= lim]
+
+
+def default_stages_for(mode: str) -> list[str]:
+    """A mode's default stage vocabulary, from the schema.
+
+    The same `work_modes.modes.<mode>.default_stages` `bin/perry-task §
+    default_stages` reads, so the reader and the writer cannot disagree about
+    where a row is born.
+    """
+    global _DEFAULT_STAGES
+    if _DEFAULT_STAGES is None:
+        try:
+            modes = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text()).get("work_modes") or {}
+            ).get("modes") or {}
+        except (OSError, ValueError):
+            modes = {}
+        _DEFAULT_STAGES = {m: split_stages((c or {}).get("default_stages", ""))
+                           for m, c in modes.items()}
+    return list(_DEFAULT_STAGES.get(mode, []))
+
+
+_DEFAULT_STAGES: dict[str, list[str]] | None = None
+
+
 def no_default_columns(mode: str) -> list[str]:
     """Columns this mode has no honest default for, from the schema.
 
@@ -356,7 +432,17 @@ def parse_tracks(text: str) -> list[dict]:
             "mode": (col("mode").lower() or "project"),
             "spine": col("spine"),
             "stages": col("stages"),
-            "stage_list": split_stages(col("stages")),
+            # **Effective**, not merely declared. A track that leaves
+            # `Stages` blank still HAS stages — its mode's default vocabulary,
+            # which is what `bin/perry-task § stages_of` uses to place every row
+            # it creates. Reporting `[]` said the track had no stage vocabulary
+            # while the writer was birthing rows into one: two readers of one
+            # register, two answers, and the mode's own triage step reads this
+            # side. `stages_declared` keeps the other question answerable.
+            "stage_list": (split_stages(col("stages"))
+                           or default_stages_for(col("mode").lower()
+                                                 or "project")),
+            "stages_declared": bool(split_stages(col("stages"))),
             "wip": col("wip"),
             "sla": col("sla"),
             "cycle": col("cycle"),
@@ -1026,6 +1112,13 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     open_states = {"not_started", "in_progress", "blocked", "review"}
     all_tasks = board.all_tasks
 
+    # Per-stage counts and WIP breaches, computed here because this is the first
+    # point that has both the track register and the board's rows. `triage`
+    # step 2 for a pipeline track reads it; without it the step was doable only
+    # by eyeballing a board the procedure forbids eyeballing.
+    _cfg_for_wip = parse_config(perry_root)
+    wip_report(_cfg_for_wip.get("tracks") or [], all_tasks)
+
     # KR attribution — exact resolution only; the rest are surfaced, not guessed.
     link = snap.linkage
     if link.spec and link.error:
@@ -1115,7 +1208,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         "project": {
             "root": root.as_posix(),
             "name": snap.project_name,
-            "config": parse_config(perry_root),
+            "config": _cfg_for_wip,
             "hook": hook,
             # Kept beside `hook` and never folded into it: a reader that sees
             # only a merged list cannot tell an addition from a substitution,
