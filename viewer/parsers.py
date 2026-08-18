@@ -1285,19 +1285,19 @@ def parse_okr(text: str) -> OKR:
     # Mission: the `## Mission` section (template shape). Older hand-written
     # files put the mission as prose between the H1 and the first ## — fall
     # back to that.
-    mission = _section(text, "Mission", "使命")
+    mission = _section(text, *alias("headings", "Mission"))
     if not mission:
         m = re.search(r"^#\s+[^\n]+\n(.*?)(?=\n## )", text, re.S)
         mission = m.group(1) if m else ""
     okr.mission = mission.strip()
 
     okr.operating_principles = _bullets(
-        _section(text, "Operating Principles", "运行原则")
+        _section(text, *alias("headings", "Operating Principles"))
     )
 
     # Anti-Goals live at the top level in the template; some files nest them
     # inside the current version block instead.
-    anti = _section(text, "Anti-Goals", "反目标")
+    anti = _section(text, *alias("headings", "Anti-Goals"))
 
     versions = re.findall(r"\n## v(\d+):\s*([^\n]+)\n(.*?)(?=\n## |\Z)", text, re.S)
     if versions:
@@ -1306,7 +1306,7 @@ def parse_okr(text: str) -> OKR:
         okr.version = f"v{n}: {label.strip()}"
         okr.objectives = _parse_okr_objectives(body)
         if not anti:
-            anti = _section(body, "Anti-Goals", "反目标", level="### ")
+            anti = _section(body, *alias("headings", "Anti-Goals"), level="### ")
     okr.anti_goals = _bullets(anti)
 
     # Version log: bullets under `## Versioning log` (template) / `## Versioning`.
@@ -1364,9 +1364,9 @@ def parse_phase(slug: str, text: str) -> Phase:
     if st:
         phase.status = st.group(1).strip().split("|")[0].strip()
 
-    phase.focus = _section(text, "Phase Focus", "阶段焦点").strip()
+    phase.focus = _section(text, *alias("headings", "Phase Focus")).strip()
 
-    cc = _section(text, "Cost Ceiling", "成本上限")
+    cc = _section(text, *alias("headings", "Cost Ceiling"))
     if cc:
         phase.cost_ceiling_raw = cc.strip()
         phase.cost_ceiling_lines = _bullets(cc)
@@ -1374,7 +1374,7 @@ def parse_phase(slug: str, text: str) -> Phase:
     # Scope-reduction triggers. The template section is
     # `## Phase Scope Reduction Rule` (bullet form); legacy projects may carry
     # a `## Trip-wires` table instead — both land in the same shape.
-    srr = _section(text, "Phase Scope Reduction Rule", "阶段缩圈规则", "缩圈规则")
+    srr = _section(text, *alias("headings", "Phase Scope Reduction Rule"))
     if srr:
         phase.scope_triggers = _parse_scope_triggers(srr)
     else:
@@ -1383,7 +1383,7 @@ def parse_phase(slug: str, text: str) -> Phase:
             phase.scope_triggers = _parse_legacy_tripwire_table(legacy)
 
     # Status of the rule, when the mid-phase check has recorded one.
-    mp = _section(text, "Mid-phase check", "期中检查")
+    mp = _section(text, *alias("headings", "Mid-phase check"))
     sm = re.search(
         r"(?:Scope-reduction rule status|缩圈规则状态)\s*\**\s*[:：]\s*\**\s*([^\n]+)",
         mp, re.I,

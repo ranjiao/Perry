@@ -241,24 +241,6 @@ _TRACK_KEYS = {
     "default_rung": "Default rung",
 }
 
-def heading_spellings(name: str) -> tuple[str, ...]:
-    """Every accepted spelling of a section heading, **read from the schema**.
-
-    `schema/state-schema.json § i18n.headings` declares 34 of these and five
-    tools read them. This file transcribed one — `高风险操作` — into a call
-    site, which is how a table with one authoritative copy grows a second.
-    """
-    try:
-        h = (json.loads(
-            (Path(__file__).resolve().parent.parent / "schema"
-             / "state-schema.json").read_text()).get("i18n") or {}
-        ).get("headings") or {}
-    except (OSError, ValueError):
-        h = {}
-    return tuple([name] + [a for per in (h.get(name) or {}).values()
-                           for a in per])
-
-
 _TRACK_COLUMNS: dict[str, tuple[str, ...]] | None = None
 
 
@@ -622,7 +604,7 @@ def hook_profile(root: Path) -> dict:
     # literal because it is a PREFIX this file accepts and the schema does not
     # declare — a tolerance, not an alias, and saying so is the difference
     # between reading the table and quietly extending it.
-    section = P._section(text, *heading_spellings("High-stakes operations"),
+    section = P._section(text, *P.alias("headings", "High-stakes operations"),
                          "High-stakes")
     items = [b for b in P._bullets(section) if "{{" not in b]
     out["high_stakes"] = items

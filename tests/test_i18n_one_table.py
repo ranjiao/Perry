@@ -104,9 +104,18 @@ class TestWhatIsStillHandCarried(unittest.TestCase):
     so the number is updated rather than drifting.
     """
 
-    #: file → how many code lines carry a schema-declared alias as a literal.
-    #: Measured 2026-08-18. `perry-state` is 0 because TASK-069 fixed it.
-    BUDGET = {"bin/perry-state": 0}
+    #: file → how many code lines may carry a schema-declared alias as a
+    #: literal. **All zero**, measured 2026-08-18 after TASK-069.
+    #:
+    #: The sharpest of the three was `viewer/parsers.py`: it already had
+    #: `alias("headings", name)` reading the schema, and **eight call sites
+    #: hand-carried the Chinese spelling anyway, in the same file**. The
+    #: mechanism existed; the call sites went around it. `bin/perry-task`
+    #: measured zero all along — an earlier count of "24 CJK lines" was
+    #: counting comments and docstrings, and is corrected here.
+    BUDGET = {"bin/perry-state": 0,
+              "bin/perry-task": 0,
+              "viewer/parsers.py": 0}
 
     def carried(self, rel: str) -> int:
         src = (PERRY_HOME / rel).read_text(encoding="utf-8")
@@ -121,9 +130,20 @@ class TestWhatIsStillHandCarried(unittest.TestCase):
                 n += 1
         return n
 
-    def test_the_track_register_carries_none(self):
+    def test_no_read_path_tool_carries_a_declared_alias(self):
+        """The category, over all three tools on the state read path. A ninth
+        copy fails the build rather than being noticed in review."""
         for rel, budget in self.BUDGET.items():
             self.assertEqual(self.carried(rel), budget, rel)
+
+    def test_the_alias_reader_is_one_function_not_one_per_tool(self):
+        """`bin/perry-state` briefly grew its own `heading_spellings` while
+        this row was being fixed — a second implementation of `alias()`,
+        added by the fix for having two implementations. It calls
+        `parsers.alias` now."""
+        st = (PERRY_HOME / "bin" / "perry-state").read_text(encoding="utf-8")
+        self.assertNotIn("def heading_spellings", st)
+        self.assertIn('P.alias("headings"', st)
 
 
 if __name__ == "__main__":
