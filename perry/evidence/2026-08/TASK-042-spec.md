@@ -21,10 +21,25 @@ was correctly refused.
    pair of phrases that mean the same thing in English and Chinese, `commit`
    accepts both or refuses both. This is the property; a list of phrases is
    not.
-2. **An unquantified, unbounded unit is refused in Chinese**, the way a bare
-   English unit already was: a Chinese time unit counts only when
-   **quantified** (a digit, or one of 一二两三四五六七八九十百半几数每逐) or
-   **bounded** (`季度末`, `月底`, `本周内` and the like).
+2. **An unquantified, unbounded unit is refused — in BOTH languages.**
+
+   > **Corrected 2026-08-18 after round 3.** This criterion previously read
+   > "refused in Chinese, *the way a bare English unit already was*". **A bare
+   > English unit was never refused.** `bin/perry-goals` requires only
+   > wordhood in English, so `--by week` writes a live commitment row while
+   > `--by 周` is refused — round 2 reversed the asymmetry instead of removing
+   > it, and this file inherited the false premise from the source comment that
+   > claims the two halves impose the same standard. The reviewer had to catch
+   > the spec as well as the code, which is what a criteria file is supposed to
+   > make unnecessary.
+   >
+   > **Criteria 1 and 2 cannot both hold unless the ENGLISH half grows the
+   > quantity-or-bound requirement.** Loosening the Chinese half satisfies
+   > criterion 1 and brings every round-2 phrase straight back.
+
+   A time unit counts only when **quantified** (a digit, or a quantity word)
+   or **bounded** (`季度末`, `月底`, `本周内`, `end of Q3`, `by month end`).
+   `week`, `月`, `year` and `周` alone are all refused.
 3. **`每周一次` and `逐月` still pass.** A recurrence is a schedule, and an
    existing test asserts it. If a fix breaks that test, the test is right and
    the fix is wrong.
