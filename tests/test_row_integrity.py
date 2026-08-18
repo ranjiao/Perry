@@ -38,6 +38,8 @@ import importlib.machinery
 import importlib.util
 import os
 import re
+
+import viewer.tables as T
 import subprocess
 import sys
 import tempfile
@@ -255,7 +257,13 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
     #: were fine — a guard that cries wolf is one people add exemptions to
     #: until it means nothing. The join form is covered instead by the
     #: `ragged-row` lint finding, which judges the file rather than the source.
-    HAND_ROW_RE = re.compile(r"""f['"]\s*\|\s*\{""")
+    #:
+    #: **Round 3 widened it.** The previous pattern required `{` immediately
+    #: after the opening `|`, so `f"| TASK-{n} | …"` — a literal first cell,
+    #: which is how half the real rows are written — walked straight past. A
+    #: reviewer planted exactly that and it stayed green. It now matches an
+    #: f-string that opens a row and interpolates *anywhere* in it.
+    HAND_ROW_RE = re.compile(r"""f['"]\s*\|(?=[^'"\n]*\{)""")
 
     def _tools(self):
         """Every shipped tool, globbed.
@@ -267,9 +275,25 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         instance-shaped guard this project keeps finding, written into the test
         that exists to prevent it.
         """
-        out = [p for p in sorted((PERRY_HOME / "bin").iterdir())
-               if p.is_file() and not p.name.endswith((".md", ".json"))]
-        out += sorted((PERRY_HOME / "viewer").glob("*.py"))
+        #: **Round 3: it could not see a subdirectory.** `iterdir()` plus
+        #: `is_file()` skips directories outright and `glob("*.py")` does not
+        #: descend, so a reviewer planted nine defective files and **all nine
+        #: stayed green** — among them `bin/lib/rows.py` carrying both defects
+        #: verbatim. `bin/lib/` is the directory TASK-065 exists to create and
+        #: that this task's own criteria file names by path, so the blind spot
+        #: was aimed squarely at the code that has not been written yet.
+        #:
+        #: Round 2 found this guard instance-shaped one level up and the fix
+        #: replaced a hardcoded list with a flat glob. This is the same hole
+        #: one level down. **Three rounds, one category** — so it now walks the
+        #: tree rather than two directories, and the directories it skips are
+        #: named with a reason rather than assumed.
+        out = []
+        for d in ("bin", "viewer"):
+            out += [p for p in sorted((PERRY_HOME / d).rglob("*"))
+                    if p.is_file()
+                    and not p.name.endswith((".md", ".json", ".pyc"))
+                    and "__pycache__" not in p.parts]
         return [p for p in out
                 if p.relative_to(PERRY_HOME).as_posix() not in self.EXEMPT]
 
@@ -418,6 +442,44 @@ class TestARaggedRowIsAFinding(unittest.TestCase):
         make the finding fire on Perry's own bootstrap output."""
         self.assertEqual(self.lint(["|  |  |  |"]), [])
 
+
+
+class TestAppendCellObeysTheSameRule(unittest.TestCase):
+    """`append_cell` was the third writer in the canonical module, and it was
+    the one still collapsing what the other two refuse.
+
+    `viewer/tables.py § check_cell`'s docstring indicts `.replace("\\n", " ")`
+    by name — it was written when that exact line was found in
+    `bin/perry-goals` — and `append_cell` sat four lines below doing it anyway.
+    The round that fixed `splice_cell` left its untouched sibling: a fix aimed
+    at the instance rather than the category, in the module that exists to be
+    the category.
+
+    Two independent reviewers found it the same night. Deleting the line left
+    all 1310 tests green, so nothing covered it either.
+    """
+
+    def test_a_line_break_is_refused_not_collapsed(self):
+        with self.assertRaises(T.UnrenderableCell):
+            T.append_cell("| a |", "x\n\ny")
+
+    def test_a_carriage_return_too(self):
+        with self.assertRaises(T.UnrenderableCell):
+            T.append_cell("| a |", "x\ry")
+
+    def test_a_pipe_is_stored_the_same_way_on_both_branches(self):
+        """The fallback branch handed `render_row` an already-escaped value, so
+        `x|y` became `x\\\\|y` and read back as `x\\|y`. The same value written
+        two ways depending on whether the row happened to end in a pipe."""
+        with_pipe = T.append_cell("| a |", "x|y")
+        without = T.append_cell("| a ", "x|y")
+        self.assertEqual(T.split_row(with_pipe)[-1], "x|y")
+        self.assertEqual(T.split_row(without)[-1], "x|y")
+
+    def test_an_empty_value_still_widens_the_row(self):
+        """Widening is the reason this function exists; a blank new cell is the
+        normal case and must not be mistaken for a refusal."""
+        self.assertEqual(T.split_row(T.append_cell("| a |", "")), ["a", ""])
 
 if __name__ == "__main__":
     unittest.main()

@@ -209,15 +209,30 @@ def append_cell(line: str, value: str) -> str:
     as little as possible: a trailing cell appended textually rather than the
     row re-rendered. A separator row widens the same way, keeping whatever
     dashes-and-colons style the file already uses.
+
+    **It carried its own `.replace("\\n", " ")` until round 3.** Two functions
+    above, `check_cell`'s docstring indicts that exact line — written when the
+    same defect was found in `bin/perry-goals` — and `append_cell` sat below it
+    doing it anyway. Two reviewers found it independently the same night, and
+    the previous round had fixed `splice_cell` and left its untouched sibling.
+    That is the shape of a fix aimed at the instance: the third writer in the
+    canonical module kept collapsing what the other two refuse.
+
+    Deleting the line left all 1310 tests green, so it had no coverage either.
     """
     body = line.rstrip()
-    value = str(value).replace("\n", " ").replace("|", "\\|").strip()
+    raw = str(value).strip()
     if not body.endswith("|") or body.endswith("\\|"):
         # No trailing pipe: markdown allows it, and appending one would close
         # the last cell rather than open a new one. Re-render instead — this
         # row's shape is changing anyway.
-        return render_row(split_row(line) + [value])
-    return body + (f" {value} |" if value else "  |")
+        #
+        # **Pass the RAW value.** `render_row` escapes, so handing it an
+        # already-escaped one stored `x|y` as `x\\|y` and read it back as
+        # `x\|y` — the same value written two ways depending on which branch
+        # ran.
+        return render_row(split_row(line) + [raw])
+    return body + (f" {check_cell(raw)} |" if raw else "  |")
 
 
 def squash(s: str) -> str:
