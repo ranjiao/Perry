@@ -495,6 +495,73 @@ class TestOneDefinitionOfTheShape(unittest.TestCase):
         self.assertIn("BOARD.md", {x["path"] for x in out["refused"]})
 
 
+class TestMigrationDoesNotReachTheWholeBoard(unittest.TestCase):
+    """TASK-047, blocker 1 — measured on a real project rather than argued.
+
+    ADR-004 says flip the gate to `enforce` once the migration exists. It
+    exists. But `enforce` is only honest if the command the refusal names can
+    actually get the file there, and on `~/proj/gimegime-pmo` it cannot: one
+    row reads `Status: 半解`, which is a distinction the user drew in their own
+    words and which `perry-migrate` correctly refuses to coerce into
+    `in_progress`. A file that a complete migration leaves non-conformant is a
+    file that `enforce` turns read-only with nowhere left to go.
+
+    Read-only: a dry run, on a copy, and it asserts nothing about WHICH
+    residual finding remains — only that one does. This goes RED the day the
+    residue is solved, which is the day the flip becomes arguable."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = None
+        if not (REAL / "BOARD.md").exists():
+            return
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.tmp.name) / "project"
+        shutil.copytree(REAL, cls.root,
+                        ignore=shutil.ignore_patterns(".git"), symlinks=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.tmp:
+            cls.tmp.cleanup()
+
+    def test_the_migration_plan_for_the_board_does_not_reach_zero(self):
+        if self.tmp is None:
+            self.skipTest(f"no corpus at {REAL}")
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-migrate"),
+             "--root", str(self.root), "--only", "BOARD.md", "--json"],
+            capture_output=True, text=True, timeout=600)
+        plan = json.loads(r.stdout)
+        board = next(f for f in plan["files"] if f["path"] == "BOARD.md")
+        self.assertGreater(board["before_errors"], 0,
+                           "the corpus board is already conformant — this test "
+                           "no longer measures anything")
+        self.assertGreater(
+            board["after_errors"], 0,
+            "perry-migrate now takes a real board to zero errors: blocker 1 in "
+            "bin/README.md § The switch-over checklist is closed. Re-run the "
+            "end-to-end measurement and reconsider perry-conform.DEFAULT_MODE.")
+        self.assertFalse(board["writable"],
+                         "a plan with residual errors must not be applied — "
+                         "ADR-004 guarantee 5, partial migration is per file")
+
+    def test_that_board_is_still_read_in_full_while_it_is_unwritable(self):
+        """The other half, and the thing that makes read-only an acceptable
+        cost rather than a broken project: the same board `enforce` would make
+        unwritable is read completely, with the gate enforcing."""
+        if self.tmp is None:
+            self.skipTest(f"no corpus at {REAL}")
+        r = subprocess.run(
+            ["python3", str(TASK), "list", "--all",
+             "--root", str(self.root), "--json"],
+            capture_output=True, text=True,
+            env=dict(os.environ, PERRY_CONFORMANCE="enforce"), timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertGreater(len(json.loads(r.stdout)["tasks"]), 20,
+                           "the unwritable board stopped being readable")
+
+
 class TestConformanceIsErrorsNotWarnings(unittest.TestCase):
     """Open question in the spec, answered: **errors only**.
 
@@ -617,6 +684,76 @@ class TestTheGateShipsAdvisory(unittest.TestCase):
         rc, out, err = p.run(TASK, *ADD, enforce=None, json_out=False)
         self.assertEqual(rc, 0, err)
         self.assertNotIn("conformance (advisory)", err)
+
+    # ── TASK-047 · the two conditions the flip is actually waiting on ──────
+    #
+    # ADR-004's decision was "flip once the migration exists". `perry-migrate`
+    # now exists, so the flip was attempted and MEASURED rather than argued,
+    # and it does not hold yet. The reasons are pinned here as executable
+    # facts, so that the day either becomes false a test says so instead of a
+    # paragraph in `bin/README.md` quietly going stale. Neither test asserts
+    # "advisory is better"; each asserts the one observation that blocks the
+    # flip, and each is written to go RED when the blocker is fixed.
+
+    def test_a_project_with_a_perfect_shape_is_still_refused_before_declaring(self):
+        """Blocker 2, and the reason `enforce` cannot even be the default for
+        NEW projects. Conformance is two facts, and Perry can only produce one
+        of them: a project Perry itself just wrote carries zero shape errors
+        and is still `undeclared`, because `SKILL.md § Conformance gate`
+        forbids an agent from declaring on the user's behalf (`perry/OKR.md` —
+        *adoption proposes; the user declares*). So `enforce` shipped as the
+        new-project default refuses the first `perry-task add` on a project
+        that has nothing wrong with it.
+
+        This goes red when setup/adopt ends in the user's own declaration —
+        which is exactly when the new-project half of the flip becomes safe."""
+        p = Project()
+        lint = json.loads(subprocess.run(
+            ["python3", str(LINT), "--root", str(p.root), "--json"],
+            capture_output=True, text=True).stdout)
+        board_errors = [f for f in lint["findings"]
+                        if f["file"] == "BOARD.md" and f["severity"] == "error"]
+        self.assertEqual(board_errors, [],
+                         "the fixture is no longer a perfectly shaped board, "
+                         "so this test would prove nothing")
+        rc, out, _ = p.run(TASK, *ADD, enforce=True)
+        self.assertEqual(
+            rc, 1,
+            "a zero-error project is now writable under enforce — blocker 2 in "
+            "bin/README.md § The switch-over checklist is closed; re-run the "
+            "migration measurement and reconsider DEFAULT_MODE")
+        self.assertIn("no one has declared it", out["refused"])
+
+    def test_reading_is_not_gated_for_the_commands_a_refusal_names(self):
+        """The guarantee ADR-004 calls non-negotiable, applied to the two
+        readers the refusal message itself points at. A gated `perry-migrate`
+        or `perry-lint` would close the loop: refused, and told to run a
+        command that is refused for the same reason."""
+        p = Project(board=BOARD_WRONG_SHAPE)
+        env = dict(os.environ, PERRY_CONFORMANCE="enforce")
+        for tool in (LINT, PERRY_HOME / "bin" / "perry-migrate"):
+            with self.subTest(tool=tool.name):
+                r = subprocess.run(
+                    ["python3", str(tool), "--root", str(p.root), "--json"],
+                    capture_output=True, text=True, env=env, timeout=300)
+                self.assertIn(r.returncode, (0, 1),
+                              f"{tool.name} crashed under enforce: {r.stderr}")
+                self.assertNotIn("refused", r.stderr,
+                                 f"{tool.name} is gated — the refusal names it")
+                self.assertTrue(r.stdout.strip(),
+                                f"{tool.name} produced no output under enforce")
+
+    def test_the_switch_over_checklist_names_both_blockers(self):
+        """The checklist is the deliverable a reader acts on. A checklist that
+        lost a condition would read as though the flip were one step away."""
+        doc = (PERRY_HOME / "bin" / "README.md").read_text()
+        self.assertIn("switch-over checklist", doc.lower())
+        body = doc.split("switch-over checklist", 1)[1].split("\n### ", 1)[0]
+        self.assertIn("perry-migrate", body)
+        self.assertIn("declare", body)
+        for claim in ("BOARD.md", "undeclared"):
+            self.assertIn(claim, body,
+                          f"the checklist no longer names {claim}")
 
 
 # ── 8 · a file that does not exist yet is not a stranger's file ───────────

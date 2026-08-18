@@ -610,6 +610,196 @@ class TestSchemaAgreement(unittest.TestCase):
             self.assertIn(fid, rows,
                           f"{fid} has no row in the finding catalog table")
 
+    def test_every_catalogued_id_satisfies_the_schema_pattern(self):
+        """The catalog is the list of ids Perry emits; `findings[].id.pattern`
+        is the shape `perry-lint` demands of a diagnosis that records one. When
+        they disagree Perry writes a file and then reports its own output as
+        malformed — which it did for a release: the pattern was
+        `^[A-Z]{3}-\\d{2}$` and the catalog documents `LOAD-01`..`LOAD-04`,
+        `NS-01` and `MODE-01`.
+
+        Asserted over the WHOLE catalog, not over the prefixes that happened to
+        bite. A pattern widened to admit `LOAD-` and nothing else leaves `NS-01`
+        and `MODE-01` failing, and this fails on them."""
+        import re as _re
+        schema = json.loads(
+            (PERRY_HOME / "schema" / "state-schema.json").read_text())
+        entry = next(f for f in schema["files"] if f["id"] == "diagnosis")
+        pattern = entry["frontmatter"]["fields"]["findings"]["items"]["id"]["pattern"]
+        doc = (PERRY_HOME / "reference" / "diagnose.md").read_text()
+        table = doc.split("## Finding catalog", 1)[1].split("\n## ", 1)[0]
+        catalogued = _re.findall(
+            r"^\|\s*`([A-Z][A-Z0-9-]*-\d+)`\s*\|\s*(?:error|warn|info)\s*\|",
+            table, _re.M)
+        self.assertGreaterEqual(len(catalogued), 20,
+                                "the catalog table did not parse — this test "
+                                "would pass over an empty set")
+        self.assertGreaterEqual(
+            len({fid.split("-")[0] for fid in catalogued}), 5,
+            "one prefix in the whole catalog — this test could no longer tell "
+            "a category-wide pattern from one widened to a single prefix")
+        for fid in catalogued:
+            self.assertRegex(fid, pattern,
+                             f"{fid} is in the finding catalog but a diagnosis "
+                             f"recording it fails schema/state-schema.json")
+
+
+#: A diagnosis whose every enum-bound cell is a knob. Built field by field
+#: rather than by string substitution, because `status` appears under both
+#: `findings[]` and `prescription[]`, and a `str.replace(old, new, 1)` would
+#: silently poison whichever came first — a mutation that reports green while
+#: testing the wrong branch.
+_DIAGNOSIS_DEFAULTS = {
+    "depth": "standard",
+    "stage": "done",
+    "findings[].id": "CTX-01",
+    "findings[].severity": "error",
+    "findings[].source": "scan",
+    "findings[].status": "open",
+    "prescription[].status": "proposed",
+}
+
+
+def diagnosis_doc(**overrides: str) -> str:
+    v = dict(_DIAGNOSIS_DEFAULTS, **overrides)
+    return (
+        "---\n"
+        "diagnosis: 1\n"
+        'project: "Sample"\n'
+        'root: "/tmp/sample"\n'
+        f"depth: {v['depth']}\n"
+        f"stage: {v['stage']}\n"
+        "findings:\n"
+        f"  - id: {v['findings[].id']}\n"
+        f"    severity: {v['findings[].severity']}\n"
+        f"    source: {v['findings[].source']}\n"
+        '    title: "Always-loaded files over budget"\n'
+        f"    status: {v['findings[].status']}\n"
+        "prescription:\n"
+        "  - id: RX-1\n"
+        '    change: "Split CLAUDE.md"\n'
+        '    closes: ["CTX-01"]\n'
+        f"    status: {v['prescription[].status']}\n"
+        "---\n"
+        "\n"
+        "# Diagnosis — Sample\n"
+    )
+
+
+class TestLintValidatesTheDiagnosisPerryWrites(unittest.TestCase):
+    """`.perry/diagnose/<date>-diagnosis.md` is a file Perry writes into
+    somebody else's project, and nothing asserted that `perry-lint` — the tool
+    that checks every other file Perry writes — reached it at all.
+
+    *How* it is checked matters as much as *that* it is. Every rule below is
+    read out of `schema/state-schema.json` at test time. A second, hand-written
+    list of what a diagnosis contains is the thing that drifts, and the drift is
+    silent: the file keeps linting clean against a list nobody updated."""
+
+    def lint(self, root: Path) -> dict:
+        out = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
+             "--root", str(root), "--json"],
+            capture_output=True, text=True, timeout=180)
+        return json.loads(out.stdout)
+
+    def project(self, td: str, doc: str) -> Path:
+        root = Path(td)
+        (root / ".perry" / "diagnose").mkdir(parents=True)
+        (root / ".perry" / "diagnose" / "2026-01-01-diagnosis.md").write_text(doc)
+        return root
+
+    def enum_fields(self) -> dict[str, str]:
+        """Every enum-bound field the schema declares for a diagnosis, keyed by
+        the same dotted path `diagnosis_doc` uses. Derived, never listed."""
+        schema = json.loads(
+            (PERRY_HOME / "schema" / "state-schema.json").read_text())
+        entry = next(f for f in schema["files"] if f["id"] == "diagnosis")
+
+        def walk(fields: dict, prefix: str) -> dict[str, str]:
+            out: dict[str, str] = {}
+            for name, rule in fields.items():
+                if rule.get("enum"):
+                    out[prefix + name] = rule["enum"]
+                if rule.get("type") == "array":
+                    items = rule.get("items") or {}
+                    if items and not items.get("type"):
+                        out.update(walk(items, f"{prefix}{name}[]."))
+            return out
+
+        return walk(entry["frontmatter"]["fields"], "")
+
+    def test_a_well_formed_diagnosis_lints_clean(self):
+        """The floor. Without it every assertion below would be satisfied by a
+        linter that reports an error on any diagnosis whatsoever."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(td, diagnosis_doc())
+            self.assertEqual(
+                [f for f in self.lint(root)["findings"] if "diagnose" in f["file"]],
+                [])
+
+    def test_the_diagnosis_is_a_file_perry_lint_reaches(self):
+        """The wiring, asserted separately from the rules — a file the schema
+        describes perfectly and the linter never opens is checked by nothing."""
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(td, diagnosis_doc(stage="not_a_stage"))
+            hits = [f for f in self.lint(root)["findings"]
+                    if f["file"] == ".perry/diagnose/2026-01-01-diagnosis.md"]
+        self.assertTrue(hits, "perry-lint never opened the diagnosis file")
+
+    def test_every_enum_the_schema_declares_is_actually_enforced(self):
+        """Schema-driven in both directions: the fields come from the schema,
+        and the renderer is required to know all of them. A field added to the
+        diagnosis spec that nothing here can reach fails loudly rather than
+        being skipped in silence."""
+        fields = self.enum_fields()
+        self.assertEqual(
+            set(fields) - set(_DIAGNOSIS_DEFAULTS), set(),
+            "schema/state-schema.json declares an enum-bound diagnosis field "
+            "that diagnosis_doc() cannot write — extend _DIAGNOSIS_DEFAULTS")
+        self.assertGreaterEqual(len(fields), 5,
+                                "the enum walk found almost nothing — it would "
+                                "pass over a schema with the enums deleted")
+        for path, enum_name in sorted(fields.items()):
+            with self.subTest(field=path):
+                with tempfile.TemporaryDirectory() as td:
+                    root = self.project(
+                        td, diagnosis_doc(**{path: "not_a_declared_value"}))
+                    hits = [f for f in self.lint(root)["findings"]
+                            if f["rule"] == "bad-enum"
+                            and "not_a_declared_value" in f["message"]]
+                self.assertTrue(
+                    hits,
+                    f"{path} is bound to enum {enum_name!r} in the schema and "
+                    f"perry-lint accepted a value that is not in it")
+
+    def test_a_finding_id_from_perrys_own_catalog_is_not_reported_as_malformed(self):
+        """`LOAD-01` is in `reference/diagnose.md § Finding catalog` and Perry's
+        own diagnose workflow emits it. Perry reporting its own output as
+        malformed is the defect TASK-048 was opened on."""
+        for fid in ("LOAD-01", "NS-01", "MODE-01", "CTX-01"):
+            with self.subTest(id=fid):
+                with tempfile.TemporaryDirectory() as td:
+                    root = self.project(
+                        td, diagnosis_doc(**{"findings[].id": fid}))
+                    hits = [f for f in self.lint(root)["findings"]
+                            if f["rule"] == "bad-id"]
+                self.assertEqual(hits, [], f"{fid} was rejected by the pattern")
+
+    def test_an_id_that_is_not_perrys_shape_is_still_reported(self):
+        """The other half — widening the pattern to fit the catalog must not
+        widen it to fit anything, or the check is decorative. `CON-03b` is the
+        live case: it is on a real project's diagnosis and it is not a
+        catalogued id."""
+        for fid in ("ctx-1", "CON-03b", "CTX-1", "SOMEPREFIX-01"):
+            with self.subTest(id=fid):
+                with tempfile.TemporaryDirectory() as td:
+                    root = self.project(
+                        td, diagnosis_doc(**{"findings[].id": fid}))
+                    hits = [f for f in self.lint(root)["findings"]
+                            if f["rule"] == "bad-id"]
+                self.assertTrue(hits, f"{fid!r} passed the finding id pattern")
+
 
 class UserAskAnswerState(unittest.TestCase):
     """LOAD-03 must count asks that are *waiting*, not asks that ever existed.

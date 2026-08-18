@@ -1626,8 +1626,8 @@
               "id": {
                 "type": "string",
                 "required": true,
-                "pattern": "^[A-Z]{3}-\\d{2}$",
-                "note": "stable id from bin/perry-diagnose (CTX/DOC/CON/TRK/FIT) or assigned for an interview finding"
+                "pattern": "^[A-Z][A-Z0-9]{1,3}-\\d{2}$",
+                "note": "stable id from bin/perry-diagnose, or assigned for an interview finding. The AUTHORITATIVE list is the finding catalog in reference/diagnose.md; this pattern is only the shape that list is written in, and tests/test_diagnose.py asserts every catalogued id satisfies it rather than restating the prefixes here. It read `^[A-Z]{3}-\\d{2}$` for a release - exactly three letters - which matches none of `LOAD-01`..`LOAD-04`, `NS-01` or `MODE-01`, six ids Perry's own catalog documents and Perry's own diagnose workflow emits. So a project whose diagnosis recorded one of them was told by perry-lint that Perry's output was malformed, which is the finding TASK-048 was opened on. Prefixes run 2-4 characters (`NS`, `CTX`, `LOAD`); the second character may be a digit because a situational interview finding takes the id of the question that produced it (`Q5-01`). Still deliberately narrow: `CON-03b` is NOT a catalogued id and stays a finding."
               },
               "severity": {
                 "type": "string",
@@ -1917,6 +1917,13 @@
           "enum_columns": {
             "Mode": "mode",
             "Default rung": "verification_rung"
+          },
+          "no_default_by_mode": {
+            "mode_column": "Mode",
+            "id_column": "Track",
+            "source": "work_modes.modes.<mode>.no_default",
+            "severity": "warn",
+            "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
           },
           "optional_columns": {
             "Spine": "Free text: where this track's goals/commitments live.",
