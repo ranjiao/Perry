@@ -77,8 +77,24 @@ def alias(kind: str, canonical: str) -> tuple[str, ...]:
 
 
 def heading_is(head: str, canonical: str) -> bool:
-    """True when `head` opens the section named `canonical`, in any language."""
-    return any(head.startswith(a) for a in alias("headings", canonical))
+    """True when `head` opens the section named `canonical`, in any language.
+
+    **Decoration-tolerant**, via the same `squash` the header cells use. It was
+    not, and neither was `bin/perry-task § heading_re`, and the two failed
+    together on `## **Top risks**`: the reader saw no risks section, the section
+    locator could not find it either and so `risk-add` **appended a second
+    `## Top risks`** at exit 0 — while the id minter, which reads the rows by a
+    third rule, could see them and minted the next id in sequence. Three
+    implementations of "where is this section", three different answers in one
+    call, and every risk already recorded became invisible to every tool.
+
+    `squash` strips `*`, backticks and whitespace runs without touching internal
+    spaces, so `## Top risks (one-line)` and `## P2 (低优先 carry)` still match
+    by prefix — which is what the `(?!\w)` in `heading_re` was protecting and
+    is preserved here.
+    """
+    h = squash(head)
+    return any(h.startswith(squash(a)) for a in alias("headings", canonical))
 
 
 @lru_cache(maxsize=1)
@@ -1673,9 +1689,23 @@ def top_risks_section(text: str) -> str | None:
     """The body of `## Top risks`, or None when the document has no such
     section. One extractor, so "does this file have a risk table?" and "what
     are its risks?" can never be answered about different spans of text."""
-    heads = "|".join(re.escape(a) for a in alias("headings", "Top risks"))
-    m = re.search(rf"## (?:{heads})[^\n]*\n(.+?)(?=\n## |\Z)", text, re.S)
-    return m.group(1) if m else None
+    # **Scanned with `heading_is`, not a fourth regex.** This was the fourth
+    # implementation of "where is this section": `parse_board` used
+    # `heading_is`, `bin/perry-task § ensure_section` used a regex, the id
+    # minter read the rows by a third rule, and this had a regex of its own.
+    # On `## **Top risks**` they gave three different answers in one call —
+    # `risk-add` appended a second section at exit 0 while the minter, which
+    # could see the existing rows, numbered from them. Fixing three of the four
+    # left this one, and the reader still reported zero risks on a board that
+    # had them.
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if not line.startswith("## ") or not heading_is(line[3:], "Top risks"):
+            continue
+        end = next((j for j in range(i + 1, len(lines))
+                    if lines[j].startswith("## ")), len(lines))
+        return "\n".join(lines[i + 1:end])
+    return None
 
 
 def has_risk_table(text: str) -> bool:

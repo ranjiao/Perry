@@ -731,8 +731,11 @@ class Board:
         onto a `编号 | 标题 | …` table. One of two siblings fixed is the shape
         every review round here has found.
         """
-        rx = heading_re(heading)
-        if any(rx.match(l) for l in self.lines):
+        # **The call site that created the duplicate.** `ensure_section` is what
+        # `risk-add` runs before writing, and it used a regex that could not see
+        # `## **Top risks**`, so it built a second section beside the one that
+        # was already there.
+        if any(heading_matches(l, heading) for l in self.lines):
             return
         try:
             lang = header_language(self.table("P0")[2])
@@ -756,8 +759,8 @@ class Board:
         answer for a reader and useless to the one caller that has to look at a
         section precisely BECAUSE it is not a table yet.
         """
-        rx = heading_re(heading)
-        start = next((i for i, l in enumerate(self.lines) if rx.match(l)), None)
+        start = next((i for i, l in enumerate(self.lines)
+                      if heading_matches(l, heading)), None)
         if start is None:
             raise Refused(f"BOARD.md has no `## {heading}` section")
         end = next((i for i in range(start + 1, len(self.lines))
@@ -765,13 +768,12 @@ class Board:
         return start, end
 
     def has_section(self, heading: str) -> bool:
-        rx = heading_re(heading)
-        return any(rx.match(l) for l in self.lines)
+        return any(heading_matches(l, heading) for l in self.lines)
 
     def section_table(self, heading: str) -> tuple[int, list[str]]:
         """(separator index, header cells) for a named non-priority section."""
-        rx = heading_re(heading)
-        start = next((i for i, l in enumerate(self.lines) if rx.match(l)), None)
+        start = next((i for i, l in enumerate(self.lines)
+                      if heading_matches(l, heading)), None)
         if start is None:
             raise Refused(f"BOARD.md has no `## {heading}` section")
         for i in range(start, len(self.lines)):
@@ -1134,12 +1136,37 @@ def check_priority(priority: str) -> str:
     return priority
 
 
+def heading_matches(line: str, name: str) -> bool:
+    """Does this line open the `## ` section called `name`?
+
+    **The one predicate**, shared with `viewer/parsers.py § heading_is` via
+    `squash`. There were three answers to this question and they disagreed in
+    one call: on `## **Top risks**` the reader found no section, this locator
+    found none either — so `risk-add` appended a **second** `## Top risks` at
+    exit 0 — and the id minter, reading rows by a third rule, saw the existing
+    risks and minted the next id. Every risk already recorded became invisible
+    to every tool, and `perry-lint` said nothing.
+
+    `squash` strips `*`, backticks and whitespace runs and leaves internal
+    spaces alone, so prefix matching still lets `## P2 (低优先 carry)` and
+    `## Top risks (one-line; full list in …)` resolve — which is what the
+    `(?!\w)` in the regex this replaced was protecting. That guard is kept as
+    the boundary check below: a heading may be followed by a non-word
+    character, never by more of a word, or `## P2` would match `## P20`.
+    """
+    if not line.startswith("## "):
+        return False
+    head = squash(line[3:])
+    for spelling in heading_spellings(name):
+        want = squash(spelling)
+        if head.startswith(want) and not head[len(want):len(want) + 1].isalnum():
+            return True
+    return False
+
+
 def heading_re(name: str) -> re.Pattern:
-    # `(?!\w)` rather than `\b`: a word boundary needs a word char on one
-    # side, so a heading ending in punctuation — `## P2 (低优先 carry)` on a
-    # real board — never matched, and `--group` refused a section the same
-    # tool had just listed as available.
-    return re.compile(r"^##\s+(?:%s)(?!\w)" %
+    """Kept for callers that need a pattern object. Prefer `heading_matches`."""
+    return re.compile(r"^##\s+\**\s*(?:%s)(?!\w)" %
                       "|".join(re.escape(s) for s in heading_spellings(name)))
 
 
