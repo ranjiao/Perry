@@ -16,10 +16,10 @@ same tier 1/2 markdown; neither writes to the project.
 
 ## Run
 
-**Easiest (no shell needed):** just ask the agent — **`/pmo viewer`** (alias
-`/pmo browse`). It starts the server in the background, waits until it's up
+**Easiest (no shell needed):** just ask the agent — **`/perry work viewer`** (alias
+`/perry work browse`). It starts the server in the background, waits until it's up
 (first run installs deps, ~60s), and opens your browser at the address. Stop it
-with `/pmo viewer stop`. This is the recommended path for non-technical users;
+with `/perry work viewer stop`. This is the recommended path for non-technical users;
 see `../work/reference/viewer.md`.
 
 Or run it yourself, from inside your project directory (the one containing
@@ -65,8 +65,8 @@ Flags:
 
 ## Design
 
-Read-only by deliberate choice — every mutation goes through `/pmo`,`/okr`,
-`/design` in chat. Each HTTP request re-parses the source markdown (no cache,
+Read-only by deliberate choice — every mutation goes through `/perry work`,
+`/perry goals` and `/perry decide` in chat. Each HTTP request re-parses the source markdown (no cache,
 no DB), so the view is always live; parsing is sub-millisecond on typical
 projects. Theme (light/dark) is applied pre-paint and persists via
 localStorage. The brand name shown in the nav is derived from the BOARD.md

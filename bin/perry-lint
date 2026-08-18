@@ -914,7 +914,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
             findings.append(Finding(
                 "error", rel, "locked-design-has-plan",
                 "Status: locked but the Implementation plan section is empty — "
-                "PMO has nothing to open tasks from",
+                "the work lane has nothing to open tasks from",
             ))
 
     # BOARD: done rows need evidence

@@ -114,7 +114,7 @@ Perry — virtual project office. One command: /perry
 
   /perry decide <sub>    Design-doc / RFC / decision stewardship (alias: /perry design) (locked decisions before building)
             Use when: drafting an RFC, locking user decisions, handing off
-            implementation tasks to PMO.
+            implementation tasks to the work lane.
             Common: new, resolve, lock, adr, handoff
             Full list: /perry help decide
 

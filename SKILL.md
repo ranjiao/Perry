@@ -39,7 +39,7 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 
 > **Reading the lane docs**: `goals/SKILL.md`, `work/SKILL.md`, `decide/SKILL.md`, everything under `*/reference/`, everything under `packs/`, and everything under this directory's own `reference/` are written in shorthand — they say `/pmo triage` where the user would now type `/perry work triage`. That is routing vocabulary for the agent, not a command the user can type, so it is left as-is. Translate it only when quoting a command back to the user.
 >
-> The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, already-rendered output; `*/state/*_TEMPLATE.md` and `state/*_TEMPLATE.md`, copied verbatim into the user's repository; `setup`, whose banner is read right after install; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
+> The carve-out is defined by **who reads the file last**: exactly the pages an agent re-renders before a user sees them. It does **not** cover — `bin/`, already-rendered output; `*/state/*_TEMPLATE.md`, `state/*_TEMPLATE.md` and `templates/`, copied verbatim into the user's repo; `setup`, whose banner is read right after install; lane frontmatter `description:`, read by the host; **this file**, `SKILL.md`; and `reference/host-capabilities.md`, which owns per-host translation and must name the live entrance.
 >
 > `tests/test_shipped_vocabulary.py` is that list, mechanically. Adding a class there without adding it here is how this carve-out silently grew last time.
 

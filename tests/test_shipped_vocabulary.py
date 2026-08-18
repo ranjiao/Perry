@@ -1086,5 +1086,125 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
                          re.compile(r"^>\s*Status:\s*active", re.M))
 
 
+
+
+class TestTheTwoListsCoverTheTree(unittest.TestCase):
+    """**Nothing checked that exempt ∪ enforced is the whole tree.**
+
+    `TestTheCarveOutSaysWhatThisFileEnforces` pins the two lists to each other,
+    so neither can grow without the other. It cannot see a path in **neither**
+    — and that is how a whole directory falls out.
+
+    A V4 round partitioned the seventeen top-level paths and found `viewer/` in
+    neither list: `viewer/README.md:19-22` tells non-technical users to run
+    `/pmo viewer`, `/pmo browse` and `/pmo viewer stop` and calls it "the
+    recommended path", and `viewer/templates/architecture.html` prints
+    `/pmo architecture init` into the page every project sees before
+    `architecture init` is run. The spec's out-of-scope names only `README.md`,
+    `README_cn.md` and `INSTALL.md`.
+
+    This is the partition, asserted. A new top-level directory of shipped
+    documentation lands in neither list by default, and by default that is
+    now a failure.
+    """
+
+    #: Paths that ship no user-facing prose at all. Each needs a REASON, not a
+    #: place on a list — a bare list is what let `viewer/` disappear.
+    NOT_DOCUMENTATION = {
+        "tests": "the suite; never shipped to a user",
+        "schema": "machine-readable contracts; no prose an agent renders",
+        ".git": "not shipped",
+        ".claude": "not shipped",
+        ".github": "CI configuration",
+        "perry": "this project's own state, not the skill",
+        "viewer/static": "third-party assets",
+        # Deliberately empty, kept as a placeholder after `b98b1c4` dropped the
+        # AGENTS.md routing layer — `SKILL.md` says both hosts read frontmatter
+        # natively and no such file is needed. It ships zero bytes of prose, so
+        # there is nothing for either list to cover.
+        "AGENTS.md": "an empty placeholder; ships no prose",
+    }
+
+    def test_the_viewer_is_enforced_not_merely_listed(self):
+        """`viewer/` is where the partition's first finding actually lived.
+
+        `viewer/README.md` told non-technical users to run `/pmo viewer` and
+        called it "the recommended path"; `viewer/templates/architecture.html`
+        printed `/pmo architecture init` into the page **every** project sees
+        before `architecture init` has been run. Both are read by a user, and
+        neither list covered the directory they live in.
+
+        Putting `viewer` in the enforced set above is not enough on its own —
+        nothing would have checked the files. This does.
+        """
+        hits = []
+        for pattern in ("*.md", "*.html"):
+            for f in sorted((PERRY_HOME / "viewer").rglob(pattern)):
+                if "static" in f.parts:
+                    continue
+                for n, line in enumerate(f.read_text(errors="replace")
+                                         .splitlines(), 1):
+                    if withdrawn_hits(line) and not self._is_url(line):
+                        hits.append(f"{f.relative_to(PERRY_HOME)}:{n}")
+        self.assertEqual(hits, [], f"withdrawn shorthand a user reads: {hits}")
+
+    @staticmethod
+    def _is_url(line: str) -> bool:
+        """**`/okr` is two different things and only one of them is a command.**
+
+        In `viewer/`, `/okr` and `/design` are also **HTTP routes** — nav
+        tuples, `href=` attributes, and the page names the README lists. The
+        round-5 reviewer flagged the ambiguity and declined to fail on it,
+        asking for a written decision instead. This is that decision: a URL is
+        a different namespace, renaming one breaks the running web app, and the
+        rename was never about it.
+
+        What IS in scope is the same token used as a chat command, which the
+        README did one section later — *"every mutation goes through `/pmo`,
+        `/okr`, `/design` **in chat**"*. That one is fixed.
+        """
+        return bool(re.search(
+            r"href=|url_for|\('\w+', '/"          # nav tuples and links
+            r"|^\s*-\s+\*\*`/"                   # the README's page list
+            r"|full detail on /|\bon /\w"          # prose naming a PAGE
+            r"|\{#.*\bon /",                       # a jinja comment doing so
+            line))
+
+    def test_every_shipped_top_level_path_is_in_one_list_or_the_other(self):
+        """The carve-out is READ, not restated.
+
+        My first version of this test hardcoded the exempt set and reported
+        `bin`, `packs`, `reference`, `state` and `templates` — every one of
+        them named in `SKILL.md`'s carve-out prose, which I had not read. That
+        is the hardcoded-list defect this very file exists to prevent,
+        committed inside the test written to prevent it.
+        """
+        note = TestTheCarveOutSaysWhatThisFileEnforces.carve_out()
+        # Anything the carve-out names by path is exempt, whatever its shape:
+        # `bin/`, `*/state/*_TEMPLATE.md`, `packs/`, `reference/`, `setup`.
+        exempt = {m.strip("`/*").split("/")[0]
+                  for m in re.findall(r"`([^`]+)`", note)}
+        enforced = {"work", "goals", "decide", "modes", "SKILL.md",
+                    "README.md", "README_cn.md", "INSTALL.md", "viewer"}
+        uncovered = []
+        for p in sorted(PERRY_HOME.iterdir()):
+            name = p.name
+            if name.startswith(".") or name in self.NOT_DOCUMENTATION:
+                continue
+            if p.is_file() and p.suffix not in (".md",):
+                continue
+            if name in exempt or name in enforced:
+                continue
+            if p.is_dir() and not any(p.rglob("*.md")) \
+                    and not any(p.rglob("*.html")):
+                continue
+            uncovered.append(name)
+        self.assertEqual(
+            uncovered, [],
+            f"in neither the carve-out nor the enforced set: {uncovered}. "
+            f"A path that ships prose and is on no list is enforced by nothing "
+            f"and exempted by nobody — say which it is.")
+
+
 if __name__ == "__main__":
     unittest.main()
