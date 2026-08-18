@@ -1420,7 +1420,22 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     # cascade is disclaimed by the other three; `## Intake` is the organ
     # `modes/queue.md` opens by saying no other mode needs; the answer file and
     # the SRC- digest are `modes/inquiry.md`'s deliverable and its sources.
-    file_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    # **Two kinds of file evidence, and lumping them together was the bug in
+    # both directions.**
+    #
+    # `phase/` and `OKR.md`'s objectives describe the WHOLE REPOSITORY. Handing
+    # them to a declared `ops` track told it the project's objectives were its
+    # own evidence — `project 7 / pipeline 4`, and a `MODE-01` warn telling the
+    # user to change a `Mode` cell that was correct.
+    #
+    # `## Intake`, answer files and `SRC-` digests describe a WORK SHAPE. They
+    # are evidence that somebody in this repo works that way, and withholding
+    # them from a declared queue or inquiry track made it unreadable — which
+    # the first version of this fix did, turning three existing tests red. Those
+    # tests were right.
+    project_wide_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    shape_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    file_ev = project_wide_ev
     if phase_files or has_current:
         _award(file_ev, ("project",), STRUCTURAL,
                f"phase/ holds {len(phase_files)} numbered phase file(s)"
@@ -1428,6 +1443,7 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     if objectives:
         _award(file_ev, ("project",), CORROBORATING,
                f"OKR.md declares {objectives} objective(s)")
+    file_ev = shape_ev
     if intake_rows:
         _award(file_ev, ("queue",), STRUCTURAL,
                f"BOARD.md § Intake carries {intake_rows} arrived request(s)")
@@ -1438,11 +1454,81 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         _award(file_ev, ("inquiry",), CORROBORATING,
                f"{digests} source digest(s) under knowledge/ carrying an SRC- id")
 
-    single = len(tracks) == 1
+    # **`len(tracks) == 1` was a proxy for "no register exists", and it is
+    # ALSO true when the register declares exactly one track.** In that case
+    # every board row, every commitment row and every project-wide file was
+    # scored as that track's — ignoring the `Track` column this scanner
+    # already reads, and ignoring `schema/state-schema.json`'s own rule that a
+    # blank `Track` means the implicit `main` track.
+    #
+    # A project declaring one `pipeline` track with its ordinary work in
+    # untracked rows scored `project 7 / pipeline 4` and got a `MODE-01` warn
+    # telling the user to change a `Mode` cell that was correct, citing
+    # objectives and rows that are not that track's. `perry-lint` accepts that
+    # shape and no test covered it.
+    #
+    # The declaredness was already computed sixty lines below, for the payload.
+    # Asking the question the proxy was standing in for costs nothing.
+    single = not any(t.get("declared") for t in tracks)
+
+    # **The implicit `main` track was never enumerated.** With a register that
+    # declares only `ops`, rows carrying no `Track` belong to `main` by the
+    # schema's rule — and `main` was in nobody's list, so their evidence went
+    # to `ops` or nowhere. Added only when such rows exist, so a project whose
+    # every row is tracked gains no phantom.
+    if not single and any(not (r.get("track") or "").strip() for r in rows):
+        # The key is `track`, not `name` — `parse_tracks` returns
+        # `{'track': 'ops', ...}`. Written as `name` first, which would have
+        # matched nothing and injected a record every downstream reader would
+        # have read as an unnamed track. Caught by printing the record rather
+        # than by assuming its shape.
+        if not any((t.get("track") or "").lower() == "main" for t in tracks):
+            tracks = list(tracks) + [{"track": "main", "declared": False,
+                                      "mode": "project", "stage_list": [],
+                                      "stages_declared": False}]
+
+    #: Which track owns evidence that describes the repository rather than a
+    #: work shape: the implicit `main` when untracked rows put one on the
+    #: board, the single declared track when it is the only candidate, and the
+    #: one implicit track when no register exists at all. `""` when several
+    #: tracks are declared and every row names one — then nothing owns it, which
+    #: is what the two-track test asserts.
+    project_wide = (
+        "main" if any((t.get("track") or "").lower() == "main" for t in tracks)
+        else (tracks[0].get("track") or "").lower() if len(tracks) == 1
+        else "")
 
     def evidence_for(name: str) -> dict[str, list]:
-        ev: dict[str, list] = {m: list(v) for m, v in file_ev.items()} if single \
-            else {m: [] for m in MODE_NAMES}
+        # **Project-wide file evidence belongs to the project-wide track.**
+        # `phase/`, `OKR.md`'s objectives and the rest describe the whole
+        # repository, so with no register they are the one track's — and with a
+        # register they are `main`'s, which is what "blank `Track`" means. They
+        # used to go to the single track whether or not it was declared, and
+        # once that was fixed they went to nobody, which is the same error
+        # pointed the other way: a declared `ops` track was being told the
+        # project's objectives were its evidence, and then no track was told
+        # anything at all.
+        # Shape evidence reaches every track; repository evidence reaches the
+        # project-wide one — which is the single track when no register exists
+        # and the implicit `main` when one does.
+        # **Two existing tests assert opposite things here, and both are
+        # right.** One says a project with two declared tracks must attribute
+        # `phase/` to neither. The other says a project with ONE declared track
+        # does get the project-wide signals, because "withholding them would
+        # throw away the strongest evidence a Perry project has".
+        #
+        # The V4 finding contradicted the second — until you look at its board:
+        # it has **no rows**. The finding's scenario has one declared track
+        # *and untracked rows beside it*, and those rows are the implicit
+        # `main`'s. So the rule is not about how many tracks are declared; it
+        # is about whether there is a project-wide track to own them.
+        #
+        # `main` is enumerated above exactly when such rows exist, so
+        # `project_wide` is that question already answered.
+        ev: dict[str, list] = {m: list(v) for m, v in shape_ev.items()}
+        if name.lower() == project_wide:
+            for mode, items in project_wide_ev.items():
+                ev[mode] = list(items) + ev[mode]
         mine = [r for r in rows if single
                 or (r.get("track") or "").strip().lower() == name.lower()]
         n = lambda col: _filled(mine, col)  # noqa: E731

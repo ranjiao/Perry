@@ -247,3 +247,4 @@
 {"ts": "2026-08-18T19:16:49", "event": "status", "id": "TASK-050", "title": "One normalization for a header cell, not two", "track": "main", "actor": "agent", "depends_on": [], "from": "review", "to": "in_progress", "reason": ""}
 {"ts": "2026-08-18T19:16:49", "event": "status", "id": "TASK-050", "title": "One normalization for a header cell, not two", "track": "main", "actor": "agent", "depends_on": [], "from": "in_progress", "to": "review", "reason": ""}
 {"ts": "2026-08-18T19:22:41", "event": "status", "id": "TASK-067", "title": "The writer can destroy the table it writes to, and perry-lint cannot see it", "track": "main", "actor": "agent", "depends_on": [], "from": "in_progress", "to": "review", "reason": ""}
+{"ts": "2026-08-18T19:29:17", "event": "status", "id": "TASK-042", "title": "OKR.md § Commitments — the half TASK-021 did not do", "track": "main", "actor": "agent", "depends_on": [], "from": "in_progress", "to": "review", "reason": ""}
