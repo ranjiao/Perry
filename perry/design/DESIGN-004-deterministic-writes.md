@@ -1,7 +1,7 @@
 # DESIGN-004: The write side has no tool
 
 > Status: locked
-> Date: 2026-08-16 · Locked: 2026-08-16
+> Date: 2026-08-18 · Locked: 2026-08-16
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: — (Perry has no `OKR.md`; declared unlinked, not guessed)
 > Supersedes: —   · Superseded by: —
@@ -248,10 +248,24 @@ most of them unrepresentable.
 ```
 
 **It is derived state and must stay disposable.** Delete it and Perry still
-works; `BOARD.md` and `journal/` remain canonical. What is lost is history
+works; the task store and `journal/` remain canonical. What is lost is history
 resolution and drift detection, not truth. This is the constraint that keeps the
 design from becoming a database with a markdown export, which is the failure
 mode DESIGN-002 argued against in a different costume.
+
+> **2026-08-18 — this paragraph was false for a release, and is true again.**
+> `DESIGN-005 § 5.2` made the log itself canonical for tasks, so deleting it
+> took `perry-task list --all` from 39 open + **35 closed** to 39 open + **0**.
+> A closed row leaves `BOARD.md` by design, so the log was its only
+> machine-readable record — which is truth, not history resolution, and `§ 1.3`
+> of this document says so.
+>
+> Nobody was following a bad rule: committing the log was right all along, and
+> it was the *fusion* that made this sentence untrue while leaving it written
+> down. [ADR-006](../decisions/ADR-006-task-store-is-not-the-log.md) splits the
+> store from the log, which restores the property rather than editing the claim.
+> The only word that changed above is what "canonical" names — the task store,
+> `perry/tasks.jsonl`, instead of `BOARD.md`.
 
 `.perry/` is already in `claims[]`, so this adds **no new claimed path** — goal 5,
 and the same discipline DESIGN-003 held to.
@@ -394,6 +408,17 @@ it is the one that has to satisfy a person using a different program.
   from "update the docs" to the step that must land after C — the same thing
   DESIGN-003's blast-radius table did for its phase G.
 - 2026-08-16 — locked.
+
+- **2026-08-18 — `§ 5.3`'s disposability claim was false, and is true again —
+  [ADR-006](../decisions/ADR-006-task-store-is-not-the-log.md).** Measured, not
+  argued: with `.perry/events.jsonl` the payload reports 39 open + 35 closed =
+  74 tasks; without it, 39 + 0. `perry-lint` stayed clean and `perry-state`
+  still reported the board, so *"Perry still works"* held — *"not truth"* did
+  not. The cause was `DESIGN-005 § 5.2` fusing the task store into the log;
+  ADR-006 splits them, and this document's sentence becomes correct without
+  being weakened. `§ 5.3` now names the task store rather than `BOARD.md` as
+  the canonical half, and carries the incident inline so a reader meets it
+  where the claim is made.
 
 ## 10. References
 

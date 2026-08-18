@@ -1255,5 +1255,50 @@ class TestTheAssertionsAskWhatTheFileSays(unittest.TestCase):
         self.assertIn("left byte-identical", out)
 
 
+class TestAMigratedIdIsReadableByItsOwnReader(unittest.TestCase):
+    """Migration wrote an id `perry-lint --provenance` could not see.
+
+    `fix_missing_fields` matched the surrounding block's bold style, so a digest
+    whose neighbours are bolded got `> **Id**：SRC-n`, and the provenance check
+    anchors `^>\\s*Id\\s*[:：]` literally. Measured on a migrated copy of a real
+    project: 3 of 15 provenance findings were files migration had **just given
+    an id to**, every one then declared conformant. Migration minted an id
+    nothing could cite, which is the one thing the id is for.
+
+    `header_block_end`'s docstring already named the hazard and named it one
+    case too narrow — "a digest whose neighbours are *plain* must get a plain
+    line" — when the dangerous case is neighbours who are bold.
+
+    The fixture is deliberately **not** Perry-generated: a block Perry starts is
+    never bolded, so a Perry-shaped fixture cannot reach this branch at all.
+    That is `TASK-044-spec.md`'s governing sentence, and it is why 30 mutations
+    walked past this.
+    """
+
+    DIGEST = ("# A digest someone else wrote\n"
+              "\n"
+              "> **Origin**: https://example.invalid/paper\n"
+              "> **Fetched**: 2026-01-02\n"
+              "\n"
+              "Body prose that is not Perry's.\n")
+
+    def test_a_bolded_neighbour_block_still_gets_a_readable_id(self):
+        p = Project({"knowledge/research/digest.md": self.DIGEST})
+        rc, _, err = p.run("apply")
+        self.assertEqual(rc, 0, err)
+        text = p.text("knowledge/research/digest.md")
+        self.assertNotIn("**Id**", text, f"the id was bolded:\n{text}")
+        self.assertRegex(text, r"(?m)^>\s*Id\s*[:：]\s*SRC-\d+",
+                         f"not in the form its reader anchors on:\n{text}")
+
+    def test_the_authors_own_bold_style_is_left_alone(self):
+        """Perry stops bolding its OWN field. It does not un-bold theirs."""
+        p = Project({"knowledge/research/digest.md": self.DIGEST})
+        p.run("apply")
+        text = p.text("knowledge/research/digest.md")
+        self.assertIn("**Origin**", text)
+        self.assertIn("**Fetched**", text)
+
+
 if __name__ == "__main__":
     unittest.main()

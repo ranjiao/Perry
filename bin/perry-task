@@ -2660,11 +2660,28 @@ def cmd_route(args, ctx) -> dict:
     # `## P2` predates Perry, so the drain refused on the one project that had
     # an intake to drain. The section filled and could never be emptied, which
     # turns `triage` step 1 into a step that cannot run.
-    widen_target_section(ctx["board"], priority, group, values)
-    line = ctx["board"].append_row(priority, values, group=group)
-    # The intake row keeps its record; `Outcome` says where it went.
+    # **The intake row is written back BEFORE the new row is appended.**
+    # `idx` came from `section_rows("Intake")` and `append_row` INSERTS a line;
+    # if the landing site sits above `## Intake`, every line below it shifts by
+    # one and `idx` addresses its neighbour. On a board with no `## P0`/`## P1`
+    # — `~/proj/gimegime-pmo`'s actual shape, and the whole reason `--group`
+    # exists — `ensure_section` anchors `## Intake` at the END of the file, so
+    # the landing site is ALWAYS above it and this ALWAYS fires. Measured: the
+    # intake table's separator row was overwritten, the request stayed
+    # undischarged, and the next `route` refused "`## Intake` has no table".
+    # One drain bricked the queue, at exit 0 with no warning.
+    #
+    # Writing first removes the hazard rather than compensating for it: no
+    # index is held across a mutation at all.
+    if split_row(ctx["board"].lines[idx])[:1] != cells[:1]:
+        raise Refused(
+            f"intake row {n} is no longer at line {idx} — nothing was written. "
+            f"`route` must write the intake row back before it appends the new "
+            f"one; an index taken from `section_rows` does not survive an insert")
     ctx["board"].lines[idx] = render_row(
         [intake.get(k, "") if k != "outcome" else f"routed → {tid}" for k in keys])
+    widen_target_section(ctx["board"], priority, group, values)
+    line = ctx["board"].append_row(priority, values, group=group)
     jline = (f"- [{tid}] — → not_started · routed from intake "
              f"(arrived {arrived or '—'}) · track: {track['track']}")
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "route",

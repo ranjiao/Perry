@@ -773,10 +773,22 @@ def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, b
     fields**, so a new field joins the ones already there instead of landing in
     the prose — and after the H1 otherwise, as a block of its own. The third
     return value says which happened, because a joined field follows its
-    neighbours' spelling and a new block uses the schema's. The bold question is not
-    cosmetic: `perry-lint --provenance` matches `^>\\s*Id\\s*[:：]`, which a
-    bolded `> **Id**:` does not satisfy — so a digest whose neighbours are
-    plain must get a plain line."""
+    neighbours' spelling and a new block uses the schema's.
+
+    **The `bold` flag it returns is now advisory and no caller acts on it.**
+    This docstring used to say the bold question "is not cosmetic:
+    `perry-lint --provenance` matches `^>\s*Id\s*[:：]`, which a bolded
+    `> **Id**:` does not satisfy — so a digest whose neighbours are plain must
+    get a plain line". Right about the hazard and **one case too narrow about
+    the remedy**: the dangerous case is neighbours who ARE bold, because that
+    is when the flag is true and the id is written `> **Id**：SRC-n`, which its
+    own reader cannot see. Measured on a migrated copy of a real project —
+    3 of 15 provenance findings were files migration had just given an id to,
+    every one of them declared conformant.
+
+    `fix_missing_fields` now writes a plain label unconditionally. The flag is
+    kept because it still describes the file truthfully; ceasing to act on a
+    fact is not the same as deleting it."""
     span = header_block_span(lines, spec, schema)
     if span is not None:
         first_quote, last_quote = span
@@ -787,7 +799,10 @@ def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, b
                 True)
     # A block Perry starts is never bolded: `perry-lint --provenance` matches
     # `^>\s*Id\s*[:：]` literally, and a bolded `> **Id**:` does not satisfy
-    # it — the same rule this function already applies when joining.
+    # it. This comment used to end "— the same rule this function already
+    # applies when joining", which was false: when joining it did the
+    # opposite. It is true now, and true because the code changed rather
+    # than because the sentence was softened.
     for i, line in enumerate(lines):
         if line.startswith("# "):
             return i + 1, False, False
@@ -830,7 +845,19 @@ def fix_missing_fields(lines: list[str], spec: dict, schema: dict, lang: str,
             # date Perry may write down; `—` is the schema's own way of saying
             # so (`design.Date` accepts it outright) and it never reads as fact.
             value = "—"
-        label = f"**{name}**" if bold else name
+        # **Never bolded, even when the block being joined is.** Same argument
+        # the paragraph above already makes about language, missed one line
+        # later: `perry-lint --provenance` anchors `^>\s*Id\s*[:：]` literally,
+        # so `> **Id**：SRC-n` is an id its own reader cannot see. Measured on a
+        # migrated copy of a real project — 3 of the 15 provenance findings were
+        # files migration had *just given an id to*, and all three were declared
+        # conformant. Migration wrote an id nothing could cite, which is the one
+        # thing the id exists for.
+        #
+        # Matching a block's bold style is politeness; being readable by Perry's
+        # own tools is correctness. The tolerant half — a reader that accepts
+        # decoration — belongs in `perry-lint` and is not this file's to write.
+        label = name
         sep = "：" if (joining and lang == "zh") else ": "
         blank = "" if at == 0 or not lines[at - 1].strip().startswith(">") else None
         line = f"> {label}{sep}{value}"
