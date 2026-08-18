@@ -39,10 +39,40 @@ from tables import squash  # noqa: E402
 #: Every file that reads a Perry state file. Not a curated list of offenders —
 #: the point is that a NEW reader is caught too, so this is "everything in
 #: `bin/` plus the `viewer/` readers", minus the one that defines the rule.
+def _is_python(p) -> bool:
+    """A Python source file, by suffix or shebang — not by extension list.
+
+    The first widened version enumerated every file and flagged
+    `bin/perry-dispatch-limit` (bash) and `viewer/static/sortable.js`. Neither
+    can reach `squash` and neither reads a Perry markdown table, so reporting
+    them is a guard crying wolf — and this module's own docstring says the
+    judgement about scope IS the module. Excluding by suffix list would have
+    to be extended for the next asset type; asking what the file is does not.
+    """
+    if p.suffix == ".py":
+        return True
+    if p.suffix:
+        return False
+    try:
+        return "python" in p.read_text(errors="replace").split("\n", 1)[0]
+    except OSError:
+        return False
+
+
+#: **Three blind spots, all measured by a reviewer planting a file, all in this
+#: one expression.** (1) `iterdir()` + `is_file()` skips DIRECTORIES, so the
+#: byte-identical defect was green at `bin/lib/rows.py` and red at
+#: `bin/perry-rows-probe` — and `bin/lib/` is the directory TASK-065 exists to
+#: create. That is the same hole its sibling guard had just been fixed for, one
+#: file over. (2) `viewer/` was a hardcoded ONE-FILE list, in the package where
+#: the rule lives. Both are why this now walks the tree.
 READERS = sorted(
-    [p for p in (PERRY_HOME / "bin").iterdir()
-     if p.is_file() and not p.name.endswith((".md", ".pyc"))]
-    + [PERRY_HOME / "viewer" / "parsers.py"])
+    p for d in ("bin", "viewer")
+    for p in (PERRY_HOME / d).rglob("*")
+    if p.is_file()
+    and "__pycache__" not in p.parts
+    and p != PERRY_HOME / "viewer" / "tables.py"
+    and _is_python(p))
 
 #: A HEADER cell resolved by a rule other than `squash`. The shape that makes
 #: it a header rather than a value: the result is a **list built over a row's
@@ -52,9 +82,14 @@ READERS = sorted(
 #: their own rules, because they normalize what a project WROTE rather than
 #: which column it wrote it in. Narrowing this to the header shape is the whole
 #: judgement in this module; widening it flags eight correct call sites.
+#: **(3) It matched a spelling, not a shape.** `for c in cells` was caught and
+#: `for h in header` was not — one variable rename walked past the guard, which
+#: a reviewer proved by renaming it. The loop SUBJECT is now any identifier, and
+#: the comprehension is recognised by what it builds rather than by what the
+#: author happened to call the row.
 SECOND_RULE = re.compile(
     r"=\s*\[[^\]]*?\.lower\(\)[^\]]*?\bfor\b\s+\w+\s+in\s+"
-    r"(?:cells|split_row\()")
+    r"(?:cells|cols|columns|header|hdr|split_row\()")
 
 
 class TestOneRuleForAHeaderCell(unittest.TestCase):
@@ -86,8 +121,21 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         missing = []
         for p in READERS:
             src = p.read_text(encoding="utf-8", errors="replace")
-            if "split_row(" not in src:
-                continue              # does not read markdown tables at all
+            # **Not `split_row(` alone — that exempted exactly the combination
+            # that bit.** A file carrying its own splitter AND its own header
+            # rule never mentions `split_row`, so the skip excused the one
+            # shape this module exists to catch; `bin/perry-explain` was
+            # precisely that file. A PRIVATE splitter is `.split("|")`, so the
+            # question is "does it split a row", either way.
+            #
+            # Narrower than the first attempt, which asked "does a string in
+            # this file contain a pipe" and flagged `perry-conform` and
+            # `perry-decide` — neither splits a row at all; `perry-decide`'s
+            # `header_fields` reads `**Status**:` document frontmatter, not a
+            # table header.
+            if not re.search(r"""\.split\(\s*['"]\|['"]|split_row\(""",
+                             src):
+                continue              # does not split markdown rows at all
             if "squash" not in src and ".norm(" not in src:
                 missing.append(p.name)
         self.assertEqual(missing, [], f"read tables without reaching `squash`: {missing}")
