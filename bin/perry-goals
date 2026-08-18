@@ -1406,9 +1406,26 @@ if __name__ == "__main__":
     # the bug happened to surface is the mistake `render_row`'s own docstring
     # is about.
     except UnrenderableCell as exc:
-        print(f"perry-goals: refused — the value {exc.value[:60]!r} "
-              f"{exc.why}. A register cell is one line of a markdown table.",
-              file=sys.stderr)
+        # **Which flag?** `index` is a column position and means nothing to
+        # the person who typed the command, so `--next` and `--title` produced
+        # identical refusals and neither said what to fix. Threading a name
+        # down to every `render_row` call would touch a dozen write sites; the
+        # value the user typed is already in hand, so match it back to the
+        # argument that carried it. Exact match only — a near-miss would name
+        # the wrong flag, which is worse than naming none.
+        where = ""
+        for _name in ("next", "title", "deliverable", "verification",
+                      "evidence", "promise", "reason", "discharged_by",
+                      "note", "risk", "question", "answer"):
+            _v = getattr(args, _name, None)
+            if isinstance(_v, str) and _v.strip() == exc.value:
+                where = "--" + _name.replace("_", "-") + " "
+                break
+        if not where and exc.field:
+            where = exc.field + " "
+        print(f"perry-goals: refused — {where}was given "
+              f"{exc.value[:60]!r}, which {exc.why}. A register cell is one "
+              f"line of a markdown table.", file=sys.stderr)
         sys.exit(1)
     except Refused as exc:
         print(f"perry-goals: refused — {exc}", file=sys.stderr)

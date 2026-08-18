@@ -27,6 +27,30 @@ import re
 _ESCAPED_PIPE = "\\|"
 
 
+def line_break_at(cells: list[str]) -> int | None:
+    """Index of the first cell a markdown row cannot carry, or None.
+
+    **The one rule.** `render_row` used `len(out.splitlines()) > 1` and
+    `check_cell` used `"\n" in v or "\r" in v`, and the module's own docstring
+    said they shared a check. `str.splitlines()` splits on **eleven**
+    boundaries, not two — so for `U+2028`, `U+2029`, `\v`, `\f`, `\x85` and
+    `\x1c` the create path refused and the amend path accepted, which is the
+    defect the amend path was fixed for, on a different alphabet.
+
+    Found by a reviewer running both, and confirmed by two mutations with no
+    overlap: killing one guard greened only the create paths, killing the other
+    greened only the amend paths. If it had been one check, one mutation would
+    have reddened all ten.
+
+    `splitlines()` is the authority because it is the wider set: anything it
+    breaks on ends the row wherever the file is later read.
+    """
+    for i, c in enumerate(cells):
+        if len(str(c).splitlines()) > 1 or str(c).strip("\n\r") != str(c):
+            return i
+    return None
+
+
 def split_row(line: str) -> list[str]:
     """`| a | b |` → `["a", "b"]`, and `\\|` is a value, not a delimiter.
 
@@ -69,9 +93,23 @@ class UnrenderableCell(ValueError):
     than echoing a row the user never typed.
     """
 
-    def __init__(self, index: int, value: str, why: str) -> None:
+    def __init__(self, index: int, value: str, why: str,
+                 field: str = "") -> None:
         self.index, self.value, self.why = index, value, why
+        #: The FLAG the value arrived on — `--next`, `--title`, `--promise`.
+        #: `index` is a column position and means nothing to the person who
+        #: typed the command: the CLI printed `value` and `why` and dropped
+        #: `index`, so `--next` and `--title` produced identical refusals and
+        #: neither named what to fix. Set by the caller, which is the only
+        #: layer that knows.
+        self.field = field
         super().__init__(f"cell {index}: {why}")
+
+    def naming(self, field: str) -> "UnrenderableCell":
+        """The same refusal, with the flag attached. For a caller that catches
+        one of these and knows which of its own arguments produced it."""
+        self.field = field
+        return self
 
 
 def render_row(cells: list[str]) -> str:
@@ -110,12 +148,11 @@ def render_row(cells: list[str]) -> str:
     # first version of this guard was exactly that comparison and let a
     # multi-line `--next` straight through, which is the bug it was written
     # for. Found by probing the guard rather than by reading it.
-    if len(out.splitlines()) > 1:
-        i = next((n for n, c in enumerate(want)
-                  if "\n" in c or "\r" in c), 0)
+    i = line_break_at(want)
+    if i is not None:
         raise UnrenderableCell(
-            i, want[i] if i < len(want) else "",
-            "contains a line break — a markdown table row is one line")
+            i, want[i], "contains a line break — a markdown table row is one "
+                        "line")
     got = split_row(out)
     if got != want:
         i = next((n for n, (a, b) in enumerate(zip(got, want)) if a != b),
@@ -140,7 +177,7 @@ def check_cell(value) -> str:
     insert.
     """
     v = str(value).strip()
-    if "\n" in v or "\r" in v:
+    if line_break_at([v]) is not None:
         raise UnrenderableCell(
             0, v, "contains a line break — a markdown table row is one line")
     return v.replace("|", _ESCAPED_PIPE)
@@ -190,8 +227,16 @@ def splice_cell(line: str, index: int, value: str) -> str:
     """
     spans = cell_spans(line)
     if not 0 <= index < len(spans):
-        raise Refused(f"row has {len(spans)} cell(s); cannot write cell "
-                      f"{index + 1}. Nothing was written")
+        # `Refused` lived in `bin/perry-goals` and did not travel with the
+        # move. Reachable — `commit --close`/`--miss` on a Commitments table
+        # with no `Status` column, and on any ragged row — so the user got a
+        # `NameError` traceback where a refusal belongs and `--json` got
+        # nothing. Raising this module's own exception keeps one type for
+        # "this value cannot go in that cell".
+        raise UnrenderableCell(
+            index, str(value),
+            f"row has {len(spans)} cell(s); cannot write cell {index + 1}. "
+            f"Nothing was written")
     a, b = spans[index]
     raw = line[a:b]
     if raw.strip():

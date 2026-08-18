@@ -4009,11 +4009,28 @@ def main(argv: list[str]) -> int:
     # free-text flag walked straight past it. `render_row` raises before
     # `commit()`, so a refusal means nothing was written.
     except UnrenderableCell as exc:
-        msg = (f"the value {exc.value[:60]!r}… {exc.why}. "
+        # **Which flag?** `index` is a column position and means nothing to
+        # the person who typed the command, so `--next` and `--title` produced
+        # identical refusals and neither said what to fix. Threading a name
+        # down to every `render_row` call would touch a dozen write sites; the
+        # value the user typed is already in hand, so match it back to the
+        # argument that carried it. Exact match only — a near-miss would name
+        # the wrong flag, which is worse than naming none.
+        where = ""
+        for _name in ("next", "title", "deliverable", "verification",
+                      "evidence", "promise", "reason", "discharged_by",
+                      "note", "risk", "question", "answer"):
+            _v = getattr(args, _name, None)
+            if isinstance(_v, str) and _v.strip() == exc.value:
+                where = "--" + _name.replace("_", "-") + " "
+                break
+        if not where and exc.field:
+            where = exc.field + " "
+        msg = (f"{where}was given {exc.value[:60]!r}…, which {exc.why}. "
                "A board cell is one line of a markdown table; pass a summary "
                "and put the long form in an evidence file."
                if len(exc.value) > 60 else
-               f"the value {exc.value!r} {exc.why}.")
+               f"{where}was given {exc.value!r}, which {exc.why}.")
         if args.as_json:
             print(json.dumps({"refused": msg}, ensure_ascii=False, indent=2))
         else:
