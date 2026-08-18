@@ -66,7 +66,8 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-import parsers as P  # noqa: E402
+import parsers as P
+from tables import render_row  # noqa: E402
 
 
 class Refused(Exception):
@@ -245,16 +246,21 @@ def render_index(state_root: Path, project: str) -> str:
            "| ADR | Title | Type | Date | Sunset / Notes |",
            "|---|---|---|---|---|"]
     if active:
-        out += [f"| {link(a)} | {a['title']} | {a['type']} | {a['date']} | "
-                f"{a['sunset'] or '—'} |" for a in active]
+        # Through `render_row`, not an f-string. Built by hand, an ADR titled
+        # `Use A | not B` produced a SIX-cell row against a five-cell header —
+        # `Type` read `not B`, `Date` read the type — and a line break in the
+        # same field broke the file silently. Perry's own writer produced rows
+        # Perry's own linter reports as `ragged-row`.
+        out += [render_row([link(a), a['title'], a['type'], a['date'],
+                            a['sunset'] or '—']) for a in active]
     else:
         out.append("| (none yet) | | | | |")
     out += ["", "## Superseded / Expired / Archived (historical)", "",
             "| ADR | Title | Status | Status date | Replaced by |",
             "|---|---|---|---|---|"]
     if hist:
-        out += [f"| {link(a)} | {a['title']} | {a['status']} | {a['date']} | "
-                f"{a['superseded_by'] or '—'} |" for a in hist]
+        out += [render_row([link(a), a['title'], a['status'], a['date'],
+                            a['superseded_by'] or '—']) for a in hist]
     else:
         out.append("| (none yet) | | | | |")
     return "\n".join(out) + "\n"

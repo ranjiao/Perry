@@ -135,7 +135,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.8"
+LIST_CONTRACT = "perry-task/list/1.9"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -167,6 +167,15 @@ LIST_SEMANTICS = [
              "`timeline[].field` key says which, per event. Nothing about the "
              "existing events changed — but a consumer that hardcoded "
              "'from/to is a status' was correct before and is not now."},
+    {"version": "1.9",
+     "fields": ["conformance.rows_with_no_computable_age"],
+     "note": "Empty when `conformance.has_event_log` is false. On a project "
+             "with no event log EVERY open row landed here by construction, so "
+             "the array restated the flag once per row rather than naming a "
+             "finding — 17 of 17 on the consumer that reported it. It now "
+             "reports only rows whose age is uncomputable for a reason the "
+             "flag does not already give. If you rendered this list, check "
+             "`has_event_log` instead."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -3563,7 +3572,18 @@ def cmd_list(args, ctx) -> dict:
     # Computed HERE, after the event merge: doing it during the board walk
     # flagged rows the tool had created itself, because `updated` was not
     # filled in yet.
-    conformance["rows_with_no_computable_age"] = sorted(
+    # **Empty when there is no event log at all**, and that is the whole
+    # change: on such a project EVERY open row lands here by construction — 17
+    # of 17 on the front-end that reported it — so the list restated
+    # `has_event_log: false` once per row instead of naming a finding. A
+    # `conformance` entry is meant to be the payload's account of what it could
+    # not classify; "this project predates the writer" is one fact about the
+    # project, and the flag already carries it.
+    #
+    # Not suppressed silently: the meaning of this array moved under a live
+    # consumer, so `semantics` carries an entry and the minor moved with it.
+    conformance["rows_with_no_computable_age"] = [] if not conformance[
+        "has_event_log"] else sorted(
         t["id"] for t in tasks.values()
         if t["open"] and not t["updated"]
         and not t["stage_since"] and not t["arrived"])
@@ -3621,7 +3641,13 @@ def cmd_list(args, ctx) -> dict:
 
     sections = board_sections(ctx)
     return {"contract": LIST_CONTRACT,
-            "semantics": LIST_SEMANTICS,
+            # Sorted here rather than trusted to writing order: the list is
+            # consumed as "everything newer than the minor I tested against",
+            # and it shipped once as 1.5, 1.9, 1.7 because an entry was
+            # inserted where it read well rather than where it belonged.
+            "semantics": sorted(
+                LIST_SEMANTICS,
+                key=lambda e: tuple(int(x) for x in e["version"].split("."))),
             "risks": sections["risks"],
             "asks": sections["asks"],
             "drift": sections["drift"],

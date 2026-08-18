@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.8`**
+> Contract: **`perry-task/list/1.9`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -22,6 +22,26 @@ purpose is to **not move when Perry's storage does**.
 | `--root <path>` | the project. Defaults to `$PERRY_PROJECT`, else walks up from the cwd. |
 
 `list` writes nothing. It takes the same lock every write takes, so a read
+
+## Two things about *writes* that the payload cannot tell you
+
+They are here because a consumer had to discover both by running the tools.
+
+**`stderr` is not the failure channel.** Every successful write may print an
+advisory conformance line there — `⚠ conformance (advisory) — …` — while
+returning `0` and doing exactly what was asked. A front-end that treats any
+`stderr` output as failure reports **every** successful write as an error. Check
+the exit code; with `--json` the same verdict is in the payload and `stderr`
+stays quiet.
+
+**`event_written` is on every write result**, and it is the difference between
+*"the row moved"* and *"the row moved and its timeline will have a hole"*. The
+board write lands first and the event is appended second, deliberately: the
+canonical file never disagrees with itself, and the derived record may be
+missing. When it is `false` the write succeeded and this payload's `timeline`
+will not show it. **§ Polling rests on the log being complete**, so a front-end
+that polls should surface this rather than assume.
+
 never observes a half-applied change; on a contended project it may wait up to
 10s and then refuse rather than return a torn view.
 
@@ -118,7 +138,7 @@ see `conformance.dependency_cycles`.
 
 | Key | Type |
 |---|---|
-| `ts` | string — ISO-8601, seconds precision, local time, no zone suffix |
+| `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
 | `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
@@ -348,7 +368,28 @@ change under you. Everything a Work surface needs is here.
 
 
 
-### 1.8
+
+### 1.9 — 2026-08-18
+
+**`conformance.rows_with_no_computable_age` is empty when
+`conformance.has_event_log` is false.**
+
+**What a consumer sees.** On a project with no event log, every open row used to
+appear in that array — 17 of 17 on the front-end that reported it — because they
+all qualify by construction. The array restated the flag once per row instead of
+naming a finding, and `conformance` is meant to be the payload's account of what
+it could not *classify*. "This project predates the writer" is one fact, and
+`has_event_log` already carries it.
+
+It now reports only rows whose age is uncomputable for a reason the flag does not
+already give. **If you rendered that list, read `has_event_log` instead.** Listed
+in `semantics` because the meaning moved under a live consumer.
+
+Also documented in this release, unchanged in behaviour: **`stderr` is not the
+failure channel**, **`event_written`**, and that **`ts` ties are possible and are
+not duplicates** — three things a consumer had to discover by running the tools.
+
+### 1.8 — 2026-08-18
 
 **Added `role`.** Empty on every project that has not declared a role card,
 which today is all of them — so nothing a consumer renders changes until a
@@ -366,7 +407,7 @@ roles, and the refusal lists the roles that exist. On a project with none, the
 flag is accepted, nothing is demanded, and no refusal mentions a concept the
 project has not adopted.
 
-### 1.7
+### 1.7 — 2026-08-18
 
 **Added `semantics` (top level) and `timeline[].field`.** Both asked for by
 aimark, by name, after a second pass over the payload.

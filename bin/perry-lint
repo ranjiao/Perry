@@ -532,7 +532,34 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     heads = headings(text)
     for req in spec.get("headings", []):
         matcher = re.compile(req["match"])
-        if not any(lvl == req["level"] and matcher.search(t) for lvl, t, _ in heads):
+
+        def present(req=req, matcher=matcher) -> bool:
+            # **The fifth implementation of "where is this section".** Four
+            # were unified on `squash`; this one applied the raw schema regex
+            # to the raw heading, so `## **Top risks**` reported
+            # `missing-section` while every other reader found it.
+            #
+            # It is the dangerous one because **`perry-migrate` acts on lint
+            # findings**: told the section was missing, it appended a second,
+            # empty `## Top risks` above the project's real one. Measured on a
+            # fixture — 1 risk visible before, **0 after**, the recorded risk
+            # orphaned, and `perry-lint` then reporting **0 errors** with the
+            # file **declared conformant**. Migration made a stranger's risks
+            # invisible and certified the result.
+            #
+            # Decoration is stripped and the retry is case-insensitive; the
+            # exact match is tried first so nothing that passed before changes.
+            for lvl, t, _ in heads:
+                if lvl != req["level"]:
+                    continue
+                if matcher.search(t):
+                    return True
+                if matcher.search(undecorate(t)) or re.search(
+                        req["match"], undecorate(t), re.IGNORECASE):
+                    return True
+            return False
+
+        if not present():
             severity = "error" if sections_are_hard else "warn"
             suffix = "" if sections_are_hard else (
                 f" (not yet blocking at {gate['field']}: {doc_status or '—'}; "
@@ -1134,6 +1161,17 @@ def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
                 if hay.exists() and tok in hay.read_text(errors="replace"):
                     return True
     return False
+
+
+def undecorate(text: str) -> str:
+    """Markdown emphasis and backticks removed, case and spacing kept.
+
+    `squash` lowercases, which would break a schema pattern anchored on a
+    capital. This strips only the decoration a human adds to a heading, so
+    `**Top risks**` and `` `Top risks` `` match the same pattern the plain form
+    does.
+    """
+    return re.sub(r"[`*_]+", "", text).strip()
 
 
 def intake_rows(text: str) -> int:

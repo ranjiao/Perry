@@ -221,7 +221,11 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         m = _CONFORMANCE_ROW.match(line)
         if not m:
             continue
-        cells = [c.strip().strip("`") for c in m.group(1).split("|")]
+        # `split_row` — the SIXTH implementation of this, found by a V4
+        # reviewer after five were unified. It reads a row out of a regex
+        # group rather than off a line, which is why every sweep looking for
+        # `strip("|").split("|")` at the start of a line walked past it.
+        cells = [c.strip("` ") for c in split_row("|" + m.group(1) + "|")]
         if len(cells) < 4:
             continue
         rel, ver, declared, route = cells[0], cells[1], cells[2], cells[3]
@@ -1448,7 +1452,11 @@ def parse_phase(slug: str, text: str) -> Phase:
         phase.started = started.group(1).strip()
     st = re.search(r"(?:Status|状态)\s*\**\s*[:：]\s*\**\s*([^\n（(*]+)", text)
     if st:
-        phase.status = st.group(1).strip().split("|")[0].strip()
+        # NOT a table row: this takes the text before an inline `|` inside a
+        # `Status:` field, and is named here so the next sweep does not "fix"
+        # it. Routing it through `split_row` would honour an escape that must
+        # stay literal in prose.
+        phase.status = st.group(1).strip().split("|", 1)[0].strip()
 
     phase.focus = _section(text, *alias("headings", "Phase Focus")).strip()
 

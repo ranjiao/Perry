@@ -1714,11 +1714,42 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         """aiMark saw 1.0 become 1.1 mid-session and could not tell what had
         been added. "1.x may only add keys" is a strong guarantee; it is more
         useful when a consumer can see what the new keys are."""
+        import re
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
         self.assertIn("## Changelog", doc)
         major_minor = PT.LIST_CONTRACT.rsplit("/", 1)[1]
-        self.assertIn(f"### {major_minor}", doc,
-                      f"the current version {major_minor} has no changelog entry")
+        # **A whole-heading match, not a substring.** `assertIn("### 1.9", doc)`
+        # passes against `### 1.9-removed`, which a mutation demonstrated —
+        # the guard would have let the entry be renamed away.
+        # The version must end at a word boundary of whitespace or end-of-line,
+        # so `### 1.6 — 2026-08-18` matches and `### 1.9-removed` does not.
+        headings = set(re.findall(r"^###\s+(\d+\.\d+)(?:\s|$)", doc, re.M))
+        self.assertIn(major_minor, headings,
+                      f"the current version {major_minor} has no changelog "
+                      f"entry of its own; found {sorted(headings)}")
+        # **Every shipped minor, not only the current one.** A consumer jumping
+        # 1.4 → 1.9 reads the entries between, and one skipped is one it cannot
+        # learn about.
+        major, minor = (int(x) for x in major_minor.split("."))
+        for m in range(minor + 1):
+            v = f"{major}.{m}"
+            self.assertIn(v, headings, f"no changelog entry for {v}")
+
+    def test_the_semantics_list_is_ordered_oldest_first(self):
+        """Its whole use is "everything newer than the minor I tested against",
+        which a consumer reads by walking the list. It shipped once as
+        1.5, 1.9, 1.7 because an entry was written where it read well rather
+        than where it belonged."""
+        versions = [e["version"] for e in PT.LIST_SEMANTICS]
+        keyed = [tuple(int(x) for x in v.split(".")) for v in versions]
+        self.assertEqual(keyed, sorted(keyed), versions)
+
+    def test_every_semantics_entry_names_fields_and_a_reason(self):
+        """An entry saying "something changed" is the thing this array exists
+        to replace."""
+        for e in PT.LIST_SEMANTICS:
+            self.assertTrue(e["fields"], e)
+            self.assertGreater(len(e["note"]), 80, e)
 
 
 class TestANewIdJoinsTheFamilyTheBoardAlreadyUses(unittest.TestCase):
@@ -2160,15 +2191,46 @@ class TestAgeIsKnownOrDeclaredUnknown(unittest.TestCase):
     time, by the same author who had just written the rule against it.
     """
 
+    #: A board carrying one row the tool never wrote.
+    HAND_WRITTEN = (
+        "| ID | Title | Owner | Status | Next action | Evidence |\n"
+        "|---|---|---|---|---|---|\n"
+        "| TASK-900 | predates the tool | User | in_progress | — | — |\n\n## P1")
+    PLAIN = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
+             "|---|---|---|---|---|---|\n\n## P1")
+
     def test_a_hand_written_row_is_declared_ageless_not_treated_as_fresh(self):
-        p = Project(board=BOARD.replace(
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
-            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
-            "| TASK-900 | predates the tool | User | in_progress | — | — |\n\n## P1", 1))
+        """**Amended at contract 1.9, and the amendment is the point.**
+
+        This asserted `TASK-900` appears in `rows_with_no_computable_age` on a
+        project with **no event log at all** — where every open row qualifies by
+        construction, so the array restated `has_event_log: false` once per row.
+        17 of 17 on the consumer that reported it.
+
+        The claim this test exists for — *a hand-written row is declared
+        ageless, not treated as fresh* — is unchanged and still asserted. What
+        moved is which field carries it when the whole project predates the
+        writer. The discriminating case is the test below.
+        """
+        p = Project(board=BOARD.replace(self.PLAIN, self.HAND_WRITTEN, 1))
         _, d = p.run("list", "--all")
         t = next(x for x in d["tasks"] if x["id"] == "TASK-900")
         self.assertIsNone(t["updated"])
-        self.assertIn("TASK-900", d["conformance"]["rows_with_no_computable_age"])
+        self.assertFalse(d["conformance"]["has_event_log"])
+        self.assertEqual(d["conformance"]["rows_with_no_computable_age"], [],
+                         "the flag already says this; the list restated it")
+
+    def test_a_hand_written_row_beside_tool_written_ones_is_still_flagged(self):
+        """The case the suppression must not swallow, and the reason it is a
+        suppression rather than a deletion: with an event log present, a row
+        the tool never wrote is a real finding about **that row** — not a fact
+        about the project — and the array is the only thing that names it."""
+        p = Project(board=BOARD.replace(self.PLAIN, self.HAND_WRITTEN, 1))
+        p.run("add", "--title", "tool written", "--priority", "P0")
+        _, d = p.run("list", "--all")
+        self.assertTrue(d["conformance"]["has_event_log"])
+        self.assertIn("TASK-900",
+                      d["conformance"]["rows_with_no_computable_age"])
 
     def test_a_tool_written_row_has_an_age_and_is_not_flagged(self):
         """The check must run AFTER the event merge. Placed during the board

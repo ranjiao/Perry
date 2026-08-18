@@ -57,6 +57,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
+from tables import render_row  # noqa: E402
 
 _LINT = None
 
@@ -392,7 +393,9 @@ HEADER = [
 
 
 def render(declarations: dict) -> str:
-    rows = [f"| {d.path} | {d.shape_version} | {d.declared} | {d.route} |"
+    # `render_row`, not an f-string: this file records a project's own paths,
+    # and a path is a value Perry does not choose.
+    rows = [render_row([d.path, str(d.shape_version), d.declared, d.route])
             for d in sorted(declarations.values(), key=lambda d: d.path)]
     return "\n".join([*HEADER, *rows, ""])
 

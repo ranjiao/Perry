@@ -64,6 +64,40 @@ BOARD = """# Board
 
 #: Spellings a person may reasonably write. None is forbidden by any rule, and
 #: the check is the CATEGORY — decoration — rather than the one that bit.
+FULL_BOARD = """# Board
+
+## P0
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## Cadence
+
+| ID | Recurring task | Owner | Frequency | Next due |
+|---|---|---|---|---|
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Status |
+|---|---|---|---|
+
+## {heading}
+
+| ID | Risk | Opened | Status |
+|---|---|---|---|
+| RX-001 | a real risk | 2026-08-01 | active |
+"""
+
 DECORATED = ["Top risks", "**Top risks**", "`Top risks`", "**Top risks**  ",
              "Top risks (one-line; full list in `PROJECT_STATE.md`)",
              "主要风险", "**主要风险**"]
@@ -73,9 +107,54 @@ class TestEveryMatcherAgrees(unittest.TestCase):
     def setUp(self):
         self.task = _task_mod()
 
-    def test_all_four_agree_on_every_decorated_spelling(self):
+    def missing_sections(self, board_text: str) -> list[dict]:
+        """`perry-lint`'s `missing-section` findings for this board — the fifth
+        implementation, and the one migration acts on."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / "perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: perry\n",
+                encoding="utf-8")
+            (root / "perry" / "BOARD.md").write_text(board_text, encoding="utf-8")
+            r = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
+                 "--root", str(root), "--json"], capture_output=True, text=True)
+            return [f for f in json.loads(r.stdout)["findings"]
+                    if f["rule"] == "missing-section"]
+
+    def test_migration_does_not_append_a_second_section(self):
+        """The consequence, end to end, on the tool that rewrites a stranger's
+        files. This is what makes the fifth implementation worse than the other
+        four: they made risks unreadable, this one made migration *write*."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / "perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: perry\n",
+                encoding="utf-8")
+            board = root / "perry" / "BOARD.md"
+            board.write_text(FULL_BOARD.format(heading="**Top risks**"),
+                             encoding="utf-8")
+            subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-migrate"),
+                 "apply", "--root", str(root)], capture_output=True, text=True)
+            self.assertEqual(board.read_text().count("Top risks"), 1,
+                             board.read_text())
+
+    def test_all_five_agree_on_every_decorated_spelling(self):
         """The property. Any one of them disagreeing is how the risks went
-        invisible, so they are asserted together rather than one per test."""
+        invisible, so they are asserted together rather than one per test.
+
+        **Four was wrong.** A V4 reviewer found a fifth — `perry-lint`'s
+        required-section check applied the raw schema regex to the raw heading —
+        and it was the dangerous one, because `perry-migrate` acts on lint
+        findings: told the section was missing, it appended a second, empty
+        `## Top risks` above the project's real one. 1 risk visible before,
+        **0 after**, and lint then reported **0 errors** with the file declared
+        conformant."""
         for h in DECORATED:
             text = BOARD.format(heading=h)
             line = f"## {h}"
@@ -85,6 +164,10 @@ class TestEveryMatcherAgrees(unittest.TestCase):
                                 "perry-task")
                 self.assertIsNotNone(P.top_risks_section(text), "section body")
                 self.assertEqual(len(P.parse_board(text).risks), 2, "parse_board")
+                self.assertNotIn(
+                    "Top risks",
+                    " ".join(f["message"] for f in self.missing_sections(text)),
+                    "perry-lint reports the section missing")
 
     def test_a_heading_that_only_starts_the_same_is_not_a_match(self):
         """The boundary the old regex's `(?!\\w)` protected, kept. `## P2` must

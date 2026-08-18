@@ -174,8 +174,9 @@ class TestAProjectThatHasDeclaredRoles(Base):
 class TestTheContractDeclaresIt(unittest.TestCase):
     def test_the_version_moved_and_the_doc_says_why(self):
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
-        self.assertIn("perry-task/list/1.8", doc)
+        self.assertIn("perry-task/list/1.9", doc)
         self.assertIn("### 1.8", doc)
+        self.assertIn("### 1.9", doc)
         self.assertIn("Goal 7", doc,
                       "the changelog must say a roleless project is unaffected")
 

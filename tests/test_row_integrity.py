@@ -37,6 +37,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -236,24 +237,97 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
         self.assertEqual(len(rows[0]), len(header))
         self.assertEqual(rows[0], T.split_row(self.ROW))
 
-    def test_no_reader_carries_its_own_splitter(self):
-        """The category, not the two instances that were found. A reader with
-        its own `strip("|").split("|")` does not know about `\\|`, and the
-        escape reaching one implementation out of eleven is what this whole
-        module is about."""
-        offenders = []
-        for rel in ("viewer/parsers.py", "bin/perry-lint", "bin/perry-task",
-                    "bin/perry-goals", "bin/perry-state", "bin/perry-diagnose",
-                    "bin/perry-decide", "bin/perry-conform"):
-            path = PERRY_HOME / rel
-            if not path.exists():
-                continue
-            for n, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
-                if 'strip("|").split("|")' in line:
-                    offenders.append(f"{rel}:{n}")
+    #: `viewer/tables.py` is the one implementation and is exempt by name.
+    #: Everything else in `bin/` and `viewer/` is DISCOVERED, not listed.
+    EXEMPT = {"viewer/tables.py"}
+
+    #: The read half and the write half of the same category.
+    SPLIT_RE = re.compile(r"\.split\((['\"])\|\1\)")
+    #: An f-string literal that starts a row and interpolates a value:
+    #: `f"| {a} | {b} |"`. That is the shape that carried the defect, and it is
+    #: the shape grep can tell apart.
+    #:
+    #: **What this cannot see, said rather than implied:** a row assembled with
+    #: `" | ".join(cells)` is indistinguishable by grep from a regex
+    #: alternation (`"|".join(re.escape(n) …)`) and from a separator row
+    #: (`"|".join(["---"] * n)`), both of which are correct and common here. A
+    #: first version flagged all three and reported 14 offenders of which 11
+    #: were fine — a guard that cries wolf is one people add exemptions to
+    #: until it means nothing. The join form is covered instead by the
+    #: `ragged-row` lint finding, which judges the file rather than the source.
+    HAND_ROW_RE = re.compile(r"""f['"]\s*\|\s*\{""")
+
+    def _tools(self):
+        """Every shipped tool, globbed.
+
+        The previous version carried a hardcoded list of eight files, so a
+        reviewer added `bin/perry-newreader` with the exact defect and the
+        guard stayed green. **A guard that cannot see a new file is a guard
+        against the files that already had the bug** — which is the
+        instance-shaped guard this project keeps finding, written into the test
+        that exists to prevent it.
+        """
+        out = [p for p in sorted((PERRY_HOME / "bin").iterdir())
+               if p.is_file() and not p.name.endswith((".md", ".json"))]
+        out += sorted((PERRY_HOME / "viewer").glob("*.py"))
+        return [p for p in out
+                if p.relative_to(PERRY_HOME).as_posix() not in self.EXEMPT]
+
+    @staticmethod
+    def _code_lines(path):
+        """Non-comment lines. A comment quoting the defect is not the defect —
+        this module's own prose names both spellings repeatedly."""
+        for n, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+            if not line.lstrip().startswith("#"):
+                yield n, line
+
+    def test_no_tool_splits_a_row_on_a_raw_pipe(self):
+        """The READ half. Any split on a bare `|` misses `\\|`, and the escape
+        reaching one implementation out of eleven is what this module is about.
+        Spelling-independent: `strip("|").split("|")` is the one that bit and
+        not the only way to write it."""
+        offenders = [f"{p.relative_to(PERRY_HOME).as_posix()}:{n}"
+                     for p in self._tools()
+                     for n, line in self._code_lines(p)
+                     if self.SPLIT_RE.search(line)]
         self.assertEqual(offenders, [],
-                         "these read rows without honouring `\\|`; "
-                         "use viewer/tables.py § split_row")
+                         "these read a row without honouring the escape; "
+                         "use viewer/tables.py split_row")
+
+    def test_no_tool_writes_a_row_by_hand(self):
+        """The WRITE half, which the previous guard did not have at all.
+
+        `bin/perry-decide` built `DECISIONS.md` rows with an f-string, so a
+        title containing a pipe produced a six-cell row against a five-cell
+        header — `Type` read the tail of the title — and a line break broke the
+        file silently. **Perry's own writer produced rows Perry's own linter
+        reports as `ragged-row`.** A reviewer found it; this guard did not,
+        because it only looked at readers.
+        """
+        offenders = [f"{p.relative_to(PERRY_HOME).as_posix()}:{n}"
+                     for p in self._tools()
+                     for n, line in self._code_lines(p)
+                     if self.HAND_ROW_RE.search(line)]
+        self.assertEqual(offenders, [],
+                         "these build a table row by hand; use "
+                         "viewer/tables.py render_row, which escapes the "
+                         "delimiter and refuses a value a row cannot carry")
+
+    def test_the_guard_sees_a_file_that_did_not_exist_when_it_was_written(self):
+        """The property the hardcoded list did not have, written as a real file
+        under `bin/` because that is how the blindness was demonstrated."""
+        probe = PERRY_HOME / "bin" / "perry-guardprobe"
+        probe.write_text('cells = [c for c in line.strip("|").split("|")]\n',
+                         encoding="utf-8")
+        try:
+            found = [p for p in self._tools() if p.name == "perry-guardprobe"]
+            self.assertTrue(found, "a new tool is invisible to this guard")
+            self.assertTrue(
+                [n for n, line in self._code_lines(found[0])
+                 if self.SPLIT_RE.search(line)],
+                "the guard did not flag a planted defect")
+        finally:
+            probe.unlink()
 
 
 class TestARaggedRowIsAFinding(unittest.TestCase):
