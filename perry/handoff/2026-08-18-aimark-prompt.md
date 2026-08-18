@@ -1,6 +1,7 @@
 # Instruction for aiMark's coding agent — catch up with Perry, 2026-08-18
 
-> **Revision 3.** Written after reading `doc/perry-contract-gaps-2.md`.
+> **Revision 3.** Written after reading `doc/perry-contract-gaps-2.md`,
+> extended once more after further work the same day (§ 6).
 > **All four of your round-2 asks are answered and shipped**; the contract is
 > now `perry-task/list/1.7`. Section 0 below is new and is the part to read
 > first. Revision 2's body is kept underneath, corrected where 1.7 moved it —
@@ -304,6 +305,57 @@ payload from 39 open + **35 closed** to 39 + **0**, while the design document
 declared the log "derived and disposable … what is lost is history resolution
 and drift detection, not truth". That claim was false, and the split makes it
 true rather than editing it.
+
+Do not modify anything under `$PERRY`. If a change is needed there, describe it
+and stop.
+
+## 6 · Landed after § 0 was written — nothing here needs work from you
+
+Four fixes and two new layers went in after the sections above. None changes
+`perry-task/list`'s shape. Listed so you can stop working around two of them.
+
+### 6.1 · Two silent data bugs you could have hit
+
+- **`route` bricked the queue after one drain, at exit 0.** On a board with no
+  `## P0`/`## P1` — a real shape, and the one `--group` exists for — the intake
+  table's separator row was overwritten, the request stayed undischarged, and
+  the next `route` refused *"`## Intake` has no table"*. If you ever surface
+  intake, this is why a drained queue could look broken. Fixed, with the
+  regression test it was missing.
+- **A comma-separated `Stages` cell became one stage named after the whole
+  list.** `new,triaged,resolved` parsed as a single stage, so `stage`,
+  stage-age and any WIP number you render were measured against a value nobody
+  wrote. `,` `，` `、` now split; an unsupported separator is reported by name
+  rather than collapsing silently.
+
+### 6.2 · `perry-goals/list` and `perry-decide/list` are unmoved
+
+Both still `2.0` and `1.0`. The storage decision below does not touch them.
+
+### 6.3 · The storage split is decided, not just proposed
+
+`ADR-006` is now written and `DESIGN-005 § 5.2` is rewritten around it — the
+task store becomes `perry/tasks.jsonl`, `BOARD.md` becomes the rendered open
+subset, and the event log goes back to being history. **Still nothing for you to
+do**: where a value is read from is not a contract fact. It is repeated here
+because the measurement behind it is the one that should stop you writing
+defensive code — every full-set read is currently O(events), and **57% of the
+log's bytes are `next` events**, which are cell overwrites with no replay value.
+That gets better; do not optimize around it.
+
+### 6.4 · Two layers that do not exist for you yet
+
+`DESIGN-006` phases A and C landed — **knowledge cards** (`Kind:`, four
+mandatory provenance fields, `perry-lint --knowledge`) and **role cards**
+(`.perry/roles/*.md`, a closed four-section set). Neither is in any read
+contract yet. Phase E is what adds a `role` field to `perry-task/list`, and it
+will take the next minor after whatever version you are reading — it is
+explicitly sequenced not to race the ones you already have.
+
+**Your `DeclaredAgent` type stays unused and stays correct.** The roster you
+asked for in round 1 will be rendered from role cards rather than from a
+separate registry, which is what § 1.3 said would happen and is now true rather
+than planned.
 
 Do not modify anything under `$PERRY`. If a change is needed there, describe it
 and stop.
