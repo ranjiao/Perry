@@ -71,13 +71,32 @@ class TestDecorationIsInvisible(unittest.TestCase):
                                  re.sub(r'"' + re.escape(str(root)) + r'[^"]*"',
                                         '"<path>"', json.dumps(payload))))
 
+    _SNAPSHOT: Path | None = None
+
+    @classmethod
+    def snapshot(cls) -> Path:
+        """**One copy of the live tree, shared by both fixtures.**
+
+        Copied twice, the plain and bolded projects were taken at different
+        moments — and Perry tracks itself, so a `perry-task` write landing
+        between them made the two differ **for a reason that has nothing to do
+        with bolding**. The test failed once, exactly that way, while the board
+        was being written mid-run. Both fixtures now derive from the same
+        bytes, so the only thing that can differ is the decoration.
+        """
+        if cls._SNAPSHOT is None or not cls._SNAPSHOT.exists():
+            tmp = tempfile.mkdtemp()
+            shutil.copytree(PERRY_HOME / "perry", Path(tmp) / "perry")
+            shutil.copytree(PERRY_HOME / ".perry", Path(tmp) / ".perry",
+                            ignore=shutil.ignore_patterns("events.jsonl"))
+            cls._SNAPSHOT = Path(tmp)
+        return cls._SNAPSHOT
+
     def project(self, bold: bool) -> Path:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
-        shutil.copytree(PERRY_HOME / "perry", root / "perry")
-        shutil.copytree(PERRY_HOME / ".perry", root / ".perry",
-                        ignore=shutil.ignore_patterns("events.jsonl"))
+        shutil.copytree(self.snapshot(), root, dirs_exist_ok=True)
         if bold:
             for f in (root / "perry").rglob("*.md"):
                 f.write_text(bold_headers(f.read_text(errors="replace")),
