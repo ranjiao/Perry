@@ -34,6 +34,8 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <role>` |
+| `reference/review.md` | `/pmo review <task-id> …` — dispatching a V4: the criteria gate, the four rules that make a round converge, the machine-readable verdict block, and concurrent dispatch of independent rows |
+| `reference/review-constraints.md` | Read by every review agent — referenced by path from the prompt, never retyped into it |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |

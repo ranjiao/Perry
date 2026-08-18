@@ -9,7 +9,7 @@ templates) against the one declared schema.
 
 Usage:
   perry-lint [--root <project_root>] [--templates | --claims | --verification |
-              --provenance | --knowledge]
+              --provenance | --knowledge | --reviews]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -26,6 +26,11 @@ Usage:
                 evidence cannot satisfy, and any row matching the project's
                 own high-stakes list that closed below V5. Never sets a
                 non-zero exit - advisory for one release by decision 4.
+  --reviews     advisory pass over V4 VERDICT blocks (work/reference/review.md
+                section 3): every block readable, every FAIL naming a file, every
+                V4 close carrying one, and no row left at `review` after its
+                own verdict already failed it. Prints the block count even at
+                zero findings.
   --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
                 the four provenance fields present, `Source:` resolving to
                 something a reader can re-open, and staleness against
@@ -1292,6 +1297,180 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
     return findings
 
 
+#: The keys a V4 verdict block must carry. `work/reference/review.md § 3`.
+#: `proof` is required only on a FAIL — a PASS's proof is the `checked:` line.
+VERDICT_KEYS = ("task", "rung", "result", "criteria", "checked", "not-checked")
+
+_VERDICT_BLOCK = re.compile(
+    r"^===\s*VERDICT\s*===\s*$(.*?)^===\s*END VERDICT\s*===\s*$",
+    re.M | re.S)
+
+
+def parse_verdicts(text: str) -> list[tuple[dict, int]]:
+    """Every `=== VERDICT ===` block in a document, with its line number.
+
+    Returns `(fields, line)` pairs. A key repeated inside one block keeps the
+    LAST value, matching how every other `Key: value` block in Perry parses —
+    silently keeping the first would make a corrected verdict read as the
+    uncorrected one.
+
+    Continuation lines (indented under a key) are joined into that key, because
+    `checked:` routinely runs to several lines and a reviewer should not have
+    to fight the parser to write a full sentence.
+    """
+    out: list[tuple[dict, int]] = []
+    for m in _VERDICT_BLOCK.finditer(text):
+        line0 = text[:m.start()].count("\n") + 1
+        fields: dict[str, str] = {}
+        key = None
+        for raw in m.group(1).split("\n"):
+            if not raw.strip():
+                continue
+            kv = re.match(r"^([a-z][a-z-]*)\s*:\s*(.*)$", raw.strip())
+            if kv:
+                key = kv.group(1)
+                fields[key] = kv.group(2).strip()
+            elif key and raw[:1].isspace():
+                fields[key] = (fields[key] + " " + raw.strip()).strip()
+        out.append((fields, line0))
+    return out
+
+
+def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
+    """A V4 verdict that a tool can read, and a row that moved when it arrived.
+
+    `work/reference/review.md` exists because Perry ran ten V4 rounds in one
+    night and they wrote the verdict five different ways — `FAIL`,
+    `**Verdict**`, `> **VERDICT —**`, `> **Verdict:**`, and a decorated section
+    heading. Three carried no line a parser could find at all.
+
+    **A verdict nothing can read is a verdict that gets misfiled, and it was.**
+    Rows sat at `review` after their review had already failed, reported by the
+    user rather than by any check. This is that check.
+
+    Advisory, and opt-in behind `--reviews`, for the same reason
+    `--verification` is: a project that predates the convention has evidence
+    documents written in prose, and promoting those to errors would retroactive
+    -ly condemn every review it ever ran. What it reports is a worklist.
+
+    Four findings, and the fourth is the one that matters:
+
+    - `verdict-malformed` — a block missing a required key, or a `result` that
+      is neither `PASS` nor `FAIL`.
+    - `fail-without-proof` — a FAIL naming no file. A FAIL that cannot point at
+      a line is a suspicion, and it goes back to the reviewer rather than onto
+      the board.
+    - `v4-close-without-verdict` — a row closed at V4 whose evidence contains
+      no verdict block naming it. This is the rung being claimed rather than
+      run.
+    - `fail-verdict-left-at-review` — a FAIL exists and the row is still at
+      `review`. `review` means *out for verification*; a row whose verdict has
+      arrived is no longer there in either direction.
+    """
+    findings: list[Finding] = []
+    seen: dict[str, list[tuple[str, dict, int]]] = {}
+
+    edir = state_root / "evidence"
+    for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
+        rel = md.relative_to(state_root).as_posix()
+        text = strip_comments(md.read_text(errors="replace"))
+        for fields, line in parse_verdicts(text):
+            tid = fields.get("task", "")
+            seen.setdefault(tid, []).append((rel, fields, line))
+
+            missing = [k for k in VERDICT_KEYS if not fields.get(k)]
+            if missing:
+                findings.append(Finding(
+                    "warn", rel, "verdict-malformed",
+                    f"verdict block is missing {', '.join(missing)} — "
+                    f"see work/reference/review.md § 3", line))
+            result = fields.get("result", "")
+            if result and result not in ("PASS", "FAIL"):
+                findings.append(Finding(
+                    "warn", rel, "verdict-malformed",
+                    f"result is {result!r}; the only two values are PASS and "
+                    f"FAIL", line))
+            if result == "FAIL" and not fields.get("proof"):
+                findings.append(Finding(
+                    "warn", rel, "fail-without-proof",
+                    f"{tid or 'this block'} FAILs with no `proof:` naming a "
+                    f"file — a FAIL that cannot point at a line is a "
+                    f"suspicion, not a verdict", line))
+
+    board = state_root / "BOARD.md"
+    if not board.exists():
+        check_reviews.blocks_seen = sum(len(v) for v in seen.values())
+        return findings
+    btext = strip_comments(board.read_text(errors="replace"))
+
+    def verdicts_for(tid: str) -> list[dict]:
+        return [f for _, f, _ in seen.get(tid, [])]
+
+    live: dict[str, str] = {}
+    for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
+        for header, rows in tables(body):
+            got = [norm(c) for c in header]
+            ci_id = column_index(got, "ID")
+            ci_st = column_index(got, "Status")
+            ci_v = column_index(got, "Verification")
+            ci_ev = column_index(got, "Evidence")
+            if ci_id < 0 or ci_st < 0:
+                continue
+            for row in rows:
+                def cell(i):
+                    return (row[i].replace("*", "").strip()
+                            if 0 <= i < len(row) else "")
+                tid = cell(ci_id)
+                if not tid:
+                    continue
+                live[tid] = cell(ci_st)
+                if cell(ci_st) == "done" and cell(ci_v).upper() == "V4":
+                    if not any(f.get("result") for f in verdicts_for(tid)):
+                        findings.append(Finding(
+                            "warn", "BOARD.md", "v4-close-without-verdict",
+                            f"{tid} is closed at V4 and no evidence document "
+                            f"carries a verdict block naming it — the rung is "
+                            f"claimed, not run"))
+
+    # `done` REMOVES the row, so a board scan alone measures an empty set on any
+    # project using the tool — the same trap `check_verification` documents.
+    log = project_root / ".perry" / "events.jsonl"
+    if log.exists():
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ev.get("event") != "done":
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            if not tid or str(ev.get("rung") or "").upper() != "V4":
+                continue
+            if not any(f.get("result") for f in verdicts_for(tid)):
+                findings.append(Finding(
+                    "warn", ".perry/events.jsonl", "v4-close-without-verdict",
+                    f"{tid} was closed at V4 and no evidence document carries "
+                    f"a verdict block naming it — the rung is claimed, not "
+                    f"run"))
+
+    for tid, status in live.items():
+        if status != "review":
+            continue
+        if any(f.get("result") == "FAIL" for f in verdicts_for(tid)):
+            where = next(r for r, f, _ in seen[tid] if f.get("result") == "FAIL")
+            findings.append(Finding(
+                "warn", "BOARD.md", "fail-verdict-left-at-review",
+                f"{tid} is at `review` and {where} already FAILed it — "
+                f"`review` means out for verification, so a row whose verdict "
+                f"has arrived does not belong there"))
+
+    check_reviews.blocks_seen = sum(len(v) for v in seen.values())
+    return findings
+
+
 def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
     """Every knowledge card can say where its claim came from and when.
 
@@ -1585,7 +1764,7 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
 def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
-    mode_provenance = mode_knowledge = False
+    mode_provenance = mode_knowledge = mode_reviews = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -1607,6 +1786,8 @@ def main(argv: list[str]) -> int:
             mode_provenance = True
         elif a == "--knowledge":
             mode_knowledge = True
+        elif a == "--reviews":
+            mode_reviews = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -1701,6 +1882,38 @@ def main(argv: list[str]) -> int:
         # existed. `--strict` does NOT promote these; branch on --json `count`.
         return 0
 
+
+    if mode_reviews:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        load_glossary(schema)
+        findings = check_reviews(state_root, project_root)
+        blocks = getattr(check_reviews, "blocks_seen", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "verdict_blocks": blocks,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --reviews \u00b7 {project_root}")
+            for f in findings:
+                print(f)
+            # The block count prints at zero findings, for the reason
+            # `--knowledge` prints its card count: "0 violations" over 0
+            # verdicts is trivially true, and a number that cannot tell "the
+            # convention holds" from "nobody has written one" is not a
+            # measurement.
+            print(f"\n  {blocks} verdict block(s) \u00b7 {len(findings)} "
+                  f"advisory finding(s)" if findings else
+                  f"\n  \u2713 {blocks} verdict block(s), every one readable "
+                  f"and acted on" if blocks else
+                  "\n  \u00b7 no verdict blocks yet \u2014 see "
+                  "work/reference/review.md \u00a7 3")
+        return 0
 
     if mode_knowledge:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
