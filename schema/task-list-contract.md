@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.5`**
+> Contract: **`perry-task/list/1.6`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -47,11 +47,14 @@ of that question: whatever the answer, `list --json` keeps this shape.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.5",   // check this before anything else
+  "contract":     "perry-task/list/1.6",   // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
   "intake":       { /* see below */ },     // queue mode's inbox, by position
+  "risks":        { /* see below */ },     // `## Top risks`, open ones
+  "asks":         { /* see below */ },     // `## User Input Queue` — needs-you
+  "drift":        { /* see below */ },     // board vs. the record of how it got there
   "tasks":        [ /* see below */ ],
   "open":         3,                       // counts AFTER --track filtering
   "closed":       11,
@@ -83,9 +86,32 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
 | `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
 | `open` | bool | **`true` unless the work is finished** — the row left the board with a `done`/`drop` event, or its status is `done`/`dropped`. Still the live/closed test; do not derive it from `status` yourself, because a row can be closed by either route. **One limit, stated because it cannot be fixed from here:** a row whose `Status` cell is empty is reported `open: true`, and Perry cannot know better. Perry's own board stages finished work under `## Done this period (leaves the board at next triage)` in a table with no `Status` column — 20 rows that are done and say nothing. `conformance.rows_with_no_status` names every one. |
+| `depends_on` | array | the ids this row waits on, verbatim from its `Depends on` cell, in cell order. **Opaque handles, like `id`** — an entry may name a task that is closed (that is what a satisfied dependency looks like), or a `DESIGN-`/`ADR-` id no board carries at all. `[]` when the row declares nothing, which on a board that predates 1.6 is every row. |
+| `blocked_by` | array | the subset of `depends_on` that is **not known-finished** — an id whose task is still open, or an id this payload does not carry. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
+| `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
+| `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, its own `status` is not `blocked` or `review` (both mean somebody else has the ball), and `blocked_by` is empty. This is served so you never walk the graph yourself. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
 | `timeline` | array | every event for this id, oldest first |
+
+**The edge is one hop, deliberately — not the transitive closure.** If A waits
+on B and B waits on C, then `A.blocked_by == ["B"]` and nothing more. That is
+not a simplification: A becomes startable the moment B closes, and B's own
+history is not A's business. So `blocked_by`, `blocks` and `startable` are
+exact, and there is no closure a consumer is missing.
+
+**Computed over the whole task set, before `--track` and `--all` filter it.** A
+row you filtered out still blocks the rows that name it. A `blocks` list that
+changed with your flags would be a different graph per query.
+
+A dependency is written by `perry-task depends <ID> --on "TASK-050, TASK-051"`,
+by `perry-task status <ID> --status blocked --on …`, or by `add --depends`. It
+lives in a `Depends on` **board cell** — not in the event log, which is derived
+and disposable, and not in the journal's definition block, which is append-only
+and cannot record a dependency being satisfied. A cycle is refused at write
+time; a cycle already on a hand-edited board is **reported, never refused** —
+see `conformance.dependency_cycles`.
+
 
 ### A timeline entry
 
@@ -120,6 +146,9 @@ rendering 12 and dropping one.
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. Covers open and closed rows alike, ordered by `id`. Together with `evidence_paths` this is the pair that lets you tell **"the file is gone"** from **"Perry did not look"**: a row whose cell names something reaches exactly one of the two, never neither. |
 | `next_action_cites_closed` | array | `{id, cites, status}` — an open row whose `Next action` points at a task that has since closed. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
+| `depends_on_unknown` | array | `{id, unknown}` — dependency ids this payload does not carry, ordered by `id`. Not an error and not refused at write time: a dependency **must** be able to name a closed task, or every satisfied dependency would have to be deleted from the record to be written in the first place, and `DESIGN-`/`ADR-` ids are legitimate here too. This is where a typo shows up. |
+| `dependency_cycles` | array | arrays of ids, each a loop found in the declared edges, e.g. `[["A","B","A"]]`. Every row in one waits forever and none is `startable`. The write path refuses to create one; a board is hand-editable by design, so the reader reports what it finds rather than refusing to answer. |
+| `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
 
 Two consequences worth designing for rather than discovering:
@@ -163,6 +192,80 @@ them into the journal with their `Outcome` intact. That rule lived in
 file rests its overflow argument on it: intake pressure is supposed to mean
 *taking on more than you discharge*, not *having discharged a lot*.
 
+### `risks` — `## Top risks`, the open ones
+
+Written by `perry-task risk-add` / `risk-clear`, and readable until 1.6 only
+through `perry-state --json`, **the one payload that carries no version at
+all**.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `items` | array | the open risks; fields below |
+| `open` | int | `len(items)` |
+| `cleared` | int | risks in the section that are over — struck through, or a `Status` cell that says so |
+| `source` | string | `table` \| `bullets` \| `none`. The two forms carry different amounts of truth and you are entitled to know which you got. |
+
+A risk:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the `RX-NNN` `risk-add` minted — and **`""` on a bullet**, which has no id. It used to be the first word of somebody's sentence, or worse, the severity letter. |
+| `title` | string | the risk statement, with any leading severity marker and list punctuation removed |
+| `severity` | string | `top` \| `watch` \| `accept` \| `resolved` — the **stance**, what was decided about the risk, read from words like `TOP RISK` and `ACCEPT`. Not a magnitude. |
+| `severity_text` | string | the **magnitude marker the project wrote**, verbatim: `H`, `M`, `L`, `高`/`中`/`低`, `🔴`. `""` when the line carries none, which is most of them. |
+| `severity_rank` | string | that marker normalized — `high` \| `medium` \| `low` \| `""` — so you can sort without a marker table of your own. |
+| `source` | string | `table` \| `bullets`, per row |
+| `opened` | string | `YYYY-MM-DD` on a table row; `""` on a bullet |
+| `age_days` | int \| null | `today − opened`. `null` on a bullet, which carries no date — the honest answer rather than a zero you would read as "raised today". |
+| `status` | string | the `Status` cell verbatim; `""` on a bullet |
+| `cleared_on` | string | `YYYY-MM-DD` parsed out of a cleared status |
+| `meta` | string | the source line, whole |
+
+### `asks` — `## User Input Queue`, the **needs-you** list
+
+The most decision-relevant section on a board, and until 1.6 the one behind the
+unversioned tool. Written by `perry-task ask` / `answer`. **Answered rows are
+not here** — one shared predicate decides that, because counting them is how a
+dashboard came to say "2 items waiting on you" about two questions answered the
+same day.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `items` | array | the unanswered asks; fields below |
+| `open` | int | `len(items)` |
+
+An ask:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | `USER-NNN` |
+| `needed` | string | what the user has to supply |
+| `blocks` | string | the cell verbatim — free text, often a task id |
+| `asked` | string | `YYYY-MM-DD`, or `""` on a board that carries `Idle` instead |
+| `idle` | string | the `Idle` cell as written (`"9d"`, `"—"`). Displayable. |
+| `idle_days` | int \| null | **the number to sort on.** Derived from `asked` at read time when the board has it, else the digits out of `idle`; `null` when nothing says. A stored age is stale the morning after it is written. |
+| `status` | string | the cell verbatim |
+| `priority` | string | `P0` when the ask blocks a P0 task, else `""` |
+
+### `drift` — does the board agree with the record of how it got that way
+
+The polling section below already told you to surface `drift.unrecorded` rather
+than assume the event log is complete, and then left it in the payload with no
+version. Same block, same meaning, now under this contract.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `checked` | bool | `false` when there is no event log — a pre-`perry-task` project, not a broken one. Everything else is then zero or empty. |
+| `baseline` | string | the earliest event timestamp, so you can judge `unrecorded` yourself |
+| `drift` | int | `len(orphaned) + len(stale_done)` — **only the unambiguous conditions** |
+| `unrecorded` | int | board rows with no creating event. **Not counted as drift**: a row can be a hand-edit or can simply predate the tool, and nothing on a row distinguishes them. Perry's own board had 29 the day the writer shipped. |
+| `unrecorded_sample` | array | up to 5 of those ids |
+| `orphaned` | array | ids an event opened and the board has neither a row nor a close for — the mutation did not land in the markdown |
+| `stale_done` | array | `done` rows whose latest event is not their close — edited after the tool wrote them |
+
+A hand-edited board is legitimate; the right response is that Perry notices.
+
+
 ## The three rules that make it safe to code against
 
 1. **Every key above is always present.** An unknown value is `""`, `null` or
@@ -190,11 +293,14 @@ rows; a front-end that wants to be honest about staleness should surface
 
 ## What this contract does not cover
 
-`## Cadence`, `## User Input Queue` and `## Top risks` are board sections that
-are not tasks and are not in this payload. `## Intake` is queue mode's inbox and
-is likewise absent — `perry-task intake` and `route` write it, and nothing reads
-it back out yet. If a front-end needs any of these, that is a new key in a `1.x`
-bump, not a reason to parse the markdown.
+`## Cadence` is a recurrence register, not work, and is not in this payload.
+`## User Input Queue` and `## Top risks` were in this paragraph until 1.6 and
+are now `asks` and `risks`; `## Intake` became `intake` in 1.4. If a front-end
+needs the one that is left, that is a new key in a `1.x` bump, not a reason to
+parse the markdown.
+
+**`perry-state --json` is still not a contract.** It carries no version and may
+change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
@@ -202,6 +308,56 @@ One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer
 deserves to know when a value's *meaning* changed under it.
+
+### 1.6 — 2026-08-18
+
+Two additions, one bump, because both add keys to this payload and two minors
+fighting over one response is worse than one that says everything.
+
+**What a consumer sees.**
+
+You can now tell, from this payload alone, **which open rows can actually be
+worked on**. Every task carries `startable` — open, not itself waiting on a
+reviewer or a blocker, and nothing unfinished under it. Sorting a dashboard on
+it needs no graph walk, no second call and no guess. `blocked` used to say a row
+was stopped and never say on what; a row now names its dependencies in
+`depends_on`, the unfinished ones in `blocked_by`, and the rows it is holding up
+in `blocks`. A dependency may name a task that has already closed — that is what
+a satisfied dependency looks like, and it stays in the record instead of
+vanishing when the work finishes.
+
+The edges have to be written before they can be read. On a board that predates
+this version every `depends_on` is `[]`, and
+`conformance.blocked_without_dependency` names the rows whose blocker is still
+prose — the worklist, and the honest measure of how far it has got. `startable` is already correct on those
+rows, because a `blocked` or `review` status is itself a statement that somebody
+else has the ball.
+
+Three things a Work surface shows arrive here instead of from `perry-state
+--json`, which carries **no version at all**: `risks`, `asks` (the *needs-you*
+list, `## User Input Queue`) and `drift`. Two shapes are fixed rather than
+carried across. A bullet-sourced risk used to arrive as `{"id": "H", "title":
+"· Apple developer agreement expired", "severity": "watch"}` — the severity
+letter had become the id, the list marker was glued to the title, and the H/M/L
+a human wrote survived only inside `meta`, so a project's own H and M both
+displayed as "watch". A bullet now carries `id: ""` (it has no id, and saying so
+beats inventing one from the first word of a sentence), a clean `title`, and the
+marker on two axes: `severity_text` verbatim and `severity_rank` normalized to
+`high`/`medium`/`low`. `severity` keeps its old meaning — the *stance*, not the
+magnitude. And `asks[].idle_days` is an integer beside the rendered `idle`
+string, so the needs-you list can finally be sorted by age.
+
+Nothing was removed, renamed or retyped.
+
+- **added** `tasks[].depends_on`, `blocked_by`, `blocks`, `startable`.
+- **added** `conformance.depends_on_unknown`, `dependency_cycles`,
+  `blocked_without_dependency`.
+- **added** `risks`, `asks` and `drift` as top-level blocks.
+- **added** `perry-task depends <ID> --on … | --clear`, and `--on` on
+  `status --status blocked`, which satisfies the same gate `--reason` did and,
+  unlike it, reaches this payload. `add --depends` now writes a board cell and
+  takes ids rather than free text; it wrote prose into the journal's definition
+  block before, once, at creation, never updatable.
 
 ### 1.5 — 2026-08-17
 

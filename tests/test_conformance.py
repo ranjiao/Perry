@@ -367,14 +367,22 @@ class TestReadingIsNotGated(unittest.TestCase):
     #: gains or loses a top-level key breaks a consumer that does not read
     #: Perry's changelog.
     CONTRACTS = {
-        # 1.5 is 1.4's key set exactly — the minor moved for two corrected
+        # 1.5 was 1.4's key set exactly — that minor moved for two corrected
         # VALUES (`evidence_paths` and `conformance.evidence_not_found` on
         # closed rows, TASK-057), which is what this table is here to let
         # through while a gained or lost key is not.
-        "perry-task/list/1.5": (
+        #
+        # 1.6 DOES gain keys, so this line was edited deliberately: `risks`,
+        # `asks` and `drift` (TASK-058 — three blocks a Work surface shows that
+        # were readable only through the unversioned `perry-state --json`). The
+        # freeze still freezes: every other key in the set is unchanged, the
+        # version string had to move in the same edit, and a fourth key added
+        # without touching this line still fails here.
+        "perry-task/list/1.6": (
             TASK, ("list", "--all"),
             {"project_root", "state_root", "contract", "tasks", "open", "closed",
-             "events", "untitled", "conformance", "intake"}),
+             "events", "untitled", "conformance", "intake",
+             "risks", "asks", "drift"}),
         "perry-decide/list/1.0": (
             DECIDE, ("list",),
             {"project_root", "state_root", "contract", "decisions", "active",

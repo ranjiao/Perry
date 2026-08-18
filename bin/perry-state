@@ -68,6 +68,35 @@ def days_since(value: str) -> int | None:
     return (date.today() - then).days
 
 
+def answered(u) -> bool:
+    """Whether a `## User Input Queue` row has had its answer.
+
+    Module level, and shared, because it has already been written twice: this
+    filter and `perry-diagnose`'s LOAD-03, which counted every `USER-` id
+    regardless of status. `perry-task list` is the third caller — a fourth copy
+    would be the same defect a third time, and this one decides the number the
+    user is supposed to act on ("2 items waiting on you" on a board where both
+    were answered the same day).
+    """
+    s = (u.status or "").strip().strip("*` ").lower()
+    return bool(s) and not s.startswith(("pending", "waiting", "open", "—", "-"))
+
+
+def idle_days(u) -> int:
+    """How long a question has waited, in days. `-1` when nothing says.
+
+    `Asked` is a date and wins: an age computed at read time is right every
+    morning, and the `Idle` cell was a number someone had to retype — which is
+    why both rows on Perry's own board read `—`. The number-out-of-the-cell
+    fallback is for the boards that carry `Idle` and no `Asked`.
+    """
+    d = days_since(getattr(u, "asked", "") or "")
+    if d is not None:
+        return d
+    m = re.search(r"(\d+)", u.idle or "")
+    return int(m.group(1)) if m else -1
+
+
 def parse_config(root: Path) -> dict:
     """`.perry/config.md` — document + chat language, repo layout, state root."""
     cfg = {"present": False, "language": "", "chat_language": "", "layout": "",
@@ -775,21 +804,8 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # `perry-diagnose`'s LOAD-03 counted every USER- id regardless of status.
     # Same shape, different file — which is why this is a shared predicate now
     # rather than a second inline filter.
-    def answered(u) -> bool:
-        s = (u.status or "").strip().strip("*` ").lower()
-        return bool(s) and not s.startswith(("pending", "waiting", "open", "—", "-"))
-
     uiq = [u for u in board.user_input_queue if not answered(u)]
 
-    def idle_days(u):
-        # `Asked` is a date and wins: an age computed at read time is right
-        # every morning, and the `Idle` cell was a number someone had to retype
-        # — which is why both rows on Perry's own board read `—`.
-        d = days_since(getattr(u, "asked", "") or "")
-        if d is not None:
-            return d
-        m = re.search(r"(\d+)", u.idle or "")
-        return int(m.group(1)) if m else -1
     oldest_uiq = max(uiq, key=idle_days) if uiq else None
     open_risks = snap.open_top_risks
 

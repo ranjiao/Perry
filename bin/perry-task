@@ -43,7 +43,8 @@ same class — the file is allowed to make Perry *slower to explain itself*, nev
 
 Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
-                   [--depends "…"] [--out-of-scope "…"] [--kr KR-ID]
+                   [--depends "TASK-050, TASK-051"] ids this row waits on
+                   [--out-of-scope "…"] [--kr KR-ID]
                    [--track T] [--owner O] [--priority P0|P1|P2]
                    [--group "<board heading>"]   file under a project's own section
                    [--prefix AIM]                mint into the board's own id family
@@ -69,7 +70,8 @@ Usage:
   perry-task intake-sweep                  discharged intake rows → journal
   perry-task drop  <ID> --reason "…"
   perry-task status <ID> --status blocked|review|not_started|in_progress
-                    [--reason "…"] [--next "…"]
+                    [--on "TASK-050"] [--reason "…"] [--next "…"]
+  perry-task depends <ID> --on "TASK-050, TASK-051" | --clear
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
   perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
@@ -129,7 +131,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.5"
+LIST_CONTRACT = "perry-task/list/1.6"
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
 # `## Top risks` rows go through the same three-way commit and land in the same
@@ -214,6 +216,173 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
         else:
             unresolved.append(cand)
     return found, unresolved
+
+
+#: What an id cell may look like, as ONE regex read by everything that has to
+#: decide "is this a handle or is this prose". `cmd_list` had it inline for
+#: `rows_with_unrecognized_id` and the dependency writer needed the same
+#: question answered the same way — two copies of this rule is how a board grew
+#: a row the writer accepted and the reader filed as unreadable.
+#:
+#: Deliberately not `TASK-\d+`: `schema/task-list-contract.md` says an id is an
+#: opaque stable string and that a real board carries several project-declared
+#: prefixes, some with no number at all.
+HANDLE_RE = re.compile(r"[A-Za-z][\w./-]*-?\d*")
+
+#: What a dependency may be named when this project has never issued it — a
+#: prefix (`PREFIX_RE`'s shape) and a number. Strictly narrower than
+#: `HANDLE_RE`, and the difference is the point: see `check_depends`.
+DEP_ID_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z][A-Za-z0-9]*)*-\d+")
+
+
+def strip_handle(cell: str) -> str:
+    """An id cell with its decoration removed.
+
+    `~~DATA-007~~` and `**TASK-1**` are both real and both from a real board:
+    strikethrough means retired, bold means emphasis, and the id underneath is
+    the handle either way.
+    """
+    return (cell or "").replace("~", "").replace("*", "").replace("`", "").strip()
+
+
+#: What separates two ids in a `Depends on` cell. Comma, semicolon, their
+#: full-width forms, the CJK enumeration comma and whitespace — a cell is a
+#: list, and a project writes a list in its own punctuation.
+_DEPENDS_SPLIT = re.compile(r"[,，;；、\s]+")
+
+
+def parse_depends(cell: str) -> list[str]:
+    """A `Depends on` cell → the ids in it, in cell order, deduplicated.
+
+    ONE split rule, read by the writer that validates the flag and by the
+    reader that publishes `depends_on`. A writer and a reader disagreeing about
+    one cell is the defect this repository has now found four times
+    (`schema/README.md § Columns resolve by name`), and a dependency graph is
+    the worst place for a fifth: a mis-split cell does not look wrong, it looks
+    like a row that is ready to start.
+
+    `—`, `n/a` and the rest of `ABSENT` mean *no dependency*, not a dependency
+    named "—". They are what `add` writes when nobody passed `--depends`.
+    """
+    raw = (cell or "").strip()
+    if raw.lower() in ABSENT:
+        return []
+    out: list[str] = []
+    for tok in _DEPENDS_SPLIT.split(raw):
+        tok = strip_handle(tok).strip(",.;:")
+        if not tok or tok.lower() in ABSENT or tok in out:
+            continue
+        out.append(tok)
+    return out
+
+
+def board_depends(board) -> dict[str, list[str]]:
+    """Every declared edge currently on the board — `{id: [depends on…]}`.
+
+    The board, not the event log. The log is DERIVED AND DISPOSABLE (DESIGN-004
+    § 5.3) and `mode` already taught this file what happens when a contract
+    reads a value out of it: deleting `.perry/events.jsonl` blanked the field
+    for every row. A dependency has to survive that, so the markdown holds it
+    and the log only records the transition.
+    """
+    edges: dict[str, list[str]] = {}
+    for tbl in board.task_tables():
+        if not tbl["readable"]:
+            continue
+        for c in tbl["rows"]:
+            tid = strip_handle(c.get("id", ""))
+            if tid:
+                edges[tid] = parse_depends(c.get("depends on", ""))
+    return edges
+
+
+def find_cycle(edges: dict[str, list[str]], start: str) -> list[str]:
+    """The path back to `start`, or `[]`. Depth-first, deterministic.
+
+    Only ids that are themselves in `edges` are walked: an edge onto a closed
+    task, or onto a `DESIGN-`/`ADR-` id, is a leaf here rather than an unknown,
+    because a row that is not on the board declares no dependencies of its own
+    and so can close no loop.
+    """
+    stack = [(start, [start])]
+    seen = {start}
+    while stack:
+        node, path = stack.pop()
+        for nxt in edges.get(node, []):
+            if nxt == start:
+                return path + [start]
+            if nxt not in seen and nxt in edges:
+                seen.add(nxt)
+                stack.append((nxt, path + [nxt]))
+    return []
+
+
+def check_depends(tid: str, value: str, ctx) -> list[str]:
+    """Validate `--depends`/`--on` and return the ids to write.
+
+    Three refusals, and the reasoning for each is the reason this is a write
+    check rather than a read report.
+
+    **Shape.** A dependency has to be a handle, because the whole point is that
+    something can resolve it. Prose in this cell would rebuild, one column to
+    the right, exactly the unreadable `- **Dependencies**: <free text>` line
+    this replaces.
+
+    **Self.** A row that waits on itself is never startable and no event can
+    ever change that.
+
+    **Cycles**, among the edges the board already declares. Refused here and
+    only here: `list` REPORTS a cycle it finds and never refuses, because a
+    board is hand-editable by design (DESIGN-004 decision 5) and a reader that
+    refuses a state a human can legitimately create is a reader that stops
+    working. The write path is the one place the loop can be prevented instead
+    of described.
+
+    **Not refused: an id this project has never heard of.** A dependency MUST be
+    able to name a closed task — `done` removes the row, and refusing the ids
+    that are no longer on the board would mean every satisfied dependency had to
+    be deleted from the record to be written in the first place. It also has to
+    be able to name a `DESIGN-` or `ADR-` id, which no board table carries.
+    `conformance.depends_on_unknown` names them at read time so a typo is
+    visible without making a legitimate edge unwritable.
+    """
+    ids = parse_depends(value)
+    if not ids:
+        raise Refused(
+            "--on names no dependency: pass one or more ids, or use --clear "
+            "to say this row waits on nothing")
+    known = set(board_depends(ctx["board"]))
+    known.update(e.get("id", "") for e in ctx["events"] if e.get("id"))
+    for d in ids:
+        # `HANDLE_RE` is deliberately NOT the test here. It answers the
+        # reader's question — "is this cell a handle or is it prose?" — and it
+        # says yes to any bare word, because `id` is documented as an opaque
+        # string and a real board carries ids with no number at all. Used as a
+        # write check it would accept `--on "waiting for the design review"`
+        # as five dependencies named `waiting`, `for`, `the`, `design` and
+        # `review`: the same over-eager first-token guess that put `id: "H"`
+        # into a payload, moved one column to the right.
+        #
+        # So: an id this project has already issued, or something shaped
+        # unmistakably like one — a prefix and a number. That admits
+        # `DESIGN-006` and `ADR-005`, which no board table carries and which
+        # are legitimate things to wait on, and refuses a sentence.
+        if d not in known and not DEP_ID_RE.fullmatch(d):
+            raise Refused(
+                f"{d!r} is not an id. A dependency has to be something that "
+                f"can be resolved — put the explanation in --reason or "
+                f"`perry-task next`, and name the handle here")
+        if d == tid:
+            raise Refused(f"{tid} cannot depend on itself")
+    edges = dict(board_depends(ctx["board"]))
+    edges[tid] = ids
+    cycle = find_cycle(edges, tid)
+    if cycle:
+        raise Refused(
+            "that edge closes a dependency cycle: " + " → ".join(cycle) +
+            ". Every row in a cycle waits forever and none of them is "
+            "startable; break it by dropping one edge")
+    return ids
 
 
 def canonical_column(key: str) -> str:
@@ -1460,6 +1629,16 @@ def cmd_add(args, ctx) -> dict:
             values["parent"] = args.parent
     if args.commitment:
         values["commitment"] = args.commitment
+    # `--depends` used to reach exactly one place: `- **Dependencies**: <free
+    # text>` in the journal's definition block, written once at creation, never
+    # updatable, not on the board and not in any payload — the dependency graph
+    # living in date-sharded append-only prose, which is verbatim what
+    # DESIGN-004 § 1.3 named as the defect for the task set itself. It writes a
+    # cell now. The journal line stays, rendering the same ids, because the
+    # definition block is what a human reads back.
+    depends = check_depends(tid, args.depends, ctx) if args.depends else []
+    if depends:
+        values["depends on"] = ", ".join(depends)
     rung = check_rung(args.rung, ctx["schema"])
     if rung:
         values["verification"] = rung
@@ -1492,13 +1671,14 @@ def cmd_add(args, ctx) -> dict:
         f"- **Track / mode**: {track['track']} / {mode}",
         f"- **Deliverable**: {args.deliverable}",
         f"- **Verification**: {args.verification}",
-        f"- **Dependencies**: {args.depends or '—'}",
+        f"- **Dependencies**: {', '.join(depends) or '—'}",
         f"- **Out of scope**: {args.out_of_scope or '—'}",
         f"- **KR linkage**: {args.kr or 'unlinked'}",
     ])
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
+             "depends_on": depends,
              "from": None, "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run, definition=definition)
@@ -1626,25 +1806,100 @@ def cmd_status(args, ctx) -> dict:
     prev = values.get("status", "")
     if prev == want:
         raise Refused(f"{tid} is already {want}")
-    if want == "blocked" and not args.reason:
+    # `--on` is the queryable half of the same demand `--reason` has always
+    # made. The refusal below was right — "a blocked row with no named
+    # dependency is a row nobody can unblock" — and then it put the named
+    # dependency into prose, where `subcommands.md`'s own triage rule ("the
+    # same dependency cited in ≥ 2 rows") could not read it. Either flag
+    # satisfies the gate, because a project blocked on something that is not a
+    # task ("waiting on Apple") still has to be able to say so; only `--on`
+    # reaches the payload, and that is the difference the two names carry.
+    depends = check_depends(tid, args.on, ctx) if args.on else []
+    if want == "blocked" and not (args.reason or depends):
         raise Refused(
-            f"{tid}: blocked needs --reason naming what it waits on. A blocked "
-            f"row with no named dependency is a row nobody can unblock")
+            f"{tid}: blocked needs --on naming the task(s) it waits on, or "
+            f"--reason if what it waits on is not a task. A blocked row with "
+            f"no named dependency is a row nobody can unblock")
     values["status"] = want
+    if depends:
+        ctx["board"].ensure_columns(pri, [canonical_column("depends on")])
+        pri, idx, header, cells = ctx["board"].find(tid)
+        values = dict(zip([norm(h) for h in header], cells))
+        values["status"] = want
+        values["depends on"] = ", ".join(depends)
     if args.next:
         values["next action"] = args.next
     elif want == "blocked":
-        values["next action"] = f"blocked on {args.reason}"
+        values["next action"] = (f"blocked on {args.reason}" if args.reason
+                                 else f"blocked on {', '.join(depends)}")
     line = ctx["board"].replace_row(idx, header, values)
-    tail = f" · {args.reason}" if args.reason else ""
+    tail = f" · {args.reason or ', '.join(depends)}" if (args.reason or depends) else ""
     jline = f"- [{tid}] {prev or '—'} → {want}{tail}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "status",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"), "actor": args.actor,
+             "depends_on": depends,
              "from": prev, "to": want, "reason": args.reason or ""}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": tid, "status": want, "row": line, **plan}
+
+
+def cmd_depends(args, ctx) -> dict:
+    """Declare, replace or clear what a row waits on.
+
+    The edge lives in a **board cell**, `Depends on`, and nowhere else. Three
+    places were candidates and only one survives its own failure mode:
+
+    - the event log alone — DERIVED AND DISPOSABLE, and `mode` already proved
+      what that costs a contract: deleting `.perry/events.jsonl` blanked the
+      field for every row on the board.
+    - the journal definition block alone — where `add --depends` has been
+      writing since it existed: append-only, date-sharded, written once at
+      creation and never updatable. A dependency's whole life is being
+      satisfied, and a record that cannot record that is not a record.
+    - a board cell, with the log recording the transition. The markdown stays
+      canonical, the log stays derived, and both say what they are for.
+
+    A cell costs `BOARD.md` no LINES — the cap is 200 and the file is at 94 —
+    only width, and only on the sections that carry a dependency: the column is
+    added by `ensure_columns` on first use, per section, exactly like
+    `Commitment` and `Verification` before it.
+
+    This subcommand REPLACES the cell rather than appending to it. A dependency
+    set is a statement about the present, and the two-flag alternative
+    (`--add`/`--remove`) would make "what does this row wait on" a question
+    whose answer depends on the order the flags were run in.
+    """
+    tid = args.id
+    if not args.clear and not args.on:
+        raise Refused(
+            f"{tid}: --on is required, naming the id(s) this row waits on — "
+            f"or --clear to record that it waits on nothing")
+    if args.clear and args.on:
+        raise Refused("--clear and --on contradict each other")
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    prev = parse_depends(values.get("depends on", ""))
+    ids = [] if args.clear else check_depends(tid, args.on, ctx)
+    if prev == ids:
+        raise Refused(f"{tid} already depends on "
+                      f"{', '.join(ids) if ids else 'nothing'}")
+    ctx["board"].ensure_columns(pri, [canonical_column("depends on")])
+    pri, idx, header, cells = ctx["board"].find(tid)
+    values = dict(zip([norm(h) for h in header], cells))
+    values["depends on"] = ", ".join(ids) or "—"
+    line = ctx["board"].replace_row(idx, header, values)
+    shown = ", ".join(ids) or "—"
+    jline = f"- [{tid}] depends on · {', '.join(prev) or '—'} → {shown}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "depends", "id": tid, "title": values.get("title", ""),
+             "track": values.get("track", "main"), "actor": args.actor,
+             "depends_on": ids,
+             "from": ", ".join(prev), "to": shown}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "depends_on": ids, "row": line, **plan}
 
 
 def cell_writer(field: str, flag: str, event: str, why: str,
@@ -2801,6 +3056,94 @@ def cmd_prioritize(args, ctx) -> dict:
             "priority": priority, "group": group, **plan}
 
 
+def board_sections(ctx) -> dict:
+    """`## Top risks`, `## User Input Queue` and board drift — the three things
+    a Work surface shows that had no contract at all.
+
+    All three are written by `perry-task` and were readable only through
+    `perry-state --json`, **the one payload that carries no version**. The task
+    contract named the first two out of scope and invited a `1.x` bump if a
+    front-end needed them; aiMark asked, having replaced every markdown parser
+    it had with these calls. `## User Input Queue` is the *needs-you* list — the
+    most decision-relevant section on the board — and it was the one behind the
+    unversioned tool.
+
+    Read through `viewer/parsers.py` and `bin/perry-state`, never reimplemented
+    here. Two parsers of one file is this repository's most expensive recurring
+    bug, and the `## Top risks` header question alone has already been asked in
+    two places that disagreed.
+
+    A project with none of these sections gets empty lists and zeroes, which is
+    the documented shape and not an error.
+    """
+    ps = perry_state()
+    empty_drift = {"checked": False, "baseline": "", "drift": 0,
+                   "unrecorded": 0, "unrecorded_sample": [],
+                   "orphaned": [], "stale_done": []}
+    try:
+        snap = P.load_snapshot(ctx["state_root"])
+    except Exception:
+        # A snapshot this reader cannot build must not take `tasks[]` down with
+        # it. `list` is the payload a front-end polls; the sections are an
+        # addition to it, not a precondition for it.
+        return {"risks": {"items": [], "open": 0, "cleared": 0, "source": ""},
+                "asks": {"items": [], "open": 0},
+                "drift": empty_drift}
+    open_risks = snap.open_top_risks
+    risks = [{
+        # `id` is `""` on a bullet, and that is the honest answer rather than
+        # the first word of somebody's sentence. It used to be the SEVERITY
+        # LETTER: `- H · Apple developer agreement expired` arrived as
+        # `{"id": "H", "title": "· Apple …", "severity": "watch"}` — the marker
+        # became the handle, the separator stayed glued to the title, and the
+        # H/M/L a human wrote survived only inside `meta`. A table row keeps
+        # the `RX-NNN` that `risk-add` minted; `source` says which you have.
+        "id": r.id or "",
+        "title": r.title or "",
+        # Two axes, because they answer different questions and folding them
+        # into one is what produced `severity: "watch"` for every row on a
+        # board that had written H and M. `severity` is the STANCE — what we
+        # decided to do about it, read from words like `TOP RISK` and `ACCEPT`.
+        # `severity_text` is the magnitude marker verbatim, `severity_rank`
+        # normalizes it so the same consumer can sort.
+        "severity": r.severity or "",
+        "severity_text": getattr(r, "severity_text", "") or "",
+        "severity_rank": getattr(r, "severity_rank", "") or "",
+        "source": r.source or "",
+        "opened": r.opened or "",
+        # Derived at read time, like every other age in this payload. A stored
+        # age is stale the morning after it is written; `null` on a bullet,
+        # which carries no date at all, rather than a zero a reader would take
+        # for "raised today".
+        "age_days": ps.days_since(r.opened or ""),
+        "status": r.status or "",
+        "cleared_on": r.cleared_on or "",
+        "meta": r.meta or "",
+    } for r in open_risks]
+    asks = [{
+        "id": u.id or "",
+        "needed": u.needed_from_user or "",
+        "blocks": u.blocks or "",
+        "asked": getattr(u, "asked", "") or "",
+        # The cell verbatim, and the number. `idle` was a RENDERED STRING
+        # (`"9d"`) and the only thing this payload carried — displayable,
+        # unsortable, and empty on any board that stores `Asked` instead, which
+        # made a 7-day-old blocker look like it had no age at all.
+        "idle": u.idle or "",
+        "idle_days": (lambda d: d if d >= 0 else None)(ps.idle_days(u)),
+        "status": u.status or "",
+        "priority": u.priority or "",
+    } for u in snap.board.user_input_queue if not ps.answered(u)]
+    return {
+        "risks": {"items": risks, "open": len(risks),
+                  "cleared": len(snap.top_risks) - len(open_risks),
+                  "source": snap.risks_source or ""},
+        "asks": {"items": asks, "open": len(asks)},
+        "drift": ps.reconcile_drift(ctx["project_root"], snap.board,
+                                    ps.read_event_log(ctx["project_root"])),
+    }
+
+
 def cmd_list(args, ctx) -> dict:
     """The full task set, from one call.
 
@@ -2833,6 +3176,8 @@ def cmd_list(args, ctx) -> dict:
                 "stage_since": "", "arrived": "", "parent": "",
                 "commitment": "", "next_action": "", "evidence": "",
                 "verification": "", "open": False, "group": "",
+                "depends_on": [], "blocked_by": [], "blocks": [],
+                "startable": False,
                 "created": None, "updated": None, "timeline": []}
 
     tasks: dict[str, dict] = {}
@@ -2841,6 +3186,8 @@ def cmd_list(args, ctx) -> dict:
                    "rows_with_no_status": [], "evidence_not_found": [],
                    "rows_with_no_computable_age": [],
                    "next_action_cites_closed": [],
+                   "depends_on_unknown": [], "dependency_cycles": [],
+                   "blocked_without_dependency": [],
                    "has_event_log": bool(ctx["events"])}
     statuses = set(ctx["schema"]["enums"]["task_status"])
     terminal = {"done", "dropped"}
@@ -2860,10 +3207,10 @@ def cmd_list(args, ctx) -> dict:
             # `~~DATA-007~~` and `**TASK-1**` are both real, both from a real
             # board: strikethrough means retired, bold means emphasis, and the
             # id underneath is the handle either way.
-            tid = c.get("id", "").replace("~", "").replace("*", "").replace("`", "").strip()
+            tid = strip_handle(c.get("id", ""))
             if not tid:
                 continue
-            if not re.fullmatch(r"[A-Za-z][\w./-]*-?\d*", tid):
+            if not HANDLE_RE.fullmatch(tid):
                 # A row whose first cell is prose, not a handle. One real board
                 # has `| 2 待核项 | …` sitting in its P2 table. Reported so a
                 # reader knows the board holds something it could not index —
@@ -2901,6 +3248,7 @@ def cmd_list(args, ctx) -> dict:
                 "next_action": c.get("next action", ""),
                 "evidence": c.get("evidence", ""),
                 "verification": c.get("verification", ""),
+                "depends_on": parse_depends(c.get("depends on", "")),
                 # `open` used to mean "still on the board", which was true when
                 # the board held only P0/P1/P2 and closing removed the row.
                 # Once the reader saw every section, a project that stages
@@ -2944,6 +3292,12 @@ def cmd_list(args, ctx) -> dict:
             t["priority"] = e.get("priority") or t["priority"]
             t["evidence"] = e.get("evidence") or t["evidence"]
             t["verification"] = e.get("rung") or t["verification"]
+            # A closed row has left the board, so its `Depends on` cell went
+            # with it — the same reason `evidence` is taken off the `done`
+            # event two lines up. This is the ONE place the log is the source,
+            # and only for rows the markdown no longer holds: an open row's
+            # cell always wins, so deleting the log cannot blank a live edge.
+            t["depends_on"] = e.get("depends_on") or t["depends_on"]
         ts = e.get("ts") or ""
         if e.get("event") in ("add", "route") and ts:
             t["created"] = ts
@@ -3004,6 +3358,76 @@ def cmd_list(args, ctx) -> dict:
         if missing:
             conformance["evidence_not_found"].append(
                 {"id": t["id"], "paths": missing})
+
+    # ── the dependency edge, and the one question a dashboard asks ─────────
+    #
+    # `blocked` said a row was stopped and never said on what. The edge is a
+    # board cell now (`board_depends`), and this is where it becomes something
+    # a consumer can sort on WITHOUT walking a graph itself:
+    #
+    #   depends_on  the raw declared edge, verbatim, in cell order
+    #   blocked_by  the subset that is NOT known-finished — an open task, or an
+    #               id this payload does not carry at all
+    #   blocks      the reverse edge, so "what does closing this free up" is a
+    #               lookup instead of a scan over every other row
+    #   startable   open, not itself waiting, and nothing unsatisfied under it
+    #
+    # **The raw edge, not the transitive closure.** Closure would be wrong as
+    # well as expensive: if A waits on B and B waits on C, A becomes startable
+    # the moment B closes — B's own history is not A's business. So one hop is
+    # the whole computation, and `blocks`/`blocked_by` are exact rather than
+    # approximations of a closure nobody needs.
+    #
+    # Computed over the WHOLE task set, before `--track` and `--all` filter it.
+    # A row filtered out of `tasks[]` still blocks the rows that name it, and a
+    # `blocks` list that changed with the caller's flags would be a different
+    # graph per query.
+    #
+    # An id nobody in this payload carries counts as UNSATISFIED. Perry cannot
+    # see a `DESIGN-006` or a typo'd `TASK-5O`, and "I do not know" is not
+    # "it is finished" — reporting such a row startable is the one error that
+    # sends somebody to work on something that is still blocked.
+    for t in tasks.values():
+        t["blocked_by"] = [d for d in t["depends_on"]
+                           if d not in tasks or tasks[d]["open"]]
+    for t in sorted(tasks.values(), key=lambda r: r["id"]):
+        for d in t["depends_on"]:
+            other = tasks.get(d)
+            if other is not None and t["id"] not in other["blocks"]:
+                other["blocks"].append(t["id"])
+    # A row whose own `Status` says it is waiting is not startable however
+    # empty its dependency list is — `blocked` and `review` both mean somebody
+    # else has the ball. That is what makes this field answer the question the
+    # user actually asked ("I saw a pile of `review` rows and thought they
+    # could be advanced") on a board with not one declared edge on it.
+    waiting = {"blocked", "review"}
+    for t in tasks.values():
+        t["startable"] = bool(t["open"] and t["status"] not in waiting
+                              and not t["blocked_by"])
+
+    edges = {tid: t["depends_on"] for tid, t in tasks.items()}
+    in_cycle: set[str] = set()
+    for tid in sorted(edges):
+        if tid in in_cycle:
+            continue
+        cycle = find_cycle(edges, tid)
+        if cycle:
+            conformance["dependency_cycles"].append(cycle)
+            in_cycle.update(cycle)
+    for t in sorted(tasks.values(), key=lambda r: r["id"]):
+        unknown = [d for d in t["depends_on"] if d not in tasks]
+        if unknown:
+            conformance["depends_on_unknown"].append(
+                {"id": t["id"], "unknown": unknown})
+    # The migration worklist, and the honest measure of how far it has got. A
+    # row whose `Status` is `blocked` and whose `Depends on` is empty is one
+    # whose dependency is still in prose somewhere — `Next action`, a journal
+    # line, a review verdict — where nothing can read it. On Perry's own board
+    # this is every blocked row, because backfilling them is a board write and
+    # this payload only reads.
+    conformance["blocked_without_dependency"] = sorted(
+        t["id"] for t in tasks.values()
+        if t["open"] and t["status"] == "blocked" and not t["depends_on"])
 
     # A row with no event AND no date cell has no age at all. Every staleness
     # rule triage runs is "idle ≥ N days", so such a row reads as fresh
@@ -3071,7 +3495,11 @@ def cmd_list(args, ctx) -> dict:
     except Refused:
         pass                      # no `## Intake` — not every project is queue-shaped
 
+    sections = board_sections(ctx)
     return {"contract": LIST_CONTRACT,
+            "risks": sections["risks"],
+            "asks": sections["asks"],
+            "drift": sections["drift"],
             "intake": {
                 "rows": intake_rows,
                 "undischarged": sum(1 for r in intake_rows if not r["discharged"]),
@@ -3190,7 +3618,7 @@ def parse(argv: list[str]) -> Args:
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
     a.group = a.prefix = None
-    a.dry_run = a.as_json = a.all = False
+    a.dry_run = a.as_json = a.all = a.clear = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
@@ -3216,6 +3644,8 @@ def parse(argv: list[str]) -> Args:
             a.as_json = True
         elif t == "--all":
             a.all = True
+        elif t == "--clear":
+            a.clear = True
         elif t in flags:
             i += 1
             setattr(a, flags[t], argv[i] if i < len(argv) else None)
@@ -3245,7 +3675,7 @@ def parse(argv: list[str]) -> Args:
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
                          "retitle", "rung", "evidence", "prioritize",
-                         "done", "drop"})
+                         "depends", "done", "drop"})
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
@@ -3261,7 +3691,8 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "retitle": cmd_retitle, "rung": cmd_rung,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
-            "status": cmd_status, "list": cmd_list}
+            "status": cmd_status, "depends": cmd_depends,
+            "list": cmd_list}
 
 
 @contextlib.contextmanager
