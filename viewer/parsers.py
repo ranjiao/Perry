@@ -1573,7 +1573,17 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
         cells = split_row(line)
         if len(cells) < 3:
             continue
-        if cells[0].lower() in {"day", ""}:
+        # **The `"day"` half was dead and is gone.** A V4 reviewer flagged this
+        # as a header cell resolved by a second rule — the shape is real — but
+        # `if not in_table: continue` above already skips every line before the
+        # separator, so the header row never reaches here and no spelling of it
+        # ever could. Verified by deleting the whole branch: the parse is
+        # unchanged.
+        #
+        # What remains is reachable and is not a header question at all: a DATA
+        # row whose first cell is empty. `squash` rather than `.lower()` so the
+        # two rules stay one, at no cost.
+        if squash(cells[0]) == "":
             continue
         idx += 1
         # Heuristic: status from response wording.
