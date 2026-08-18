@@ -1300,5 +1300,96 @@ class TestAMigratedIdIsReadableByItsOwnReader(unittest.TestCase):
         self.assertIn("**Fetched**", text)
 
 
+class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
+    """Guarantee 3 of `TASK-044-spec.md`: the recovery path is **named in the
+    output**, and shown working rather than described.
+
+    Only a write that *landed wrong* was handled. A write that **fails** — a
+    read-only file, a full disk, a permission revoked mid-run — propagated as an
+    unhandled traceback: a stranger's project left N-of-M migrated, the restore
+    point on disk and **never named**, the declaration never run, and empty
+    stdout. A traceback names nothing.
+    """
+
+    def project(self) -> Project:
+        return Project(files={
+            "BOARD.md": LEGACY_BOARD,
+            "knowledge/research/a.md": "# A digest\n\nBody.\n",
+            "knowledge/research/b.md": "# Another digest\n\nBody.\n",
+        })
+
+    def test_a_failing_write_rolls_back_and_names_the_restore_command(self):
+        p = self.project()
+        before = p.tree()
+        target = None
+        for e in M.plan_project(p.root, p.root, SCHEMA).writable:
+            target = e.path
+            break
+        self.assertIsNotNone(target, "nothing writable in the fixture")
+
+        real = M.write_atomic
+        calls = {"n": 0}
+
+        def flaky(path, text):
+            calls["n"] += 1
+            if calls["n"] == 2:          # fail PART WAY, not on the first file
+                raise PermissionError(13, "Permission denied", str(path))
+            return real(path, text)
+
+        M.write_atomic = flaky
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA), SCHEMA)
+        finally:
+            M.write_atomic = real
+
+        msg = str(caught.exception)
+        self.assertIn("perry-migrate restore", msg,
+                      f"the recovery command is not named:\n{msg}")
+        self.assertIn("Restore point:", msg,
+                      f"the restore point path is not named:\n{msg}")
+        # Compare the files that existed before. The restore point itself is
+        # NEW and must survive the rollback — it is the thing the refusal just
+        # told the user to run, and deleting it would make the message a lie.
+        after = {k: v for k, v in p.tree().items()
+                 if not k.startswith(".perry/migrate/")}
+        self.assertEqual(after, before,
+                         "the project was left half-migrated")
+        self.assertTrue(
+            [k for k in p.tree() if k.startswith(".perry/migrate/")],
+            "the restore point the refusal names was not kept")
+
+    def test_the_restore_point_is_named_even_when_the_rollback_also_fails(self):
+        """The worst case must not be the one that says nothing. `undo` writes,
+        so the failure that broke the run can break the repair — and then the
+        user needs the path most."""
+        point = Path(tempfile.mkdtemp()) / "2026-01-01-000000.json"
+        point.write_text("{}")
+        real = M.undo
+        M.undo = lambda _p: (_ for _ in ()).throw(
+            PermissionError(13, "Permission denied"))
+        try:
+            msg = M.rollback_message(point, "BOARD.md", "boom")
+        finally:
+            M.undo = real
+        self.assertIn("rollback also failed", msg)
+        self.assertIn("perry-migrate restore 2026-01-01-000000", msg)
+        self.assertIn("still migrated", msg)
+
+
+class TestNothingWritableIsNotACrash(unittest.TestCase):
+    def test_apply_on_a_project_with_no_writable_edit_returns_a_run_key(self):
+        """It raised `KeyError: 'run'` in the renderer — a traceback where
+        "there was nothing to do" belongs."""
+        p = Project(files={"BOARD.md": M.render_board_from_template()
+                           if hasattr(M, "render_board_from_template")
+                           else LEGACY_BOARD})
+        plan = M.plan_project(p.root, p.root, SCHEMA)
+        plan.edits = [e for e in plan.edits if False]
+        out = M.apply_plan(plan, SCHEMA)
+        self.assertIn("run", out)
+        self.assertEqual(out["applied"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

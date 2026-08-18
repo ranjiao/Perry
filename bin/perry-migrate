@@ -1407,22 +1407,34 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
     carries post-images instead of instructions."""
     edits = plan.writable
     if not edits:
-        return {"applied": [], "restore_point": None, "declared": [],
-                "refused": []}
+        # `run` is present here too. It was not, and `perry-migrate apply` on a
+        # project where nothing is writable died with `KeyError: 'run'` in the
+        # renderer — a traceback where "there was nothing to do" belongs.
+        return {"applied": [], "restore_point": None, "run": None,
+                "declared": [], "refused": []}
     run_id = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     point = restore_point(plan, run_id, edits)
     applied = []
     for e in edits:
-        write_atomic(e.path, e.after)
-        got = sha(e.path.read_text(errors="replace"))
+        try:
+            write_atomic(e.path, e.after)
+            got = sha(e.path.read_text(errors="replace"))
+        except OSError as exc:
+            # **A write that FAILS, as opposed to one that lands wrong.** Only
+            # the second was handled: a read-only file, a full disk or a
+            # revoked permission mid-run propagated as an unhandled traceback,
+            # so a stranger's project was left N-of-M migrated, the restore
+            # point existed and was **never named**, and the declaration never
+            # ran. `TASK-044-spec.md` guarantee 3 requires the recovery path be
+            # named in the output; a traceback names nothing.
+            raise Refused(rollback_message(point, e.key, exc)) from None
         if got != sha(e.after):
             # The bytes on disk are not the bytes the preview showed. Undo the
             # whole run rather than leave a project half-written.
-            undo(point)
-            raise Refused(
-                f"{e.key} was written but does not match the plan "
-                f"({got[:12]} vs {sha(e.after)[:12]}). The run was rolled back "
-                f"from {point}.")
+            raise Refused(rollback_message(
+                point, e.key,
+                f"written but does not match the plan "
+                f"({got[:12]} vs {sha(e.after)[:12]})"))
         applied.append(e)
     result = {"applied": [e.key for e in applied], "restore_point": str(point),
               "run": run_id, "declared": [], "refused": []}
@@ -1437,6 +1449,30 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         result["refused"] = out["refused"]
         result["record"] = out["record"]
     return result
+
+
+def rollback_message(point: Path, key: str, why) -> str:
+    """Roll the run back and say so — **and name the restore point either way.**
+
+    `undo` writes, so it can fail for the same reason the run did. If the
+    refusal only named the restore command on a *successful* rollback, the
+    worst case — a project half-migrated by a failure that also blocks the
+    repair — would be the one case that told the user nothing. So the path is
+    named first, unconditionally, and whether the automatic rollback worked is
+    reported as a separate fact.
+    """
+    cmd = f"perry-migrate restore {point.stem}"
+    try:
+        back = undo(point)
+        rolled = (f"The run was rolled back — {len(back)} file(s) restored. "
+                  f"Nothing on disk changed.")
+    except OSError as exc2:
+        rolled = (f"**The automatic rollback also failed** ({exc2}). Files "
+                  f"written before the failure are still migrated. Put them "
+                  f"back with:\n    {cmd}")
+    return (f"{key}: {why}\n{rolled}\n"
+            f"Restore point: {point}\n"
+            f"Recover at any time with:\n    {cmd}")
 
 
 def undo(point: Path) -> list[str]:
