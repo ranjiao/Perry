@@ -159,11 +159,27 @@ def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
     correctly-formed row. A checker that reads a file differently from the
     tool that wrote it does not check that file.
     """
-    out: list[tuple[list[str], list[list[str]]]] = []
+    return [(h, [c for c, _ in r]) for h, r in tables_with_lines(section)]
+
+
+def tables_with_lines(
+        section: str) -> list[tuple[list[str], list[tuple[list[str], int]]]]:
+    """`tables()`, with each row's 0-based offset inside `section`.
+
+    **`ragged-row` reported the section heading's line, not the row's** — a
+    row at `BOARD.md:21` was reported at `:15`, so the one finding whose whole
+    job is "go look at this line" sent the reader to a heading. On a board with
+    forty rows under one heading that is not a small imprecision; it is the
+    difference between a pointer and a gesture.
+
+    This is the real implementation and `tables()` is a view of it, rather than
+    a second scanner beside it — the defect this file has been fixing all week.
+    """
+    out: list[tuple[list[str], list[tuple[list[str], int]]]] = []
     prev: list[str] = []
     header: list[str] | None = None
-    rows: list[list[str]] = []
-    for line in section.split("\n"):
+    rows: list[tuple[list[str], int]] = []
+    for n, line in enumerate(section.split("\n")):
         s = line.strip()
         if re.match(r"^\|\s*:?-{2,}", s):
             header = [c.strip() for c in prev]
@@ -174,7 +190,7 @@ def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
             if header is None:
                 prev = cells
             else:
-                rows.append(cells)
+                rows.append((cells, n))
             continue
         if header is not None:
             out.append((header, rows))
@@ -624,7 +640,8 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
             )
 
         for body, start in bodies:
-            for header, rows in tables(body):
+            for header, rows_at in tables_with_lines(body):
+                rows = [r for r, _ in rows_at]
                 got = [norm(c) for c in header]
                 if not got:
                     continue
@@ -650,7 +667,13 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                 # whose headers Perry does not recognize can still be told its
                 # rows do not line up — and that is precisely the table a
                 # project arriving from outside Perry has.
-                for row in rows:
+                # Iterated WITH the offsets, not matched back to them.
+                # The first version built `{id(row): line}` from a second call
+                # to `tables_with_lines(body)` — different list objects, so no
+                # `id()` ever matched and every finding kept reporting the
+                # heading. It looked like a fix and changed nothing; caught by
+                # running a ragged row through it rather than by reading it.
+                for row, offset in rows_at:
                     if len(row) == len(header):
                         continue
                     if not any(c.strip() for c in row):
@@ -660,7 +683,15 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                              and 0 <= column_index(got, tspec["id_column"]) < len(row)
                              else " | ".join(row)[:60])
                     findings.append(Finding(
-                        "error", rel, "ragged-row", line=start,
+                        # `start` is `section_body`'s 0-based index of the
+                        # body's first line and `offset` is 0-based within the
+                        # body, so the 1-based line a person opens is
+                        # `start + offset + 1`. Verified with two ragged rows
+                        # at known, different lines rather than one — a single
+                        # sample cannot tell a constant offset from a
+                        # coincidence.
+                        "error", rel, "ragged-row",
+                        line=start + offset + 1,
                         message=f"row {shown!r} has {len(row)} cell(s) but its "
                                 f"header has {len(header)} — "
                                 + ("the trailing column(s) read as empty"
