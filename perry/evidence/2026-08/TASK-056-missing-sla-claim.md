@@ -4,7 +4,7 @@
 
 ## What the claim was, and where it actually lived
 
-`modes/pipeline.md § SLA`, `modes/queue.md § contract` and
+`modes/pipeline.md § The mode contract`, `modes/queue.md § The mode contract` and
 `schema/state-schema.json` all say the same thing: a track missing a no-default
 column cannot run the triage step that reads it, and **triage reports that**
 rather than skipping it.

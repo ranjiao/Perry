@@ -272,7 +272,7 @@ left blank. Say it as a line per track and do not skip the step it blocks —
 > `ops` (queue) has no `SLA`, so the breach step below cannot run. Declare one
 > in `.perry/config.md § Tracks`, or accept that this track has no clock.
 
-This is not a nicety. `modes/pipeline.md § SLA`, `modes/queue.md § contract` and
+This is not a nicety. `modes/pipeline.md § The mode contract`, `modes/queue.md § The mode contract` and
 `schema/state-schema.json` all say **triage** reports the missing value rather
 than skipping the step — and for a release it did not: `perry-lint` reported it
 at file level, this procedure had nothing to read, and the rule was stated in
