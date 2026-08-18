@@ -61,7 +61,27 @@
         "no_default": []
       }
     },
-    "defaults_note": "Two different absences, and conflating them is a bug. `\"\"` with the column listed in `no_default` means THERE IS NO HONEST DEFAULT and the track must declare it: `SLA` and `Cycle` are commitments a project makes to someone, and inventing one would put words in the user's mouth. `\"\"` otherwise means THIS MODE HAS NO SUCH CONTROL - queue has no WIP cap by design (depth is reported, never enforced) and project mode has no stage vocabulary at all. A track missing a `no_default` column cannot run the triage step that reads it, and triage reports that as a finding rather than skipping silently (V4 re-review round 3, findings 6-7)."
+    "defaults_note": "Two different absences, and conflating them is a bug. `\"\"` with the column listed in `no_default` means THERE IS NO HONEST DEFAULT and the track must declare it: `SLA` and `Cycle` are commitments a project makes to someone, and inventing one would put words in the user's mouth. `\"\"` otherwise means THIS MODE HAS NO SUCH CONTROL - queue has no WIP cap by design (depth is reported, never enforced) and project mode has no stage vocabulary at all. A track missing a `no_default` column cannot run the triage step that reads it, and triage reports that as a finding rather than skipping silently (V4 re-review round 3, findings 6-7).",
+    "stage_separators": {
+      "note": "Separators `split_stages` accepts in a `## Tracks` § Stages cell. Reading is tolerant: the comma is what a person types first, and a cell it cannot split becomes ONE stage whose name is the whole list — silently, with every stage-based measure in queue, pipeline and inquiry mode then operating on it. Writing stays strict; templates use `->`.",
+      "accepted": [
+        "->",
+        "→",
+        "，",
+        ",",
+        "、"
+      ],
+      "suspect": [
+        "/",
+        ";",
+        "；",
+        "|",
+        "·",
+        " and ",
+        " 和 "
+      ],
+      "suspect_note": "Characters that LOOK like a separator and are not accepted. A Stages cell yielding exactly one stage while containing one of these is reported by `perry-lint`, so an unsupported spelling is named rather than silently collapsed."
+    }
   },
   "verification": {
     "note": "DESIGN-003 section 5.3. Replaces the binary evidence gate with a declared rung per task. Advisory for one release (decision 4), then a hard gate. Two rules govern it, and neither is expressible as a column check: (1) the required rung is a function of CONSEQUENCE, not shape - anything outward-facing, irreversible, or carrying money/legal/safety exposure requires V5 minimum in every mode, overriding the mode default; (2) a V4 claim must cite an acceptance-criteria file and the reviewer must not have seen the reasoning that produced the artifact, or it is V1 wearing a costume.",

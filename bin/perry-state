@@ -166,16 +166,55 @@ def load_packs(names: list[str]) -> list[dict]:
 # heard of tracks reports exactly one, named `main`, mode `project` — which is
 # today's Perry. Callers never have to special-case "no tracks declared",
 # because there is no such state.
-def split_stages(cell: str) -> list[str]:
-    """`brief->draft->review` or `brief→draft→review` → ["brief","draft","review"].
+_STAGE_SEPARATORS: tuple[str, ...] | None = None
 
-    Normalizes before splitting because three spellings of the separator were in
-    circulation — `->` in the schema, `→` in the mode file's example, `→` with
-    spaces in the design — while nothing split the cell at all. "The first stage"
-    and "the terminal stage" are both load-bearing rules, and both were being
-    computed by an agent guessing which separator this project used.
+
+def stage_separators() -> tuple[str, ...]:
+    """Read from `schema/state-schema.json § work_modes.stage_separators`.
+
+    Declared there rather than written here so the linter's "that looks like a
+    separator and is not one" check and this splitter cannot disagree about the
+    set — the shape this project keeps finding.
     """
-    s = (cell or "").replace("→", "->").strip()
+    global _STAGE_SEPARATORS
+    if _STAGE_SEPARATORS is None:
+        try:
+            schema = json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text())
+            seps = ((schema.get("work_modes") or {})
+                    .get("stage_separators") or {}).get("accepted")
+        except (OSError, ValueError):
+            seps = None
+        _STAGE_SEPARATORS = tuple(seps or ("->", "→"))
+    return _STAGE_SEPARATORS
+
+
+def split_stages(cell: str) -> list[str]:
+    """`brief->draft->review` or `brief，draft，review` → the three stages.
+
+    Normalizes every accepted separator onto one before splitting, because
+    several spellings were in circulation — `->` in the schema, `→` in the mode
+    file's example, `→` with spaces in the design — while nothing split the cell
+    at all. "The first stage" and "the terminal stage" are both load-bearing.
+
+    **The comma was added 2026-08-18 and it is the one that mattered.** Only the
+    two arrow forms were accepted, so `new,triaged,resolved` — the separator a
+    person reaches for first, in a `## Tracks` table the user edits **by hand** —
+    parsed as ONE stage whose name is the whole list. A routed row then landed
+    with `Stage: new,triaged,resolved`, `entry_stage` returned it, and every
+    stage-based measure in queue, pipeline and inquiry mode — WIP, stage age,
+    the triage question each mode is *defined* by — operated on a single bogus
+    stage. Entirely silent: `perry-lint` reported 8 errors on the project it was
+    reproduced on and **not one named the cell**, and `perry-state` reported the
+    list as a stage without comment.
+
+    Found by reading the row a drain produced, not by a test.
+    """
+    s = (cell or "").strip()
+    for sep in stage_separators():
+        if sep != "->":
+            s = s.replace(sep, "->")
     if not s or s == "—":
         return []
     return [p.strip() for p in s.split("->") if p.strip()]

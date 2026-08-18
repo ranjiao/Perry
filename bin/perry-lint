@@ -193,6 +193,14 @@ HEADING_ALIASES: dict[str, list[str]] = {}
 #: question, which is the defect ADR-004 is about.
 MODE_NO_DEFAULT: dict[str, list[str]] = {}
 
+#: Separators a `## Tracks` § Stages cell may use, and the ones that look like
+#: separators and are not — read from `schema/state-schema.json §
+#: work_modes.stage_separators`, never copied. `bin/perry-state § split_stages`
+#: reads the SAME list, so the splitter and the check below cannot disagree
+#: about what an accepted separator is. Two answers to that question is what
+#: put the `->` / `→` bug in circulation to begin with.
+STAGE_SEPARATORS: dict[str, list[str]] = {}
+
 #: What a user writes in a cell to mean "nothing here". `SKILL.md`'s own
 #: example track row spells an empty cell `—`, so a check that only tested for
 #: the empty string would pass over every register Perry itself taught people
@@ -213,6 +221,8 @@ def load_glossary(schema: dict) -> None:
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
     for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
         MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
+    STAGE_SEPARATORS.update(
+        (schema.get("work_modes") or {}).get("stage_separators") or {})
     i18n = schema.get("i18n") or {}
     for col, per_lang in (i18n.get("columns") or {}).items():
         COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
@@ -630,6 +640,53 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                     f"Tracks`; until then triage reports the gap "
                                     f"instead of a verdict."),
                             ))
+
+                # **A Stages cell that did not split is reported by name.**
+                #
+                # `split_stages` accepts the separators in
+                # `schema/state-schema.json § work_modes.stage_separators.
+                # accepted`; a cell using any other one becomes ONE stage whose
+                # name is the whole list, and every stage-based measure in
+                # queue, pipeline and inquiry mode then runs on it. That is
+                # silent today: reproduced on a project reporting 8 errors, and
+                # not one of them named this cell.
+                #
+                # Both halves read the SAME schema list, so the splitter and
+                # this check cannot disagree about what an accepted separator
+                # is — which is the shape that put the `->` / `→` bug in
+                # circulation to begin with.
+                seps = STAGE_SEPARATORS
+                si = column_index(got, "Stages")
+                if si >= 0 and seps.get("suspect"):
+                    # The table's own id column is declared under
+                    # `no_default_by_mode`, not at the table's top level —
+                    # `tspec["id_column"]` is None here, and reading it named
+                    # every track `'?'`.
+                    ti2 = column_index(got, (nd or {}).get("id_column") or "")
+                    for row in rows:
+                        if si >= len(row):
+                            continue
+                        cell = row[si].replace("*", "").strip()
+                        if cell in UNDECLARED_CELL or not cell:
+                            continue
+                        if any(a in cell for a in (seps.get("accepted") or [])):
+                            continue
+                        hit = next((c for c in seps["suspect"] if c in cell), None)
+                        if not hit:
+                            continue
+                        who = (row[ti2].replace("*", "").strip()
+                               if 0 <= ti2 < len(row) else "?")
+                        findings.append(Finding(
+                            "warn", rel, "stage-separator", line=start,
+                            message=(
+                                f"track {who!r} lists its stages with {hit!r}, "
+                                f"which Perry does not split on — the whole "
+                                f"cell becomes ONE stage named "
+                                f"{cell!r}, and WIP, stage age and this mode's "
+                                f"triage question all measure against it. Use "
+                                f"one of "
+                                f"{', '.join(repr(a) for a in seps['accepted'])}."),
+                        ))
 
                 ci = column_index(got, tspec["id_column"]) if tspec.get("id_column") else -1
                 if ci >= 0:
