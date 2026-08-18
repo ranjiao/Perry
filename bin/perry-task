@@ -1887,6 +1887,19 @@ def cmd_done(args, ctx) -> dict:
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
+             # **`owner` and `role` travel with the close, or the closed half
+             # of the board is anonymous.** `done` REMOVES the row, so
+             # everything the row said that the event does not carry is gone.
+             # aiMark measured it on this board: owner present on 21 of 21 open
+             # rows and **0 of 60 closed** ones. Its control was a project with
+             # no event log, where closed rows stay on the board and owner is
+             # 17/17 — so this is a consequence of the log, not of the data.
+             #
+             # A declared role could show current workload and never a track
+             # record. `evidence` and `rung` were carried for exactly this
+             # reason and these two were simply missed.
+             "owner": values.get("owner", ""),
+             "role": values.get("role", ""),
              "actor": args.actor, "from": prev, "to": "done",
              "evidence": args.evidence, "rung": rung}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
@@ -2206,6 +2219,10 @@ def cmd_drop(args, ctx) -> dict:
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "drop",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
+             # Same reason as `done`: the row is leaving and these are the last
+             # place it says who held it.
+             "owner": values.get("owner", ""),
+             "role": values.get("role", ""),
              # Empty on a project-mode row, which has no stages at all — the
              # key is always present, because a consumer that has to branch on
              # a missing key is a consumer that will forget to.

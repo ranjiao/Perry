@@ -237,6 +237,9 @@ def load_sibling(name: str):
     return mod
 
 
+#: An inline code span or a fenced line. Content inside one is being QUOTED.
+CODE_SPAN = re.compile(r"`[^`]*`|^\s{4,}\S.*$", re.M)
+
 OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
 
 # A `TBD` that a template DECLARES as a legal value is not a decision anybody is
@@ -371,7 +374,19 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
                 in_plan = bool(PLAN_SECTION.match(line))
             if in_plan:
                 continue
-            if OPEN_DECISION.search(DECLARED_TBD.sub("", line)):
+            # **A marker inside a code span is a quotation, not a decision.**
+            # Four review documents quote `{'', '-', 'n/a', 'tbd', '无'}` —
+            # the tool's own empty-cell set — while reporting on it, and each
+            # mention was counted as a decision queued on the user. Perry
+            # tripped its own `LOAD-03` on documents whose subject was that
+            # very set.
+            #
+            # The same shape as `perry-lint`'s module-docstring false positive
+            # and `field_re`'s: a scanner that reports prose quoting the thing
+            # it looks for. A guard that fires on documentation about itself is
+            # one people switch off.
+            bare = CODE_SPAN.sub("", DECLARED_TBD.sub("", line))
+            if OPEN_DECISION.search(bare):
                 open_decisions += 1
                 if len(samples) < 8:
                     samples.append(f"{rel}:{n}")

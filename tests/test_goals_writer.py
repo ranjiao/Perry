@@ -1053,68 +1053,90 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                 self.assertEqual(p.okr_path.read_bytes(),
                                  before, "a refusal wrote to the file")
 
-    #: Pairs meaning the same thing in the two languages. **The property, not
-    #: a phrase list** — round 2 was fixed against the phrases it was reported
-    #: with and the asymmetry simply reversed: the Chinese half grew a
-    #: quantity requirement and the English half kept requiring only wordhood,
-    #: so `--by week` wrote a live commitment row while `--by 周` was refused.
-    #:
-    #: Built to cover both directions, including the ones a reviewer found by
-    #: writing 46 of its own: Chinese-refused/English-accepted (`下周`, `本月`,
-    #: `明年`, `两个星期`, `一个礼拜`, `当天`) and bare units, which must now be
-    #: refused in BOTH.
-    CLOCK_PAIRS = [
-        ("next week", "下周", True),
-        ("this month", "本月", True),
-        ("two weeks", "两个星期", True),
-        ("one week", "一个礼拜", True),
-        ("next year", "明年", True),
-        ("this year", "今年", True),
-        ("tomorrow", "明天", True),
-        ("today", "当天", True),
-        ("weekly", "每周", True),
-        ("end of quarter", "季度末", True),
-        ("within a week", "本周内", True),
-        ("3d", "3天", True),
-        ("2026-09-30", "2026-09-30", True),
-        ("week", "周", False),
-        ("month", "月", False),
-        ("year", "年", False),
-        ("when we get to it", "有空再说", False),
-        ("later", "日后再说", False),
-        ("some day", "改天", False),
-        ("eventually", "年后再说", False),
-    ]
+    def test_no_row_of_the_vocabulary_has_an_empty_side(self):
+        """**The check the last three rounds needed and none of them had.**
 
-    def test_the_two_languages_agree_for_the_same_meaning(self):
-        """The property this task exists for, asserted as a property.
+        Round 2 fixed the Chinese half. Round 3 fixed the English half and left
+        eleven pairs that had previously agreed. Round 4 measured why: three
+        hand-kept vocabularies that only LOOKED paired — the Chinese side
+        carried `半几数每逐` and the English side carried none of them, so
+        `逐月` wrote a live commitment row and `month by month` was refused.
 
-        A rule enforced in one language and not the other is worse than one
-        enforced in neither: a Chinese project got a commitments register full
-        of deadlines that are not deadlines, and passed every check.
+        A reviewer's mutation proved the tests could not catch it: shrinking
+        the Chinese demonstratives to the four the old table happened to name
+        left **all 75 tests green** while `上个月`, `这周`, `去年` and `上季度`
+        flipped to refused. The table was the previous round's list
+        transcribed, so fix and test were shaped around the same phrases.
+
+        This walks the CORRESPONDENCE instead. A row with an empty side is a
+        rule enforced in one language and not the other, by construction.
         """
         mod = goals_module()
-        for english, chinese, expected in self.CLOCK_PAIRS:
-            with self.subTest(pair=(english, chinese)):
-                en = bool(mod.CLOCK_RE.search(english))
-                cn = bool(mod.CLOCK_RE.search(chinese))
-                self.assertEqual(
-                    en, cn,
-                    f"{english!r} -> {en} but {chinese!r} -> {cn}; the rule is "
-                    f"enforced in one language and not the other")
-                self.assertEqual(en, expected,
-                                 f"{english!r} should be {expected}")
+        for kind, en, cn in mod.CLOCK_VOCAB:
+            with self.subTest(kind=kind, english=en[:1]):
+                self.assertTrue(en, f"{kind} row has no English spelling")
+                self.assertTrue(cn, f"{kind} row has no Chinese spelling")
 
-    def test_a_bare_unit_is_refused_in_both(self):
-        """`week` names no week. This is the half round 2 never fixed, and
-        criteria 1 and 2 of the spec cannot both hold without it — loosening
-        the Chinese half instead satisfies parity and brings every round-2
-        phrase straight back."""
+    def test_every_spelling_in_the_table_is_recognised(self):
+        """Every entry must reach `CLOCK_RE`, or the table is documentation.
+
+        Enumerated FROM the table, so adding a row without wiring it fails
+        here rather than silently doing nothing.
+        """
         mod = goals_module()
-        for bare in ("week", "month", "year", "quarter", "hour",
-                     "周", "月", "年", "季度", "小时"):
-            with self.subTest(unit=bare):
-                self.assertFalse(bool(mod.CLOCK_RE.search(bare)))
+        for kind, en, cn in mod.CLOCK_VOCAB:
+            if kind in ("unit", "fuzzy", "qty"):
+                continue          # need a partner; covered below
+            for word in en + cn:
+                with self.subTest(word=word):
+                    self.assertTrue(bool(mod.CLOCK_RE.search(word)),
+                                    f"{word!r} is in CLOCK_VOCAB and is not "
+                                    f"recognised")
+
+    def test_every_unit_counts_when_counted_and_not_when_bare(self):
+        """Both halves of the rule, over the whole table rather than a list."""
+        mod = goals_module()
+        for kind, en, cn in mod.CLOCK_VOCAB:
+            if kind != "unit":
+                continue
+            for word in en:
+                with self.subTest(en=word):
+                    self.assertFalse(bool(mod.CLOCK_RE.search(word)),
+                                     f"a bare {word!r} names no time")
+                    self.assertTrue(bool(mod.CLOCK_RE.search(f"3 {word}")))
+            for word in cn:
+                with self.subTest(cn=word):
+                    self.assertFalse(bool(mod.CLOCK_RE.search(word)))
+                    self.assertTrue(bool(mod.CLOCK_RE.search(f"3{word}")))
+
+    def test_paired_rows_give_the_same_verdict(self):
+        """The property, walked over the table rather than a phrase list —
+        every English spelling and its Chinese partner must agree."""
+        mod = goals_module()
+        for kind, en, cn in mod.CLOCK_VOCAB:
+            if kind in ("unit", "fuzzy", "qty"):
+                continue
+            for e in en:
+                for c in cn:
+                    with self.subTest(pair=(e, c)):
+                        self.assertEqual(bool(mod.CLOCK_RE.search(e)),
+                                         bool(mod.CLOCK_RE.search(c)))
+
+    #: Phrases that name no clock. **Not the mirror of the table** — these are
+    #: the ones a cross product of demonstratives and units wrongly admitted.
+    #: `上天保佑` ("god willing") and `这年头` ("nowadays") were accepted by
+    #: round 3's fix and refused before it: a fix that introduced two new false
+    #: accepts of exactly the class it was closing.
+    NOT_A_CLOCK = ["上天保佑", "这年头", "改天", "有空再说", "日后再说",
+                   "年后再说", "when we get to it", "later", "some day",
+                   "eventually", "god willing", "nowadays"]
+
+    def test_prose_that_names_no_clock_is_still_refused(self):
+        mod = goals_module()
+        for phrase in self.NOT_A_CLOCK:
+            with self.subTest(phrase=phrase):
+                self.assertFalse(bool(mod.CLOCK_RE.search(phrase)),
+                                 f"{phrase!r} names no clock")
 
     def test_whitespace_only_is_refused_rather_than_erasing_the_cell(self):
         """Refused on create, **silently erasing** on amend — the same shape as
@@ -1153,6 +1175,37 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
         out = p.run("commit", "--id", "C-1", "--promise", self.MULTILINE)
         self.assertEqual(out.returncode, 1)
         self.assertIn("line break", (out.stderr + out.stdout).lower())
+        self.assertNoTraceback(out)
+
+    def assertNoTraceback(self, out):
+        """**This test passed on a crash for a whole round.**
+
+        A fix copied `bin/perry-task`'s flag-naming block into `perry-goals`'
+        MODULE-LEVEL handler, where `args` does not exist. Every line-break
+        refusal on all eight write paths ended in `NameError` — and the
+        assertion above still passed, because the traceback's own last line
+        contains the phrase `line break`.
+
+        rc was still 1 and nothing was written, so every other assertion held
+        too. A refusal and a crash are not the same event and a test that
+        cannot tell them apart is checking the message, not the behaviour.
+        """
+        blob = out.stderr + out.stdout
+        self.assertNotIn("Traceback (most recent call last)", blob, blob[-500:])
+        self.assertNotIn("NameError", blob, blob[-500:])
+
+    def test_no_refusal_on_any_write_path_ends_in_a_traceback(self):
+        """The category, not the one path the crash was found on."""
+        for argv in (["--id", "C-1", "--promise", self.MULTILINE],
+                     ["--id", "C-1", "--miss", "--reason", self.MULTILINE],
+                     ["--id", "C-1", "--close",
+                      "--discharged-by", self.MULTILINE],
+                     ["--track", "ops", "--promise", self.MULTILINE,
+                      "--to", "x", "--by", "3d"]):
+            with self.subTest(path=" ".join(argv[:3])):
+                out = self.project().run("commit", *argv)
+                self.assertEqual(out.returncode, 1)
+                self.assertNoTraceback(out)
 
     def test_a_pipe_is_escaped_rather_than_refused_on_both_paths(self):
         """`|` round-trips, so it is carried; `\\n` cannot, so it is refused.

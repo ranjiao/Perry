@@ -870,78 +870,138 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 #: `每` and `逐` are quantifiers too — `每周` is "every week", a cadence, which
 #: is a clock in exactly the way `weekly` is. Left out of the first version and
 #: caught by an existing test asserting `每周一次`, which was right.
-_CN_NUM = r"\d+|[一二两三四五六七八九十百半几数每逐]"
-#: Words that BOUND a period without counting it — `季度末`, `月底`, `本周内`.
-_CN_BOUND = r"(?:本|下|上|next|this)?\s*(?:周|月|季度|年)\s*(?:末|底|内|初|前)"
+#: **ONE table, and both patterns are BUILT from it.**
+#:
+#: Round 2 fixed the Chinese half and left the English one. Round 3 fixed the
+#: English half and left eleven pairs that had previously agreed — and
+#: introduced two Chinese false accepts, `上天保佑` ("god willing") and
+#: `这年头` ("nowadays"), because it cross-produced demonstratives with units
+#: and Chinese compounds are not a cross product. Three rounds, three hand-kept
+#: vocabularies that only LOOKED paired: `_CN_NUM` carried `半几数每逐` and the
+#: English side carried none of them, so `逐月` wrote a live row and
+#: `month by month` was refused.
+#:
+#: A reviewer's mutation measured the real problem: shrinking the Chinese
+#: demonstratives to the four the test table happened to name left **all 75
+#: tests green** while `上个月`, `这周`, `去年` and `上季度` flipped to refused.
+#: The test table was the previous round's list transcribed, so the fix and the
+#: test were shaped around the same phrases. Its recommendation was not to add
+#: more literals but to **represent the correspondence in the code and walk it
+#: with a test**, which is what this is.
+#:
+#: Each row is one meaning. A row with an empty side is a rule enforced in one
+#: language and not the other, and `tests/test_goals_writer.py` fails on it.
+CLOCK_VOCAB: list[tuple[str, list[str], list[str]]] = [
+    # kind        english                          chinese
+    ("unit",     ["day", "days"],                 ["天", "日"]),
+    ("unit",     ["week", "weeks"],               ["周", "星期", "礼拜"]),
+    ("unit",     ["month", "months"],             ["月"]),
+    ("unit",     ["year", "years"],               ["年"]),
+    ("unit",     ["quarter", "quarters"],         ["季度"]),
+    ("unit",     ["hour", "hours"],               ["小时"]),
+    ("unit",     ["minute", "minutes"],           ["分钟"]),
+    ("unit",     ["business day", "business days",
+                  "working day", "working days"], ["工作日"]),
 
-# ── The two halves, written as one pair ───────────────────────────────────
-#
-# **Round 3's finding: round 2 fixed the direction the defect was found in and
-# never established the property.** The Chinese half was made to require a
-# quantity or a bound; the English half still required only wordhood. So
-# `--by week` wrote a live commitment row and `--by 周` was refused — the
-# asymmetry was REVERSED, not removed. A reviewer built 46 of its own pairs
-# and 24 disagreed, in both directions.
-#
-# The fix has to be symmetric or it just moves the gap, so the pieces below are
-# defined side by side and each language's pattern is assembled from the same
-# three ideas: a QUANTIFIER, a UNIT, and the standalone words that are already
-# a clock without either.
+    # Complete words, NOT a demonstrative crossed with a unit — that cross
+    # product is what admitted `上天保佑` and `这年头`.
+    ("deictic",  ["today"],                       ["今天", "今日", "当天"]),
+    ("deictic",  ["tomorrow"],                    ["明天", "明日"]),
+    ("deictic",  ["the day after tomorrow"],      ["后天"]),
+    ("deictic",  ["this week"],                   ["本周", "这周", "这个星期"]),
+    ("deictic",  ["next week"],                   ["下周", "下个星期"]),
+    ("deictic",  ["last week"],                   ["上周", "上个星期"]),
+    ("deictic",  ["this month"],                  ["本月", "这个月"]),
+    ("deictic",  ["next month"],                  ["下月", "下个月"]),
+    ("deictic",  ["last month"],                  ["上月", "上个月"]),
+    ("deictic",  ["this quarter"],                ["本季度", "这个季度"]),
+    ("deictic",  ["next quarter"],                ["下季度", "下个季度"]),
+    ("deictic",  ["last quarter"],                ["上季度", "上个季度"]),
+    ("deictic",  ["this year"],                   ["今年", "本年"]),
+    ("deictic",  ["next year"],                   ["明年"]),
+    ("deictic",  ["last year"],                   ["去年"]),
+    ("deictic",  ["this half", "second half",
+                  "first half", "h1", "h2"],      ["下半年", "上半年", "本半年"]),
 
-#: Demonstratives that fix a period as precisely as a count does. `next week`
-#: names a week; `week` does not. Round 3 measured `下周`, `本月`, `这周`,
-#: `明年`, `今年` all refused in Chinese and accepted in English.
-#: `same` earns its place the way `每` did: an EXISTING test asserting
-#: `same business day` went red on the first version of this pattern, and that
-#: test was right. Round 2 learned the same thing from `每周一次` — a suite
-#: that already encodes a real phrase is evidence, not an obstacle.
-_EN_QTY = (r"(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
-           r"eleven|twelve|half|each|every|next|this|last|coming|following|"
-           r"same)")
-_CN_DEMO = r"[本下上这那明今去每逐]"
+    ("cadence",  ["daily", "every day"],          ["每天", "每日"]),
+    ("cadence",  ["weekly", "every week"],        ["每周", "每星期"]),
+    ("cadence",  ["monthly", "every month",
+                  "month by month"],              ["每月", "逐月"]),
+    ("cadence",  ["quarterly", "every quarter"],  ["每季度", "逐季"]),
+    ("cadence",  ["yearly", "annually",
+                  "every year"],                  ["每年", "逐年"]),
+    ("cadence",  ["hourly", "every hour"],        ["每小时"]),
+    ("cadence",  ["week by week"],                ["逐周"]),
 
-#: Units, paired. `星期` and `礼拜` are the two most ordinary Chinese words for
-#: *week* and were both missing, which is most of why `两个星期` and `一个礼拜`
-#: were refused while `two weeks` passed.
-_EN_UNIT = (r"(?:(?:business|working)\s+days?|day|days|week|weeks|hour|hours|"
-            r"minute|minutes|month|months|quarter|quarters|year|years)")
-_CN_UNIT = r"(?:天|日|周|月|年|季度|工作日|小时|分钟|星期|礼拜)"
+    ("bound",    ["end of month", "month end",
+                  "month-end"],                   ["月底", "月末"]),
+    ("bound",    ["end of quarter", "quarter end",
+                  "quarter-end"],                 ["季度末", "季末"]),
+    ("bound",    ["end of year", "year end",
+                  "year-end"],                    ["年底", "年末"]),
+    ("bound",    ["end of week", "week end"],     ["周末", "本周内"]),
 
-#: Already a clock with no quantifier: a cadence, or a named day.
-_EN_ALONE = (r"\b(?:daily|weekly|monthly|hourly|quarterly|annually|yearly|"
-             r"today|tomorrow|tonight|eod|eow|eom|eoq)\b")
-_CN_ALONE = r"(?:今天|明天|后天|大后天|当天|今日|明日|全天)"
+    # `some` is deliberately absent: `some days` counts and `some day` means
+    # "eventually", and the singular is the one a commitment register gets.
+    # `several` already pairs with `若干`, so nothing is lost on either side.
+    # `same` earns its row the way `每` did: an EXISTING test asserts
+    # `same business day` is a clock, and it went red when this table replaced
+    # the hand-written quantifier list. That test was right both times — a
+    # suite that already encodes a real phrase is evidence, not an obstacle.
+    ("qty",      ["same", "this"],                ["当", "同", "本"]),
+
+    ("fuzzy",    ["a few", "several",
+                  "a couple of"],                 ["几", "数", "若干"]),
+    ("fuzzy",    ["half a", "half"],              ["半"]),
+]
+
+
+def _alts(kinds: tuple[str, ...], side: int) -> list[str]:
+    """Every spelling of one side, longest first so `week end` beats `week`."""
+    out: list[str] = []
+    for kind, en, cn in CLOCK_VOCAB:
+        if kind in kinds:
+            out.extend(en if side == 0 else cn)
+    return sorted(set(out), key=len, reverse=True)
+
+
+def _group(kinds: tuple[str, ...], side: int) -> str:
+    return "(?:" + "|".join(re.escape(a) for a in _alts(kinds, side)) + ")"
+
+
+#: Counting words. `_EN_NUM` and `_CN_NUM` are the only pieces still written
+#: by hand, because digits and numerals correspond by construction rather than
+#: by meaning — and `fuzzy` quantifiers, which do NOT, are in the table above.
+_EN_NUM = r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|the)"
+_CN_NUM = r"(?:\d+|[一二两三四五六七八九十百])"
+
+_EN_UNIT = _group(("unit",), 0)
+_CN_UNIT = _group(("unit",), 1)
+_EN_WORD = _group(("deictic", "cadence", "bound"), 0)
+_CN_WORD = _group(("deictic", "cadence", "bound"), 1)
+_EN_FUZZ = _group(("fuzzy", "qty"), 0)
+_CN_FUZZ = _group(("fuzzy", "qty"), 1)
 
 CLOCK_RE = re.compile(
+    # A date, in either convention. `September 30, 2026` was refused while
+    # `2026年9月30日` was accepted — the asymmetry pointing the other way.
     r"\d{4}-\d{2}-\d{2}"
-    # `3d`, `5d`, `2w` — the shorthand Perry's own `## Tracks` examples use and
-    # which this pattern REFUSED, so a legitimate SLA could not be written.
+    r"|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日"
+    r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b"
+    r"|\d{1,2}\s*[月日]"
+    # `3d`, `5d`, `2w` — the shorthand Perry's own `## Tracks` examples use.
     r"|\b\d+\s*[dhwmy]\b"
     r"|\bSLA\b|时限"
-    # **A bare English unit is refused too, as of round 3.** `week` alone names
-    # no week; `next week` and `two weeks` do. This is the half that was never
-    # fixed, and criteria 1 and 2 of `TASK-042-spec.md` cannot both hold
-    # without it — loosening the Chinese half instead would satisfy parity and
-    # bring every round-2 phrase straight back.
-    r"|" + _EN_ALONE +
-    r"|\b" + _EN_QTY + r"\s+" + _EN_UNIT + r"\b"
-    r"|\b(?:end|start|beginning|close)\s+of\s+(?:the\s+)?" + _EN_UNIT + r"\b"
-    r"|\b" + _EN_UNIT + r"\s*[- ]?\s*end\b"
-    r"|\bwithin\s+(?:the\s+)?(?:\d+\s*)?" + _EN_UNIT + r"\b"
-    r"|\bQ[1-4]\b"
-    # **A Chinese unit counts only when it is quantified or bounded**, the same
-    # standard `\b` imposes on the English half. It used to be a bare class,
-    # `[天日周月年]`, so any stray 日 or 年 qualified: `日后再说` ("we'll talk
-    # about it later"), `改天` and `年后再说` were ACCEPTED and written into
-    # `OKR.md` as live `By when` values — while the English `when we get to it`
-    # and the criteria file's own `有空再说` were correctly refused. The rule
-    # was enforced in one language and not the other, which is worse than
-    # enforcing it in neither: a Chinese project got a commitment register full
-    # of deadlines that are not deadlines, and passed.
-    r"|(?:" + _CN_NUM + r")\s*(?:个)?\s*" + _CN_UNIT +
-    r"|" + _CN_DEMO + r"\s*(?:个)?\s*" + _CN_UNIT +
-    r"|" + _CN_ALONE +
-    r"|" + _CN_BOUND,
+    r"|\bQ[1-4]\b|第[一二三四1234]\s*季度"
+    # Words that are already a clock: a named day, a cadence, a bound. Built
+    # from `CLOCK_VOCAB`, so neither language can grow one the other lacks.
+    r"|\b" + _EN_WORD + r"\b"
+    r"|" + _CN_WORD +
+    # A counted or fuzzily-counted unit. **A BARE unit is refused in both.**
+    r"|\b(?:" + _EN_NUM + r"|" + _EN_FUZZ + r")\s+" + _EN_UNIT + r"\b"
+    r"|(?:" + _CN_NUM + r"|" + _CN_FUZZ + r")\s*(?:个)?\s*" + _CN_UNIT +
+    r"|\bwithin\s+(?:the\s+)?(?:" + _EN_NUM + r"\s+)?" + _EN_UNIT + r"\b"
+    r"|" + _CN_UNIT + r"\s*内",
     re.I)
 
 
@@ -1482,23 +1542,22 @@ if __name__ == "__main__":
     # the bug happened to surface is the mistake `render_row`'s own docstring
     # is about.
     except UnrenderableCell as exc:
-        # **Which flag?** `index` is a column position and means nothing to
-        # the person who typed the command, so `--next` and `--title` produced
-        # identical refusals and neither said what to fix. Threading a name
-        # down to every `render_row` call would touch a dozen write sites; the
-        # value the user typed is already in hand, so match it back to the
-        # argument that carried it. Exact match only — a near-miss would name
-        # the wrong flag, which is worse than naming none.
-        where = ""
-        for _name in ("next", "title", "deliverable", "verification",
-                      "evidence", "promise", "reason", "discharged_by",
-                      "note", "risk", "question", "answer"):
-            _v = getattr(args, _name, None)
-            if isinstance(_v, str) and _v.strip() == exc.value:
-                where = "--" + _name.replace("_", "-") + " "
-                break
-        if not where and exc.field:
-            where = exc.field + " "
+        # **This handler is MODULE-LEVEL and has no `args`.** A previous fix
+        # copied `bin/perry-task`'s flag-naming block here verbatim, and
+        # `perry-task` runs its version inside `main()` where `args` is a
+        # local. Every line-break refusal on all eight write paths then ended
+        # in `NameError: name 'args' is not defined` — 88 of 88 measured — and
+        # `--json` got empty stdout.
+        #
+        # A test asserted `"line break" in stderr` and passed **on the
+        # traceback**, because the traceback's own last line contains the
+        # phrase. That is why nothing caught it.
+        #
+        # The flag is carried on the exception instead, set by whoever raises
+        # it, which is the only layer that both knows the flag and is in
+        # scope. `UnrenderableCell.naming()` exists for exactly this and was
+        # never called.
+        where = f"{exc.field} " if exc.field else ""
         print(f"perry-goals: refused — {where}was given "
               f"{exc.value[:60]!r}, which {exc.why}. A register cell is one "
               f"line of a markdown table.", file=sys.stderr)
