@@ -77,11 +77,23 @@ of that question: whatever the answer, `list --json` keeps this shape.
   "drift":        { /* see below */ },     // board vs. the record of how it got there
   "tasks":        [ /* see below */ ],
   "open":         3,                       // counts AFTER --track filtering
-  "closed":       11,
+  "closed":       0,                       // 0 unless you passed --all — see below
   "events":       57,                      // lines in the event log, unfiltered
   "untitled":     ["TASK-004"]             // ids with no title in any record
 }
 ```
+
+**`open` and `closed` count the rows in THIS payload, not in the project.**
+`--all` is what puts closed rows in it, so **a default call reports `closed: 0`
+however much finished work the project holds** — on Perry's own board, `0`
+against 57. That is not a bug and it is not a project with no history; it is
+the flag.
+
+Said here because the example above used to show `open: 3` beside
+`closed: 11`, **a pair no single call can return**, and the field had no
+definition row anywhere — so a front-end rendering "3 open · 11 closed" from
+one request was reading a number the tool never produces. `--all` gives both
+counts; without it, `closed` is a constant.
 
 ### A task
 
