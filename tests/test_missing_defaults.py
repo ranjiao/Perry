@@ -105,6 +105,46 @@ class TestTriageCanSeeWhatItMustReport(Base):
         self.assertNotIn('["SLA", "Cycle"]', src)
 
 
+class TestBothTrackShapesCarryTheSameKeys(Base):
+    """**The implicit `main` track is the shape most consumers see**, because
+    most projects declare no `## Tracks` register at all.
+
+    `missing_defaults` and `stages_declared` were added to the declared branch
+    and not to `DEFAULT_TRACK`, so a reader that worked on a track-declaring
+    project raised `KeyError` on an ordinary one. Caught by checking a claim
+    written for aiMark against **both** shapes instead of one — not by a test,
+    which is why this one exists.
+    """
+
+    def implicit(self) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / "perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: perry\n",
+                encoding="utf-8")
+            (root / "perry" / "BOARD.md").write_text(BOARD, encoding="utf-8")
+            r = subprocess.run([sys.executable, str(STATE), "--json",
+                                "--root", str(root)],
+                               capture_output=True, text=True)
+            return json.loads(r.stdout)["project"]["config"]["tracks"][0]
+
+    def test_the_key_sets_are_identical(self):
+        declared = self.tracks(self.project(
+            "| ops | queue | OKR.md | a,b | — | — | — | V2 |\n"))["ops"]
+        self.assertEqual(sorted(self.implicit()), sorted(declared))
+
+    def test_the_implicit_track_answers_every_question_with_a_value(self):
+        """Not "the key is absent because the question does not apply" — a
+        consumer must need no branch per track shape."""
+        t = self.implicit()
+        self.assertEqual(t["missing_defaults"], [])
+        self.assertEqual(t["wip_breaches"], [])
+        self.assertFalse(t["stages_declared"])
+        self.assertFalse(t["declared"])
+
+
 class TestTheThreeClaimsAreNowTrue(unittest.TestCase):
     """Each document says triage reports it. The procedure must say how."""
 

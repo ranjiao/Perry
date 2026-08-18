@@ -220,9 +220,17 @@ def split_stages(cell: str) -> list[str]:
     return [p.strip() for p in s.split("->") if p.strip()]
 
 
+#: The implicit track every project without a `## Tracks` register reports —
+#: which is most projects, so **this dict is the shape most consumers see.**
+#: Every key the declared branch produces must exist here too, or a reader that
+#: works on a track-declaring project raises `KeyError` on an ordinary one.
+#: `missing_defaults` and `stages_declared` were added to the declared branch
+#: and not here, and the payload shipped that way until a claim written for
+#: aiMark was checked against both shapes instead of one.
 DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
-                 "stage_list": [],
+                 "stage_list": [], "stages_declared": False,
                  "wip": "", "sla": "", "cycle": "", "default_rung": "",
+                 "missing_defaults": [],
                  "declared": False}
 
 

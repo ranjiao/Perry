@@ -1,7 +1,9 @@
 # Instruction for aiMark's coding agent — catch up with Perry, 2026-08-18
 
-> **Revision 3.** Written after reading `doc/perry-contract-gaps-2.md`,
-> extended once more after further work the same day (§ 6).
+> **Revision 4.** Revisions 1–3 answered your two gap reports; § 0 is still the
+> part to read first. **§ 6 is now the whole of what landed after that**, and it
+> is longer than it was, because the contract moved twice more and two payloads
+> you already read gained blocks. Nothing in §§ 0–5 was softened.
 > **All four of your round-2 asks are answered and shipped**; the contract is
 > now `perry-task/list/1.7`. Section 0 below is new and is the part to read
 > first. Revision 2's body is kept underneath, corrected where 1.7 moved it —
@@ -309,53 +311,113 @@ true rather than editing it.
 Do not modify anything under `$PERRY`. If a change is needed there, describe it
 and stop.
 
-## 6 · Landed after § 0 was written — nothing here needs work from you
+## 6 · Landed after § 0 was written
 
-Four fixes and two new layers went in after the sections above. None changes
-`perry-task/list`'s shape. Listed so you can stop working around two of them.
+**The contract is now `perry-task/list/1.8`.** Read
+`$PERRY/schema/task-list-contract.md § Changelog` for 1.7 and 1.8; this is the
+short version, and the parts that need something from you are marked.
 
-### 6.1 · Two silent data bugs you could have hit
+### 6.1 · `role` — new task key, and it is empty until a project opts in
+
+`role` is on every task. Empty on every project that has declared no role card,
+which today is all of them, **so nothing you render changes yet**.
+
+When it is non-empty the project has `.perry/roles/<name>.md` declaring who is
+accountable for the row — and, reaching your side, an `Accepted by` and a
+`Default rung` that the close gate reads. **The stricter of the row's mode rung
+and its role rung wins**, so a `role` can raise `verification`'s effective floor
+without `verification` changing.
+
+`perry-task add` refuses a roleless row **only** on a project that has declared
+roles, and the refusal lists the roles that exist. On a project with none, the
+flag is accepted and nothing is demanded — you do not need to branch.
+
+### 6.2 · The roster you asked for in round 1 — **do this one**
+
+`perry-state --json` → `roles.cards[]`, one entry per `.perry/roles/*.md`:
+`name`, `accepted_by`, `default_rung`, `executors`, `context`, `may_touch`,
+`loads`, `must_escalate`, `knowledge`, and **`tasks`** — the open rows whose
+`Role` cell names it.
+
+That is the `{id, tasks}` you asked for. **`DeclaredAgent` in
+`src/perry-agents.ts` can stop being dead code.** Two things to know:
+
+- **It is a join, not a registry.** Nothing writes it down; delete a row's
+  `Role` cell and the answer changes on the next read. Do not cache it against
+  the board.
+- A `done` row is held by nobody. A roster that counted finished work would
+  answer "what is this role working on" with work nobody is doing.
+
+`roles.declared` is `0` on every project that has not opted in, and
+`roles.cards` is `[]` — the same no-op shape as the rest of this layer.
+
+### 6.3 · `perry-state` gained an `intake` block — **and a caveat you must keep**
+
+`intake: {rows, undischarged, oldest_undischarged}`. It had none, so the
+correlation Perry's own triage asks for was not computable from that payload.
+
+`rows` is table length; **`undischarged` is what is still waiting** and is the
+number that means something. A board long because 220 requests were handled and
+left on the record is healthy; one long because 220 are queued is not, and only
+`undischarged` tells them apart.
+
+**The caveat is unchanged and it is the important half: `perry-state --json`
+carries no version.** It may change under you. `asks`, `risks` and `drift` moved
+into `perry-task/list` at 1.6 precisely so you could stop reading it for those;
+`intake` and `roles` have not, and if you build on them, say so and we will
+version them.
+
+### 6.4 · Two silent data bugs, now fixed, that you could have surfaced
 
 - **`route` bricked the queue after one drain, at exit 0.** On a board with no
-  `## P0`/`## P1` — a real shape, and the one `--group` exists for — the intake
-  table's separator row was overwritten, the request stayed undischarged, and
-  the next `route` refused *"`## Intake` has no table"*. If you ever surface
-  intake, this is why a drained queue could look broken. Fixed, with the
-  regression test it was missing.
+  `## P0`/`## P1` — a real shape — the intake table's separator row was
+  overwritten, the request stayed undischarged, and the next `route` refused
+  *"`## Intake` has no table"*.
 - **A comma-separated `Stages` cell became one stage named after the whole
   list.** `new,triaged,resolved` parsed as a single stage, so `stage`,
-  stage-age and any WIP number you render were measured against a value nobody
-  wrote. `,` `，` `、` now split; an unsupported separator is reported by name
-  rather than collapsing silently.
+  stage-age and any WIP number you render measured against a value nobody
+  wrote. `,` `，` `、` now split; an unsupported separator is reported by name.
+- **A bolded `## **Top risks**` made every recorded risk invisible to every
+  tool** while `risk-add` appended a *second* section at exit 0. Four
+  implementations of "where is this section" gave three answers in one call.
 
-### 6.2 · `perry-goals/list` and `perry-decide/list` are unmoved
+### 6.5 · `perry-state` numbers that changed shape
 
-Both still `2.0` and `1.0`. The storage decision below does not touch them.
+- `tracks[].stage_list` is now the **effective** vocabulary — a track that
+  declares none still has its mode's, which is where the writer puts rows.
+  `stages_declared` says whether the project wrote them down.
+- `tracks[].missing_defaults`, `stage_counts` and `wip_breaches` are new. If you
+  render a track's health, `wip_breaches` names each stage **at or over** its
+  declared limit with both numbers, and a track that declared no `WIP` reports
+  none rather than an invented one.
 
-### 6.3 · The storage split is decided, not just proposed
+### 6.6 · Knowledge and roles do not touch any read contract yet
 
-`ADR-006` is now written and `DESIGN-005 § 5.2` is rewritten around it — the
-task store becomes `perry/tasks.jsonl`, `BOARD.md` becomes the rendered open
-subset, and the event log goes back to being history. **Still nothing for you to
-do**: where a value is read from is not a contract fact. It is repeated here
-because the measurement behind it is the one that should stop you writing
-defensive code — every full-set read is currently O(events), and **57% of the
-log's bytes are `next` events**, which are cell overwrites with no replay value.
-That gets better; do not optimize around it.
+`perry-lint --knowledge`, `bin/perry-knowledge`, `.perry/roles/` — none is in
+`perry-task/list`, `perry-goals/list` or `perry-decide/list`. The only thing
+that reached a contract is `role` (§ 6.1). Ignore the rest until it does.
 
-### 6.4 · Two layers that do not exist for you yet
+### 6.7 · The storage split is decided and does not move your shape
 
-`DESIGN-006` phases A and C landed — **knowledge cards** (`Kind:`, four
-mandatory provenance fields, `perry-lint --knowledge`) and **role cards**
-(`.perry/roles/*.md`, a closed four-section set). Neither is in any read
-contract yet. Phase E is what adds a `role` field to `perry-task/list`, and it
-will take the next minor after whatever version you are reading — it is
-explicitly sequenced not to race the ones you already have.
+`ADR-006`: the task store becomes `perry/tasks.jsonl`, `BOARD.md` becomes the
+rendered open subset, the event log goes back to being history. **Nothing for
+you to do** — where a value is read from is not a contract fact. It is here so
+you do not build workarounds for two things that get better: full-set reads stop
+being O(events), and `conformance.has_event_log: false` stops meaning "your
+closed tasks are invisible".
 
-**Your `DeclaredAgent` type stays unused and stays correct.** The roster you
-asked for in round 1 will be rendered from role cards rather than from a
-separate registry, which is what § 1.3 said would happen and is now true rather
-than planned.
+## 7 · What to report back
+
+Same as before, and the same half matters most: **anything in the contract that
+was not enough.** Two specific asks this time:
+
+1. Whether `roles.cards[].tasks` is the shape your Agents view needs, or whether
+   it wants the reverse edge (task → role) as well. You have both today —
+   `tasks[].role` and `roles.cards[].tasks` — and if one of them is dead weight,
+   say so before it is frozen.
+2. Whether `intake` and `roles` on the unversioned `perry-state` payload are
+   things you intend to depend on. If yes they need a contract; if no they stay
+   where they are.
 
 Do not modify anything under `$PERRY`. If a change is needed there, describe it
 and stop.
