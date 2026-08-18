@@ -1406,6 +1406,21 @@ def cmd_add(args, ctx) -> dict:
             "is not a check; 'perry-lint clean on gimegime-pmo' is. This is "
             "the field the V-rungs are graded against, so a task without it "
             "cannot honestly close above V1")
+    # `--verification` and `--rung` share a word and mean different things: this
+    # one is the falsifiable CHECK a rung is graded against, `--rung` is the
+    # rung itself and the cell the board shows. Typing the rung here is the
+    # obvious mistake — it was made while opening six rows on Perry's own board
+    # the night this was written — and it used to be accepted silently, filing
+    # "V4" as though it were a check and leaving nothing to grade.
+    #
+    # Shaped as the CATEGORY, not the one spelling: any value that is nothing
+    # but a rung token. A real check is prose and cannot be mistaken for one.
+    if args.verification.strip() in ctx["schema"]["enums"]["verification_rung"]:
+        raise Refused(
+            f"--verification {args.verification.strip()!r} is a rung, not a "
+            f"check. Pass the rung as --rung {args.verification.strip()} and "
+            f"give --verification the falsifiable check it is graded against "
+            f"— what someone else would run to disagree with you")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
     prefix = resolve_prefix(ctx["board"], args.prefix)
