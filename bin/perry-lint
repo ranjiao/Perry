@@ -9,7 +9,7 @@ templates) against the one declared schema.
 
 Usage:
   perry-lint [--root <project_root>] [--templates | --claims | --verification |
-              --provenance]
+              --provenance | --knowledge]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -26,6 +26,14 @@ Usage:
                 evidence cannot satisfy, and any row matching the project's
                 own high-stakes list that closed below V5. Never sets a
                 non-zero exit - advisory for one release by decision 4.
+  --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
+                the four provenance fields present, `Source:` resolving to
+                something a reader can re-open, and staleness against
+                thresholds.knowledge_stale_days. Prints the card count even at
+                zero findings, because zero over zero cards is not a result.
+                Cards and digests share `knowledge/*/*.md` and are told apart
+                by the card's `Kind:`; this skips digests and --provenance
+                skips cards.
   --provenance  advisory pass over source citations (DESIGN-003 section 5.4):
                 every `SRC-n` cited anywhere resolves to a digest under
                 knowledge/, every digest carries an id, an origin and a
@@ -223,6 +231,11 @@ def load_glossary(schema: dict) -> None:
         MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
     STAGE_SEPARATORS.update(
         (schema.get("work_modes") or {}).get("stage_separators") or {})
+    card = next((f for f in (schema.get("files") or [])
+                 if f.get("id") == "knowledge-card"), None) or {}
+    CARD_KINDS[:] = ((card.get("discriminator") or {}).get("values") or [])
+    CARD_REQUIRED[:] = [h["name"] for h in (card.get("header_fields") or [])
+                        if h.get("name") != "Kind"]
     i18n = schema.get("i18n") or {}
     for col, per_lang in (i18n.get("columns") or {}).items():
         COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
@@ -274,6 +287,14 @@ def heading_re(name: str) -> re.Pattern:
 # Filled from schema["thresholds"] in main(). Module-level rather than threaded
 # through two signatures, so every check reads the one declared number.
 SCHEMA_THRESHOLDS: dict = {}
+
+#: The `Kind:` values that make a `knowledge/*/*.md` file a CARD rather than a
+#: digest, and the fields a card must carry — both read from
+#: `schema/state-schema.json § files[id=knowledge-card]`, never written here.
+#: `Owner role` is in the required list and handled separately in the check,
+#: because an em dash legitimately answers it until roles exist.
+CARD_KINDS: list[str] = []
+CARD_REQUIRED: list[str] = []
 
 
 def _days_since(stamp: str) -> int | None:
@@ -431,6 +452,34 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
                     "attribution cannot resolve it to one KR"))
             claimed[key2] = pid
     return findings
+
+
+def spec_claims(spec: dict, text: str, schema: dict) -> bool:
+    """Does this spec own this file, when two specs share one glob?
+
+    `knowledge/*/*.md` is matched by both the digest spec and the knowledge-card
+    spec. A card is a claim the project made; a digest is a source it read.
+    Without this, the generic checker judged every card against the digest's
+    required fields and reported three `missing-header-field` errors on a
+    perfectly well-formed card — the same collision `--knowledge` and
+    `--provenance` already resolve for themselves, one layer lower and missed.
+
+    The rule is declared, not inferred: a spec carrying a `discriminator` owns a
+    file whose named field holds one of its values, and a spec **sharing that
+    glob without one** owns the files the discriminated spec rejected. Any spec
+    whose glob nothing else matches is unaffected and answers `True`.
+    """
+    disc = spec.get("discriminator")
+    if disc:
+        return field_value(text, disc["field"]) in (disc.get("values") or [])
+    rivals = [f for f in (schema.get("files") or [])
+              if f is not spec and f.get("path") == spec.get("path")
+              and f.get("discriminator")]
+    for r in rivals:
+        d = r["discriminator"]
+        if field_value(text, d["field"]) in (d.get("values") or []):
+            return False
+    return True
 
 
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
@@ -997,6 +1046,164 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
 SRC_RE = re.compile(r"\bSRC-(\d+)\b")
 
 
+def field_value(text: str, name: str) -> str | None:
+    """A header field's value, in any accepted language, or None.
+
+    Uses the **existing** `field_re` — which carries the `i18n.fields` aliases —
+    rather than a second matcher. This function shipped with one for about ten
+    minutes: a same-named `field_re` defined 750 lines below the original,
+    silently shadowing it, so every caller of the original got a compiled
+    pattern where it expected an alternation fragment and the default lint died
+    with `multiple repeat at position 30`. One rule, two implementations, in the
+    file whose whole job is finding that — caught by the suite, not by review.
+    """
+    m = re.search(rf"^\s*[->*]*\s*\**\s*{field_re(name)}\s*\**\s*[:：]\s*([^\n]*)$",
+                  text, re.M)
+    return m.group(1).strip().strip("*` ") if m else None
+
+
+def card_kind(text: str) -> str | None:
+    """The `Kind:` of a knowledge card, or None when this is not a card.
+
+    The discriminator between a card and a digest, declared in
+    `schema/state-schema.json § files[id=knowledge-card].discriminator` and
+    read — never copied — by both `--knowledge` and `--provenance`. A digest
+    carries no `Kind`, so `None` means "not mine" to the card check and "mine"
+    to the provenance check, and neither reports the other's files.
+    """
+    v = field_value(text, "Kind")
+    return v if v in CARD_KINDS else None
+
+
+def resolves_somewhere(src: str, state_root: Path) -> bool:
+    """Can a reader re-open what this `Source:` names?
+
+    Three forms are in circulation and all three are legitimate, so the check
+    is "any token in the cell resolves" rather than a grammar:
+
+    - a **path** — `evidence/2026-08/TASK-001-x.md`, resolved against the state
+      root and then the project root, the same order `evidence_paths` uses;
+    - a **`SRC-n`** — a digest in this tree carrying that id;
+    - a **task id** — any id-shaped token the board or the event log knows.
+
+    Deliberately permissive: this is advisory, and reporting a source that a
+    human can plainly follow would train people to ignore the check. What it
+    catches is the case that matters — a cell naming nothing that exists.
+    """
+    project_root = state_root.parent if state_root.name else state_root
+    for tok in re.split(r"[\s,;·|]+", src.strip()):
+        tok = tok.strip("*`()[]<>")
+        if not tok:
+            continue
+        if "/" in tok or tok.endswith(".md"):
+            if (state_root / tok).exists() or (project_root / tok).exists():
+                return True
+            continue
+        if SRC_RE.fullmatch(tok):
+            kdir = state_root / "knowledge"
+            for md in (kdir.rglob("*.md") if kdir.exists() else []):
+                if re.search(r"^>\s*Id\s*[:：]\s*" + re.escape(tok) + r"\b",
+                             strip_comments(md.read_text(errors="replace")), re.M):
+                    return True
+            continue
+        if re.fullmatch(r"[A-Z][A-Z0-9]{1,7}-\d+", tok):
+            for hay in (state_root / "BOARD.md",
+                        project_root / ".perry" / "events.jsonl"):
+                if hay.exists() and tok in hay.read_text(errors="replace"):
+                    return True
+    return False
+
+
+def check_knowledge(state_root: Path) -> list["Finding"]:
+    """Every knowledge card can say where its claim came from and when.
+
+    `DESIGN-006 § 5.3`: all four provenance fields are mandatory, because
+    without them the store becomes a farm of confident errors that agents then
+    execute against — strictly worse than no store. That is the axiom *no
+    `done` without evidence*, extended to the knowledge layer.
+
+    Advisory, like `--verification` and `--provenance`: it reports, it does not
+    refuse. The refusal belongs at the write path (`DESIGN-006` phase B), where
+    the person who knows the answer is still in the room.
+
+    **`cards` is reported even when `violations` is 0.** `KR-O5.1` reads
+    "lint live · 0 violations", and zero violations over zero cards is
+    trivially true — a number that cannot distinguish "provenance is enforced"
+    from "nobody has written a card". The count is what makes the KR mean
+    something.
+    """
+    findings: list[Finding] = []
+    kdir = state_root / "knowledge"
+    stale_days = int((SCHEMA_THRESHOLDS.get("knowledge_stale_days")
+                      or {}).get("value") or 90)
+    today = date.today()
+    rdir = (state_root.parent if state_root.name else state_root) / ".perry" / "roles"
+    roles_declared = rdir.exists() and any(rdir.glob("*.md"))
+
+    for md in sorted(kdir.rglob("*.md")) if kdir.exists() else []:
+        if md.name == "INDEX.md":
+            continue
+        text = strip_comments(md.read_text(errors="replace"))
+        kind = card_kind(text)
+        if kind is None:
+            continue                      # a digest; `--provenance` owns it
+        rel = md.relative_to(state_root).as_posix()
+
+        for name in CARD_REQUIRED:
+            val = field_value(text, name)
+            if val and val not in UNDECLARED_CELL:
+                continue
+            # `Owner role` is the one field an em dash legitimately answers,
+            # and only until roles exist. Saying so in the finding keeps a
+            # pre-phase-C project from reading this as an error it must fix.
+            if name == "Owner role":
+                # **Silent until the project has roles.** `DESIGN-006 § 5.3`
+                # writes the field as "`finance` — or `—` before roles exist",
+                # so warning today would put a finding on every card in every
+                # project until phase C lands, which is how a check teaches
+                # people to ignore it. Once `.perry/roles/` holds a card there
+                # IS an answer, and leaving it blank means nobody is
+                # accountable for re-verifying the claim.
+                if roles_declared:
+                    findings.append(Finding(
+                        "warn", rel, "card-unowned",
+                        f"`Owner role` is undeclared on a project that has "
+                        f"declared roles — nobody is accountable for "
+                        f"re-verifying this claim."))
+                continue
+            findings.append(Finding(
+                "warn", rel, "card-no-provenance",
+                f"`{name}` is missing or blank. All four provenance fields are "
+                f"mandatory: a card that cannot say where its claim came from, "
+                f"when it was last true, or what would break it is a confident "
+                f"error waiting to be executed against."))
+
+        src = field_value(text, "Source")
+        if src and src not in UNDECLARED_CELL:
+            if not resolves_somewhere(src, state_root):
+                findings.append(Finding(
+                    "warn", rel, "card-source-dangling",
+                    f"`Source: {src}` resolves to no file, task id or `SRC-n` "
+                    f"in this project — a claim citing a source nobody can "
+                    f"re-open is a claim about the agent's memory."))
+
+        seen = field_value(text, "Last verified")
+        if seen and re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen):
+            age = (today - date.fromisoformat(seen)).days
+            if age > stale_days:
+                trip = field_value(text, "Invalidated by")
+                findings.append(Finding(
+                    "warn", rel, "card-stale",
+                    f"last verified {seen} ({age}d ago, threshold "
+                    f"{stale_days}d)." + (
+                        f" Its tripwire is {trip!r} — check whether that has "
+                        f"happened rather than just re-dating it."
+                        if trip and trip not in UNDECLARED_CELL else
+                        " It names no tripwire, so age is the only signal "
+                        "there is.")))
+    return findings
+
+
 def check_provenance(state_root: Path) -> list["Finding"]:
     """Every cited source resolves; every source has an origin and a date.
 
@@ -1018,6 +1225,12 @@ def check_provenance(state_root: Path) -> list["Finding"]:
             continue
         text = strip_comments(md.read_text(errors="replace"))
         rel = md.relative_to(state_root).as_posix()
+        # A knowledge CARD and a digest share this glob. A card is a claim the
+        # project made; a digest is a source it read. Neither is malformed for
+        # not being the other, so each check skips the other's files — the
+        # discriminator is declared once, in the schema, and read by both.
+        if card_kind(text):
+            continue
         m = re.search(r"^>\s*Id\s*[:：]\s*(\S+)", text, re.M)
         if not m:
             findings.append(Finding(
@@ -1192,7 +1405,7 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
 def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
-    mode_provenance = False
+    mode_provenance = mode_knowledge = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -1212,6 +1425,8 @@ def main(argv: list[str]) -> int:
             mode_verification = True
         elif a == "--provenance":
             mode_provenance = True
+        elif a == "--knowledge":
+            mode_knowledge = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -1307,11 +1522,49 @@ def main(argv: list[str]) -> int:
         return 0
 
 
+    if mode_knowledge:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        load_glossary(schema)
+        findings = check_knowledge(state_root)
+        kdir = state_root / "knowledge"
+        cards = sum(1 for md in (kdir.rglob("*.md") if kdir.exists() else [])
+                    if md.name != "INDEX.md"
+                    and card_kind(strip_comments(md.read_text(errors="replace"))))
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "cards": cards,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --knowledge · {project_root}")
+            for f in findings:
+                print(f)
+            # **The count is printed even at zero findings.** `KR-O5.1` reads
+            # "0 violations", and zero over zero cards is trivially true — a
+            # number that cannot tell "provenance is enforced" from "nobody has
+            # written a card". Printing both is what makes the KR mean
+            # something.
+            print(f"\n  {cards} card(s) · {len(findings)} advisory finding(s)"
+                  if findings else
+                  f"\n  ✓ {cards} card(s), every provenance field present and "
+                  f"resolving" if cards else
+                  "\n  · no knowledge cards yet — the check is live and has "
+                  "nothing to judge")
+        return 0
+
     if mode_provenance:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
                         else Path.cwd().resolve())
         state_root = ((project_root / state_root_arg).resolve() if state_root_arg
                       else P.resolve_state_root(project_root))
+        # Arms `CARD_KINDS`, without which `card_kind()` is always None and
+        # every knowledge card is reported here as a digest with no id.
+        load_glossary(schema)
         findings = check_provenance(state_root)
         stats = getattr(check_provenance, "stats", {"defined": 0, "cited": 0})
         if as_json:
@@ -1388,6 +1641,12 @@ def main(argv: list[str]) -> int:
                                             "required state file not found"))
                 continue
             for path in targets:
+                # Same rule `perry-conform § state_files` applies, so a file
+                # lint validates and a file that can be declared conformant
+                # cannot come apart. One function, two call sites, no copy.
+                if not spec_claims(spec, strip_comments(
+                        path.read_text(errors="replace")), schema):
+                    continue
                 try:
                     rel = path.relative_to(project_root).as_posix()
                 except ValueError:

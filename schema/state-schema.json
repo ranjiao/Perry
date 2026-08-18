@@ -764,6 +764,13 @@
         "diagnosis"
       ],
       "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number."
+    },
+    "knowledge_stale_days": {
+      "value": 90,
+      "applies_to": [
+        "knowledge-card"
+      ],
+      "note": "A knowledge card whose `Last verified` is older than this is reported stale by `perry-lint --knowledge`. Calibrated, not a law: long enough that a stable claim is not re-checked every sprint, short enough that a quarter-old claim about someone else's system is looked at before an agent acts on it. `Invalidated by` is the sharper signal — this is the backstop for a tripwire that never fired because nobody was watching the system it names."
     }
   },
   "claims": [
@@ -1996,6 +2003,48 @@
         {
           "name": "Status",
           "pattern": "active|archived|eternal|superseded"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "knowledge-card",
+      "path": "knowledge/*/*.md",
+      "template": "work/state/knowledge_card_TEMPLATE.md",
+      "owner": "work",
+      "tier": 2,
+      "required": false,
+      "discriminator": {
+        "field": "Kind",
+        "values": [
+          "knowledge",
+          "source-of-truth"
+        ],
+        "note": "A card and a digest share the `knowledge/*/*.md` glob and are told apart by this field, which a digest does not carry. Both checks read it: `--knowledge` skips a file without it, `--provenance` skips a file with it. Without the discriminator each would report every file of the other kind as malformed."
+      },
+      "note": "DESIGN-006 section 5.3. One claim per card. All four provenance fields are mandatory AT WRITE TIME - a card without a source is refused, not written blank. That is the axiom `no done without evidence` extended to the knowledge layer: without it the store becomes a farm of confident errors that agents then execute against, which is strictly worse than no store.",
+      "header_fields": [
+        {
+          "name": "Kind",
+          "pattern": "knowledge|source-of-truth",
+          "note": "What kind of card. `source-of-truth` names an external system, its authoritative access path, and what falsifies it."
+        },
+        {
+          "name": "Owner role",
+          "note": "The role accountable for re-verifying it. `-` is legal only before roles exist (DESIGN-006 phase C); it is not a way to leave a card unowned afterwards."
+        },
+        {
+          "name": "Source",
+          "note": "What produced the claim - a task id, an evidence path, or a `SRC-n` digest. Resolved by the same machinery as LOAD-02; a source that resolves nowhere is a claim about the agent's memory."
+        },
+        {
+          "name": "Last verified",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}",
+          "note": "When a human or a run last confirmed it. Drives staleness against thresholds.knowledge_stale_days."
+        },
+        {
+          "name": "Invalidated by",
+          "note": "The tripwire: the observable condition under which this stops being true. THE FIELD THAT MAKES A CARD REVISABLE rather than accumulating - a card with a `Last verified` and no `Invalidated by` goes stale silently."
         }
       ],
       "anchor": "state"

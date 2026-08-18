@@ -21,6 +21,18 @@
 - {{digest-basename}} (last ref'd {{date}}, by {{file}})
 -->
 
+## Cards by topic
+
+(no cards yet)
+
+<!-- A card is a CLAIM the project made and can re-check; a digest above is a
+     SOURCE it read. They live in the same tree and are told apart by the card's
+     `Kind:` field. Per-topic blocks look like:
+### {{topic}} ({{count}})
+- {{card-basename}} — {{one-line claim}} (verified {{date}}, owner {{role}})
+- {{card-basename}} — {{one-line claim}} (**stale**, verified {{date}})
+-->
+
 ## Archived
 
 (none yet)
