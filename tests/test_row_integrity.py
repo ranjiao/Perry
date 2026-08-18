@@ -337,6 +337,54 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
                          "viewer/tables.py render_row, which escapes the "
                          "delimiter and refuses a value a row cannot carry")
 
+    def test_the_guard_sees_a_row_whose_first_cell_is_literal(self):
+        """**The property the `HAND_ROW_RE` widening added, unasserted too.**
+
+        The same reviewer reverted the regex to round 2's narrow version — `{`
+        required immediately after the opening `|` — and all 26 tests stayed
+        green. `f"| TASK-{n} | …"`, a literal first cell, is how half the real
+        rows are written and was exactly the shape that walked past.
+
+        Two of round 3's own guard fixes, both real, both asserted by nothing.
+        """
+        probe = PERRY_HOME / "bin" / "perry-literalprobe"
+        probe.write_text('def r(n, t):\n    return f"| TASK-{n} | {t} |"\n',
+                         encoding="utf-8")
+        try:
+            hits = [n for n, line in self._code_lines(probe)
+                    if self.HAND_ROW_RE.search(line)]
+            self.assertTrue(hits, "a row whose first cell is literal walks "
+                                  "past the write-half guard")
+        finally:
+            probe.unlink(missing_ok=True)
+
+    def test_the_guard_sees_a_file_in_a_subdirectory(self):
+        """**The property the `rglob` fix added, which nothing asserted.**
+
+        A reviewer reverted `rglob("*")` to `glob("*")` — undoing the round-3
+        fix outright — and all 26 tests stayed green, because the probe below
+        plants a **flat** file that either enumerator finds. The fix was real
+        and the test for it was checking a different property.
+
+        `bin/lib/` is not hypothetical: it is the directory TASK-065 exists to
+        create, and it is where the reviewer's original nine invisible plants
+        went.
+        """
+        d = PERRY_HOME / "bin" / "lib"
+        made = not d.exists()
+        d.mkdir(exist_ok=True)
+        probe = d / "guardprobe.py"
+        probe.write_text('cells = [c for c in line.strip("|").split("|")]\n',
+                         encoding="utf-8")
+        try:
+            found = [p for p in self._tools() if p.name == "guardprobe.py"]
+            self.assertTrue(found, "a file one directory down is invisible to "
+                                   "this guard")
+        finally:
+            probe.unlink(missing_ok=True)
+            if made:
+                d.rmdir()
+
     def test_the_guard_sees_a_file_that_did_not_exist_when_it_was_written(self):
         """The property the hardcoded list did not have, written as a real file
         under `bin/` because that is how the blindness was demonstrated."""

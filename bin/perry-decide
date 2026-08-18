@@ -342,6 +342,31 @@ def slugify(s: str) -> str:
 def cmd_new(args, ctx) -> dict:
     if not args.title:
         raise Refused("--title is required")
+    # **A line break in the title silently destroys the record.** It is written
+    # into the ADR's frontmatter block, where a blank line ENDS the block — so
+    # `Type` and `Date`, which follow it, are orphaned, and re-rendering the
+    # index produces `| ADR-0NN | first paragraph |  |  | — |`. rc 0, second
+    # paragraph gone, two fields emptied, and `perry-lint` reporting errors
+    # against a file the tool itself just wrote.
+    #
+    # `render_row` could not catch it: by the time the index is rendered the
+    # title has ALREADY been truncated by the frontmatter parser, so the value
+    # it sees is a clean one-line string. The refusal has to be here, at the
+    # argument, which is the same rule `perry-task` and `perry-goals` apply and
+    # the third tool to need it.
+    #
+    # Reported two rounds ago in `review-queue-v4.md` **with the fix** — the
+    # pipe half of that paragraph was fixed and the line-break half, one
+    # sentence later, was not.
+    for _flag, _value in (("--title", args.title),
+                          ("--type", getattr(args, "type", None)),
+                          ("--slug", getattr(args, "slug", None))):
+        if isinstance(_value, str) and len(_value.splitlines()) > 1:
+            raise Refused(
+                f"{_flag} was given {_value[:60]!r}, which contains a line "
+                f"break. It becomes a frontmatter field, and a blank line ends "
+                f"that block — the fields after it would be lost. Nothing was "
+                f"written")
     if not args.type:
         raise Refused(
             "--type is required: a decision with no type cannot be found later "
