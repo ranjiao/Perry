@@ -819,7 +819,8 @@ def subscribed_knowledge(state_root: Path, topics: list[str]) -> list[dict]:
     return out
 
 
-def roles_profile(project_root: Path, state_root: Path) -> dict:
+def roles_profile(project_root: Path, state_root: Path,
+                  tasks=()) -> dict:
     """`.perry/roles/` — the roster `delegate` renders from (DESIGN-006 § 5.2).
 
     Four blocks, four consumers, and this payload is where each is handed over:
@@ -853,6 +854,16 @@ def roles_profile(project_root: Path, state_root: Path) -> dict:
                 "unextractable": c.escalate_unextractable,
             },
             "knowledge": subscribed_knowledge(state_root, c.loads_knowledge),
+            # **The half of aiMark's roster ask that phase D could not answer.**
+            # It asked for `{id, tasks}` — which roles exist, and what each one
+            # holds — and the second half needed phase E's `Role` cell, which
+            # did not exist yet. It does now, so the edge is computed here
+            # rather than published as a second registry: a roster is a VIEW
+            # over roles and rows, and storing it would be a third copy of a
+            # fact both files already carry.
+            "tasks": [t.id for t in tasks
+                      if (t.role or "").strip().lower() == c.name.lower()
+                      and t.status not in {"done", "dropped"}],
         } for c in cards],
     }
 
@@ -1170,7 +1181,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         warnings.append("phase/CURRENT points at a phase file that does not exist.")
 
     hook = hook_profile(perry_root)
-    roles = roles_profile(perry_root, root)
+    roles = roles_profile(perry_root, root, board.all_tasks)
     # The dispatch pre-flight scans against THIS, not against `hook.high_stakes`
     # alone (DESIGN-006 § 5.2, goal 6). `project` is the hook's own list and is
     # computed identically whether or not roles exist; `roles` is what each card

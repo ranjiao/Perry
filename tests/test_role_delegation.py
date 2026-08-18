@@ -217,5 +217,92 @@ class TestSubscriptionInjection(Base):
         self.assertEqual(self.only(root)["knowledge"], [])
 
 
+class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
+    """`{id, tasks}` — which roles exist, and what each one holds.
+
+    aiMark asked for this in round 1. It used to parse an `agents:` block out of
+    `phase/<NNN>-linkage.md`; that was rescoped into DESIGN-006 rather than
+    patched into `perry-goals/list`, on the grounds that a roster is a **view
+    over roles**, and shipping the view before the object would freeze the wrong
+    shape into an additive contract.
+
+    Phase C shipped the object and phase D shipped half the view — "what is each
+    working on" needed phase E's `Role` cell, which did not exist yet. It does
+    now, so the edge is a **join over two files Perry already reads**, not a
+    third registry storing a fact both of them carry.
+    """
+
+    CARD = ("# Role · {name}\n\n"
+            "- Accepted by: user\n- Default rung: V3\n- Executors: any\n\n"
+            "## Context\n\nDoes {name} work.\n\n"
+            "## Loads\n\n- knowledge: build-system\n\n"
+            "## May touch\n\n- write: source\n\n"
+            "## Must escalate\n\n- any `force-push`\n")
+    BOARD = ("# Board\n\n## P1\n\n"
+             "| ID | Title | Owner | Status | Next action | Evidence | "
+             "Verification | Role |\n|---|---|---|---|---|---|---|---|\n"
+             "| T-1 | a | o | in_progress | n | — | V3 | coding |\n"
+             "| T-2 | b | o | not_started | n | — | V3 | coding |\n"
+             "| T-3 | c | o | done | n | — | V3 | coding |\n"
+             "| T-4 | d | o | in_progress | n | — | V4 | review |\n")
+
+    def project(self, roles=("coding", "review")) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        (root / ".perry" / "roles").mkdir(parents=True)
+        (root / "perry").mkdir()
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: perry\n", encoding="utf-8")
+        for r in roles:
+            (root / ".perry" / "roles" / f"{r}.md").write_text(
+                self.CARD.format(name=r), encoding="utf-8")
+        (root / "perry" / "BOARD.md").write_text(self.BOARD, encoding="utf-8")
+        return root
+
+    def roster(self, root: Path) -> dict:
+        r = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
+             "--section", "roles", "--root", str(root)],
+            capture_output=True, text=True)
+        return {c["name"]: c for c in json.loads(r.stdout)["roles"]["cards"]}
+
+    def test_each_role_names_the_tasks_it_holds(self):
+        r = self.roster(self.project())
+        self.assertEqual(r["coding"]["tasks"], ["T-1", "T-2"])
+        self.assertEqual(r["review"]["tasks"], ["T-4"])
+
+    def test_a_finished_task_is_not_something_a_role_still_holds(self):
+        """`T-3` is `done`. A roster that counted it would answer "what is this
+        role working on" with work nobody is doing."""
+        self.assertNotIn("T-3", self.roster(self.project())["coding"]["tasks"])
+
+    def test_a_role_holding_nothing_reports_an_empty_list_not_a_missing_key(self):
+        r = self.roster(self.project(roles=("coding", "review", "research")))
+        self.assertEqual(r["research"]["tasks"], [])
+
+    def test_a_role_cell_written_in_any_case_still_matches_its_card(self):
+        """`.perry/roles/coding.md` and a cell reading `Coding` are the same
+        role. A case-sensitive join silently drops the row, and this test did
+        not exist until a mutation of the `.lower()` came back green — the
+        fixture was lowercase on both sides, so the guard was untested."""
+        root = self.project()
+        board = root / "perry" / "BOARD.md"
+        board.write_text(board.read_text().replace("| coding |", "| Coding |"),
+                         encoding="utf-8")
+        self.assertEqual(self.roster(root)["coding"]["tasks"], ["T-1", "T-2"])
+
+    def test_the_edge_is_a_join_not_a_stored_registry(self):
+        """Nothing writes the roster down. Deleting a row's `Role` cell changes
+        the roster on the next read — which is the property that stops it
+        becoming a third copy that drifts."""
+        root = self.project()
+        board = (root / "perry" / "BOARD.md")
+        board.write_text(board.read_text().replace("| coding |\n", "| review |\n", 1),
+                         encoding="utf-8")
+        self.assertNotIn("T-1", self.roster(root)["coding"]["tasks"])
+        self.assertIn("T-1", self.roster(root)["review"]["tasks"])
+
+
 if __name__ == "__main__":
     unittest.main()

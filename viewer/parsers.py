@@ -259,6 +259,10 @@ class Task:
     # eyeballing a board the procedure forbids eyeballing.
     track: str = ""
     stage: str = ""
+    # `Role` (DESIGN-006 phase E). Present so the roster can answer "what does
+    # each role hold" by JOINING two files it already reads, rather than by a
+    # third registry storing a fact both of them carry.
+    role: str = ""
 
 
 @dataclass
@@ -728,7 +732,8 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
             # own row reader, parsed both. The mode's own triage step could not
             # run off this payload as a result.
             for name in ("ID", "Title", "Owner", "Status", "Next action",
-                         "Evidence", "Verification", "Track", "Stage"):
+                         "Evidence", "Verification", "Track", "Stage",
+                         "Role"):
                 keys = _column_keys(name)
                 pos = next((i for i, h in enumerate(header) if h in keys), -1)
                 if pos >= 0:
@@ -776,6 +781,7 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
                 verification=cell("Verification", -1).replace("*", "").strip(),
                 track=cell("Track", -1),
                 stage=cell("Stage", -1),
+                role=cell("Role", -1),
             )
         )
     return tasks
