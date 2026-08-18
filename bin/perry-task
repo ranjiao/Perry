@@ -45,6 +45,8 @@ Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
                    [--rung V1..V6]  fills the Verification COLUMN; --verification
                                     is the spec's prose and does not
+                   [--role <name>]  required once the project declares any
+                                    `.perry/roles/*.md`; absent otherwise
                    [--depends "TASK-050, TASK-051"] ids this row waits on
                    [--out-of-scope "…"] [--kr KR-ID]
                    [--track T] [--owner O] [--priority P0|P1|P2]
@@ -133,7 +135,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.7"
+LIST_CONTRACT = "perry-task/list/1.8"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -1041,6 +1043,50 @@ def heading_spellings(name: str) -> list[str]:
     return out
 
 
+def declared_roles(ctx) -> list[str]:
+    """Role names this project has declared, from `.perry/roles/*.md`.
+
+    `owner: user` — a role card is a declaration the project makes about
+    itself, not lane state, which is why it lives beside `hook.md` rather than
+    under the state root.
+    """
+    rdir = ctx["project_root"] / ".perry" / "roles"
+    return sorted(p.stem for p in rdir.glob("*.md")) if rdir.exists() else []
+
+
+def check_role(value: str | None, ctx) -> str:
+    """`Role` is required once the project declares any role card, and does not
+    exist otherwise. DESIGN-006 decision #4.
+
+    **The asymmetry is Goal 7**, and it is the whole reason this is not simply
+    a required column: a project that never hears of roles must behave exactly
+    as it does today — no new column, no new flag to learn, no refusal
+    mentioning a concept it has not adopted. The same no-op property
+    `modes/project.md` holds for work modes.
+
+    So the refusal is conditioned on the project, never on the value: with no
+    cards, `--role` is accepted and filed like any other cell and nothing is
+    demanded; with cards, a roleless row is refused and the refusal lists the
+    roles that exist, because a user who must name one needs to know the set.
+    """
+    roles = declared_roles(ctx)
+    v = (value or "").strip()
+    if not roles:
+        return v
+    if not v:
+        raise Refused(
+            f"--role is required: this project declares "
+            f"{len(roles)} role(s) — {', '.join(roles)}. A row with no role "
+            f"names nobody accountable for reaching its rung, and "
+            f"`Accepted by` on the card is what the close gate reads")
+    if v not in roles:
+        raise Refused(
+            f"role {v!r} has no card. Declared: {', '.join(roles)}. Add "
+            f"`.perry/roles/{v}.md` — `packs/software-ops/roles/` ships three "
+            f"to copy — or name one of those")
+    return v
+
+
 def check_rung(rung: str, schema: dict) -> str:
     """One validator, because `done` had one and `add` had none.
 
@@ -1676,6 +1722,9 @@ def cmd_add(args, ctx) -> dict:
     rung = check_rung(args.rung, ctx["schema"])
     if rung:
         values["verification"] = rung
+    role = check_role(args.role, ctx)
+    if role:
+        values["role"] = role
 
     # Run the real path in both cases. `commit()` is what `--dry-run` skips;
     # everything up to it happens for real against the in-memory Board, which is
@@ -3210,6 +3259,7 @@ def cmd_list(args, ctx) -> dict:
                 "stage_since": "", "arrived": "", "parent": "",
                 "commitment": "", "next_action": "", "evidence": "",
                 "verification": "", "open": False, "group": "",
+                "role": "",
                 "depends_on": [], "blocked_by": [], "blocks": [],
                 "startable": False,
                 "created": None, "updated": None, "timeline": []}
@@ -3282,6 +3332,7 @@ def cmd_list(args, ctx) -> dict:
                 "next_action": c.get("next action", ""),
                 "evidence": c.get("evidence", ""),
                 "verification": c.get("verification", ""),
+                "role": c.get("role", ""),
                 "depends_on": parse_depends(c.get("depends on", "")),
                 # `open` used to mean "still on the board", which was true when
                 # the board held only P0/P1/P2 and closing removed the row.
@@ -3664,7 +3715,7 @@ def parse(argv: list[str]) -> Args:
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
-    a.group = a.prefix = None
+    a.group = a.prefix = a.role = None
     a.dry_run = a.as_json = a.all = a.clear = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -3679,7 +3730,7 @@ def parse(argv: list[str]) -> Args:
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
              "--out-of-scope": "out_of_scope", "--kr": "kr",
-             "--group": "group", "--prefix": "prefix"}
+             "--group": "group", "--prefix": "prefix", "--role": "role"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):

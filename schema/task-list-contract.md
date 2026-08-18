@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.7`**
+> Contract: **`perry-task/list/1.8`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -84,6 +84,7 @@ of that question: whatever the answer, `list --json` keeps this shape.
 | `evidence` | string | the cell verbatim. Free text: often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
 | `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. **Resolved for closed rows as well as open ones** — it was not until 1.5, and a closed row's evidence is the document that justifies the close, which is the one a reader most wants to open. |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
+| `role` | string — the declared role accountable for this row, or `""`. **Required once the project declares any `.perry/roles/*.md`, absent otherwise** (1.8). A project with no role cards is never asked for one and never refused for omitting one, which is DESIGN-006's Goal 7. |
 | `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
 | `open` | bool | **`true` unless the work is finished** — the row left the board with a `done`/`drop` event, or its status is `done`/`dropped`. Still the live/closed test; do not derive it from `status` yourself, because a row can be closed by either route. **One limit, stated because it cannot be fixed from here:** a row whose `Status` cell is empty is reported `open: true`, and Perry cannot know better. Perry's own board stages finished work under `## Done this period (leaves the board at next triage)` in a table with no `Status` column — 20 rows that are done and say nothing. `conformance.rows_with_no_status` names every one. |
 | `depends_on` | array | the ids this row waits on, verbatim from its `Depends on` cell, in cell order. **Opaque handles, like `id`** — an entry may name a task that is closed (that is what a satisfied dependency looks like), or a `DESIGN-`/`ADR-` id no board carries at all. `[]` when the row declares nothing, which on a board that predates 1.6 is every row. |
@@ -345,6 +346,25 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+
+
+### 1.8
+
+**Added `role`.** Empty on every project that has not declared a role card,
+which today is all of them — so nothing a consumer renders changes until a
+project opts in.
+
+**What a consumer sees.** A new string on every task. When it is non-empty, the
+project has `.perry/roles/<name>.md` declaring who is accountable for the row,
+what they may touch, what they must escalate, and — the part that reaches this
+payload's neighbours — an `Accepted by` and a `Default rung` that the close gate
+reads. **The stricter of the row's mode rung and its role rung wins**, so a
+`role` can raise `verification`'s effective floor without appearing to.
+
+`perry-task add` refuses a roleless row **only** on a project that has declared
+roles, and the refusal lists the roles that exist. On a project with none, the
+flag is accepted, nothing is demanded, and no refusal mentions a concept the
+project has not adopted.
 
 ### 1.7
 
