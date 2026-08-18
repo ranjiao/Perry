@@ -1114,6 +1114,71 @@ def resolves_somewhere(src: str, state_root: Path) -> bool:
     return False
 
 
+def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
+    """A role card is a hiring contract, never a workflow.
+
+    `DESIGN-006 § 5.2`, decision #1. Each of the four blocks has a mechanical
+    consumer — `Context` and `May touch` are rendered into the delegation
+    prompt, `Loads` drives knowledge injection, `Must escalate` is **unioned**
+    with the project high-stakes list in the dispatch pre-flight — and a fifth
+    section is prose nothing reads.
+
+    **The check is the closed set, not a blacklist of `## Workflow`.** That
+    heading is only the first spelling; `## Steps`, `## Procedure`, `## How to`
+    are the same violation wearing other names, and a guard written against the
+    literal string is the instance-shaped guard this project has found in every
+    review round. A card carrying a workflow-like heading gets a sharper
+    message, because it made decision #1's exact mistake and deserves to be told
+    which rule it broke.
+
+    Advisory. The refusal belongs at `delegate` (phase D), where a card that
+    cannot be rendered is a run that should not start.
+    """
+    spec = next((f for f in (schema.get("files") or [])
+                 if f.get("id") == "role-card"), None)
+    if not spec:
+        return []
+    sec = spec.get("sections") or {}
+    allowed = set(sec.get("allowed") or [])
+    workflowish = {w.lower() for w in (sec.get("workflow_like") or [])}
+    findings: list[Finding] = []
+    rdir = project_root / ".perry" / "roles"
+    for md in sorted(rdir.glob("*.md")) if rdir.exists() else []:
+        text = strip_comments(md.read_text(errors="replace"))
+        rel = md.relative_to(project_root).as_posix()
+        seen = set()
+        for level, title, line in headings(text):
+            if level != 2:
+                continue
+            seen.add(title)
+            if title in allowed:
+                continue
+            if title.lower() in workflowish:
+                findings.append(Finding(
+                    "warn", rel, "role-card-is-a-workflow", line=line,
+                    message=(
+                        f"`## {title}` — a role card is a **hiring contract the "
+                        f"harness instantiates, never a workflow** (DESIGN-006 "
+                        f"decision #1). What the role *does* belongs in the "
+                        f"task and the lane docs; this file says who it is, "
+                        f"what it may touch, and what it must escalate.")))
+            else:
+                findings.append(Finding(
+                    "warn", rel, "role-card-unknown-section", line=line,
+                    message=(
+                        f"`## {title}` is not one of "
+                        f"{', '.join(sorted(allowed))}. Each of those four has "
+                        f"a mechanical consumer — prompt, injection, "
+                        f"pre-flight union, close gate — and a fifth section is "
+                        f"prose nothing reads.")))
+        for want in sorted(allowed - seen):
+            findings.append(Finding(
+                "warn", rel, "role-card-incomplete", line=1,
+                message=(f"`## {want}` is missing. A card without it cannot be "
+                         f"rendered into a delegation prompt.")))
+    return findings
+
+
 def check_knowledge(state_root: Path) -> list["Finding"]:
     """Every knowledge card can say where its claim came from and when.
 
@@ -1528,7 +1593,8 @@ def main(argv: list[str]) -> int:
         state_root = ((project_root / state_root_arg).resolve() if state_root_arg
                       else P.resolve_state_root(project_root))
         load_glossary(schema)
-        findings = check_knowledge(state_root)
+        findings = check_knowledge(state_root) + check_role_cards(
+            project_root, schema)
         kdir = state_root / "knowledge"
         cards = sum(1 for md in (kdir.rglob("*.md") if kdir.exists() else [])
                     if md.name != "INDEX.md"

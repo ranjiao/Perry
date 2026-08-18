@@ -2048,6 +2048,54 @@
         }
       ],
       "anchor": "state"
+    },
+    {
+      "id": "role-card",
+      "path": ".perry/roles/*.md",
+      "template": "work/state/role_card_TEMPLATE.md",
+      "owner": "user",
+      "tier": 1,
+      "required": false,
+      "anchor": "project",
+      "note": "DESIGN-006 section 5.2. A role card is a HIRING CONTRACT the harness instantiates, never a workflow (decision #1). One file per role. A role is warranted only when it has a permission boundary or an acceptance standard distinct from the default - finance and legal that are both 'read files, run nothing, user reviews output' are one role with two knowledge topics, not two roles. OWNER IS `user`, NOT A LANE, and the distinction is load-bearing: `tests/test_ownership.py` refused a lane-owned path that the signed hand-off contract does not list, and it was right to - a new lane-owned file needs a fresh V5 signature, not a quiet entry in the test's exclusion list. A role card is not lane state. It is a declaration the project makes about itself, like `.perry/hook.md`, which is `user` for the same reason. Section 5.2's existence test - a role is warranted only after a real permission or acceptance collision - is a human judgement, and `packs/` ships TEMPLATES rather than written cards. No lane writes here, so the contract's ownership table does not move and needs no second signature.",
+      "header_fields": [
+        {
+          "name": "Accepted by",
+          "note": "Who verifies this role's output. Feeds the close-task gate."
+        },
+        {
+          "name": "Default rung",
+          "pattern": "V[0-6]",
+          "note": "Verification floor for this role's tasks. The STRICTER of mode-rung and role-rung wins (DESIGN-003 section 5.3)."
+        },
+        {
+          "name": "Executors",
+          "note": "`any`, or a restriction. Role is not executor: limits govern executors, and `bin/perry-dispatch-limit` is untouched."
+        }
+      ],
+      "sections": {
+        "closed": true,
+        "allowed": [
+          "Context",
+          "Loads",
+          "May touch",
+          "Must escalate"
+        ],
+        "note": "**A CLOSED SET, and that is the enforcement of decision #1.** The doc's rule is that a role card is a hiring contract and never a workflow, and `## Workflow` is only the first spelling of the violation - `## Steps`, `## Procedure`, `## How to`, `## Process` are the same thing wearing other names, and a guard written against the literal string would be the instance-shaped guard this project has found in every review round. Anything that is not one of the four is reported, so the category is closed rather than blacklisted. The cost, stated: a card cannot carry a `## Notes` or a `## Why this role exists`. That is deliberate - the four blocks each have a mechanical consumer (prompt, injection, pre-flight union, gate), and a fifth would be prose nothing reads.",
+        "workflow_like": [
+          "Workflow",
+          "Steps",
+          "Procedure",
+          "How to",
+          "Process",
+          "Runbook",
+          "Playbook",
+          "Instructions",
+          "流程",
+          "步骤"
+        ],
+        "workflow_note": "Not the check - the check is the closed set above. These get a SHARPER MESSAGE, because a card carrying one is making decision #1's exact mistake and deserves to be told which rule it broke rather than 'unknown section'."
+      }
     }
   ],
   "cross_file": [
