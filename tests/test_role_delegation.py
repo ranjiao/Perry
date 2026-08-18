@@ -267,19 +267,61 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
             capture_output=True, text=True)
         return {c["name"]: c for c in json.loads(r.stdout)["roles"]["cards"]}
 
-    def test_each_role_names_the_tasks_it_holds(self):
+    def held_by(self, root, role):
+        """What a role holds, through the edge that survived.
+
+        `cards[].tasks` was removed at `perry-roles/list/1.0`; `tasks[].role`
+        in `perry-task/list` answers the same question under contract. These
+        tests are about the JOIN, which is still worth asserting — the case
+        rule, and that nothing stores the answer — so they were repointed
+        rather than deleted.
+        """
+        r = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "list",
+             "--all", "--root", str(root), "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return [t["id"] for t in json.loads(r.stdout)["tasks"]
+                if (t.get("role") or "").strip().lower() == role
+                and t["open"]]
+
+    def test_the_reverse_edge_answers_what_a_role_holds(self):
+        """**`cards[].tasks` was removed at `perry-roles/list/1.0`.**
+
+        Three tests here asserted it: that it lists a role's open rows, that a
+        finished task is not one of them, and that a role holding nothing gets
+        an empty list rather than a missing key. All three were about a field
+        its only consumer called *"dead weight — unversioned and
+        open-rows-only"*.
+
+        The question they asked is still answerable, better: `tasks[].role` in
+        `perry-task/list` carries a compatibility promise the roster edge never
+        had, and it **survives a close**, since `role` now travels on the
+        `done` and `drop` events. So it answers *"what has this role ever
+        held"*, which is the track record the old edge structurally could not
+        give.
+
+        Two edges over one fact is the defect this repository keeps finding.
+        This asserts the surviving one still joins.
+        """
+        root = self.project()
+        r = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "list",
+             "--all", "--root", str(root), "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        rows = json.loads(r.stdout)["tasks"]
+        by_role = {}
+        for t in rows:
+            if (t.get("role") or "").strip():
+                by_role.setdefault(t["role"].lower(), []).append(t["id"])
+        self.assertIn("coding", by_role)
+        self.assertIn("T-1", by_role["coding"])
+
+    def test_the_roster_no_longer_publishes_a_second_edge(self):
         r = self.roster(self.project())
-        self.assertEqual(r["coding"]["tasks"], ["T-1", "T-2"])
-        self.assertEqual(r["review"]["tasks"], ["T-4"])
-
-    def test_a_finished_task_is_not_something_a_role_still_holds(self):
-        """`T-3` is `done`. A roster that counted it would answer "what is this
-        role working on" with work nobody is doing."""
-        self.assertNotIn("T-3", self.roster(self.project())["coding"]["tasks"])
-
-    def test_a_role_holding_nothing_reports_an_empty_list_not_a_missing_key(self):
-        r = self.roster(self.project(roles=("coding", "review", "research")))
-        self.assertEqual(r["research"]["tasks"], [])
+        self.assertNotIn("tasks", r["coding"],
+                         "the dead edge is back without a version")
 
     def test_a_role_cell_written_in_any_case_still_matches_its_card(self):
         """`.perry/roles/coding.md` and a cell reading `Coding` are the same
@@ -290,7 +332,7 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
         board = root / "perry" / "BOARD.md"
         board.write_text(board.read_text().replace("| coding |", "| Coding |"),
                          encoding="utf-8")
-        self.assertEqual(self.roster(root)["coding"]["tasks"], ["T-1", "T-2"])
+        self.assertEqual(self.held_by(root, "coding"), ["T-1", "T-2"])
 
     def test_the_edge_is_a_join_not_a_stored_registry(self):
         """Nothing writes the roster down. Deleting a row's `Role` cell changes
@@ -300,8 +342,8 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
         board = (root / "perry" / "BOARD.md")
         board.write_text(board.read_text().replace("| coding |\n", "| review |\n", 1),
                          encoding="utf-8")
-        self.assertNotIn("T-1", self.roster(root)["coding"]["tasks"])
-        self.assertIn("T-1", self.roster(root)["review"]["tasks"])
+        self.assertNotIn("T-1", self.held_by(root, "coding"))
+        self.assertIn("T-1", self.held_by(root, "review"))
 
 
 if __name__ == "__main__":

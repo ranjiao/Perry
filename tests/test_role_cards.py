@@ -200,7 +200,11 @@ class TestGoal7NoRolesChangesNothing(Base):
         Not an error, and not a prompt to declare one."""
         for roles_dir in (False, True):
             got = self.state(self.hooked(roles_dir), "roles")
-            self.assertEqual(got, {"declared": 0, "cards": []}, roles_dir)
+            # `contract` is present even on an empty roster: a consumer checks
+        # the version BEFORE it looks at the data, so a payload that carries
+        # one only when it has cards is a payload a consumer cannot check.
+        self.assertEqual(got, {"contract": "perry-roles/list/1.0",
+                               "declared": 0, "cards": []}, roles_dir)
 
     def test_the_preflight_scans_exactly_the_hook_list_and_nothing_else(self):
         """Not "a superset of" — the SAME LIST, in the same order. A union that
@@ -270,6 +274,73 @@ class TestGoal7NoRolesChangesNothing(Base):
         self.assertNotIn("Coding/Research/Review", text)
         self.assertNotIn("<agent-type>", text)
 
+
+
+class TestTheRolesPayloadIsVersioned(unittest.TestCase):
+    """aiMark's round-3 answer to Q2: **yes, we depend on it — version it.**
+
+    A payload a front-end renders and nothing promises is a promise made by
+    accident. Six fields were named as what they actually render, and those are
+    what `perry-roles/list/1.0` freezes: `declared`, and per card `name`,
+    `path`, `accepted_by`, `default_rung`, `must_escalate.fragments` and
+    `must_escalate.unextractable`.
+
+    The same report retired `cards[].tasks`: *"dead weight for us. It's
+    unversioned and open-rows-only; the reverse edge is under contract and
+    covers closed work."* Both halves are true — `tasks[].role` lives in
+    `perry-task/list`, carries a promise this never had, and survives a close
+    now that `role` travels on the `done` event. Two edges over one fact is the
+    defect this repository keeps finding; the one to drop is the one nobody
+    reads.
+    """
+
+    def payload(self, root):
+        import json
+        import subprocess
+        import sys
+        proc = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-state"),
+             "--root", str(root), "--json"],
+            capture_output=True, text=True, cwd=PERRY_HOME)
+        return json.loads(proc.stdout)["roles"]
+
+    def test_the_contract_is_present_before_the_data(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text("State root: .\n")
+            (root / "BOARD.md").write_text("# Board\n")
+            self.assertEqual(self.payload(root)["contract"],
+                             "perry-roles/list/1.0")
+
+    def test_the_six_frozen_fields_are_all_there(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry" / "roles").mkdir(parents=True)
+            (root / ".perry" / "config.md").write_text("State root: .\n")
+            (root / "BOARD.md").write_text("# Board\n")
+            (root / ".perry" / "roles" / "finance.md").write_text(
+                "# Finance\n\n"
+                "- Accepted by: the finance lead\n"
+                "- Default rung: V5\n\n"
+                "## Must escalate\n\n- anything over 10k\n")
+            card = self.payload(root)["cards"][0]
+            for field in ("name", "path", "accepted_by", "default_rung"):
+                self.assertIn(field, card, f"{field} is frozen at 1.0")
+            for field in ("fragments", "unextractable"):
+                self.assertIn(field, card["must_escalate"])
+
+    def test_the_dead_edge_is_gone(self):
+        """Dropped rather than frozen, at its only consumer's request. If it
+        comes back, it comes back with a version and a reader."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry" / "roles").mkdir(parents=True)
+            (root / ".perry" / "config.md").write_text("State root: .\n")
+            (root / "BOARD.md").write_text("# Board\n")
+            (root / ".perry" / "roles" / "finance.md").write_text(
+                "# Finance\n\n- Accepted by: x\n- Default rung: V5\n")
+            self.assertNotIn("tasks", self.payload(root)["cards"][0])
 
 if __name__ == "__main__":
     unittest.main()
