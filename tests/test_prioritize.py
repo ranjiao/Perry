@@ -145,14 +145,19 @@ class TestItMoves(Base):
         self.assertEqual((last["from"], last["to"]), ("P2", "P1"))
 
     def test_from_and_to_are_the_section_and_the_event_says_so(self):
-        """Every other event uses `from`/`to` for the STATUS. A consumer that
-        assumed so would read a move as a status change, so the event carries
-        `field: priority` to disambiguate without a per-event special case."""
+        """Most events use `from`/`to` for the STATUS. A consumer that assumed
+        so would read a move as a status change, so the event carries
+        `field: section` to disambiguate without a per-event special case.
+
+        It said `priority` for one commit, while the payload's own `field` said
+        `section` — two names for one thing, which is how a reader and a writer
+        drift apart. This test failed on that change and is why it was caught.
+        """
         self.run_tool("prioritize", "TASK-001", "--priority", "P1")
         events = [json.loads(l) for l in
                   (self.root / ".perry" / "events.jsonl").read_text().splitlines() if l.strip()]
         ev = [e for e in events if e["event"] == "prioritize"][-1]
-        self.assertEqual(ev["field"], "priority")
+        self.assertEqual(ev["field"], "section")
         self.assertEqual(self.task("TASK-001")["status"], "not_started",
                          "the status must not have moved")
 
@@ -425,6 +430,59 @@ class TestARungPassedAsTheCheckIsRefused(Base):
                             "--verification", "V4 review by a fresh reviewer",
                             "--rung", "V4", "--priority", "P1")
         self.assertEqual(out.returncode, 0, out.stderr)
+
+
+class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
+    """`field` on a timeline entry, so a consumer needs no hardcoded set.
+
+    aiMark had to write `SECTION_MOVE_EVENTS = new Set(["prioritize"])` to keep
+    `prioritize` from rendering `P1 → P0` with the status palette. That set is
+    wrong the day Perry adds a second event overloading `from`/`to`, and
+    **nothing in the payload would say so** — one side knowing and the other
+    guessing, which is the defect these contracts exist against.
+
+    The ask was `"status"` on every existing event and `"section"` on
+    `prioritize`. That default is false — `retitle`'s pair is a title, `next`'s
+    is a next action — and shipping a wrong word in the field whose job is to
+    stop a consumer guessing would be the same defect inside its own fix. So it
+    is a full map, and this test is what keeps it full.
+    """
+
+    def setUp(self):
+        spec = importlib.util.spec_from_loader(
+            "perry_task",
+            importlib.machinery.SourceFileLoader("perry_task", str(TOOL)))
+        self.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.mod)
+
+    def test_the_map_covers_exactly_the_declared_task_events(self):
+        """Not "covers them" — **exactly**. A missing key ships `""` to a
+        consumer; a stale key promises something that cannot happen. `depends`
+        was already missing when this was written, found by running the payload
+        rather than by reading the map."""
+        self.assertEqual(set(self.mod.EVENT_FIELD), set(self.mod.TASK_EVENTS))
+
+    def test_no_event_claims_a_pair_it_does_not_carry(self):
+        """The values are cell names a reader can act on, not a vocabulary of
+        their own. Each must be a key of the task payload, or `status`/`section`
+        which name a concept rather than a cell."""
+        payload_keys = set(self.mod.LIST_TASK_KEYS) if hasattr(
+            self.mod, "LIST_TASK_KEYS") else None
+        allowed = {"status", "section", "stage", "title", "next_action",
+                   "verification", "evidence", "depends_on"}
+        self.assertLessEqual(set(self.mod.EVENT_FIELD.values()), allowed)
+
+    def test_a_section_move_is_not_reported_as_a_status_move(self):
+        self.assertEqual(self.mod.EVENT_FIELD["prioritize"], "section")
+        self.assertEqual(self.mod.EVENT_FIELD["status"], "status")
+
+    def test_the_stored_event_says_the_same_word_the_payload_does(self):
+        """`cmd_prioritize` writes `field` into the event too. Two names for one
+        thing is how the reader and the writer drift apart — it said `priority`
+        while the payload said `section` for one commit."""
+        src = TOOL.read_text(encoding="utf-8")
+        self.assertIn('"field": "section"', src)
+        self.assertNotIn('"field": "priority"', src)
 
 
 if __name__ == "__main__":

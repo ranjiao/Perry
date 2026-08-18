@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.6`**
+> Contract: **`perry-task/list/1.7`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -118,10 +118,34 @@ see `conformance.dependency_cycles`.
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, seconds precision, local time, no zone suffix |
-| `event` | string — `add`, `start`, `stage`, `status`, `done`, `drop`, `route` |
-| `from` | string \| null |
-| `to` | string \| null |
+| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `from` | string \| null — **see `field` for what it refers to** |
+| `to` | string \| null — same |
+| `field` | string — **what `from`/`to` refer to on this event** (1.7) |
 | `actor` | string \| null |
+
+**`field` exists so you need no hardcoded set of special cases.** `from`/`to`
+are a status transition on most events and something else on the rest, and the
+consumer that discovered this had written
+`SECTION_MOVE_EVENTS = new Set(["prioritize"])` — a set that goes wrong the day
+Perry adds a second such event, silently, with nothing in the payload to say so.
+
+Its value, per event:
+
+- **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`. A status value.
+- **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
+- **`stage`** — on `stage`. A stage from the track's declared vocabulary.
+- **`title`** — on `retitle`. The row's title.
+- **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
+- **`verification`** — on `rung`. A rung, `V0`–`V6`.
+- **`evidence`** — on `evidence`. The evidence cell.
+- **`depends_on`** — on `depends`. The dependency cell.
+
+The map's keys are asserted equal to the writer's own event set, so an event
+cannot ship without declaring what its pair means. The ask that produced this
+proposed `status` for everything except `prioritize`; that would have been
+false for `retitle`, `next` and `rung`, and a wrong word in the field whose job
+is to stop you guessing is worse than no field.
 
 ### `conformance` — what the board did not parse cleanly
 
@@ -272,14 +296,31 @@ A hand-edited board is legitimate; the right response is that Perry notices.
    `[]` — never a missing key. You need no `if "owner" in task`.
 2. **A key is never removed or retyped without a major bump.** `1.x` → `1.y` may
    only *add* keys.
-3. **`contract` is the handle.** Check its `major` and refuse loudly on a
-   mismatch rather than guessing:
+3. **`contract` is the handle — and check BOTH halves.** The major says
+   whether you can parse it. The **minor says whether a value still means what
+   it meant when you wrote your code**, which is not the same question, and
+   this section used to show only the first:
 
    ```python
-   major = payload["contract"].rsplit("/", 1)[1].split(".")[0]
-   if major != "1":
-       raise SystemExit(f"perry-task list contract {payload['contract']} is not supported")
+   version = payload["contract"].rsplit("/", 1)[1]
+   major, minor = (int(x) for x in version.split("."))
+   if major != 1:
+       raise SystemExit(f"perry-task list contract {version} is not supported")
+   if minor > TESTED_MINOR:            # the minor you actually read against
+       for change in payload["semantics"]:
+           if change["version"] > TESTED_MINOR_STR:
+               warn(change["fields"], change["note"])
    ```
+
+   **Do not refuse on a minor.** `1.x` only adds keys, so an old consumer keeps
+   working — that guarantee is real and rule 2 is unchanged. What it does not
+   cover is a field whose *meaning* was corrected, which has happened once
+   (1.5) and is what `semantics` reports.
+
+   The snippet here previously extracted the major and discarded the rest,
+   which taught a consumer that the minor is noise. A front-end that followed
+   it exactly could not see 1.5 — the version whose whole reason for existing
+   was that two fields changed meaning under it.
 
 ## Polling
 
@@ -304,6 +345,36 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+
+### 1.7
+
+**Added `semantics` (top level) and `timeline[].field`.** Both asked for by
+aimark, by name, after a second pass over the payload.
+
+**What a consumer sees.** Two guesses it had to make are now answered by the
+payload:
+
+1. *"Has a value's meaning changed since I wrote this code?"* — `semantics`
+   lists the minors where one did, with the fields and why. It is a list rather
+   than a single entry so a front-end jumping 1.4 → 1.7 still learns about 1.5.
+   `§ The three rules` rule 3 previously showed a snippet that extracted the
+   major and discarded the rest, which taught the opposite; it now reads both
+   halves and does not refuse on a minor.
+2. *"Is this timeline entry's `from`/`to` a status?"* — `timeline[].field` says
+   so per event. The consumer that reported this had written
+   `SECTION_MOVE_EVENTS = new Set(["prioritize"])`, a set that goes wrong
+   silently the day a second event overloads the pair.
+
+Also documented, not changed: the event enum in § A timeline entry listed 7 of
+13 events. `prioritize`, `retitle`, `next`, `rung`, `evidence` and `depends`
+were all shipping and none was named, so a front-end building its event handling
+from the spec met them first at runtime.
+
+`field` is `status` on six events, and `section` / `stage` / `title` /
+`next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
+proposed `status` for everything except `prioritize`; that is false for
+`retitle`, `next` and `rung`, and a wrong word in the field whose job is to stop
+you guessing is worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer

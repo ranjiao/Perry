@@ -1328,7 +1328,8 @@ class TestListContract(unittest.TestCase):
         # 1.6 — the dependency edge, and the one question a dashboard asks.
         "depends_on", "blocked_by", "blocks", "startable",
     }
-    TOP_KEYS = {"contract", "project_root", "state_root", "conformance",
+    TOP_KEYS = {"contract", "semantics", "project_root", "state_root",
+                "conformance",
                 "intake", "tasks", "open", "closed", "events", "untitled",
                 # 1.6 — the three blocks that were readable only through
                 # `perry-state --json`, the payload with no version.
@@ -1351,7 +1352,9 @@ class TestListContract(unittest.TestCase):
                         "next_action_cites_closed",
                         "depends_on_unknown", "dependency_cycles",
                         "blocked_without_dependency", "has_event_log"}
-    EVENT_KEYS = {"ts", "event", "from", "to", "actor"}
+    # `field` (1.7) says what `from`/`to` refer to on this event, so a
+    # consumer needs no hardcoded set of events that overload the pair.
+    EVENT_KEYS = {"ts", "event", "from", "to", "field", "actor"}
 
     TRACKS = TestModeAwareWrites.TRACKS
 

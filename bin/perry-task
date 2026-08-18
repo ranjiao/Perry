@@ -43,6 +43,8 @@ same class — the file is allowed to make Perry *slower to explain itself*, nev
 
 Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
+                   [--rung V1..V6]  fills the Verification COLUMN; --verification
+                                    is the spec's prose and does not
                    [--depends "TASK-050, TASK-051"] ids this row waits on
                    [--out-of-scope "…"] [--kr KR-ID]
                    [--track T] [--owner O] [--priority P0|P1|P2]
@@ -131,7 +133,39 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.6"
+LIST_CONTRACT = "perry-task/list/1.7"
+
+# **Minors where a value's MEANING changed, not just where a key was added.**
+#
+# Rule 2 promises `1.x` only adds keys, and that is true and unbroken. It is
+# also not the whole risk: 1.5 added no key and changed what `evidence_paths`
+# and `conformance.evidence_not_found` report, under a live consumer, which is
+# the reason that minor moved at all.
+#
+# The consumer that hit this had followed § The three rules exactly — the
+# snippet there extracted the major and discarded the rest — and so could not
+# see 1.5 at all. It asked for this array by name.
+#
+# One entry per minor that corrected a meaning; a pure key addition adds
+# nothing here, so an empty list is the normal case and says so honestly. A
+# consumer records the minor it read against and reports every entry newer than
+# that, which is why this is a list rather than "what changed in the current
+# version" — a front-end that skips 1.5 → 1.7 must still learn about 1.5.
+LIST_SEMANTICS = [
+    {"version": "1.5",
+     "fields": ["evidence_paths", "conformance.evidence_not_found"],
+     "note": "Evidence spans are now resolved for CLOSED rows too, and every "
+             "span that resolves nowhere is reported. Before 1.5 both arrays "
+             "were empty on a closed row, so a consumer could not tell "
+             "'Perry did not resolve this' from 'this file is missing'."},
+    {"version": "1.7",
+     "fields": ["timeline[].from", "timeline[].to"],
+     "note": "These were a status transition on every event until "
+             "`prioritize` shipped, where they are board sections. The new "
+             "`timeline[].field` key says which, per event. Nothing about the "
+             "existing events changed — but a consumer that hardcoded "
+             "'from/to is a status' was correct before and is not now."},
+]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
 # `## Top risks` rows go through the same three-way commit and land in the same
@@ -3048,7 +3082,7 @@ def cmd_prioritize(args, ctx) -> dict:
              # event name. (An earlier version added a `field` key claiming to
              # be what disambiguates; it never reached the payload at all,
              # because a timeline entry keeps only ts/event/from/to/actor.)
-             "field": "priority", "from": was, "to": now,
+             "field": "section", "from": was, "to": now,
              "reason": args.reason or ""}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
@@ -3303,8 +3337,20 @@ def cmd_list(args, ctx) -> dict:
             t["created"] = ts
         if ts and (t["updated"] is None or ts > t["updated"]):
             t["updated"] = ts
-        t["timeline"].append(
-            {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")})
+        entry = {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")}
+        # **`field` says what `from`/`to` refer to**, so a consumer needs no
+        # hardcoded set of events that overload the pair. Asked for by aiMark,
+        # which had to write `SECTION_MOVE_EVENTS = new Set(["prioritize"])` —
+        # a set that is wrong the day Perry adds a second such event, with
+        # nothing in the payload to say so. That is one side knowing and the
+        # other guessing, which is the defect these contracts exist against.
+        #
+        # Always present, never absent, so no branch is needed per event. An
+        # event the map does not know reports `""` rather than a guess — the
+        # test above makes that unreachable for task events, and a wrong word
+        # here is worse than an empty one.
+        entry["field"] = EVENT_FIELD.get(e.get("event") or "", "")
+        t["timeline"].append(entry)
 
     # `mode` is DERIVED, from `track` + `.perry/config.md § Tracks` — the same
     # register `track_of` reads and the only place a project declares which
@@ -3497,6 +3543,7 @@ def cmd_list(args, ctx) -> dict:
 
     sections = board_sections(ctx)
     return {"contract": LIST_CONTRACT,
+            "semantics": LIST_SEMANTICS,
             "risks": sections["risks"],
             "asks": sections["asks"],
             "drift": sections["drift"],
@@ -3676,6 +3723,35 @@ def parse(argv: list[str]) -> Args:
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
                          "retitle", "rung", "evidence", "prioritize",
                          "depends", "done", "drop"})
+# **What a timeline entry's `from`/`to` pair actually refers to.** One row per
+# task event, no default — `tests/test_prioritize.py` asserts this map's keys
+# are exactly `TASK_EVENTS`, so an event cannot be added without declaring what
+# its pair means, and a name left here after the event is deleted is a promise
+# about something that cannot happen.
+#
+# Asked for by aiMark, which had to write
+# `SECTION_MOVE_EVENTS = new Set(["prioritize"])` — a set that is wrong the day
+# Perry adds a second event overloading the pair, with nothing in the payload to
+# say so. One side knowing and the other guessing is the defect these contracts
+# exist against.
+#
+# **It is a full map rather than the "everything else is `status`" the ask
+# proposed, because that default is false.** `retitle`'s pair is a title,
+# `next`'s is a next action, `rung`'s is a rung. Shipping `status` for those
+# would put a wrong word in a field whose whole job is to stop a consumer
+# guessing — the same defect in the fix for it.
+EVENT_FIELD = {
+    "add": "status", "route": "status", "start": "status",
+    "status": "status", "done": "status", "drop": "status",
+    "stage": "stage",
+    "prioritize": "section",
+    "retitle": "title",
+    "next": "next_action",
+    "rung": "verification",
+    "evidence": "evidence",
+    "depends": "depends_on",
+}
+
 SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "ask", "answer",
                             "cadence-add", "cadence-done",
