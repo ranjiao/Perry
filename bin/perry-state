@@ -232,16 +232,68 @@ DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
 # absent, and a positional read would silently attribute one column's value to
 # another the moment a project omits one. (A V4 review caught exactly this bug
 # in the board-row parser; the same shape was here.)
-TRACK_COLUMNS = {
-    "track": ("track", "轨道"),
-    "mode": ("mode", "模式"),
-    "spine": ("spine", "主线"),
-    "stages": ("stages", "阶段序列"),
-    "wip": ("wip", "在制上限"),
-    "sla": ("sla", "时限"),
-    "cycle": ("cycle", "周期"),
-    "default_rung": ("default rung", "默认验证级"),
+#: payload key → the column's English name. The SPELLINGS come from the schema
+#: at load; only this mapping is `perry-state`'s own, because "which payload key
+#: does `Default rung` fill" is a fact about this payload and nothing else.
+_TRACK_KEYS = {
+    "track": "Track", "mode": "Mode", "spine": "Spine", "stages": "Stages",
+    "wip": "WIP", "sla": "SLA", "cycle": "Cycle",
+    "default_rung": "Default rung",
 }
+
+def heading_spellings(name: str) -> tuple[str, ...]:
+    """Every accepted spelling of a section heading, **read from the schema**.
+
+    `schema/state-schema.json § i18n.headings` declares 34 of these and five
+    tools read them. This file transcribed one — `高风险操作` — into a call
+    site, which is how a table with one authoritative copy grows a second.
+    """
+    try:
+        h = (json.loads(
+            (Path(__file__).resolve().parent.parent / "schema"
+             / "state-schema.json").read_text()).get("i18n") or {}
+        ).get("headings") or {}
+    except (OSError, ValueError):
+        h = {}
+    return tuple([name] + [a for per in (h.get(name) or {}).values()
+                           for a in per])
+
+
+_TRACK_COLUMNS: dict[str, tuple[str, ...]] | None = None
+
+
+def track_columns() -> dict[str, tuple[str, ...]]:
+    """Accepted spellings per payload key, **read from the schema**.
+
+    This was a hand-copy of `schema/state-schema.json § i18n.columns` — and its
+    own comment said so, naming the source and transcribing it anyway. Eight
+    columns, eight Chinese spellings, in a second place that nothing compared
+    against the first. A spelling added to the schema would have reached
+    `perry-lint`, `perry-conform`, `perry-migrate`, `perry-goals` and
+    `perry-diagnose`, all of which read the table, and not this file — so the
+    linter would accept a localized register that the track parser then read as
+    having no columns at all, which is the mode register for every queue,
+    pipeline and inquiry track in the project.
+
+    Falls back to English-only if the schema cannot be read, which is the same
+    behaviour an empty glossary produces and the correct one for a schema that
+    declares none.
+    """
+    global _TRACK_COLUMNS
+    if _TRACK_COLUMNS is None:
+        try:
+            cols = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text())
+                .get("i18n") or {}).get("columns") or {}
+        except (OSError, ValueError):
+            cols = {}
+        _TRACK_COLUMNS = {
+            key: tuple([name.lower()]
+                       + [a.lower() for per in
+                          (cols.get(name) or {}).values() for a in per])
+            for key, name in _TRACK_KEYS.items()}
+    return _TRACK_COLUMNS
 
 
 def parse_tracks(text: str) -> list[dict]:
@@ -270,9 +322,9 @@ def parse_tracks(text: str) -> list[dict]:
         low = [squash(c) for c in cells]
         if not header:
             # First table row is the header — that is what declares the layout.
-            if any(a in low for a in TRACK_COLUMNS["track"]):
+            if any(a in low for a in track_columns()["track"]):
                 header = {key: next((low.index(a) for a in aliases if a in low), -1)
-                          for key, aliases in TRACK_COLUMNS.items()}
+                          for key, aliases in track_columns().items()}
                 continue
             # A table with no recognizable header cannot be read safely.
             break
@@ -566,7 +618,12 @@ def hook_profile(root: Path) -> dict:
     if not path.exists():
         return out
     text = P._strip_comments(path.read_text(errors="replace"))
-    section = P._section(text, "High-stakes operations", "High-stakes", "高风险操作")
+    # Spellings from the schema, not written here. `"High-stakes"` stays as a
+    # literal because it is a PREFIX this file accepts and the schema does not
+    # declare — a tolerance, not an alias, and saying so is the difference
+    # between reading the table and quietly extending it.
+    section = P._section(text, *heading_spellings("High-stakes operations"),
+                         "High-stakes")
     items = [b for b in P._bullets(section) if "{{" not in b]
     out["high_stakes"] = items
     out["high_stakes_armed"] = bool(items)
