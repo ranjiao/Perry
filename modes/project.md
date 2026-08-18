@@ -9,7 +9,7 @@
 `project` is the shape Perry was built for, and its rules already live in
 `goals/SKILL.md` and `work/SKILL.md`. Copying them here would create a second
 authoritative copy of a rule that already has one — the exact failure
-`reference/project-archetypes.md § Part 1.2` calls *"one document, one owner,
+`reference/project-archetypes.md § 2 · The document jungle` calls *"one document, one owner,
 one copy"* and that Perry refuses everywhere else. So this file **declares which
 existing rules constitute the mode** and points at them. The other three modes
 carry real rules, because their rules exist nowhere else yet.
@@ -33,7 +33,7 @@ it.
 | **WIP control** | `P0` / `P1` / `P2`. Cadence work sits under `## Cadence` and does not consume P0 slots | `work/SKILL.md` |
 | **Triage asks** | Is this still the right task? What is stale, inflated, or `done` with no evidence? | `work/reference/subcommands.md § triage` |
 | **Default rung** | **V3** — reproducible run. This mode is the one with a native verification loop: tests, build, lint, run by the agent with output shown rather than asserted | `schema/state-schema.json § verification` |
-| **Signature failure** | Spec-free "vibe" implementation; a tier-0 file grown past its cap; `done` rows with no evidence path | `reference/project-archetypes.md § 3.A` |
+| **Signature failure** | Spec-free "vibe" implementation; a tier-0 file grown past its cap; `done` rows with no evidence path | `reference/project-archetypes.md § Archetype A` |
 
 ## Why V3 is the default here and nowhere else
 

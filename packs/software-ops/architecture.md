@@ -213,7 +213,7 @@ Empty field → spec is malformed; `add-task` refuses to write.
 
 ## OKR integration
 
-`okr plan-phase` (see `goals/SKILL.md § plan-phase`) now reads:
+`okr plan-phase` (see `goals/reference/phases.md § plan-phase <slug>`) now reads:
 1. Latest `architecture/audit-history/<date>.md`.
 2. `ARCHITECTURE.md § Open questions` (§7).
 3. `ARCHITECTURE.md § Change log` (§8) since previous phase's `plan-phase`.
