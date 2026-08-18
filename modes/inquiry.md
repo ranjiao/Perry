@@ -141,5 +141,5 @@ finding, not an exception to the cap.
   the provenance contract.
 - `work/reference/digests.md` — how a source becomes a digest, and the `Id:`
   minting rule.
-- `reference/project-archetypes.md § 3.B` — the knowledge-base archetype this
+- `reference/project-archetypes.md § Archetype B` — the knowledge-base archetype this
   mode generalizes, including the link-integrity and no-orphan checks it names.
