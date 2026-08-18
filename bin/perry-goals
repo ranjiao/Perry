@@ -874,14 +874,61 @@ _CN_NUM = r"\d+|[一二两三四五六七八九十百半几数每逐]"
 #: Words that BOUND a period without counting it — `季度末`, `月底`, `本周内`.
 _CN_BOUND = r"(?:本|下|上|next|this)?\s*(?:周|月|季度|年)\s*(?:末|底|内|初|前)"
 
+# ── The two halves, written as one pair ───────────────────────────────────
+#
+# **Round 3's finding: round 2 fixed the direction the defect was found in and
+# never established the property.** The Chinese half was made to require a
+# quantity or a bound; the English half still required only wordhood. So
+# `--by week` wrote a live commitment row and `--by 周` was refused — the
+# asymmetry was REVERSED, not removed. A reviewer built 46 of its own pairs
+# and 24 disagreed, in both directions.
+#
+# The fix has to be symmetric or it just moves the gap, so the pieces below are
+# defined side by side and each language's pattern is assembled from the same
+# three ideas: a QUANTIFIER, a UNIT, and the standalone words that are already
+# a clock without either.
+
+#: Demonstratives that fix a period as precisely as a count does. `next week`
+#: names a week; `week` does not. Round 3 measured `下周`, `本月`, `这周`,
+#: `明年`, `今年` all refused in Chinese and accepted in English.
+#: `same` earns its place the way `每` did: an EXISTING test asserting
+#: `same business day` went red on the first version of this pattern, and that
+#: test was right. Round 2 learned the same thing from `每周一次` — a suite
+#: that already encodes a real phrase is evidence, not an obstacle.
+_EN_QTY = (r"(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|"
+           r"eleven|twelve|half|each|every|next|this|last|coming|following|"
+           r"same)")
+_CN_DEMO = r"[本下上这那明今去每逐]"
+
+#: Units, paired. `星期` and `礼拜` are the two most ordinary Chinese words for
+#: *week* and were both missing, which is most of why `两个星期` and `一个礼拜`
+#: were refused while `two weeks` passed.
+_EN_UNIT = (r"(?:(?:business|working)\s+days?|day|days|week|weeks|hour|hours|"
+            r"minute|minutes|month|months|quarter|quarters|year|years)")
+_CN_UNIT = r"(?:天|日|周|月|年|季度|工作日|小时|分钟|星期|礼拜)"
+
+#: Already a clock with no quantifier: a cadence, or a named day.
+_EN_ALONE = (r"\b(?:daily|weekly|monthly|hourly|quarterly|annually|yearly|"
+             r"today|tomorrow|tonight|eod|eow|eom|eoq)\b")
+_CN_ALONE = r"(?:今天|明天|后天|大后天|当天|今日|明日|全天)"
+
 CLOCK_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}"
     # `3d`, `5d`, `2w` — the shorthand Perry's own `## Tracks` examples use and
     # which this pattern REFUSED, so a legitimate SLA could not be written.
     r"|\b\d+\s*[dhwmy]\b"
     r"|\bSLA\b|时限"
-    r"|\b(?:day|days|week|weeks|hour|hours|minute|minutes|month|months|"
-    r"quarter|quarters|year|years|daily|weekly|monthly|hourly)\b"
+    # **A bare English unit is refused too, as of round 3.** `week` alone names
+    # no week; `next week` and `two weeks` do. This is the half that was never
+    # fixed, and criteria 1 and 2 of `TASK-042-spec.md` cannot both hold
+    # without it — loosening the Chinese half instead would satisfy parity and
+    # bring every round-2 phrase straight back.
+    r"|" + _EN_ALONE +
+    r"|\b" + _EN_QTY + r"\s+" + _EN_UNIT + r"\b"
+    r"|\b(?:end|start|beginning|close)\s+of\s+(?:the\s+)?" + _EN_UNIT + r"\b"
+    r"|\b" + _EN_UNIT + r"\s*[- ]?\s*end\b"
+    r"|\bwithin\s+(?:the\s+)?(?:\d+\s*)?" + _EN_UNIT + r"\b"
+    r"|\bQ[1-4]\b"
     # **A Chinese unit counts only when it is quantified or bounded**, the same
     # standard `\b` imposes on the English half. It used to be a bare class,
     # `[天日周月年]`, so any stray 日 or 年 qualified: `日后再说` ("we'll talk
@@ -891,7 +938,9 @@ CLOCK_RE = re.compile(
     # was enforced in one language and not the other, which is worse than
     # enforcing it in neither: a Chinese project got a commitment register full
     # of deadlines that are not deadlines, and passed.
-    r"|(?:" + _CN_NUM + r")\s*(?:个)?\s*(?:天|日|周|月|年|季度|工作日|小时|分钟)"
+    r"|(?:" + _CN_NUM + r")\s*(?:个)?\s*" + _CN_UNIT +
+    r"|" + _CN_DEMO + r"\s*(?:个)?\s*" + _CN_UNIT +
+    r"|" + _CN_ALONE +
     r"|" + _CN_BOUND,
     re.I)
 

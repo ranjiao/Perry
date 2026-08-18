@@ -64,6 +64,19 @@ ELSEWHERE = [
 ]
 
 
+def goals_module():
+    """`bin/perry-goals` as a module, for asserting on `CLOCK_RE` directly."""
+    import importlib.machinery
+    import importlib.util
+    spec = importlib.util.spec_from_loader(
+        "perry_goals_mod",
+        importlib.machinery.SourceFileLoader(
+            "perry_goals_mod", str(ROOT / "bin" / "perry-goals")))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class TestByteIdentity(unittest.TestCase):
     """Load it, change nothing, write it back."""
 
@@ -1039,6 +1052,69 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                                  f"accepted silently: {out.stderr}")
                 self.assertEqual(p.okr_path.read_bytes(),
                                  before, "a refusal wrote to the file")
+
+    #: Pairs meaning the same thing in the two languages. **The property, not
+    #: a phrase list** — round 2 was fixed against the phrases it was reported
+    #: with and the asymmetry simply reversed: the Chinese half grew a
+    #: quantity requirement and the English half kept requiring only wordhood,
+    #: so `--by week` wrote a live commitment row while `--by 周` was refused.
+    #:
+    #: Built to cover both directions, including the ones a reviewer found by
+    #: writing 46 of its own: Chinese-refused/English-accepted (`下周`, `本月`,
+    #: `明年`, `两个星期`, `一个礼拜`, `当天`) and bare units, which must now be
+    #: refused in BOTH.
+    CLOCK_PAIRS = [
+        ("next week", "下周", True),
+        ("this month", "本月", True),
+        ("two weeks", "两个星期", True),
+        ("one week", "一个礼拜", True),
+        ("next year", "明年", True),
+        ("this year", "今年", True),
+        ("tomorrow", "明天", True),
+        ("today", "当天", True),
+        ("weekly", "每周", True),
+        ("end of quarter", "季度末", True),
+        ("within a week", "本周内", True),
+        ("3d", "3天", True),
+        ("2026-09-30", "2026-09-30", True),
+        ("week", "周", False),
+        ("month", "月", False),
+        ("year", "年", False),
+        ("when we get to it", "有空再说", False),
+        ("later", "日后再说", False),
+        ("some day", "改天", False),
+        ("eventually", "年后再说", False),
+    ]
+
+    def test_the_two_languages_agree_for_the_same_meaning(self):
+        """The property this task exists for, asserted as a property.
+
+        A rule enforced in one language and not the other is worse than one
+        enforced in neither: a Chinese project got a commitments register full
+        of deadlines that are not deadlines, and passed every check.
+        """
+        mod = goals_module()
+        for english, chinese, expected in self.CLOCK_PAIRS:
+            with self.subTest(pair=(english, chinese)):
+                en = bool(mod.CLOCK_RE.search(english))
+                cn = bool(mod.CLOCK_RE.search(chinese))
+                self.assertEqual(
+                    en, cn,
+                    f"{english!r} -> {en} but {chinese!r} -> {cn}; the rule is "
+                    f"enforced in one language and not the other")
+                self.assertEqual(en, expected,
+                                 f"{english!r} should be {expected}")
+
+    def test_a_bare_unit_is_refused_in_both(self):
+        """`week` names no week. This is the half round 2 never fixed, and
+        criteria 1 and 2 of the spec cannot both hold without it — loosening
+        the Chinese half instead satisfies parity and brings every round-2
+        phrase straight back."""
+        mod = goals_module()
+        for bare in ("week", "month", "year", "quarter", "hour",
+                     "周", "月", "年", "季度", "小时"):
+            with self.subTest(unit=bare):
+                self.assertFalse(bool(mod.CLOCK_RE.search(bare)))
 
     def test_whitespace_only_is_refused_rather_than_erasing_the_cell(self):
         """Refused on create, **silently erasing** on amend — the same shape as
