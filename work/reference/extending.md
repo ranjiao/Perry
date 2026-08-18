@@ -40,8 +40,9 @@ If the project is **<your project name>**:
 - Decision tag types: <Process | Architecture | Tooling | ... — pick the
   set that matches your project's vocabulary>.
 - Cost ceiling source: <file or section that names the spend cap>.
-- Special agents available: <list of agent roles you delegate to via
-  `pmo delegate`, beyond the generic Coding/Research/Review trio>.
+- Special agents available: — · a role is a card in `.perry/roles/`, not a
+  name in this line. See `work/state/role_card_TEMPLATE.md`; copy a starting
+  point from `packs/software-ops/roles/`.
 - Promotion / staging path (if any): <ordered list of stages a deliverable
   must pass through before being considered shipped>.
 - High-stakes operations that REQUIRE user authorization: <list>.

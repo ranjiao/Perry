@@ -20,7 +20,7 @@ Each role owns its own deliverable's commit. PMO never commits code; Coding neve
 - **Direct push to main is acceptable** for: (a) PMO Agent's own doc commits with low risk; (b) trivial typo fixes the user explicitly authorizes. Code commits go through PR by default.
 - **Branch naming**: `<owner-prefix>/<task-id>-<slug>` (e.g. `coding/task-007-cli-lifecycle`, `pmo/2026-05-board-update`). PMO Agent may push directly to main when not on a feature branch.
 
-If `.perry/config.md` records `Repo layout: split` (PMO docs and code in separate repos), every Coding/Research delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
+If `.perry/config.md` records `Repo layout: split` (PMO docs and code in separate repos), every delegation prompt MUST state which repo the work targets (absolute path), and evidence files MUST reference code via `<commit-SHA> path/to/file`. The split layout itself is documented in the top-level Perry SKILL.md; PMO is responsible for honoring it in delegation prompts and evidence files.
 
 ## Time Estimation for Coding Agent Tasks
 
@@ -34,6 +34,6 @@ Coding Agents are **30–100× faster** than human engineers. When PMO estimates
 
 Inflated estimates ("this will take an hour") cause the user to plan around the wrong duration. When the user asks "what should I do while it's running?", the answer should match the Coding Agent's actual speed, not the human baseline.
 
-This calibration applies only to autonomous Coding / Research Agent runs. Tasks delegated to humans (RM contact, professional consultations, manual external operations) keep human-pace estimates.
+This calibration applies only to autonomous agent runs. Tasks delegated to humans (RM contact, professional consultations, manual external operations) keep human-pace estimates.
 
 If a project repeatedly observes cycle times outside these ranges, record the calibration in its hook block (e.g., "Coding Agent on this codebase averages ~3 min for medium due to slow test suite") and treat the hook value as the local override.

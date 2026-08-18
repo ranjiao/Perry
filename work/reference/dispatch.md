@@ -7,9 +7,11 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 1. `evidence/<YYYY-MM>/<TASK-ID>-spec.md` exists.
 2. Spec contains `Dispatch mode: auto` (default `manual` — explicit opt-in required).
 3. Spec contains `Executor: claude-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use `AskUserQuestion` (header `"Executor"`, options = `claude-subagent | codex (if installed) | manual — fall back to delegate`) for a one-shot choice this run; do NOT silently default. Persist the answer back into the spec only if the user explicitly says "save this for next time". On Codex (`$HOST = codex-cli`) **omit** the `claude-subagent` option (the executor isn't available) — see `../../reference/host-capabilities.md`. If a spec already pins `Executor: claude-subagent` on Codex, refuse the dispatch and tell the user to switch to `codex` or fall back to `/pmo delegate`.
-4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` against the project hook's high-stakes operations list (`.perry/hook.md § High-stakes operations`). Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question.
+4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` against the **escalation union** — `"$PERRY_HOME/bin/perry-state" --section project` → `escalation.union`. Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question.
 
-   **If the list is missing or empty** (`"$PERRY_HOME/bin/perry-state" --section project` → `hook.high_stakes_armed: false`), this scan has nothing to match and would pass everything. Do not treat that as a pass. Tell the user in one line — *"no high-stakes list in `.perry/hook.md`, so nothing is being screened; `/pmo` bootstrap writes the default list"* — and require an explicit go-ahead in chat before dispatching. `AskUserQuestion` is not sufficient here; this is a safety gate, per `SKILL.md § User-prompt convention`. (`/pmo autopilot` refuses outright in the same situation — see `autopilot.md` pre-flight step 0.)
+   **The union is the project's list plus every role's, never one instead of the other** (DESIGN-006 § 5.2, goal 6). `escalation.project` is `.perry/hook.md § High-stakes operations`; `escalation.roles` is each `.perry/roles/*.md § Must escalate`, extracted by the same backticked-span rule. A role can only ADD to what this project refuses to do unsupervised. If it could subtract, hiring a role would quietly narrow the gate and nothing would show it — a narrowed scan passes everything it is asked, cheerfully. With no roles declared `escalation.union` *is* `escalation.project`, so a project that has declared none is screened exactly as it was before roles existed.
+
+   **If the list is missing or empty** (`escalation.armed: false`, equivalently `hook.high_stakes_armed: false` on a roleless project), this scan has nothing to match and would pass everything. Do not treat that as a pass. Tell the user in one line — *"no high-stakes list in `.perry/hook.md`, so nothing is being screened; `/pmo` bootstrap writes the default list"* — and require an explicit go-ahead in chat before dispatching. `AskUserQuestion` is not sufficient here; this is a safety gate, per `SKILL.md § User-prompt convention`. (`/pmo autopilot` refuses outright in the same situation — see `autopilot.md` pre-flight step 0.)
 5. Spec contains a `Subjective verification:` section (may be `(none)`); items there will be surfaced to the user at completion, never auto-validated.
 5a. **Architecture compliance pre-flight** (see `$PERRY_HOME/packs/software-ops/architecture.md § Dispatch integration`):
     - Read `ARCHITECTURE.md` at project root (full text). If `Status: draft` → log a warning but don't refuse (draft window allows iteration). If file missing AND spec's `Touches architecture:` is non-empty → refuse (spec claims sections that don't exist).
@@ -29,6 +31,13 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
 > each other, then append the event. Hand-editing a row here shows up at the next standup as a
 > post-tool edit, and dispatch runs often enough that doing so would bury the
 > signal in noise dispatch itself created. — per executor
+
+**If the task carries a role**, the prompt is rendered from its card first —
+`delegate.md § Render from the role card` and `§ Knowledge injection`, which
+this file does not restate. Role and executor are different axes: the card says
+who is being hired, the `Executor:` field says what instantiates it, and
+`bin/perry-dispatch-limit` counts the latter only. A card's `executors` field
+may narrow which runtimes are acceptable; it never grants a slot.
 
 ### `Executor: claude-subagent` (Claude Code only)
 

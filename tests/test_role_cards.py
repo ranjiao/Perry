@@ -23,6 +23,7 @@ from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 LINT = PERRY_HOME / "bin" / "perry-lint"
+STATE = PERRY_HOME / "bin" / "perry-state"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 SPEC = next(f for f in SCHEMA["files"] if f["id"] == "role-card")
 ALLOWED = SPEC["sections"]["allowed"]
@@ -169,6 +170,105 @@ class TestGoal7NoRolesChangesNothing(Base):
             [sys.executable, str(LINT), "--json"],
             capture_output=True, text=True, cwd=PERRY_HOME)
         self.assertEqual(json.loads(r.stdout)["errors"], 0)
+
+    # ── phase D: the same property at `delegate` and the pre-flight ────────
+    #
+    # Lint silence was the phase-C bar. It is not where a phase-D regression
+    # would land: `delegate` renders a prompt and the pre-flight scans a spec,
+    # and both would break by DOING something extra on a project that asked for
+    # none of this. So the property is re-asserted where the behaviour is.
+
+    HOOK = ("# Hook\n\n## High-stakes operations\n\n"
+            "- Destructive filesystem operations — `rm -rf`, `rm -f`\n")
+
+    def hooked(self, roles_dir: bool = False) -> Path:
+        root = self.project()
+        (root / ".perry" / "hook.md").write_text(self.HOOK, encoding="utf-8")
+        if roles_dir:
+            (root / ".perry" / "roles").mkdir()
+        return root
+
+    def state(self, root: Path, section: str) -> dict:
+        r = subprocess.run(
+            [sys.executable, str(STATE), "--root", str(root),
+             "--section", section], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)[section]
+
+    def test_delegate_has_no_roster_to_render_from(self):
+        """`declared: 0` is what sends `delegate` down the unchanged path.
+        Not an error, and not a prompt to declare one."""
+        for roles_dir in (False, True):
+            got = self.state(self.hooked(roles_dir), "roles")
+            self.assertEqual(got, {"declared": 0, "cards": []}, roles_dir)
+
+    def test_the_preflight_scans_exactly_the_hook_list_and_nothing_else(self):
+        """Not "a superset of" — the SAME LIST, in the same order. A union that
+        merely contained the hook's terms could still have grown a term the
+        project never declared, and a scan that refuses more than the project
+        asked for is its own kind of broken."""
+        for roles_dir in (False, True):
+            esc = self.state(self.hooked(roles_dir), "project")["escalation"]
+            self.assertEqual(esc["union"], esc["project"], roles_dir)
+            self.assertEqual(esc["union"], ["rm -rf", "rm -f"], roles_dir)
+            self.assertEqual(esc["roles"], {}, roles_dir)
+            self.assertEqual({o for v in esc["origins"].values() for o in v},
+                             {"hook"}, roles_dir)
+
+    def test_an_empty_roles_directory_changes_no_byte_of_the_payload(self):
+        """The two shapes a roleless project comes in — never adopted the layer,
+        or created the directory and never filled it — must be indistinguishable
+        downstream."""
+        def payload(root: Path) -> dict:
+            r = subprocess.run(
+                [sys.executable, str(STATE), "--root", str(root), "--json"],
+                capture_output=True, text=True)
+            out = json.loads(r.stdout)
+            out.pop("generated_at", None)
+            # The temp-dir name, not state. Everything else must match.
+            out["project"].pop("root", None)
+            out["project"].pop("name", None)
+            return out
+        self.assertEqual(payload(self.hooked(False)), payload(self.hooked(True)))
+
+    def test_the_consequence_check_is_unmoved(self):
+        """`perry-lint --verification` reads the union. On a roleless project
+        it must find what it found before the union existed."""
+        results = []
+        for roles_dir in (False, True):
+            root = self.hooked(roles_dir)
+            (root / "BOARD.md").write_text(
+                "# Board — T\n\n## P0 (must finish this period)\n\n"
+                "| ID | Title | Owner | Status | Next action | Evidence | Verification |\n"
+                "|---|---|---|---|---|---|---|\n"
+                "| T-1 | rm -rf the cache | agent | done | — | `make x` ok | V3 |\n",
+                encoding="utf-8")
+            r = subprocess.run(
+                [sys.executable, str(LINT), "--verification", "--root",
+                 str(root), "--json"], capture_output=True, text=True)
+            results.append(json.loads(r.stdout)["findings"])
+        self.assertIn("consequence-needs-signoff",
+                      [f["rule"] for f in results[0]])
+        self.assertEqual(results[0], results[1])
+
+    def test_delegate_still_documents_the_path_for_a_project_with_no_cards(self):
+        """The requirement blocks that used to be the ONLY path are what a
+        roleless project still renders from. Deleting them along with the
+        hardcoded agent-type list would have quietly changed every prompt on
+        every project that declared nothing — which is the regression Goal 7
+        names, arriving as a documentation edit rather than a code one."""
+        text = (PERRY_HOME / "work" / "reference" / "delegate.md").read_text()
+        self.assertIn("Roleless projects", text)
+        for owed in ("coding/<task-id>-<slug>", "Do NOT merge own PR",
+                     "Hypothesis / data period / universe"):
+            self.assertIn(owed, text, owed)
+
+    def test_delegate_no_longer_names_the_three_agent_types(self):
+        """The hardcoding this phase closes. They are shipped cards now."""
+        text = (PERRY_HOME / "work" / "reference" / "delegate.md").read_text()
+        self.assertNotIn("Coding / Research / Review", text)
+        self.assertNotIn("Coding/Research/Review", text)
+        self.assertNotIn("<agent-type>", text)
 
 
 if __name__ == "__main__":
