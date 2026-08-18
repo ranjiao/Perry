@@ -125,6 +125,101 @@ def render_row(cells: list[str]) -> str:
     return out
 
 
+def check_cell(value) -> str:
+    """One cell, escaped — **or refused, on the same rule `render_row` uses.**
+
+    `bin/perry-goals` carried its own version of this that did
+    `.replace("\\n", " ")`, so the SAME TOOL refused a multi-line value on the
+    create path and **silently collapsed it** on the amend path. A user writing
+    a two-paragraph promise got a refusal from `commit` and a quietly mangled
+    cell from `commit --id`. Found by a V4 reviewer running both.
+
+    Silently collapsing loses the user's writing without saying so, which is
+    exactly why `render_row` refuses; there is no version of that argument that
+    stops applying because the write happens to be an edit rather than an
+    insert.
+    """
+    v = str(value).strip()
+    if "\n" in v or "\r" in v:
+        raise UnrenderableCell(
+            0, v, "contains a line break — a markdown table row is one line")
+    return v.replace("|", _ESCAPED_PIPE)
+
+
+def cell_spans(line: str) -> list[tuple[int, int]]:
+    """(start, end) offsets of each cell's raw text, escapes respected.
+
+    The same scan `viewer/tables.py § split_row` does — that one returns the
+    values, this one returns where they were. Having both is what lets a write
+    replace one cell and leave every other cell in the row byte-identical,
+    including whoever's hand-alignment is padding it. `render_row` on a parsed
+    row would be correct markdown and a diff across the whole line.
+    """
+    n = len(line)
+    lo = 0
+    while lo < n and line[lo].isspace():
+        lo += 1
+    if lo < n and line[lo] == "|":
+        lo += 1
+    hi = n
+    while hi > lo and line[hi - 1].isspace():
+        hi -= 1
+    if hi > lo and line[hi - 1] == "|" and not line[max(lo, hi - 2):hi] == "\\|":
+        hi -= 1
+    spans = []
+    start = lo
+    i = lo
+    while i < hi:
+        if line[i] == "\\" and i + 1 < hi and line[i + 1] == "|":
+            i += 2
+        elif line[i] == "|":
+            spans.append((start, i))
+            i += 1
+            start = i
+        else:
+            i += 1
+    spans.append((start, hi))
+    return spans
+
+
+def splice_cell(line: str, index: int, value: str) -> str:
+    """`line` with cell `index` set to `value`, everything else untouched.
+
+    The cell's own padding is preserved, so a table someone aligned by hand
+    stays aligned everywhere the edit did not reach.
+    """
+    spans = cell_spans(line)
+    if not 0 <= index < len(spans):
+        raise Refused(f"row has {len(spans)} cell(s); cannot write cell "
+                      f"{index + 1}. Nothing was written")
+    a, b = spans[index]
+    raw = line[a:b]
+    if raw.strip():
+        lead = raw[:len(raw) - len(raw.lstrip())]
+        trail = raw[len(raw.rstrip()):]
+    else:
+        lead = trail = " " if raw else ""
+    return line[:a] + lead + check_cell(value) + trail + line[b:]
+
+
+def append_cell(line: str, value: str) -> str:
+    """`line` with one more cell on the end, the existing cells untouched.
+
+    Widening a table is the one edit that touches every row, so it touches them
+    as little as possible: a trailing cell appended textually rather than the
+    row re-rendered. A separator row widens the same way, keeping whatever
+    dashes-and-colons style the file already uses.
+    """
+    body = line.rstrip()
+    value = str(value).replace("\n", " ").replace("|", "\\|").strip()
+    if not body.endswith("|") or body.endswith("\\|"):
+        # No trailing pipe: markdown allows it, and appending one would close
+        # the last cell rather than open a new one. Re-render instead — this
+        # row's shape is changing anyway.
+        return render_row(split_row(line) + [value])
+    return body + (f" {value} |" if value else "  |")
+
+
 def squash(s: str) -> str:
     """Whitespace and decoration only — no language knowledge.
 

@@ -45,6 +45,9 @@ def _load():
     return mod
 
 
+sys.path.insert(0, str(ROOT / 'viewer'))
+import tables as T  # noqa: E402
+
 G = _load()
 GOALS = ROOT / "bin" / "perry-goals"
 
@@ -990,6 +993,83 @@ class TestTheClockRuleIsEnforcedInBothLanguages(unittest.TestCase):
         for v in ["日", "年", "周", "月"]:
             with self.subTest(value=v):
                 self.assertFalse(G.CLOCK_RE.search(v))
+
+
+class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
+    """One tool, one value, two answers.
+
+    `commit --promise $'a\\n\\nb'` was **refused** on the create path and
+    **silently collapsed** on every amend path — `--miss --reason`,
+    `--id --promise` and `--close --discharged-by` — because `splice_cell`
+    carried its own `.replace("\\n", " ")` instead of `render_row`'s rule. A
+    user writing a two-paragraph promise got a refusal from one subcommand and
+    a quietly mangled cell from another.
+
+    The reviewer's finding also included that **none of these three functions
+    had any test coverage at all** — `splice_cell`, `append_cell` and
+    `UnrenderableCell` appeared nowhere in this file. They now live in
+    `viewer/tables.py` beside `split_row`, which is where the builder said they
+    belonged and could not put them at the time.
+    """
+
+    OKR = ("# OKR\n\n## Mission\n\nx\n\n## Commitments\n\n"
+           "| Id | Track | Promise | To whom | By when | Status | Discharged by |\n"
+           "|---|---|---|---|---|---|---|\n"
+           "| C-1 | ops | keep it up | Finance | 3d | active | — |\n")
+    TRACKS = ("\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | OKR.md | new,triaged | — | 3d | — | V2 |\n")
+
+    def project(self):
+        return Project(okr=self.OKR, tracks=self.TRACKS)
+
+    MULTILINE = "first paragraph\n\nsecond paragraph"
+
+    def test_the_amend_paths_refuse_what_create_refuses(self):
+        for argv in (["--id", "C-1", "--miss", "--reason", self.MULTILINE],
+                     ["--id", "C-1", "--promise", self.MULTILINE],
+                     ["--id", "C-1", "--close",
+                      "--discharged-by", self.MULTILINE]):
+            with self.subTest(path=argv[2]):
+                p = self.project()
+                before = p.okr_path.read_bytes()
+                out = p.run("commit", *argv)
+                self.assertEqual(out.returncode, 1,
+                                 f"accepted silently: {out.stderr}")
+                self.assertEqual(p.okr_path.read_bytes(),
+                                 before, "a refusal wrote to the file")
+
+    def test_the_refusal_says_what_is_wrong_rather_than_collapsing(self):
+        p = self.project()
+        out = p.run("commit", "--id", "C-1", "--promise", self.MULTILINE)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("line break", (out.stderr + out.stdout).lower())
+
+    def test_a_pipe_is_escaped_rather_than_refused_on_both_paths(self):
+        """`|` round-trips, so it is carried; `\\n` cannot, so it is refused.
+        The two are not the same and the tool must not treat them alike."""
+        p = self.project()
+        out = p.run("commit", "--id", "C-1", "--promise", "A | B")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        text = p.okr_path.read_text(encoding="utf-8")
+        self.assertIn("A \\| B", text)
+        row = [l for l in text.split("\n") if l.startswith("| C-1")][0]
+        self.assertEqual(len(T.split_row(row)), 7, row)
+
+    def test_one_cell_changes_and_the_rest_of_the_row_keeps_its_bytes(self):
+        """The reason `splice_cell` exists rather than `render_row` on a parsed
+        row: a hand-aligned table stays aligned everywhere the edit did not
+        reach."""
+        p = self.project()
+        before = [l for l in p.okr_path.read_text().split("\n")
+                  if l.startswith("| C-1")][0]
+        p.run("commit", "--id", "C-1", "--promise", "changed")
+        after = [l for l in p.okr_path.read_text().split("\n")
+                 if l.startswith("| C-1")][0]
+        self.assertNotEqual(before, after)
+        self.assertEqual(T.split_row(before)[3:], T.split_row(after)[3:],
+                         "cells the edit did not name were rewritten")
 
 
 if __name__ == "__main__":
