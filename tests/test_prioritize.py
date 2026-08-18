@@ -478,6 +478,28 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         self.assertEqual(self.mod.EVENT_FIELD["prioritize"], "section")
         self.assertEqual(self.mod.EVENT_FIELD["status"], "status")
 
+    def test_an_id_shaped_word_in_prose_is_warned_about(self):
+        """`ROUND-2` is English with a hyphen and an identifier to every id
+        reader here.
+
+        **Caused three times in one session**, each time fixed in the prose and
+        each time recurring: `THE ROUND-2 DEFECT`, then `ALL FIVE ROUND-3
+        FINDINGS`. `perry-diagnose` reports it as `LOAD-02` dangling and the
+        repo's own gate goes red on a board the tool itself wrote.
+
+        The guard is at the WRITE site because that is where the person who
+        knows what they meant still is. Advisory, never a refusal — `USER-014`
+        and `ADR-006` are legitimate citations of ids this board does not
+        carry, and refusing them would make the tool unable to cite a
+        decision.
+        """
+        fn = self.mod.idish_tokens_that_resolve_nowhere
+        ctx = {"board": self.mod.Board(TOOL.parent.parent / "perry"
+                                       / "BOARD.md")}
+        self.assertEqual(fn("the ROUND-2 defect", ctx), ["ROUND-2"])
+        self.assertEqual(fn("see ADR-006 and USER-014", ctx), [])
+        self.assertEqual(fn("round 2, plainly", ctx), [])
+
     def test_the_docs_rebuttal_counts_what_the_map_holds(self):
         """The contract doc states a COUNT, and nothing checked it.
 

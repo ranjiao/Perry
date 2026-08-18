@@ -1054,6 +1054,38 @@ def heading_spellings(name: str) -> list[str]:
     return out
 
 
+#: An id-shaped token: a capitalised word, a hyphen, digits. `LOAD-02` is
+#: `perry-diagnose`'s finding for one of these that resolves to nothing.
+_IDISH = re.compile(r"\b([A-Z][A-Z0-9]{1,9})-(\d{1,4})\b")
+
+
+def idish_tokens_that_resolve_nowhere(text: str, ctx) -> list[str]:
+    """Tokens in a cell that LOOK like ids and name nothing. Advisory.
+
+    **Written after causing this defect three times in one session.** Prose
+    like `THE ROUND-2 DEFECT` and `ALL FIVE ROUND-3 FINDINGS` reads as English
+    to the author and as an identifier to every id reader in this repository —
+    `perry-diagnose` reports it as `LOAD-02` dangling, and the repo's own gate
+    goes red on a board the tool itself wrote.
+
+    Fixing the prose each time did not stop the third one. This is the fix,
+    at the write site, where the person who knows what they meant is still in
+    the room — the same argument `reference/promotion.md` makes for capturing
+    a knowledge card at close time rather than later.
+
+    Advisory, never a refusal: `USER-014` and `ADR-006` are legitimate
+    references to ids this board does not carry, and refusing them would make
+    the tool unable to cite a decision.
+    """
+    known = set(board_id_prefixes(ctx["board"]))
+    known.update({"ADR", "DESIGN", "USER", "SRC", "KR", "TASK"})
+    out = []
+    for prefix, num in _IDISH.findall(text or ""):
+        if prefix not in known:
+            out.append(f"{prefix}-{num}")
+    return out
+
+
 def declared_roles(ctx) -> list[str]:
     """Role names this project has declared, from `.perry/roles/*.md`.
 
@@ -3995,6 +4027,17 @@ def main(argv: list[str]) -> int:
                    "state_root": state_root, "config": config,
                    "board": Board(state_root / "BOARD.md"),
                    "events": read_events(project_root)}
+            for _f in ("next", "title", "reason", "note", "deliverable"):
+                _v = getattr(args, _f, None)
+                if not isinstance(_v, str):
+                    continue
+                _bad = idish_tokens_that_resolve_nowhere(_v, ctx)
+                if _bad and not args.as_json:
+                    print(f"perry-task: ⚠ --{_f} contains "
+                          f"{', '.join(sorted(set(_bad)))}, which reads as an "
+                          f"id and names nothing. `perry-diagnose` reports it "
+                          f"as dangling. Write it as prose (`round 3`) if you "
+                          f"did not mean an id.", file=sys.stderr)
             result = COMMANDS[args.cmd](args, ctx)
         # `list` is a published contract and gets nothing added to it. Every
         # other subcommand's payload is Perry-internal, so the verdict rides

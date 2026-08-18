@@ -116,6 +116,55 @@ class TestTheReportedDefect(ReviewLintCase):
         self.assertNotIn("fail-verdict-left-at-review", self.rules())
 
 
+class TestAResentRowIsNotTheSameAsAnIgnoredOne(ReviewLintCase):
+    """A row sits at `review` for two opposite reasons.
+
+    Either the verdict arrived and nobody moved the row — the defect the user
+    found — or the FAIL was **acted on** and the row was re-sent for a fresh
+    round, which is the correct workflow. The first version of this check
+    reported the second as the first, the moment its own author fixed a round
+    and returned the task.
+
+    No new field was needed. A FAIL is what moves a row OFF `review`, so if the
+    row has since come BACK, the verdict has been acted on — readable straight
+    off the event log.
+    """
+
+    def events(self, *transitions):
+        (self.dir / ".perry" / "events.jsonl").write_text("\n".join(
+            json.dumps({"event": "status", "task": "TASK-001",
+                        "field": "status", "to": t})
+            for t in transitions) + "\n")
+
+    def test_a_row_that_never_left_review_is_reported(self):
+        self.board([self.row("TASK-001", "review")])
+        self.evidence("r.md", verdict("TASK-001", "FAIL"))
+        self.events("review")
+        self.assertIn("fail-verdict-left-at-review", self.rules())
+
+    def test_a_row_fixed_and_re_sent_is_not(self):
+        self.board([self.row("TASK-001", "review")])
+        self.evidence("r.md", verdict("TASK-001", "FAIL"))
+        self.events("review", "in_progress", "review")
+        self.assertNotIn("fail-verdict-left-at-review", self.rules())
+
+    def test_a_row_moved_off_and_left_off_is_not_reported_either(self):
+        """It is not at `review`, so the finding does not apply — asserted so
+        the supersession rule cannot quietly become "any row with history"."""
+        self.board([self.row("TASK-001", "in_progress")])
+        self.evidence("r.md", verdict("TASK-001", "FAIL"))
+        self.events("review", "in_progress")
+        self.assertNotIn("fail-verdict-left-at-review", self.rules())
+
+    def test_with_no_event_log_the_finding_still_fires(self):
+        """A project with no log has no supersession evidence, and silence
+        there would turn the check off for exactly the boards least likely to
+        have moved the row."""
+        self.board([self.row("TASK-001", "review")])
+        self.evidence("r.md", verdict("TASK-001", "FAIL"))
+        self.assertIn("fail-verdict-left-at-review", self.rules())
+
+
 class TestTheRungIsRunNotClaimed(ReviewLintCase):
     def test_a_v4_close_with_no_verdict_anywhere_is_reported(self):
         self.board([self.row("TASK-001", "done")])

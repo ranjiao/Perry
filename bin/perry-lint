@@ -1557,8 +1557,39 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"a verdict block naming it — the rung is claimed, not "
                     f"run"))
 
+    # **A row can be at `review` for two opposite reasons**, and the first
+    # version of this check could not tell them apart: the verdict arrived and
+    # nobody moved the row, or the FAIL was acted on and the row was re-sent.
+    # It reported the second as the first the moment its own author fixed a
+    # round and returned the task — which is the correct workflow.
+    #
+    # The event log already distinguishes them and needs no new field. A FAIL
+    # is what moves a row OFF `review`; so if the row has since come BACK, the
+    # verdict has been acted on. Read as: most recent status event sets
+    # `review`, and an earlier one moved it away.
+    resent: set[str] = set()
+    if log.exists():
+        history: dict[str, list[str]] = {}
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            to = str(ev.get("to") or "")
+            if ev.get("field") not in (None, "status") or not to:
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            if tid:
+                history.setdefault(tid, []).append(to)
+        for tid, seq in history.items():
+            if seq[-1] == "review" and "review" in seq[:-1]:
+                resent.add(tid)
+
     for tid, status in live.items():
-        if status != "review":
+        if status != "review" or tid in resent:
             continue
         if any(f.get("result") == "FAIL" for f in verdicts_for(tid)):
             where = next(r for r, f, _ in seen[tid] if f.get("result") == "FAIL")

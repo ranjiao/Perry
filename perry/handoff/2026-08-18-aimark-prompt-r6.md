@@ -68,7 +68,7 @@ prose count to the map by name and by count.)
 The worked example showed `"open": 3` beside `"closed": 11`. **No single call
 returns that pair.** `--all` is what puts closed rows in the payload, so a
 default call reports `closed: 0` however much finished work the project holds —
-on Perry's own board, `0` against `57`.
+on Perry's own board, `0` against `60`.
 
 Neither field had a definition row anywhere, so **the example was the
 definition, and it stated something unreachable.** If you render "N open · M
@@ -92,6 +92,24 @@ contract.
   so `perry-explain V4` answers instead of saying "not found". If your UI ever
   shows a rung or a Perry term, that is the tooltip.
 - **`--verification`**, `--knowledge`, `--provenance` — unchanged.
+
+## 4b · One unversioned number changed, and you may be rendering it
+
+`perry-state --json`'s `design.pending_handoff` — **not a contract, no version,
+and you may still be showing it.**
+
+`impl_refs` counted **live board rows**, and `perry-task done` REMOVES the row
+it closes. So a design whose implementation tasks were all *finished* reported
+`0` and rendered as *pending hand-off*. `DESIGN-004` is `bin/perry-task`
+itself, 3,300 lines shipping, and Perry called it never handed off.
+
+The event log is folded in now: `DESIGN-004` reads 7, `-005` 10, `-006` 20, and
+the pending list went from three entries to two. **If you render that list, the
+number moved for a reason that is a fix, not a change of work.**
+
+The two that remain at `0` are genuinely at zero *attribution* — both are
+built, they predate task tracking, and no row or event ever named them. That is
+worth knowing before you show it as a backlog.
 
 ## 5 · What we would like back
 
