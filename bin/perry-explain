@@ -372,6 +372,40 @@ def rung_entry(token: str) -> dict | None:
             "mentions": [], "in_tracking_doc": False}
 
 
+GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "reference" / "glossary.md"
+
+
+def glossary_entry(token: str) -> dict | None:
+    """A concept, resolved from `reference/glossary.md`.
+
+    Same premise as `rung_entry` one level up: a term coined in one working
+    session is opaque to the next one. The glossary is the single definition
+    and this is how a session reaches it without knowing the file exists.
+
+    Matching is case-insensitive and exact on the whole term — a substring
+    match would resolve `track` to `track` and also to nothing useful.
+    """
+    if not token or token.startswith("-"):
+        return None
+    try:
+        text = GLOSSARY_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for m in re.finditer(r"^### (.+?)\n(.*?)(?=^### |\Z)", text, re.M | re.S):
+        if m.group(1).strip().lower() != token.strip().lower():
+            continue
+        body = m.group(2)
+        impl = re.search(r"^Implemented:\s*(.+?)\s*$", body, re.M)
+        meaning = "\n".join(l for l in body.split("\n")
+                             if l.strip() and not l.startswith("Implemented:"))
+        return {"id": m.group(1).strip(), "title": meaning.strip(),
+                "defined": True, "kind": "Perry concept",
+                "source": "reference/glossary.md",
+                "note": impl.group(1).strip() if impl else "",
+                "mentions": [], "in_tracking_doc": False}
+    return None
+
+
 def main(argv: list[str]) -> int:
     root = Path(os.environ.get("PERRY_PROJECT") or ".").expanduser()
     want, as_json, mode = None, False, "one"
@@ -441,6 +475,19 @@ def main(argv: list[str]) -> int:
             print(f"  defined in {rung['source']}")
             if rung["note"]:
                 print(f"\n  {rung['note']}")
+        return 0
+
+    term = glossary_entry(want)
+    if term:
+        if as_json:
+            print(json.dumps(term, indent=2, ensure_ascii=False))
+        else:
+            print(f"{term['id']} — {term['kind']}\n")
+            for line in term["title"].split("\n"):
+                print(f"  {line}")
+            print(f"\n  defined in {term['source']}")
+            if term["note"]:
+                print(f"  implemented in {term['note']}")
         return 0
 
     e = entries.get(want) or entries.get(want.upper())

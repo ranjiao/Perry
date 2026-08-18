@@ -43,6 +43,8 @@ Each lane's files are the ownership table below; each lane's SKILL.md carries it
 >
 > `tests/test_shipped_vocabulary.py` is that list, mechanically. Adding a class there without adding it here is how this carve-out silently grew last time.
 
+**Vocabulary**: `reference/glossary.md` defines Perry's terms — read it before coining one, and add the entry in the same change.
+
 ## The hand-off contract (the most important rule)
 
 > **Signed off: Ran Jiao, 2026-08-16.** Checked: the drafted contract section,

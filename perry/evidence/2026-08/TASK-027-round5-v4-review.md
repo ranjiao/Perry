@@ -2,12 +2,21 @@
 
 > Reviewer: fresh-context agent, 2026-08-18. Rubric: `perry/evidence/2026-08/TASK-027-spec.md`.
 > Prior round read and distrusted: `perry/evidence/2026-08/TASK-027-round4-review.md`.
-> Baseline on `feat/work-modes`: `python3 tests/parallel` → **36 modules · 1310 tests · green**;
+> Baseline on `feat/work-modes`, re-taken at the end of the round against
+> `3f6b95d`: `python3 tests/parallel` → **37 modules · 1322 tests · green**;
 > `python3 bin/perry-lint` → **clean, exit 0**. **Neither sees any finding below.**
 >
-> All mutations were run on a copy at
-> `/private/tmp/claude-501/-Users-bytedance-proj-Perry/0387e499-7b3e-40be-ac3e-4ff9567f3386/scratchpad/perry-copy`.
-> The project under review was not modified; this file is the round's only write.
+> All mutations were run on copies at
+> `…/scratchpad/perry-copy` (tree as of ~17:50) and `…/scratchpad/perry-copy2`
+> (tree as of 18:2x, after `3f6b95d`). The project under review was not
+> modified; this file is the round's only write.
+>
+> **The tree moved under this round.** Four commits landed while I was working
+> (`3c36ec1`, `b658329`, `8028371`, `f434486`, `3f6b95d`), plus uncommitted edits
+> to `bin/perry-explain` and `work/SKILL.md` from a concurrent session. Every
+> finding below was re-verified against the tree at `3f6b95d`, and the B-1
+> mutation was re-run on a fresh copy of it: **still green with both viewer
+> mutations in place** (37 modules · 1322 tests · rc 0).
 >
 > **Verdict: FAIL.** Two blocking findings. Both are the same category the row's
 > `next_action` names — *the rename reached the documents a reviewer reads and
@@ -59,7 +68,7 @@ and a README addressed to "non-technical users" — sits outside both.
 
 `viewer/` ships inside `$PERRY_HOME` (`bin/perry-viewer:23` —
 `VIEWER_DIR="$PERRY_HOME/viewer"`), is started from chat by a subcommand `work`
-declares (`work/SKILL.md:35`, `:104`), and `work/SKILL.md:92` calls it a **tier 3
+declares (`work/SKILL.md:35`, `:106`), and `work/SKILL.md:94` calls it a **tier 3
 consumption surface**. Its output is HTML in a browser and its README is
 addressed to end users. Seven withdrawn commands are shipped in it.
 
@@ -79,7 +88,7 @@ RENDERED /architecture HTML — lines naming a withdrawn command:
 
 `/pmo architecture init` is printed into the page in a `<code>` block, which is
 the strongest possible "type this" signal a web page has. The live form is
-`/perry work architecture init` (`work/SKILL.md:259`).
+`/perry work architecture init` (`work/SKILL.md:261`).
 
 **The README.** `viewer/README.md`, six hits, five of them imperative:
 
@@ -247,19 +256,23 @@ already print a column of user-facing messages that no test reads.
   **`viewer/serve.py:1`** (module docstring, *"a project's PMO state"*) are
   internal and not printed. Listed for completeness; not defects.
 
-- **m-5 · `tests/test_decoration_changes_nothing.TestDecorationIsInvisible` is
-  flaky.** On an **unmutated** copy it went red 1 run in 3
-  (`test_every_reader_reports_the_same_thing_on_a_bolded_board (reader='perry-state')`).
-  It cost me two mutation results before I isolated it. Unrelated to this row,
-  but it makes every future mutation round more expensive and it can mask a real
-  red.
+- **m-5 · `tests/test_decoration_changes_nothing` was flaky, and is now fixed —
+  recorded because it cost this round two mutation results.** On my 17:50 copy it
+  went red 1 run in 3 on an **unmutated** tree
+  (`test_every_reader_reports_the_same_thing_on_a_bolded_board (reader='perry-state')`),
+  which made a GREEN mutation read as RED twice before I isolated it by re-running
+  the clean copy. `8028371` (18:08, `generated_at` unscrubbed) is the fix; four
+  consecutive runs on the current tree are green. No action — the entry exists so
+  a later round reading this document's mutation table knows why two rows there
+  needed a retry.
 
-- **m-6 · `python3 tests/parallel` reported `35 modules · 1304 tests · ✓ all
-  green` on my first run and `36 modules · 1310 tests` on the two after.** One
-  module was silently not discovered and the runner still exited 0 — its
-  anti-vacuity guard is per-module (zero tests → red), so a *missing* module is
-  invisible. `tests/parallel`'s own docstring is about exactly this failure mode.
-  Not reproduced; recorded so a later round does not read a green as a full run.
+- **m-6 · Withdrawn.** My first run reported `35 modules · 1304 tests · green`
+  and later runs reported 36 then 37. I recorded this as a possible discovery
+  gap in `tests/parallel`; it is not. `tests/test_rung_vocabulary.py` and one
+  other module were added by a concurrent session at 18:16 and 18:2x. The runner
+  is fine. Left in place rather than deleted because "the count changed" is
+  exactly the observation a later round would re-make, and it should find the
+  answer here.
 
 ---
 
@@ -309,7 +322,7 @@ already print a column of user-facing messages that no test reads.
   `/perry okr init` / `/perry okr plan-phase`.
   `tests/test_entrance.py:84`'s `(?<!perry )` lookbehind exempts every one of
   those forms.
-- **aiMark** (`~/proj/aimark`), which `work/SKILL.md:92` names as the *primary*
+- **aiMark** (`~/proj/aimark`), which `work/SKILL.md:94` names as the *primary*
   tier-3 consumption surface. It is outside this tree and I did not open it. If
   it renders lane names, it is in the same category as B-1.
 - **The viewer end to end.** Flask is broken in this machine's system Python
@@ -358,7 +371,7 @@ criteria: perry/evidence/2026-08/TASK-027-spec.md
 checked: category enumerated as a partition of the shipped tree (17 top-level
          paths classified exempt / enforced / neither); 6 guarded classes broken
          and confirmed red then reverted green; 4 unguarded classes broken and
-         confirmed GREEN on the full 36-module suite; /architecture page
+         confirmed GREEN on the full suite (re-run at 37 modules · 1322 tests); /architecture page
          rendered through jinja2; perry-lint reproduced on a fixture copy with
          no mutation; D1-D4 and V4-1/V4-3 each checked; round-4 B-1/B-2/B-3 and
          M-1/M-3/M-4 confirmed closed

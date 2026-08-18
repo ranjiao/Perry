@@ -9,7 +9,7 @@ templates) against the one declared schema.
 
 Usage:
   perry-lint [--root <project_root>] [--templates | --claims | --verification |
-              --provenance | --knowledge | --reviews]
+              --provenance | --knowledge | --reviews | --glossary]
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
@@ -26,6 +26,10 @@ Usage:
                 evidence cannot satisfy, and any row matching the project's
                 own high-stakes list that closed below V5. Never sets a
                 non-zero exit - advisory for one release by decision 4.
+  --glossary    advisory pass over reference/glossary.md: every concept names
+                where it is implemented, that path exists, and no term is
+                defined but unused. Prints the prose-only count, which is the
+                brake on adding concepts that nothing implements.
   --reviews     advisory pass over V4 VERDICT blocks (work/reference/review.md
                 section 3): every block readable, every FAIL naming a file, every
                 V4 close carrying one, and no row left at `review` after its
@@ -1336,6 +1340,103 @@ def parse_verdicts(text: str) -> list[tuple[dict, int]]:
     return out
 
 
+#: `reference/glossary.md` — one entry per concept, and the `Implemented:` line
+#: is the brake. See that file's own header for why this is a constraint rather
+#: than documentation.
+GLOSSARY_PATH = SCHEMA_PATH.parent.parent / "reference" / "glossary.md"
+
+_GLOSS_ENTRY = re.compile(
+    r"^### (?P<term>.+?)\n(?P<body>.*?)(?=^### |\Z)", re.M | re.S)
+
+
+def parse_glossary(text: str) -> list[dict]:
+    """`### term` + prose + `Implemented:` → one dict per entry, with line no."""
+    out = []
+    for m in _GLOSS_ENTRY.finditer(text):
+        body = m.group("body")
+        impl = re.search(r"^Implemented:\s*(.+?)\s*$", body, re.M)
+        meaning = "\n".join(l for l in body.split("\n")
+                             if l.strip() and not l.startswith("Implemented:"))
+        out.append({
+            "term": m.group("term").strip(),
+            "meaning": meaning.strip(),
+            "implemented": (impl.group(1).strip() if impl else ""),
+            "line": text[:m.start()].count("\n") + 1,
+        })
+    return out
+
+
+def check_glossary(project_root: Path) -> list["Finding"]:
+    """Every concept names where it lives, or declares that it does not.
+
+    **The count of `prose-only` entries is the point.** A vocabulary grows
+    faster than the code it describes — one working session can coin a dozen
+    terms and cite them in the same breath, each obvious to the session that
+    coined it and opaque to the next one and to the human reading the board.
+    Requiring each entry to name a tool, a schema field or a test makes a new
+    concept cost something, and `prose-only` keeps the ones that genuinely are
+    prose visible instead of free.
+
+    Three findings:
+
+    - `glossary-path-missing` — an `Implemented:` naming a file that is not
+      there. The commonest way an entry rots is the code moving out from under
+      it, and an entry pointing at nothing is worse than no entry: it reads as
+      verified.
+    - `glossary-no-implementation` — an entry with neither a path nor
+      `prose-only`. Not an error about the concept; an error about not saying.
+    - `glossary-term-unused` — a term defined here and used nowhere else in the
+      repository. A concept nobody reached for is complexity that was added and
+      never paid off, and removing it is free.
+
+    Advisory and opt-in, like every other `--flag` pass here.
+    """
+    findings: list[Finding] = []
+    if not GLOSSARY_PATH.exists():
+        return findings
+    text = GLOSSARY_PATH.read_text(errors="replace")
+    entries = parse_glossary(text)
+    rel = "reference/glossary.md"
+
+    corpus = []
+    for d in ("bin", "viewer", "reference", "work", "goals", "decide", "modes",
+              "schema", "tests", "packs"):
+        for f in (GLOSSARY_PATH.parent.parent / d).rglob("*"):
+            if f.is_file() and f.suffix in (".md", ".json", ".py", "") \
+                    and "__pycache__" not in f.parts and f != GLOSSARY_PATH:
+                corpus.append(f)
+    blob = "\n".join(f.read_text(errors="replace") for f in corpus)
+
+    prose_only = 0
+    for e in entries:
+        impl = e["implemented"]
+        if not impl:
+            findings.append(Finding(
+                "warn", rel, "glossary-no-implementation",
+                f"`{e['term']}` names neither a path nor `prose-only` — say "
+                f"which", e["line"]))
+        elif impl == "prose-only":
+            prose_only += 1
+        else:
+            path = impl.split(" § ")[0].strip().strip("`")
+            if not (GLOSSARY_PATH.parent.parent / path).exists():
+                findings.append(Finding(
+                    "warn", rel, "glossary-path-missing",
+                    f"`{e['term']}` says it is implemented in {path}, which "
+                    f"does not exist — an entry pointing at nothing reads as "
+                    f"verified", e["line"]))
+        if e["term"] not in blob:
+            findings.append(Finding(
+                "warn", rel, "glossary-term-unused",
+                f"`{e['term']}` is defined here and used nowhere else — a "
+                f"concept nobody reached for is complexity that never paid "
+                f"off", e["line"]))
+
+    check_glossary.entries = len(entries)
+    check_glossary.prose_only = prose_only
+    return findings
+
+
 def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     """A V4 verdict that a tool can read, and a row that moved when it arrived.
 
@@ -1765,6 +1866,7 @@ def main(argv: list[str]) -> int:
     root_arg = None
     mode_templates = mode_claims = mode_verification = False
     mode_provenance = mode_knowledge = mode_reviews = False
+    mode_glossary = False
     as_json = strict = quiet = False
     state_root_arg = None
     i = 0
@@ -1788,6 +1890,8 @@ def main(argv: list[str]) -> int:
             mode_knowledge = True
         elif a == "--reviews":
             mode_reviews = True
+        elif a == "--glossary":
+            mode_glossary = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -1882,6 +1986,27 @@ def main(argv: list[str]) -> int:
         # existed. `--strict` does NOT promote these; branch on --json `count`.
         return 0
 
+
+    if mode_glossary:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        findings = check_glossary(project_root)
+        n = getattr(check_glossary, "entries", 0)
+        po = getattr(check_glossary, "prose_only", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root), "entries": n,
+                "prose_only": po,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --glossary \u00b7 {project_root}")
+            for f in findings:
+                print(f)
+            print(f"\n  {n} term(s) \u00b7 {po} prose-only \u00b7 "
+                  f"{len(findings)} advisory finding(s)")
+        return 0
 
     if mode_reviews:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg

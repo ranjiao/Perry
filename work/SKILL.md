@@ -61,6 +61,8 @@ Three deterministic scripts back this file and are worth knowing before anything
 
 When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
+**Perry's vocabulary lives in `$PERRY_HOME/reference/glossary.md`, and adding to it is meant to cost something** — read it before coining a term, add the entry in the same change, and name what implements it (`perry-lint --glossary`).
+
 **The rungs are `V0`–`V6` and you do not have to remember them.** `"$PERRY_HOME/bin/perry-explain" V4` prints what a rung is, where it is defined, and the two rules that govern it — read from `schema/state-schema.json § verification`, which is the only place they are written. A session that has never seen this project can resolve the vocabulary in one command instead of inferring it from a board cell.
 
 **A row whose `Verification` is `V4` cannot be closed from this file.** V4 means *a fresh reviewer ran against written criteria*, and neither half can be produced by the session that wrote the code — that is the rung's entire content. `close-task` sends it to `reference/review.md`, which refuses without a criteria file and returns a verdict block `perry-lint --reviews` can read. Perry ran ten V4 rounds in one night with no convention and they spelled the verdict five different ways; rows then sat at `review` after their review had already failed, and it was the user who noticed rather than any check.
