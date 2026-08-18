@@ -2091,7 +2091,8 @@ def _norm_design_status(text: str) -> str:
     return "draft"
 
 
-def walk_design(root: Path, board: BoardState | None = None) -> list[DesignDoc]:
+def walk_design(root: Path, board: BoardState | None = None,
+                project_root: Path | None = None) -> list[DesignDoc]:
     """Parse design/<ID>-<slug>.md RFC docs. Headers are bilingual & freeform
     (em-dash or colon title sep; '> Status:' value embedded in prose;
     '> **Date**:' fullwidth colons), so all field extraction is lenient."""
@@ -2107,6 +2108,37 @@ def walk_design(root: Path, board: BoardState | None = None) -> list[DesignDoc]:
             task_blobs.append(
                 " ".join([t.id or "", t.title or "", t.next_action or "", t.evidence or ""])
             )
+
+    # **And the closures that have already left the board.** `perry-task done`
+    # REMOVES the row it closes, so a board-only count reports `impl_refs: 0`
+    # for a design whose implementation tasks are all FINISHED — and
+    # `perry-state` turns that into "pending hand-off". `DESIGN-004` is
+    # `bin/perry-task` itself, 3,300 lines shipping with 11 close events
+    # against its id, and Perry reported it as never handed off.
+    #
+    # The same trap `bin/perry-lint § check_verification` documents in its own
+    # docstring, in a second reader that did not know about it. Counted here
+    # rather than in the caller so every consumer of `walk_design` gets the
+    # corrected number.
+    # `.perry/` is anchored to the PROJECT root and this function receives the
+    # STATE root, which may be a subdirectory of it (`perry/` here). There is no
+    # stored inverse of `resolve_state_root`, so walk up a bounded number of
+    # levels rather than thread a second path through `load_snapshot` and every
+    # caller of it.
+    log = None
+    probe = project_root or root
+    for _ in range(4):
+        cand = probe / ".perry" / "events.jsonl"
+        if cand.exists():
+            log = cand
+            break
+        if probe.parent == probe:
+            break
+        probe = probe.parent
+    if log is not None:
+        for line in log.read_text(errors="replace").split("\n"):
+            if line.strip():
+                task_blobs.append(line)
 
     for md in sorted(base.glob("*.md")):
         if md.name.upper() == "README.MD":
@@ -2942,7 +2974,7 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),
-        design=walk_design(root, board),
+        design=walk_design(root, board, project_root=root),
         project_state=parse_project_state(project_state_text),
         arch_meta=parse_arch_meta(architecture_text),
         project_root=root,
