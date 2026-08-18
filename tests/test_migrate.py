@@ -1495,5 +1495,88 @@ class TestPositionIsNotEvidence(unittest.TestCase):
         self.assertIn("> Status:", text)
 
 
+class TestAReadOnlyFileDoesNotCrashPlanning(unittest.TestCase):
+    """The crash was one stage upstream of where the first fix guarded.
+
+    `apply_plan` was given a `try/except OSError` that rolls back and names the
+    restore point. A V4 reviewer then found the real crash site: `cross_file_delta`
+    builds a scratch **mirror** of the state tree during PLANNING, with
+    `shutil.copy2`/`copytree`, which preserve mode bits — so a file the project
+    has marked read-only produced a read-only copy in a directory Perry owns,
+    and the next line wrote to it.
+
+    That is worse than the one that was fixed first: at plan time **there is no
+    restore point yet**, so the traceback was the whole of what the user got,
+    and it killed `--dry-run` as well as `apply` — the command whose entire
+    promise is that it writes nothing.
+
+    Preserving the mode of a throwaway mirror buys nothing.
+    """
+
+    FILES = {"BOARD.md": LEGACY_BOARD,
+             "knowledge/research/a.md": "# A digest\n\nBody.\n"}
+
+    def read_only_project(self) -> "Project":
+        # Kept on `self` so the `Project`'s TemporaryDirectory outlives the
+        # test body; and no chmod-back cleanup, because a cleanup that runs
+        # after the temp dir is collected is a FileNotFoundError pretending to
+        # be a test failure — which is what the first version of this did.
+        self._p = Project(files=dict(self.FILES))
+        (self._p.root / "BOARD.md").chmod(0o444)
+        return self._p
+
+    def test_a_dry_run_survives_a_read_only_file(self):
+        p = self.read_only_project()
+        rc, out, err = p.run("", json_out=False)
+        self.assertEqual(rc, 0, f"planning crashed:\n{err}")
+        self.assertNotIn("Traceback", err)
+
+    def test_apply_survives_it_too(self):
+        p = self.read_only_project()
+        rc, _, err = p.run("apply", json_out=False)
+        self.assertEqual(rc, 0, f"apply crashed:\n{err}")
+        self.assertNotIn("Traceback", err)
+
+    def test_a_read_only_file_IS_migrated_and_that_is_recorded_not_asserted(self):
+        """**This asserts what happens, not what I assumed happened.**
+
+        My first version asserted the file is left alone, on the reasoning that
+        `plan.writable` would exclude it. It does not: `write_atomic` writes a
+        `.tmp` and calls `Path.replace`, and a **rename needs write permission
+        on the directory, not on the target** — so a file the user marked
+        read-only is migrated like any other.
+
+        Whether that is right is a policy question about somebody else's files
+        and it is not decided here. It is on the board as its own row. What is
+        pinned is the behaviour, so the day it changes, it changes on purpose.
+        """
+        p = self.read_only_project()
+        before = (p.root / "BOARD.md").read_bytes()
+        p.run("apply", json_out=False)
+        self.assertNotEqual((p.root / "BOARD.md").read_bytes(), before,
+                            "behaviour changed — see the row on the read-only "
+                            "policy before updating this test")
+
+    def test_the_restore_point_carries_the_read_only_file_too(self):
+        """Whatever the policy turns out to be, the recovery path must cover a
+        file Perry wrote — that is guarantee 3, and it is what makes the
+        current behaviour survivable rather than merely undetected."""
+        p = self.read_only_project()
+        before = (p.root / "BOARD.md").read_bytes()
+        p.run("apply", json_out=False)
+        points = sorted((p.root / ".perry" / "migrate").glob("*.json"))
+        self.assertTrue(points, "no restore point was written")
+        payload = json.loads(points[-1].read_text())
+        self.assertIn("BOARD.md", payload["files"])
+        self.assertEqual(payload["files"]["BOARD.md"].encode(), before)
+
+    def test_the_rest_of_the_project_still_migrates(self):
+        """One unwritable file must not stop the run — guarantee 5, partial
+        migration is a state rather than a failure."""
+        p = self.read_only_project()
+        p.run("apply", json_out=False)
+        self.assertIn("> Id:", p.text("knowledge/research/a.md"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -124,6 +124,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1310,6 +1311,22 @@ def cross_file_delta(plan: Plan, schema: dict) -> list:
         if hook.exists():
             (mirror.parent / "project" / ".perry").mkdir(parents=True, exist_ok=True)
             shutil.copy2(hook, mirror.parent / "project" / ".perry" / "hook.md")
+        # **The mirror is made writable before anything is written into it.**
+        #
+        # `copy2` and `copytree` preserve mode bits, so a source file the
+        # project has marked read-only produced a read-only copy in a scratch
+        # directory Perry owns — and the next line wrote to it. The result was
+        # an unhandled `PermissionError` **during planning**, which is worse
+        # than the one in `apply_plan` that was fixed first: at plan time there
+        # is no restore point yet, so the traceback was the whole of what the
+        # user got, and `--dry-run` died as well as `apply`.
+        #
+        # Preserving the mode of a throwaway mirror buys nothing. Found by a V4
+        # reviewer who noticed the earlier fix guarded the apply loop while the
+        # crash was one stage upstream.
+        for f in mirror.parent.rglob("*"):
+            if f.is_file():
+                f.chmod(f.stat().st_mode | stat.S_IWUSR)
         for e in plan.writable:
             rel = Path(e.key)
             if rel.parts[0] not in CROSS_FILE_INPUTS and rel.name not in CROSS_FILE_INPUTS:
