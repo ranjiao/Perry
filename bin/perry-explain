@@ -38,6 +38,12 @@ import re
 import sys
 from pathlib import Path
 
+# The one splitter and the one header rule. This file carried its own of each
+# until 2026-08-18 — see the table-row branch below for what that cost.
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+from tables import split_row, squash  # noqa: E402
+
 SKIP_DIRS = {
     ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
     ".claude", ".agents", ".trae",
@@ -210,8 +216,16 @@ def harvest(root: Path) -> dict:
             # ── table rows: | ID | Title | … |
             m = TABLE_ROW.match(raw)
             if m:
-                cells = [c.strip() for c in m.group(1).split("|")]
-                low = [strip_md(c).lower() for c in cells]
+                # One splitter and one header rule, both shared. This line
+                # carried its own of each: `split("|")` does not honour `\|`,
+                # so a cell quoting a markdown table shifted every column after
+                # it; and `strip_md(c).lower()` is a FOURTH spelling of the
+                # header rule, differing from `squash` on internal whitespace.
+                # Neither was reachable by TASK-067's guard or TASK-050's,
+                # because both were written against a hardcoded file list that
+                # did not name this file.
+                cells = split_row(raw)
+                low = [squash(c) for c in cells]
                 if any(c in ("id", "adr", "#", "task", "design") for c in low[:2]):
                     header_cells = low
                     continue
