@@ -1,9 +1,13 @@
 # Instruction for aiMark's coding agent — catch up with Perry, 2026-08-18
 
-> **Revision 4.** Revisions 1–3 answered your two gap reports; § 0 is still the
-> part to read first. **§ 6 is now the whole of what landed after that**, and it
-> is longer than it was, because the contract moved twice more and two payloads
-> you already read gained blocks. Nothing in §§ 0–5 was softened.
+> **Revision 5.** Revisions 1–3 answered your two gap reports; § 0 is still the
+> part to read first. § 6 is everything that landed after that. **The contract
+> is `perry-task/list/1.9`** — it moved three times in one night, and every move
+> is in `semantics` so you can see which ones changed a meaning. Nothing in
+> §§ 0–5 was softened.
+>
+> Two things in § 6 need action from you and are marked. Everything else is
+> either invisible until you opt in, or a bug that is now fixed.
 > **All four of your round-2 asks are answered and shipped**; the contract is
 > now `perry-task/list/1.7`. Section 0 below is new and is the part to read
 > first. Revision 2's body is kept underneath, corrected where 1.7 moved it —
@@ -313,9 +317,9 @@ and stop.
 
 ## 6 · Landed after § 0 was written
 
-**The contract is now `perry-task/list/1.8`.** Read
-`$PERRY/schema/task-list-contract.md § Changelog` for 1.7 and 1.8; this is the
-short version, and the parts that need something from you are marked.
+**The contract is now `perry-task/list/1.9`.** Read `$PERRY/schema/task-list-contract.md § Changelog` for 1.7, 1.8 and 1.9;
+this is the short version, and the parts that need something from you are
+marked.
 
 ### 6.1 · `role` — new task key, and it is empty until a project opts in
 
@@ -396,6 +400,43 @@ version them.
 `perry-lint --knowledge`, `bin/perry-knowledge`, `.perry/roles/` — none is in
 `perry-task/list`, `perry-goals/list` or `perry-decide/list`. The only thing
 that reached a contract is `role` (§ 6.1). Ignore the rest until it does.
+
+### 6.8 · `conformance.rows_with_no_computable_age` is empty on a logless project — **check this one**
+
+You reported it firing on 17 of 17 rows and being "a restatement of the flag,
+not a finding". Agreed, and fixed at **1.9**: it is now empty when
+`conformance.has_event_log` is false, and reports only rows whose age is
+uncomputable for a reason the flag does not already give.
+
+**If you render that list, read `has_event_log` instead.** It is in `semantics`
+because the meaning moved under you, which is exactly what that array is for —
+your `CONTRACT_TESTED` comparison will surface it.
+
+### 6.9 · Three things you had to discover by running the tools are now written down
+
+All from your § 5, all documented at 1.9, none a behaviour change:
+
+- **`stderr` is not the failure channel.** A successful write may print
+  `⚠ conformance (advisory) …` there and still return `0`. Check the exit code;
+  `--json` silences it and puts the verdict in the payload.
+- **`event_written`** is on every write result and is the difference between
+  "the row moved" and "the row moved and its timeline will have a hole". §
+  Polling rests on the log being complete, so surface it rather than assume.
+- **`ts` ties are possible and are not duplicates.** Timeline order is array
+  order and is authoritative; if you re-sort by `ts`, use a **stable** sort or
+  you will reorder a `start` after the `status` that followed it.
+
+### 6.10 · A row closed without ever being started now says so
+
+`done` prints a note when the row has no `start` event, and **`was_started` is
+in the write payload**. Not a refusal — work done in one sitting is honestly
+`add → done`.
+
+Why you may care: it exists because *this project* closed 56 rows with 54 of
+them never started, so for a whole working session `list` could answer "what
+exists" and nothing about "what is moving". If your Work surface has a
+"currently working on" view, `status == "in_progress"` is what fills it, and
+`was_started` tells you when a row skipped that state entirely.
 
 ### 6.7 · The storage split is decided and does not move your shape
 
