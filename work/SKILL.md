@@ -27,6 +27,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `reference/dispatch.md` | `/pmo dispatch <task-id>` |
 | `reference/autopilot.md` | `/pmo autopilot` (autonomous BOARD-driving loop) |
 | `reference/digests.md` | `/pmo digest <path>` (read external doc, retain gist) + archive review inside `mid-phase-review` / `end-phase-retro` |
+| `reference/promotion.md` | The knowledge-card capture point inside `close-task`, `end-phase-retro` and `/pmo incident close` — one question, `Source:` pre-filled from the evidence just written, a sourceless card refused |
 | `$PERRY_HOME/packs/software-ops/runbooks.md` | `/pmo runbook-check`, `close-task` runbook gate, runbook templates (operability of deployed components) |
 | `$PERRY_HOME/packs/software-ops/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
 | `$PERRY_HOME/packs/software-ops/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |

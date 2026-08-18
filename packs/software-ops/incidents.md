@@ -55,9 +55,12 @@ This is where the feedback loop lives. Refuse the close until all three question
 2. Use `AskUserQuestion` with **three** questions (in one call):
 
    **Q1** — `header: "Knowledge"`, options:
+   - `Yes — write a knowledge card (Recommended if it taught a rule)` — the incident produced a **claim the project can re-check**: "restart the daemon before the migration, never after". Draft the claim and its tripwire from the root cause, then write it with `"$PERRY_HOME/bin/perry-knowledge" promote --source "incidents/<YYYY-MM-DD>-<slug>.md" …` (DESIGN-006 § 5.4; procedure in `$PERRY_HOME/work/reference/promotion.md`). **A sourceless card is refused, not written blank.**
    - `Yes — write digest (Recommended if novel)` — calls `/pmo digest --paste` after close to capture the lesson as a knowledge entry.
    - `No — duplicate of existing digest` — prompt for the digest path; record it as the reference.
    - `No — too narrow to generalise` — must include a one-line reason.
+
+   The card/digest distinction Q1 has to make, and it is not a matter of taste: a **digest** is a source the project *read*; a **card** is a claim the project *made* and can re-check. They live in the same tree and are told apart by the card's `Kind:` field. An incident that pointed at somebody else's document is a digest; an incident that taught an operating rule is a card. **This is one option added to a question that already exists — the gate stays at three questions**, because promotion is one question at an existing gate or it is the wiki-tending ritual DESIGN-006 declares a Non-Goal.
 
    **Q2** — `header: "Architecture"`, options:
    - `Yes — update ARCHITECTURE.md` — prompt for which §-section. Common edits: add a new §6 non-negotiable; tighten a §5 contract; surface a §7 open question. The doc edit is the user's; PMO opens the file and pre-drafts the proposed change inline based on the incident root cause.
@@ -72,7 +75,7 @@ This is where the feedback loop lives. Refuse the close until all three question
 3. Each question's outcome is written into the incident file under `## Derived changes`:
    ```
    ## Derived changes
-   - Knowledge: knowledge/<topic>/<this-incident>-digest.md       (or "skipped — <reason>")
+   - Knowledge: knowledge/<topic>/<slug>.md (card) or knowledge/<topic>/<this-incident>-digest.md   (or "skipped — <reason>")
    - Architecture: ARCHITECTURE.md §6.NN-7 (added) / §5.<contract> (tightened)   (or "skipped — <reason>")
    - Runbook: runbook/deploy-daemon.md (failure mode added)       (or "skipped — <reason>")
    ```

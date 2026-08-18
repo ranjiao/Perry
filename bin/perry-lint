@@ -1075,7 +1075,7 @@ def card_kind(text: str) -> str | None:
     return v if v in CARD_KINDS else None
 
 
-def resolves_somewhere(src: str, state_root: Path) -> bool:
+def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
     """Can a reader re-open what this `Source:` names?
 
     Three forms are in circulation and all three are legitimate, so the check
@@ -1089,8 +1089,15 @@ def resolves_somewhere(src: str, state_root: Path) -> bool:
     Deliberately permissive: this is advisory, and reporting a source that a
     human can plainly follow would train people to ignore the check. What it
     catches is the case that matters — a cell naming nothing that exists.
+
+    **`project_root` is passed, never derived from `state_root`.** The first
+    version computed `state_root.parent`, which is right only when the state
+    root is nested. `resolve_state_root` returns the PROJECT root by default —
+    so on every project that has not moved its state, that expression named the
+    directory ABOVE the project, `.perry/events.jsonl` was looked for there,
+    and a card citing the task id of a closed row was reported as dangling. The
+    same wrong idiom was in `check_knowledge`, one screen down.
     """
-    project_root = state_root.parent if state_root.name else state_root
     for tok in re.split(r"[\s,;·|]+", src.strip()):
         tok = tok.strip("*`()[]<>")
         if not tok:
@@ -1179,7 +1186,7 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
     return findings
 
 
-def check_knowledge(state_root: Path) -> list["Finding"]:
+def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
     """Every knowledge card can say where its claim came from and when.
 
     `DESIGN-006 § 5.3`: all four provenance fields are mandatory, because
@@ -1202,7 +1209,9 @@ def check_knowledge(state_root: Path) -> list["Finding"]:
     stale_days = int((SCHEMA_THRESHOLDS.get("knowledge_stale_days")
                       or {}).get("value") or 90)
     today = date.today()
-    rdir = (state_root.parent if state_root.name else state_root) / ".perry" / "roles"
+    # `.perry/` is anchored to the PROJECT root and never moves, so this takes
+    # the project root rather than deriving it — see `resolves_somewhere`.
+    rdir = project_root / ".perry" / "roles"
     roles_declared = rdir.exists() and any(rdir.glob("*.md"))
 
     for md in sorted(kdir.rglob("*.md")) if kdir.exists() else []:
@@ -1245,7 +1254,7 @@ def check_knowledge(state_root: Path) -> list["Finding"]:
 
         src = field_value(text, "Source")
         if src and src not in UNDECLARED_CELL:
-            if not resolves_somewhere(src, state_root):
+            if not resolves_somewhere(src, state_root, project_root):
                 findings.append(Finding(
                     "warn", rel, "card-source-dangling",
                     f"`Source: {src}` resolves to no file, task id or `SRC-n` "
@@ -1593,7 +1602,7 @@ def main(argv: list[str]) -> int:
         state_root = ((project_root / state_root_arg).resolve() if state_root_arg
                       else P.resolve_state_root(project_root))
         load_glossary(schema)
-        findings = check_knowledge(state_root) + check_role_cards(
+        findings = check_knowledge(state_root, project_root) + check_role_cards(
             project_root, schema)
         kdir = state_root / "knowledge"
         cards = sum(1 for md in (kdir.rglob("*.md") if kdir.exists() else [])
