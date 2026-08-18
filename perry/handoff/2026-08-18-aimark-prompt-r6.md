@@ -68,7 +68,7 @@ prose count to the map by name and by count.)
 The worked example showed `"open": 3` beside `"closed": 11`. **No single call
 returns that pair.** `--all` is what puts closed rows in the payload, so a
 default call reports `closed: 0` however much finished work the project holds —
-on Perry's own board, `0` against `60`.
+on Perry's own board, `0` against **every closed row it holds** — 63 as this is written, and moving, which is the point: the figure is not a property of the project, it is a property of the flag.
 
 Neither field had a definition row anywhere, so **the example was the
 definition, and it stated something unreachable.** If you render "N open · M
@@ -111,24 +111,60 @@ The two that remain at `0` are genuinely at zero *attribution* — both are
 built, they predate task tracking, and no row or event ever named them. That is
 worth knowing before you show it as a backlog.
 
+## 4c · Your round-3 report — all three answered, and your finding fixed
+
+**Your new finding was right and reproduced exactly.** `owner` present on 21 of
+21 open rows and **0 of 60 closed**. `done` removes the row, and the event
+carried `evidence`, `rung` and `track` but not `owner` or `role` — so the closed
+half of an event-logged board was anonymous, exactly as you said. Your control
+was the argument: a project with no event log keeps its closed rows on the board
+and reads 17/17.
+
+**Both now travel with `done` and `drop`.** Rows closed *before* this stay
+anonymous — the events are history and are not rewritten — so a track record
+starts from tonight, not from the beginning. ADR-006's `tasks.jsonl` is still
+the structural fix and is still unbuilt; this is the one that works now.
+
+**Q1 — `roles.cards[].tasks`.** You said freeze or drop, either is fine. **It is
+dropped.** Your two reasons are both true and they compound: unversioned, and
+open-rows-only. The reverse edge is under contract *and* now survives a close,
+so it answers "what has this role ever held" — the track record the roster edge
+structurally could not give. Two edges over one fact is a defect we keep
+finding; the one to drop is the one nobody reads.
+
+**Q2 — `roles`.** Versioned as **`perry-roles/list/1.0`**, with exactly the six
+fields you named frozen: `declared`, and per card `name`, `path`,
+`accepted_by`, `default_rung`, `must_escalate.fragments`,
+`must_escalate.unextractable`. Everything else in the block is explicitly **not**
+frozen — `executors`, `context`, `may_touch`, `loads`, `knowledge`,
+`must_escalate.lines` — and may change shape without a bump. If you start
+rendering one, say so and it gets a row.
+
+`contract` sits **before** the data and is present on an empty roster, since you
+check the version before you look at anything.
+
+Full document: `schema/roles-list-contract.md`. `perry-state --json` as a whole
+stays unversioned on purpose — it is a dashboard snapshot, and freezing all of
+it would freeze fields nobody reads.
+
+**Q3 — nothing rendered from a prose-only number.** Noted, and the near miss you
+name is fixed: § 3 above.
+
 ## 5 · What we would like back
 
-Still the two asks from revision 5 § 7, both unanswered and both blocking a
-freeze:
+Revision 5 § 7's two asks are **answered and closed** — see § 4c. One remains,
+and one is new:
 
-1. Is `roles.cards[].tasks` the shape your Agents view needs, or do you want the
-   reverse edge too? **You have both today** (`tasks[].role` and
-   `roles.cards[].tasks`). If one is dead weight, say so before it freezes.
-2. Do you intend to depend on `intake` and `roles` on the **unversioned**
-   `perry-state` payload? Yes → they need a contract. No → they stay put.
-
-Plus one new one:
-
-3. **Does anything you render come from a number we only state in prose?** The
+1. **Does anything you render come from a number we only state in prose?** The
    `closed: 11` example in § 3 is the second time this month a consumer could
    have coded against a figure no call produces — the first was
-   `rows_with_no_computable_age`. If you are reading a count out of our
-   documentation rather than out of a payload, name it and it becomes a field.
+   `rows_with_no_computable_age`. You answered *no, audited*; this stays here
+   only so the next round has the standing question.
+
+2. **Which of `perry-roles/list/1.0`'s NOT-frozen fields do you render?**
+   `executors`, `context`, `may_touch`, `loads`, `knowledge` and
+   `must_escalate.lines` are all in the payload and none carries a promise. You
+   named six; if the real number is seven, now is when it costs nothing.
 
 Do not modify anything under `$PERRY`. If a change is needed there, describe it
 and stop.
