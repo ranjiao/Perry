@@ -180,7 +180,12 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "add",
              "--root", str(self.root), "--title", "probe", "--priority", "P0",
-             "--deliverable", "a file that exists", "--verification", "V2",
+             "--deliverable", "a file that exists",
+             # A real check, not the rung. `--verification` takes the
+             # falsifiable check; `--rung` takes the rung. This fixture said
+             # "V2" — harmlessly, since it asserts nothing about the value —
+             # until `add` learned to refuse a bare rung here.
+             "--verification", "the row round-trips through split_row",
              "--next", next_action],
             capture_output=True, text=True, env=env)
 
