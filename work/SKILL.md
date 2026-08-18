@@ -32,7 +32,7 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `$PERRY_HOME/packs/software-ops/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
 | `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
-| `reference/delegate.md` | `/pmo delegate <task-id> <agent-type>` |
+| `reference/delegate.md` | `/pmo delegate <task-id> <role>` |
 | `reference/subcommands.md` | `plan-week`, `triage`, cadence (`status`, `monday-plan`, `midweek-check`, `mid-phase-review`, `end-phase-retro`), task lifecycle (`add-task`, `close-task`, `drop-task`), decisions/risk (`decide`, `risk`, `nudge`), cross-session (`coordinate`, `handoff`), phase transition (`rollover`) |
 | `reference/git-boundaries.md` | Any time agent commits/pushes/PRs are involved (`delegate`, `dispatch`, `autopilot`) |
 | `reference/conversational.md` | Every chat reply (plain-language + on-demand in-flight board) |
@@ -241,7 +241,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 |---|---|---|
 | `plan-week` | Pick this ISO week's 3–5 P0 tasks; update BOARD + journal | `reference/subcommands.md` |
 | `triage` | Walk BOARD top-to-bottom; flag stale / inflated / evidence-less rows | `reference/subcommands.md` |
-| `delegate <task-id> <agent-type>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
+| `delegate <task-id> <role>` | Render manual prompt for user to paste into another session | `reference/delegate.md` |
 | `dispatch <task-id>` | Fully automated: spec → executor → verify → evidence → BOARD/journal | `reference/dispatch.md` |
 | `autopilot [--max-dispatches=N] [--max-duration=Th] [--max-failures=F] [--dry-run]` | Drive the BOARD top-to-bottom: dispatch every safe-to-dispatch row until budget exhausts. Default budget 10 / 2h / 3. **First run per project is forced dry-run + briefing.** Stop signals: close session OR `touch ~/.cache/perry/autopilot.stop`. Never auto-`done` (always lands at `review`). | `reference/autopilot.md` |
 | `digest <path> [--refresh] [--paste]` | Read external doc at `inputs/<path>`, write structured digest, move source + digest to `knowledge/<topic>/`. AskUserQuestion verifies key facts + topic. `--refresh` re-reads after source change. `--paste` captures inline pasted text. | `reference/digests.md` |

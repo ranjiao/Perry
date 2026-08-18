@@ -2501,6 +2501,195 @@ def _load_ops_counts(root: Path) -> OpsCounts:
     return ops
 
 
+# ── .perry/roles/*.md + the escalation union (DESIGN-006 § 5.2) ────────────
+#
+# THE UNION ONLY EVER GROWS. A role's `## Must escalate` list is ADDED to the
+# project's high-stakes list from `.perry/hook.md`; it never substitutes for
+# it. Get that backwards and hiring a role quietly NARROWS what the project
+# refuses to do unsupervised — the opposite of what a role is for, and
+# invisible, because the narrowed scan still passes everything it is asked.
+#
+# This is the one implementation. `bin/perry-lint` and `bin/perry-state` both
+# call it rather than each carrying a copy: two extractions of one rule is how
+# `squash` went wrong above, and an escalation list is a worse place to
+# discover the same defect than a table header is.
+
+
+#: The extraction rule, in one place: only **backticked spans** count, and only
+#: those longer than two characters. Prose does not extract — which is exactly
+#: the `hook_TEMPLATE.md` backtick bug, and the reason a `Must escalate` line
+#: with zero backticks is a lint warning rather than a silent no-op.
+_BACKTICKED = re.compile(r"`([^`]+)`")
+
+
+def escalation_fragments(lines: list[str]) -> list[str]:
+    """Backticked spans from escalation bullets, lowercased, order preserved.
+
+    Shared by `.perry/hook.md § High-stakes operations` and a role card's
+    `## Must escalate`, because § 5.2 says a role's list is extracted *exactly
+    like* the hook's. If the two ever extract differently, a term a role
+    declares would mean something other than the same term in the hook.
+    """
+    out: list[str] = []
+    for line in lines:
+        if "{{" in line:                     # an unfilled template placeholder
+            continue
+        for frag in _BACKTICKED.findall(line):
+            frag = frag.strip().lower()
+            if len(frag) > 2 and frag not in out:
+                out.append(frag)
+    return out
+
+
+def hook_escalation_lines(project_root: Path) -> list[str]:
+    """The `## High-stakes operations` bullets from `.perry/hook.md`."""
+    path = Path(project_root) / ".perry" / "hook.md"
+    if not path.exists():
+        return []
+    text = _strip_comments(path.read_text(errors="replace"))
+    # `"High-stakes"` is a prefix tolerance `bin/perry-state` already accepts;
+    # spelled the same way here so both read the same section.
+    body = _section(text, *alias("headings", "High-stakes operations"),
+                    "High-stakes")
+    return [b for b in _bullets(body) if "{{" not in b]
+
+
+@dataclass
+class RoleCard:
+    """A hiring contract, never a workflow (DESIGN-006 decision #1).
+
+    Each field has one mechanical consumer, and nothing else reads the file:
+
+      context, may_touch   → rendered into the delegation prompt VERBATIM
+      loads_knowledge      → § 5.4 subscription injection, by topic
+      escalate_fragments   → UNIONED into the dispatch pre-flight scan
+      accepted_by, rung    → the close-task gate; the stricter of mode-rung
+                             and role-rung wins (DESIGN-003 § 5.3)
+    """
+    name: str = ""
+    path: str = ""
+    accepted_by: str = ""
+    default_rung: str = ""
+    executors: str = ""
+    context: str = ""
+    may_touch: str = ""
+    loads_knowledge: list[str] = field(default_factory=list)
+    loads_pack: list[str] = field(default_factory=list)
+    escalate_lines: list[str] = field(default_factory=list)
+    escalate_fragments: list[str] = field(default_factory=list)
+    #: Escalation bullets carrying no backticked span. They read as rules and
+    #: enforce nothing — the failure class `hook_TEMPLATE.md` already shipped.
+    escalate_unextractable: list[str] = field(default_factory=list)
+
+
+_ROLE_FIELD = {
+    "accepted_by": "Accepted by",
+    "default_rung": "Default rung",
+    "executors": "Executors",
+}
+
+
+def _role_header_field(text: str, label: str) -> str:
+    m = re.search(rf"^\s*[-*]?\s*\**\s*{re.escape(label)}\s*\**\s*[:：]\s*([^\n]*)$",
+                  text, re.M)
+    return m.group(1).strip().strip("*` ") if m else ""
+
+
+def _loads_topics(section: str, label: str) -> list[str]:
+    """`- knowledge: reporting, ledger-quirks` → `['reporting', 'ledger-quirks']`."""
+    out: list[str] = []
+    for b in _bullets(section):
+        m = re.match(rf"^{re.escape(label)}\s*[:：]\s*(.*)$", b.strip(), re.I)
+        if not m:
+            continue
+        for tok in re.split(r"[,，;；]", m.group(1)):
+            tok = tok.strip().strip("*`")
+            if tok and "{{" not in tok and tok not in out:
+                out.append(tok)
+    return out
+
+
+def parse_role_card(name: str, text: str) -> RoleCard:
+    text = _strip_comments(text)
+    card = RoleCard(name=name)
+    for attr, label in _ROLE_FIELD.items():
+        setattr(card, attr, _role_header_field(text, label))
+    card.context = _section(text, "Context").strip()
+    card.may_touch = _section(text, "May touch").strip()
+    loads = _section(text, "Loads")
+    card.loads_knowledge = _loads_topics(loads, "knowledge")
+    card.loads_pack = _loads_topics(loads, "pack")
+    card.escalate_lines = [b for b in _bullets(_section(text, "Must escalate"))
+                           if "{{" not in b]
+    card.escalate_fragments = escalation_fragments(card.escalate_lines)
+    card.escalate_unextractable = [b for b in card.escalate_lines
+                                   if not _BACKTICKED.search(b)]
+    return card
+
+
+def read_role_cards(project_root: Path) -> list[RoleCard]:
+    """Every card in `.perry/roles/`, by filename. Empty when none is declared.
+
+    Goal 7 lives here: no directory, or an empty one, returns `[]`, and every
+    caller downstream degrades to exactly today's behaviour.
+    """
+    rdir = Path(project_root) / ".perry" / "roles"
+    out: list[RoleCard] = []
+    for md in sorted(rdir.glob("*.md")) if rdir.is_dir() else []:
+        card = parse_role_card(md.stem, md.read_text(errors="replace"))
+        card.path = md.relative_to(Path(project_root)).as_posix()
+        out.append(card)
+    return out
+
+
+def escalation_union(project_root: Path) -> dict:
+    """The dispatch pre-flight's scan list: hook fragments ⊕ every role's.
+
+    Returns the union **and its two halves separately**, on purpose. A caller
+    that only ever sees a merged list cannot tell an addition from a
+    substitution, and neither can a test — so the halves are part of the
+    contract, not an implementation detail. `origins` says which side each
+    fragment came from, which is what makes a replacement structurally visible
+    instead of merely numerically smaller.
+
+    `project` is computed the same way whether or not roles exist. That is the
+    whole safety property: declaring a role can only ever ADD to what the
+    project refuses to do unsupervised.
+    """
+    project = escalation_fragments(hook_escalation_lines(project_root))
+    cards = read_role_cards(project_root)
+    roles = {c.name: list(c.escalate_fragments) for c in cards}
+
+    origins: dict[str, list[str]] = {}
+    union: list[str] = []
+    for frag in project:
+        union.append(frag)
+        origins.setdefault(frag, []).append("hook")
+    for name in roles:
+        for frag in roles[name]:
+            if frag not in union:
+                union.append(frag)
+            origins.setdefault(frag, []).append(f"role:{name}")
+    return {
+        "project": project,
+        "roles": roles,
+        "union": union,
+        "origins": origins,
+        "armed": bool(union),
+    }
+
+
+def matching_escalations(haystack: str, fragments: list[str]) -> list[str]:
+    """Every scan fragment present in `haystack`, lowercased substring match.
+
+    The pre-flight's matcher, factored out so the union can be tested at the
+    behaviour it is for — *does this text trip the scan* — and not merely at
+    the shape of a list. A "one lookup" rewrite that kept the list shape but
+    dropped a source would still let a project term through here.
+    """
+    hay = (haystack or "").lower()
+    return [f for f in fragments if f in hay]
+
 
 # ── Top-level snapshot ────────────────────────────────────────────────────
 

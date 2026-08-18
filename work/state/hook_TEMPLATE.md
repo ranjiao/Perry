@@ -40,7 +40,7 @@ If the project is **{{project_name}}**:
 - Prefer MCP tools: {{list of mcp__*__tool names, or —}}
 - Decision tag types: {{Process | Architecture | Tooling | … or leave default}}
 - Cost ceiling source: {{file or section naming the spend cap, or —}}
-- Special agents available: {{roles beyond Coding / Research / Review, or —}}
+- Special agents available: {{— · roles are declared as cards in `.perry/roles/`}}
 - Promotion / staging path: {{ordered stages before "shipped", or —}}
 
 ## Autopilot defaults (optional)

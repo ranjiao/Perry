@@ -876,7 +876,7 @@ RUNNABLE_RE = re.compile(r"`[^`]+`|\.(?:py|sh|json|md|ya?ml)\b|/")
 
 
 def high_stakes_fragments(perry_dir: Path) -> list[str]:
-    """The backticked fragments from `.perry/hook.md § High-stakes operations`.
+    """The scan list: `.perry/hook.md`'s fragments **unioned** with every role's.
 
     Reused rather than re-declared. The consequence rule — anything
     outward-facing or irreversible needs V5 regardless of its mode's default —
@@ -885,20 +885,15 @@ def high_stakes_fragments(perry_dir: Path) -> list[str]:
     own statement of what is dangerous, so that list *is* the consequence
     signal. A project with an unarmed hook simply gets no consequence checks,
     which is honest: nothing has told Perry what matters there.
+
+    **A role adds to that list and never replaces it** (DESIGN-006 § 5.2, goal
+    6). `P.escalation_union` is the one implementation — this function does not
+    carry a second copy, because two extractions of one rule is how a scan
+    quietly stops scanning what it used to. With no roles declared the union is
+    the hook's list unchanged, which is Goal 7 at this surface.
     """
-    hook = perry_dir / "hook.md"
-    if not hook.exists():
-        return []
-    body = section_body(strip_comments(hook.read_text(errors="replace")), 2,
-                        heading_re("High-stakes operations"))
-    if not body:
-        return []
-    out = []
-    for line in body[0][0].split("\n"):
-        if not line.strip().startswith("-") or "{{" in line:
-            continue
-        out += [f.lower() for f in re.findall(r"`([^`]+)`", line) if len(f) > 2]
-    return out
+    project_root = perry_dir.parent if perry_dir.name == ".perry" else perry_dir
+    return P.escalation_union(project_root)["union"]
 
 
 def rung_satisfied(rung: str, evidence: str) -> str | None:
@@ -1176,6 +1171,25 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
                 "warn", rel, "role-card-incomplete", line=1,
                 message=(f"`## {want}` is missing. A card without it cannot be "
                          f"rendered into a delegation prompt.")))
+
+        # An escalation line with no backticked span enforces NOTHING.
+        #
+        # The pre-flight scan extracts backticked fragments and matches those.
+        # A line written as plain prose reads like a rule, sits under the
+        # heading that carries the only hard field on the card, and contributes
+        # zero fragments to the union — so the role looks constrained and is
+        # not. This is the `hook_TEMPLATE.md` backtick bug, in the file that
+        # inherited its extraction rule; DESIGN-006 § 7 names it as the same
+        # failure class and this is the same fix.
+        card = P.parse_role_card(md.stem, md.read_text(errors="replace"))
+        for bullet in card.escalate_unextractable:
+            findings.append(Finding(
+                "warn", rel, "role-escalation-not-extractable",
+                message=(
+                    f"`Must escalate` line {bullet!r} has no backticked span, "
+                    f"so it contributes nothing to the pre-flight scan. The "
+                    f"union matches `backticked` fragments only: a prose line "
+                    f"here reads as a rule and enforces nothing.")))
     return findings
 
 

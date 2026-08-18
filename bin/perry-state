@@ -612,6 +612,115 @@ def hook_profile(root: Path) -> dict:
     return out
 
 
+def knowledge_stale_days() -> int:
+    """`thresholds.knowledge_stale_days`, read from the schema (DESIGN-006 § 5.3)."""
+    try:
+        schema = json.loads(
+            (Path(__file__).resolve().parent.parent / "schema" / "state-schema.json").read_text())
+    except (OSError, ValueError):
+        return 90
+    return int(((schema.get("thresholds") or {}).get("knowledge_stale_days")
+                or {}).get("value") or 90)
+
+
+def _card_field(text: str, label: str) -> str:
+    m = re.search(rf"^\s*[-*]?\s*\**\s*{re.escape(label)}\s*\**\s*[:：]\s*([^\n]*)$",
+                  text, re.M)
+    return m.group(1).strip().strip("*` ") if m else ""
+
+
+def subscribed_knowledge(state_root: Path, topics: list[str]) -> list[dict]:
+    """The cards a role subscribes to, **with staleness visible** (§ 5.4).
+
+    A stale card is injected *flagged*, never silently and never dropped. Both
+    of the other options are worse in the same direction: dropping it means the
+    agent works without a claim the project believes, and injecting it
+    unflagged means it works from a claim nobody has checked this quarter and
+    cannot tell. The flag is the whole difference between a knowledge store and
+    a farm of confident errors.
+
+    Archived cards are excluded — `knowledge/archive/` is where an invalidated
+    card goes *with its reason*, and re-injecting it would undo the archiving.
+    """
+    kdir = state_root / "knowledge"
+    if not topics or not kdir.is_dir():
+        return []
+    stale_days = knowledge_stale_days()
+    today = date.today()
+    out: list[dict] = []
+    for topic in topics:
+        tdir = kdir / topic
+        if not tdir.is_dir():
+            # A subscription naming no topic directory. Reported rather than
+            # dropped: a role that believes it loads `ledger-quirks` and loads
+            # nothing is worse off than one that knows the topic is empty.
+            out.append({"topic": topic, "path": None, "missing_topic": True})
+            continue
+        for md in sorted(tdir.rglob("*.md")):
+            if md.name == "INDEX.md" or "archive" in md.parts:
+                continue
+            text = P._strip_comments(md.read_text(errors="replace"))
+            kind = _card_field(text, "Kind")
+            if not kind:
+                continue                     # a digest, not a card
+            seen = _card_field(text, "Last verified")
+            age = None
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen or ""):
+                age = (today - date.fromisoformat(seen)).days
+            title = next((l.lstrip("# ").strip()
+                          for l in text.split("\n") if l.startswith("# ")), md.stem)
+            out.append({
+                "topic": topic,
+                "path": md.relative_to(state_root).as_posix(),
+                "title": title,
+                "kind": kind,
+                "owner_role": _card_field(text, "Owner role"),
+                "last_verified": seen,
+                "age_days": age,
+                "stale": age is not None and age > stale_days,
+                "invalidated_by": _card_field(text, "Invalidated by"),
+            })
+    return out
+
+
+def roles_profile(project_root: Path, state_root: Path) -> dict:
+    """`.perry/roles/` — the roster `delegate` renders from (DESIGN-006 § 5.2).
+
+    Four blocks, four consumers, and this payload is where each is handed over:
+    `context` and `may_touch` go into the prompt VERBATIM (advisory — they
+    shape behaviour), `knowledge` is § 5.4's subscription injection with stale
+    flags, `must_escalate.fragments` is what the pre-flight unions in, and
+    `accepted_by` + `default_rung` feed the close gate.
+
+    **Goal 7 lives in the shape of this dict.** With no card declared,
+    `cards` is empty and `escalation.union` is byte-for-byte the hook's own
+    list — every downstream scan behaves exactly as it does today.
+    """
+    cards = P.read_role_cards(project_root)
+    return {
+        "declared": len(cards),
+        "cards": [{
+            "name": c.name,
+            "path": c.path,
+            "accepted_by": c.accepted_by,
+            "default_rung": c.default_rung,
+            "executors": c.executors,
+            "context": c.context,
+            "may_touch": c.may_touch,
+            "loads": {"knowledge": c.loads_knowledge, "pack": c.loads_pack},
+            "must_escalate": {
+                "lines": c.escalate_lines,
+                "fragments": c.escalate_fragments,
+                # Bullets that extract nothing. Carried into the payload and
+                # not just the linter, so a renderer can say so in the prompt
+                # rather than presenting an unenforced line as a constraint.
+                "unextractable": c.escalate_unextractable,
+            },
+            "knowledge": subscribed_knowledge(state_root, c.loads_knowledge),
+        } for c in cards],
+    }
+
+
 TIER1_CAPS = {
     "OKR.md": 200,
     "ARCHITECTURE.md": 500,
@@ -918,6 +1027,19 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         warnings.append("phase/CURRENT points at a phase file that does not exist.")
 
     hook = hook_profile(perry_root)
+    roles = roles_profile(perry_root, root)
+    # The dispatch pre-flight scans against THIS, not against `hook.high_stakes`
+    # alone (DESIGN-006 § 5.2, goal 6). `project` is the hook's own list and is
+    # computed identically whether or not roles exist; `roles` is what each card
+    # adds. The union only ever grows — a role can add to what the project
+    # refuses to do unsupervised, and there is no mechanism by which it removes.
+    escalation = P.escalation_union(perry_root)
+    for card in roles["cards"]:
+        for bullet in card["must_escalate"]["unextractable"]:
+            warnings.append(
+                f"role `{card['name']}` escalation line {bullet!r} has no "
+                f"backticked span — the pre-flight scan matches fragments, so "
+                f"that line enforces nothing. Run /perry work lint --knowledge.")
     if not hook["high_stakes_armed"]:
         warnings.append(
             "No high-stakes list in .perry/hook.md — /perry work dispatch and /perry work autopilot "
@@ -945,7 +1067,13 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "name": snap.project_name,
             "config": parse_config(perry_root),
             "hook": hook,
+            # Kept beside `hook` and never folded into it: a reader that sees
+            # only a merged list cannot tell an addition from a substitution,
+            # and neither could a test. `hook.high_stakes` stays exactly what
+            # the project itself declared.
+            "escalation": escalation,
         },
+        "roles": roles,
         "okr": {
             "present": bool(snap.okr.version),
             "version": snap.okr.version,
