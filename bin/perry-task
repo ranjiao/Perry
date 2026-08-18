@@ -1859,7 +1859,30 @@ def cmd_done(args, ctx) -> dict:
              "evidence": args.evidence, "rung": rung}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
-    return {"id": tid, "rung": rung, "removed": line, **plan}
+    # **A row that closed without ever being started is reported, not refused.**
+    #
+    # `DESIGN-004 § 1.3`'s second question is "what is being worked on right
+    # now", and the whole event log exists to answer it. Measured on this
+    # project's own log: 56 rows closed, **54 of them with no `start` event** —
+    # so for an entire working session the board could not answer that question
+    # about any row, and the design doc's own account of the old failure
+    # ("the board said `in_progress` when an agent remembered to write it")
+    # was reproduced exactly, by the tool's author.
+    #
+    # A warning rather than a refusal: work genuinely done in one sitting is
+    # honestly `add → done`, and refusing that would teach people to write a
+    # `start` they do not mean. What the warning buys is that the omission
+    # becomes VISIBLE at the moment it is made, instead of being discoverable
+    # only by counting events afterwards.
+    started = any(e.get("id") == tid and e.get("event") == "start"
+                  for e in ctx["events"])
+    if not started and not args.as_json:
+        print(f"perry-task: note — {tid} closed without ever being `start`ed, "
+              f"so nothing ever showed it in flight. `perry-task start <id>` "
+              f"is what makes `list` answer \"what is being worked on now\".",
+              file=sys.stderr)
+    return {"id": tid, "rung": rung, "removed": line,
+            "was_started": started, **plan}
 
 
 def cmd_stage(args, ctx) -> dict:

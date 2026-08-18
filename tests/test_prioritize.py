@@ -485,5 +485,55 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         self.assertNotIn('"field": "priority"', src)
 
 
+class TestClosingWithoutStartingIsVisible(Base):
+    """`DESIGN-004 § 1.3`'s second question is "what is being worked on right
+    now", and the event log exists to answer it.
+
+    Measured on Perry's own log while this was written: **56 rows closed, 54
+    of them with no `start` event.** For an entire working session the board
+    could not answer that question about any row — reproducing, by the tool's
+    own author, the failure the design doc describes: *"the board said
+    `in_progress` when an agent remembered to write it."*
+
+    A **warning, not a refusal**: work genuinely done in one sitting is
+    honestly `add → done`, and refusing that would teach people to write a
+    `start` they do not mean. What it buys is that the omission is visible at
+    the moment it is made rather than discoverable by counting events later.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.write(board(p1=[row("TASK-001")]))
+
+    def test_closing_an_unstarted_row_says_so(self):
+        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
+                            "--rung", "V2")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("without ever being", out.stderr)
+        self.assertIn("start", out.stderr)
+
+    def test_closing_a_started_row_says_nothing(self):
+        self.run_tool("start", "TASK-001")
+        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
+                            "--rung", "V2")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("without ever being", out.stderr)
+
+    def test_it_warns_and_does_not_refuse(self):
+        """The row must still close. A guard that blocked the close would be
+        worse than the gap it reports."""
+        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
+                            "--rung", "V2")
+        self.assertEqual(out.returncode, 0)
+        self.assertNotIn("TASK-001", self.read())
+
+    def test_the_payload_carries_it_so_a_front_end_can_show_it(self):
+        out = self.run_tool("done", "TASK-001", "--evidence", "e.md",
+                            "--rung", "V2", "--json")
+        self.assertFalse(json.loads(out.stdout)["was_started"])
+        self.assertNotIn("without ever being", out.stderr,
+                         "--json must keep stderr quiet")
+
+
 if __name__ == "__main__":
     unittest.main()
