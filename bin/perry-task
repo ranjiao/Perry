@@ -86,6 +86,11 @@ Usage:
                     files work under its own headings instead of P0/P1/P2.
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
   perry-task list  [--all] [--track T] [--json]
+  perry-task events [--limit N] [--since <cursor>] [--json]
+                  the event log's TAIL, in log order, with a cursor.
+                  A separate surface from `list` because three of that
+                  payload's fields are defined relative to the payload,
+                  so paging it would change their meaning per page.
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --dry-run       print what would be written; touch nothing
@@ -3794,7 +3799,7 @@ def perry_conform():
 #: `list` is a published contract (`schema/task-list-contract.md`) and reading
 #: is never gated, so it is not merely excluded here — `tests/test_conformance`
 #: asserts it still answers on an undeclared project with the gate enforcing.
-READ_ONLY_COMMANDS = {"list"}
+READ_ONLY_COMMANDS = {"list", "events"}
 GATED_FILE = "BOARD.md"
 
 
@@ -3836,6 +3841,7 @@ def parse(argv: list[str]) -> Args:
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
     a.group = a.prefix = a.role = None
+    a.limit = a.since = None
     a.dry_run = a.as_json = a.all = a.clear = False
     i = 0
     flags = {"--title": "title", "--track": "track", "--owner": "owner",
@@ -3846,6 +3852,7 @@ def parse(argv: list[str]) -> Args:
              "--outcome": "outcome", "--status": "status",
              "--actor": "actor", "--needed": "needed",
              "--blocks": "blocks", "--answer": "answer",
+             "--limit": "limit", "--since": "since",
              "--frequency": "frequency", "--on": "on",
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
@@ -3928,6 +3935,100 @@ SECTION_EVENTS = frozenset({"intake", "resolve-intake", "intake-sweep",
                             "cadence-add", "cadence-done",
                             "risk-add", "risk-clear", "risk-migrate"})
 
+def cmd_events(args, ctx) -> dict:
+    """`perry-task events` — the event log's TAIL, in log order.
+
+    **Asked for by aiMark, and shaped against the alternative it proposed.**
+    `--limit`/`--since` on `list` was rejected because three fields there are
+    defined RELATIVE TO THE PAYLOAD — `blocks` is "ids in this payload whose
+    `depends_on` names this row", `depends_on_unknown` is what this payload does
+    not carry, and `next_action_cites_closed` says outright that only ids in
+    this payload are resolved. Paging `list` silently shortens all three, so the
+    same consumer reading the same field gets a different answer per page.
+
+    Measured, which is what makes a second surface worth its cost rather than
+    duplication: the last 20 events on this project span 10 tasks, which sit at
+    positions 24 through 79 of 80 by id. **Any paging key except `updated`
+    returns the wrong events** — and `updated` is exactly what a task-shaped
+    payload cannot promise once it is filtered. Worse, without `--all` the feed
+    is wrong today, because a close is what makes a row leave the board; and
+    `--all` reconstructs every closed task from journal plus log to answer a
+    question about the log's tail.
+
+    **Order is the other half.** `ts` is seconds and ties are real — two drops
+    in this log share one second — and `perry-task/list` promises array order
+    only WITHIN one id. A flattened cross-task stream therefore has no
+    authoritative order at all. This returns **log order**, and the contract
+    says so.
+    """
+    events = ctx["events"]
+    limit = 20
+    if args.limit is not None:
+        try:
+            limit = int(args.limit)
+        except (TypeError, ValueError):
+            raise Refused(f"--limit takes a number; got {args.limit!r}")
+        if limit < 1:
+            raise Refused("--limit must be at least 1")
+
+    # The cursor is `<index>:<ts>`. The index is the position in the log; the ts
+    # is what makes rotation DETECTABLE — if the event now at that index carries
+    # a different ts, lines were removed beneath it and the consumer is told
+    # rather than silently handed the wrong window.
+    start, rotated = 0, False
+    if args.since:
+        raw = str(args.since)
+        idx, _, want_ts = raw.partition(":")
+        try:
+            at_i = int(idx)
+        except ValueError:
+            raise Refused(
+                f"--since takes a cursor from a previous call; got {raw!r}")
+        start = at_i + 1
+        at = events[at_i] if 0 <= at_i < len(events) else None
+        if want_ts and (at is None or at.get("ts") != want_ts):
+            rotated, start = True, 0
+
+    window = events[start:start + limit]
+    last = start + len(window) - 1
+    return {
+        "contract": "perry-events/list/1.0",
+        "project_root": ctx["project_root"].as_posix(),
+        "events": [{
+            "seq": start + n,
+            "ts": e.get("ts", ""),
+            "event": e.get("event", ""),
+            "task": str(e.get("task") or e.get("id") or ""),
+            # **The title AS WRITTEN when the event was appended.** A retitled
+            # task's earlier events still carry the old name — correct for a
+            # history view and wrong the moment a front-end renders it as the
+            # row's current name. `perry-task/list` has the current one.
+            "title_then": e.get("title", ""),
+            "field": e.get("field", EVENT_FIELD.get(e.get("event", ""), "")),
+            "from": e.get("from", ""),
+            "to": e.get("to", ""),
+            "actor": e.get("actor", ""),
+            # Populated on 16 events in this project's own log and exposed by
+            # no contract surface until now.
+            "reason": e.get("reason", ""),
+            "rung": e.get("rung", ""),
+            "evidence": e.get("evidence", ""),
+            "track": e.get("track", ""),
+            "owner": e.get("owner", ""),
+            "role": e.get("role", ""),
+        } for n, e in enumerate(window)],
+        "count": len(window),
+        "total": len(events),
+        "cursor": (f"{last}:{window[-1].get('ts', '')}" if window
+                   else (args.since or "")),
+        "more": start + len(window) < len(events),
+        # True when the cursor pointed at an event the log no longer holds.
+        # Rotation under TASK-070 truncates history, and a feed that silently
+        # restarted would look like a burst of new activity.
+        "rotated": rotated,
+    }
+
+
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "ask": cmd_ask, "answer": cmd_answer, "next": cmd_next,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
@@ -3939,7 +4040,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "depends": cmd_depends,
-            "list": cmd_list}
+            "list": cmd_list, "events": cmd_events}
 
 
 def project_lock(state_root: Path, timeout: float = 10.0):
@@ -4053,6 +4154,20 @@ def main(argv: list[str]) -> int:
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "events":
+        if result["rotated"]:
+            print("  ⚠ the cursor pointed at an event this log no longer "
+                  "holds — it was rotated. Restarted from the beginning.")
+        for e in result["events"]:
+            who = f" [{e['owner'] or e['role']}]" if (e["owner"] or e["role"]) else ""
+            move = f"{e['from']}→{e['to']}" if e["to"] else ""
+            print(f"  {e['seq']:>4} {e['ts']}  {e['event']:<10} "
+                  f"{e['task']:<10} {e['field']:<12} {move}{who}")
+            if e["reason"]:
+                print(f"       reason: {e['reason'][:70]}")
+        print(f"\n  {result['count']} of {result['total']} event(s)"
+              + (f" · more: --since {result['cursor']}" if result["more"]
+                 else " · caught up"))
     elif args.cmd == "list":
         for r in result["tasks"]:
             mark = " " if r["open"] else "·"

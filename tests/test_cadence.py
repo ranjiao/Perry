@@ -622,7 +622,12 @@ class TestCadenceIsNotATask(unittest.TestCase):
         to `COMMANDS` and to neither set fails here rather than silently
         leaking into — or vanishing from — the front-end contract."""
         classified = PT.TASK_EVENTS | PT.SECTION_EVENTS
-        writers = set(PT.COMMANDS) - {"list"}
+        # The partition is over WRITERS. `list` and `events` are read-only —
+        # they emit nothing, so classifying them as task- or section-writing
+        # would be classifying a fact that does not exist. Derived from
+        # `READ_ONLY_COMMANDS` rather than named here, so a third read-only
+        # subcommand does not have to be remembered in two places.
+        writers = set(PT.COMMANDS) - set(PT.READ_ONLY_COMMANDS)
         self.assertEqual(writers - classified, set(),
                          "subcommand writes events nothing classifies")
         self.assertEqual(classified - writers - {"route"}, set(),
