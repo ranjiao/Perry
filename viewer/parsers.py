@@ -229,7 +229,16 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         if len(cells) < 4:
             continue
         rel, ver, declared, route = cells[0], cells[1], cells[2], cells[3]
-        if rel.lower() in ("file", "path") or not rel:
+        # `squash`, not `.lower()`. `strip("` ")` removes backticks and spaces
+        # and leaves ASTERISKS, so a bolded `| **File** |` header row was read
+        # as a DECLARATION whose version cell is not a number — and
+        # `perry-conform status` reported `unreadable row` against a correct
+        # file while `perry-lint` still said clean.
+        #
+        # The fifth live copy of this rule, in the file the first pass claimed
+        # to have unified, found by a reviewer running an AST sweep over all
+        # 111 lowercasing sites rather than by grepping for the ones it knew.
+        if squash(rel) in ("file", "path") or not rel:
             continue           # the header row
         if not re.fullmatch(r"\d+", ver or ""):
             rec.unreadable.append((i, line.strip()))

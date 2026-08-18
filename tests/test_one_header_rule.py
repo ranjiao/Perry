@@ -133,5 +133,52 @@ class TestTheDecoratedHeaderIsActuallyRead(unittest.TestCase):
         self.assertEqual(tracks[0].get("default_rung"), "V2")
 
 
+class TestTheFifthCopy(unittest.TestCase):
+    """`read_conformance` resolved its header row with `.strip("` ").lower()`.
+
+    That strips backticks and spaces and **leaves asterisks**, so a bolded
+    `| **File** |` header was not recognised as the header — it was read as a
+    DECLARATION whose version cell is not a number, and `perry-conform status`
+    reported `unreadable row` against a correct file while `perry-lint` still
+    said clean.
+
+    The fifth live copy of this rule, in `viewer/parsers.py` — **the file the
+    first pass claimed to have unified.** Found by a reviewer running an AST
+    sweep over all 111 lowercasing sites rather than grepping for the ones it
+    already knew about, which is the difference between checking the category
+    and checking the instances.
+
+    Neither of this task's own guards could see it: one enumerates `bin/` and
+    one file of `viewer/`, and the behavioural guard's fixture bolds **whole
+    cells**, where `squash` and `strip("` ").lower()` happen to agree.
+    """
+
+    def probe(self, header):
+        import shutil, tempfile
+        import parsers as P
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / ".perry").mkdir()
+        (tmp / ".perry" / "conformance.md").write_text(
+            f"# Conformance\n\n{header}\n| --- | --- | --- | --- |\n"
+            "| `BOARD.md` | 2 | 2026-08-18 | migrate |\n")
+        rec = P.read_conformance(tmp)
+        return list(rec.declarations), rec.unreadable
+
+    def test_decoration_on_the_header_changes_nothing(self):
+        plain = self.probe("| File | Shape version | Declared | Route |")
+        for header in ("| **File** | **Shape version** | **Declared** | "
+                       "**Route** |",
+                       "| `File` | Shape version | Declared | Route |",
+                       "|  File  |  Shape version | Declared | Route |"):
+            with self.subTest(header=header):
+                self.assertEqual(self.probe(header), plain)
+
+    def test_a_bolded_header_is_not_reported_as_a_broken_row(self):
+        _, unreadable = self.probe(
+            "| **File** | **Shape version** | **Declared** | **Route** |")
+        self.assertEqual(unreadable, [])
+
+
 if __name__ == "__main__":
     unittest.main()
