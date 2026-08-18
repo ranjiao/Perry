@@ -494,11 +494,31 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     cap = spec.get("cap")
     if cap and len(lines) > cap:
         sev = "error" if spec.get("cap_kind") == "hard" else "warn"
-        findings.append(Finding(
-            sev, rel, "size-cap",
-            f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of {cap}. "
-            "Split the overflow into a sibling file rather than writing past it.",
-        ))
+        # **The prescription is mode-aware, because for one section it was
+        # exactly backwards.** `## Intake` lives inside `BOARD.md` on purpose
+        # (`DESIGN-003` decision 3 chose zero new claimed paths), and
+        # `modes/queue.md` says the resulting pressure on the cap **is the
+        # feature**: "an intake that overflows the board is a project that is
+        # not triaging". Telling that project to split the overflow into a
+        # sibling file is telling it to move the signal somewhere it can grow
+        # unnoticed — the one response the mode rules out.
+        n_intake = intake_rows(raw)
+        if n_intake and n_intake * 2 >= len(lines) - cap:
+            findings.append(Finding(
+                sev, rel, "size-cap",
+                f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of "
+                f"{cap} — and {n_intake} of them are undischarged `## Intake` "
+                f"rows. **Do not split this into a sibling file.** Intake lives "
+                f"in the board so arrival is visible, and an intake that "
+                f"overflows the cap is the signal that the queue is not being "
+                f"drained (`modes/queue.md`). Run triage and route or discharge "
+                f"the rows; the cap comes back on its own."))
+        else:
+            findings.append(Finding(
+                sev, rel, "size-cap",
+                f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of "
+                f"{cap}. Split the overflow into a sibling file rather than "
+                f"writing past it."))
 
     # Some sections are only mandatory once the doc reaches a given status —
     # a design doc in `draft` is allowed to be incomplete; `locked` is not.
@@ -1114,6 +1134,40 @@ def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
                 if hay.exists() and tok in hay.read_text(errors="replace"):
                     return True
     return False
+
+
+def intake_rows(text: str) -> int:
+    """Undischarged rows under `## Intake`, or 0 when the section is absent.
+
+    Counted here rather than assumed from the line delta: a board can be over
+    its cap for ordinary reasons, and prescribing "run triage" to a project
+    whose intake is empty would be as wrong as prescribing a split to one whose
+    intake is full.
+    """
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines)
+                  if l.startswith("## ") and heading_is_intake(l[3:])), None)
+    if start is None:
+        return 0
+    end = next((i for i in range(start + 1, len(lines))
+                if lines[i].startswith("## ")), len(lines))
+    n = 0
+    for line in lines[start + 1:end]:
+        s = line.strip()
+        if not s.startswith("|") or re.match(r"^\|\s*:?-{2,}", s):
+            continue
+        cells = split_row(s)
+        if not cells or squash(cells[0]) in {"arrived", "到达", ""}:
+            continue
+        # `Outcome` is the last column and holds a drop reason or a routing.
+        if len(cells) < 3 or cells[-1].strip() in UNDECLARED_CELL:
+            n += 1
+    return n
+
+
+def heading_is_intake(head: str) -> bool:
+    return any(squash(head).startswith(squash(a))
+               for a in ["Intake", *HEADING_ALIASES.get("Intake", [])])
 
 
 def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:

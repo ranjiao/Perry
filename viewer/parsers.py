@@ -392,6 +392,9 @@ class BoardState:
     # parsers of one table is the defect this repository has now fixed three
     # times (`schema/README.md § Columns resolve by name`).
     cadence_items: list[Cadence] = field(default_factory=list)
+    #: `## Intake` rows. Absent from this class until 2026-08-18, so
+    #: `perry-state` could not see the section at all.
+    intake: list[dict] = field(default_factory=list)
     cadence: list[Task] = field(default_factory=list)
     backbone_groups: list[tuple[str, list[Task]]] = field(default_factory=list)
     user_input_queue: list[UserInput] = field(default_factory=list)
@@ -648,6 +651,14 @@ def parse_board(text: str) -> BoardState:
             state.user_input_queue = _parse_user_input(chunk)
         elif heading_is(head, "Top risks"):
             state.risks = _parse_risks(chunk)
+        elif heading_is(head, "Intake"):
+            # **`## Intake` matched nothing here**, so `perry-state` carried no
+            # intake block at all — while `perry-task/list` parses it. The
+            # correlation `work/reference/subcommands.md § triage` asks for
+            # (board over its cap *because* intake is undrained) was therefore
+            # not computable from the payload the standup reads, on the one
+            # mode whose whole shape is arrival.
+            state.intake = _parse_intake(chunk)
         elif head.startswith("Backbone"):
             backbone_chunk = chunk
 
@@ -1153,6 +1164,42 @@ def _risk_bullets(section: str) -> list[str]:
         if not text or _RE_RISK_PLACEHOLDER.match(text):
             continue
         out.append(text)
+    return out
+
+
+def _parse_intake(section: str) -> list[dict]:
+    """`## Intake` rows: `{arrived, request, outcome, discharged}`.
+
+    `discharged` is the question triage actually asks — a row whose `Outcome`
+    is empty is still waiting, and the count of those is what makes an
+    over-cap board mean "the queue is not being drained" rather than "the
+    board is long".
+    """
+    out: list[dict] = []
+    header: list[str] = []
+    for line in section.split("\n"):
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        if re.match(r"^\|\s*:?-{2,}", s):
+            continue
+        cells = split_row(s)
+        if not cells:
+            continue
+        if not header and squash(cells[0]) in set(_column_keys("Arrived")) | {"arrived"}:
+            header = [squash(c) for c in cells]
+            continue
+        if not header:
+            header = [squash(c) for c in cells]
+            continue
+        row = dict(zip(header, cells))
+        outcome = (row.get("outcome") or "").strip()
+        out.append({
+            "arrived": (row.get("arrived") or "").strip(),
+            "request": (row.get("request") or "").strip(),
+            "outcome": outcome,
+            "discharged": bool(outcome) and squash(outcome) not in _NO_DATE,
+        })
     return out
 
 

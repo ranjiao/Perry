@@ -1228,6 +1228,20 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "escalation": escalation,
         },
         "roles": roles,
+        # **The correlation `triage` asks for, and could not compute.**
+        # `modes/queue.md` puts `## Intake` inside `BOARD.md` on purpose and
+        # says the pressure that creates on the 200-line cap IS the signal —
+        # an intake that overflows is a queue nobody is draining. This payload
+        # carried no intake block at all, so the standup could see the board
+        # was over its cap and not why.
+        "intake": {
+            "rows": len(board.intake),
+            "undischarged": sum(1 for r in board.intake if not r["discharged"]),
+            "oldest_undischarged": next(
+                (r["arrived"] for r in sorted(
+                    (x for x in board.intake if not x["discharged"]),
+                    key=lambda x: x["arrived"] or "9999")), None),
+        },
         "okr": {
             "present": bool(snap.okr.version),
             "version": snap.okr.version,
