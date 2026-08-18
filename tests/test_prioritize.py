@@ -345,8 +345,6 @@ class TestTheEventIsPartOfTheDeclaredSet(unittest.TestCase):
         self.assertIn("perry-task prioritize", doc)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestAClosedRowKeepsThePriorityItWasMovedTo(Base):
@@ -389,3 +387,7 @@ class TestAClosedRowKeepsThePriorityItWasMovedTo(Base):
         self.assertTrue(moves)
         self.assertEqual(t["priority"], moves[-1]["to"],
                          "the payload disagrees with its own timeline")
+
+
+if __name__ == "__main__":
+    unittest.main()
