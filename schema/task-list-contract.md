@@ -165,8 +165,9 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for `retitle`, `next` and `rung`, and a wrong word in the field whose job
-is to stop you guessing is worse than no field.
+false for **six** of the thirteen — `stage`, `retitle`, `next`, `rung`,
+`evidence` and `depends` — and a wrong word in the field whose job is to stop
+you guessing is worse than no field.
 
 ### `conformance` — what the board did not parse cleanly
 
@@ -434,8 +435,9 @@ from the spec met them first at runtime.
 `field` is `status` on six events, and `section` / `stage` / `title` /
 `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-`retitle`, `next` and `rung`, and a wrong word in the field whose job is to stop
-you guessing is worse than no field.
+**six** of the thirteen — `stage`, `retitle`, `next`, `rung`, `evidence` and
+`depends` — and a wrong word in the field whose job is to stop you guessing is
+worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out
 here explicitly, because "only adds keys" does not cover them and a consumer

@@ -19,6 +19,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import re
+
 import importlib.machinery
 import importlib.util
 import json
@@ -475,6 +477,45 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
     def test_a_section_move_is_not_reported_as_a_status_move(self):
         self.assertEqual(self.mod.EVENT_FIELD["prioritize"], "section")
         self.assertEqual(self.mod.EVENT_FIELD["status"], "status")
+
+    def test_the_docs_rebuttal_counts_what_the_map_holds(self):
+        """The contract doc states a COUNT, and nothing checked it.
+
+        aiMark's round-2 report proposed `field: "status"` on every event
+        except `prioritize`. Two paragraphs of `schema/task-list-contract.md`
+        rebut that, and both said it would be false for three events —
+        `retitle`, `next`, `rung`. It is false for **six**: those three plus
+        `stage`, `evidence` and `depends`.
+
+        The `1.7` paragraph enumerates all seven non-`status` fields two
+        sentences before claiming three would be wrong, so the doc contradicted
+        itself inside one paragraph. The test above covers the map's KEYS
+        against the writer's event set, and a prose number is not a key — which
+        is why an assertion sitting six lines away did not catch it.
+
+        A number in prose that restates a data structure is the same defect as
+        a rule in prose that nothing implements. This binds them, in both
+        copies, by name and not only by count.
+        """
+        mislabelled = sorted(e for e, f in self.mod.EVENT_FIELD.items()
+                             if f != "status" and e != "prioritize")
+        doc = (TOOL.parent.parent / "schema"
+               / "task-list-contract.md").read_text(encoding="utf-8")
+        claims = re.findall(
+            r"proposed `status` for everything except `prioritize`;.*?"
+            r"\*\*(\w+)\*\* of the thirteen — (.*?) — and a wrong word",
+            doc, re.S)
+        self.assertEqual(len(claims), 2,
+                         "the rebuttal is stated twice; both must be checked")
+        words = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+        for word, listed in claims:
+            self.assertEqual(
+                words.get(word), len(mislabelled),
+                f"doc says {word!r}, EVENT_FIELD says {len(mislabelled)}: "
+                f"{mislabelled}")
+            self.assertEqual(sorted(re.findall(r"`([a-z_]+)`", listed)),
+                             mislabelled,
+                             "the doc names different events than the map")
 
     def test_the_stored_event_says_the_same_word_the_payload_does(self):
         """`cmd_prioritize` writes `field` into the event too. Two names for one
