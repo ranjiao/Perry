@@ -1,5 +1,10 @@
 # Instruction for aiMark's coding agent — catch up with Perry, 2026-08-18
 
+> **Revision 2, same day.** Revision 1 said the asks/risks/drift contract was
+> "in flight tonight" and told you to branch on the version. **It landed.** The
+> contract is now `perry-task/list/1.6`. Every "in flight" in this document has
+> been replaced by what is actually true; nothing else was softened.
+
 You are working in `~/proj/aimark`. Perry is installed at `~/.claude/skills/perry/`
 (hereafter `$PERRY`). This instruction is self-contained.
 
@@ -39,18 +44,27 @@ retyped — but two fields changed meaning under a live consumer, and the versio
 handle is the only way you find that out. `schema/task-list-contract.md §
 Changelog` says what a consumer sees.
 
-### 1.2 · asks / risks / drift have no contract — **in flight tonight**
+### 1.2 · asks / risks / drift have no contract — **landed, at 1.6**
 
-Your ask was right and it is being taken as a contract addition, not a
-workaround. Both shape defects you named are in scope for the fix: the
-bullet-sourced risk whose `id` is the severity letter and whose `severity` is
-`watch` for every row, and `idle` being a rendered `"9d"` rather than a number.
+`perry-task/list/1.6`. Top level now carries `risks`, `asks` and `drift`
+alongside `tasks`, so the *needs-you* list and board drift are no longer behind
+the unversioned tool. Both shape defects you reported are fixed, not carried
+across: the severity a human wrote is the `severity`, the list marker is gone
+from the `title`, the severity letter is no longer the `id`, and `idle` is an
+integer number of days.
 
-**Check the contract version before you build against it.** If
-`schema/task-list-contract.md` is at **1.6** and its changelog names `asks`,
-`risks` and `drift`, this landed. If it is still at 1.5, it did not, and
-`perry-state --json` remains the only source — read it, and keep your adapter
-behind one function so the swap is one edit.
+**You get a dependency graph you did not ask for and will want.** Per task:
+`depends_on` (the declared edge, verbatim), `blocked_by` (the unfinished half),
+`blocks` (reverse edge), and **`startable`** — a boolean that is true when the
+row is open, its status is not `blocked` or `review`, and nothing it waits on is
+unfinished. That is "what can actually be picked up right now", computed before
+`--track` and `--all` filtering so the graph does not change per query. On
+Perry's own board today: 32 open, **18 startable**.
+
+New `conformance` keys to read before rendering: `depends_on_unknown`,
+`dependency_cycles`, `blocked_without_dependency`. The last one is the honest
+signal that a row says `blocked` and never says on what — Perry's own board has
+four.
 
 ### 1.3 · No agents edge anywhere — **the data exists, in the wrong place**
 
@@ -99,9 +113,10 @@ never did.)
 
 ### 1.5 · The five small things — **partly done, and one you found for us**
 
-- **stderr is not the failure channel** — still true, and being written into the
-  contract docs. Your `--json`-on-writes workaround is correct and should stay:
-  it silences the advisory line and puts the verdict in the payload.
+- **stderr is not the failure channel** — still true. Your `--json`-on-writes
+  workaround is correct and should stay: it silences the advisory line and puts
+  the verdict in the payload. Writing it into the contract docs is TASK-061 and
+  is still open.
 - **`event_written`** — being documented. Your reading of it is right: it is the
   difference between "the row moved" and "the row moved and its timeline will
   have a hole".
@@ -181,6 +196,26 @@ it could not classify.
    most useful document Perry has received; the four sections above marked
    *fixed* exist because of it. Concretely: a field you needed and did not find,
    a field whose meaning was ambiguous, a shape you had to work around.
+
+## 5 · One decision made after revision 1 that changes what you will read later
+
+`ADR-006` (`perry/decisions/ADR-006-task-store-is-not-the-log.md`, user-decided
+today) splits the task store from the event log. Today the log is canonical for
+closed rows; it will not be. Three layers: `perry/tasks.jsonl` as truth,
+`BOARD.md` as the rendered open subset, `.perry/events.jsonl` as history that is
+genuinely disposable again.
+
+**This does not change `perry-task/list`'s shape** — where a value is read from
+is not a contract fact — so you have nothing to do about it. It is here because
+two things you rely on get *better* and you should not build workarounds for
+them: full-set reads stop being O(events), and `conformance.has_event_log:
+false` stops meaning "your closed tasks are invisible".
+
+The measurement behind it, if you want it: deleting the log today takes the
+payload from 39 open + **35 closed** to 39 + **0**, while the design document
+declared the log "derived and disposable … what is lost is history resolution
+and drift detection, not truth". That claim was false, and the split makes it
+true rather than editing it.
 
 Do not modify anything under `$PERRY`. If a change is needed there, describe it
 and stop.
