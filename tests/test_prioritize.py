@@ -347,3 +347,45 @@ class TestTheEventIsPartOfTheDeclaredSet(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAClosedRowKeepsThePriorityItWasMovedTo(Base):
+    """A row that has left the board is folded back together from events.
+
+    `cmd_list` rebuilds a closed row with
+    `t["priority"] = e.get("priority") or t["priority"]` — there are no cells
+    left to read. The `prioritize` event therefore has to carry `priority` and
+    `group` the way `add` and `route` do, or the fold silently keeps the `add`
+    event's value and the payload reports a priority the row's **own timeline**,
+    two lines above, says it moved away from.
+
+    Found by running the lifecycle end to end rather than by reading the code.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.write(board(p1=[row("TASK-001")]))
+
+    def test_the_closed_row_reports_where_it_was_moved_to(self):
+        self.run_tool("prioritize", "TASK-001", "--priority", "P0")
+        (self.root / "perry" / "evidence").mkdir(parents=True, exist_ok=True)
+        (self.root / "perry" / "evidence" / "e.md").write_text("x", encoding="utf-8")
+        out = self.run_tool("done", "TASK-001", "--evidence", "evidence/e.md",
+                            "--rung", "V3")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        t = self.task("TASK-001")
+        self.assertFalse(t["open"], "the row should have left the board")
+        self.assertEqual(t["priority"], "P0")
+
+    def test_the_field_never_disagrees_with_its_own_timeline(self):
+        """The check that would have caught it without knowing the mechanism."""
+        self.run_tool("prioritize", "TASK-001", "--priority", "P0")
+        (self.root / "perry" / "evidence").mkdir(parents=True, exist_ok=True)
+        (self.root / "perry" / "evidence" / "e.md").write_text("x", encoding="utf-8")
+        self.run_tool("done", "TASK-001", "--evidence", "evidence/e.md",
+                      "--rung", "V3")
+        t = self.task("TASK-001")
+        moves = [e for e in t["timeline"] if e["event"] == "prioritize"]
+        self.assertTrue(moves)
+        self.assertEqual(t["priority"], moves[-1]["to"],
+                         "the payload disagrees with its own timeline")

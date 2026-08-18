@@ -2745,10 +2745,22 @@ def cmd_prioritize(args, ctx) -> dict:
              "title": values.get("title", ""),
              "track": values.get("track", "main"),
              "actor": args.actor,
-             # `from`/`to` are the SECTION, not the status — every other event
-             # uses them for status, and a consumer that assumed so would read
-             # a move as a status change. `field` says which cell moved, so the
-             # timeline stays readable without a per-event special case.
+             # `priority` and `group` mirror what `add` and `route` put on their
+             # own events, because `cmd_list` folds a CLOSED row back together
+             # from the event stream with `t["priority"] = e.get("priority") or
+             # t["priority"]` — a row that left the board has no cells left to
+             # read. Without these two keys the fold silently kept the `add`
+             # event's value, so a closed row reported a priority its own
+             # timeline said it had moved away from. Found by running the
+             # lifecycle, not by reading the code: the payload said `P1` with
+             # `prioritize P1 → P0` sitting in its timeline directly above.
+             "priority": priority, "group": group,
+             # `from`/`to` are the SECTION here, where every other event uses
+             # them for the status. Nothing extra is needed to disambiguate —
+             # `event: "prioritize"` already does, and the timeline carries the
+             # event name. (An earlier version added a `field` key claiming to
+             # be what disambiguates; it never reached the payload at all,
+             # because a timeline entry keeps only ts/event/from/to/actor.)
              "field": "priority", "from": was, "to": now,
              "reason": args.reason or ""}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
