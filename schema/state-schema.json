@@ -1620,8 +1620,8 @@
               "id": {
                 "type": "string",
                 "required": true,
-                "pattern": "^[A-Z]{3}-\\d{2}$",
-                "note": "stable id from bin/perry-diagnose (CTX/DOC/CON/TRK/FIT) or assigned for an interview finding"
+                "pattern": "^[A-Z][A-Z0-9]{1,3}-\\d{2}$",
+                "note": "stable id from bin/perry-diagnose, or assigned for an interview finding. The AUTHORITATIVE list is the finding catalog in reference/diagnose.md; this pattern is only the shape that list is written in, and tests/test_diagnose.py asserts every catalogued id satisfies it rather than restating the prefixes here. It read `^[A-Z]{3}-\\d{2}$` for a release - exactly three letters - which matches none of `LOAD-01`..`LOAD-04`, `NS-01` or `MODE-01`, six ids Perry's own catalog documents and Perry's own diagnose workflow emits. So a project whose diagnosis recorded one of them was told by perry-lint that Perry's output was malformed, which is the finding TASK-048 was opened on. Prefixes run 2-4 characters (`NS`, `CTX`, `LOAD`); the second character may be a digit because a situational interview finding takes the id of the question that produced it (`Q5-01`). Still deliberately narrow: `CON-03b` is NOT a catalogued id and stays a finding."
               },
               "severity": {
                 "type": "string",
