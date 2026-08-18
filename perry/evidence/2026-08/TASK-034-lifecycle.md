@@ -90,3 +90,73 @@ Nothing on Perry's side that this document could find. What remains is aiMark
 performing the same lifecycle against its own copy and its author saying it is
 enough — the one acceptance another program's user has to give, which is why
 this row is V5 and not V4.
+
+---
+
+## Re-run 2026-08-18, on a fresh project — what changed since the above
+
+The run above was made before three fixes landed. Repeated end to end on a
+throwaway project created from `work/state/BOARD_TEMPLATE.md`. Perry's own state
+was not touched.
+
+`add` → `start` → `status --status review` → **`prioritize --priority P0`** →
+`done --evidence … --rung V3`, then one `perry-task list --all --json`:
+
+```
+contract   : perry-task/list/1.5
+open/closed: 0 / 1
+priority   : P0
+open       : false          ← and `grep -c TASK-001 BOARD.md` is 0
+evidence       : evidence/2026-08/probe.md
+evidence_paths : ["perry/evidence/2026-08/probe.md"]
+timeline:
+  add         —            → not_started
+  start       not_started  → in_progress
+  status      in_progress  → review
+  prioritize  P1           → P0
+  done        review       → done
+```
+
+**Three things are true here that were not true on 2026-08-17.**
+
+1. **`evidence_paths` resolves on a closed row.** It was `[]` for every closed
+   row, and `conformance.evidence_not_found` did not report it either — so the
+   one document justifying a close was the one thing that could not be linked.
+   This was aiMark's first-listed finding. Contract minor 1.4 → 1.5: no key
+   changed shape, but two fields changed meaning under a live consumer, and the
+   version handle is how that consumer finds out.
+
+2. **A task's priority can be changed at all.** There was no writer for it —
+   `add` set it once, `route` mints a new id — so the one act triage *means*
+   could only be done by hand-editing the board, which lands with no event and
+   is then reported as unrecorded drift. `prioritize` is in the timeline above
+   because this run used it.
+
+3. **`prioritize`'s `from`/`to` are the SECTION, not the status.** Every other
+   event uses those keys for status. `event: "prioritize"` is the only thing
+   that disambiguates, and a timeline renderer that maps `from`/`to` onto a
+   status badge will draw a priority move as a status change. This is called
+   out in the aiMark hand-off; it is the one shape in this payload that can be
+   misread while looking correct.
+
+**A defect this re-run found, in the same session that wrote it.** The first
+pass reported `priority: P1` with `prioritize P1 → P0` sitting in its own
+timeline two lines above. A closed row is folded back together from events, and
+the `prioritize` event carried no `priority` key, so the fold silently kept the
+`add` value. Fixed, and the test that guards it compares the field against the
+row's own timeline rather than against a known-good value — a payload that
+contradicts itself is checkable without knowing which merge rule is wrong.
+
+## What the V5 signature is being asked for
+
+Not "do the commands work" — that is the V3 above, and it is reproducible.
+
+**It is whether one call answers both of `DESIGN-004 § 1.3`'s questions well
+enough for aiMark to be built on it**, which only aiMark's author can say. The
+gap report at `~/proj/aimark/doc/perry-contract-gaps.md` is the first half of
+that answer and it was acted on point by point; the hand-off at
+`perry/handoff/2026-08-18-aimark-prompt.md` is the reply. Signing this row means
+saying the loop closed.
+
+A V5 records **name, date, and what was checked**. Writing "reviewed" would make
+the rung a label instead of a record.
