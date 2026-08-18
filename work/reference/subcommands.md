@@ -264,6 +264,23 @@ why the gap here was never cosmetic: for as long as `review` had no tool path,
 every dispatch produced a post-tool board edit and buried the drift signal under
 noise the lane generated itself.
 
+**Before the per-mode walk, report every track that cannot run its own first
+step.** `perry-state --json` → `project.config.tracks[].missing_defaults` names
+them: the columns that track's mode has **no honest default** for and which it
+left blank. Say it as a line per track and do not skip the step it blocks —
+
+> `ops` (queue) has no `SLA`, so the breach step below cannot run. Declare one
+> in `.perry/config.md § Tracks`, or accept that this track has no clock.
+
+This is not a nicety. `modes/pipeline.md § SLA`, `modes/queue.md § contract` and
+`schema/state-schema.json` all say **triage** reports the missing value rather
+than skipping the step — and for a release it did not: `perry-lint` reported it
+at file level, this procedure had nothing to read, and the rule was stated in
+three documents and implemented in a fourth place none of them named. The field
+above is what makes those three sentences true. It is computed from
+`work_modes.modes.<mode>.no_default`, the same source the linter reads, so the
+two cannot name different tracks.
+
 **Per-mode ordering.** The walk above is project-mode's. A track in another mode asks its own questions first, per its mode file: `pipeline` leads with oldest-item-per-stage and stages at their WIP limit (`modes/pipeline.md`); `queue` leads with SLA breaches and queue-depth trend after the intake drain (`modes/queue.md`); `inquiry` leads with open questions against the cap, then **`perry-lint --provenance`** — a dangling source id outranks everything else in that mode's list (`modes/inquiry.md`). Read the mode file for any track you are triaging.
 
 Print the triage table. **For each row that needs a decision**, use `AskUserQuestion` (header = the TASK-ID, options = `Apply suggestion (Recommended) | Edit | Skip`). Batch up to 4 rows per call. Apply each accepted suggestion through the subcommand that owns it — `perry-task stage` / `status` / `drop` — which writes the board row and the journal line together. Do **not** then update `BOARD.md` or write a `## Status changes` block yourself: the tool already wrote both, and doing it again duplicates the journal line and leaves a post-tool board edit that `unrecorded` will report. Anything the triage decided that is *not* a transition — a rewritten Next action, a note on why a row survives — goes in today's `## Notes`.

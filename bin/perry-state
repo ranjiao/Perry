@@ -278,6 +278,40 @@ def track_columns() -> dict[str, tuple[str, ...]]:
     return _TRACK_COLUMNS
 
 
+_NO_DEFAULT: dict[str, list[str]] | None = None
+
+
+def no_default_columns(mode: str) -> list[str]:
+    """Columns this mode has no honest default for, from the schema.
+
+    A number Perry invented is one the project never promised, and every triage
+    run afterwards would measure real work against it.
+    """
+    global _NO_DEFAULT
+    if _NO_DEFAULT is None:
+        try:
+            modes = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text()).get("work_modes") or {}
+            ).get("modes") or {}
+        except (OSError, ValueError):
+            modes = {}
+        _NO_DEFAULT = {m: list((c or {}).get("no_default") or [])
+                       for m, c in modes.items()}
+    return _NO_DEFAULT.get(mode, [])
+
+
+def missing_defaults(col, mode: str) -> list[str]:
+    """The no-default columns this track left blank, in schema order."""
+    blank = {"", "—", "–", "-", "n/a", "tbd", "?"}
+    out = []
+    for name in no_default_columns(mode):
+        key = name.lower().replace(" ", "_")
+        if (col(key) or "").strip().lower() in blank:
+            out.append(name)
+    return out
+
+
 def parse_tracks(text: str) -> list[dict]:
     """`.perry/config.md § Tracks` → one dict per track; never empty."""
     body = re.search(r"^##\s+(?:Tracks|轨道)\b(.*?)(?=^##\s|\Z)",
@@ -327,6 +361,22 @@ def parse_tracks(text: str) -> list[dict]:
             "sla": col("sla"),
             "cycle": col("cycle"),
             "default_rung": col("default_rung"),
+            # **Which no-default columns this track left undeclared.**
+            #
+            # `modes/pipeline.md`, `modes/queue.md` and the schema all say the
+            # missing-SLA case is reported *by triage*. `perry-lint` reports it
+            # at file level; **triage had nothing to read**, so the claim was
+            # true in three documents and implemented in a fourth place none of
+            # them named. Triage is an agent procedure and the procedure forbids
+            # eyeballing the board, so without a payload field it could not obey
+            # the rule its own mode file states.
+            #
+            # The list of which columns a mode has no honest default for is read
+            # from `work_modes.modes.<mode>.no_default`, never copied — the same
+            # source `perry-lint` reads, so the linter and triage cannot report
+            # different tracks.
+            "missing_defaults": missing_defaults(
+                col, col("mode").lower() or "project"),
             "declared": True,
         })
     return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
