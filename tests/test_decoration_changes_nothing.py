@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -116,15 +117,55 @@ class TestDecorationIsInvisible(unittest.TestCase):
                            encoding="utf-8")
         return root
 
+    @staticmethod
+    def _drop(obj, unstable: set):
+        """Remove every key this reader cannot determine from its input."""
+        if isinstance(obj, dict):
+            return {k: TestDecorationIsInvisible._drop(v, unstable)
+                    for k, v in obj.items() if k not in unstable}
+        if isinstance(obj, list):
+            return [TestDecorationIsInvisible._drop(v, unstable) for v in obj]
+        return obj
+
+    def unstable_keys(self, name: str, root) -> set:
+        """Keys that differ between two runs on the SAME input — MEASURED.
+
+        This module's scrubber already carried a comment saying every absolute
+        path is scrubbed rather than three named keys, because "naming keys one
+        at a time is how a test ends up asserting the difference it created
+        itself". `generated_at` then became the fourth key to slip through: it
+        is `datetime.now()` at two sites in `bin/perry-state`, so two runs
+        straddling a one-second boundary differ, and the failure arrived
+        wearing the message `reads a bolded header differently` with a
+        114,000-character diff. Red roughly one run in five; two independent
+        reviewers hit it the same night, and it turned a real full-suite gate
+        red over nothing.
+
+        The fix is not to name it. Non-determinism is **measurable**: run the
+        same fixture twice across a second boundary and whatever differs cannot
+        be a consequence of bolding. That covers the next such field without
+        anyone remembering it exists.
+        """
+        first = self.run_reader(name, root)
+        time.sleep(1.05)          # cross the boundary the timestamps round to
+        second = self.run_reader(name, root)
+        return {k for k in set(first) | set(second)
+                if first.get(k) != second.get(k)}
+
     def test_every_reader_reports_the_same_thing_on_a_bolded_board(self):
         """Perry's own state, which is the largest real board available and the
         one whose shapes the readers were written against."""
         plain, bold = self.project(False), self.project(True)
         for name in READERS:
             with self.subTest(reader=name):
+                unstable = self.unstable_keys(name, plain)
+                self.assertNotIn(
+                    "board", unstable,
+                    f"{name} is non-deterministic in a field this test exists "
+                    f"to compare — scrubbing it would hide the defect")
                 self.assertEqual(
-                    self.run_reader(name, plain),
-                    self.run_reader(name, bold),
+                    self._drop(self.run_reader(name, plain), unstable),
+                    self._drop(self.run_reader(name, bold), unstable),
                     f"{name} reads a bolded header differently — some rule "
                     f"other than `squash` is resolving a header cell")
 
