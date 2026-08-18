@@ -2770,6 +2770,45 @@ class TestEveryWriterThatFilesARowReadsGroup(unittest.TestCase):
         self.assertNotIn("## P1", p.board(),
                          "a priority section was created on a board that has none")
 
+    def test_the_intake_table_survives_the_drain(self):
+        """**The drain bricked the queue after one row, at exit 0.**
+
+        `ensure_section` anchors `## Intake` before `## P0` *or at the end of
+        the file*, so on a board with no priority heading — this fixture, and
+        `~/proj/gimegime-pmo`'s actual shape — Intake lands **below** every
+        landing site. `cmd_route` captured the intake row's line index, then
+        `append_row` inserted above it, then wrote the outcome to the now-stale
+        index: the separator row was overwritten, the request stayed
+        undischarged, and the next `route` refused "`## Intake` has no table".
+
+        Every existing test in this class passed throughout, because they only
+        asserted `"routed → <id>" in board`. The corruption is one line above
+        the row they were looking at.
+        """
+        p, code, out = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0, out)
+        intake = self.section_of(p, "Intake")
+        self.assertRegex(intake, r"(?m)^\|\s*:?-{2,}",
+                         f"the intake table lost its separator row:\n{intake}")
+        rows = [l for l in intake.split("\n")
+                if l.strip().startswith("|") and "---" not in l
+                and not l.strip().startswith("| Arrived")]
+        self.assertEqual(len(rows), 1, f"the request was duplicated:\n{intake}")
+        self.assertIn("routed →", rows[0], "the request was not discharged")
+
+    def test_a_second_drain_still_works(self):
+        """The consequence, stated as the thing a user would hit. One drain
+        used to leave the section unparseable, so every later arrival could be
+        recorded and never routed — `triage` step 1 becomes a step that cannot
+        run."""
+        p, code, _ = self.drained("--group", self.HEADING)
+        self.assertEqual(code, 0)
+        code, _ = p.run("intake", "--title", "第二个请求", "--arrived", "2026-08-06")
+        self.assertEqual(code, 0)
+        code, out = p.run("route", "2", "--track", "ops", "--group", self.HEADING)
+        self.assertEqual(code, 0,
+                         f"the queue was bricked by the first drain: {out}")
+
     def test_the_routed_row_still_carries_its_clock(self):
         """`--group` must not buy the landing site by dropping `Arrived` —
         `today − Arrived` is the only clock a queue row has."""
