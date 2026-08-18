@@ -298,6 +298,8 @@ Triggered when OKR `score-phase` is about to run (or explicitly by the user). Re
 
 These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" section so OKR's `plan-phase` for next phase can read them directly.
 
+**Knowledge promotion** (DESIGN-006 § 5.4; procedure in `reference/promotion.md`): **at most one question for the whole retro**, and only for a lesson the retro itself already identified as recurring across two or more tasks. Run `"$PERRY_HOME/bin/perry-knowledge" propose --source "evidence/<YYYY-MM>/retro.md" --root . --json` first — `fires: false` means ask nothing — and write it with `perry-knowledge promote`, never by hand. Batching is the named risk (DESIGN-006 § 7): a retro that offers six cards produces six rubber stamps. If the phase produced several durable claims, promote one and note the rest as candidates in the retro; the next `close-task` will offer them where they belong.
+
 **Digest archive review** (same procedure as `mid-phase-review`; second pass per phase): re-scan archive candidates and process via `AskUserQuestion`. Phase-end is the safer gate — anything still un-referenced after a full phase is more likely truly inactive. Also at phase-end, **rebuild `knowledge/INDEX.md` fully** (not just incrementally): re-grep all references for `Last referenced` dates, recompute counts, alphabetize within topics. Cheap operation (~2-3 sec for 30 digests).
 
 ## Decisions & risk
@@ -618,6 +620,14 @@ If the task spec lists `Subjective verification` items, **use `AskUserQuestion`*
 3. If the task was a Must-Have item in `phase/<NNN>-<slug>.md`, **do not tick it there** — `phase/` is the `goals` lane's file and this lane is not its writer (`SKILL.md § The hand-off contract`). Print the hand-off instead: "`<ID>` closed; it is a Must-Have in `phase/<NNN>-<slug>.md` → run `/perry goals link` to tick it." Asking and stopping is the contract; writing and apologising is the thing it forbids.
 4. The original task definition (creation-day journal entry) stays untouched — that's the historical record.
 5. **If `Deployed: yes`**: bump the runbook's `Last verified: <today>` field (the close is evidence the user reviewed the runbook against reality at this moment).
+
+**Post-close capture point — knowledge promotion** (DESIGN-006 § 5.4; full procedure in `reference/promotion.md`):
+
+After the close is written, ask whether the run produced a **reusable claim about how to do something correctly** — the one kind of memory Perry has no other home for. Run `"$PERRY_HOME/bin/perry-knowledge" propose --source "<the citation you passed to --evidence>" --rung <the rung> --root . --json` first: it is read-only and it says whether the capture point fires at all. `fires: false` → ask nothing and say nothing (`no-source`, `source-unresolvable`, a `V0`/`V1` rung, or a card already citing this source).
+
+`fires: true` is permission to consider asking, not an instruction to ask. **You must have a draft** — an actual one-line claim and an actual tripwire — and the claim must be true of the next task too, not a fact about this one. Most closes produce neither, and the question does not fire on them; that is what keeps it from becoming the prompt people dismiss by reflex. Then **one** `AskUserQuestion` showing the drafted claim and tripwire, with `Skip — nothing durable` as a one-keystroke option that writes nothing anywhere. On confirm, `"$PERRY_HOME/bin/perry-knowledge" promote …` writes `knowledge/<topic>/<slug>.md` and re-renders `## Cards by topic` in `knowledge/INDEX.md`. **A sourceless card is refused, not written blank** — the tool enforces it; do not hand-write a card to get around a refusal.
+
+Does not fire on `drop-task`: a dropped row produced no verified finding.
 
 To find a closed task later: `grep "TASK-007" journal/` returns its creation entry, all status changes, and its close entry.
 
