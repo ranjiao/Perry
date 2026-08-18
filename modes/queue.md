@@ -28,6 +28,42 @@ Carries rules rather than references.
 mode — `Status` stays the global lifecycle enum and `Stage` carries this
 track's vocabulary. See `modes/pipeline.md § Status and Stage are orthogonal, and that is the point`.
 
+## Declaring a queue track — ask for the SLA, never default it
+
+**Whoever writes a `queue` row into `.perry/config.md § Tracks` asks for the
+`SLA` in the same breath.** That is first-time setup, `/perry adopt`, and any
+agent proposing a track register. One `AskUserQuestion`, before the row is
+written; a row is not written with the cell left blank and filled in later.
+
+The question is forced at creation because that is the only moment where both
+of the alternatives are unavailable:
+
+- **Perry may not default it.** The SLA is a promise the project makes to
+  whoever is filing the requests. A number Perry invented is a promise nobody
+  made, and it would not sit inert: the breach check, the age sort and the
+  triage question all measure real work against it, so from then on Perry
+  reports work as "overdue" against a deadline that exists only because a tool
+  guessed. `schema/state-schema.json § work_modes.modes.queue.no_default` is
+  where that is declared, and `Cycle` is on the same list for the same reason.
+- **Perry may not leave it silently blank.** `SLA` is the clock this whole
+  mode is measured against (§ Triage in this mode, § Commitments). A queue
+  track without one has a breach check whose signal never clears — which
+  `reference/diagnose.md` names as strictly worse than having no check.
+
+If the user genuinely has no SLA, that answer is a fact worth writing down —
+say `no SLA — best effort` in the cell. It is a declaration, so triage stops
+asking, and it is honest, so nothing is measured against a number.
+
+**After creation it is a warning, not a refusal.** `perry-lint` reports
+`no-default` on a queue or pipeline row whose `SLA` or `Cycle` is undeclared,
+and stops there: a project that already has such a track predates this rule,
+and under ADR-004 an error would make the whole of `.perry/config.md`
+undeclarable and therefore unwritable — one blank cell taking the entire track
+register read-only. The hard stops live where the missing value is actually
+used instead: `goals/reference/phases.md` refuses to write a queue commitment
+while the track has no `SLA` cell, and triage below reports the gap rather than
+skipping the breach step.
+
 ## Work arrives; it is not planned
 
 This is the assumption that breaks when project mode is applied to operations.

@@ -186,6 +186,19 @@ COLUMN_ALIASES: dict[str, list[str]] = {}
 FIELD_ALIASES: dict[str, list[str]] = {}
 HEADING_ALIASES: dict[str, list[str]] = {}
 
+#: mode -> the columns that mode has no honest default for, read from
+#: `schema/state-schema.json § work_modes.modes.<mode>.no_default`. Read, never
+#: copied: the moment this file carried its own list of which modes need an
+#: `SLA`, the schema's list and the linter's list would be two answers to one
+#: question, which is the defect ADR-004 is about.
+MODE_NO_DEFAULT: dict[str, list[str]] = {}
+
+#: What a user writes in a cell to mean "nothing here". `SKILL.md`'s own
+#: example track row spells an empty cell `—`, so a check that only tested for
+#: the empty string would pass over every register Perry itself taught people
+#: to write. This is the CATEGORY, not the one spelling that bit.
+UNDECLARED_CELL = {"", "—", "–", "-", "n/a", "N/A", "tbd", "TBD", "?", "—/—"}
+
 
 def load_glossary(schema: dict) -> None:
     """Arm the localization glossary and the declared thresholds.
@@ -198,6 +211,8 @@ def load_glossary(schema: dict) -> None:
     copy of this loop is exactly the two-implementations-of-one-rule defect
     ADR-004 is about."""
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
+        MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
     i18n = schema.get("i18n") or {}
     for col, per_lang in (i18n.get("columns") or {}).items():
         COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
@@ -561,6 +576,61 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 "error", rel, "bad-enum",
                                 f"{col} = {val!r} is not one of {enums[enum_name]}",
                             ))
+                # A column the row's own mode has no honest default for, left
+                # undeclared.
+                #
+                # `work_modes.defaults_note` already draws the distinction this
+                # reads: an empty `WIP` under `queue` means THIS MODE HAS NO
+                # SUCH CONTROL, while an empty `SLA` under `queue` means NOBODY
+                # HAS SAID YET — and only the second is a finding. The note
+                # stated the rule and left it to be obeyed by hand, so a queue
+                # track with no SLA lints clean, and then `modes/queue.md`'s
+                # breach step, age sort and triage question all measure against
+                # a clock that does not exist.
+                #
+                # Deliberately WARN. The full argument is in the schema; the
+                # short version is that an error would retroactively invalidate
+                # every register written before this rule, and — because a file
+                # carrying errors cannot be declared conformant — would
+                # escalate one blank cell into a write refusal on the whole of
+                # `.perry/config.md`. The question is FORCED at creation
+                # instead, where there is no legacy and no default to fall back
+                # on, and the hard stop already exists at the point of use.
+                nd = tspec.get("no_default_by_mode") or {}
+                mi = column_index(got, nd["mode_column"]) if nd else -1
+                if mi >= 0:
+                    ti = column_index(got, nd.get("id_column") or "")
+                    for row in rows:
+                        if mi >= len(row):
+                            continue
+                        mode = re.split(
+                            r"[\s(（]", row[mi].replace("*", "").strip())[0]
+                        who = (row[ti].replace("*", "").strip()
+                               if 0 <= ti < len(row) else "?")
+                        for col in MODE_NO_DEFAULT.get(mode, []):
+                            k = column_index(got, col)
+                            val = ("" if k < 0 or k >= len(row)
+                                   else row[k].replace("*", "").strip())
+                            if val not in UNDECLARED_CELL \
+                                    and not PLACEHOLDER.search(val):
+                                continue
+                            findings.append(Finding(
+                                "warn", rel, "no-default", line=start,
+                                message=(
+                                    f"track {who!r} is mode {mode!r} and its "
+                                    f"`{col}` is undeclared. {mode} has no "
+                                    f"default `{col}` (schema "
+                                    f"work_modes.modes.{mode}.no_default) "
+                                    f"because it is a commitment the project "
+                                    f"makes to someone, and a number Perry "
+                                    f"invented is one the project never made — "
+                                    f"every triage run afterwards would measure "
+                                    f"real work against it. Declare it in the "
+                                    f"`{col}` cell of `.perry/config.md § "
+                                    f"Tracks`; until then triage reports the gap "
+                                    f"instead of a verdict."),
+                            ))
+
                 ci = column_index(got, tspec["id_column"]) if tspec.get("id_column") else -1
                 if ci >= 0:
                     pat = re.compile(tspec["id_pattern"])
