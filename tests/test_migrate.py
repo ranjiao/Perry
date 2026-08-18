@@ -1391,5 +1391,109 @@ class TestNothingWritableIsNotACrash(unittest.TestCase):
         self.assertEqual(out["applied"], [])
 
 
+class TestPositionIsNotEvidence(unittest.TestCase):
+    """The fourth instance of one defect, and the branch that produced it.
+
+    `is_header_block` had two ways to qualify, and the second was **position**:
+    *"it opens immediately under the H1, which is where the template puts it."*
+    Its own first paragraph already said position cannot decide this —
+    *"sentences are field-shaped; only the vocabulary tells them apart"* — and
+    the fallback said it anyway.
+
+    So a real digest whose author opens with a seed thesis in a blockquote
+    directly under the H1 got Perry's four fields appended to the end of that
+    paragraph. No character lost; the meaning changed. `ADR-004`'s named
+    failure mode: *"a board that still parses and no longer reads like
+    theirs."*
+
+    Every fixture here is somebody else's writing. A Perry-generated one cannot
+    reach this branch, which is `TASK-044-spec.md`'s governing sentence and the
+    reason thirty mutations walked past it.
+    """
+
+    THESIS = ("# 某人写的综述\n"
+              "\n"
+              "> **种子观点**：一段很长的引用，作者自己的论点，"
+              "不是任何字段，也不属于 Perry。\n"
+              ">\n"
+              "> 第二段，同一个引用块里。\n"
+              "\n"
+              "## 正文\n"
+              "\n"
+              "内容。\n")
+
+    def test_a_thesis_under_the_h1_is_not_a_header_block(self):
+        p = Project({"knowledge/research/survey.md": self.THESIS})
+        rc, _, err = p.run("apply")
+        self.assertEqual(rc, 0, err)
+        text = p.text("knowledge/research/survey.md")
+        thesis_line = next(l for l in text.split("\n") if "种子观点" in l)
+        after = text.split(thesis_line, 1)[1].split("\n")
+        # The line after the author's opening line must still be their own.
+        self.assertNotRegex(
+            after[1] if len(after) > 1 else "",
+            r"^>\s*\**\s*(Id|Source|Received|Status)",
+            f"Perry wrote into the author's paragraph:\n{text}")
+
+    def test_perrys_fields_land_in_a_block_of_their_own(self):
+        p = Project({"knowledge/research/survey.md": self.THESIS})
+        p.run("apply")
+        lines = p.text("knowledge/research/survey.md").split("\n")
+        i = next(i for i, l in enumerate(lines) if l.startswith("> Id:"))
+        # its block must not contain the thesis
+        j = i
+        while j > 0 and lines[j - 1].strip().startswith(">"):
+            j -= 1
+        k = i
+        while k + 1 < len(lines) and lines[k + 1].strip().startswith(">"):
+            k += 1
+        block = "\n".join(lines[j:k + 1])
+        self.assertNotIn("种子观点", block)
+
+    def test_all_four_fields_stay_together(self):
+        """The half that only appeared once Perry started its own block: a
+        blank line did not end a `>` run, so the span reached across it into
+        the author's quote and the SECOND field onwards landed in their
+        paragraph — the same defect, one field later."""
+        p = Project({"knowledge/research/survey.md": self.THESIS})
+        p.run("apply")
+        lines = p.text("knowledge/research/survey.md").split("\n")
+        idx = [i for i, l in enumerate(lines)
+               if re.match(r"^>\s*(Id|Source|Received|Status)\s*:", l)]
+        self.assertEqual(len(idx), 4, lines)
+        self.assertEqual(idx, list(range(idx[0], idx[0] + 4)),
+                         "the fields were split across blocks")
+
+    def test_a_real_header_block_is_still_joined(self):
+        """The vocabulary branch is the one that survived, so a block that
+        names a declared field is still written into rather than duplicated."""
+        p = Project({"knowledge/research/d.md":
+                     "# A digest\n\n> Source: https://example.invalid\n\nBody.\n"})
+        p.run("apply")
+        text = p.text("knowledge/research/d.md")
+        self.assertEqual(text.count("> Source:"), 1)
+        self.assertIn("> Id:", text)
+        lines = text.split("\n")
+        i = lines.index("> Source: https://example.invalid")
+        j = i
+        while j + 1 < len(lines) and lines[j + 1].strip().startswith(">"):
+            j += 1
+        while i > 0 and lines[i - 1].strip().startswith(">"):
+            i -= 1
+        self.assertTrue(
+            any(l.startswith("> Id:") for l in lines[i:j + 1]),
+            f"a second block was started beside a real header block:\n{text}")
+
+    def test_the_new_block_is_written_in_one_language(self):
+        """A joined block inherits its neighbours' spelling; a new one uses the
+        schema's. The mixed `Id:` / `状态：` block that appeared on the real
+        file was a symptom of joining, and starting a block removes it."""
+        p = Project({"knowledge/research/survey.md": self.THESIS})
+        p.run("apply")
+        text = p.text("knowledge/research/survey.md")
+        self.assertNotIn("状态：", text)
+        self.assertIn("> Status:", text)
+
+
 if __name__ == "__main__":
     unittest.main()

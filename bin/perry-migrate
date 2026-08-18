@@ -710,11 +710,26 @@ def is_header_block(lines, first, last, spec, schema) -> bool:
     bold, which is field-shaped by any reasonable pattern. Sentences are
     field-shaped; only the vocabulary tells them apart.
 
-    Two ways to qualify, because a header block can be missing every field the
-    schema names and still obviously be one:
+    **One way to qualify: it names a field this file's spec declares**, in any
+    declared spelling.
 
-    - it names a field this file's spec declares, in any declared spelling; or
-    - it opens immediately under the H1, which is where the template puts it.
+    There used to be a second — *"it opens immediately under the H1, which is
+    where the template puts it"* — and that is **position used as evidence**,
+    which is the thing this docstring's own first paragraph rules out. It let
+    the fourth instance of this defect through:
+    `knowledge/auto-research/…全景综述_2026.md` opens with the author's seed
+    thesis in a blockquote directly under the H1, so Perry appended `Id`,
+    `Source`, `Received` and `Status` to the end of somebody's paragraph. No
+    character lost; the meaning changed. `ADR-004`'s failure mode exactly: *"a
+    board that still parses and no longer reads like theirs."*
+
+    **What deleting it costs, stated:** a genuine header block written entirely
+    in field names the schema does not know gets a second block beside it
+    rather than being joined. That is cosmetically worse and **never
+    destructive** — Perry's metadata lands in its own block above the author's
+    prose, and the prose is untouched. Between "sometimes two blocks" and
+    "sometimes inside their sentence", the guarantee `TASK-044-spec.md` asks
+    for picks the first without hesitating.
     """
     names = set()
     for f in spec.get("header_fields", []):
@@ -726,8 +741,7 @@ def is_header_block(lines, first, last, spec, schema) -> bool:
         m = re.match(r"^\s*>\s*\*{0,2}\s*([^:：*]+?)\s*\*{0,2}\s*[:：]", lines[i])
         if m and m.group(1).strip().lower() in names:
             return True
-    before = [l for l in lines[:first] if l.strip()]
-    return len(before) == 1 and before[0].startswith("# ")
+    return False
 
 
 def header_block_span(lines: list[str], spec: dict,
@@ -752,7 +766,16 @@ def header_block_span(lines: list[str], spec: dict,
             if first_quote is None:
                 first_quote = i
             last_quote = i
-        elif first_quote is not None and s:
+        elif first_quote is not None:
+            # **A blank line ends the block.** This said "the FIRST CONTIGUOUS
+            # run of `>` lines" and then let a blank line through, so two
+            # quote blocks separated by one became a single span. The
+            # consequence only appeared once Perry started its own block: `Id`
+            # landed correctly above the author's prose, and then the NEXT
+            # field re-read the span, found it reaching across the blank into
+            # the author's blockquote, and appended `Source` and `Received` to
+            # the end of their paragraph — the very defect the new block was
+            # written to avoid, one field later.
             break
     # A leading `>` block is only a header block if it holds header fields.
     # `knowledge/market-context/caixin-…md` opens with a third-party-AI
