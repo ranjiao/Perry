@@ -932,12 +932,33 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 #: The honest limit, said out loud: this checks that a clock is NAMED, not that
 #: the naming is sincere. "one day" passes. No parser can do better, and the
 #: refusal message says what is accepted so a user is never guessing.
+#: Chinese numerals and quantifiers that make a unit a QUANTITY.
+#: `每` and `逐` are quantifiers too — `每周` is "every week", a cadence, which
+#: is a clock in exactly the way `weekly` is. Left out of the first version and
+#: caught by an existing test asserting `每周一次`, which was right.
+_CN_NUM = r"\d+|[一二两三四五六七八九十百半几数每逐]"
+#: Words that BOUND a period without counting it — `季度末`, `月底`, `本周内`.
+_CN_BOUND = r"(?:本|下|上|next|this)?\s*(?:周|月|季度|年)\s*(?:末|底|内|初|前)"
+
 CLOCK_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}"
+    # `3d`, `5d`, `2w` — the shorthand Perry's own `## Tracks` examples use and
+    # which this pattern REFUSED, so a legitimate SLA could not be written.
+    r"|\b\d+\s*[dhwmy]\b"
     r"|\bSLA\b|时限"
     r"|\b(?:day|days|week|weeks|hour|hours|minute|minutes|month|months|"
     r"quarter|quarters|year|years|daily|weekly|monthly|hourly)\b"
-    r"|[天日周月年]|小时|分钟|工作日|季度",
+    # **A Chinese unit counts only when it is quantified or bounded**, the same
+    # standard `\b` imposes on the English half. It used to be a bare class,
+    # `[天日周月年]`, so any stray 日 or 年 qualified: `日后再说` ("we'll talk
+    # about it later"), `改天` and `年后再说` were ACCEPTED and written into
+    # `OKR.md` as live `By when` values — while the English `when we get to it`
+    # and the criteria file's own `有空再说` were correctly refused. The rule
+    # was enforced in one language and not the other, which is worse than
+    # enforcing it in neither: a Chinese project got a commitment register full
+    # of deadlines that are not deadlines, and passed.
+    r"|(?:" + _CN_NUM + r")\s*(?:个)?\s*(?:天|日|周|月|年|季度|工作日|小时|分钟)"
+    r"|" + _CN_BOUND,
     re.I)
 
 

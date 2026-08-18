@@ -933,5 +933,64 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
         self.assertIn("## Changelog", doc)
 
 
+class TestTheClockRuleIsEnforcedInBothLanguages(unittest.TestCase):
+    """`CLOCK_RE` required a whole word in English and a bare character in
+    Chinese.
+
+    `[天日周月年]` matched any stray 日 or 年, so **`日后再说`** ("we'll talk
+    about it later"), `改天` and `年后再说` were **accepted and written into
+    `OKR.md` as live `By when` values** — while the English `when we get to it`
+    and the criteria file's own `有空再说` were correctly refused.
+
+    A rule enforced in one language and not the other is worse than a rule
+    enforced in neither: a Chinese project got a commitments register full of
+    deadlines that are not deadlines, and passed every check.
+
+    Found by a V4 reviewer. The second half — `3d` and `2w`, the shorthand
+    Perry's own `## Tracks` examples use — was **refused** by the same pattern,
+    so a legitimate SLA could not be written either.
+    """
+
+    CLOCKS = ["2026-09-30", "3d", "5 d", "2w", "2 weeks", "within the SLA",
+              "30 days", "hourly", "5个工作日", "两周内", "三天", "24小时",
+              "季度末", "月底", "本周内", "时限内"]
+    VAGUE = ["日后再说", "改天", "年后再说", "有空再说", "尽快", "有时间了做",
+             "when we get to it", "next time we look at it", "best effort",
+             "soon", "ASAP", "when resourcing allows"]
+
+    def test_every_real_clock_is_accepted_in_both_languages(self):
+        for v in self.CLOCKS:
+            with self.subTest(value=v):
+                self.assertTrue(G.CLOCK_RE.search(v), f"{v!r} is a clock")
+
+    def test_every_vague_promise_is_refused_in_both_languages(self):
+        for v in self.VAGUE:
+            with self.subTest(value=v):
+                self.assertFalse(G.CLOCK_RE.search(v),
+                                 f"{v!r} names no clock and was accepted")
+
+    def test_the_two_languages_are_held_to_the_same_standard(self):
+        """The property, not the instances: for each pair meaning the same
+        thing, the two must agree. This is what a per-language list of
+        phrases cannot assert."""
+        pairs = [("日后再说", "when we get to it"),
+                 ("尽快", "ASAP"),
+                 ("两周内", "within 2 weeks"),
+                 ("三天", "3 days")]
+        for zh, en in pairs:
+            with self.subTest(pair=(zh, en)):
+                self.assertEqual(
+                    bool(G.CLOCK_RE.search(zh)), bool(G.CLOCK_RE.search(en)),
+                    f"{zh!r} and {en!r} mean the same and are judged "
+                    f"differently")
+
+    def test_a_bare_unit_with_no_quantity_is_not_a_clock(self):
+        """The category. `日` alone is a character, not a deadline — it becomes
+        one when something counts or bounds it."""
+        for v in ["日", "年", "周", "月"]:
+            with self.subTest(value=v):
+                self.assertFalse(G.CLOCK_RE.search(v))
+
+
 if __name__ == "__main__":
     unittest.main()
