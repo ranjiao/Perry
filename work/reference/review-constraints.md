@@ -19,6 +19,15 @@ To verify something destructively — a migration, a refusal, a crash path — c
 the project to a scratch directory and work there. Say in `checked:` that you
 worked on a copy.
 
+**This includes planting a file to test a guard.** "Add a reader that breaks
+the rule and check the guard reports it" is the right test and it is still a
+write: for the seconds it exists, the shared checkout has a file that makes
+that guard legitimately red, and anything else running the suite — the author's
+own gate, another reviewer — sees a failure that is real, reproducible-looking,
+and about nothing. **Plant into a copy.** Learned by planting into the live
+tree while five other rounds and a full-suite gate were running against it, and
+watching a correct guard report a defect that did not exist.
+
 ## The repository is live
 
 Other work is in the tree, including uncommitted work you cannot see the
