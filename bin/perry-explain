@@ -326,6 +326,52 @@ def render_one(e: dict) -> str:
     return "\n".join(L)
 
 
+#: The verification ladder, resolved from the schema rather than restated here.
+#: `schema/state-schema.json § verification` is where the rungs are defined and
+#: the only place they are; a second copy in this file would be the "N
+#: implementations of one rule" defect applied to the vocabulary itself.
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "state-schema.json"
+
+
+def rung_entry(token: str) -> dict | None:
+    """`V4` → what a V4 actually is, or None if this is not a rung.
+
+    **This tool's whole premise is that a write-optimized token is opaque to
+    the reader it was written for**, and `V4` is the most-used such token in
+    Perry: it appears in every board's `Verification` column, in four mode
+    files, in every role card and in the review convention. `perry-explain V4`
+    answered *"not found"* — and helpfully offered `V4-1, V4-2, V4-3`, which
+    are id-shaped fragments scraped out of prose.
+
+    So the one vocabulary a fresh agent session most needs, and the one it is
+    least able to infer from a board cell, was the one thing this script could
+    not resolve. Found by a user asking whether a new session would know what
+    `V4` means.
+    """
+    # **A fast path, NOT the correctness guard.** Removing this line changes
+    # no answer — mutation-verified: `V9` and `ADR-001` still resolve correctly
+    # without it, because the `rungs` lookup below is what decides. It is here
+    # so an ordinary id lookup does not read and parse the schema on every
+    # miss. Said explicitly because two things that look like one rule is how
+    # someone later relaxes the lookup on the grounds that "the regex already
+    # validates it".
+    if not re.fullmatch(r"[Vv][0-6]", token or ""):
+        return None
+    try:
+        block = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))["verification"]
+    except (OSError, ValueError, KeyError):
+        return None
+    key = token.upper()
+    text = block.get("rungs", {}).get(key)
+    if not text:
+        return None
+    return {"id": key, "title": text, "defined": True,
+            "kind": "verification rung",
+            "source": "schema/state-schema.json § verification.rungs",
+            "note": block.get("note", ""),
+            "mentions": [], "in_tracking_doc": False}
+
+
 def main(argv: list[str]) -> int:
     root = Path(os.environ.get("PERRY_PROJECT") or ".").expanduser()
     want, as_json, mode = None, False, "one"
@@ -383,6 +429,18 @@ def main(argv: list[str]) -> int:
 
     if not want:
         print(__doc__.strip())
+        return 0
+
+    rung = rung_entry(want)
+    if rung:
+        if as_json:
+            print(json.dumps(rung, indent=2, ensure_ascii=False))
+        else:
+            print(f"{rung['id']} — {rung['kind']}\n")
+            print(f"  {rung['title']}\n")
+            print(f"  defined in {rung['source']}")
+            if rung["note"]:
+                print(f"\n  {rung['note']}")
         return 0
 
     e = entries.get(want) or entries.get(want.upper())
