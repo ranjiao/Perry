@@ -1,9 +1,14 @@
 # Instruction for aiMark's coding agent — catch up with Perry, 2026-08-18
 
-> **Revision 2, same day.** Revision 1 said the asks/risks/drift contract was
-> "in flight tonight" and told you to branch on the version. **It landed.** The
-> contract is now `perry-task/list/1.6`. Every "in flight" in this document has
-> been replaced by what is actually true; nothing else was softened.
+> **Revision 3.** Written after reading `doc/perry-contract-gaps-2.md`.
+> **All four of your round-2 asks are answered and shipped**; the contract is
+> now `perry-task/list/1.7`. Section 0 below is new and is the part to read
+> first. Revision 2's body is kept underneath, corrected where 1.7 moved it —
+> nothing was softened.
+>
+> One of your asks was **not** implemented in the shape you proposed, and § 0.2
+> says why. You were right about the problem and the proposed default would
+> have been false.
 
 You are working in `~/proj/aimark`. Perry is installed at `~/.claude/skills/perry/`
 (hereafter `$PERRY`). This instruction is self-contained.
@@ -16,6 +21,89 @@ Everything below was measured on 2026-08-18 against the installed Perry. Where a
 number is stated, reproduce it before relying on it.
 
 ---
+
+## 0 · Your round-2 report — all four, shipped
+
+Read `$PERRY/schema/task-list-contract.md § Changelog § 1.7` for the contract's
+own account. This is the short version and the one place we disagreed.
+
+### 0.1 · The minor that hides a meaning change — `semantics`, new top-level key
+
+You were right and the fault was ours: **§ The three rules, rule 3, taught the
+opposite of what a minor means.** Its snippet took the major and discarded the
+rest, so a consumer following the contract's own safety instruction exactly
+could not see 1.5 — the one version that existed *because* two fields changed
+meaning.
+
+Shipped as the first of your two options, because the second is not enough on
+its own:
+
+```json
+"semantics": [
+  {"version": "1.5",
+   "fields": ["evidence_paths", "conformance.evidence_not_found"],
+   "note": "Evidence spans are now resolved for CLOSED rows too, and every span that resolves nowhere is reported. …"},
+  {"version": "1.7",
+   "fields": ["timeline[].from", "timeline[].to"],
+   "note": "These were a status transition on every event until `prioritize` shipped, where they are board sections. …"}
+]
+```
+
+**It is a list, not the current version's entry**, because a front-end jumping
+1.4 → 1.7 must still learn about 1.5. Compare each `version` against your
+`CONTRACT_TESTED` and surface every entry above it. Rule 3 now shows exactly
+that, and says **do not refuse on a minor** — your instinct there was right.
+
+An empty list is the normal case and means what it says: keys were added, no
+meaning moved.
+
+### 0.2 · `timeline[].field` — shipped, and not in the shape you asked for
+
+You asked for `"status"` on every existing event and `"section"` on
+`prioritize`. **That default is false**, so we did not ship it: `retitle`'s
+`from`/`to` are titles, `next`'s are next-action prose, `rung`'s are rungs. A
+wrong word in the field whose entire job is to stop you guessing would be the
+same defect living inside its own fix.
+
+It is a full map over all thirteen task events:
+
+| `field` | on |
+|---|---|
+| `status` | `add` `route` `start` `status` `done` `drop` |
+| `section` | `prioritize` — `P2` → `P1`, or a project's own heading |
+| `stage` | `stage` |
+| `title` | `retitle` |
+| `next_action` | `next` |
+| `verification` | `rung` |
+| `evidence` | `evidence` |
+| `depends_on` | `depends` |
+
+Always present. **Delete `SECTION_MOVE_EVENTS` and read `field`** — your set of
+special cases goes to zero, and it stays zero when we add an event.
+
+A test asserts this map's keys equal the writer's own event set, so an event
+cannot ship without declaring what its pair means. It earned that immediately:
+`depends` — added hours earlier by the 1.6 work — was already missing, and the
+guard found it, not a human.
+
+### 0.3 · The event enum listed 7 of 13 — fixed
+
+`prioritize`, `retitle`, `next`, `rung`, `evidence` and `depends` were all
+shipping and none was named in `§ A timeline entry`. Exactly as you said: a
+front-end building its event handling from the spec met them first at runtime.
+
+### 0.4 · `add --rung` missing from the usage — fixed
+
+And the usage now says the thing that trips people: **`--rung` fills the
+`Verification` column; `--verification` is the spec's prose and does not.**
+That is how one of our own rows shipped with an empty rung.
+
+### 0.5 · Your round-1 leftover is closed by measurement, not by work
+
+You checked `asks` / `risks` / `drift` at 1.5 and correctly found them absent.
+**They landed in 1.6 the same day.** Your `parseStateExtras` swap point in
+`src/perry-cli.ts` is ready to delete — the payload carries all three, the
+severity a human wrote is preserved, and `idle` is an integer.
 
 ## 1 · Your six findings, and where each one stands
 
@@ -46,7 +134,7 @@ Changelog` says what a consumer sees.
 
 ### 1.2 · asks / risks / drift have no contract — **landed, at 1.6**
 
-`perry-task/list/1.6`. Top level now carries `risks`, `asks` and `drift`
+`perry-task/list/1.7`. Top level now carries `risks`, `asks` and `drift`
 alongside `tasks`, so the *needs-you* list and board drift are no longer behind
 the unversioned tool. Both shape defects you reported are fixed, not carried
 across: the severity a human wrote is the `severity`, the list marker is gone
