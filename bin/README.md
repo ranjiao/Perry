@@ -209,8 +209,30 @@ gate is set to.
 The gate ships **advisory**: the writer proceeds and says what it found, on
 stderr and in the `conformance` block of its (non-contract) `--json` result. Set
 `- Conformance gate: enforce` in `.perry/config.md`, or `PERRY_CONFORMANCE=enforce`
-in the environment, to make it refuse instead. It becomes the default when the
-migration exists and non-conformant projects have somewhere to go.
+in the environment, to make it refuse instead.
+
+#### The switch-over checklist — why `enforce` is not the default yet
+
+ADR-004's decision was to flip once the migration existed. `bin/perry-migrate`
+now exists, so the flip was attempted and **measured on a copy of a real
+project** rather than argued. Two conditions are still open, each with the
+observation that opened it and the exit criterion that closes it. Neither is a
+preference; both were reproduced end to end with `PERRY_CONFORMANCE=enforce`.
+
+| | What was observed | What closes it |
+|---|---|---|
+| **1 · migration cannot finish the job on a real board** | `perry-migrate apply` on a `~/proj/gimegime-pmo` copy migrated and declared 30 files and took the project from 59 lint errors to 15 — and left `BOARD.md` byte-identical, because one row reads `Status: 半解`. `perry-task add` is then still refused, with the refusal naming `perry-migrate`, which has already been run to completion. | A path for the residue that is not a hand edit. The three classes seen were: a `Status` cell in the user's own words, a tier-1 file over its size cap, and a KR table whose columns are the project's. **Not** widening the enums — `半解` is a real distinction the user drew, and coercing it to `in_progress` is the confidently-wrong-value class. |
+| **2 · a brand-new project would refuse its own first write** | A project with **zero** lint errors is `undeclared`, and undeclared is refused under `enforce`. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*). So `enforce` shipped as a default for new projects refuses the first `perry-task add` on a project Perry itself just wrote. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. Until that exists, `enforce` for new projects is strictly worse than `advisory` for them. |
+
+Both are checked by `tests/test_conformance.py § TestTheGateShipsAdvisory`, so
+the day either becomes false a test says so rather than the paragraph going
+stale. Flipping `DEFAULT_MODE` before then does not need a new argument — it
+needs those two runs to come out differently.
+
+What is **not** open: reading. `perry-state`, `perry-task list`, `perry-goals
+list` and `perry-decide list` were re-run at every step of that migration with
+the gate enforcing, on an undeclared project, on a half-migrated one and on a
+declared one, and answered `rc=0` with all 41 rows every time.
 
 ### Lint after every tier‑1 write
 
