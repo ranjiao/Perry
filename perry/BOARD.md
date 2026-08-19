@@ -52,7 +52,6 @@
 | TASK-086 | DESIGN-002 decision 4 says lint warns on a collision; lint does not emit NS-01 | Coding Agent | not_started | — | — | V2 |  |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | not_started | — | — | V3 |  |
 | TASK-101 | The procedure guard walks the whole tree, not just the three lanes | Coding Agent | not_started | — | — |  | TASK-096 |
-| TASK-104 | Projection report treats terminal store records as missing board rows | Coding Agent | not_started | Add a focused renderer-report regression; do not change task truth, Board contents or list contract | — | V3 |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
