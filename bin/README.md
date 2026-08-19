@@ -18,6 +18,7 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 |---|---|---|
 | [`perry-state`](perry-state) | read | The single full read of a project's state — board, phase, OKR, design, attribution. Every standup number comes from here. |
 | [`perry-task`](perry-task) | **write** | The one deterministic way board state changes: add / start / stage / status / done / drop, plus the intake queue, the user-input queue and the recurrence register. |
+| [`perry-tasks`](perry-tasks) | **write** + read | The task STORE (`perry/tasks.jsonl`) and the projection of it: `build` / `verify` derive and check it, `write` migrates a project onto it, `render` / `diff` regenerate `BOARD.md` from it and byte-compare. ADR-007's first slice; `perry-task` is what writes the store on every ordinary command. |
 | [`perry-goals`](perry-goals) | read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. |
 | [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `DECISIONS.md`, mint ADRs, supersede, set status, list. |
 | [`perry-knowledge`](perry-knowledge) | **write** + read | The knowledge-card write path (DESIGN-006 phase B). `propose` is read-only and answers whether a capture point should fire; `promote` writes `knowledge/<topic>/<slug>.md` and **refuses a card that cannot say where its claim came from**. |
@@ -31,12 +32,12 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 
-**Only three tools write project files: `perry-task`, `perry-decide` and
-`perry-knowledge`.** Everything else in the read column never touches the
-project — including on failure. The third is the newest and the narrowest: it
-writes inside `knowledge/` and nowhere else, and it exists because a knowledge
-card is the one state file whose *absence* is safer than a wrong version of it,
-which is a rule only a write path can enforce.
+**Only four tools write project files: `perry-task`, `perry-tasks`,
+`perry-decide` and `perry-knowledge`.** Everything else in the read column never
+touches the project — including on failure. `perry-knowledge` is the narrowest:
+it writes inside `knowledge/` and nowhere else, and it exists because a
+knowledge card is the one state file whose *absence* is safer than a wrong
+version of it, which is a rule only a write path can enforce.
 
 ---
 

@@ -240,10 +240,14 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         before = {x.name for x in p.root.iterdir()}
         p.run("add", "--title", "X", "--priority", "P0")
         after = {x.name for x in p.root.iterdir()}
+        # `tasks.jsonl` is not bookkeeping — it is what the write writes
+        # (ADR-007, TASK-089). `BOARD.md` already existed, so the store is the
+        # one new canonical file a first write creates. The lock is still the
+        # thing this test is about, and it is still not here.
         self.assertEqual(
-            after - before, {"journal"},
-            f"a write left files in the project beyond the journal: "
-            f"{sorted(after - before - {'journal'})}")
+            after - before, {"journal", "tasks.jsonl"},
+            f"a write left files in the project beyond the journal and the "
+            f"store: {sorted(after - before - {'journal', 'tasks.jsonl'})}")
         self.assertFalse(
             list(p.root.rglob("*.lock")),
             "a lock file was written into the project tree")

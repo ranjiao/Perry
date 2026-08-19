@@ -37,9 +37,19 @@ class Fixture(unittest.TestCase):
     """A copy of Perry's own project, which is the only real board there is."""
 
     def project(self) -> pathlib.Path:
+        """A project with NO store — `self.store(d)` adds one.
+
+        **`perry/tasks.jsonl` now exists in this repository.** TASK-089 made it
+        the write target, so copying `perry/` inherits a store whether the test
+        wants one or not, and every no-store assertion below silently became a
+        with-store assertion. Two tests failed the moment it was tracked, which
+        is the transition working rather than a regression — the fixture has to
+        say which case it is building.
+        """
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry")
+        shutil.copytree(ROOT / "perry", d / "perry",
+                        ignore=shutil.ignore_patterns("tasks.jsonl"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
         return d

@@ -2022,7 +2022,7 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         differing = [f"`{k}`: file={_cell(got.get(k))!r} "
                      f"store={_cell(want.get(k))!r}"
                      for k in sorted(set(want) | set(got))
-                     if _cell(got.get(k)) != _cell(want.get(k))]
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
         if differing:
             rows.append((tid, "; ".join(differing[:3])
                          + (f"; and {len(differing) - 3} more field(s)"
@@ -2046,7 +2046,54 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
             f"`{rel_store}` — at this scale the store is stale rather than the "
             f"file hand-edited, and `perry-tasks verify` caps at ten too."))
+    findings.extend(_order_drift(stored, live, rel_board, rel_store))
     return findings
+
+
+def _order_drift(stored: dict, live: dict, rel_board: str,
+                 rel_store: str) -> list["Finding"]:
+    """`order` compared ONCE PER SECTION, and never per row.
+
+    **`order` is a fact about a sequence, not about a row**, and comparing it
+    like the other eighteen fields amplified one hand edit into a finding for
+    every row beneath it: a line typed into `## P1` shifts the index of all
+    four rows under it, and this check reported five drifted rows for one
+    inserted one. That is the whole-table-diff-burying-the-change objection
+    `order` exists to answer, re-created inside the report about it — found by
+    `test_store_drift § test_a_row_the_store_never_saw_is_reported`, which
+    asserts exactly one finding for exactly one edit.
+
+    So what is compared is the RELATIVE order of the rows both sides carry.
+    An inserted or removed row moves every successor's integer and moves
+    nobody's neighbour, and is already reported once, by id, as the row it is.
+    A row genuinely moved past another changes the sequence and is reported
+    here, once, naming the section rather than the rows.
+
+    A record with no `order` at all — a store written before the field existed
+    — is skipped rather than sorted to the front, because "not recorded" and
+    "recorded as first" are different claims.
+    """
+    out: list[Finding] = []
+    groups = sorted({(r.get("group") or "") for r in live.values()
+                     if r.get("group")})
+    for group in groups:
+        ids = [tid for tid, r in live.items()
+               if (r.get("group") or "") == group
+               and r.get("order") is not None
+               and (stored.get(tid) or {}).get("order") is not None]
+        on_file = sorted(ids, key=lambda t: live[t]["order"])
+        in_store = sorted(ids, key=lambda t: stored[t]["order"])
+        if on_file == in_store:
+            continue
+        out.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"`{group}` — the rows of this section sit in a different order in "
+            f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
+            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
+            f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
+            f"like any other cell: `perry-task prioritize` moves a row, or "
+            f"`perry-tasks write` re-derives the store from the file."))
+    return out
 
 
 # ── main ──────────────────────────────────────────────────────────────────

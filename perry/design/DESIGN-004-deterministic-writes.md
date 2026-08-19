@@ -210,15 +210,24 @@ perry-task list   [--all] [--track <t>] --json
 
 Every mutating call does three things atomically:
 
-1. **Writes the markdown** — the `BOARD.md` row, in the declared column order,
-   creating any column or section the mode requires and the board lacks.
+1. **Writes the record** — one line of `perry/tasks.jsonl`, the store, holding
+   the typed fields the row means.
 2. **Appends the journal line** — `journal/<YYYY-MM>/<today>.md`, the same
    `## Status changes` format a human writes now.
 3. **Appends an event** — one JSON object per mutation to `.perry/events.jsonl`.
 
+`BOARD.md` is then **re-rendered from (1)**, creating any column or section the
+mode requires and the board lacks. It is a projection, not an input.
+
 If any of the three fails, none are written. A partial write is worse than a
-refused one: it produces exactly the board-vs-history divergence this design
+refused one: it produces exactly the state-vs-history divergence this design
 exists to eliminate.
+
+> **Revised by ADR-007 / TASK-089, 2026-08-19.** (1) used to be `BOARD.md`
+> itself and there was no store; the pair that is atomic has moved with it. The
+> board and the event log are the two derived artefacts now, each able to fail
+> alone — a missing event reports as `unrecorded`, a stale board as
+> `store-drift`. `bin/perry-task § commit` states the guarantee exactly.
 
 ### 5.2 · What the tool computes rather than accepts
 

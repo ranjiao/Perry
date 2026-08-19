@@ -7,22 +7,29 @@ row, status change, journal line and ID was produced by an agent typing markdown
 by hand — so the law that governs state ("never compute a number by reading
 files and eyeballing it") protected the way out and not the way in.
 
-Every mutating call writes three things:
+Every mutating call writes four things, and only the first two are canonical:
 
-  1. the `BOARD.md` row, rendered from schema/state-schema.json's column order
+  1. the task RECORD, in perry/tasks.jsonl — what the fields mean
   2. the `## Status changes` line in journal/<YYYY-MM>/<today>.md
-  3. one JSON object appended to .perry/events.jsonl
+  3. `BOARD.md`, RE-RENDERED from (1)
+  4. one JSON object appended to .perry/events.jsonl
 
 **(1) and (2) are atomic with each other**: both are staged and renamed, so
-either both land or neither does. That is the pair that matters — a board row
-without its journal line is exactly the board-vs-history divergence this tool
-exists to remove, which makes a partial write there strictly worse than a
+either both land or neither does. That is the pair that matters — a stored
+record without its journal line is exactly the state-vs-history divergence this
+tool exists to remove, which makes a partial write there strictly worse than a
 refusal.
 
-**(3) is appended after and can fail alone.** It is reported, not raised: the
-canonical state is already correct, and the row simply shows as `unrecorded`
-until the log is writable. This is the direction the loss is allowed to run,
-never the reverse. See `commit()`.
+**(3) and (4) are written after and can each fail alone.** Reported, not
+raised: the canonical state is already correct. A missing event shows the row
+as `unrecorded`; a board that was not re-rendered shows as `store-drift` under
+`perry-lint`, and `perry-tasks render` regenerates it. This is the direction
+the loss is allowed to run, never the reverse. See `commit()`.
+
+**It used to be `BOARD.md` in slot (1) and there was no store** (ADR-007,
+TASK-089). The board is rendered output now: a hand edit to it is drift rather
+than an edit, which is the cost ADR-007 decision 2 accepted in the user's own
+words.
 
 What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
 IDs are minted from max(board ∪ journal ∪ events), never reused; timestamps are taken at
@@ -127,6 +134,7 @@ sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
 from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
 import lib  # noqa: E402
+import perry_store  # noqa: E402
 
 
 class Refused(Exception):
@@ -1428,39 +1436,250 @@ def read_events(project_root: Path) -> list[dict]:
     return out
 
 
+# ── the store, and what a write puts in it ────────────────────────────────
+
+
+class _Ops:
+    """The two rules `bin/perry_store.py` resolves a board through.
+
+    It needs `norm` and `strip_handle` and must not import this file back, so
+    it takes them as one object rather than two callables — the same route
+    `bin/perry-migrate` takes to the one header rule as `L.norm`, and pinned by
+    `tests/test_one_header_rule.py` for the same reason: a renderer that
+    resolved `| 状态 |` by its own rule would be the fifth live copy.
+
+    A class rather than `sys.modules[__name__]`, which is how this was first
+    written and which is `None` here half the time: `bin/perry-tasks` loads
+    this file with `module_from_spec` + `exec_module`, and that pair does NOT
+    register the module in `sys.modules`. Every call through that loader raised
+    `KeyError`.
+    """
+
+    norm = staticmethod(norm)
+    strip_handle = staticmethod(strip_handle)
+
+
+def _ops():
+    return _Ops
+
+
+def store_records(project_root: Path, state_root: Path, board: Board,
+                  events: list[dict]) -> tuple[list[dict], dict]:
+    """(the store's records, `list`'s conformance) for the board AS IT STANDS.
+
+    **The one derivation there is.** `bin/perry-tasks § build` calls this too,
+    and the reason is the reason this file exists: `viewer/parsers.py` and this
+    module were two parsers of one board and disagreed silently, and a writer
+    that computed a record its own way would be that bug with the arrow
+    reversed — the store written by `add` would differ from the store
+    `perry-tasks verify` derives, and `diff` would go red on a project rather
+    than in a test.
+
+    The board handed in is the one in memory, mutated by the subcommand that is
+    mid-write; `events` is the log plus the event this write is about to
+    append. Both matter and for different rows: `done` REMOVES the row, so a
+    closed task's record comes off the event stream and the record would carry
+    yesterday's status if the new event were not in the list yet.
+
+    `sections: False` turns off `## Top risks`, `## User Input Queue` and drift
+    reconciliation. They are not stored fields, they cost a second parse of the
+    board — **off disk, which mid-write is the version being replaced** — and
+    the payload they would land in is discarded two lines below.
+    """
+    ctx = {"schema": load_schema(), "project_root": project_root,
+           "state_root": state_root, "config": {"tracks": []},
+           "board": board, "events": events, "sections": False}
+    payload = cmd_list(parse(["list", "--all", "--root", str(project_root)]),
+                       ctx)
+    order = perry_store.board_order(board, _ops())
+    records = [perry_store.record(t, order.get(t["id"]))
+               for t in payload["tasks"]]
+    return records, payload["conformance"]
+
+
+def parsed_status(cell: str, statuses) -> str:
+    """A `Status` cell → the enum value in it, or `""` when there is none.
+
+    ONE rule, read by `cmd_list` (which publishes `status`) and by
+    `refuse_unstorable_status` (which decides whether a row may be written).
+    A reader and a writer disagreeing about one cell is the defect this
+    repository has now found four times, and `Status` would be the fifth: a
+    gate using a second spelling would refuse rows the payload calls fine, or
+    wave through the rows it exists to stop.
+
+    `**done**` is `done` wearing bold — formatting is not meaning, and a
+    consumer that trusts the enum renders a finished task as an unrecognized
+    state (17 of 41 rows on one real board). What survives stripping and is
+    still not in the enum has no value in it at all.
+    """
+    st = (cell or "").strip().strip("*_`").strip()
+    return st if st in statuses else ""
+
+
+def refuse_unstorable_status(args, ctx) -> None:
+    """A `Status` cell that is two states in one sentence stops writes to ITS row.
+
+    **TASK-089 decision 1: the store does not learn to carry it, and it is not
+    quietly rounded off either.** TASK-088 measured four such cells on a real
+    project — `**迁移 done，占比目标 not_started**` — where `status` is `""`
+    because the cell holds two states, and `status_text` is derived, not stored.
+
+    The alternative was to store the raw cell beside the parsed status, on the
+    `due` / `by_when_note` precedent ADR-007 § "The field that proves the rule"
+    sets. Rejected, because the two cases are not alike. `By when` has two
+    legitimate value spaces — 105 ISO dates and a tail of prose naming a clock
+    — and splitting it lets each half be typed honestly. `Status` has one, and
+    it is an enum: a cell reading "the migration is done, the ratio target is
+    not" is not a second kind of status, it is **two rows written on one line**.
+    Storing the prose beside `status: ""` would leave every consumer reading
+    *not known* forever — `open`, `startable` and `blocked_by` all wrong, on a
+    row that looked fine — and rule 2 forbids any regex asking the prose what
+    it means. A value preserved where nothing may act on it is worse than one a
+    human is asked about, because nobody is ever asked.
+
+    **Scoped to the row, and that scope was measured rather than chosen.** The
+    first version refused any write to a project carrying such a cell, which is
+    what "refuse to migrate until a human resolves them" reads like at the
+    write path. Two pinned tests said no, and they were right:
+
+      - `test_task_writer § test_a_row_list_printed_can_also_be_closed` holds
+        that the read path and the write path must agree about what a row is.
+        A project-wide refusal breaks that for every row Perry reads perfectly
+        well, on account of a row it does not.
+      - `test_cadence` files one fixture row into three sections at once, so a
+        single bad cell refused `cadence-add` — a command about a different
+        table entirely.
+
+    What is actually unsafe is moving a row whose current state Perry cannot
+    read: `start`, `status`, `done`, `drop`, `prioritize` all write a
+    transition FROM a state that does not exist. That is the row, not the
+    project — so that is what is refused, with the two ways out spelled.
+
+    **Taken here, before the subcommand runs, and not inside `commit()`.** It
+    was inside `commit()` first and `start` walked straight through it: the
+    board `commit()` sees is the one the subcommand has already mutated, and
+    `cmd_start` overwrites the `Status` cell — so the check ran against a board
+    where the offending cell no longer existed and approved the very write that
+    had erased it. A gate on the post-write state cannot refuse a write that
+    destroys its own evidence.
+
+    Silent for every command that does not name a task row. `answer USER-001`,
+    `route 1` and `cadence-done CAD-002` all carry an `--id`-shaped argument
+    that `find()` cannot resolve to a task row, and a gate that turned "not a
+    task row" into a refusal would break four subcommands to protect none.
+    """
+    tid = getattr(args, "id", None)
+    if not tid or args.cmd in READ_ONLY_COMMANDS:
+        return
+    try:
+        _pri, _idx, header, cells = ctx["board"].find(tid)
+    except Refused:
+        return                    # not a task row; not this gate's business
+    values = dict(zip([norm(h) for h in header], cells))
+    raw = values.get("status", "")
+    if not raw.strip():
+        return                    # no Status at all is `rows_with_no_status`
+    if parsed_status(raw, set(ctx["schema"]["enums"]["task_status"])):
+        return
+    raise Refused(
+        f"{tid} carries a `Status` cell the store cannot hold: "
+        f"{raw.strip()!r}. `Status` is a typed field (ADR-007 rule 1) and its "
+        f"value space is the `task_status` enum, so a cell holding two states "
+        f"in one sentence has no value in it — the row would be stored as "
+        f"`status: \"\"`, which every consumer reads as *not known*, and "
+        f"`open`, `startable` and `blocked_by` would be wrong about it "
+        f"forever. This write would move it from a state that does not exist. "
+        f"Give the row the one state it is actually in, or split it into the "
+        f"separate rows it already describes; every other row on this board is "
+        f"unaffected.")
+
+
+def unstorable_status_rows(conformance: dict) -> list[dict]:
+    """Every row whose `Status` the store cannot hold, for the write's payload.
+
+    Counted on every write that proceeds rather than discovered at TASK-090,
+    when the board reader those bytes survive in goes away. A fallback nobody
+    counts is how a renderer passes `cmp` while reproducing nothing, and the
+    same is true of a cell nobody resolves.
+    """
+    return list(conformance.get("off_enum_status") or [])
+
+
 # ── the atomic three-way write ────────────────────────────────────────────
 
 
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "") -> dict:
-    """Write the two canonical files together, then the derived event.
+    """Write the store and the journal together, render the board, log the event.
 
-    **The guarantee, stated exactly.** `BOARD.md` and the journal are staged to
-    temp files and renamed (atomic on POSIX), so either both land or neither
-    does — that pair is what "atomic" covers, and it is the pair that matters,
-    because a board row without its journal line is the divergence this tool
-    exists to remove. The event is appended *after*, and can fail on its own.
+    **The three-way write is `store + journal + event` now, not `board +
+    journal + event`** (TASK-089, ADR-007). `perry/tasks.jsonl` is what a field
+    means; `BOARD.md` is a projection of it, re-rendered here from the record
+    this write just produced. The subcommand still mutates the in-memory
+    `Board` and that mutation is still load-bearing — it is the LAYOUT, the
+    thing the store does not hold: where a section sits, what a cell is padded
+    with, what decoration it wears. The VALUES come back out of the store, so a
+    store and a board that disagree render as the store, which is what makes
+    the projection falsifiable rather than a copy.
+
+    **The guarantee, stated exactly.** `perry/tasks.jsonl` and the journal are
+    staged to temp files and renamed (atomic on POSIX), so either both land or
+    neither does — that pair is what "atomic" covers, and it is the pair that
+    matters, because a stored record without its journal line is the divergence
+    this tool exists to remove. `BOARD.md` and the event are written *after*,
+    and each can fail on its own.
 
     So the honest claim is: **the canonical files never disagree with each
-    other; the derived record may be missing.** Four surfaces used to say "none
-    of the three if any would fail", which is stronger and false — an
-    unwritable `.perry/` left the row and the journal line on disk and the
-    event absent, as an uncaught traceback. A guarantee overstated in prose is
-    the same defect as one asserted in a row nothing implements.
+    other; the two derived artefacts may be stale or missing.** Four surfaces
+    used to say "none of the three if any would fail", which is stronger and
+    false — an unwritable `.perry/` left the row and the journal line on disk
+    and the event absent, as an uncaught traceback. A guarantee overstated in
+    prose is the same defect as one asserted in a row nothing implements.
 
-    That direction of failure is chosen, not tolerated: DESIGN-004 declares the
+    That direction of failure is chosen, not tolerated. DESIGN-004 declares the
     event log derived and disposable, and a missing event is exactly the
-    `unrecorded` condition drift reconciliation reports. Losing an event costs
-    history resolution. Losing a board write costs the truth.
+    `unrecorded` condition drift reconciliation reports; ADR-007 decision 2
+    declares `BOARD.md` rendered output, and a stale one is exactly the
+    `store-drift` condition `perry-lint` reports. Losing either costs a
+    projection that one command regenerates. Losing the store costs the truth.
     """
+    # **Derived before anything is written, and before `--dry-run` returns**,
+    # so a dry run previews the projection the real write would produce rather
+    # than a cheaper approximation of it. The refusal that belongs to this
+    # decision is `refuse_unstorable_status`, taken in `main()` against the
+    # board as it stood: see that function for why it cannot live here.
+    records, conformance = store_records(project_root, state_root, board,
+                                         read_events(project_root) + [event])
+    unstorable = unstorable_status_rows(conformance)
+    board_text, projection = perry_store.render(board, records, _ops())
+
+    spath = perry_store.store_path(state_root)
     jpath = state_root / "journal" / f"{date.today():%Y-%m}" / f"{date.today():%Y-%m-%d}.md"
     plan = {
+        "store": str(spath),
+        "records": len(records),
         "board": str(board.path),
         "journal": str(jpath),
         "events": str(events_path(project_root)),
         "journal_line": journal_line,
         "event": event,
+        # What the projection could NOT fill from the store, carried in the
+        # payload rather than left to a separate `perry-tasks diff` run. A
+        # renderer's escape hatches are only honest while somebody counts them.
+        "projection": {
+            **{k: projection[k] for k in
+               ("rows_from_store", "rows_verbatim", "rows_not_on_board",
+                "cells_verbatim", "sections_out_of_stored_order",
+                "cells_the_store_and_board_disagree_on")},
+            # Not the same list as `cells_verbatim`, and both belong here. That
+            # counts every cell the LAYOUT had to keep — including columns the
+            # store has no field for at all (`By when`, `Notes`), which is
+            # ordinary. This names the rows whose `Status` the store cannot
+            # hold, which is not: each one is a row no `perry-task` command may
+            # move until a human resolves it.
+            "status_cells_the_store_cannot_hold": unstorable,
+        },
     }
     if dry_run:
         return plan
@@ -1484,7 +1703,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # Stage both canonical files before renaming either.
     staged: list[tuple[str, Path]] = []
     try:
-        for path, text in ((board.path, board.text()), (jpath, jtext)):
+        for path, text in ((spath, perry_store.store_text(records)),
+                           (jpath, jtext)):
             # `lib.stage`, not `lib.write_atomic`: both files are staged before
             # either is renamed, which is the whole guarantee here and is not
             # expressible as two atomic writes.
@@ -1492,7 +1712,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
         while staged:
             # Pop as we go. Clearing the whole list inside the loop meant a
             # failure on the second rename left the first temp file orphaned
-            # beside BOARD.md with nothing to clean it up.
+            # beside the store with nothing to clean it up.
             tmp, path = staged.pop(0)
             os.replace(tmp, path)
     finally:
@@ -1501,6 +1721,22 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 os.unlink(tmp)
             except OSError:
                 pass
+
+    # `BOARD.md`, re-rendered from what was just stored. Outside the pair for
+    # the same reason the event log is: it is derived, one command regenerates
+    # it, and `perry-lint § store-drift` is the finding that says it is stale.
+    # Writing it first would be worse — a board ahead of the store is a claim
+    # nothing backs.
+    plan["board_rendered"] = True
+    try:
+        lib.write_atomic(board.path, board_text)
+    except OSError as exc:
+        plan["board_rendered"] = False
+        print(f"perry-task: warning — {spath.name} and the journal were "
+              f"written, but {board.path.name} could not be re-rendered "
+              f"({exc}). The state is correct and `perry-tasks render` "
+              f"regenerates the file; `perry-lint` reports it as `store-drift` "
+              f"until then.", file=sys.stderr)
 
     plan["event_written"] = True
     ev = events_path(project_root)
@@ -1514,7 +1750,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # failed, and the caller would be right to retry it — producing a
         # second row for work already recorded.
         plan["event_written"] = False
-        print(f"perry-task: warning — {board.path.name} and the journal were "
+        print(f"perry-task: warning — {spath.name} and the journal were "
               f"written, but the event could not be appended to {ev}: {exc}. "
               f"State is correct; this row will show as `unrecorded` at the "
               f"next standup until the log is writable again.", file=sys.stderr)
@@ -3271,15 +3507,23 @@ def board_sections(ctx) -> dict:
     empty_drift = {"checked": False, "baseline": "", "drift": 0,
                    "unrecorded": 0, "unrecorded_sample": [],
                    "orphaned": [], "stale_done": []}
+    empty = {"risks": {"items": [], "open": 0, "cleared": 0, "source": ""},
+             "asks": {"items": [], "open": 0}, "drift": empty_drift}
+    if ctx.get("sections") is False:
+        # `store_records` asks for the stored fields and discards everything
+        # else. All three of these re-parse `BOARD.md` FROM DISK, which
+        # mid-write is the version being replaced — so computing them there
+        # costs a second parse to produce numbers about the wrong board.
+        # Only that one internal caller sets this; `list` never does, and its
+        # payload is unchanged.
+        return empty
     try:
         snap = P.load_snapshot(ctx["state_root"])
     except Exception:
         # A snapshot this reader cannot build must not take `tasks[]` down with
         # it. `list` is the payload a front-end polls; the sections are an
         # addition to it, not a precondition for it.
-        return {"risks": {"items": [], "open": 0, "cleared": 0, "source": ""},
-                "asks": {"items": [], "open": 0},
-                "drift": empty_drift}
+        return empty
     open_risks = snap.open_top_risks
     risks = [{
         # `id` is `""` on a bullet, and that is the honest answer rather than
@@ -3418,9 +3662,7 @@ def cmd_list(args, ctx) -> dict:
             # cell verbatim, because some cells genuinely are not one state
             # ("迁移 done，占比目标 not_started" is two, and rounding it to
             # either is a lie about the work).
-            st = raw.strip().strip("*_`").strip()
-            if st not in statuses:
-                st = ""
+            st = parsed_status(raw, statuses)
             if not raw.strip():
                 conformance["rows_with_no_status"].append(
                     {"id": tid, "section": tbl["heading"]})
@@ -4093,6 +4335,10 @@ def main(argv: list[str]) -> int:
                    "state_root": state_root, "config": config,
                    "board": Board(state_root / "BOARD.md"),
                    "events": read_events(project_root)}
+            # ADR-007 / TASK-089. Before the subcommand runs, on the board as
+            # it stands, and inside the lock — so a refusal means nothing was
+            # written and a dry run previews the refusal rather than the write.
+            refuse_unstorable_status(args, ctx)
             for _f in ("next", "title", "reason", "note", "deliverable"):
                 _v = getattr(args, _f, None)
                 if not isinstance(_v, str):
@@ -4184,10 +4430,19 @@ def main(argv: list[str]) -> int:
         # "→ board + journal + event" regardless, so the surface the agent
         # actually reads asserted a write that the function below it had
         # already recorded as failed.
-        wrote_event = result.get("event_written", True)
-        tail = ("board + journal + event" if wrote_event
-                else "board + journal (event log unwritable — this row will "
-                     "show as `unrecorded` until it is fixed)")
+        #
+        # It names the STORE first now, because that is what the write writes
+        # (ADR-007, TASK-089): `BOARD.md` is rendered from it and is reported
+        # beside the event, as the other derived artefact that can fail alone.
+        tail = "store + journal"
+        for name, ok, why in (
+                ("BOARD.md", result.get("board_rendered", True),
+                 "BOARD.md not re-rendered — `perry-tasks render` regenerates "
+                 "it, and `perry-lint` reports `store-drift` until then"),
+                ("event", result.get("event_written", True),
+                 "event log unwritable — this row will show as `unrecorded` "
+                 "until it is fixed")):
+            tail += f" + {name}" if ok else f" ({why})"
         # Not every subcommand mints an id — `intake`, `intake-sweep` and
         # `resolve-intake` act on a section row. Printing `None` there told the
         # user the write had no subject when it had a perfectly good one.

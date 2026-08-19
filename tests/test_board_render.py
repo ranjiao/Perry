@@ -283,9 +283,14 @@ class TestItRendersAndNothingElse(unittest.TestCase):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         shutil.copytree(ROOT / "perry", d / "perry",
-                        ignore=shutil.ignore_patterns("*.lock"))
+                        ignore=shutil.ignore_patterns("*.lock", "tasks.jsonl"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
+# **`perry/tasks.jsonl` now EXISTS in this repository** — TASK-089 made
+# it the write target, so a fixture that copies `perry/` inherits a store
+# whether it wants one or not. A test about the NO-STORE case has to say
+# so; two of them failed the moment the store was tracked, which is the
+# transition working rather than a regression.
         proc = run("render", root=d)
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(proc.stdout, "")

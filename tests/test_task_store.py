@@ -50,7 +50,13 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
     def copy(self):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
-        shutil.copytree(ROOT / "perry", d / "perry")
+        # **No store.** `perry/tasks.jsonl` exists in this repository now —
+        # TASK-089 made it the write target — so copying `perry/` inherits one,
+        # and a test about the no-store case silently became a with-store test.
+        # Three of them failed the day it was tracked, which is the transition
+        # working rather than a regression.
+        shutil.copytree(ROOT / "perry", d / "perry",
+                        ignore=shutil.ignore_patterns("tasks.jsonl"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
         return d
