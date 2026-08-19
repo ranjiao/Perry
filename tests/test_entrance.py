@@ -77,6 +77,37 @@ class TestRouterDocumentsTheEntrance(unittest.TestCase):
                 self.assertIn("not a separate command", read(f"{lane}/SKILL.md"))
 
 
+class TestRepositoryAgentStartup(unittest.TestCase):
+    """The repo-level entrypoint is a fast startup protocol, not another manual."""
+
+    def test_agents_file_stays_one_screen(self):
+        self.assertLessEqual(
+            len(read("AGENTS.md").splitlines()), 60,
+            "AGENTS.md exceeded its tier-0 budget; route detail to SKILL.md")
+
+    def test_agents_file_names_the_fast_read_contract(self):
+        agents = read("AGENTS.md")
+        for required in (
+                "bin/perry-state --section interrupted",
+                "bin/perry-state --dashboard",
+                "git status --short --branch",
+                "bin/perry-task list --json",
+                "bash tests/run"):
+            self.assertIn(required, agents)
+
+    def test_agents_file_routes_lifecycle_work_to_the_skill(self):
+        agents = read("AGENTS.md")
+        self.assertIn("load `SKILL.md` and its routed lane", agents)
+        for lane in LANES:
+            self.assertIn(f"`{lane}/SKILL.md`", agents)
+
+    def test_agents_file_does_not_freeze_current_task_state(self):
+        agents = read("AGENTS.md")
+        self.assertIsNone(
+            re.search(r"TASK-\d{3}|Phase\s+#\d+|Open tasks\s*:", agents),
+            "current Perry state belongs in the store, not AGENTS.md")
+
+
 class TestUserFacingDocsDoNotPromiseTheOldCommands(unittest.TestCase):
     """A reader who types a command that no longer exists gets nothing and no
     error, which is the worst failure mode available."""

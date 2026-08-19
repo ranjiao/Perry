@@ -1118,11 +1118,6 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         ".github": "CI configuration",
         "perry": "this project's own state, not the skill",
         "viewer/static": "third-party assets",
-        # Deliberately empty, kept as a placeholder after `b98b1c4` dropped the
-        # AGENTS.md routing layer — `SKILL.md` says both hosts read frontmatter
-        # natively and no such file is needed. It ships zero bytes of prose, so
-        # there is nothing for either list to cover.
-        "AGENTS.md": "an empty placeholder; ships no prose",
     }
 
     def test_the_viewer_is_enforced_not_merely_listed(self):
@@ -1184,7 +1179,7 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         # `bin/`, `*/state/*_TEMPLATE.md`, `packs/`, `reference/`, `setup`.
         exempt = {m.strip("`/*").split("/")[0]
                   for m in re.findall(r"`([^`]+)`", note)}
-        enforced = {"work", "goals", "decide", "modes", "SKILL.md",
+        enforced = {"work", "goals", "decide", "modes", "SKILL.md", "AGENTS.md",
                     "README.md", "README_cn.md", "INSTALL.md", "viewer"}
         uncovered = []
         for p in sorted(PERRY_HOME.iterdir()):
