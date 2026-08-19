@@ -59,6 +59,38 @@ class TestTheCountsDescribeThePayload(unittest.TestCase):
                                  sum(1 for t in d["tasks"] if t["open"]))
 
 
+class TestTheHumanSummaryDescribesTheProject(unittest.TestCase):
+    def test_default_summary_counts_closed_and_in_progress_without_listing_closed(self):
+        all_tasks = payload("--all")["tasks"]
+        expected = {
+            "open": sum(1 for t in all_tasks if t["open"]),
+            "in_progress": sum(
+                1 for t in all_tasks
+                if t["open"] and t["status"] == "in_progress"
+            ),
+            "closed": sum(1 for t in all_tasks if not t["open"]),
+        }
+        proc = subprocess.run(
+            [sys.executable, str(TOOL), "list"],
+            capture_output=True, text=True, cwd=ROOT,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        summary = re.search(
+            r"(\d+) open · (\d+) in_progress · (\d+) closed",
+            proc.stdout,
+        )
+        self.assertIsNotNone(summary, proc.stdout)
+        self.assertEqual(
+            tuple(map(int, summary.groups())),
+            (expected["open"], expected["in_progress"], expected["closed"]),
+        )
+        closed_ids = [t["id"] for t in all_tasks if not t["open"]]
+        self.assertTrue(closed_ids, "fixture has no closed task to hide")
+        listed = {line.split()[0].lstrip("·") for line in proc.stdout.splitlines()
+                  if line.strip().startswith(("TASK-", "·TASK-"))}
+        self.assertTrue(set(closed_ids).isdisjoint(listed))
+
+
 class TestTheDocumentedExampleIsProducible(unittest.TestCase):
     def test_the_example_does_not_show_an_impossible_pair(self):
         """A worked example is the strongest statement a contract makes — it is

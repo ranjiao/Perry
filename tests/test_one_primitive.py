@@ -160,7 +160,8 @@ class TestEveryWriterReachesTheSharedLock(unittest.TestCase):
     is supposed to make impossible."""
 
     #: Tools that write a project's state files and so must serialize.
-    WRITERS = ("perry-task", "perry-goals", "perry-decide", "perry-knowledge")
+    WRITERS = ("perry-task", "perry-tasks", "perry-migrate", "perry-goals",
+               "perry-decide", "perry-knowledge")
 
     def test_every_writer_takes_the_project_lock(self):
         for name in self.WRITERS:

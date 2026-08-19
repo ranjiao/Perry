@@ -350,7 +350,9 @@ class TestCadenceAdd(unittest.TestCase):
         that prefix issues `CAD-001` beside `CADENCE-002` and puts two
         numbering schemes in one table."""
         p = Project(BOARD.replace(
+            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
             "|---|---|---|---|---|---|",
+            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
             "|---|---|---|---|---|---|\n"
             "| CADENCE-003 | Weekly report | PMO | weekly | 2026-01-01 | — |"))
         code, out = p.run("cadence-add", "--title", "x", "--frequency", "weekly")

@@ -142,13 +142,14 @@ which is a question for the user, never a fuzzy match. See
 "$PERRY_HOME/bin/perry-task" list --all --json
 ```
 
-Each mutating call writes the `BOARD.md` row and the journal `## Status changes`
-line **atomically together** — a board row without its journal line is precisely
-the divergence this tool exists to prevent — then appends an event to
-`.perry/events.jsonl`. That third write is allowed to fail alone and is reported,
-not raised: the canonical markdown is already correct and the row shows as
-`unrecorded` until the log is writable. `.perry/events.jsonl` is derived and
-disposable; delete it and Perry still works.
+Each mutating call replaces `tasks.jsonl` and the journal `## Status changes`
+line through a durable transaction marker. The two renames are not one atomic
+operation: an ordinary failure rolls the pair back, while a crash is completed
+on the next Perry command under the project lock. `BOARD.md` is then rendered
+from the store with `perry-tasks render --write` as the recovery command, and an
+event is appended to `.perry/events.jsonl`. Those two derived writes may fail
+alone and are reported. `.perry/events.jsonl` is derived and disposable; delete
+it and Perry still works.
 
 The tool computes rather than accepts: IDs are minted from the max across board,
 journal and events and never reused; timestamps are taken at call time; stage and

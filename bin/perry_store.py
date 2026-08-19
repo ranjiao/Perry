@@ -31,6 +31,7 @@ layout had to keep VERBATIM rather than fill from the store.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -67,6 +68,57 @@ FIELD_BY_COLUMN = {
 }
 
 
+# ── markdown tables ───────────────────────────────────────────────────────
+
+
+_SEPARATOR = re.compile(r"^\|\s*:?-{2,}")
+
+
+def markdown_tables(lines: list[str], start: int, end: int, norm) -> list[dict]:
+    """Every markdown table block in ``lines[start:end]``.
+
+    A table starts only at a header immediately followed by a separator. Its
+    rows remain contiguous apart from blank lines, subheadings, and notes; prose
+    ends that table, but scanning continues so a later table is still found.
+    This one rule is shared by lookup, section walkers, store derivation, and
+    rendering. In particular, a repeated header starts another table and can
+    never become a record whose id is the literal ``ID``.
+    """
+    starts: list[tuple[int, int, list[str]]] = []
+    for sep in range(start + 1, end):
+        if not _SEPARATOR.match(lines[sep].strip()):
+            continue
+        if not lines[sep - 1].strip().startswith("|"):
+            continue
+        header = split_row(lines[sep - 1])
+        if header:
+            starts.append((sep - 1, sep, header))
+
+    out: list[dict] = []
+    for n, (header_i, sep, header) in enumerate(starts):
+        limit = starts[n + 1][0] if n + 1 < len(starts) else end
+        keys = [norm(h) for h in header]
+        rows = []
+        active = True
+        for i in range(sep + 1, limit):
+            s = lines[i].strip()
+            if not s.startswith("|"):
+                if s and not s.startswith(("#", ">")):
+                    active = False
+                continue
+            if not active or _SEPARATOR.match(s):
+                continue
+            cells = split_row(lines[i])
+            if not cells or not cells[0]:
+                continue
+            rows.append({"line": i, "cells": cells,
+                         "values": dict(zip(keys, cells))})
+        out.append({"header_line": header_i, "separator": sep,
+                    "header": header, "keys": keys, "rows": rows,
+                    "end": limit})
+    return out
+
+
 # ── the record ────────────────────────────────────────────────────────────
 
 
@@ -99,16 +151,18 @@ def board_order(board, ops) -> dict[str, int]:
     counted in `rows_verbatim` instead.
     """
     out: dict[str, int] = {}
+    positions: dict[str, int] = {}
     for tbl in board.task_tables():
         if not tbl["readable"]:
             continue
-        n = 0
+        n = positions.get(tbl["heading"], 0)
         for c in tbl["rows"]:
             tid = ops.strip_handle(c.get("id", ""))
             if not tid or tid in out:
                 continue
             out[tid] = n
             n += 1
+        positions[tbl["heading"]] = n
     return out
 
 
@@ -126,6 +180,56 @@ def load_store(state_root: Path) -> list[dict]:
         return []
     return [json.loads(l) for l in
             p.read_text(encoding="utf-8").split("\n") if l.strip()]
+
+
+def validate_records(records: list) -> tuple[list[dict], list[dict]]:
+    """Return valid records and structured findings for malformed ones.
+
+    ``bool`` is intentionally not an integer here even though Python subclasses
+    it from ``int``. JSON ``true`` is not a meaningful row position.
+    """
+    good: list[dict] = []
+    findings: list[dict] = []
+    seen: set[str] = set()
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line, "field": None,
+                             "message": "expected one JSON object per line"})
+            continue
+        bad = []
+        for field, value in rec.items():
+            if field not in STORED:
+                continue
+            if field == "order":
+                ok = value is None or (isinstance(value, int)
+                                       and not isinstance(value, bool))
+                expected = "integer or null"
+            elif field == "depends_on":
+                ok = value is None or isinstance(value, list)
+                expected = "list or null"
+            else:
+                ok = value is None or isinstance(value, str)
+                expected = "string or null"
+            if not ok:
+                bad.append({"field": field, "actual": type(value).__name__,
+                            "expected": expected})
+        tid = rec.get("id")
+        if not isinstance(tid, str) or not tid.strip():
+            bad.append({"field": "id", "actual": type(tid).__name__,
+                        "expected": "non-empty string"})
+        elif tid in seen:
+            bad.append({"field": "id", "actual": tid,
+                        "expected": "unique task id"})
+        if bad:
+            findings.append({"line": line, "id": tid if isinstance(tid, str) else None,
+                             "fields": bad,
+                             "message": "; ".join(
+                                 f"`{b['field']}` is {b['actual']}, expected {b['expected']}"
+                                 for b in bad)})
+            continue
+        seen.add(tid)
+        good.append(rec)
+    return good, findings
 
 
 # ── the renderer ──────────────────────────────────────────────────────────
@@ -266,24 +370,19 @@ def plan(board, records: list[dict], ops) -> dict:
               "cells_the_store_and_board_disagree_on": [],
               "sections_out_of_stored_order": [], "sections": []}
 
-    for heading, _pri, sep, header, end in board._task_sections():
+    for table in board.task_tables():
+        heading = table["heading"]
+        header = table["header"]
         keys = [ops.norm(h) for h in header]
-        if "id" not in keys or "title" not in keys:
+        if not table["readable"]:
             # Not a task table — a reference table, a legend. `task_tables()`
             # reports it and reads nothing from it; so does this.
             continue
         wanted = {r["id"] for r in by_group.get(heading, [])}
         seen: set = set()
         in_line_order: list[str] = []
-        for i in range(sep + 1, end):
-            s = lines[i].strip()
-            if not s.startswith("|"):
-                if s and not s.startswith(("#", ">")):
-                    break
-                continue
-            cells = split_row(lines[i])
-            if not cells or not cells[0]:
-                continue
+        for item in table["row_items"]:
+            i, cells = item["line"], item["cells"]
             tid = ops.strip_handle(cells[0])
             rec = by_id.get(tid)
             if rec is None or rec.get("group") != heading:
@@ -321,7 +420,18 @@ def plan(board, records: list[dict], ops) -> dict:
                 desc["cells"].append(c)
             rows[i] = desc
             report["rows_from_store"] += 1
-        report["rows_not_on_board"].extend(sorted(wanted - seen))
+        # A section may contain several task tables. Missing rows can only be
+        # decided after its last table, otherwise the first table reports every
+        # record carried by the second as absent.
+        later_same_section = any(
+            t["heading"] == heading and t["table_index"] > table["table_index"]
+            and t["readable"] for t in board.task_tables())
+        if not later_same_section:
+            section_seen = {ops.strip_handle(r["values"].get("id", ""))
+                            for t in board.task_tables()
+                            if t["heading"] == heading and t["readable"]
+                            for r in t["row_items"]}
+            report["rows_not_on_board"].extend(sorted(wanted - section_seen))
         # `order` is only a claim until something can be shown to disagree with
         # it. A record with no `order` at all — a store written before the
         # field existed — is not a disagreement, so it is skipped rather than
@@ -348,4 +458,5 @@ def render(board, records: list[dict], ops) -> tuple[str, dict]:
 
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
-           "render_line", "store_path", "store_text"]
+           "render_line", "store_path", "store_text", "markdown_tables",
+           "validate_records"]

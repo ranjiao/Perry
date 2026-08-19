@@ -140,7 +140,10 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
 from tables import render_row, split_row  # noqa: E402
-from lib import write_atomic  # noqa: E402
+import lib  # noqa: E402
+import perry_store  # noqa: E402
+
+write_atomic = lib.write_atomic
 
 MIGRATE_DIR = ".perry/migrate"
 
@@ -260,6 +263,7 @@ class Edit:
     before_errors: int = 0
     violations: list[str] = field(default_factory=list)
     minted: list[str] = field(default_factory=list)
+    existed: bool = True
 
     @property
     def touched(self) -> bool:
@@ -1441,7 +1445,63 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
         if edit.touched or edit.residual:
             plan.edits.append(edit)
     plan.newly_visible = cross_file_delta(plan, schema)
+    _plan_task_store(plan)
     return plan
+
+
+def _task_records(project_root: Path, state_root: Path,
+                  board_text: str) -> list[dict]:
+    T = task()
+    board = T.Board(state_root / "BOARD.md")
+    board.lines = board_text.split("\n")
+    try:
+        records, _ = T.store_records(project_root, state_root, board,
+                                     T.read_events(project_root))
+    except T.Refused as exc:
+        raise Refused(str(exc)) from None
+    return records
+
+
+def _plan_task_store(plan: Plan) -> None:
+    """Keep a migrated board and its canonical store in one restore set."""
+    board_path = plan.state_root / "BOARD.md"
+    if not board_path.exists():
+        return
+    store_path = perry_store.store_path(plan.state_root)
+    baseline = _task_records(plan.project_root, plan.state_root,
+                             board_path.read_text(errors="replace"))
+    if store_path.exists():
+        try:
+            current = perry_store.load_store(plan.state_root)
+        except (OSError, ValueError) as exc:
+            raise Refused(f"{store_path} is malformed ({type(exc).__name__}: "
+                          f"{exc}); migration refuses before changing BOARD.md") from None
+        valid, findings = perry_store.validate_records(current)
+        if findings:
+            raise Refused(f"{store_path} is malformed ({findings[0]['message']}); "
+                          f"migration refuses before changing BOARD.md")
+        if valid != baseline:
+            raise Refused(
+                f"{store_path} differs from the current BOARD.md-derived "
+                f"baseline. Migration will not choose a winner: run "
+                f"`perry-tasks render --write` if the store is authoritative, "
+                f"or explicitly import the board with `perry-tasks write "
+                f"--from-board`, then retry.")
+
+    board_edit = next((e for e in plan.writable if e.path == board_path), None)
+    board_after = (board_edit.after if board_edit is not None
+                   else board_path.read_text(errors="replace"))
+    after = perry_store.store_text(_task_records(
+        plan.project_root, plan.state_root, board_after))
+    before = store_path.read_text(encoding="utf-8") if store_path.exists() else ""
+    if before == after:
+        return
+    plan.edits.append(Edit(
+        key="tasks.jsonl", path=store_path, before=before, after=after,
+        key_rel=store_path.relative_to(plan.project_root).as_posix(),
+        changes=[Change("synchronize task store",
+                        "derive tasks.jsonl from the migrated BOARD.md")],
+        existed=store_path.exists()))
 
 
 # ── applying ──────────────────────────────────────────────────────────────
@@ -1460,7 +1520,7 @@ def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     the declarations standing would leave the record claiming conformance for
     files that no longer have it."""
     record = plan.project_root / P.CONFORMANCE_FILE
-    files = {e.key_rel: e.before for e in edits}
+    files = {e.key_rel: (e.before if e.existed else None) for e in edits}
     # `None` means "did not exist before the run", and restore deletes it.
     files[P.CONFORMANCE_FILE] = (record.read_text(errors="replace")
                                  if record.exists() else None)
@@ -1541,7 +1601,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         # downstream.
         try:
             out = C.declare(plan.project_root, plan.state_root,
-                            [e.key for e in applied], schema, route="migrate")
+                            [e.key for e in applied if e.key != "tasks.jsonl"],
+                            schema, route="migrate")
         except OSError as exc:
             raise Refused(rollback_message(
                 point, P.CONFORMANCE_FILE,
@@ -1709,7 +1770,8 @@ def main(argv: list[str]) -> int:
         project_root, state_root = _roots(root_arg)
 
         if cmd == "restore":
-            return do_restore(project_root, positional, do_list, as_json)
+            with lib.project_lock(state_root, refused=Refused):
+                return do_restore(project_root, positional, do_list, as_json)
 
         if not lint().is_adopted(project_root, state_root):
             # One sentence, not a wall. The near-empty project is the other
@@ -1728,10 +1790,15 @@ def main(argv: list[str]) -> int:
                 f"that has none starts with `/perry adopt`, which writes "
                 f"Perry's shape in the first place.{tail}")
 
-        plan = plan_project(project_root, state_root, schema, only or None)
-        applied = None
         if cmd == "apply":
-            applied = apply_plan(plan, schema, declare=not no_declare)
+            # The lock begins before planning: every post-image and drift check
+            # must describe the same source bytes the replacements consume.
+            with lib.project_lock(state_root, refused=Refused):
+                plan = plan_project(project_root, state_root, schema, only or None)
+                applied = apply_plan(plan, schema, declare=not no_declare)
+        else:
+            plan = plan_project(project_root, state_root, schema, only or None)
+            applied = None
 
         if as_json:
             print(json.dumps({

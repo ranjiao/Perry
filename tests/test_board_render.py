@@ -122,7 +122,7 @@ class Project:
                         ignore=shutil.ignore_patterns("*.lock"))
         shutil.copytree(ROOT / ".perry", d / ".perry",
                         ignore=shutil.ignore_patterns("*.lock"))
-        assert run("write", root=d).returncode == 0
+        assert run("write", "--from-board", root=d).returncode == 0
         return d
 
     @staticmethod
@@ -132,7 +132,7 @@ class Project:
         (d / ".perry").mkdir()
         (d / ".perry" / "config.md").write_text("# Config\n", encoding="utf-8")
         (d / "BOARD.md").write_text(board, encoding="utf-8")
-        assert run("write", root=d).returncode == 0
+        assert run("write", "--from-board", root=d).returncode == 0
         return d
 
 

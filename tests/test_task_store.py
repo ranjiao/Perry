@@ -63,7 +63,7 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
 
     def test_verify_passes_against_a_store_it_did_not_just_build(self):
         d = self.copy()
-        self.assertEqual(run("write", root=d).returncode, 0)
+        self.assertEqual(run("write", "--from-board", root=d).returncode, 0)
         proc = run("verify", root=d)
         self.assertEqual(proc.returncode, 0, proc.stdout[-500:])
         out = json.loads(proc.stdout)
@@ -75,7 +75,7 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
         every finished task — the trap `check_verification` documents and
         `walk_design` repeated."""
         d = self.copy()
-        run("write", root=d)
+        run("write", "--from-board", root=d)
         out = json.loads(run("verify", root=d).stdout)
         self.assertGreater(out["records"], out["board_rows"],
                            "the store holds no more than the live board does, "
@@ -90,7 +90,7 @@ class TestTheStoreReproducesTheBoard(unittest.TestCase):
         """
         import re
         d = self.copy()
-        run("write", root=d)
+        run("write", "--from-board", root=d)
         board = d / "perry" / "BOARD.md"
         board.write_text(re.sub(
             r"^(\| TASK-\d+ \| )([^|]+)", r"\1a title nothing wrote",

@@ -22,6 +22,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import hashlib
+import contextlib
 import importlib.machinery
 import importlib.util
 import json
@@ -38,6 +39,7 @@ MIGRATE = PERRY_HOME / "bin" / "perry-migrate"
 CONFORM = PERRY_HOME / "bin" / "perry-conform"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 TASK = PERRY_HOME / "bin" / "perry-task"
+TASKS = PERRY_HOME / "bin" / "perry-tasks"
 
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
@@ -446,7 +448,87 @@ class TestRecoverable(unittest.TestCase):
         p.run("restore")
         self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
                          "the record was created by the run and must go back "
-                         "to not existing")
+                          "to not existing")
+
+    def test_apply_and_restore_keep_board_and_store_in_the_same_restore_set(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        store = p.root / "tasks.jsonl"
+        self.assertTrue(store.exists())
+        diff = subprocess.run(
+            [sys.executable, str(TASKS), "diff", "--root", str(p.root)],
+            capture_output=True, text=True)
+        self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
+        self.assertTrue(json.loads(diff.stdout)["identical"])
+        p.run("restore")
+        self.assertFalse(store.exists(),
+                         "restore left a store for the pre-migration board")
+
+    def test_apply_recreates_a_missing_store_when_the_board_needs_no_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        self.assertEqual(p.run("apply")[0], 0)
+        store = p.root / "tasks.jsonl"
+        self.assertTrue(store.exists())
+        store.unlink()
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, (out, err))
+        self.assertTrue(store.exists(),
+                        "a structurally current board suppressed store creation")
+        diff = subprocess.run(
+            [sys.executable, str(TASKS), "diff", "--root", str(p.root)],
+            capture_output=True, text=True)
+        self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
+        self.assertTrue(json.loads(diff.stdout)["identical"])
+
+    def test_apply_refuses_a_malformed_or_drifted_store_before_board_changes(self):
+        for malformed in (True, False):
+            with self.subTest(malformed=malformed):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                store = p.root / "tasks.jsonl"
+                if malformed:
+                    store.write_text('{"id":"INV-DRAFT-1","order":true}\n')
+                else:
+                    made = subprocess.run(
+                        [sys.executable, str(TASKS), "write", "--from-board",
+                         "--root", str(p.root)], capture_output=True, text=True)
+                    self.assertEqual(made.returncode, 0, made.stderr)
+                    records = [json.loads(line) for line in store.read_text().splitlines()]
+                    records[0]["owner"] = "store-only edit"
+                    store.write_text("".join(json.dumps(r) + "\n" for r in records))
+                before = p.text("BOARD.md")
+                rc, out, err = p.run("apply")
+                self.assertEqual(rc, 1, (out, err))
+                self.assertEqual(p.text("BOARD.md"), before)
+                self.assertIn("tasks.jsonl", out.get("refused", ""))
+
+    def test_apply_plans_and_writes_while_the_project_lock_is_held(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        active = {"value": False}
+        real_lock, real_plan, real_apply = M.lib.project_lock, M.plan_project, M.apply_plan
+
+        @contextlib.contextmanager
+        def lock(*_args, **_kwargs):
+            active["value"] = True
+            try:
+                yield
+            finally:
+                active["value"] = False
+
+        def checked_plan(*args, **kwargs):
+            self.assertTrue(active["value"], "migration planning escaped the lock")
+            return real_plan(*args, **kwargs)
+
+        def checked_apply(*args, **kwargs):
+            self.assertTrue(active["value"], "migration writes escaped the lock")
+            return real_apply(*args, **kwargs)
+
+        M.lib.project_lock, M.plan_project, M.apply_plan = lock, checked_plan, checked_apply
+        try:
+            rc = M.main(["apply", "--root", str(p.root), "--json"])
+        finally:
+            M.lib.project_lock, M.plan_project, M.apply_plan = \
+                real_lock, real_plan, real_apply
+        self.assertEqual(rc, 0)
 
     def test_a_dirty_git_tree_is_reported_and_not_refused(self):
         """Refusing on a dirty tree answers the question only for projects

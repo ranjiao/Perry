@@ -2126,23 +2126,6 @@ def _board_line_of(text: str, task_id: str) -> int | None:
     return None
 
 
-#: The shape of a store record, read off `perry_store.record()` rather than
-#: asserted: `order` is an integer or `null`, `depends_on` is a LIST, and every
-#: other stored field is a string.
-#:
-#: The first version of this table said "every field is a string except
-#: `order`" and added, in a comment, that `depends_on` is a comma-joined string
-#: "because that is what the board cell holds". It is a list —
-#: `perry_store.record()` writes `list(task.get("depends_on") or [])` — and the
-#: guard excluded all 98 records on its first run, which is how the wrong
-#: comment was found rather than shipped. Left in writing because a type table
-#: derived from memory is exactly the failure this table exists to catch.
-_STORE_FIELD_TYPES = {"order": (int, type(None)),
-                      "depends_on": (list, type(None))}
-_STORE_DEFAULT_TYPE = (str, type(None))
-_TYPE_NAMES = {"order": "integer or null", "depends_on": "list"}
-
-
 def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
     """Split the store into records the checks can compare, and findings.
 
@@ -2165,41 +2148,21 @@ def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
     would make the lint report clean on a file that no other reader can load —
     and `bin/perry-task` reads this same file.
     """
-    good, findings = [], []
-    for n, rec in enumerate(on_disk, 1):
-        bad = [f"`{k}` is {type(rec[k]).__name__}, expected "
-               f"{_TYPE_NAMES.get(k, 'string or null')}"
-               for k in sorted(rec)
-               if k in _STORED_FIELDS
-               and not isinstance(rec[k],
-                                  _STORE_FIELD_TYPES.get(k, _STORE_DEFAULT_TYPE))]
-        if bad:
-            tid = rec.get("id")
-            who = repr(tid) if isinstance(tid, str) else f"line {n}"
-            findings.append(Finding(
-                "warn", rel_store, "store-badly-typed",
-                f"{who} — {'; '.join(bad[:3])}"
-                + (f"; and {len(bad) - 3} more field(s)" if len(bad) > 3 else "")
-                + ". The record is excluded from the drift comparison, so this "
-                  "row's drift is unknown here rather than absent. Every field "
-                  "in the store is a string except `order`, which is an integer "
-                  "or null."))
-            continue
-        if not (rec.get("id") or "").strip():
-            # **`{}` parses, is a dict, and has every field of the right type
-            # — vacuously.** Both the JSONL check and the type table above pass
-            # it, and then `{r.get("id"): r for r in on_disk if r.get("id")}`
-            # drops it with no finding: a line in the canonical store that no
-            # reader will ever see and nothing reports. A record with no id is
-            # not a record, and saying so is cheaper than a store that quietly
-            # holds fewer rows than it has lines.
-            findings.append(Finding(
-                "warn", rel_store, "store-badly-typed",
-                f"line {n} has no `id`, so nothing can be said about it and "
-                f"every reader silently skips it. A record with no id is a "
-                f"line the store holds and does not carry."))
-            continue
-        good.append(rec)
+    good, issues = _tasks_module().perry_store.validate_records(on_disk)
+    findings = []
+    for issue in issues:
+        tid = issue.get("id")
+        who = repr(tid) if tid else f"line {issue['line']}"
+        message = issue["message"]
+        if any(f.get("field") == "id" and f.get("expected") == "non-empty string"
+               for f in issue.get("fields", [])):
+            message = ("has no `id`, so nothing can be said about it and every "
+                       "reader silently skips it")
+        findings.append(Finding(
+            "warn", rel_store, "store-badly-typed",
+            f"{who} — {message}. The record is excluded from the drift "
+            f"comparison, so this row's drift is unknown here rather than "
+            f"absent."))
     return good, findings
 
 

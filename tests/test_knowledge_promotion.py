@@ -196,7 +196,7 @@ class TestARealCloseProducesACard(Base):
     reports the result clean."""
 
     BOARD = ("# Task board — demo\n\n## Active\n\n"
-             "| ID | Task | Owner | Status | Priority | Evidence | Notes |\n"
+             "| ID | Title | Owner | Status | Priority | Evidence | Notes |\n"
              "|---|---|---|---|---|---|---|\n"
              "| TASK-001 | Fix the monthly export | Coding Agent | in_progress "
              "| P1 | — | — |\n")

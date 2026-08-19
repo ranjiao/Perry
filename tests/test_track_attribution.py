@@ -43,6 +43,28 @@ BOARD = """# Board
 | TASK-003 | a pipeline item | C | not_started | — | — | V2 | ops | draft |
 """
 
+TRACKED_BOARD = """# Board
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence | Verification | Track | Stage |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TASK-003 | a pipeline item | C | not_started | — | — | V2 | ops | draft |
+"""
+
+UNTRACKED_COMMITMENT = """# OKR
+
+## Objectives
+
+- O1 ship it
+
+## Commitments
+
+| Id | Track | Promise | Due | By when note |
+|---|---|---|---|---|
+| COM-001 |  | standing work | — | monthly |
+"""
+
 REGISTER = """# Config
 
 State root: perry
@@ -56,23 +78,25 @@ State root: perry
 
 
 class TrackCase(unittest.TestCase):
-    def project(self, register: str | None):
+    def project(self, register: str | None, board: str = BOARD,
+                okr: str = "# OKR\n\n## Objectives\n\n- O1 ship it\n"):
         d = pathlib.Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "perry").mkdir()
         (d / ".perry").mkdir()
         (d / ".perry" / "config.md").write_text(
             register if register else "# Config\n\nState root: perry\n")
-        (d / "perry" / "BOARD.md").write_text(BOARD)
-        (d / "perry" / "OKR.md").write_text(
-            "# OKR\n\n## Objectives\n\n- O1 ship it\n")
+        (d / "perry" / "BOARD.md").write_text(board)
+        (d / "perry" / "OKR.md").write_text(okr)
         (d / "perry" / "phase").mkdir()
         (d / "perry" / "phase" / "001-a.md").write_text("# Phase 1\n")
         return d
 
-    def modes(self, register):
+    def modes(self, register, board: str = BOARD,
+              okr: str = "# OKR\n\n## Objectives\n\n- O1 ship it\n"):
         proc = subprocess.run(
-            [sys.executable, str(TOOL), "--root", str(self.project(register)),
+            [sys.executable, str(TOOL), "--root",
+             str(self.project(register, board, okr)),
              "--json"], capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0, proc.stderr[-400:])
         w = json.loads(proc.stdout)["work_modes"]
@@ -113,6 +137,29 @@ class TestNoRegisterBehavesExactlyAsBefore(TrackCase):
         self.assertFalse(w["register_declared"])
         self.assertEqual(list(tracks), ["main"])
         self.assertGreater(tracks["main"]["scores"]["project"], 0)
+
+
+class TestCommitmentsAlsoBelongToATrack(TrackCase):
+    def test_an_untracked_commitment_enumerates_implicit_main(self):
+        tracks, _ = self.modes(REGISTER, TRACKED_BOARD,
+                               UNTRACKED_COMMITMENT)
+        self.assertIn("main", tracks)
+        self.assertFalse(tracks["main"]["declared"])
+        self.assertTrue(any(
+            "standing commitment" in item
+            for item in tracks["main"]["evidence"]["queue"]))
+
+    def test_repository_evidence_does_not_accuse_the_declared_pipeline(self):
+        tracks, _ = self.modes(REGISTER, TRACKED_BOARD,
+                               UNTRACKED_COMMITMENT)
+        self.assertEqual(tracks["ops"]["scores"]["project"], 0)
+        self.assertEqual(tracks["ops"]["mode"], "pipeline")
+
+    def test_a_sole_non_project_track_does_not_inherit_repository_evidence(self):
+        tracks, _ = self.modes(REGISTER, TRACKED_BOARD)
+        self.assertNotIn("main", tracks)
+        self.assertEqual(tracks["ops"]["scores"]["project"], 0)
+        self.assertEqual(tracks["ops"]["mode"], "pipeline")
 
 
 class TestPerrysOwnProjectIsUnmoved(unittest.TestCase):

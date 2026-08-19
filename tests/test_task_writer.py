@@ -33,6 +33,7 @@ from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-task"
+TASKS = PERRY_HOME / "bin" / "perry-tasks"
 
 
 def load_tool():
@@ -124,6 +125,13 @@ class Project:
         for p in (self.root / "journal").rglob("*.md"):
             return p.read_text()
         return ""
+
+    def import_board(self) -> None:
+        r = subprocess.run(
+            ["python3", str(TASKS), "write", "--from-board", "--root",
+             str(self.root)], capture_output=True, text=True)
+        if r.returncode:
+            raise AssertionError(r.stdout + r.stderr)
 
     def __del__(self):
         self.dir.cleanup()
@@ -260,9 +268,9 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         `PermissionError` — a traceback, exit 1, and board + journal already on
         disk. Exit 1 is documented as "nothing was written", so a caller
         following the docs would retry and raise a second row for work already
-        recorded. The loss is allowed to run in exactly one direction: the
-        canonical files land together or not at all, and the derived event is
-        reported when it goes missing.
+        recorded. The canonical pair is recoverable: ordinary failures roll
+        back and a crash is completed on the next locked run. The derived event
+        is reported when it goes missing.
         """
         p = Project()
         ev_dir = p.root / ".perry"
@@ -879,9 +887,8 @@ class TestDriftReconciliation(unittest.TestCase):
             f"a cadence row was reported as predating the log on a board the "
             f"tool wrote entirely, and no user action could ever clear it: {d}")
 
-    def test_drift_is_reported_never_refused(self):
-        """A user editing their own markdown is legitimate. Perry notices; it
-        does not object, and nothing exits non-zero."""
+    def test_drift_is_reported_and_a_write_refuses_before_discarding_the_store(self):
+        """Until TASK-090, a board edit cannot silently overwrite the store."""
         p = Project()
         _, a = p.run("add", "--title", "A", "--priority", "P0")
         board = p.root / "BOARD.md"
@@ -892,8 +899,9 @@ class TestDriftReconciliation(unittest.TestCase):
             ["python3", str(PERRY_HOME / "bin" / "perry-state"),
              "--root", str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0)
-        code, _ = p.run("add", "--title", "still works")
-        self.assertEqual(code, 0, "drift blocked a write")
+        code, out = p.run("add", "--title", "must not discard the store")
+        self.assertEqual(code, 1, out)
+        self.assertIn("render --write", out["refused"])
 
 
 class TestModeAwareWrites(unittest.TestCase):
@@ -938,6 +946,7 @@ class TestModeAwareWrites(unittest.TestCase):
         board.write_text(board.read_text().replace(
             self.cells(p, a["id"])["stage since"], "2020-01-01"))
         self.assertEqual(self.cells(p, a["id"])["stage since"], "2020-01-01")
+        p.import_board()
 
         code, _ = p.run("stage", a["id"], "--stage", "draft")
         self.assertEqual(code, 0)
@@ -2415,6 +2424,7 @@ class TestTheStageClockHasOneWriter(unittest.TestCase):
     def age(self, p: "Project", tid: str, days_ago: str):
         b = p.root / "BOARD.md"
         b.write_text(b.read_text().replace(self.cells(p, tid)["stage since"], days_ago))
+        p.import_board()
 
     def test_start_does_not_restamp_the_stage_clock(self):
         """B-1. `dispatch` calls `start` on every automated run, so an item
@@ -3082,6 +3092,7 @@ class TestModeColumnsOnBoardsPerryDidNotBuild(unittest.TestCase):
         board = p.root / "BOARD.md"
         board.write_text(board.read_text().replace(
             self.cells(p, a["id"])["stage since"], "2020-01-01"))
+        p.import_board()
         code, _ = p.run("stage", a["id"], "--stage", "draft")
         self.assertEqual(code, 0)
         self.assertNotEqual(

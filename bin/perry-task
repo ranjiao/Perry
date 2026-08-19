@@ -14,16 +14,16 @@ Every mutating call writes four things, and only the first two are canonical:
   3. `BOARD.md`, RE-RENDERED from (1)
   4. one JSON object appended to .perry/events.jsonl
 
-**(1) and (2) are atomic with each other**: both are staged and renamed, so
-either both land or neither does. That is the pair that matters — a stored
-record without its journal line is exactly the state-vs-history divergence this
-tool exists to remove, which makes a partial write there strictly worse than a
-refusal.
+**(1) and (2) are one recoverable transaction.** A durable marker is written
+before either replacement. An ordinary failure rolls both back; a process crash
+between replacements is completed deterministically when the next Perry command
+takes the project lock. Two filesystem renames are not falsely described as one
+atomic operation. See `commit()`.
 
 **(3) and (4) are written after and can each fail alone.** Reported, not
 raised: the canonical state is already correct. A missing event shows the row
 as `unrecorded`; a board that was not re-rendered shows as `store-drift` under
-`perry-lint`, and `perry-tasks render` regenerates it. This is the direction
+`perry-lint`, and `perry-tasks render --write` regenerates it. This is the direction
 the loss is allowed to run, never the reverse. See `commit()`.
 
 **It used to be `BOARD.md` in slot (1) and there was no store** (ADR-007,
@@ -118,7 +118,9 @@ No LLM, no external dependencies (stdlib only). DESIGN-004.
 
 from __future__ import annotations
 
+import copy
 import json
+import hashlib
 import os
 import re
 import sys
@@ -529,38 +531,24 @@ class Board:
 
     def last_row(self, priority: str) -> int:
         """Index of the last data row, or the separator when there are none."""
-        _, sep, _ = self.table(priority)
         lo, hi = self.section(priority)
-        last = sep
-        for i in range(sep + 1, hi):
-            if self.lines[i].strip().startswith("|"):
-                last = i
-            elif self.lines[i].strip():
-                break
-        return last
+        tables = perry_store.markdown_tables(self.lines, lo, hi, norm)
+        if not tables:
+            raise Refused(f"`## {priority}` has no table")
+        table = tables[0]
+        return table["rows"][-1]["line"] if table["rows"] else table["separator"]
 
     # -- reading
 
     def rows(self) -> list[tuple[str, str, dict]]:
         """(priority, raw line, cells-by-header) for every data row."""
         out = []
-        for pri in ("P0", "P1", "P2"):
-            try:
-                hdr_i, sep, header = self.table(pri)
-            except Refused:
+        for table in self.task_tables():
+            if not table["readable"] or not table["priority"]:
                 continue
-            lo, hi = self.section(pri)
-            for i in range(sep + 1, hi):
-                s = self.lines[i].strip()
-                if not s.startswith("|"):
-                    if s:
-                        break
-                    continue
-                cells = split_row(self.lines[i])
-                if not cells or not cells[0]:
-                    continue
-                out.append((pri, self.lines[i],
-                            dict(zip([norm(h) for h in header], cells))))
+            for item in table["row_items"]:
+                out.append((table["priority"], self.lines[item["line"]],
+                            item["values"]))
         return out
 
     # Sections that hold something other than task rows. Matched against the
@@ -568,7 +556,7 @@ class Board:
     # skipped for the same reasons an English one is.
     NON_TASK_SECTIONS = ("Intake", "Cadence", "User Input Queue", "Top risks")
 
-    def _task_sections(self):
+    def _section_tables(self):
         """(heading, priority|None, separator index, header cells, end index).
 
         The ONE walk over the board's task-bearing sections. `task_tables()`
@@ -587,14 +575,16 @@ class Board:
             title = line[3:].strip()
             if any(title.lower().startswith(s) for s in skip):
                 continue
-            sep = next((i for i in range(start, end)
-                        if re.match(r"^\|\s*:?-{2,}", self.lines[i]) and i > start
-                        and self.lines[i - 1].strip().startswith("|")), None)
-            if sep is None:
-                continue
             pri = next((p for p in ("P0", "P1", "P2")
                         if PRIORITY_RE[p].match(line)), None)
-            yield title, pri, sep, split_row(self.lines[sep - 1]), end
+            for table_index, table in enumerate(
+                    perry_store.markdown_tables(self.lines, start + 1, end, norm)):
+                yield title, pri, table_index, table
+
+    def _task_sections(self):
+        """Compatibility view of ``_section_tables`` for heading callers."""
+        for title, pri, _n, table in self._section_tables():
+            yield (title, pri, table["separator"], table["header"], table["end"])
 
     def task_tables(self) -> list[dict]:
         """Every section of this board that holds task-shaped rows.
@@ -618,27 +608,37 @@ class Board:
         would be claiming the project said something it did not.
         """
         out = []
-        for title, pri, sep, header, end in self._task_sections():
-            keys = [norm(h) for h in header]
+        for title, pri, table_index, table in self._section_tables():
+            header, keys = table["header"], table["keys"]
             if "id" not in keys or "title" not in keys:
                 # A table under a `## ` heading that is not a task table — a
                 # reference table, a glossary, a legend. Reported, not read.
                 out.append({"heading": title, "priority": None, "header": header,
-                            "rows": [], "readable": False})
+                            "rows": [], "row_items": [], "readable": False,
+                            "table_index": table_index})
                 continue
-            rows = []
-            for i in range(sep + 1, end):
-                s = self.lines[i].strip()
-                if not s.startswith("|"):
-                    if s and not s.startswith(("#", ">")):
-                        break
-                    continue
-                cells = split_row(self.lines[i])
-                if cells and cells[0]:
-                    rows.append(dict(zip(keys, cells)))
+            rows = [item["values"] for item in table["rows"]]
             out.append({"heading": title, "priority": pri, "header": header,
-                        "rows": rows, "readable": True})
+                        "rows": rows, "row_items": table["rows"],
+                        "readable": True, "table_index": table_index})
         return out
+
+    def refuse_duplicate_task_ids(self) -> None:
+        """Refuse ambiguous task identity before any command can mutate state."""
+        found: dict[str, list[int]] = {}
+        for table in self.task_tables():
+            if not table["readable"]:
+                continue
+            for item in table["row_items"]:
+                tid = strip_handle(item["values"].get("id", ""))
+                if tid and HANDLE_RE.fullmatch(tid):
+                    found.setdefault(tid, []).append(item["line"] + 1)
+        dupes = {tid: lines for tid, lines in found.items() if len(lines) > 1}
+        if dupes:
+            detail = "; ".join(f"{tid} on lines {', '.join(map(str, lines))}"
+                               for tid, lines in sorted(dupes.items()))
+            raise Refused(f"BOARD.md has duplicate task ids: {detail}. Nothing "
+                          f"was written; each task id must identify one row.")
 
     def find(self, task_id: str) -> tuple[str, int, list[str], list[str]]:
         """(priority-or-heading, line index, header, cells) for one row.
@@ -650,13 +650,14 @@ class Board:
         board" about a row `list` had just printed made every archived row
         permanently unclosable.
         """
-        for title, pri, sep, header, end in self._task_sections():
-            for i in range(sep + 1, end):
-                if not self.lines[i].strip().startswith("|"):
-                    continue
-                cells = split_row(self.lines[i])
-                if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
-                    return pri or title, i, header, cells
+        for table in self.task_tables():
+            if not table["readable"]:
+                continue
+            for item in table["row_items"]:
+                cells = item["cells"]
+                if strip_handle(item["values"].get("id", "")) == task_id:
+                    return (table["priority"] or table["heading"], item["line"],
+                            table["header"], cells)
         section = self._non_task_row(task_id)
         if section:
             raise Refused(NON_TASK_REFUSAL[section].format(id=task_id))
@@ -701,29 +702,29 @@ class Board:
         The clause only `Verification` had before DESIGN-004: you cannot set a
         cell in a column with no header, and `BOARD_TEMPLATE.md` ships six.
         """
-        hdr_i, sep_i, header = self.table(priority)
-        missing = [c for c in needed
-                   if not any(norm(h) == norm(c) for h in header)]
-        if not missing:
-            return header
-        # A column joining a localized table is written in that table's
-        # language. Appending `Stage` beside `阶段序列` would produce a header
-        # in two languages and a column `perry-lint`'s localized `match`
-        # regexes would then disagree about.
-        lang = header_language(header)
-        missing = [display_name(c, lang) for c in missing]
-        header = header + missing
-        self.lines[hdr_i] = render_row(header)
-        self.lines[sep_i] = "|" + "|".join(["---"] * len(header)) + "|"
         lo, hi = self.section(priority)
-        for i in range(sep_i + 1, hi):
-            if not self.lines[i].strip().startswith("|"):
+        first = None
+        for table in perry_store.markdown_tables(self.lines, lo, hi, norm):
+            header = table["header"]
+            if not {"id", "title"} <= set(table["keys"]):
                 continue
-            cells = split_row(self.lines[i])
-            if not cells:
+            missing = [c for c in needed
+                       if not any(norm(h) == norm(c) for h in header)]
+            if not missing:
+                first = first or header
                 continue
-            self.lines[i] = render_row(cells + [""] * len(missing))
-        return header
+            shown = [display_name(c, header_language(header)) for c in missing]
+            widened = header + shown
+            self.lines[table["header_line"]] = render_row(widened)
+            self.lines[table["separator"]] = \
+                "|" + "|".join(["---"] * len(widened)) + "|"
+            for item in table["rows"]:
+                self.lines[item["line"]] = render_row(
+                    item["cells"] + [""] * len(shown))
+            first = first or widened
+        if first is None:
+            raise Refused(f"`## {priority}` has no task table")
+        return first
 
     def ensure_section(self, heading: str, columns: list[str],
                        before_p0: bool = True) -> None:
@@ -815,20 +816,11 @@ class Board:
         the boundary, and reading past it is how a writer starts editing text
         that is not a row.
         """
-        sep, _ = self.section_table(heading)
-        out = []
-        for i in range(sep + 1, len(self.lines)):
-            s = self.lines[i].strip()
-            if s.startswith("## "):
-                break
-            if not s.startswith("|"):
-                if s and not s.startswith(("#", ">")):
-                    break
-                continue
-            cells = split_row(self.lines[i])
-            if cells and cells[0]:
-                out.append((i, cells))
-        return out
+        start, end = self.named_section(heading)
+        return [(item["line"], item["cells"])
+                for table in perry_store.markdown_tables(
+                    self.lines, start + 1, end, norm)
+                for item in table["rows"]]
 
     def ensure_section_columns(self, heading: str, needed: list[str]) -> list[str]:
         """`ensure_columns`, for a named non-priority section.
@@ -839,18 +831,27 @@ class Board:
         the tool would have dropped it silently — the same defect that lost
         `--commitment` on the task tables.
         """
-        sep, header = self.section_table(heading)
-        missing = [c for c in needed
-                   if not any(norm(h) == norm(c) for h in header)]
-        if not missing:
-            return header
-        lang = header_language(header)
-        header = header + [display_name(c, lang) for c in missing]
-        self.lines[sep - 1] = render_row(header)
-        self.lines[sep] = "|" + "|".join(["---"] * len(header)) + "|"
-        for i, cells in self.section_rows(heading):
-            self.lines[i] = render_row(cells + [""] * len(missing))
-        return header
+        start, end = self.named_section(heading)
+        first = None
+        for table in perry_store.markdown_tables(self.lines, start + 1, end, norm):
+            header = table["header"]
+            missing = [c for c in needed
+                       if not any(norm(h) == norm(c) for h in header)]
+            if not missing:
+                first = first or header
+                continue
+            shown = [display_name(c, header_language(header)) for c in missing]
+            widened = header + shown
+            self.lines[table["header_line"]] = render_row(widened)
+            self.lines[table["separator"]] = \
+                "|" + "|".join(["---"] * len(widened)) + "|"
+            for item in table["rows"]:
+                self.lines[item["line"]] = render_row(
+                    item["cells"] + [""] * len(shown))
+            first = first or widened
+        if first is None:
+            raise Refused(f"`## {heading}` has no table")
+        return first
 
     def find_section_row(self, heading: str, row_id: str):
         """(line index, header, cells) for one row of a named section.
@@ -1464,7 +1465,8 @@ def _ops():
 
 
 def store_records(project_root: Path, state_root: Path, board: Board,
-                  events: list[dict]) -> tuple[list[dict], dict]:
+                  events: list[dict], preserve_terminal: bool = False
+                  ) -> tuple[list[dict], dict]:
     """(the store's records, `list`'s conformance) for the board AS IT STANDS.
 
     **The one derivation there is.** `bin/perry-tasks § build` calls this too,
@@ -1486,6 +1488,7 @@ def store_records(project_root: Path, state_root: Path, board: Board,
     board — **off disk, which mid-write is the version being replaced** — and
     the payload they would land in is discarded two lines below.
     """
+    board.refuse_duplicate_task_ids()
     ctx = {"schema": load_schema(), "project_root": project_root,
            "state_root": state_root, "config": {"tracks": []},
            "board": board, "events": events, "sections": False}
@@ -1494,7 +1497,72 @@ def store_records(project_root: Path, state_root: Path, board: Board,
     order = perry_store.board_order(board, _ops())
     records = [perry_store.record(t, order.get(t["id"]))
                for t in payload["tasks"]]
+    if preserve_terminal:
+        # The event log is derived and disposable. If it is deleted, completed
+        # rows are no longer derivable from the open-only board, but they remain
+        # canonical store records and must not disappear on the next write.
+        # A same-id record is always replaced by the freshly derived state.
+        known = {r["id"] for r in records}
+        try:
+            current = perry_store.load_store(state_root)
+            valid, findings = perry_store.validate_records(current)
+        except (OSError, ValueError):
+            valid, findings = [], [{"message": "unreadable store"}]
+        if not findings:
+            current_by_id = {r["id"]: r for r in valid}
+            for rec in records:
+                old = current_by_id.get(rec["id"])
+                if old and rec.get("created") is None:
+                    rec["created"] = old.get("created")
+            records.extend(r for r in valid
+                           if r["id"] not in known
+                           and r.get("status") in ("done", "dropped"))
     return records, payload["conformance"]
+
+
+def refuse_store_drift(project_root: Path, state_root: Path, board: Board,
+                       events: list[dict]) -> None:
+    """Until TASK-090, never overwrite an independent valid store edit.
+
+    The command still derives its proposed record from the board in this slice.
+    Comparing that baseline before the subcommand runs prevents an unrelated
+    write from silently resolving drift in the obsolete board-to-store
+    direction.
+    """
+    path = perry_store.store_path(state_root)
+    if not path.exists():
+        return
+    try:
+        records = perry_store.load_store(state_root)
+    except (OSError, ValueError) as exc:
+        raise Refused(f"{path} cannot be read as JSONL ({type(exc).__name__}: "
+                      f"{exc}). Refusing to overwrite the canonical store; "
+                      f"repair it or restore it before retrying.") from None
+    good, findings = perry_store.validate_records(records)
+    if findings:
+        raise Refused(f"{path} is malformed ({findings[0]['message']}). "
+                      f"Refusing to overwrite the canonical store.")
+    baseline, _ = store_records(project_root, state_root, board, events,
+                                preserve_terminal=True)
+    stored_by_id = {r["id"]: r for r in good}
+    baseline_by_id = {r["id"]: r for r in baseline}
+    comparable = perry_store.STORED
+    differs = any(
+        stored_by_id.get(tid) is None or
+        any(stored_by_id[tid].get(field) != rec.get(field)
+            for field in comparable)
+        for tid, rec in baseline_by_id.items())
+    differs = differs or any(
+        tid not in baseline_by_id and rec.get("status") not in ("done", "dropped")
+        for tid, rec in stored_by_id.items())
+    if differs:
+        raise Refused(
+            f"{path} differs from the records derived from BOARD.md. Until "
+            f"TASK-090 the writer still reads the board to construct a write, "
+            f"so proceeding would discard a valid store edit. Run `perry-tasks "
+            f"render --write` to render the authoritative store to BOARD.md, "
+            f"then retry. `perry-tasks write --from-board` is the explicit "
+            f"destructive board-to-store direction.")
 
 
 def parsed_status(cell: str, statuses) -> str:
@@ -1605,7 +1673,147 @@ def unstorable_status_rows(conformance: dict) -> list[dict]:
     return list(conformance.get("off_enum_status") or [])
 
 
-# ── the atomic three-way write ────────────────────────────────────────────
+# ── the recoverable canonical transaction ─────────────────────────────────
+
+
+TRANSACTION_FILE = ".perry-task-transaction.json"
+
+
+def _transaction_path(state_root: Path) -> Path:
+    return state_root / TRANSACTION_FILE
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _safe_transaction_entry(state_root: Path, entry: dict) -> tuple[Path, Path]:
+    target = (state_root / entry["target"]).resolve()
+    tmp = (state_root / entry["tmp"]).resolve()
+    root = state_root.resolve()
+    if root not in target.parents or root not in tmp.parents \
+            or tmp.parent != target.parent or tmp.suffix != ".t" + "mp":
+        raise Refused(f"invalid recovery marker at {_transaction_path(state_root)}; "
+                      f"refusing to touch paths outside the transaction")
+    return target, tmp
+
+
+def _remove_transaction(state_root: Path, payload: dict) -> None:
+    for entry in payload.get("entries", []):
+        _target, tmp = _safe_transaction_entry(state_root, entry)
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+    marker = _transaction_path(state_root)
+    try:
+        marker.unlink()
+    except FileNotFoundError:
+        pass
+    lib.sync_directory(state_root)
+
+
+def recover_transaction(state_root: Path) -> str | None:
+    """Finish or roll back the canonical pair described by a durable marker."""
+    marker = _transaction_path(state_root)
+    if not marker.exists():
+        return None
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+        entries = payload["entries"]
+        if payload.get("version") != 1 or not isinstance(entries, list):
+            raise ValueError("unsupported marker shape")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise Refused(f"cannot recover the pending task transaction at {marker} "
+                      f"({type(exc).__name__}: {exc}). Nothing else was written; "
+                      f"repair or remove the marker only after inspecting it.") from None
+
+    phase = payload.get("phase", "commit")
+    try:
+        if phase == "rollback":
+            for entry in entries:
+                target, _tmp = _safe_transaction_entry(state_root, entry)
+                old = entry.get("old")
+                if old is None:
+                    if target.exists() and _digest(target.read_text(encoding="utf-8")) \
+                            == entry["new_sha256"]:
+                        target.unlink()
+                else:
+                    current = (_digest(target.read_text(encoding="utf-8"))
+                               if target.exists() else None)
+                    if current != _digest(old):
+                        lib.write_atomic(target, old)
+                lib.sync_directory(target.parent)
+            outcome = "rolled back"
+        else:
+            for entry in entries:
+                target, tmp = _safe_transaction_entry(state_root, entry)
+                current = (_digest(target.read_text(encoding="utf-8"))
+                           if target.exists() else None)
+                if current == entry["new_sha256"]:
+                    continue
+                if not tmp.exists():
+                    raise OSError(f"staged replacement is missing for {target}")
+                os.replace(tmp, target)
+                lib.sync_directory(target.parent)
+            outcome = "completed"
+        _remove_transaction(state_root, payload)
+        return outcome
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise Refused(f"the pending task transaction at {marker} could not be "
+                      f"{phase}ed ({type(exc).__name__}: {exc}). The marker and "
+                      f"its staged files were retained; fix the path and retry "
+                      f"any Perry command to recover deterministically.") from None
+
+
+def replace_canonical_pair(state_root: Path,
+                           changes: list[tuple[Path, str]]) -> None:
+    """Replace store+journal with rollback on failure and crash recovery."""
+    marker = _transaction_path(state_root)
+    if marker.exists():
+        recover_transaction(state_root)
+    staged: list[tuple[Path, Path]] = []
+    payload = {"version": 1, "phase": "commit", "entries": []}
+    try:
+        for target, text in changes:
+            old = target.read_text(encoding="utf-8") if target.exists() else None
+            tmp = Path(lib.stage(target, text))
+            staged.append((target, tmp))
+            payload["entries"].append({
+                "target": target.relative_to(state_root).as_posix(),
+                "tmp": tmp.relative_to(state_root).as_posix(),
+                "old": old, "new_sha256": _digest(text),
+            })
+        lib.write_atomic(marker, json.dumps(payload, ensure_ascii=False))
+        lib.sync_directory(state_root)
+    except OSError as exc:
+        for _target, tmp in staged:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        raise Refused(f"the store and journal could not be staged ({exc}). "
+                      f"Nothing was written and staged files were cleaned.") from None
+
+    try:
+        for target, tmp in staged:
+            os.replace(tmp, target)
+            lib.sync_directory(target.parent)
+        _remove_transaction(state_root, payload)
+    except OSError as exc:
+        # A normal failure returns the old pair. If rollback itself is blocked,
+        # the marker remains and the next command resumes it under the lock.
+        payload["phase"] = "rollback"
+        try:
+            lib.write_atomic(marker, json.dumps(payload, ensure_ascii=False))
+            recover_transaction(state_root)
+        except (OSError, Refused) as recovery:
+            raise Refused(f"the canonical replacement failed ({exc}); recovery "
+                          f"is pending at {marker} ({recovery}). Retry any Perry "
+                          f"command after fixing the path; no raw traceback is "
+                          f"required to recover.") from None
+        raise Refused(f"the canonical replacement failed ({exc}). The store and "
+                      f"journal were rolled back; nothing was written.") from None
 
 
 def commit(project_root: Path, state_root: Path, board: Board,
@@ -1623,19 +1831,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
     store and a board that disagree render as the store, which is what makes
     the projection falsifiable rather than a copy.
 
-    **The guarantee, stated exactly.** `perry/tasks.jsonl` and the journal are
-    staged to temp files and renamed (atomic on POSIX), so either both land or
-    neither does — that pair is what "atomic" covers, and it is the pair that
-    matters, because a stored record without its journal line is the divergence
-    this tool exists to remove. `BOARD.md` and the event are written *after*,
-    and each can fail on its own.
-
-    So the honest claim is: **the canonical files never disagree with each
-    other; the two derived artefacts may be stale or missing.** Four surfaces
-    used to say "none of the three if any would fail", which is stronger and
-    false — an unwritable `.perry/` left the row and the journal line on disk
-    and the event absent, as an uncaught traceback. A guarantee overstated in
-    prose is the same defect as one asserted in a row nothing implements.
+    **The guarantee, stated exactly.** Two renames cannot be one atomic
+    filesystem operation. Both post-images and both pre-images are recorded in
+    a durable marker before either rename. A caught failure rolls back; a crash
+    is completed on the next run under the project lock. The marker is removed
+    only after the pair reaches one deterministic state. `BOARD.md` and the
+    event are written afterwards and may independently be stale or missing.
 
     That direction of failure is chosen, not tolerated. DESIGN-004 declares the
     event log derived and disposable, and a missing event is exactly the
@@ -1649,8 +1850,9 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # than a cheaper approximation of it. The refusal that belongs to this
     # decision is `refuse_unstorable_status`, taken in `main()` against the
     # board as it stood: see that function for why it cannot live here.
-    records, conformance = store_records(project_root, state_root, board,
-                                         read_events(project_root) + [event])
+    records, conformance = store_records(
+        project_root, state_root, board, read_events(project_root) + [event],
+        preserve_terminal=True)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
 
@@ -1685,10 +1887,14 @@ def commit(project_root: Path, state_root: Path, board: Board,
         return plan
 
     jtext = ""
-    if jpath.exists():
-        jtext = jpath.read_text()
-    elif not jpath.parent.exists():
-        jpath.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if jpath.exists():
+            jtext = jpath.read_text()
+        elif not jpath.parent.exists():
+            jpath.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise Refused(f"the journal could not be prepared ({exc}). Nothing was "
+                      f"written.") from None
     jtext = append_status_change(jtext, journal_line)
     if definition:
         # The task's full definition, written at creation. It used to be the
@@ -1700,27 +1906,9 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # was one title and nothing else.
         jtext = append_block(jtext, "New tasks added", definition)
 
-    # Stage both canonical files before renaming either.
-    staged: list[tuple[str, Path]] = []
-    try:
-        for path, text in ((spath, perry_store.store_text(records)),
-                           (jpath, jtext)):
-            # `lib.stage`, not `lib.write_atomic`: both files are staged before
-            # either is renamed, which is the whole guarantee here and is not
-            # expressible as two atomic writes.
-            staged.append((lib.stage(path, text), path))
-        while staged:
-            # Pop as we go. Clearing the whole list inside the loop meant a
-            # failure on the second rename left the first temp file orphaned
-            # beside the store with nothing to clean it up.
-            tmp, path = staged.pop(0)
-            os.replace(tmp, path)
-    finally:
-        for tmp, _ in staged:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
+    replace_canonical_pair(
+        state_root,
+        [(spath, perry_store.store_text(records)), (jpath, jtext)])
 
     # `BOARD.md`, re-rendered from what was just stored. Outside the pair for
     # the same reason the event log is: it is derived, one command regenerates
@@ -1734,7 +1922,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
         plan["board_rendered"] = False
         print(f"perry-task: warning — {spath.name} and the journal were "
               f"written, but {board.path.name} could not be re-rendered "
-              f"({exc}). The state is correct and `perry-tasks render` "
+              f"({exc}). The state is correct and `perry-tasks render --write` "
               f"regenerates the file; `perry-lint` reports it as `store-drift` "
               f"until then.", file=sys.stderr)
 
@@ -2191,8 +2379,9 @@ def cmd_stage(args, ctx) -> dict:
     # dropped on any board that lacked `Stage since` — `replace_row` maps
     # values onto headers, so a missing header silently discards the value and
     # the call still exits 0. Same defect that lost `--commitment`.
-    header = ctx["board"].ensure_columns(pri, ["Stage since"]) \
-        if pri in ("P0", "P1", "P2") else header
+    if pri in ("P0", "P1", "P2"):
+        ctx["board"].ensure_columns(pri, ["Stage since"])
+        pri, idx, header, cells = ctx["board"].find(tid)
     line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] stage {prev or '—'} → {stage}"
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "stage",
@@ -4331,10 +4520,15 @@ def main(argv: list[str]) -> int:
                 print(f"perry-task: ⚠ conformance (advisory) — {gate.message}",
                       file=sys.stderr)
         with project_lock(state_root):
+            recovered = recover_transaction(state_root)
             ctx = {"schema": schema, "project_root": project_root,
                    "state_root": state_root, "config": config,
-                   "board": Board(state_root / "BOARD.md"),
-                   "events": read_events(project_root)}
+                    "board": Board(state_root / "BOARD.md"),
+                    "events": read_events(project_root)}
+            ctx["board"].refuse_duplicate_task_ids()
+            if args.cmd not in READ_ONLY_COMMANDS:
+                refuse_store_drift(project_root, state_root, ctx["board"],
+                                   ctx["events"])
             # ADR-007 / TASK-089. Before the subcommand runs, on the board as
             # it stands, and inside the lock — so a refusal means nothing was
             # written and a dry run previews the refusal rather than the write.
@@ -4350,7 +4544,16 @@ def main(argv: list[str]) -> int:
                           f"id and names nothing. `perry-diagnose` reports it "
                           f"as dangling. Write it as prose (`round 3`) if you "
                           f"did not mean an id.", file=sys.stderr)
-            result = COMMANDS[args.cmd](args, ctx)
+            command_args = args
+            if args.cmd == "list" and not args.as_json and not args.all:
+                # The JSON contract counts only rows present in its payload, so
+                # a default `list --json` intentionally reports closed=0. The
+                # human summary answers a different question: how much work is
+                # open, active, and closed in this project. Build the complete
+                # set once, then hide closed rows only while rendering the list.
+                command_args = copy.copy(args)
+                command_args.all = True
+            result = COMMANDS[args.cmd](command_args, ctx)
         # `list` is a published contract and gets nothing added to it. Every
         # other subcommand's payload is Perry-internal, so the verdict rides
         # along there — an agent reading `--json` should not have to shell out
@@ -4415,15 +4618,21 @@ def main(argv: list[str]) -> int:
               + (f" · more: --since {result['cursor']}" if result["more"]
                  else " · caught up"))
     elif args.cmd == "list":
-        for r in result["tasks"]:
+        displayed = (result["tasks"] if args.all else
+                     [r for r in result["tasks"] if r["open"]])
+        for r in displayed:
             mark = " " if r["open"] else "·"
             title = r["title"] or "(no title in the record)"
             print(f" {mark}{r['id']:10} {r['priority']:3} {r['status']:12} {title[:54]}")
-        print(f"\n  {result['open']} open · {result['closed']} closed · "
+        in_progress = sum(1 for r in result["tasks"]
+                          if r["open"] and r["status"] == "in_progress")
+        print(f"\n  {result['open']} open · {in_progress} in_progress · "
+              f"{result['closed']} closed · "
               f"{result['events']} event(s)")
-        if result["untitled"]:
-            print(f"  ⚠ {len(result['untitled'])} id(s) have no title in the record: "
-                  f"{', '.join(result['untitled'])}")
+        untitled = [r["id"] for r in displayed if not r["title"]]
+        if untitled:
+            print(f"  ⚠ {len(untitled)} id(s) have no title in the record: "
+                  f"{', '.join(untitled)}")
     else:
         verb = "would write" if args.dry_run else "wrote"
         # `commit()` reports a lost event honestly; this line used to say
@@ -4437,7 +4646,7 @@ def main(argv: list[str]) -> int:
         tail = "store + journal"
         for name, ok, why in (
                 ("BOARD.md", result.get("board_rendered", True),
-                 "BOARD.md not re-rendered — `perry-tasks render` regenerates "
+                  "BOARD.md not re-rendered — `perry-tasks render --write` regenerates "
                  "it, and `perry-lint` reports `store-drift` until then"),
                 ("event", result.get("event_written", True),
                  "event log unwritable — this row will show as `unrecorded` "

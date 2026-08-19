@@ -45,6 +45,16 @@ CONTRACTS = {
     "perry-decide/list": ["bin/perry-decide", "list"],
 }
 
+# These are the contracts' primary entity collections. The checked-in Perry
+# project is the representative fixture and deliberately carries at least one
+# of each. Without this gate, changing `tasks` to `[]` erased every nested task
+# field from the live shape while the empty-list exemption waved it through.
+REPRESENTATIVE_LISTS = {
+    "perry-task/list": ("tasks",),
+    "perry-goals/list": ("krs",),
+    "perry-decide/list": ("decisions",),
+}
+
 
 def shape(value, path=""):
     """Every FIELD PATH in a payload, with the type at it.
@@ -69,6 +79,27 @@ def shape(value, path=""):
     return out
 
 
+def empty_lists(value, path=""):
+    """Return list paths whose current payload has no item to inspect.
+
+    The parent list remains part of the contract. An empty runtime value cannot
+    prove or disprove a hypothetical item's fields; focused producer tests
+    exercise those shapes. Without this distinction the gate depends on whether
+    today's project happens to carry a conformance finding.
+    """
+    out = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else key
+            out.update(empty_lists(child, child_path))
+    elif isinstance(value, list):
+        if not value:
+            out.add(path)
+        else:
+            out.update(empty_lists(value[0], f"{path}[]"))
+    return out
+
+
 def capture() -> dict:
     got = {}
     for name, argv in CONTRACTS.items():
@@ -76,8 +107,15 @@ def capture() -> dict:
                               capture_output=True, text=True, cwd=ROOT)
         assert proc.returncode == 0, f"{name}: {proc.stderr[-300:]}"
         payload = json.loads(proc.stdout)
+        for field in REPRESENTATIVE_LISTS[name]:
+            sample = payload.get(field)
+            assert isinstance(sample, list) and sample, (
+                f"{name}: representative `{field}` list is empty; nested "
+                "contract fields cannot be checked"
+            )
         got[name] = {"contract": payload.get("contract"),
-                     "shape": shape(payload)}
+                     "shape": shape(payload),
+                     "empty_lists": sorted(empty_lists(payload))}
     return got
 
 
@@ -107,6 +145,9 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
         gone = []
         for name, rec in self.recorded.items():
             for key in rec["shape"]:
+                if any(key.startswith(f"{parent}[]")
+                       for parent in self.live[name]["empty_lists"]):
+                    continue
                 if key not in self.live[name]["shape"]:
                     gone.append(f"{name}: {key}")
         self.assertEqual(gone, [], "\n" + "\n".join(gone))

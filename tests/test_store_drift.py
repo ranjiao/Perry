@@ -56,6 +56,7 @@ class Fixture(unittest.TestCase):
 
     def store(self, d: pathlib.Path) -> pathlib.Path:
         proc = subprocess.run([sys.executable, str(TASKS), "write",
+                               "--from-board",
                                "--root", str(d)],
                               capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(proc.returncode, 0, proc.stderr[-400:])

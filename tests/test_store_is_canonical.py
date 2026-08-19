@@ -37,6 +37,9 @@ Run: python3 tests/parallel test_store_is_canonical
 from __future__ import annotations
 
 import json
+import contextlib
+import importlib.machinery
+import importlib.util
 import pathlib
 import shutil
 import subprocess
@@ -104,16 +107,12 @@ class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):
         self.put(d, recs)
         return d
 
-    def test_write_refuses_and_names_every_value_it_would_discard(self):
+    def test_write_refuses_without_the_explicit_destructive_direction(self):
         d = self._drifted()
         proc = self.sh(TASKS, "write", "--root", str(d))
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("refusing to overwrite", proc.stderr)
-        self.assertIn("ONLY THE STORE HAS THIS", proc.stderr,
-                      "a refusal that does not name the value it would have "
-                      "destroyed asks the user to decide with nothing to "
-                      "decide on")
-        self.assertIn(f"{self.tid}.status", proc.stderr)
+        self.assertIn("--from-board", proc.stderr)
+        self.assertIn("render --write", proc.stderr)
         after = {r["id"]: r for r in self.records(d)}[self.tid]
         self.assertEqual(after["status"], "in_progress",
                          "the refusal must write nothing at all")
@@ -146,7 +145,7 @@ class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):
         lint = self.sh(LINT, "--root", str(d))
         self.assertIn("0 row(s) drifted", lint.stdout)
 
-    def test_write_still_works_when_there_is_no_store_to_lose(self):
+    def test_write_requires_explicit_import_even_when_there_is_no_store(self):
         """The refusal is about discarding, not about the command.
 
         A project with no store is what `write` is FOR. Refusing there would
@@ -154,7 +153,10 @@ class TheRemedyDoesNotDestroyWhatItRepairs(Fixture):
         """
         d = self.project()
         (d / "perry" / "tasks.jsonl").unlink()
-        proc = self.sh(TASKS, "write", "--root", str(d))
+        refused = self.sh(TASKS, "write", "--root", str(d))
+        self.assertEqual(refused.returncode, 1, refused.stderr)
+        self.assertIn("--from-board", refused.stderr)
+        proc = self.sh(TASKS, "write", "--from-board", "--root", str(d))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(self.records(d))
 
@@ -215,6 +217,20 @@ class ABadlyTypedStoreIsReportedNotFatal(Fixture):
         self.assertIn("unknown here rather than absent", out,
                       "excluding a record and calling the rest clean is the "
                       "silence this whole check exists to break")
+
+    def test_diff_reports_string_and_boolean_order_as_json_findings(self):
+        for value in ("3", True):
+            with self.subTest(order=value):
+                d = self.project()
+                recs = self.records(d)
+                recs[0]["order"] = value
+                self.put(d, recs)
+                proc = self.sh(TASKS, "diff", "--root", str(d))
+                self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+                payload = json.loads(proc.stdout)
+                self.assertFalse(payload["store_valid"])
+                self.assertIn("`order`", payload["store_findings"][0]["message"])
+                self.assertNotIn("TypeError", proc.stderr)
 
     def test_the_right_types_are_read_off_the_writer(self):
         """`depends_on` is a LIST, and the live store proves it.
@@ -292,6 +308,47 @@ class AFindingNamesItsOwnRow(Fixture):
         self.assertNotIn(f"{ghost} — the file carries this row", out,
                          f"{ghost} has no row on the board; it is only cited "
                          f"in a `Depends on` cell")
+
+
+class PerryTasksLocksTheWholeOperation(unittest.TestCase):
+    def test_board_import_derives_and_writes_inside_one_project_lock(self):
+        from tests.test_store_is_the_write_target import Project, BOARD
+        p = Project(self, BOARD.replace(
+            "**迁移 done，占比目标 not_started**", "not_started"))
+        path = ROOT / "bin" / "perry-tasks"
+        spec = importlib.util.spec_from_loader(
+            "perry_tasks_lock_test", importlib.machinery.SourceFileLoader(
+                "perry_tasks_lock_test", str(path)))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        active = {"value": False}
+        real_build, real_write = mod.build, mod.lib.write_atomic
+
+        @contextlib.contextmanager
+        def lock(*_args, **_kwargs):
+            active["value"] = True
+            try:
+                yield
+            finally:
+                active["value"] = False
+
+        def checked_build(root):
+            self.assertTrue(active["value"], "source derivation escaped the lock")
+            return real_build(root)
+
+        def checked_write(path, text):
+            self.assertTrue(active["value"], "replacement escaped the lock")
+            return real_write(path, text)
+
+        mod.lib.project_lock = lock
+        mod.build = checked_build
+        mod.lib.write_atomic = checked_write
+        try:
+            rc = mod.main(["write", "--from-board", "--root", str(p.root)])
+        finally:
+            mod.lib.write_atomic = real_write
+        self.assertEqual(rc, 0)
+        self.assertTrue((p.root / "tasks.jsonl").exists())
 
 
 if __name__ == "__main__":

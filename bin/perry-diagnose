@@ -1489,11 +1489,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     single = not any(t.get("declared") for t in tracks)
 
     # **The implicit `main` track was never enumerated.** With a register that
-    # declares only `ops`, rows carrying no `Track` belong to `main` by the
-    # schema's rule — and `main` was in nobody's list, so their evidence went
-    # to `ops` or nowhere. Added only when such rows exist, so a project whose
-    # every row is tracked gains no phantom.
-    if not single and any(not (r.get("track") or "").strip() for r in rows):
+    # declares only `ops`, rows or commitments carrying no `Track` belong to
+    # `main` by the schema's rule — and `main` was in nobody's list, so their
+    # evidence went to `ops` or nowhere. Added only when such work exists, so a
+    # project whose every record is tracked gains no phantom.
+    untracked_work = any(not (r.get("track") or "").strip() for r in rows) \
+        or any(not (c.get("track") or "").strip() for c in commitments)
+    if not single and untracked_work:
         # The key is `track`, not `name` — `parse_tracks` returns
         # `{'track': 'ops', ...}`. Written as `name` first, which would have
         # matched nothing and injected a record every downstream reader would
@@ -1505,49 +1507,41 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
                                       "stages_declared": False}]
 
     #: Which track owns evidence that describes the repository rather than a
-    #: work shape: the implicit `main` when untracked rows put one on the
-    #: board, the single declared track when it is the only candidate, and the
-    #: one implicit track when no register exists at all. `""` when several
-    #: tracks are declared and every row names one — then nothing owns it, which
-    #: is what the two-track test asserts.
-    project_wide = (
-        "main" if any((t.get("track") or "").lower() == "main" for t in tracks)
-        else (tracks[0].get("track") or "").lower() if len(tracks) == 1
+    #: work shape. It belongs to an implicit/declared `main` in project mode,
+    #: or to the sole declared track when that track itself is project mode.
+    #: A sole pipeline/queue/inquiry track is not made project-shaped merely
+    #: because no second track was declared.
+    main_project = next(
+        ((t.get("track") or "").lower() for t in tracks
+         if (t.get("track") or "").lower() == "main"
+         and (t.get("mode") or "project").lower() == "project"), "")
+    sole_project = (
+        (tracks[0].get("track") or "").lower()
+        if len(tracks) == 1
+        and (tracks[0].get("mode") or "project").lower() == "project"
         else "")
+    project_wide = main_project or sole_project
+
+    def record_track(record: dict) -> str:
+        """A blank `Track` cell belongs to the implicit `main` track."""
+        return (record.get("track") or "main").strip().lower()
 
     def evidence_for(name: str) -> dict[str, list]:
         # **Project-wide file evidence belongs to the project-wide track.**
         # `phase/`, `OKR.md`'s objectives and the rest describe the whole
-        # repository, so with no register they are the one track's — and with a
-        # register they are `main`'s, which is what "blank `Track`" means. They
-        # used to go to the single track whether or not it was declared, and
-        # once that was fixed they went to nobody, which is the same error
-        # pointed the other way: a declared `ops` track was being told the
-        # project's objectives were its evidence, and then no track was told
-        # anything at all.
+        # repository, so with no register they are the implicit project track's
+        # — and with a register they are an explicit or implicit project
+        # track's. They never belong to a sole non-project track merely because
+        # it is the only declared candidate.
         # Shape evidence reaches every track; repository evidence reaches the
-        # project-wide one — which is the single track when no register exists
-        # and the implicit `main` when one does.
-        # **Two existing tests assert opposite things here, and both are
-        # right.** One says a project with two declared tracks must attribute
-        # `phase/` to neither. The other says a project with ONE declared track
-        # does get the project-wide signals, because "withholding them would
-        # throw away the strongest evidence a Perry project has".
-        #
-        # The V4 finding contradicted the second — until you look at its board:
-        # it has **no rows**. The finding's scenario has one declared track
-        # *and untracked rows beside it*, and those rows are the implicit
-        # `main`'s. So the rule is not about how many tracks are declared; it
-        # is about whether there is a project-wide track to own them.
-        #
-        # `main` is enumerated above exactly when such rows exist, so
-        # `project_wide` is that question already answered.
+        # project-wide one — the implicit `main` when untracked work exists, or
+        # a sole declared project-mode track. `project_wide` is that question
+        # already answered.
         ev: dict[str, list] = {m: list(v) for m, v in shape_ev.items()}
         if name.lower() == project_wide:
             for mode, items in project_wide_ev.items():
                 ev[mode] = list(items) + ev[mode]
-        mine = [r for r in rows if single
-                or (r.get("track") or "").strip().lower() == name.lower()]
+        mine = [r for r in rows if single or record_track(r) == name.lower()]
         n = lambda col: _filled(mine, col)  # noqa: E731
         for col, owners, phrase in COLUMN_SIGNALS:
             filled = n(col)
@@ -1565,8 +1559,8 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         if krs:
             _award(ev, ("project",), CORROBORATING,
                    f"{krs} board row(s) attribute work to a KR")
-        mine_c = [c for c in commitments if single
-                  or (c.get("track") or "").strip().lower() == name.lower()]
+        mine_c = [c for c in commitments
+                  if single or record_track(c) == name.lower()]
         # `OKR.md § Commitments` is the spine of **both** pipeline and queue, so
         # the table's existence distinguishes nothing. The **columns** do, and
         # since TASK-091 they do it by name rather than by regex: a dated

@@ -37,6 +37,7 @@ import sys
 import tempfile
 import time
 import re
+import stat
 from datetime import date as _date
 from pathlib import Path
 
@@ -73,6 +74,12 @@ def stage(path: Path, text: str) -> str:
     """
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
+        # `mkstemp` deliberately creates 0600 files. That is right for a new
+        # secret and wrong for replacing an existing tracked document: the
+        # rename would silently change a 0644 BOARD.md, journal, or store to
+        # 0600. The replacement inherits the target's current permission bits.
+        if path.exists():
+            os.fchmod(fd, stat.S_IMODE(path.stat().st_mode))
         with os.fdopen(fd, "w") as fh:
             fh.write(text)
             fh.flush()
@@ -100,6 +107,15 @@ def write_atomic(path: Path, text: str) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+def sync_directory(path: Path) -> None:
+    """Fsync a directory after durable-name changes, where the OS supports it."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # ── locking ───────────────────────────────────────────────────────────────

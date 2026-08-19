@@ -44,7 +44,7 @@ HEAD = ("| ID | Title | Owner | Status | Next action | Evidence | "
 
 
 class Base(unittest.TestCase):
-    def project(self, rows: str, board_rows: str = "") -> Path:
+    def project(self, rows: str, board_rows: str = "", heading: str = "P1") -> Path:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         root = Path(tmp.name)
@@ -53,14 +53,25 @@ class Base(unittest.TestCase):
         (root / ".perry" / "config.md").write_text(
             CONFIG.format(rows=rows), encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text(
-            "# Board\n\n## P1\n\n" + HEAD + board_rows, encoding="utf-8")
+            f"# Board\n\n## {heading}\n\n" + HEAD + board_rows, encoding="utf-8")
         return root
 
-    def tracks(self, root: Path) -> dict:
+    def state(self, root: Path) -> dict:
         r = subprocess.run([sys.executable, str(STATE), "--json",
                             "--root", str(root)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    def tracks(self, root: Path) -> dict:
         return {t["track"]: t for t in
-                json.loads(r.stdout)["project"]["config"]["tracks"]}
+                self.state(root)["project"]["config"]["tracks"]}
+
+    def task(self, root: Path, *args: str) -> dict:
+        r = subprocess.run([sys.executable, str(TASK), *args, "--root", str(root),
+                            "--json"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return json.loads(r.stdout)
 
 
 class TestTheReaderAndTheWriterAgreeAboutStages(Base):
@@ -174,6 +185,70 @@ class TestWipOverflowIsNowAScriptCatch(Base):
         doc = (PERRY_HOME / "modes" / "pipeline.md").read_text(encoding="utf-8")
         self.assertIn("wip_breaches", doc)
         self.assertIn("still norms the agent upholds", doc)
+
+
+class TestCustomTaskGroupsReachTheStateReader(Base):
+    PIPELINE = ("| rel | pipeline | phase/ | brief,draft,review,published | "
+                "review:1 | 5d | 2w | V5 |\n")
+    QUEUE = ("| ops | queue | commitments | new,triaged,in_progress,resolved | "
+             "triaged:1 | 3d | 1w | V2 |\n")
+
+    def test_pipeline_add_is_visible_to_tasks_open_counts_and_wip(self):
+        root = self.project(self.PIPELINE, heading="Release train")
+        added = self.task(
+            root, "add", "--title", "publish notes", "--deliverable",
+            "published notes with a test", "--verification", "fresh review",
+            "--next", "draft them", "--track", "rel", "--stage", "review",
+            "--group", "Release train")
+
+        payload = self.state(root)
+        rows = {t["id"]: t for t in payload["board"]["tasks"]}
+        self.assertIn(added["id"], rows)
+        self.assertEqual(payload["board"]["open"], 1)
+        self.assertEqual((rows[added["id"]]["track"], rows[added["id"]]["stage"]),
+                         ("rel", "review"))
+        track = {t["track"]: t for t in payload["project"]["config"]["tracks"]}["rel"]
+        self.assertEqual(track["stage_counts"], {"review": 1})
+        self.assertEqual(track["wip_breaches"],
+                         [{"stage": "review", "count": 1, "limit": 1}])
+
+    def test_queue_route_is_visible_after_it_leaves_intake(self):
+        root = self.project(self.QUEUE, heading="Support lane")
+        self.task(root, "intake", "--title", "customer request",
+                  "--arrived", "2026-08-05")
+        routed = self.task(root, "route", "1", "--track", "ops",
+                           "--group", "Support lane")
+
+        payload = self.state(root)
+        rows = {t["id"]: t for t in payload["board"]["tasks"]}
+        self.assertIn(routed["id"], rows)
+        self.assertEqual(payload["board"]["open"], 1)
+        self.assertEqual(rows[routed["id"]]["stage"], "triaged")
+        track = {t["track"]: t for t in payload["project"]["config"]["tracks"]}["ops"]
+        self.assertEqual(track["stage_counts"], {"triaged": 1})
+        self.assertEqual(track["wip_breaches"],
+                         [{"stage": "triaged", "count": 1, "limit": 1}])
+
+    def test_non_task_and_malformed_sections_stay_out_of_all_tasks(self):
+        non_task = ("# Board\n\n## Reference\n\n"
+                    "| ID | Description | Owner | Status |\n"
+                    "|---|---|---|---|\n"
+                    "| REF-1 | not work | team | current |\n")
+        malformed = ("# Board\n\n## Broken group\n\n"
+                     "| ID | Title | Owner | Status |\n"
+                     "| TASK-1 | no separator | team | in_progress |\n")
+        self.assertEqual(P.parse_board(non_task).all_tasks, [])
+        self.assertEqual(P.parse_board(malformed).all_tasks, [])
+
+    def test_a_reference_table_beside_a_task_table_is_not_read_as_work(self):
+        board = ("# Board\n\n## Release train\n\n"
+                 "| ID | Description | Owner | Status |\n"
+                 "|---|---|---|---|\n"
+                 "| REF-1 | glossary row | team | current |\n\n"
+                 + HEAD +
+                 "| TASK-1 | real work | team | in_progress | next | — | V3 | "
+                 "rel | review |\n")
+        self.assertEqual([t.id for t in P.parse_board(board).all_tasks], ["TASK-1"])
 
 
 if __name__ == "__main__":

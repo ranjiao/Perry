@@ -463,9 +463,11 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    It mints the ID from board ∪ journal ∪ events (never reused, never
    accidentally gapped), stamps the timestamp at call time, sets `Stage` /
    `Stage since` / `Arrived` for the track's mode, **creates any column or
-   section the mode needs and the board lacks**, and writes the board row, the
-   journal line and the event — the row and the journal line atomically with
-   each other, the event appended after and reported if it fails.
+   section the mode needs and the board lacks**, and writes the task store and
+   journal through a durable recovery marker. A normal failure rolls both back;
+   a crash between replacements is completed on the next locked Perry run.
+   `BOARD.md` is rendered afterwards and the event is appended and reported if
+   either derived-surface write fails.
 
    **Which id family it mints into.** `TASK-NNN` unless the board says
    otherwise, and the board says otherwise in exactly one way: if every

@@ -1,8 +1,8 @@
 """`perry-task` writes `perry/tasks.jsonl`, and `BOARD.md` is rendered from it.
 
-TASK-089, phase 002, ADR-007's first slice. The atomic pair is **store +
-journal** now, with `BOARD.md` and the event log as the two derived artefacts
-that may each fail alone.
+TASK-089, phase 002, ADR-007's first slice. The recoverable pair is **store +
+journal** now: ordinary failures roll back and crash recovery completes the
+transaction, with `BOARD.md` and the event log as derived artefacts.
 
 **The acceptance is one command, run after every kind of write:**
 `perry-tasks diff` reports `identical: true`. It is the only check that grades
@@ -21,7 +21,12 @@ Run: python3 tests/parallel test_store_is_the_write_target
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import importlib.machinery
+import importlib.util
+import os
 import pathlib
 import shutil
 import subprocess
@@ -32,6 +37,15 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TASK = ROOT / "bin" / "perry-task"
 TASKS = ROOT / "bin" / "perry-tasks"
+
+
+def task_module():
+    spec = importlib.util.spec_from_loader(
+        "perry_task_task089", importlib.machinery.SourceFileLoader(
+            "perry_task_task089", str(TASK)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 BOARD = """# Board — T
 
@@ -195,6 +209,196 @@ class TestEveryWriteLeavesTheStoreAndTheBoardAgreeing(Fixture):
         self.assertEqual(p.task("ask", "--needed", "a decision")[0], 0)
         self.assertIn("a decision", p.board())
         self.diff_is_identical(p, "after ask")
+
+
+class TestOneTaskTableDefinition(Fixture):
+    SECOND_TABLE = BOARD.replace(
+        "| TASK-004 | Fourth | User | not_started | — | — |",
+        "| TASK-004 | Fourth | User | not_started | — | — |\n\n"
+        "Prose between tables.\n\n### Deferred\n\n"
+        "| ID | Title | Owner | Status | Next action | Evidence |\n"
+        "|---|---|---|---|---|---|\n"
+        "| TASK-005 | Fifth | User | not_started | — | — |", 1)
+
+    def test_a_second_table_after_prose_is_stored_and_rendered_losslessly(self):
+        p = Project(self, self.SECOND_TABLE)
+        code, out = p.task("next", "TASK-005", "--next", "kept in the store")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(p.record("TASK-005")["next_action"], "kept in the store")
+        self.assertNotIn("ID", [r["id"] for r in p.store()],
+                         "the repeated markdown header became a task record")
+        report = self.diff_is_identical(p)
+        self.assertEqual(report["rows_verbatim"], [])
+
+    def test_widening_preserves_both_tables_and_targets_the_second_row(self):
+        p = Project(self, self.SECOND_TABLE.replace(
+            "**迁移 done，占比目标 not_started**", "not_started"))
+        code, out = p.task("depends", "TASK-005", "--on", "TASK-001")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(p.record("TASK-005")["depends_on"], ["TASK-001"])
+        self.assertEqual(p.record("TASK-001")["depends_on"], [])
+        self.assertEqual(p.board().count("| ID | Title | Owner | Status | Next action | Evidence | Depends on |"), 2)
+        self.assertNotIn("ID", [r["id"] for r in p.store()])
+        self.diff_is_identical(p)
+
+    def test_duplicate_ids_refuse_even_a_non_task_mutation_and_direct_import(self):
+        duplicate = self.SECOND_TABLE.replace("TASK-005", "TASK-001")
+        p = Project(self, duplicate)
+        before = p.board()
+        code, out = p.task("ask", "--needed", "a separate decision")
+        self.assertEqual(code, 1, out)
+        self.assertIn("duplicate task ids", out["refused"])
+        self.assertEqual(p.board(), before)
+        proc = subprocess.run(
+            [sys.executable, str(TASKS), "write", "--from-board", "--root",
+             str(p.root)], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("duplicate task ids", proc.stderr)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+
+class TestCanonicalRecovery(unittest.TestCase):
+    def files(self):
+        root = pathlib.Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        a, b = root / "tasks.jsonl", root / "journal.md"
+        a.write_text("old store\n"); b.write_text("old journal\n")
+        return root, a, b
+
+    def test_a_second_rename_failure_rolls_back_and_cleans_every_temp(self):
+        mod = task_module()
+        root, store, journal = self.files()
+        real = mod.os.replace
+
+        def fail_journal(src, dst):
+            if pathlib.Path(dst) == journal:
+                raise PermissionError("forced journal replacement failure")
+            return real(src, dst)
+
+        mod.os.replace = fail_journal
+        try:
+            with self.assertRaises(mod.Refused) as caught:
+                mod.replace_canonical_pair(
+                    root, [(store, "new store\n"), (journal, "new journal\n")])
+        finally:
+            mod.os.replace = real
+        self.assertIn("rolled back", str(caught.exception))
+        self.assertEqual(store.read_text(), "old store\n")
+        self.assertEqual(journal.read_text(), "old journal\n")
+        self.assertFalse((root / mod.TRANSACTION_FILE).exists())
+        self.assertEqual(list(root.glob("*" + ".t" + "mp")), [])
+
+    def test_a_crash_between_renames_is_completed_on_recovery(self):
+        mod = task_module()
+        root, store, journal = self.files()
+        real = mod.os.replace
+
+        def crash_on_journal(src, dst):
+            if pathlib.Path(dst) == journal:
+                raise SystemExit("simulated process death")
+            return real(src, dst)
+
+        mod.os.replace = crash_on_journal
+        try:
+            with self.assertRaises(SystemExit):
+                mod.replace_canonical_pair(
+                    root, [(store, "new store\n"), (journal, "new journal\n")])
+        finally:
+            mod.os.replace = real
+        self.assertEqual(store.read_text(), "new store\n")
+        self.assertEqual(journal.read_text(), "old journal\n")
+        self.assertEqual(mod.recover_transaction(root), "completed")
+        self.assertEqual(journal.read_text(), "new journal\n")
+        self.assertFalse((root / mod.TRANSACTION_FILE).exists())
+        self.assertEqual(list(root.glob("*" + ".t" + "mp")), [])
+
+    def test_a_stage_failure_is_a_concise_refusal_and_leaves_no_temp(self):
+        mod = task_module()
+        root, store, journal = self.files()
+        real = mod.lib.stage
+        mod.lib.stage = lambda *_args, **_kw: (_ for _ in ()).throw(
+            PermissionError("forced stage failure"))
+        try:
+            with self.assertRaises(mod.Refused) as caught:
+                mod.replace_canonical_pair(root, [(store, "new"), (journal, "new")])
+        finally:
+            mod.lib.stage = real
+        self.assertIn("Nothing was written", str(caught.exception))
+        self.assertEqual(list(root.glob("*" + ".t" + "mp")), [])
+
+    def test_replacements_preserve_existing_modes(self):
+        mod = task_module()
+        root, store, journal = self.files()
+        os.chmod(store, 0o644); os.chmod(journal, 0o640)
+        mod.replace_canonical_pair(root, [(store, "new"), (journal, "new")])
+        self.assertEqual(store.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(journal.stat().st_mode & 0o777, 0o640)
+
+    def test_commit_routes_the_real_command_through_the_recovery_boundary(self):
+        p = Project(self, BOARD.replace(
+            "**迁移 done，占比目标 not_started**", "not_started"))
+        mod = task_module()
+        before = p.board()
+        calls = []
+        real = mod.replace_canonical_pair
+
+        def stop_at_boundary(state_root, changes):
+            calls.append((state_root, changes))
+            raise mod.Refused("transaction boundary reached")
+
+        mod.replace_canonical_pair = stop_at_boundary
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = mod.main([
+                    "start", "TASK-001", "--root", str(p.root), "--json"
+                ])
+        finally:
+            mod.replace_canonical_pair = real
+
+        self.assertEqual(code, 1)
+        self.assertEqual(len(calls), 1,
+                         "commit bypassed the recoverable pair helper")
+        changes = calls[0][1]
+        self.assertEqual(len(changes), 2)
+        self.assertIn(p.root / "tasks.jsonl", [path for path, _text in changes])
+        journal = next(path for path, _text in changes
+                       if path.name != "tasks.jsonl")
+        self.assertEqual(journal.parent.parent.name, "journal")
+        self.assertEqual(p.board(), before)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+        self.assertFalse((p.root / ".perry" / "events.jsonl").exists())
+
+
+class TestStoreEditsAreNotOverwrittenBeforeTask090(Fixture):
+    def test_an_unrelated_write_refuses_until_the_store_is_rendered(self):
+        p = Project(self, BOARD.replace(
+            "**迁移 done，占比目标 not_started**", "not_started"))
+        self.assertEqual(p.task("start", "TASK-001")[0], 0)
+        records = p.store()
+        records[0]["owner"] = "Store-only owner"
+        (p.root / "tasks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+        before = (p.root / "tasks.jsonl").read_bytes()
+        code, out = p.task("ask", "--needed", "unrelated")
+        self.assertEqual(code, 1, out)
+        self.assertIn("render --write", out["refused"])
+        self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
+
+    def test_a_store_only_created_edit_is_also_refused(self):
+        p = Project(self, BOARD.replace(
+            "**迁移 done，占比目标 not_started**", "not_started"))
+        code, added = p.task("add", "--title", "Tool-created", "--priority", "P0")
+        self.assertEqual(code, 0, added)
+        records = p.store()
+        next(r for r in records if r["id"] == added["id"])["created"] = \
+            "1999-01-01T00:00:00"
+        (p.root / "tasks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+        before = (p.root / "tasks.jsonl").read_bytes()
+        code, out = p.task("ask", "--needed", "unrelated")
+        self.assertEqual(code, 1, out)
+        self.assertIn("render --write", out["refused"])
+        self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
 
 
 class TestTheStoreIsWhatIsWritten(Fixture):

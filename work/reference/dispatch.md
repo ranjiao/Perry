@@ -29,8 +29,9 @@ Executor contract: `claude-subagent | opencode-subagent | codex | manual`. `manu
 > **Stage moves and status changes go through `bin/perry-task`.** This file is
 > loaded on its own, so the invariant stated in `reference/subcommands.md` does
 > not reach it — restated here rather than assumed: `perry-task start` /
-> `status` / `stage` write the board row and the journal line atomically with
-> each other, then append the event. Hand-editing a row here shows up at the next standup as a
+> `status` / `stage` write the task store and journal through a durable recovery
+> marker, then render the board and append the event. A normal failure rolls the
+> pair back; a crash is completed on the next locked Perry run. Hand-editing a row here shows up at the next standup as a
 > post-tool edit, and dispatch runs often enough that doing so would bury the
 > signal in noise dispatch itself created. — per executor
 
