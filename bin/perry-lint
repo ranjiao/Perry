@@ -1923,17 +1923,27 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
       (b) `reconcile_drift` reports drift and honours the board anyway
           (DESIGN-004 decision 5). Two tools disagreeing about whether one fact
           is fatal is worse than either verdict alone.
-      (c) An `error` is retroactive. Every project that has ever hand-edited a
-          board goes red on the first run after upgrading, and under ADR-004's
-          gate a file carrying an error cannot be declared conformant — so one
-          stale cell escalates into a write refusal on `BOARD.md` itself. That
-          is the DESIGN-003 decision-4 argument, unchanged.
+      (c) ~~An `error` escalates into a write refusal under ADR-004's gate.~~
+          **FALSE, and a V4 round measured it.** `bin/perry-conform §
+          shape_errors` runs `check_file` ONLY — its own docstring says so —
+          and this check is called from `main()`. Promoting all four findings
+          to `error` on a copy still returned `conformant, errors: 0`, and a
+          gated write under `PERRY_CONFORMANCE=enforce` succeeded. The claim was
+          asserted in a commit message before it was checked.
 
-    **Field-level, and that is the finest granularity that exists today.**
-    "The bytes the store would produce" presumes a renderer, and there is none:
-    `perry-tasks` writes the store and nothing renders the document back out of
-    it, while `BOARD.md` carries columns (`By when`, `Notes`) that the eighteen
-    stored fields do not cover — so a whole-line byte diff would report every
+          What is true, and is the better argument anyway, is the criterion
+          `shape_errors` states itself: **warnings are quality signals, not
+          shape violations.** A board carrying drift is still a board every
+          reader parses correctly, which is the only thing a writer needs to
+          know. Drift is time-dependent in the same way `stale-run` is — the
+          bytes did not change, the store did.
+
+    **Field-level, and it stays field-level even though the renderer landed.**
+    This said "there is no renderer" and TASK-088 shipped one two commits later
+    — `perry-tasks diff` reports `identical: true` on this project today. A V4
+    round caught the stale note. The comparison is still field-level on purpose:
+    `BOARD.md` carries columns (`By when`, `Notes`) that the stored fields do
+    not cover — so a whole-line byte diff would report every
     untouched row as drift. What is compared instead is what the store WOULD
     hold if derived from the file as it stands (`perry-tasks.build()`, the one
     derivation there is) against what it holds on disk. When a renderer lands,
@@ -1948,15 +1958,32 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         return []
 
     rel_store = _rel(store_path, project_root)
+    # **Four reachable store states used to kill the whole lint**, rc 2 and no
+    # `--json` payload: a store written as one JSON array — which is the
+    # ordinary way to get `.jsonl` wrong, `json.dump(records, f)` — a bare
+    # `null` or scalar line, a directory where the file should be, and an
+    # unreadable file. Only `JSONDecodeError` was caught; the first two die
+    # later on `r.get`, and the last two die on the read itself.
+    #
+    # The sibling guard eight lines down states the rule this broke: **one
+    # check may not kill the lint.** Found by a V4 round that went looking for
+    # the case the author had not listed.
     try:
         on_disk = [json.loads(line) for line in
                    store_path.read_text(errors="replace").split("\n")
                    if line.strip()]
-    except json.JSONDecodeError as exc:
+    except (OSError, ValueError) as exc:
         return [Finding("warn", rel_store, "store-unreadable",
-                        f"`tasks.jsonl` is not readable as JSONL ({exc}) — "
-                        f"there is nothing to compare the file against; "
-                        f"`perry-tasks write` re-derives it")]
+                        f"`tasks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare the file against; `perry-tasks write` "
+                        f"re-derives it")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "store-unreadable",
+                        "`tasks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record; "
+                        "`perry-tasks write` re-derives it")]
 
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
@@ -1981,6 +2008,14 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         want, got = stored.get(tid), live[tid]
         line = _board_line_of(board_text, tid)
         if want is None:
+            # **`build()` includes CLOSED tasks from the event log**, whose
+            # rows `done` removed from the board — 63 of 95 on this project.
+            # Saying "the file carries this row" of a row the file does not
+            # contain was false for two-thirds of what this branch reported,
+            # with `line: null` and a remedy that does not apply. Found by a V4
+            # round; the board is the authority on what the board carries.
+            if line is None:
+                continue
             rows.append((tid, "the file carries this row and the store has no "
                               "record of it", line))
             continue
@@ -2010,7 +2045,7 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             "warn", rel_board, "store-drift",
             f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
             f"`{rel_store}` — at this scale the store is stale rather than the "
-            f"file hand-edited, and `perry-tasks verify` prints the whole list."))
+            f"file hand-edited, and `perry-tasks verify` caps at ten too."))
     return findings
 
 
@@ -2485,6 +2520,19 @@ def main(argv: list[str]) -> int:
             for f in errors + warns:
                 print(f)
             print(f"\n  {len(errors)} error(s), {len(warns)} warning(s)")
+        # **"no store" and "clean" printed byte-identically.** `stats` was
+        # assigned three times and read nowhere — its sibling
+        # `check_provenance.stats` is printed, which is what made the omission
+        # look deliberate. A V4 round caught it. Two different answers must not
+        # look the same, which is the same rule `perry-tasks verify` follows
+        # when it returns rc 2 rather than 0 with no store.
+        _st = getattr(check_store_drift, "stats", None)
+        if _st and not mode_templates:
+            print(f"  · store: {_st['records']} record(s), "
+                  f"{_st['drifted']} row(s) drifted"
+                  if _st["store"] else
+                  "  · no `tasks.jsonl` — drift against the store is "
+                  "unchecked, not clean")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "

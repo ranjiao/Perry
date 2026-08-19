@@ -173,5 +173,95 @@ class TestNoStoreIsSilent(Fixture):
                             "the check is silent even with a store present")
 
 
+class TestOneCheckMayNotKillTheLint(unittest.TestCase):
+    """**Four reachable store states used to kill the whole lint**, rc 2 and no
+    `--json` payload — found by a V4 round looking for the case the author had
+    not listed.
+
+    Only `json.JSONDecodeError` was caught. A store written as one JSON array —
+    which is the ordinary way to get `.jsonl` wrong, `json.dump(records, f)` —
+    and a bare `null` both PARSE and then die on `r.get`; a directory or an
+    unreadable file die on the read itself.
+
+    The function's own sibling guard states the rule this broke: *one check may
+    not kill the lint*.
+    """
+
+    def project(self, write_store):
+        import shutil
+        import tempfile
+        d = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "perry").mkdir()
+        (d / ".perry").mkdir()
+        (d / ".perry" / "config.md").write_text("State root: perry\n")
+        shutil.copy(ROOT / "perry" / "BOARD.md", d / "perry" / "BOARD.md")
+        write_store(d / "perry" / "tasks.jsonl")
+        return d
+
+    def rules(self, d):
+        import json
+        import subprocess
+        import sys
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-lint"),
+             "--root", str(d), "--json"], capture_output=True, text=True)
+        self.assertTrue(proc.stdout.strip(),
+                        f"the lint produced no payload: {proc.stderr[-200:]}")
+        return [f["rule"] for f in json.loads(proc.stdout)["findings"]]
+
+    def test_a_whole_file_json_array_is_reported(self):
+        import json
+        d = self.project(lambda p: p.write_text(json.dumps([{"id": "T-1"}])))
+        self.assertIn("store-unreadable", self.rules(d))
+
+    def test_a_bare_scalar_line_is_reported(self):
+        d = self.project(lambda p: p.write_text("null\n"))
+        self.assertIn("store-unreadable", self.rules(d))
+
+    def test_a_directory_where_the_store_should_be_is_reported(self):
+        d = self.project(lambda p: p.mkdir())
+        self.assertIn("store-unreadable", self.rules(d))
+
+    def test_a_valid_store_still_checks(self):
+        """The guard must not swallow the working case — a check that reports
+        `unreadable` for everything is off, not safe."""
+        import json
+        d = self.project(lambda p: p.write_text(
+            json.dumps({"id": "TASK-001", "title": "x"}) + "\n"))
+        self.assertNotIn("store-unreadable", self.rules(d))
+
+
+class TestTheMessageIsTrueOfTheFile(unittest.TestCase):
+    def test_a_closed_task_is_not_called_a_row_the_file_carries(self):
+        """`build()` includes CLOSED tasks from the event log, whose rows
+        `done` removed — 63 of 95 on this project. Saying *"the file carries
+        this row"* of a row the file does not contain was false for two-thirds
+        of what that branch reported, with `line: null` and a remedy that does
+        not apply."""
+        import json
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+        d = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "perry").mkdir()
+        (d / ".perry").mkdir()
+        (d / ".perry" / "config.md").write_text("State root: perry\n")
+        shutil.copy(ROOT / "perry" / "BOARD.md", d / "perry" / "BOARD.md")
+        # A store holding only one row: every other derived task is "missing".
+        (d / "perry" / "tasks.jsonl").write_text(
+            json.dumps({"id": "TASK-001", "title": "x"}) + "\n")
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-lint"),
+             "--root", str(d), "--json"], capture_output=True, text=True)
+        for f in json.loads(proc.stdout)["findings"]:
+            if "store has no record" in f["message"]:
+                self.assertIsNotNone(
+                    f["line"], f"claimed the file carries {f['message'][:40]!r} "
+                               f"with no line — the board does not contain it")
+
+
 if __name__ == "__main__":
     unittest.main()
