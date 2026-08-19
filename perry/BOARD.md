@@ -35,7 +35,7 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — |  | TASK-090, TASK-092 |
-| TASK-105 | perry-explain resolves TASK ids from the typed Task store | Coding Agent | not_started | Implement perry/evidence/2026-08/TASK-105-spec.md without changing the Task store schema. | evidence/2026-08/TASK-105-spec.md | V3 | — |
+| TASK-105 | perry-explain resolves TASK ids from the typed Task store | Coding Agent | in_progress | Implement typed Task lookup and focused behavioral tests from TASK-105-spec.md. | evidence/2026-08/TASK-105-spec.md | V3 | — |
 | TASK-106 | Task summary is optional, explicit and preserved end to end | Coding Agent | not_started | After TASK-044 and TASK-105 land, implement perry/evidence/2026-08/TASK-106-spec.md. | evidence/2026-08/TASK-106-spec.md | V4 | TASK-105, TASK-044 |
 
 ## P2
@@ -50,7 +50,6 @@
 | TASK-085 | Decision status has no word for a proposal, and lives in three places | Coding Agent | not_started | — | — | V2 |  |
 | TASK-086 | DESIGN-002 decision 4 says lint warns on a collision; lint does not emit NS-01 | Coding Agent | not_started | — | — | V2 |  |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | not_started | — | — | V3 |  |
-| TASK-101 | The procedure guard walks the whole tree, not just the three lanes | Coding Agent | not_started | — | — |  | TASK-096 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
