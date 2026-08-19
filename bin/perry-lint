@@ -520,6 +520,45 @@ def spec_claims(spec: dict, text: str, schema: dict) -> bool:
     return True
 
 
+#: Cells a typed column tolerates as "not filled in". Kept beside the check
+#: rather than inside it: an unfilled `Due` is a promise with no date yet, not
+#: a promise with a malformed one, and reporting the two the same way is how a
+#: check gets switched off.
+BLANK_CELL = {"—", "-", "–", "n/a", "N/A", "none", "TBD", "tbd", "？", "?"}
+
+#: schema `typed_columns` value → the predicate that answers it. Both halves
+#: come from `lib`, which is where `bin/perry-goals` reads them too, so the
+#: writer's "accepted" and the reader's "valid" cannot drift apart.
+TYPED_CELL = {
+    "iso-date-or-sla": lambda v: lib.is_iso_date(v) or lib.is_sla_token(v),
+}
+#: What each kind ACCEPTS, in words, read from `schema § typed_cell_kinds`.
+#: Not written here: the guard in `tests/test_work_modes.py` forbids this file
+#: from naming a column's vocabulary in code, and it is right to — the words
+#: are the declaration's and only the predicate above is Python's.
+
+
+_TYPED_CELL_KINDS: dict = {}
+
+
+def _accepts(kind: str) -> str:
+    """The declared prose for a typed cell kind, or a plain fallback.
+
+    Read from `schema § typed_cell_kinds` and cached, not written here. The
+    fallback is deliberately shapeless: a kind the schema declares without
+    words should read as under-documented, not as something this file invented
+    a vocabulary for.
+    """
+    if not _TYPED_CELL_KINDS:
+        try:
+            _TYPED_CELL_KINDS.update(
+                json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                .get("typed_cell_kinds") or {})
+        except (OSError, ValueError):
+            pass
+    return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
+
+
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
     if spec.get("format") == "yaml-frontmatter":
         return check_frontmatter(path, rel, spec, enums, is_template)
@@ -735,6 +774,49 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 "error", rel, "bad-enum",
                                 f"{col} = {val!r} is not one of {enums[enum_name]}",
                             ))
+                # **The reader half of a typed column.** `enum_columns`
+                # above says "this cell is one of these words"; this says
+                # "this cell is a value of this shape". The schema declares
+                # both, so a column whose value space is written down in
+                # `state-schema.json` is checked here rather than only in
+                # whichever tool happens to write it.
+                #
+                # It exists because the Commitments table's own note reads
+                # "`Due` is TYPED … and nothing else is accepted", and that
+                # was true of `perry-goals commit` and of nothing else — a
+                # hand-written `| … | 下周期 | active |` under a `Due` header
+                # linted clean. A V4 measured it. `warn`, because a pre-split
+                # register is a state real projects pass through and
+                # `perry-goals commit --migrate` is the fix; an `error` would
+                # block the migration under enforce mode.
+                for col, kind in (tspec.get("typed_columns") or {}).items():
+                    ci = column_index(got, col)
+                    if ci < 0:
+                        continue
+                    ok = TYPED_CELL.get(kind)
+                    if ok is None:
+                        findings.append(Finding(
+                            "warn", rel, "schema-unknown-type",
+                            f"the schema types column `{col}` as {kind!r} and "
+                            f"this lint has no predicate for that, so the "
+                            f"column is unchecked rather than clean"))
+                        continue
+                    for row in rows:
+                        if ci >= len(row):
+                            continue
+                        val = row[ci].replace("*", "").strip()
+                        if not val or val in BLANK_CELL or PLACEHOLDER.search(val):
+                            continue
+                        if not ok(val):
+                            findings.append(Finding(
+                                "warn", rel, "bad-typed-cell",
+                                f"{col} = {val!r} — this column is typed "
+                                f"({_accepts(kind)}) and nothing else "
+                                f"is accepted, so a reader cannot compare or "
+                                f"sort it. Prose about a deadline belongs in "
+                                f"`By when note`, which is never validated: "
+                                f"`perry-goals commit --migrate` moves it."))
+
                 # A column the row's own mode has no honest default for, left
                 # undeclared.
                 #

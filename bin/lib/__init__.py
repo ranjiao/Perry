@@ -37,6 +37,7 @@ import sys
 import tempfile
 import time
 import re
+from datetime import date as _date
 from pathlib import Path
 
 #: `bin/lib/` → `bin/` → the install. Every tool computes `PERRY_HOME` the same
@@ -196,9 +197,40 @@ def project_lock(state_root: Path, timeout: float = 10.0,
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+#: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here
+#: for the same reason `ISO_DATE_RE` is: `bin/perry-goals` validates `--due`
+#: with it and `bin/perry-lint` now checks the column against it, and a typed
+#: column whose writer and reader disagree about the value space is the defect
+#: this pair was split to remove.
+SLA_TOKEN_RE = re.compile(r"^\d+\s*[dwhmy]$", re.I)
+
+
+def is_sla_token(value: str) -> bool:
+    return bool(SLA_TOKEN_RE.match((value or "").strip().strip("*` ")))
+
+
 def is_iso_date(value: str) -> bool:
-    """Does this cell hold exactly one ISO date, decoration stripped?"""
-    return bool(ISO_DATE_RE.match((value or "").strip().strip("*` ")))
+    """Does this cell hold exactly one REAL ISO date, decoration stripped?
+
+    **The calendar, not only the shape.** `2026-13-45` and `2026-02-30` match
+    the pattern and are not days. `bin/perry-goals § real_date` had always
+    parsed as well as matched, so the writer refused them; a shape-only reader
+    accepted them, and a sweep of sixteen values across the writer and the file
+    check found exactly these two disagreeing.
+
+    Three callers then do `date.fromisoformat(seen)` on the strength of this
+    answer — `perry-lint`, `perry-knowledge`, `perry-state`, all on a knowledge
+    card's `Last verified`. A shape-only `True` handed each of them a
+    `ValueError` on a hand-typed card.
+    """
+    text = (value or "").strip().strip("*` ")
+    if not ISO_DATE_RE.match(text):
+        return False
+    try:
+        _date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
 
 
 def load_schema(refused: type[BaseException] = RuntimeError) -> dict:

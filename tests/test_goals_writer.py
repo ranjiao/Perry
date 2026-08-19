@@ -647,6 +647,86 @@ class TestDueIsTypedAndTheNoteIsNot(WriterCase):
         self.assertIn("Objective", r.stderr)
 
 
+class TestTheFileIsCheckedAndNotOnlyTheWriter(WriterCase):
+    """`Due` is typed for the READER too, in either language.
+
+    `schema/state-schema.json` says of this column: *"`Due` is TYPED — an ISO
+    date (2026-09-30) or a declared SLA token (3d, 2w) — and nothing else is
+    accepted"*. A V4 measured that sentence and found it true of
+    `perry-goals commit` **and of nothing else**: a hand-written
+    `| … | 下周期 | active |` under a `Due` header linted clean. A typed column
+    with a validated writer and an unvalidated file is a column whose type is
+    a convention, and the whole point of ADR-007 rule 1 is that a typed field
+    is not a convention.
+
+    **The value check also closes a gap the header check structurally cannot.**
+    The same round found that a Chinese pre-split register is invisible to
+    `perry-lint` and `perry-migrate`, because `截止` is one word for both
+    columns so there is no missing header to find. Nothing can be inferred from
+    the header there — but the VALUE still says which column it belongs in,
+    which is the same argument ADR-007 makes about fields generally.
+    """
+
+    LINT = ROOT / "bin" / "perry-lint"
+
+    def lint(self, due_header: str, cell: str) -> str:
+        proj = self.project(okr=(
+            "# OKR v1\n\n## Objectives\n\n| ID | Objective |\n|---|---|\n"
+            "| O1 | ship |\n\n## Commitments\n\n"
+            f"| Id | Track | Promise | To whom | {due_header} | Status |\n"
+            "|---|---|---|---|---|---|\n"
+            f"| ops/1 | main | ship the thing | ops | {cell} | active |\n"))
+        return subprocess.run(
+            [sys.executable, str(self.LINT), "--root", str(proj.dir)],
+            capture_output=True, text=True).stdout
+
+    def test_the_accepted_value_space_lints_clean(self):
+        for cell in ("2026-09-30", "3d", "2w", "**2026-09-30**", "—", ""):
+            with self.subTest(cell=cell):
+                self.assertNotIn("bad-typed-cell", self.lint("Due", cell),
+                                 f"{cell!r} is what the writer produces; "
+                                 f"reporting it is how a check gets switched "
+                                 f"off")
+
+    def test_prose_in_the_typed_column_is_reported(self):
+        for cell in ("next cycle", "2026-09-30 or so", "within the track SLA"):
+            with self.subTest(cell=cell):
+                out = self.lint("Due", cell)
+                self.assertIn("bad-typed-cell", out, cell)
+                self.assertIn("By when note", out,
+                              "a finding that does not name where the value "
+                              "should go leaves the user with a refusal and "
+                              "no move")
+
+    def test_a_chinese_register_is_reported_by_value_not_by_header(self):
+        """`截止` is one word for both columns, so the header proves nothing."""
+        self.assertIn("bad-typed-cell", self.lint("截止", "下周期"))
+        self.assertNotIn("bad-typed-cell", self.lint("截止", "2026-09-30"))
+
+    def test_the_writer_and_the_reader_share_one_value_space(self):
+        """Swept, so the two cannot drift apart on a value nobody tried.
+
+        The writer's `--due` refusal and the reader's `bad-typed-cell` must
+        agree on every value. They were separate implementations of the same
+        sentence, which is how they disagreed in the first place.
+        """
+        values = ["2026-09-30", "3d", "2w", "24h", "0d", "999w", "07d", "3D",
+                  "2026-13-45", "2026-02-30", "2026-9-3", "next cycle",
+                  "下周期", "2026-09-30 or so", "+3d", "逐月"]
+        for v in values:
+            with self.subTest(value=v):
+                proj = self.project(ALIGNED.format(past="2027-01-01"))
+                writer_ok = proj.commit(
+                    "--track", "ops", "--promise", "Statements filed",
+                    "--to", "Auditor", "--due", v, expect=None).returncode == 0
+                reader_ok = "bad-typed-cell" not in self.lint("Due", v)
+                self.assertEqual(
+                    writer_ok, reader_ok,
+                    f"{v!r}: the writer {'accepts' if writer_ok else 'refuses'} "
+                    f"it and the file check {'accepts' if reader_ok else 'reports'} "
+                    f"it. One sentence in the schema, two answers")
+
+
 class TestEndingOne(WriterCase):
 
     def start(self) -> Project:
