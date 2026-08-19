@@ -160,12 +160,12 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
 | 1 | Task→Agent cardinality | **Exactly one** / One primary plus reviewers / A flat list | **Exactly one** | 2026-08-19 |
-| 2 | Where an Agent is defined | `.perry/roles/*.md` card stays the definition; the store holds only assignments (Recommended) / A new agent store / Both, with the card generated | — | — |
-| 3 | Which side holds the Task↔Phase edge | Task stores `phase` (Recommended) / Phase stores `tasks[]`, as linkage does today / Both, with lint checking agreement | — | — |
-| 4 | KR id namespace | Phase KR ids get a phase prefix — `002/P-O3.1` (Recommended) / Keep phase-scoped and document it / Renumber globally | — | — |
+| 2 | Where an Agent is defined | **The store is the definition; the card is rendered output** / Card is the definition / Card authors, store projects | **Store is the definition** | 2026-08-19 |
+| 3 | Which side holds the Task↔Phase edge | **Task stores `phase`** / Phase stores `tasks[]` / Both, lint-checked | **Task stores `phase`** | 2026-08-19 |
+| 4 | KR id namespace | **Segment-labelled and project-unique — `P002-O3-KR1`** / Phase-scoped, documented / Renumbered globally | **`P002-O3-KR1`** | 2026-08-19 |
 | 5 | What makes a Task exempt from a spec | **Nothing — every task has one** / An explicit `--no-spec` flag / A rung or priority threshold | **Nothing — every task has one** | 2026-08-19 |
-| 6 | Whether `Metric / Target` splits like `Due` did | Yes — `target` typed, `metric` prose, never parsed (Recommended) / Leave Objectives as prose / Only in the phase linkage | — | — |
-| 7 | Whether a Run is recorded at all | Yes — a run record joins Agent, Task and outcome (Recommended) / No — `events.actor` is enough once it is an id / Later, as its own design | — | — |
+| 6 | Whether `Metric / Target` splits like `Due` did | **Yes — `target` typed, `metric` prose, never parsed** / Only in the linkage / Leave as prose | **Split** | 2026-08-19 |
+| 7 | Whether a Run is recorded at all | **Yes — a run joins Agent, Task and outcome** / `events.actor` as an id is enough / Later, its own design | **Record it** | 2026-08-19 |
 | 8 | Whether an Agent is per-project or shared | **Per project, instantiated at init from a shipped template** / Definition shared at `~/.perry/agents/` / Per project, hand-written | **Per project, from a template** | 2026-08-19 |
 
 Notes on the non-obvious rows:
@@ -182,11 +182,50 @@ Notes on the non-obvious rows:
   one. That is the intended trade — a coordination that is not worth a row is
   not a coordination, and the alternative was a list field whose second entry
   never had a defined meaning.
-- **#2** — the card is `owner: user` and deliberately outside every lane's
-  write contract (`tests/test_ownership.py` refuses a lane-owned path the
-  signed hand-off contract does not list). A store that *wrote* agent
-  definitions would move that ownership and needs a fresh V5 signature.
-  Assignments are lane state and do not.
+- **#2 — resolved: the store is the definition, the card is rendered output.**
+  The same shape as every other entity, so there is no special case to
+  remember and `may_touch` / `must_escalate` reach a dispatch pre-flight as
+  typed fields rather than as prose someone has to re-extract. That extraction
+  is what ADR-007 rule 2 forbids, and exempting one file from it would have
+  left the rule with a hole in exactly the entity that governs what agents may
+  touch.
+
+  **This carries a cost that must be paid before it ships, not after.** The
+  role card is `owner: user` today, deliberately outside every lane's write
+  contract; `tests/test_ownership.py` refuses a lane-owned path the signed
+  hand-off contract does not list, and it was right to. Making a lane the
+  writer moves an ownership row, which needs **a fresh V5 human signature on
+  `SKILL.md § The hand-off contract`** — the one thing in Perry that requires a
+  human gate, because a wrong contract shows up later as silent cross-lane
+  writes rather than as a lint error. Implementation step 2 does not start
+  until that signature exists.
+
+  The user also loses the ability to hand-edit a card without it reading as
+  drift. That is the same trade ADR-007 decision 2 already accepted for
+  `BOARD.md`, in the user's own words, and it is accepted here for the same
+  reason.
+
+- **#3 — resolved: the Task stores `phase`.** It answers *"which phase did this
+  task belong to"*, which is unanswerable today, and the board can render it as
+  a column — so it survives the board→store rebuild that still happens before
+  TASK-090 lands. The inverse question becomes a scan rather than a read, which
+  is the cheaper direction to lose.
+
+- **#4 — resolved: `P002-O3-KR1`.** Every segment carries its own label, so the
+  id is read without knowing the position convention. The draft proposed
+  `002/P-O3.1`, which is unique but still requires the reader to know that the
+  number after the dot is the KR. **The overall (non-phase) KR follows as
+  `O3-KR1`** — the same grammar with the phase segment absent, replacing
+  today's `KR-O1.1`. Both are project-unique, which is what `serves` needs to
+  store a single value.
+
+- **#6 — resolved: split, exactly as `Due` split.** `target` is a number or
+  unset, and unset means a prose target that renders as no completion —
+  the rule the linkage schema already states: *rendering a ceiling as
+  completion is worse than rendering nothing*. `metric` is stored verbatim and
+  nothing asks it anything. `Deadline` splits the same way into a typed date
+  and a note. This ends the two-fidelity split § 1.4 measures, in the
+  direction linkage already went.
 - **#3** — the board can render a `Phase` column, so storing it on the Task
   survives the board→store rebuild that exists today. Storing it on the Phase
   does not, until TASK-090 lands.
@@ -216,10 +255,16 @@ Notes on the non-obvious rows:
   step: the library exists, the instantiation does not, and this project has
   zero cards as a result.
 
-- **#7** — this is the one that decides whether "which agent did this" is
-  answerable. `events.actor` is already the trace; making it an id would answer
-  it for state changes only, not for a run that produced a document and changed
-  no field.
+- **#7 — resolved: Runs are recorded.** `events.actor` is the only trace today
+  and it writes **only when a field changes**. A round of V4 review produces a
+  verdict document and changes nothing — so the execution this project runs
+  most often is the one execution that leaves no record at all. Making `actor`
+  an id would not fix that; it would make the events that already exist
+  joinable and leave the rest invisible.
+
+  The risk is named and accepted: **a Run record nothing writes is `role`
+  again.** The mitigation is that step 7 lands with the dispatch path that
+  writes it, or it does not land.
 
 ## 5. Architecture
 
@@ -270,9 +315,9 @@ renders and never inspects. That is ADR-007 rule 1 and 2 applied per field.)*
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | typed | `KR-O<n>.<m>`; namespace per decision #4 |
+| `id` | typed | `O<n>-KR<m>` — project-unique. Decision #4 |
 | `goal` | typed | the `O<n>` it decomposes |
-| `metric` | prose | how it is worded. **Never parsed** |
+| `metric` | prose | how it is worded. **Never parsed.** Decision #6 |
 | `target` | typed | number, or unset. Unset means "prose target" and renders as no completion, per the linkage schema's existing rule: *rendering a ceiling as completion is worse than rendering nothing* |
 | `current` | typed | number, or unset |
 | `due` | typed | ISO date, `lib.is_iso_date` |
@@ -284,7 +329,7 @@ renders and never inspects. That is ADR-007 rule 1 and 2 applied per field.)*
 |---|---|---|
 | `id` | typed | `<NNN>-<slug>` |
 | `started` · `ended` | typed | ISO date; `ended` unset while running |
-| `objectives[].krs[]` | typed | phase KRs, each naming the overall KR it serves |
+| `objectives[].krs[]` | typed | phase KRs, ids `P<NNN>-O<n>-KR<m>`, each naming the overall KR it serves |
 | `narrative` | prose | the ten mandatory sections stay prose files |
 
 **Task** — `perry/tasks.jsonl`, one writer: `perry-task`
@@ -293,11 +338,11 @@ Existing nineteen stored fields, plus:
 
 | Field | Type | Notes |
 |---|---|---|
-| `phase` | typed | **new.** Decision #3 |
+| `phase` | typed | **new.** `<NNN>-<slug>`. Decision #3 |
 | `agent` | typed | **new.** The accountable Agent id — **exactly one** (decision #1). Replaces free-text `owner` |
 | `supervised_by` | typed | **new.** The supervising task, for the PMO tree in § 5.6. **Not `parent`** — see below |
 | `documents[]` | typed | **new.** `{path, kind, round}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}`. **A task with no `spec` document is refused at creation** (decision #5) |
-| `serves` | typed | the KR id this task is attributed to; today implicit in `linkage.tasks[]` |
+| `serves` | typed | **new.** The KR id this task is attributed to — one value, because decision #4 made the id project-unique. Today implicit in `linkage.tasks[]` |
 
 `role` is either given the meaning it never had — a foreign key to a card — or
 deleted. **A field on 98 records that has never been written is not a field.**
@@ -342,14 +387,18 @@ Stores, one per writer, all JSONL beside the rendered markdown:
 | Task | `perry/tasks.jsonl` *(exists)* | `BOARD.md` |
 | Goal + KR | `perry/goals.jsonl` | `OKR.md` |
 | Phase + Phase KR | `perry/phases.jsonl` | `phase/NNN-*.md`, `phase/NNN-linkage.md` |
-| Agent | `.perry/roles/*.md` **stays the definition** | — |
+| Agent | `.perry/agents.jsonl` | `.perry/roles/*.md` |
 | Run | `.perry/runs.jsonl` | — |
 
-The Agent row is deliberately different. Every other entity is lane state with
-a deterministic writer; a role card is a **declaration the project makes about
-itself**, like `.perry/hook.md`, and moving it under a lane's write contract
-would need a fresh V5 signature on the hand-off contract. What the store holds
-is the *assignment*, not the definition.
+**The Agent row used to be the exception and no longer is** (decision #2).
+Every entity now has a store that is the truth and a markdown projection that
+is rendered from it, so there is no per-entity rule to remember and no file
+from which a runtime has to re-extract typed fields.
+
+The Agent row is still the one with a **prerequisite outside this document**:
+the card is `owner: user` today, and making a lane its writer moves a row in
+`SKILL.md § The hand-off contract`. That table carries a human signature and
+changing it needs a fresh one. Nothing in step 2 starts before that.
 
 ### 5.4 The rule this document is an instance of
 
@@ -509,16 +558,18 @@ V4.
 
 | # | Step | Depends on | Note |
 |---|---|---|---|
-| 1 | **TASK-090** — `perry-task` reads the store | — | **Hard prerequisite for everything below.** Until it lands, any field the board cannot express is destroyed by the next command |
-| 2 | Agent gets an id; `role` becomes a foreign key or is deleted; `events.actor` uses the id | 1 | The empty layer. `.perry/roles/` also needs `may_touch` typed |
-| 2b | **Init instantiates role cards from the shipped templates** | 2 | Decision #8. Three templates ship and nothing has ever written a card from them; the only reference in `bin/` is a refusal message |
-| 3b | **`perry-task add` requires a spec and writes it** | 3 | Decision #5. Refused at creation, not at close — § 5.7 |
-| 5b | **`supervised_by` lands; `supervises[]` is derived** | 1, 5 | Decision #1 and § 5.6. Explicitly NOT a reuse of `parent` |
-| 3 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9` |
-| 4 | **TASK-092** — `OKR.md` becomes a store, and `Metric / Target` splits like `Due` did | 1 | Decision #6 |
-| 5 | Task gains `phase` and `serves` | 1, 4 | Decision #3 |
-| 6 | The phase table becomes a rendering of the linkage record | 4, 5 | Ends the two-fidelity split |
-| 7 | Run records | 2 | Decision #7 |
+| 1 | **TASK-090** — `perry-task` reads the store | — | **Hard prerequisite for everything below.** Until it lands, any field the board cannot express is destroyed by the next command, including an unrelated one |
+| 2 | **A fresh V5 signature on the hand-off contract**, moving `.perry/roles/` to a lane | — | Decision #2 changes who writes the card. That table is the one thing in Perry with a human gate; nothing in step 3 starts before it |
+| 3 | Agent becomes a store: an id, typed `may_touch[]` / `must_escalate[]`, the card rendered from it. `role` becomes a foreign key or is deleted; `events.actor` uses the id | 1, 2 | The empty layer — five strings that do not join today |
+| 4 | Init instantiates role cards from the shipped templates | 3 | Decision #8. Three templates ship and nothing has ever written a card from them |
+| 5 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9` |
+| 6 | `perry-task add` requires a spec and writes it | 5 | Decision #5. Refused at creation, not at close — § 5.7 |
+| 7 | **TASK-092** — `OKR.md` becomes a store; `Metric / Target` and `Deadline` split like `Due` did | 1 | Decision #6 |
+| 8 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 7 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` currently names two different KRs |
+| 9 | Task gains `phase` and `serves` | 1, 8 | Decision #3. `serves` stores one value because step 8 made the id project-unique |
+| 10 | `supervised_by` lands; `supervises[]` is derived | 1, 3 | Decision #1 and § 5.6. **Not** a reuse of `parent` |
+| 11 | The phase table becomes a rendering of the linkage record | 7, 9 | Ends the two-fidelity split § 1.4 measures |
+| 12 | Run records, with the dispatch path that writes them | 3 | Decision #7. **Lands with its writer or not at all** — a Run nothing writes is `role` again |
 
 ## 7. Risks & mitigations
 
@@ -546,8 +597,10 @@ V4.
    It has an id, a typed `Due`, a `Status`, and `Discharged by` — the shape of
    an entity, currently modelled as a section.
 3. **How does an Agent's `may_touch` scope get enforced** rather than declared?
-   The dispatch pre-flight already unions `must_escalate`; a file scope could
-   be checked the same way, or not at all.
+   Decision #2 makes it a typed field, which makes enforcement *possible*; it
+   does not make it happen. The dispatch pre-flight already unions
+   `must_escalate`, so the machinery exists. **A declared scope nothing checks
+   is a comment**, and this document should not pretend otherwise.
 4. **Does a Phase end deterministically?** `goals/SKILL.md` says phases end
    when KRs hit, not on a calendar. With `target`/`current` typed, "ended" is
    computable — which makes it a derived field, and storing it would be the
