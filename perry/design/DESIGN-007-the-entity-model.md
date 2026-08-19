@@ -166,6 +166,7 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 5 | What makes a Task exempt from a spec | **Nothing — every task has one** / An explicit `--no-spec` flag / A rung or priority threshold | **Nothing — every task has one** | 2026-08-19 |
 | 6 | Whether `Metric / Target` splits like `Due` did | **Yes — `target` typed, `metric` prose, never parsed** / Only in the linkage / Leave as prose | **Split** | 2026-08-19 |
 | 7 | Whether a Run is recorded at all | **Yes — a run joins Agent, Task and outcome** / `events.actor` as an id is enough / Later, its own design | **Record it** | 2026-08-19 |
+| 10 | Where runtime state lives | **All of it on the Run; a Task has at least one Run** / Split field by field / Keep it on the Task | **All on the Run** | 2026-08-19 |
 | 9 | When rework becomes a different task | **Never — the id is stable and the run history carries the change** / `supersedes` / `superseded_by` on tasks / A retitle beyond some threshold splits the row | — | — |
 | 8 | Whether an Agent is per-project or shared | **Per project, instantiated at init from a shipped template** / Definition shared at `~/.perry/agents/` / Per project, hand-written | **Per project, from a template** | 2026-08-19 |
 
@@ -335,28 +336,22 @@ renders and never inspects. That is ADR-007 rule 1 and 2 applied per field.)*
 
 **Task** — `perry/tasks.jsonl`, one writer: `perry-task`
 
-Existing nineteen stored fields, plus:
+**Durable fields only.** What the work IS, not how any attempt at it went.
 
 | Field | Type | Notes |
 |---|---|---|
+| `id` · `title` | typed / prose | the identity and its label. A title that changes is an event with `from`/`to`, not a per-run value — otherwise the board shows a different name depending on which run you look at |
 | `phase` | typed | **new.** `<NNN>-<slug>`. Decision #3 |
-| `agent` | typed | **new.** The accountable Agent id — **exactly one** (decision #1). Replaces free-text `owner` |
-| `supervised_by` | typed | **new.** The supervising task, for the PMO tree in § 5.6. **Not `parent`** — see below |
-| `documents[]` | typed | **new.** `{path, kind, run}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}`. **A task with no `spec` document is refused at creation** (decision #5) |
-| `serves` | typed | **new.** The KR id this task is attributed to — one value, because decision #4 made the id project-unique. Today implicit in `linkage.tasks[]` |
+| `serves` | typed | **new.** The KR id — one value, because decision #4 made ids project-unique |
+| `priority` · `track` · `group` · `order` | typed | placement |
+| `created` · `arrived` | typed | when the row was minted; when the request arrived. **`arrived` is durable** — it is a property of the request, and a request does not re-arrive because the work was retried |
+| `depends_on` | typed | list. `blocked_by` / `blocks` / `startable` stay derived |
+| `supervised_by` | typed | **new.** § 5.6. **Not** a reuse of `parent` |
+| `commitment` · `parent` | typed | the `OKR.md` commitment discharged; the inquiry question this was split from |
+| `rung_required` | typed | **the floor this task must clear.** The rung a run *achieved* is the run's |
+| `runs[]` | derived | the inverse of `Run.task`. **A task has at least one run**, opened by `add` |
 
-`role` is either given the meaning it never had — a foreign key to a card — or
-deleted. **A field on 98 records that has never been written is not a field.**
-
-**`supervised_by` is a new field and not a reuse of `parent`, deliberately.**
-`parent` is declared for inquiry-mode rows as *"the ID of the question this one
-was split out of"*, and `triage` reads it to report which branches of a
-question tree are still open. A supervision edge and a question-decomposition
-edge are the same *shape* and different *claims*, and storing both in one cell
-would make `triage` report supervised work as open questions. Zero rows use
-`parent` today, which makes the reuse tempting and would have made the
-collision invisible until an inquiry-mode project hit it. **One field, one
-meaning** is the rule this whole document exists to restate.
+**Everything about how an attempt went belongs to the Run** — see § 5.10.
 
 **Agent** — `.perry/roles/*.md`, owner `user` (decision #2)
 
@@ -370,15 +365,20 @@ meaning** is the rule this whole document exists to restate.
 | `must_escalate[]` | typed | extractable constraints; already carries `unextractable[]` so an unenforceable line is *shown as unenforced* rather than presented as a constraint |
 | `context` · `loads` | prose | |
 
-**Run** — decision #7
+**Run** — `.perry/runs.jsonl`. One attempt at a Task.
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` · `task` · `agent` | typed | |
-| `started` · `ended` | typed | |
-| `outcome` | typed | enum |
-| `documents[]` | typed | what this run produced — the join `documents[].run` points back at |
-| `spec` | typed | the spec document this run was judged against; inherited from the latest one at or before it |
+| `id` · `task` | typed | |
+| `agent` | typed | **exactly one** — decision #1, at run granularity. A task retried by a different agent is expressible, and "who is accountable" stays single-valued at every moment |
+| `status` | typed | `planned` · `in_progress` · `review` · `blocked` · `done` · `abandoned`. **The Task's status is the latest run's** |
+| `stage` · `stage_since` | typed | the pipeline stage within this attempt |
+| `next_action` | prose | what to do next *in this attempt* |
+| `started` · `ended` | typed | `started` unset while `planned` |
+| `outcome` | typed | how the attempt ended |
+| `rung_achieved` | typed | what this attempt actually cleared, against the Task's `rung_required` |
+| `documents[]` | typed | `{path, kind}` — **the only place documents live** |
+| `spec` | derived | the `spec` document in force at this run: this run's own, or the latest one before it |
 
 ### 5.3 Where each entity's truth lives
 
@@ -608,6 +608,50 @@ The alternative — `supersedes` / `superseded_by` on tasks, as ADRs have — ad
 a judgement call ("is this a new task?") that nobody makes consistently, which
 is the class of mechanism decision #5 just removed. Decision #9 records the
 choice rather than leaving it implied.
+
+### 5.10 The runtime state lives on the Run, and only there
+
+The first draft of § 5.2 put `documents[]` on the Task **and** on the Run, and
+`spec` on the Run while the Task's documents already carried a `kind: spec`.
+That is one relation stored from both ends — the defect this whole document is
+about, written into the document about it. It is recorded rather than quietly
+corrected because it shows how the error happens: both tables were individually
+reasonable, and nothing compared them.
+
+The split is now stated as a rule rather than settled field by field:
+
+> **A Task carries what the work IS. A Run carries how one attempt at it
+> went.** A field that can have a different value on the second attempt belongs
+> to the Run.
+
+Applying it moves eight of the nineteen stored fields — `status`, `stage`,
+`stage_since`, `next_action`, `evidence`→`documents[]`, `owner`+`role`→`agent`
+— and keeps `arrived` on the Task, correcting a first pass that had moved it:
+**a request does not re-arrive because the work was retried.**
+
+**All eight are pinned by the contract, and the contract survives**, which is
+the measurement that makes this affordable. `tests/fixtures/contract-shapes.json`
+pins 33 `tasks[].*` field paths including all eight — but it pins the **payload
+of `perry-task list`, not the storage layout**, and `perry-task/list` already
+emits nine fields it does not store. `tasks[].status` keeps appearing, resolved
+from the latest run; a consumer pinned at `perry-task/list/1.9` needs no edit,
+which is the same property phase 002's KR `P-O3.2` already claims.
+
+**A Task has at least one Run.** `perry-task add` opens run 1 in `planned` —
+so a task that was specified and never started is visible as a planned run
+rather than as an absence, and decision #5's spec has a run to belong to from
+the moment it is written. `start` moves run 1 to `in_progress`; rework opens
+run 2.
+
+Two earlier decisions are refined by this and neither is silently overwritten:
+
+- **Decision #1 becomes per-run.** "Exactly one agent" now attaches to the Run.
+  Accountability is still single-valued at every moment, and a task retried by
+  a different agent becomes expressible — which the task-level version could
+  not say without a second field.
+- **`verification` splits into `rung_required` (Task) and `rung_achieved`
+  (Run).** One is a standard, the other is a result, and storing both in one
+  cell is the same shape as `Due` carrying a date and a promise.
 
 ## 6. Implementation plan
 
