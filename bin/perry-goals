@@ -913,7 +913,8 @@ CLOCK_VOCAB: list[tuple[str, list[str], list[str]]] = [
                   "quarter-end"],                 ["季度末", "季末"]),
     ("bound",    ["end of year", "year end",
                   "year-end"],                    ["年底", "年末"]),
-    ("bound",    ["end of week", "week end"],     ["周末", "本周内"]),
+    ("bound",    ["end of week", "week end",
+                  "weekend", "the weekend"],       ["周末", "本周内"]),
 
     # `some` is deliberately absent: `some days` counts and `some day` means
     # "eventually", and the singular is the one a commitment register gets.
@@ -947,7 +948,40 @@ def _group(kinds: tuple[str, ...], side: int) -> str:
 #: by hand, because digits and numerals correspond by construction rather than
 #: by meaning — and `fuzzy` quantifiers, which do NOT, are in the table above.
 _EN_NUM = r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|the)"
-_CN_NUM = r"(?:\d+|[一二两三四五六七八九十百])"
+#: The numeral characters, named once and used twice — by `_CN_NUM` for
+#: counting a unit, and by `_CN_EXTEND` for the weekday and counter
+#: forms that legitimately follow a complete time word.
+_CN_NUM_CHARS = r"一二两三四五六七八九十百半几数"
+_CN_NUM = r"(?:\d+|[" + _CN_NUM_CHARS + r"])"
+
+#: **`\b` does not exist in Chinese, and pretending it does was the fourth
+#: shape of this bug.** The English side is wrapped in `\b…\b`; the Chinese
+#: side matched as a BARE SUBSTRING, so `下周期` ("next cycle") contains `下周`
+#: and wrote a live commitment row while `next cycle` was correctly refused.
+#:
+#: A blanket "not followed by any CJK character" is wrong — `下周五` (next
+#: Friday) and `上周三` (last Wednesday) are real deadlines and are exactly that
+#: shape. So the rule is a CLOSED SET of characters that keep the expression a
+#: TIME: weekday numerals, and the bound markers. Anything else following makes
+#: it a different word, and `期` is the one that started this.
+#:
+#: This is the CJK equivalent of `\b`, written out, because the two sides of a
+#: paired vocabulary have to be matched under equivalent rules or the pairing
+#: is decorative.
+#: **`每周一次` has now caught three separate versions of this rule.** It is a
+#: cadence plus a COUNTER, and a counter extends a time expression without
+#: turning it into another word — unlike `期`, which is what started this.
+#: Counters are a closed class and they belong here for the same reason the
+#: weekday numerals do.
+#: Built from the numerals rather than restating them. The first version wrote
+#: `一二三四五六七八九十` by hand and dropped `两`, so `每月两次` failed while
+#: `每月一次` passed — one rule, two spellings, in the fix for one rule having
+#: two spellings.
+_CN_EXTEND = (r"[" + _CN_NUM_CHARS + r"日天末底内初前次回遍]")
+#: CONSUME the extending characters, then assert no CJK follows. A pure
+#: lookahead rejected `下周五` too, because `五` is itself a CJK character —
+#: the assertion has to run AFTER the legitimate extension, not before it.
+_CN_EDGE = _CN_EXTEND + r"*(?![\u4e00-\u9fff])"
 
 _EN_UNIT = _group(("unit",), 0)
 _CN_UNIT = _group(("unit",), 1)
@@ -970,7 +1004,7 @@ CLOCK_RE = re.compile(
     # Words that are already a clock: a named day, a cadence, a bound. Built
     # from `CLOCK_VOCAB`, so neither language can grow one the other lacks.
     r"|\b" + _EN_WORD + r"\b"
-    r"|" + _CN_WORD +
+    r"|" + _CN_WORD + _CN_EDGE +
     # A counted or fuzzily-counted unit. **A BARE unit is refused in both.**
     r"|\b(?:" + _EN_NUM + r"|" + _EN_FUZZ + r")\s+" + _EN_UNIT + r"\b"
     r"|(?:" + _CN_NUM + r"|" + _CN_FUZZ + r")\s*(?:个)?\s*" + _CN_UNIT +

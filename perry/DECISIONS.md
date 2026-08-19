@@ -15,6 +15,7 @@
 | [ADR-004](decisions/ADR-004-mandatory-migration.md) | Legacy projects migrate once, or stay read-only | Architecture | 2026-08-17 | — |
 | [ADR-005](decisions/ADR-005-rung-by-blast-radius.md) | V4 is for what runs on someone else's project | Process | 2026-08-17 | — |
 | [ADR-006](decisions/ADR-006-task-store-is-not-the-log.md) | The task store is not the event log | Design | 2026-08-18 | — |
+| [ADR-007](decisions/ADR-007-fields-are-typed-prose-is-not.md) | Python owns typed fields; agents own prose; nothing parses documents | Architecture | 2026-08-19 | **DRAFT — § 6 is undecided.** Filed `active` because the vocabulary has no word for a proposal |
 
 ## Superseded / Expired / Archived (historical)
 

@@ -1131,6 +1131,39 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                    "年后再说", "when we get to it", "later", "some day",
                    "eventually", "god willing", "nowadays"]
 
+    #: Compounds that CONTAIN a table entry. `\b` does not exist in Chinese,
+    #: so the Chinese side matched as a bare substring and `下周期` ("next
+    #: cycle") contained `下周` — a live commitment row, while `next cycle` was
+    #: correctly refused. Found by a V4 round 5.
+    #:
+    #: The rule is not "no CJK may follow": `下周五` and `上周三` are real
+    #: deadlines of exactly that shape. It is a closed set of characters that
+    #: keep the expression a TIME — numerals, bound markers, counters.
+    CJK_COMPOUNDS = [
+        ("下周期", False), ("下周五", True), ("上周三", True),
+        ("本周内", True), ("周末", True), ("每周一次", True),
+        ("每月两次", True), ("每季度三次", True), ("这年头", False),
+        ("上天保佑", False), ("下周", True),
+    ]
+
+    def test_a_compound_containing_a_time_word_is_judged_as_a_whole(self):
+        """The CJK equivalent of `\\b`, which the English side has had all
+        along. Two sides of a paired vocabulary matched under different rules
+        is a decorative pairing."""
+        mod = goals_module()
+        for phrase, expected in self.CJK_COMPOUNDS:
+            with self.subTest(phrase=phrase):
+                self.assertEqual(bool(mod.CLOCK_RE.search(phrase)), expected)
+
+    def test_the_extension_set_reuses_the_numerals(self):
+        """It was written out by hand first and dropped `两`, so `每月两次`
+        failed while `每月一次` passed — one rule with two spellings, inside
+        the fix for one rule having two spellings."""
+        mod = goals_module()
+        for ch in mod._CN_NUM_CHARS:
+            self.assertIn(ch, mod._CN_EXTEND,
+                          f"{ch} counts a unit but cannot extend one")
+
     def test_prose_that_names_no_clock_is_still_refused(self):
         mod = goals_module()
         for phrase in self.NOT_A_CLOCK:
