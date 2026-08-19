@@ -727,6 +727,30 @@
           "提问"
         ]
       }
+    },
+    "blank_cell": {
+      "note": "Values that mean THE CELL SAYS NOTHING. Declared here beside the column translations, for the same reason those are: adding a language must be a schema edit, not a code edit in whichever tool noticed first.\n\nThere were THREE lists in `bin/`, with three different contents — `perry-task` (the only one carrying 无), `perry-diagnose`, and `perry-lint`, whose copy was added by the very commit whose thesis is one-rule-one-implementation. Measured across them: `n/a`, `TBD`, `none`, `?` and `—` were refused by the writer and linted clean, while 无, 待定 and 不适用 were refused by the writer AND reported. Same meaning, two verdicts, split on language — which is TASK-042 criterion 1 verbatim. Found by a V4 inside the check added to close the previous Chinese gap.\n\nMatched case-insensitively with markdown decoration stripped. The empty string is always blank and is not listed.",
+      "en": [
+        "—",
+        "-",
+        "–",
+        "n/a",
+        "na",
+        "none",
+        "tbd",
+        "?",
+        "N.A.",
+        "TBA"
+      ],
+      "zh": [
+        "无",
+        "无。",
+        "待定",
+        "不适用",
+        "暂无",
+        "—",
+        "？"
+      ]
     }
   },
   "migration": {

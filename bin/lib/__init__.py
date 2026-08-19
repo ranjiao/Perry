@@ -197,6 +197,33 @@ def project_lock(state_root: Path, timeout: float = 10.0,
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+#: Values meaning "this cell says nothing", from `schema § i18n.blank_cell`.
+#: Read from the schema rather than written here, so a new language is a schema
+#: edit. Three tools carried three different hardcoded lists and only one of
+#: them had 无 — see the schema note for what that cost.
+_BLANK_CELLS: set = set()
+
+
+def is_blank_cell(value: str) -> bool:
+    """Does this cell mean nothing, in any declared language?"""
+    text = (value or "").strip().strip("*`~ ").strip().lower()
+    if not text:
+        return True
+    if not _BLANK_CELLS:
+        try:
+            blank = (load_schema().get("i18n") or {}).get("blank_cell") or {}
+        except Exception:                                        # noqa: BLE001
+            blank = {}
+        for key, vals in blank.items():
+            if key == "note" or not isinstance(vals, list):
+                continue
+            _BLANK_CELLS.update(str(v).strip().lower() for v in vals)
+        # A schema that cannot be read must not make every cell non-blank:
+        # that would report every `—` on the board as a bad value.
+        _BLANK_CELLS.update({"—", "-", "–", "n/a", "none", "无"})
+    return text in _BLANK_CELLS
+
+
 #: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here
 #: for the same reason `ISO_DATE_RE` is: `bin/perry-goals` validates `--due`
 #: with it and `bin/perry-lint` now checks the column against it, and a typed

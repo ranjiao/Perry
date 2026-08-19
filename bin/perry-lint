@@ -520,17 +520,24 @@ def spec_claims(spec: dict, text: str, schema: dict) -> bool:
     return True
 
 
-#: Cells a typed column tolerates as "not filled in". Kept beside the check
-#: rather than inside it: an unfilled `Due` is a promise with no date yet, not
-#: a promise with a malformed one, and reporting the two the same way is how a
-#: check gets switched off.
-BLANK_CELL = {"—", "-", "–", "n/a", "N/A", "none", "TBD", "tbd", "？", "?"}
-
 #: schema `typed_columns` value → the predicate that answers it. Both halves
 #: come from `lib`, which is where `bin/perry-goals` reads them too, so the
 #: writer's "accepted" and the reader's "valid" cannot drift apart.
+#: schema `typed_columns` value → the predicate that answers it. Both halves
+#: come from `lib`, which is where `bin/perry-goals` reads them too.
+#:
+#: **The predicate takes the track's MODE**, because the writer's does.
+#: `perry-goals § check_due` refuses an SLA token on a `pipeline` track — that
+#: track's triage compares the cell against today and a token has no day in it
+#: — while the file check was mode-blind. A V4 generated 17,889 values across
+#: four modes and found **398 disagreements**, every one of them an SLA token
+#: in a pipeline register: refused by the writer, clean in the file. A reader
+#: that is laxer than its writer is the same defect as one that is stricter,
+#: and this pair was split to end exactly that.
 TYPED_CELL = {
-    "iso-date-or-sla": lambda v: lib.is_iso_date(v) or lib.is_sla_token(v),
+    "iso-date-or-sla": lambda v, mode="": (
+        lib.is_iso_date(v) if mode == "pipeline"
+        else lib.is_iso_date(v) or lib.is_sla_token(v)),
 }
 #: What each kind ACCEPTS, in words, read from `schema § typed_cell_kinds`.
 #: Not written here: the guard in `tests/test_work_modes.py` forbids this file
@@ -557,6 +564,54 @@ def _accepts(kind: str) -> str:
         except (OSError, ValueError):
             pass
     return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
+
+
+_TRACK_MODES: dict = {}
+
+
+def _track_mode(state_file: Path, cell: str) -> str:
+    """A track cell → its declared mode, from `.perry/config.md § Tracks`.
+
+    The root is walked up from the file being linted rather than passed in, so
+    `check_file`'s signature — which `bin/perry-conform` also calls — does not
+    move, and so there is no second answer to "where does this project start".
+
+    An undeclared track reports `""`, which every predicate treats as the
+    permissive case. A typo in the register must not silently make a column
+    stricter: `perry-lint` already reports an unknown mode as `bad-enum`, and
+    two findings for one typo is how a check gets switched off.
+    """
+    name = squash(cell or "")
+    if not name:
+        return ""
+    root = state_file.resolve().parent
+    for _ in range(5):
+        if (root / ".perry" / "config.md").is_file():
+            break
+        root = root.parent
+    cfg = root / ".perry" / "config.md"
+    key = str(cfg)
+    if key not in _TRACK_MODES:
+        table: dict = {}
+        try:
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        header: list = []
+        for line in text.split("\n"):
+            if not line.lstrip().startswith("|"):
+                continue
+            cells = [squash(c) for c in split_row(line)]
+            if "track" in cells and "mode" in cells:
+                header = cells
+                continue
+            if not header or set(cells) <= {"", "-", "--", "---", ":---", "---:"}:
+                continue
+            row = dict(zip(header, cells))
+            if row.get("track"):
+                table[row["track"]] = row.get("mode", "")
+        _TRACK_MODES[key] = table
+    return _TRACK_MODES[key].get(name, "")
 
 
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
@@ -791,6 +846,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                 # block the migration under enforce mode.
                 for col, kind in (tspec.get("typed_columns") or {}).items():
                     ci = column_index(got, col)
+                    tci = column_index(got, "Track")
                     if ci < 0:
                         continue
                     ok = TYPED_CELL.get(kind)
@@ -803,11 +859,24 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                         continue
                     for row in rows:
                         if ci >= len(row):
+                            # A ragged row — fewer cells than the header. It is
+                            # already `ragged-row`'s finding, and indexing it
+                            # here exited the whole lint at rc 2 with an
+                            # `IndexError`. Deleting this line leaves the suite
+                            # green, which is why it has its own test.
                             continue
-                        val = row[ci].replace("*", "").strip()
-                        if not val or val in BLANK_CELL or PLACEHOLDER.search(val):
+                        val = row[ci]
+                        # `lib.is_blank_cell` strips the decoration; doing it
+                        # here as well produced a THIRD spelling of "strip" —
+                        # `.replace("*", "")` vs `lib`'s end-strip disagreed on
+                        # `2026-**09**-30`, which lint accepted and the writer
+                        # refused.
+                        if lib.is_blank_cell(val) or PLACEHOLDER.search(val):
                             continue
-                        if not ok(val):
+                        tmode = ""
+                        if 0 <= tci < len(row):
+                            tmode = _track_mode(path, row[tci])
+                        if not ok(val, tmode):
                             findings.append(Finding(
                                 "warn", rel, "bad-typed-cell",
                                 f"{col} = {val!r} — this column is typed "
