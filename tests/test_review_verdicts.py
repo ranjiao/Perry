@@ -136,6 +136,33 @@ class TestAResentRowIsNotTheSameAsAnIgnoredOne(ReviewLintCase):
                         "field": "status", "to": t})
             for t in transitions) + "\n")
 
+    def test_a_next_action_event_is_not_read_as_a_status(self):
+        """**Events written before the `field` key existed carry no `field`.**
+
+        The first version filtered on `field in (None, "status")`, so a `next`
+        event — whose `to` is the next-action TEXT — was read as a status
+        transition. A 900-character prose blob became the row's "current
+        status", no row ever looked re-sent, and four rows that HAD been acted
+        on sat reported as verdict-ignored.
+
+        A missing key does not mean "this is the kind I want". The honest test
+        is the VALUE, and the declared statuses come from the schema rather
+        than a list here.
+        """
+        self.board([self.row("TASK-001", "review")])
+        self.evidence("r.md", verdict("TASK-001", "FAIL"))
+        (self.dir / ".perry" / "events.jsonl").write_text("\n".join([
+            json.dumps({"event": "status", "task": "TASK-001", "to": "review"}),
+            json.dumps({"event": "status", "task": "TASK-001",
+                        "to": "in_progress"}),
+            json.dumps({"event": "status", "task": "TASK-001", "to": "review"}),
+            # A pre-`field` next event. Its `to` is prose, not a status.
+            json.dumps({"event": "next", "task": "TASK-001",
+                        "to": "a long next action explaining what was fixed"}),
+        ]) + "\n")
+        self.assertNotIn("fail-verdict-left-at-review", self.rules(),
+                         "a next-action event was counted as a status move")
+
     def test_a_row_that_never_left_review_is_reported(self):
         self.board([self.row("TASK-001", "review")])
         self.evidence("r.md", verdict("TASK-001", "FAIL"))

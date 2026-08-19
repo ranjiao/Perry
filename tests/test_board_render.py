@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -86,6 +87,28 @@ def rewrite(root: pathlib.Path, recs: list[dict]) -> None:
     store_of(root).write_text(
         "\n".join(json.dumps(r, ensure_ascii=False) for r in recs) + "\n",
         encoding="utf-8")
+
+
+def a_live_row(root: pathlib.Path) -> str:
+    """Any id currently ON the board, chosen at run time.
+
+    **This was hardcoded to `TASK-088` and then TASK-088 was closed**, so its
+    row left the board and the tests failed on a project that was fine. A test
+    pinned to a live task id is a test the project itself breaks — `done`
+    removes the row, the same trap `check_verification` and `walk_design` both
+    documented.
+
+    Module-level rather than a method, because two TestCase classes need it and
+    a second copy would be the defect this repository spends its time removing.
+    """
+    text = subprocess.run(
+        [sys.executable, str(TOOL), "render", "--root", str(root)],
+        capture_output=True, text=True).stdout
+    for line in text.split("\n"):
+        m = re.match(r"\| ([A-Z]+-\d+) ", line)
+        if m:
+            return m.group(1)
+    raise AssertionError("no rendered row carries an id")
 
 
 class Project:
@@ -179,6 +202,7 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
             [sys.executable, str(TOOL), "render", "--root", str(root)],
             capture_output=True, text=True).stdout
 
+
     def row_of(self, root: pathlib.Path, tid: str) -> str:
         """The one rendered line for `tid`. **Not the whole file.**
 
@@ -192,6 +216,7 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
 
     def test_every_rendered_field_moves_when_the_store_moves(self):
         d = Project.perry(self)
+        tid = a_live_row(d)
         marks = {"title": "A TITLE NOTHING WROTE", "owner": "Nobody",
                  "next_action": "AN ACTION NOTHING WROTE",
                  "evidence": "evidence/nothing.md", "verification": "V6",
@@ -199,16 +224,16 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         for field, mark in marks.items():
             with self.subTest(field=field):
                 recs = records(d)
-                row = next(r for r in recs if r["id"] == "TASK-088")
+                row = next(r for r in recs if r["id"] == tid)
                 before = row[field]
                 row[field] = mark
                 rewrite(d, recs)
                 want = ", ".join(mark) if isinstance(mark, list) else mark
-                self.assertIn(f"| {want} |", self.row_of(d, "TASK-088"),
+                self.assertIn(f"| {want} |", self.row_of(d, tid),
                               f"{field} did not reach the board")
                 row[field] = before
                 rewrite(d, recs)
-                self.assertNotIn(want, self.row_of(d, "TASK-088"))
+                self.assertNotIn(want, self.row_of(d, tid))
 
     def test_a_row_missing_from_the_store_is_reported_not_silently_copied(self):
         """**`cmp` clean and "reproduced" are different results.**
@@ -220,11 +245,12 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         the report says the row was not rendered from the store."""
         d = Project.perry(self)
         board = (d / "perry" / "BOARD.md").read_bytes()
-        rewrite(d, [r for r in records(d) if r["id"] != "TASK-088"])
+        gone = a_live_row(d)
+        rewrite(d, [r for r in records(d) if r["id"] != gone])
         self.assertEqual(self.rendered(d).encode(), board)
         out = json.loads(run("diff", root=d).stdout)
         self.assertTrue(out["identical"])
-        self.assertIn("TASK-088",
+        self.assertIn(gone,
                       json.dumps(out["rows_verbatim"], ensure_ascii=False))
 
     def test_a_cell_the_store_cannot_reproduce_is_counted(self):
@@ -275,7 +301,8 @@ class TestItRendersAndNothingElse(unittest.TestCase):
     def test_diff_exits_1_and_names_the_line_when_it_is_not_identical(self):
         d = Project.perry(self)
         recs = records(d)
-        next(r for r in recs if r["id"] == "TASK-088")["title"] = "moved"
+        tid = a_live_row(d)
+        next(r for r in recs if r["id"] == tid)["title"] = "moved"
         rewrite(d, recs)
         proc = run("diff", root=d)
         self.assertEqual(proc.returncode, 1)

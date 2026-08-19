@@ -258,6 +258,7 @@ def load_glossary(schema: dict) -> None:
     copy of this loop is exactly the two-implementations-of-one-rule defect
     ADR-004 is about."""
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
     for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
         MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
     STAGE_SEPARATORS.update(
@@ -318,6 +319,10 @@ def heading_re(name: str) -> re.Pattern:
 # Filled from schema["thresholds"] in main(). Module-level rather than threaded
 # through two signatures, so every check reads the one declared number.
 SCHEMA_THRESHOLDS: dict = {}
+#: Declared task statuses, filled from the schema by the same loader that
+#: fills the thresholds — never listed here, so it cannot drift from what
+#: `perry-task` writes.
+TASK_STATUSES: set = set()
 
 #: The `Kind:` values that make a `knowledge/*/*.md` file a CARD rather than a
 #: digest, and the fields a card must carry — both read from
@@ -1633,7 +1638,16 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
             except (ValueError, TypeError):
                 continue
             to = str(ev.get("to") or "")
-            if ev.get("field") not in (None, "status") or not to:
+            # **`field` missing does NOT mean "this is a status event".**
+            # Events written before that key existed carry no `field` at all,
+            # and a `next` event's `to` is the next-action TEXT — so treating
+            # `None` as status made a 900-character prose blob the row's
+            # "current status", and no row ever looked re-sent. Four rows sat
+            # reported as verdict-ignored while they had been acted on.
+            #
+            # The honest test is the VALUE: a status transition ends at one of
+            # the declared statuses, read from the schema rather than listed.
+            if to not in TASK_STATUSES:
                 continue
             tid = str(ev.get("task") or ev.get("id") or "")
             if tid:
@@ -2167,6 +2181,7 @@ def main(argv: list[str]) -> int:
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
 
     if mode_claims:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
