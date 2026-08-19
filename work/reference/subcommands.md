@@ -5,7 +5,7 @@ The standup ritual + dispatch + delegate live in SKILL.md / `dispatch.md` / `del
 ## Planning
 
 ### `plan-week`
-Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **New rows go through `perry-task add --priority P0`**; a priority change on an existing row is still a hand edit and shows up as a post-tool edit at the next standup — the tool has no `priority` subcommand yet, and saying so beats pretending the path exists. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes`. Drafts the week's row in `weekly/<YYYY-WW>.md`.
+Generate this ISO week's plan. Reads `phase/<current-NNN>-<slug>.md` (resolve via `phase/CURRENT`; if OKR present) and `BOARD.md` to see what's already on the board. Picks 3–5 highest-leverage open tasks for the week, marks them P0 (or proposes new P0 rows), confirms with user. **Both halves of that go through the tool** — `"$PERRY_HOME/bin/perry-task" add --priority P0` for a new row, `"$PERRY_HOME/bin/perry-task" prioritize <ID> --priority P0 [--reason "…"]` to move an existing one, which keeps its id and every cell. This line used to say the second was "still a hand edit" because "the tool has no `priority` subcommand yet"; `prioritize` closed that, and a procedure that keeps teaching the hand path after the tool path exists is how a row acquires a post-tool edit for no reason. Writes the day's plan entry to `journal/<YYYY-MM>/<today>.md` under `## Notes` — prose, and the one part of this that is genuinely yours. Drafts the week's row in `weekly/<YYYY-WW>.md`.
 
 ### `triage`
 
@@ -429,9 +429,9 @@ After OKR `plan-week` (or any other source) proposes a task and the user approve
 
 **Then, the KR-attribution gate** (`$PERRY_HOME/reference/okr-linkage.md`) — hard, not advisory: resolve the task's KR by stable ID through `phase/<NNN>-linkage.md` (explicit `kr:` → Project ID → registered alias). If it resolves to exactly one KR, set `kr:` and continue. If it resolves to zero or many — a drifted/ambiguous name, or a Project no registry row claims — **do NOT fuzzy-match**: ask the user (`AskUserQuestion`, header `"KR attribution"`, options = the candidate KR IDs + text, plus "Other → new/none"). Record the chosen KR in the spec, then **hand the result to `okr`**, which is the only writer of `phase/` (`goals/reference/linkage.md`):
 
-- resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`)
+- resolved → `/perry goals link <TASK-ID> <KR-ID>` (appends the edge to that KR's `tasks[]`), and pass the same id to `perry-task add --kr <KR-ID>` below
 - a name confirmed as an existing Project → `/perry goals link --alias <PROJECT-ID> "<name>"`
-- unresolved, or the user is unavailable → `/perry goals link --unlinked <TASK-ID>`, and write the BOARD row with `attribution: unlinked` so it stays out of every KR roll-up until the standup surfaces it
+- unresolved, or the user is unavailable → `/perry goals link --unlinked <TASK-ID>`, and **omit `--kr` on the `perry-task add` below**. The tool then records `KR linkage: unlinked` in the definition block itself, which is what keeps the row out of every KR roll-up until the standup surfaces it. This bullet used to say "write the BOARD row with `attribution: unlinked`" — there is no such column in `schema/state-schema.json` and there never was, so the instruction produced either a cell nothing reads or a widened board nobody asked for.
 
 Print the exact command — **in its `/perry <lane> …` form**, since this string is quoted to the user and `/okr` is a withdrawn host command that `setup` deletes and that collides with `lark-okr`. Don't edit `phase/` yourself.
 
@@ -534,7 +534,27 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    (which has none). Read the message and fix the call; do not fall back to
    editing the file.
 
-2. **Append the full definition** to `journal/<YYYY-MM>/<today>.md` under `## New tasks added`, including full schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope, KR linkage). The tool writes the one-line status change; this block is the rich record and is still written by hand.
+2. **The full definition comes from the same call — pass the fields, don't retype the block.**
+
+   ```
+   "$PERRY_HOME/bin/perry-task" add --title "…" --owner "…" --priority <P> \
+       --deliverable "…" --verification "…" \
+       [--depends "TASK-050, TASK-051"] [--out-of-scope "…"] [--kr <KR-ID>]
+   ```
+
+   `perry-task add` renders `### <ID> — <title>` under `## New tasks added` in
+   `journal/<YYYY-MM>/<today>.md` with Owner, Priority, Track / mode,
+   Deliverable, Verification, Dependencies, Out of scope and KR linkage — the
+   whole schema, in the same atomic write as the row and the one-line status
+   change. Absent `--kr`, the KR linkage line reads `unlinked`, which is the
+   gate above landing in the record instead of in an agent's memory.
+
+   **This step used to hand the block to the agent, and the agent did not
+   produce it.** Measured the day the tool learned to: `## New tasks
+   added` appeared three times in the journal of the day *before* and zero
+   times after, so every tool-created task was one title and nothing else.
+   That is ADR-007 rule 3 stated as a defect — the fields were supplied to the
+   tool and the document was then expected to appear from somewhere.
 3. **For P0 and P1 tasks**, ALSO write `evidence/<YYYY-MM>/<TASK-ID>-spec.md` containing the same schema PLUS the dispatch-routing fields below. BOARD's Evidence column points at this spec file. P2 / backlog / watch may rely on the journal entry alone — promote a P2 to P1 → write the spec at promotion time.
 
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):

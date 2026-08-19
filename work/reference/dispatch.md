@@ -134,9 +134,21 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 3. **Capture output**. Append to the dispatch evidence file under `## Architecture review` section verbatim, with header (executor, timestamp).
 
-4. **Status decision**:
-   - `PASS` → continue to flip BOARD row to `review` (normal flow).
-   - `FAIL: <ref>` → flip to `review` with annotation `architecture-failed: <ref>`; surface the FAIL message to the user; `close-task` will refuse until this is resolved (re-dispatch or explicit override).
+4. **Status decision.** Both outcomes land through `perry-task status`, which
+   writes the row, the journal line and the event together — § "On completion"
+   step 6 is the same call. The annotation is passed as flags, not typed into
+   a cell: `--next` is what shows on the board, `--reason` is what lands in the
+   journal line and the event's `reason` field.
+   - `PASS` → continue to the normal flow: `"$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review …`.
+   - `FAIL: <ref>` →
+
+     ```
+     "$PERRY_HOME/bin/perry-task" status <TASK-ID> --status review \
+         --reason "architecture-failed: <ref>" \
+         --next "architecture review FAILed at <ref> — re-dispatch or override"
+     ```
+
+     Then surface the FAIL message to the user; `close-task` will refuse until this is resolved (re-dispatch or explicit override).
 
 5. **Skip conditions** (review agent does NOT run):
    - Spec's `Touches architecture: (none)` AND primary's `ARCHITECTURE COMPLIANCE` Touched sections is empty → skip (no architecture-relevant change). Note: if primary self-attests touching sections despite `(none)` in spec, run the review — primary is admitting scope drift.

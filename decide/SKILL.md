@@ -161,7 +161,7 @@ Run once per project. Two halves, and **both are required** — `init` used to d
 
    It refuses if either already exists, so it is safe to run on an existing project and useless to run twice.
 
-> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s "update the `DECISIONS.md` index" step ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17.
+> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s then-step 7, "update the `DECISIONS.md` index", ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17. That step no longer exists: `perry-decide` renders the index on every write, and the procedure calls it (ADR-007 rule 3, TASK-096).
 
 ### `new <slug>` (interactive)
 Start a new design doc. Prompts:
@@ -202,7 +202,7 @@ For material changes after lock that don't warrant a new doc (small architecture
 Mark `OLD-ID` as `superseded`, point its header to a new doc, and run `new` to create the successor. The successor's References section must cite the predecessor and explain what changed at the framing level.
 
 ### `drop <DESIGN-ID> <reason>`
-Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Append to this lane's `DECISIONS.md` (`Type: Design`) via `adr`.
+Move the design doc to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Then record the drop as a decision through `adr <topic>` with `Type: Design` — `perry-decide new` mints the id, writes the header and re-renders the index; the index is never edited here.
 
 If the user invokes `drop` without a reason, **use `AskUserQuestion`** (header `"Drop reason"`, options = `Problem went away | Pivoted past it | Replaced by other work (Recommended if you saw it in another spec) | Other`) to nudge a categorization; require free-text elaboration after the bucket selection. Reason is mandatory — refuse to drop without one.
 
