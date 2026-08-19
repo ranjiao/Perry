@@ -3,9 +3,10 @@
 > Status: active
 > Type: Architecture
 > Date: 2026-08-19
-> Deciders: Ran Jiao — **NOT YET DECIDED. Section 6 is the decision table.**
+> Deciders: Ran Jiao — **DECIDED 2026-08-19. Section 6 records the answers.**
 >
-> **`Status: active` is the closest available word, and it is wrong.**
+> **`Status: active` was the closest available word and was wrong while this
+> was a proposal; it is right now.** The gap it exposed stands:
 > `bin/perry-decide` hardcodes `STATUSES = ("active", "superseded",
 > "expired", "archived")` — not in the schema, not in any enum, and with no
 > word for *drafted, awaiting a decision*. So a proposal cannot be filed as
@@ -138,13 +139,21 @@ should locate the file and hand it to an agent.
 
 ## 6. User decisions — NOT YET MADE
 
-| # | Question | Options |
+| # | Question | **Decided 2026-08-19** |
 |---|---|---|
-| 1 | Adopt the three rules as Perry's architecture? | accept / reject / accept for tasks only, i.e. leave ADR-006 as the whole of it |
-| 2 | Does `BOARD.md` stop being hand-editable? | yes, it is rendered output · no, keep two-way and accept the parser · yes, but `perry-lint` gains a "you hand-edited a rendered file" finding |
-| 3 | Split `By when` into `due` + `by_when_note`? | yes, and delete `CLOCK_RE` · no, keep one column and a sixth round |
-| 4 | What happens to the 3,320 lines of parser? | delete with the last markdown-canonical reader · keep for adoption of foreign projects only · keep indefinitely |
-| 5 | Scope of the first slice | TASK-038 as written · TASK-038 plus `By when` · a new phase |
+| 1 | Adopt the three rules as Perry's architecture? | **Accept.** |
+| 2 | Does `BOARD.md` stop being hand-editable? | **Yes — it becomes rendered output, and a hand edit becomes drift.** Measured before deciding: `perry-state § drift` reports `drift: 0` on this project, so the property being given up is one almost nobody exercises. `unrecorded: 4` is a different thing — rows whose state moved with no event — and it does not change under this. |
+| 3 | Split `By when` into `due` + `by_when_note`? | **Yes, and `CLOCK_RE` is deleted rather than given a sixth round.** |
+| 4 | What happens to the 3,320 lines of parser? | Follows from 1 and § 5b: the readers for `BOARD.md`, `OKR.md` and `.perry/config.md` go when those become stores. The readers for `design/*.md` and `.perry/roles/*.md` go too, and **for a different reason** — under rule 2 Python should not be parsing prose at all; it locates the file and hands it to an agent. What survives is adoption of a foreign project, which is parsing by definition. |
+| 5 | Scope of the first slice | **A new phase**, covering all three stores — `BOARD.md`, `OKR.md`, `.perry/config.md` — rather than `BOARD.md` alone. TASK-038 becomes its first task rather than a standalone change. |
+
+### What decision 5 commits to
+
+One phase, three stores, and the `By when` split inside it. The alternative —
+`BOARD.md` first and the rest later — was rejected because the three share one
+parser and one migration path, and migrating them separately means running
+`perry-migrate` against the same projects three times. ADR-004's *a project
+migrates once* is the posture; three slices would break it in spirit.
 
 ## References
 
