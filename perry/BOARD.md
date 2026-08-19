@@ -25,7 +25,7 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
 |---|---|---|---|---|---|---|---|
 | TASK-047 | Flip the conformance gate to enforce | Coding Agent | blocked | blocked on TASK-044 has not landed; two blockers measured and made executable | — | V4 | TASK-044 |
-| TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | in_progress | Complete TASK-089 V4 fixes, then land TASK-090 so tasks.jsonl is the sole read/write truth before requesting V5 sign-off | — | V5 |  |
+| TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | blocked | Read evidence/2026-08/TASK-038-v5-signoff-request.md and provide the named V5 approval. | — | V5 | — |
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Minted 2026-08-18 from DESIGN-006 section 6.1. BLOCKED ON phases B, D and E. THIS IS THE PASS CONDITION in DESIGN-003's sense — the abstraction survives contact with a real non-software role, or the extraction report says why not. Candidate project: gimegime-pmo, on a copy. V5 and it cannot be otherwise: the user signs that knowledge was injected, that the escalation union blocked what it should have blocked, and that the output was accepted by the card's own Accepted by clause. An agent cannot sign any of those three. OUT OF SCOPE: cross-project role sharing, deferred in section 8. | — | V5 | TASK-073, TASK-075, TASK-076 |
 | TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | not_started | FOUND 2026-08-18 while fixing TASK-044's planning crash, by asserting what I ASSUMED rather than what happens — the test failed and the code was right. write_atomic writes a .tmp and calls Path.replace, and A RENAME NEEDS WRITE PERMISSION ON THE DIRECTORY, NOT ON THE TARGET. So a file the user has chmod-ed read-only is migrated like any other, and nothing in the plan says the bit was there. THE QUESTION IS A POLICY ONE ABOUT SOMEBODY ELSE'S FILES and I deliberately did not decide it mid-fix: (a) the bit is an explicit user signal and ADR-004's whole posture is 'the user declares', so migration should refuse or at least name it; (b) it may be incidental — copied off a read-only medium, or a stale mode from an archive — and refusing would block a migration for a reason unrelated to shape. PINNED BY A TEST TODAY: the file IS migrated, and the restore point carries its original bytes, so the recovery path covers it — which is what makes the current behaviour survivable rather than merely undetected. NOT TRUE TODAY: that the plan mentions the mode at all. Whichever way this is decided, TASK-044-spec says migration is 'not silent — every file it touched, listed, with what changed in each', and a permission it overrode belongs in that list. | — | V4 |  |
 | TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | not_started | — | — | V4 | TASK-090 |
@@ -58,10 +58,11 @@
 
 ## User Input Queue
 
-| USER-id | Needed from user | Blocks | Idle | Status |
-|---|---|---|---|---|
-| USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |
-| USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |
+| USER-id | Needed from user | Blocks | Idle | Status | Asked |
+|---|---|---|---|---|---|
+| USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |  |
+| USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |  |
+| USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | pending | 2026-08-19 |
 
 ## Done this period (leaves the board at next triage)
 
