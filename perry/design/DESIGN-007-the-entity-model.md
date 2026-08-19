@@ -166,9 +166,9 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 5 | What makes a Task exempt from a spec | **Nothing — every task has one** / An explicit `--no-spec` flag / A rung or priority threshold | **Nothing — every task has one** | 2026-08-19 |
 | 6 | Whether `Metric / Target` splits like `Due` did | **Yes — `target` typed, `metric` prose, never parsed** / Only in the linkage / Leave as prose | **Split** | 2026-08-19 |
 | 7 | Whether a Run is recorded at all | **Yes — a run joins Agent, Task and outcome** / `events.actor` as an id is enough / Later, its own design | **Record it** | 2026-08-19 |
-| 10 | Where runtime state lives | **All of it on the Run; a Task has at least one Run** / Split field by field / Keep it on the Task | **All on the Run** | 2026-08-19 |
-| 9 | When rework becomes a different task | **Never — the id is stable and the run history carries the change** / `supersedes` / `superseded_by` on tasks / A retitle beyond some threshold splits the row | — | — |
 | 8 | Whether an Agent is per-project or shared | **Per project, instantiated at init from a shipped template** / Definition shared at `~/.perry/agents/` / Per project, hand-written | **Per project, from a template** | 2026-08-19 |
+| 9 | When rework becomes a different task | **Never — the id is stable and the run history carries the change** / `supersedes` on tasks / A retitle beyond a threshold splits the row | **Never** | 2026-08-19 |
+| 10 | Where runtime state lives | **All of it on the Run; a Task has at least one Run** / Split field by field / Keep it on the Task | **All on the Run** | 2026-08-19 |
 
 Notes on the non-obvious rows:
 
@@ -273,23 +273,29 @@ Notes on the non-obvious rows:
 ### 5.1 The entities and their edges
 
 ```
-Goal (O)                        versioned; OKR.md § Objectives
-  └─ KR                         a decomposition of exactly one Goal
-       ▲
-       │ links to
-       │
-Phase ─┴─ Phase KR              a phase's own KR, linked to an overall KR
+Goal (O) ─┬─ KR                    versioned; a KR decomposes exactly one Goal
+          │   ▲
+          │   │ serves
+Phase ────┴─ Phase KR              links to one overall KR
   │
   └─ decomposes into
        │
        ▼
-     Task ──── assigned to ────▶ Agent          a virtual role, not a session
-       │                           ▲
-       │                           │ performed as
-       ├─ has ──▶ Document          │
-       │          {kind, round}    Run          one execution; the session
-       │                                        is the mechanism, not the record
-       └─ discharges ──▶ Commitment
+  ┌─ Task ──────────────┐          DURABLE — what the work is
+  │  id · title · phase │          survives every rework; the id never changes
+  │  serves · rung_req  │
+  └──────────┬──────────┘
+             │ has at least one
+             ▼
+  ┌─ Run ───────────────┐          RUNTIME — how one attempt went
+  │  agent (exactly 1)  │──▶ Agent      a role, not a session
+  │  status · stage     │
+  │  rung_achieved      │
+  │  documents[]        │──▶ Document   {path, kind}; spec, deliverable, review
+  └─────────────────────┘
+
+  Task ─ supervised_by ─▶ Task        the PMO tree (§ 5.6)
+  Task ─ discharges ────▶ Commitment
 ```
 
 The one distinction the current model has nowhere to put: **an Agent is a
@@ -446,12 +452,12 @@ agent finishes, the durable record has two halves and they move differently:
 | The fields — status, rung, the document's `{path, kind, run}` | a tool call, which writes the store, the journal and the event atomically | Python |
 | The document itself — the spec, the evidence, the verdict | written as prose by the agent, at the path the tool recorded | the agent |
 
-**Python records that a document exists, of that kind, from that round. It
-never opens it.** This is precisely the boundary today's `evidence` cell
+**Python records that a document exists, of that kind, produced in that run.
+It never opens it.** This is precisely the boundary today's `evidence` cell
 violates: `evidence_paths` opens a prose cell with two regexes to find out what
 the tool should have been told. And it is the boundary `perry-lint --reviews`
 needs in order to pair a round-N verdict with round-N evidence, which it cannot
-do while the round is not a field.
+do while the run a document belongs to is not a field.
 
 A hand-off between two agents is therefore not a document either agent parses.
 It is a tool call by the first and a tool call by the second, with the
@@ -600,14 +606,20 @@ Title and every other field change need no new machinery — they are already
 events with `from`/`to`, and gain a `run` so they join to the attempt they
 happened in.
 
-**What this deliberately does not do** is decide when rework stops being the
-same task. `TASK-038`'s retitle is arguably a new task; keeping the id and
-letting the run history show two different requirements is the cheaper answer
-and it stays readable, because each run names the spec it was judged against.
-The alternative — `supersedes` / `superseded_by` on tasks, as ADRs have — adds
-a judgement call ("is this a new task?") that nobody makes consistently, which
-is the class of mechanism decision #5 just removed. Decision #9 records the
-choice rather than leaving it implied.
+**Rework never changes the task** (decision #9). The id is stable however far
+the requirement moves, and `TASK-038` — retitled from *"event log becomes
+canonical"* to *"the task store becomes canonical"* — stays one row.
+
+This is only readable because of the two rules above: each run names the spec
+it was judged against, so a reader of that row sees *"run 1 was judged against
+spec v1, run 3 against spec v2"* rather than a pile of documents about two
+different things. **Without per-run specs, a stable id would be a trap; with
+them, it is a history.**
+
+The rejected alternative was `supersedes` / `superseded_by` on tasks, as ADRs
+have. It adds a judgement call — *is this a new task?* — that nobody makes
+consistently, which is the class of mechanism decision #5 removed for the same
+reason. There is now no question to answer at rework time: open a run.
 
 ### 5.10 The runtime state lives on the Run, and only there
 
@@ -692,9 +704,11 @@ V4.
 
 ## 8. Open questions
 
-1. **Is `owner` deleted or kept as display prose beside `agent`?** Real boards
+1. **Is `owner` deleted, or kept as display prose beside `agent`?** Real boards
    carry `User + Agent`, which is not an agent id and is a true statement about
-   who does the work.
+   who does the work. § 5.10 moves `owner` and `role` into the Run's single
+   `agent`; whether a human collaborator is a second agent, a property of the
+   run, or simply not modelled is unanswered.
 2. **Does a Commitment become an entity here, or stay a table in `OKR.md`?**
    It has an id, a typed `Due`, a `Status`, and `Discharged by` — the shape of
    an entity, currently modelled as a section.
