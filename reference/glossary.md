@@ -108,7 +108,9 @@ Implemented: schema/task-list-contract.md
 
 ### drift
 The board and the event log disagreeing — a state change that happened without
-a tool writing it, usually a hand edit. Reported, never refused.
+a tool writing it, usually a hand edit. Reported, never refused. Under ADR-007
+the same word covers the board disagreeing with the task store, which
+`perry-lint` reports as `store-drift` at `warn` and on the same posture.
 Implemented: bin/perry-state
 
 ### intake

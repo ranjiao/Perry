@@ -13,6 +13,12 @@ Usage:
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
+The default pass also reports `store-drift`: when `<state root>/tasks.jsonl`
+exists, a rendered file whose fields disagree with what the store would produce
+(ADR-007 decision 2 — the board is rendered output, so a hand edit is drift).
+`warn`, on the `NS-01` precedent, and SILENT when there is no store, because
+"no store" and "clean" are different answers.
+
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
                 schema is what silently breaks the viewer and the standup.
@@ -1824,6 +1830,176 @@ def check_provenance(state_root: Path) -> list["Finding"]:
     return findings
 
 
+#: How many drifted rows are named one by one before the tail is summarised.
+#: `perry-tasks verify` caps its own mismatch list at ten for the same reason:
+#: a stale store drifts on EVERY row, and a hundred warnings saying one thing
+#: is a check people learn to scroll past.
+DRIFT_ROWS_SHOWN = 10
+
+
+def _rel(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _cell(value) -> str:
+    """One field, as the text a cell would carry.
+
+    `depends_on` is a list in the store and a comma-separated cell in the
+    document, and `None` and `""` are the same absent field written two ways.
+    Comparing them raw would report drift on a store nobody has touched.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
+def _tasks_module():
+    """`bin/perry-tasks`, imported rather than shelled out to.
+
+    Same loader `perry-tasks` itself uses on `perry-task`, and for the same
+    reason: the filename carries a dash, so `import` cannot reach it.
+    """
+    import importlib.machinery
+    import importlib.util
+    path = HERE / "perry-tasks"
+    spec = importlib.util.spec_from_loader(
+        "perry_tasks_mod",
+        importlib.machinery.SourceFileLoader("perry_tasks_mod", str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _board_line_of(text: str, task_id: str) -> int | None:
+    """The 1-based line the row is written on, for the finding to point at."""
+    for n, line in enumerate(text.split("\n"), 1):
+        if line.lstrip().startswith("|") and task_id in split_row(line):
+            return n
+    return None
+
+
+def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """The rendered file and the store disagree — ADR-007 decision 2.
+
+    Under ADR-007 `BOARD.md` is **rendered output**: the store is what a field
+    means and the document is a projection of it. Decision 2 accepted the cost
+    of that in the user's own words — *a hand edit becomes drift* — and named
+    `perry-state § reconcile_drift` as the precedent for what happens next.
+    That precedent reports; it does not refuse. So does this.
+
+    **Silent when there is no store, and that is the whole gate.** `perry-tasks`
+    does not write `tasks.jsonl` yet, so no ordinary project has one — "no
+    store" and "clean" are different answers, and printing a checkmark for
+    having compared nothing is the defect `--verification` and `--provenance`
+    each already refuse to commit. With no store this emits nothing, counts
+    nothing, and the test for it asserts that silence rather than trusting it.
+
+    **`warn`, not `error`, deliberately.** ADR-007 left the severity unset;
+    three things decide it, and the third is the one that would be irreversible:
+
+      (a) `NS-01` is the standing precedent for a finding about Perry's own
+          footprint: `warn`, permanently, *so a user can knowingly live with
+          it* (DESIGN-002 § risks). Drift has that shape — the user edited
+          their own markdown, which is still how the board is written today.
+      (b) `reconcile_drift` reports drift and honours the board anyway
+          (DESIGN-004 decision 5). Two tools disagreeing about whether one fact
+          is fatal is worse than either verdict alone.
+      (c) An `error` is retroactive. Every project that has ever hand-edited a
+          board goes red on the first run after upgrading, and under ADR-004's
+          gate a file carrying an error cannot be declared conformant — so one
+          stale cell escalates into a write refusal on `BOARD.md` itself. That
+          is the DESIGN-003 decision-4 argument, unchanged.
+
+    **Field-level, and that is the finest granularity that exists today.**
+    "The bytes the store would produce" presumes a renderer, and there is none:
+    `perry-tasks` writes the store and nothing renders the document back out of
+    it, while `BOARD.md` carries columns (`By when`, `Notes`) that the eighteen
+    stored fields do not cover — so a whole-line byte diff would report every
+    untouched row as drift. What is compared instead is what the store WOULD
+    hold if derived from the file as it stands (`perry-tasks.build()`, the one
+    derivation there is) against what it holds on disk. When a renderer lands,
+    this is the check that gains the byte comparison, and `build`/`verify` keep
+    the semantics they have: read here, never redefined.
+    """
+    findings: list[Finding] = []
+    check_store_drift.stats = {"store": False, "records": 0, "drifted": 0}
+
+    store_path = state_root / "tasks.jsonl"
+    if not store_path.exists():
+        return []
+
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except json.JSONDecodeError as exc:
+        return [Finding("warn", rel_store, "store-unreadable",
+                        f"`tasks.jsonl` is not readable as JSONL ({exc}) — "
+                        f"there is nothing to compare the file against; "
+                        f"`perry-tasks write` re-derives it")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    board_text = (board_path.read_text(errors="replace")
+                  if board_path.exists() else "")
+
+    try:
+        derived = _tasks_module().build(project_root)
+    except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
+        return [Finding("warn", rel_board, "store-drift-uncheckable",
+                        f"the store could not be derived from the current "
+                        f"files ({type(exc).__name__}: {exc}), so drift is "
+                        f"unknown here rather than absent")]
+
+    stored = {r.get("id"): r for r in on_disk if r.get("id")}
+    live = {r.get("id"): r for r in derived if r.get("id")}
+    check_store_drift.stats = {"store": True, "records": len(stored),
+                               "drifted": 0}
+
+    rows: list[tuple[str, str, int | None]] = []
+    for tid in sorted(live):
+        want, got = stored.get(tid), live[tid]
+        line = _board_line_of(board_text, tid)
+        if want is None:
+            rows.append((tid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     if _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((tid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for tid in sorted(set(stored) - set(live)):
+        rows.append((tid, "the store holds this row and nothing in the file or "
+                          "the event log still derives it", None))
+
+    check_store_drift.stats["drifted"] = len(rows)
+    for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift: put the change back through `perry-task`, or run "
+            f"`perry-tasks write` to re-derive the store from the file.",
+            line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
+            f"`{rel_store}` — at this scale the store is stale rather than the "
+            f"file hand-edited, and `perry-tasks verify` prints the whole list."))
+    return findings
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 
@@ -2252,6 +2428,10 @@ def main(argv: list[str]) -> int:
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
+            # Costs nothing on a project with no store — it returns before
+            # deriving anything — and that is every project today, which is
+            # why it runs in the default pass rather than behind a flag.
+            findings.extend(check_store_drift(project_root, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
