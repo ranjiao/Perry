@@ -182,7 +182,7 @@ PMO reads specific `decisions/ADR-NNN-*.md` files only when needed — e.g., whe
 
 ## Bootstrap
 
-On `/pmo` bootstrap (per `SKILL.md § Bootstrap`):
+On `/pmo` bootstrap (per `SKILL.md § First-time setup`):
 1. Create `decisions/` directory.
 2. Write `DECISIONS.md` from `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md` (empty index).
 3. Write `decisions/ADR-NNN-<slug>.md` from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with:

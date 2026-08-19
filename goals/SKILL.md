@@ -175,7 +175,7 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
 - **Show the snapshot first.** No "Let me think about your goals…" preamble.
 - **KRs must be measurable.** Reject anything qualitative — push for number + unit + deadline. The full rubric (outcome-not-output, baseline present, Objective carries no metric, no sandbagging) lives in `$PERRY_HOME/reference/input-quality.md § 1`; run it at `init` / `plan-phase` / `plan-week`. Advisory + override — surface ≤3 issues, never silently rewrite the user's goal prose.
 - **Cap phase KRs at 4 per Objective.** Solo project; more is dilution.
-- **Tier 1 hard size caps (REFUSE writes that exceed)** — see `work/SKILL.md § Two file models § Axis B`:
+- **Tier 1 hard size caps (REFUSE writes that exceed)** — see `work/SKILL.md § Axis B`:
   - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log only.
   - `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`; main file references via link.
   - `init` / `plan-phase` / `revise` MUST verify line count before write; if would exceed, AskUserQuestion (header `"Tier 1 cap"`, options): `Split — move section X to evidence file (Recommended) | Trim section X in place | Override — write past cap with reason logged`. Override path requires written reason in journal.

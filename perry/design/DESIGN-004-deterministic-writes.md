@@ -388,10 +388,18 @@ it is the one that has to satisfy a person using a different program.
   mechanism that removes agent discretion entirely. Out of scope because Perry
   supports two hosts and this would bind it to one — but if Codex grows an
   equivalent, the trade changes and this should be revisited.
-- **The documentation-defect class.** Round 5 found index rows pointing at
+- **The documentation-defect class.** ~~Round 5 found index rows pointing at
   procedures that do not exist. A write tool cannot catch that. A `perry-lint`
   mode that resolves every `reference/*.md § <section>` pointer in a subcommand
-  index would — worth its own task, not this design.
+  index would — worth its own task, not this design.~~
+  **CLOSED 2026-08-19** by `tests/test_pointers_resolve.py`, as a test rather
+  than a lint mode: it is about the shipped skill, not about a user's project,
+  and `perry-lint` runs against the latter. Six real dangling pointers were
+  found and repaired — `SKILL.md § Bootstrap` after that section became
+  `§ First-time setup`, and `reference/digests.md` cited from a page whose
+  sibling is `work/reference/digests.md`. 865 pointers now resolve; a naive
+  first version reported 172 of them, almost all a template correctly naming a
+  file in the *user's* project.
 - **Does `perry-task` write `OKR.md § Commitments` too?** It is another
   hand-written table with a schema. Decision 4 scopes the first release to
   tasks; commitments are the obvious second.
