@@ -298,6 +298,15 @@ def column_index(got: list[str], column: str) -> int:
     return -1
 
 
+def canonical_column(header: str) -> str:
+    """A normalized localized header mapped back to its schema column name."""
+    value = norm(header)
+    for column in COLUMN_ALIASES:
+        if value in accepted(column):
+            return norm(column)
+    return value
+
+
 def field_re(name: str) -> str:
     """Alternation matching a header field name in any accepted language."""
     names = [name, *FIELD_ALIASES.get(name, [])]
@@ -521,9 +530,6 @@ def spec_claims(spec: dict, text: str, schema: dict) -> bool:
 
 
 #: schema `typed_columns` value → the predicate that answers it. Both halves
-#: come from `lib`, which is where `bin/perry-goals` reads them too, so the
-#: writer's "accepted" and the reader's "valid" cannot drift apart.
-#: schema `typed_columns` value → the predicate that answers it. Both halves
 #: come from `lib`, which is where `bin/perry-goals` reads them too.
 #:
 #: **The predicate takes the track's MODE**, because the writer's does.
@@ -535,9 +541,7 @@ def spec_claims(spec: dict, text: str, schema: dict) -> bool:
 #: that is laxer than its writer is the same defect as one that is stricter,
 #: and this pair was split to end exactly that.
 TYPED_CELL = {
-    "iso-date-or-sla": lambda v, mode="": (
-        lib.is_iso_date(v) if mode == "pipeline"
-        else lib.is_iso_date(v) or lib.is_sla_token(v)),
+    "iso-date-or-sla": lib.due_is_valid,
 }
 #: What each kind ACCEPTS, in words, read from `schema § typed_cell_kinds`.
 #: Not written here: the guard in `tests/test_work_modes.py` forbids this file
@@ -566,24 +570,24 @@ def _accepts(kind: str) -> str:
     return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
 
 
-_TRACK_MODES: dict = {}
+_TRACK_CONTEXTS: dict = {}
 
 
-def _track_mode(state_file: Path, cell: str) -> str:
-    """A track cell → its declared mode, from `.perry/config.md § Tracks`.
+def _track_context(state_file: Path, cell: str) -> dict:
+    """A track cell → its declared row from `.perry/config.md § Tracks`.
 
     The root is walked up from the file being linted rather than passed in, so
     `check_file`'s signature — which `bin/perry-conform` also calls — does not
     move, and so there is no second answer to "where does this project start".
 
-    An undeclared track reports `""`, which every predicate treats as the
+    An undeclared track reports `{}`, which every predicate treats as the
     permissive case. A typo in the register must not silently make a column
     stricter: `perry-lint` already reports an unknown mode as `bad-enum`, and
     two findings for one typo is how a check gets switched off.
     """
     name = squash(cell or "")
     if not name:
-        return ""
+        return {}
     root = state_file.resolve().parent
     for _ in range(5):
         if (root / ".perry" / "config.md").is_file():
@@ -591,27 +595,31 @@ def _track_mode(state_file: Path, cell: str) -> str:
         root = root.parent
     cfg = root / ".perry" / "config.md"
     key = str(cfg)
-    if key not in _TRACK_MODES:
+    if key not in _TRACK_CONTEXTS:
         table: dict = {}
         try:
             text = cfg.read_text(encoding="utf-8", errors="replace")
         except OSError:
             text = ""
         header: list = []
+        canonical_header: list[str] = []
         for line in text.split("\n"):
             if not line.lstrip().startswith("|"):
                 continue
             cells = [squash(c) for c in split_row(line)]
-            if "track" in cells and "mode" in cells:
+            track_i = column_index(cells, "Track")
+            mode_i = column_index(cells, "Mode")
+            if track_i >= 0 and mode_i >= 0:
                 header = cells
+                canonical_header = [canonical_column(cell) for cell in header]
                 continue
             if not header or set(cells) <= {"", "-", "--", "---", ":---", "---:"}:
                 continue
-            row = dict(zip(header, cells))
+            row = dict(zip(canonical_header, cells))
             if row.get("track"):
-                table[row["track"]] = row.get("mode", "")
-        _TRACK_MODES[key] = table
-    return _TRACK_MODES[key].get(name, "")
+                table[row["track"]] = row
+        _TRACK_CONTEXTS[key] = table
+    return _TRACK_CONTEXTS[key].get(name, {})
 
 
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
@@ -840,10 +848,9 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                 # "`Due` is TYPED … and nothing else is accepted", and that
                 # was true of `perry-goals commit` and of nothing else — a
                 # hand-written `| … | 下周期 | active |` under a `Due` header
-                # linted clean. A V4 measured it. `warn`, because a pre-split
-                # register is a state real projects pass through and
-                # `perry-goals commit --migrate` is the fix; an `error` would
-                # block the migration under enforce mode.
+                # linted clean. This is an error like an off-enum value.
+                # Migration remains possible because its write path is
+                # explicitly exempt from the conformance gate.
                 for col, kind in (tspec.get("typed_columns") or {}).items():
                     ci = column_index(got, col)
                     tci = column_index(got, "Track")
@@ -871,20 +878,35 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                         # `.replace("*", "")` vs `lib`'s end-strip disagreed on
                         # `2026-**09**-30`, which lint accepted and the writer
                         # refused.
-                        if lib.is_blank_cell(val) or PLACEHOLDER.search(val):
+                        if lib.is_blank_cell(val):
                             continue
-                        tmode = ""
+                        if is_template and PLACEHOLDER.search(val):
+                            continue
+                        track = {}
                         if 0 <= tci < len(row):
-                            tmode = _track_mode(path, row[tci])
-                        if not ok(val, tmode):
+                            track = _track_context(path, row[tci])
+                        if not ok(track, val):
+                            classification = (lib.classify_due(track, val)
+                                              if kind == "iso-date-or-sla"
+                                              else lib.DUE_INVALID)
+                            context = ""
+                            mode = str(track.get("mode") or "").lower()
+                            if lib.due_track_missing_clock(track):
+                                context = (" The row's queue track has no "
+                                           "declared clock, so no populated "
+                                           "`Due` is valid.")
+                            elif mode == "pipeline":
+                                context = (" The row's pipeline track requires "
+                                           "a calendar date, not a duration token.")
                             findings.append(Finding(
-                                "warn", rel, "bad-typed-cell",
+                                "error", rel, "bad-typed-cell",
                                 f"{col} = {val!r} — this column is typed "
                                 f"({_accepts(kind)}) and nothing else "
                                 f"is accepted, so a reader cannot compare or "
                                 f"sort it. Prose about a deadline belongs in "
                                 f"`By when note`, which is never validated: "
-                                f"`perry-goals commit --migrate` moves it."))
+                                f"`perry-goals commit --migrate` moves it."
+                                f"{context}"))
 
                 # A column the row's own mode has no honest default for, left
                 # undeclared.

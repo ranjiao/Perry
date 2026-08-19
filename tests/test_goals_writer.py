@@ -23,6 +23,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import random
 import shutil
 import subprocess
 import sys
@@ -50,6 +51,22 @@ import tables as T  # noqa: E402
 
 G = _load()
 GOALS = ROOT / "bin" / "perry-goals"
+
+
+def _load_lint():
+    spec = importlib.util.spec_from_loader(
+        "perry_lint_for_goals",
+        importlib.machinery.SourceFileLoader(
+            "perry_lint_for_goals", str(ROOT / "bin" / "perry-lint")))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+LINT_MODULE = _load_lint()
+SCHEMA = json.loads((ROOT / "schema" / "state-schema.json").read_text())
+LINT_MODULE.load_glossary(SCHEMA)
+OKR_SPEC = next(f for f in SCHEMA["files"] if f["id"] == "okr")
 
 #: In-repo files, always present. `CORPUS` adds the ones that only exist on a
 #: machine where those projects are checked out.
@@ -551,6 +568,12 @@ class TestDueIsTypedAndTheNoteIsNot(WriterCase):
         p.commit("--track", "rel", "--promise", "a", "--to", "x",
                  "--due", "2026-02-30", expect=1)
 
+    def test_calendar_parsing_uses_the_shared_normalization(self):
+        for value in ("2026-02-30", "2026-13-45", "2026-**09**-30"):
+            with self.subTest(value=value):
+                self.assertIsNone(G.real_date(value))
+        self.assertEqual(G.real_date("**2026-09-30**"), date(2026, 9, 30))
+
     def test_a_date_with_prose_around_it_is_not_a_date(self):
         """The predecessor SEARCHED for a date, so `2026-09-30 or so` counted
         as one and triage compared a sentence against today. A typed field
@@ -669,16 +692,32 @@ class TestTheFileIsCheckedAndNotOnlyTheWriter(WriterCase):
 
     LINT = ROOT / "bin" / "perry-lint"
 
-    def lint(self, due_header: str, cell: str) -> str:
+    def lint(self, due_header: str, cell: str, track: str = "main",
+             tracks: str = TRACKS) -> str:
         proj = self.project(okr=(
             "# OKR v1\n\n## Objectives\n\n| ID | Objective |\n|---|---|\n"
             "| O1 | ship |\n\n## Commitments\n\n"
             f"| Id | Track | Promise | To whom | {due_header} | Status |\n"
             "|---|---|---|---|---|---|\n"
-            f"| ops/1 | main | ship the thing | ops | {cell} | active |\n"))
-        return subprocess.run(
+            f"| ops/1 | {track} | ship the thing | ops | {cell} | active |\n"),
+            tracks=tracks)
+        out = subprocess.run(
             [sys.executable, str(self.LINT), "--root", str(proj.dir)],
-            capture_output=True, text=True).stdout
+            capture_output=True, text=True)
+        return out.stdout + out.stderr
+
+    def typed_findings(self, track: str, cell: str, *, template=False,
+                       spec: dict | None = None) -> list:
+        proj = self.project(okr=(
+            "# OKR v1\n\n## Objectives\n\n| ID | Objective |\n|---|---|\n"
+            "| O1 | ship |\n\n## Commitments\n\n"
+            "| Id | Track | Promise | To whom | Due | Status |\n"
+            "|---|---|---|---|---|---|\n"
+            f"| ops/1 | {track} | ship the thing | ops | {cell} | active |\n"))
+        return [f for f in LINT_MODULE.check_file(
+            proj.okr_path, "OKR.md", spec or OKR_SPEC, SCHEMA["enums"], template)
+                if f.rule in {"bad-typed-cell", "schema-unknown-type",
+                              "ragged-row"}]
 
     def test_the_accepted_value_space_lints_clean(self):
         for cell in ("2026-09-30", "3d", "2w", "**2026-09-30**", "—", ""):
@@ -725,6 +764,134 @@ class TestTheFileIsCheckedAndNotOnlyTheWriter(WriterCase):
                     f"{v!r}: the writer {'accepts' if writer_ok else 'refuses'} "
                     f"it and the file check {'accepts' if reader_ok else 'reports'} "
                     f"it. One sentence in the schema, two answers")
+
+    def test_all_four_track_contexts_share_the_generated_value_space(self):
+        rng = random.Random(91)
+        values = [
+            "2026-09-30", "2026-02-30", "2026-13-45",
+            "**2026-09-30**", "2026-**09**-30",
+            "3d", "2w", "24h", "6m", "1y", "3*d", "{{date}}",
+            "next cycle", "下周期", "逐月", "+3d",
+        ]
+        alphabet = "0123456789-dwhmy* 年月日截止/.+"
+        values += ["".join(rng.choice(alphabet) for _ in range(rng.randint(1, 12)))
+                   for _ in range(40)]
+
+        for track_name in ("main", "rel", "ops", "bare"):
+            proj = self.project(ALIGNED.format(past="2027-01-01"))
+            track = G.track_named(G.tracks_of(proj.dir), track_name)
+            for value in values:
+                with self.subTest(track=track_name, value=value):
+                    try:
+                        G.check_due(track, value)
+                        writer_ok = True
+                    except G.Refused:
+                        writer_ok = False
+                    findings = self.typed_findings(track_name, value)
+                    reader_ok = not any(f.rule == "bad-typed-cell" for f in findings)
+                    if G.lib.is_blank_cell(value):
+                        self.assertFalse(writer_ok)
+                        self.assertTrue(reader_ok)
+                        continue
+                    self.assertEqual(writer_ok, reader_ok,
+                                     f"{track_name}/{value!r}: writer={writer_ok}, "
+                                     f"lint={reader_ok}")
+
+    def test_localized_track_headers_keep_writer_and_lint_in_parity(self):
+        tracks = ("# Perry configuration\n\n"
+                  "- Document language: 中文\n"
+                  "- Repo layout: single\n\n"
+                  "## 轨道\n\n"
+                  "| 轨道 | 模式 | 时限 |\n"
+                  "|---|---|---|\n"
+                  "| rel | pipeline | 10d |\n"
+                  "| bare | queue | |\n")
+        cases = (("rel", "3d", "is `pipeline` mode",
+                  "pipeline track requires"),
+                 ("bare", "2026-09-30", "gives it no `SLA`",
+                  "queue track has no declared clock"))
+
+        for track, due, writer_phrase, lint_phrase in cases:
+            with self.subTest(track=track, due=due):
+                proj = self.project(tracks=tracks)
+                before = proj.okr_path.read_bytes()
+                out = proj.commit("--track", track, "--promise", "ship",
+                                  "--to", "ops", "--due", due, expect=1)
+                self.assertIn(writer_phrase, out.stderr)
+                self.assertEqual(before, proj.okr_path.read_bytes())
+                self.assertEqual([], proj.events())
+
+                lint_out = self.lint("Due", due, track=track, tracks=tracks)
+                self.assertIn("bad-typed-cell", lint_out)
+                self.assertIn(lint_phrase, lint_out)
+
+    def test_an_empty_track_never_turns_a_typed_finding_into_a_crash(self):
+        out = self.lint("Due", "next cycle", track="")
+        self.assertIn("bad-typed-cell", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_unfilled_is_one_category_even_when_the_writer_refuses_creation(self):
+        for value in ("", "n/a", "N/a", "N.A.", "TBD", "?", "？", "无", "无。",
+                      "待定", "不适用", "不适用。", "**暂无！**"):
+            with self.subTest(value=value):
+                self.assertTrue(G.lib.is_blank_cell(value))
+                with self.assertRaises(G.Refused):
+                    G.check_due({"track": "main", "mode": "project"}, value)
+                self.assertFalse(any(f.rule == "bad-typed-cell"
+                                     for f in self.typed_findings("main", value)))
+
+    def test_goals_and_lint_call_the_shared_unfilled_predicate(self):
+        calls = []
+        original = G.lib.is_blank_cell
+        try:
+            G.lib.is_blank_cell = lambda value: calls.append(value) is None and value == "SENTINEL"
+            with self.assertRaises(G.Refused):
+                G.check_due({"track": "main", "mode": "project"}, "SENTINEL")
+            self.assertFalse(any(f.rule == "bad-typed-cell"
+                                 for f in self.typed_findings("main", "SENTINEL")))
+            self.assertGreaterEqual(calls.count("SENTINEL"), 2,
+                                    "goals or lint bypassed lib.is_blank_cell")
+        finally:
+            G.lib.is_blank_cell = original
+
+    def test_bad_typed_cells_are_errors_and_placeholders_are_not_silent(self):
+        findings = self.typed_findings("main", "{{date}}")
+        bad = [f for f in findings if f.rule == "bad-typed-cell"]
+        self.assertEqual([f.severity for f in bad], ["error"])
+        self.assertIn("an ISO date", bad[0].message)
+
+    def test_template_placeholders_remain_exempt(self):
+        self.assertFalse(any(f.rule == "bad-typed-cell" for f in
+                             self.typed_findings("main", "{{date}}", template=True)))
+
+    def test_unknown_typed_kinds_are_reported(self):
+        spec = json.loads(json.dumps(OKR_SPEC))
+        table = next(t for t in spec["tables"] if "typed_columns" in t)
+        table["typed_columns"]["Due"] = "future-clock-kind"
+        findings = self.typed_findings("main", "2026-09-30", spec=spec)
+        self.assertEqual([f.rule for f in findings], ["schema-unknown-type"])
+
+    def test_the_finding_uses_the_schema_vocabulary(self):
+        saved = dict(LINT_MODULE._TYPED_CELL_KINDS)
+        try:
+            LINT_MODULE._TYPED_CELL_KINDS.clear()
+            LINT_MODULE._TYPED_CELL_KINDS["iso-date-or-sla"] = {
+                "accepts": "SCHEMA-VOCABULARY-SENTINEL"}
+            findings = self.typed_findings("main", "next cycle")
+            self.assertIn("SCHEMA-VOCABULARY-SENTINEL", findings[0].message)
+        finally:
+            LINT_MODULE._TYPED_CELL_KINDS.clear()
+            LINT_MODULE._TYPED_CELL_KINDS.update(saved)
+
+    def test_a_ragged_typed_row_is_reported_without_indexing_past_it(self):
+        proj = self.project(okr=(
+            "# OKR v1\n\n## Commitments\n\n"
+            "| Id | Track | Promise | To whom | Due | Status |\n"
+            "|---|---|---|---|---|---|\n"
+            "| ops/1 | main | ship | ops |\n"))
+        findings = LINT_MODULE.check_file(
+            proj.okr_path, "OKR.md", OKR_SPEC, SCHEMA["enums"], False)
+        self.assertIn("ragged-row", [f.rule for f in findings])
 
 
 class TestEndingOne(WriterCase):
@@ -1261,7 +1428,7 @@ class TestMigratingAPreSplitRegister(WriterCase):
             cells = [c.strip() for c in row.strip().strip("|").split("|")]
             for i in want:
                 v = cells[i] if i < len(cells) else ""
-                if v and v not in G.BLANKISH:
+                if not G.lib.is_blank_cell(v):
                     out.append(v)
         return out
 
@@ -1328,6 +1495,19 @@ class TestMigratingAPreSplitRegister(WriterCase):
         self.assertTrue(row.rstrip().rstrip("|").rstrip().endswith("下周期"),
                         row)
 
+    def test_chinese_migration_dry_run_and_second_run_match_the_first(self):
+        p = self.project(PRE_SPLIT_CN)
+        before = p.text()
+        dry = json.loads(p.run(
+            "commit", "--migrate", "--dry-run", "--json", expect=0).stdout)
+        self.assertEqual(before, p.text())
+        self.assertEqual(dry["migrated"]["moved_to_note"], 1)
+
+        p.commit("--migrate")
+        once = p.text()
+        p.commit("--migrate")
+        self.assertEqual(once, p.text())
+
     def test_prose_outside_the_table_is_untouched(self):
         p = self.project(PRE_SPLIT)
         before = p.text().split("\n")
@@ -1374,6 +1554,35 @@ class TestMigratingAPreSplitRegister(WriterCase):
         p = self.project(PRE_SPLIT_CN)
         r = p.commit("--close", "ops/1", "--discharged-by", "已完成", expect=1)
         self.assertIn("commit --migrate", r.stderr)
+
+    def test_migration_refuses_a_typed_value_the_track_does_not_allow(self):
+        cases = [
+            PRE_SPLIT.replace("2027-01-01", "3d", 1),
+            PRE_SPLIT.replace(
+                "| ops/8 | ops   | Statements filed",
+                "| ops/8 | bare  | Statements filed"),
+        ]
+        for text in cases:
+            with self.subTest(text=text.splitlines()[12]):
+                p = self.project(text)
+                before = p.text()
+                r = p.commit("--migrate", expect=1)
+                self.assertIn("does not allow", r.stderr)
+                self.assertEqual(before, p.text())
+                self.assertEqual([], p.events())
+
+    def test_every_declared_unfilled_marker_stays_unfilled_during_migration(self):
+        for value in ("n/a", "N/a", "N.A.", "TBD", "?", "？", "无", "无。", "待定",
+                      "不适用", "不适用。", "**暂无！**"):
+            with self.subTest(value=value):
+                p = self.project(PRE_SPLIT.replace(
+                    "| ops/9 | ops   | Ledger closed       | Finance | —                    | active |",
+                    f"| ops/9 | ops   | Ledger closed       | Finance | {value:<20} | active |"))
+                result = json.loads(
+                    p.run("commit", "--migrate", "--json", expect=0).stdout)
+                self.assertEqual(result["migrated"]["empty"], 1)
+                row = next(l for l in p.text().splitlines() if l.startswith("| ops/9"))
+                self.assertIn(value, row)
 
     def test_after_migrating_the_ordinary_paths_work_again(self):
         p = self.project(PRE_SPLIT)

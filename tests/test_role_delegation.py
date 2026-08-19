@@ -21,6 +21,8 @@ Run: python3 -m unittest discover -s tests
 from __future__ import annotations
 
 import json
+import importlib.machinery
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -32,6 +34,15 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 STATE = PERRY_HOME / "bin" / "perry-state"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 STALE_DAYS = SCHEMA["thresholds"]["knowledge_stale_days"]["value"]
+
+
+def load_state_module():
+    loader = importlib.machinery.SourceFileLoader(
+        "perry_state_binding", str(STATE))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 CONTEXT = ("Prepares the monthly close and ad-hoc reports.\n"
            "Reads exports, never writes to source systems.")
@@ -182,6 +193,33 @@ class TestSubscriptionInjection(Base):
         just_not = self.project(knowledge={"reporting/a.md": card("a", STALE_DAYS + 1)})
         self.assertFalse([k for k in self.only(just_ok)["knowledge"]][0]["stale"])
         self.assertTrue([k for k in self.only(just_not)["knowledge"]][0]["stale"])
+
+    def test_an_impossible_verification_date_does_not_reach_fromisoformat(self):
+        broken = card("broken", 1)
+        broken = broken.replace(
+            next(l for l in broken.splitlines() if l.startswith("- Last verified:")),
+            "- Last verified: 2026-02-30")
+        root = self.project(knowledge={"reporting/broken.md": broken})
+        got = [k for k in self.only(root)["knowledge"] if k.get("path")][0]
+        self.assertFalse(got["stale"])
+        self.assertIsNone(got["age_days"])
+
+    def test_state_calls_lib_is_iso_date(self):
+        binding = card("binding", 1)
+        binding = binding.replace(
+            next(l for l in binding.splitlines() if l.startswith("- Last verified:")),
+            "- Last verified: DATE-SENTINEL")
+        root = self.project(knowledge={"reporting/binding.md": binding})
+        mod = load_state_module()
+        calls = []
+        original = mod.lib.is_iso_date
+        try:
+            mod.lib.is_iso_date = lambda value: calls.append(value) is None and False
+            cards = mod.subscribed_knowledge(root, ["reporting"])
+        finally:
+            mod.lib.is_iso_date = original
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(calls, ["DATE-SENTINEL"])
 
     def test_an_archived_card_is_not_re_injected(self):
         """An invalidated card is archived WITH ITS REASON, never deleted

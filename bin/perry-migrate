@@ -1262,11 +1262,28 @@ class Linter:
     #: a plan, which is noise a suite has to learn to ignore.
     _scratch: tempfile.TemporaryDirectory | None = None
 
-    def __init__(self, schema: dict):
+    def __init__(self, schema: dict, project_root: Path):
         self.schema = schema
         if Linter._scratch is None:
             Linter._scratch = tempfile.TemporaryDirectory(prefix="perry-migrate-")
             atexit.register(Linter._scratch.cleanup)
+        scratch = Path(Linter._scratch.name)
+        scratch_cfg = scratch / ".perry" / "config.md"
+        project_cfg = project_root / ".perry" / "config.md"
+        try:
+            scratch_cfg.parent.mkdir(parents=True, exist_ok=True)
+            scratch_cfg.write_text(
+                project_cfg.read_text(encoding="utf-8", errors="replace")
+                if project_cfg.is_file() else "",
+                encoding="utf-8")
+        except OSError as exc:
+            raise Refused(
+                f"could not stage .perry/config.md for migration linting "
+                f"({exc}). Nothing in the project was touched") from None
+        # The lint module is process-global in the in-process migration tests.
+        # Reusing its cached row from a previous project's scratch config would
+        # make dry-run depend on test order rather than this project's tracks.
+        getattr(lint(), "_TRACK_CONTEXTS", {}).pop(str(scratch_cfg.resolve()), None)
 
     def errors(self, text: str, key: str, spec: dict) -> list:
         path = Path(Linter._scratch.name) / Path(key).name
@@ -1418,7 +1435,7 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
     plan = Plan(project_root=project_root, state_root=state_root,
                 shape_version=C.shape_version(schema))
     plan.dirty_git = git_dirty(project_root)
-    linter = Linter(schema)
+    linter = Linter(schema, project_root)
     lang = doc_language(project_root)
     mint = id_minter(state_root)
     for key, path, spec in C.state_files(project_root, state_root, schema):
@@ -1826,7 +1843,7 @@ def main(argv: list[str]) -> int:
 def perry_written_findings(project_root: Path, state_root: Path,
                            schema: dict) -> int:
     """Errors in the files Perry writes for itself — the YAML-frontmatter ones."""
-    linter = Linter(schema)
+    linter = Linter(schema, project_root)
     n = 0
     for key, path, spec in conform().state_files(project_root, state_root, schema):
         if spec.get("format") != "yaml-frontmatter":

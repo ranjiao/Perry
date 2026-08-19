@@ -1114,6 +1114,46 @@ class TheDatedAndProseCountersPartitionTheCommitments(unittest.TestCase):
             self.assertEqual(self.commitments(td, "Due", "2026-09-30"),
                              {"dated": 1, "prose": 0})
 
+    def test_impossible_and_interior_decorated_dates_are_not_dates(self):
+        for value in ("2026-02-30", "2026-13-45", "2026-**09**-30"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as td:
+                self.assertEqual(self.commitments(td, "Due", value),
+                                 {"dated": 0, "prose": 1})
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(self.commitments(td, "Due", "**2026-09-30**"),
+                             {"dated": 1, "prose": 0})
+
+    def test_unfilled_markers_are_not_reclassified_as_prose(self):
+        for value in ("n/a", "N/a", "N.A.", "TBD", "?", "？", "无", "无。", "待定",
+                      "不适用", "不适用。", "**暂无！**"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as td:
+                self.assertEqual(self.commitments(td, "Due", value),
+                                 {"dated": 0, "prose": 0})
+
+    def test_diagnose_calls_the_shared_blank_and_date_predicates(self):
+        mod = load_bin_module("perry-diagnose")
+        blank_calls = []
+        date_calls = []
+        original_blank = mod.lib.is_blank_cell
+        original_date = mod.lib.is_iso_date
+        mod.lib.is_blank_cell = lambda value: blank_calls.append(value) is None and value == "BLANK-SENTINEL"
+        mod.lib.is_iso_date = lambda value: date_calls.append(value) is None and value == "DATE-SENTINEL"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| ID | Track | Promise | To whom | Due | Status | By when note |\n"
+                  "|---|---|---|---|---|---|---|\n"
+                  "| C-1 | main | a | ops | DATE-SENTINEL | open | BLANK-SENTINEL |\n")
+            try:
+                mod.scan_work_modes(root, root)
+            finally:
+                mod.lib.is_blank_cell = original_blank
+                mod.lib.is_iso_date = original_date
+        self.assertIn("BLANK-SENTINEL", blank_calls)
+        self.assertIn("DATE-SENTINEL", date_calls)
+
     def test_there_is_one_spelling_of_is_this_cell_a_date(self):
         """The uniqueness claim, checked by grep rather than asserted in prose.
 

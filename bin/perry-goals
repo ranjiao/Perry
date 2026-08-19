@@ -867,13 +867,10 @@ def real_date(value: str) -> date | None:
     `None` covers both "empty" and "an SLA token" — neither is a calendar day,
     and every caller here wants a day it can compare against today.
     """
-    text = (value or "").strip().strip("*` ")
-    if not ISO_DATE_RE.match(text):
+    text = lib.normalize_typed_cell(value)
+    if not lib.is_iso_date(text):
         return None
-    try:
-        return datetime.strptime(text, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+    return date.fromisoformat(text)
 
 
 def is_sla_token(value: str) -> bool:
@@ -913,30 +910,27 @@ def check_due(track: dict, value: str) -> None:
     date or an SLA token*, which has one answer in every language — and the
     prose that column also carried now has a field nothing asks anything.
     """
-    mode = (track.get("mode") or "project").lower()
-    text = (value or "").strip()
-    if not text:
+    classification = lib.classify_due(track, value)
+    if classification == lib.DUE_UNFILLED:
         raise Refused(
             "--due is required and has no default. A promise with no date is "
             "not a commitment — and `--by-when-note` is a note ABOUT the "
             "deadline, never a substitute for one. Nothing was written")
-    if mode == "pipeline":
-        if real_date(text) is None:
-            raise Refused(
-                f"track {track.get('track')!r} is `pipeline` mode, so `Due` "
-                f"must be an ISO date (2026-09-30) — triage compares this cell "
-                f"against today, and an SLA token has no day in it. Got "
-                f"{value!r}. Nothing was written")
-        return
-    if mode == "queue":
-        if not track.get("sla"):
-            raise Refused(
-                f"track {track.get('track')!r} is `queue` mode and "
-                f"`.perry/config.md § Tracks` gives it no `SLA`. "
-                f"A commitment measured against the track's SLA, pointing at "
-                f"an empty register, is a promise with no clock at all. Set "
-                f"the track's SLA first. Nothing was written")
-    if real_date(text) is None and not is_sla_token(text):
+    if lib.due_track_missing_clock(track):
+        raise Refused(
+            f"track {track.get('track')!r} is `queue` mode and "
+            f"`.perry/config.md § Tracks` gives it no `SLA`. "
+            f"A commitment measured against the track's SLA, pointing at "
+            f"an empty register, is a promise with no clock at all. Set "
+            f"the track's SLA first. Nothing was written")
+    if ((track.get("mode") or "project").lower() == "pipeline"
+            and classification != lib.DUE_DATE):
+        raise Refused(
+            f"track {track.get('track')!r} is `pipeline` mode, so `Due` "
+            f"must be an ISO date (2026-09-30) — triage compares this cell "
+            f"against today, and an SLA token has no day in it. Got "
+            f"{value!r}. Nothing was written")
+    if classification == lib.DUE_INVALID:
         raise Refused(
             f"`Due` is typed: an ISO date (2026-09-30) or an SLA token "
             f"(3d, 2w, 24h). Got {value!r}. If that is how the deadline was "
@@ -990,13 +984,7 @@ def legacy_due_at(header: list[str]) -> int:
     return -1
 
 
-#: Cells that say "nothing here". `SKILL.md`'s own example rows write an empty
-#: cell as an em dash, so a migration that treated one as prose would move a
-#: placeholder into a note column and call it the user's words.
-BLANKISH = {"—", "–", "-", "n/a", "N/A", "tbd", "TBD"}
-
-
-def unsplit_rows(okr: Okr) -> list[str]:
+def unsplit_rows(okr: Okr, tracks: list[dict]) -> list[str]:
     """Ids whose `Due` cell is neither empty nor typed — a pre-split register.
 
     A **typed** question asked of a typed column: is this cell an ISO date or
@@ -1007,15 +995,17 @@ def unsplit_rows(okr: Okr) -> list[str]:
     """
     out = []
     for row in read_commitments(okr):
-        text = (row.get("Due") or "").strip().strip("*` ")
-        if not text or text in BLANKISH:
-            continue
-        if real_date(text) is None and not is_sla_token(text):
+        try:
+            track = track_named(tracks, row.get("Track", ""))
+        except Refused:
+            track = {}
+        if lib.classify_due(track, row.get("Due") or "") not in {
+                lib.DUE_UNFILLED, lib.DUE_DATE, lib.DUE_DURATION}:
             out.append((row.get("Id") or "").strip() or f"line {row['_line'] + 1}")
     return out
 
 
-def migrate_commitments(okr: Okr) -> dict:
+def migrate_commitments(okr: Okr, tracks: list[dict]) -> dict:
     """Split a pre-TASK-091 `By when` column into `Due` + `By when note`.
 
     A bare ISO date or SLA token stays where it is and is now typed; anything
@@ -1063,15 +1053,30 @@ def migrate_commitments(okr: Okr) -> dict:
         at_due = column_at(header, "Due")
 
     prose: list[tuple[int, str]] = []
+    at_track = column_at(header, "Track")
+    at_id = column_at(header, "Id")
     for i in okr.row_indexes(lo, hi):
         out["rows"] += 1
         cells = split_row(okr.lines[i])
         raw = cells[at_due] if 0 <= at_due < len(cells) else ""
-        text = raw.strip().strip("*` ")
-        if not text or text in BLANKISH:
+        try:
+            track = track_named(
+                tracks, cells[at_track] if 0 <= at_track < len(cells) else "")
+        except Refused:
+            track = {}
+        classification = lib.classify_due(track, raw)
+        if classification == lib.DUE_UNFILLED:
             out["empty"] += 1
-        elif real_date(text) is not None or is_sla_token(text):
+        elif classification in {lib.DUE_DATE, lib.DUE_DURATION}:
             out["kept_as_due"] += 1
+        elif classification in {lib.DUE_PIPELINE_REQUIRES_DATE,
+                              lib.DUE_QUEUE_MISSING_CLOCK}:
+            cid = cells[at_id] if 0 <= at_id < len(cells) else "—"
+            raise Refused(
+                f"commitment {cid!r} has `Due` value {raw!r} that its track "
+                f"does not allow ({classification}). Migration will not "
+                f"relabel a typed value as prose. Fix the track configuration "
+                f"or the value, then retry. Nothing was written")
         else:
             prose.append((i, raw.strip()))
 
@@ -1205,7 +1210,7 @@ def cmd_commit(args, ctx) -> dict:
             raise Refused(
                 "`OKR.md` has no `## Commitments` section, so there is no "
                 "register to split. Nothing was written")
-        counts = migrate_commitments(okr)
+        counts = migrate_commitments(okr, ctx["tracks"])
         result = {"migrated": counts, "id": "—", "created_section": False,
                   "widened": list(counts["widened"]), "file": str(okr.path)}
         result["event"] = {
@@ -1266,7 +1271,7 @@ def cmd_commit(args, ctx) -> dict:
     if not created_section:
         misshapen = [c for c in commitment_columns()[0]
                      if c != "Due" and column_at(header, c) < 0]
-        stale = [] if misshapen else unsplit_rows(okr)
+        stale = [] if misshapen else unsplit_rows(okr, ctx["tracks"])
         if not misshapen and (legacy_due_at(header) >= 0 or stale):
             raise Refused(
                 f"`OKR.md § Commitments` predates the `By when` split "

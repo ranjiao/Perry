@@ -18,6 +18,8 @@ Run: python3 -m unittest discover -s tests
 from __future__ import annotations
 
 import json
+import importlib.machinery
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -31,6 +33,15 @@ LINT = PERRY_HOME / "bin" / "perry-lint"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 CARD_SPEC = next(f for f in SCHEMA["files"] if f["id"] == "knowledge-card")
 INDEX_TEMPLATE = PERRY_HOME / "work" / "state" / "knowledge_INDEX_TEMPLATE.md"
+
+
+def load_tool_module():
+    loader = importlib.machinery.SourceFileLoader(
+        "perry_knowledge_binding", str(TOOL))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 EVIDENCE = """# TASK-001 — the monthly export double-counted every tenant row
 
@@ -195,6 +206,38 @@ class TestTheOtherMandatoryFields(Base):
         self.assertEqual(
             (root / "knowledge" / "reporting" / "test-tenants.md").read_text(),
             before, "a refused promotion still changed the record")
+
+    def test_list_rejects_impossible_dates_before_calendar_arithmetic(self):
+        card_text = (
+            "# reporting/broken — claim\n\n"
+            "- Kind: knowledge\n- Owner role: —\n"
+            f"- Source: {SRC}\n- Last verified: 2026-02-30\n"
+            "- Invalidated by: source changes\n\nclaim\n")
+        root = self.project({"knowledge/reporting/broken.md": card_text})
+        r = self.run_tool(root, "list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout)
+        self.assertEqual(len(payload["cards"]), 1)
+        self.assertFalse(payload["cards"][0]["stale"])
+
+    def test_list_calls_lib_is_iso_date(self):
+        root = self.project({
+            "knowledge/reporting/binding.md": (
+                "# reporting/binding — claim\n\n"
+                "- Kind: knowledge\n- Owner role: —\n"
+                f"- Source: {SRC}\n- Last verified: DATE-SENTINEL\n"
+                "- Invalidated by: source changes\n\nclaim\n")})
+        mod = load_tool_module()
+        mod.load_schema()
+        calls = []
+        original = mod.lib.is_iso_date
+        try:
+            mod.lib.is_iso_date = lambda value: calls.append(value) is None and False
+            cards = mod.read_cards(root)
+        finally:
+            mod.lib.is_iso_date = original
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(calls, ["DATE-SENTINEL"])
 
 
 class TestARealCloseProducesACard(Base):

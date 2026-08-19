@@ -53,7 +53,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 from tables import split_row, squash  # noqa: E402
-from lib import is_iso_date, resolve_state_root  # noqa: E402
+import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
@@ -1254,8 +1254,6 @@ COLUMN_SIGNALS = (
 #: The commit that anchored the goals copy claimed the property was gone from
 #: the repository; it was gone from one of the two places that had it.
 #: `lib.is_iso_date` is now the only answer. See `lib.ISO_DATE_RE`.
-BLANK_CELL = {"", "—", "-", "–", "n/a", "none"}
-
 # Columns read by name. English always resolves; the other languages come from
 # the schema, so this script carries no second copy of that list.
 _FALLBACK_COLUMNS = ("id", "track", "stage", "stage since", "commitment",
@@ -1336,7 +1334,7 @@ def _as_dict(header: dict[str, int], cells: list[str]) -> dict[str, str]:
 
 
 def _filled(rows: list[dict], col: str) -> int:
-    return sum(1 for r in rows if (r.get(col) or "").strip().lower() not in BLANK_CELL)
+    return sum(1 for r in rows if not lib.is_blank_cell(r.get(col) or ""))
 
 
 def _award(ev: dict[str, list], owners: tuple[str, ...], weight: int,
@@ -1575,7 +1573,7 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         def _cell(c: dict, *names: str) -> str:
             for n in names:
                 v = (c.get(n) or "").strip()
-                if v and v.lower() not in BLANK_CELL:
+                if not lib.is_blank_cell(v):
                     return v
             return ""
 
@@ -1589,10 +1587,10 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # evidence after, while the English one was unchanged. The asymmetry
         # the commit removed from `bin/perry-goals` had moved here.
         promise = {id(c): _cell(c, "due", "by when") for c in mine_c}
-        dated = sum(1 for c in mine_c if is_iso_date(promise[id(c)]))
+        dated = sum(1 for c in mine_c if lib.is_iso_date(promise[id(c)]))
         prose = sum(1 for c in mine_c
                     if _cell(c, "by when note")
-                    or (promise[id(c)] and not is_iso_date(promise[id(c)])))
+                    or (promise[id(c)] and not lib.is_iso_date(promise[id(c)])))
         if dated:
             _award(ev, ("pipeline",), STRUCTURAL,
                    f"{dated} commitment(s) promise a dated `Due`")
@@ -1926,7 +1924,7 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
 
 
 def diagnose(root: Path, max_files: int) -> dict:
-    state_root = resolve_state_root(root)
+    state_root = lib.resolve_state_root(root)
     inv = walk(root, max_files)
     ctx = scan_context_load(root, inv)
     tier0_paths = {f["path"] for f in ctx["always_loaded"]}

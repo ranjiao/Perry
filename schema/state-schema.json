@@ -729,7 +729,7 @@
       }
     },
     "blank_cell": {
-      "note": "Values that mean THE CELL SAYS NOTHING. Declared here beside the column translations, for the same reason those are: adding a language must be a schema edit, not a code edit in whichever tool noticed first.\n\nThere were THREE lists in `bin/`, with three different contents — `perry-task` (the only one carrying 无), `perry-diagnose`, and `perry-lint`, whose copy was added by the very commit whose thesis is one-rule-one-implementation. Measured across them: `n/a`, `TBD`, `none`, `?` and `—` were refused by the writer and linted clean, while 无, 待定 and 不适用 were refused by the writer AND reported. Same meaning, two verdicts, split on language — which is TASK-042 criterion 1 verbatim. Found by a V4 inside the check added to close the previous Chinese gap.\n\nMatched case-insensitively with markdown decoration stripped. The empty string is always blank and is not listed.",
+      "note": "Values that mean THE CELL SAYS NOTHING. Declared here beside the column translations, for the same reason those are: adding a language must be a schema edit, not a code edit in whichever tool noticed first.\n\nThere were THREE lists in `bin/`, with three different contents — `perry-task` (the only one carrying 无), `perry-diagnose`, and `perry-lint`, whose copy was added by the very commit whose thesis is one-rule-one-implementation. Measured across them: `n/a`, `TBD`, `none`, `?` and `—` were refused by the writer and linted clean, while 无, 待定 and 不适用 were refused by the writer AND reported. Same meaning, two verdicts, split on language — which is TASK-042 criterion 1 verbatim. Found by a V4 inside the check added to close the previous Chinese gap.\n\nMatched case-insensitively with markdown decoration and terminal sentence punctuation stripped. The empty string is always blank and is not listed.",
       "en": [
         "—",
         "-",
@@ -1109,7 +1109,7 @@
           "typed_columns": {
             "Due": "iso-date-or-sla"
           },
-          "typed_columns_note": "The reader half of \\u201cnothing else is accepted\\u201d. That sentence was true of `perry-goals commit` and of nothing else: a hand-written `| \\u2026 | \\u4e0b\\u5468\\u671f | active |` under a `Due` header linted clean, so the typed column had a validated writer and an unvalidated file. Reported as `warn`, not `error`, because a pre-split register is a real state a project passes through and `perry-goals commit --migrate` is the fix; blocking writes on it would block the migration."
+          "typed_columns_note": "The reader half of 'nothing else is accepted'. That sentence was true of `perry-goals commit` and of nothing else: a hand-written `| ... | 下周期 | active |` under a `Due` header linted clean, so the typed column had a validated writer and an unvalidated file. Reported as `error`, like an off-enum value: `perry-goals commit --migrate` is explicitly exempt from the conformance write gate, so error severity names invalid typed state without blocking its repair."
         }
       ],
       "anchor": "state"

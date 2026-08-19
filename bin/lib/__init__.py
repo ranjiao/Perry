@@ -220,9 +220,19 @@ ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _BLANK_CELLS: set = set()
 
 
+def normalize_typed_cell(value: str) -> str:
+    """Normalize presentation around a typed cell, never its interior."""
+    return (value or "").strip().strip("*`~ ")
+
+
+def _blank_key(value: str) -> str:
+    """Case/punctuation-insensitive key for one declared unfilled idiom."""
+    return normalize_typed_cell(value).strip().lower().rstrip(".。!！?？").strip()
+
+
 def is_blank_cell(value: str) -> bool:
     """Does this cell mean nothing, in any declared language?"""
-    text = (value or "").strip().strip("*`~ ").strip().lower()
+    text = _blank_key(value)
     if not text:
         return True
     if not _BLANK_CELLS:
@@ -233,10 +243,11 @@ def is_blank_cell(value: str) -> bool:
         for key, vals in blank.items():
             if key == "note" or not isinstance(vals, list):
                 continue
-            _BLANK_CELLS.update(str(v).strip().lower() for v in vals)
+            _BLANK_CELLS.update(_blank_key(str(v)) for v in vals)
         # A schema that cannot be read must not make every cell non-blank:
         # that would report every `—` on the board as a bad value.
-        _BLANK_CELLS.update({"—", "-", "–", "n/a", "none", "无"})
+        _BLANK_CELLS.update(_blank_key(v) for v in
+                            {"—", "-", "–", "n/a", "none", "无"})
     return text in _BLANK_CELLS
 
 
@@ -249,7 +260,7 @@ SLA_TOKEN_RE = re.compile(r"^\d+\s*[dwhmy]$", re.I)
 
 
 def is_sla_token(value: str) -> bool:
-    return bool(SLA_TOKEN_RE.match((value or "").strip().strip("*` ")))
+    return bool(SLA_TOKEN_RE.fullmatch(normalize_typed_cell(value)))
 
 
 def is_iso_date(value: str) -> bool:
@@ -266,14 +277,58 @@ def is_iso_date(value: str) -> bool:
     card's `Last verified`. A shape-only `True` handed each of them a
     `ValueError` on a hand-typed card.
     """
-    text = (value or "").strip().strip("*` ")
-    if not ISO_DATE_RE.match(text):
+    text = normalize_typed_cell(value)
+    if not ISO_DATE_RE.fullmatch(text):
         return False
     try:
         _date.fromisoformat(text)
     except ValueError:
         return False
     return True
+
+
+DUE_UNFILLED = "unfilled"
+DUE_DATE = "date"
+DUE_DURATION = "sla"
+DUE_INVALID = "invalid"
+DUE_PIPELINE_REQUIRES_DATE = "pipeline-requires-date"
+DUE_QUEUE_MISSING_CLOCK = "queue-missing-sla"
+
+
+def due_track_missing_clock(track: dict | None) -> bool:
+    track = track or {}
+    return (str(track.get("mode") or "project").strip().lower() == "queue"
+            and is_blank_cell(str(track.get("sla") or "")))
+
+
+def classify_due(track: dict | None, value: str) -> str:
+    """Classify one `Due` cell under the track contract that governs it.
+
+    This returns semantics rather than a writer refusal. The writer, lint, and
+    migration need different actions for the same answer, but none gets to
+    implement a different value space.
+    """
+    if is_blank_cell(value):
+        return DUE_UNFILLED
+
+    track = track or {}
+    mode = str(track.get("mode") or "project").strip().lower()
+    if is_iso_date(value):
+        if due_track_missing_clock(track):
+            return DUE_QUEUE_MISSING_CLOCK
+        return DUE_DATE
+    if is_sla_token(value):
+        if due_track_missing_clock(track):
+            return DUE_QUEUE_MISSING_CLOCK
+        if mode == "pipeline":
+            return DUE_PIPELINE_REQUIRES_DATE
+        return DUE_DURATION
+    return DUE_INVALID
+
+
+def due_is_valid(track: dict | None, value: str) -> bool:
+    """Whether `value` is a populated `Due` allowed by `track`."""
+    return classify_due(track, value) in {DUE_DATE, DUE_DURATION}
 
 
 def load_schema(refused: type[BaseException] = RuntimeError) -> dict:

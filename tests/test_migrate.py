@@ -1259,6 +1259,19 @@ Ship it.
 - v1: 2026-01-01 — initial.
 """
 
+    PRE_SPLIT_CN = PRE_SPLIT.replace(
+        "| Id | Track | Promise | To whom | By when | Status |",
+        "| 编号 | 轨道 | 承诺内容 | 承诺对象 | 截止 | 状态 |").replace(
+        "| ops/1 | ops | Invoices | Finance | within the track SLA | active |",
+        "| ops/1 | ops | 对账 | 财务 | 下周期 | active |")
+
+    TRACKS = (CONFIG_EN +
+              "\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |\n"
+              "| rel | pipeline | commitments | draft -> shipped | 3 | 10d | weekly | V3 |\n")
+
     def project(self):
         return Project({"OKR.md": self.PRE_SPLIT})
 
@@ -1298,6 +1311,74 @@ Ship it.
         kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
         self.assertNotIn("split-needed", kinds,
                          "a migrated register was reported as needing it")
+
+    def test_chinese_pre_split_is_an_error_not_nothing_to_migrate(self):
+        p = Project({"OKR.md": self.PRE_SPLIT_CN}, config=CONFIG_ZH)
+        before = p.text("OKR.md")
+
+        dry_rc, dry, _ = p.run()
+        apply_rc, applied, _ = p.run("apply")
+
+        self.assertEqual((dry_rc, apply_rc), (1, 1))
+        self.assertEqual(before, p.text("OKR.md"))
+        dry_file = next(f for f in dry["files"] if f["path"] == "OKR.md")
+        apply_file = next(f for f in applied["files"] if f["path"] == "OKR.md")
+        self.assertEqual(dry_file["residual"], apply_file["residual"],
+                         "dry-run and apply classified the same cell differently")
+        self.assertEqual([f["rule"] for f in dry_file["residual"]],
+                         ["bad-typed-cell"])
+        self.assertFalse(dry_file["writable"])
+
+        rc, out, _ = p.run(json_out=False)
+        self.assertEqual(rc, 1)
+        self.assertNotIn("nothing to migrate", out)
+        self.assertIn("bad-typed-cell", out)
+
+    def test_migration_lint_uses_the_project_track_context(self):
+        split = self.PRE_SPLIT.replace("| By when |", "| Due |")
+        pipeline_bad = split.replace("within the track SLA", "2027-02-01") \
+                            .replace("2027-01-01", "3d")
+        queue_bad = split.replace("within the track SLA", "2027-02-01")
+        no_clock = self.TRACKS.replace("| ops | queue | commitments | intake -> doing | — | 5d |",
+                                       "| ops | queue | commitments | intake -> doing | — |  |")
+
+        for text, config, phrase in (
+                (pipeline_bad, self.TRACKS, "pipeline track requires"),
+                (queue_bad, no_clock, "queue track has no declared clock")):
+            with self.subTest(phrase=phrase):
+                p = Project({"OKR.md": text}, config=config)
+                rc, out, _ = p.run()
+                self.assertEqual(rc, 1)
+                residual = next(f for f in out["files"]
+                                if f["path"] == "OKR.md")["residual"]
+                self.assertEqual([f["rule"] for f in residual], ["bad-typed-cell"])
+                self.assertIn(phrase, residual[0]["message"])
+
+    def test_migration_lint_uses_localized_track_headers(self):
+        split = self.PRE_SPLIT.replace("| By when |", "| Due |")
+        pipeline_bad = split.replace("within the track SLA", "2027-02-01") \
+                            .replace("2027-01-01", "3d")
+        queue_bad = split.replace("within the track SLA", "2027-02-01")
+        tracks = (CONFIG_ZH +
+                  "\n## 轨道\n\n"
+                  "| 轨道 | 模式 | 时限 |\n"
+                  "|---|---|---|\n"
+                  "| ops | queue | 5d |\n"
+                  "| rel | pipeline | 10d |\n")
+        no_clock = tracks.replace("| ops | queue | 5d |",
+                                  "| ops | queue | |")
+
+        for text, config, phrase in (
+                (pipeline_bad, tracks, "pipeline track requires"),
+                (queue_bad, no_clock, "queue track has no declared clock")):
+            with self.subTest(phrase=phrase):
+                p = Project({"OKR.md": text}, config=config)
+                rc, out, _ = p.run()
+                self.assertEqual(rc, 1)
+                residual = next(f for f in out["files"]
+                                if f["path"] == "OKR.md")["residual"]
+                self.assertEqual([f["rule"] for f in residual], ["bad-typed-cell"])
+                self.assertIn(phrase, residual[0]["message"])
 
 
 class TestTheAssertionsAskWhatTheFileSays(unittest.TestCase):
