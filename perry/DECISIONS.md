@@ -2,7 +2,7 @@
 
 > Rendered by `bin/perry-decide` from `decisions/ADR-*.md`.
 > Those files are the record; this file is a view of them. Edit an ADR, then re-run `perry-decide list` to refresh — do not hand-edit rows here, they are overwritten.
-> Active: 8 · Superseded: 0 · Expired: 0 · Archived: 0
+> Active: 9 · Superseded: 0 · Expired: 0 · Archived: 0
 > Last updated: 2026-08-19
 
 ## Active
@@ -17,6 +17,7 @@
 | [ADR-006](decisions/ADR-006-task-store-is-not-the-log.md) | The task store is not the event log | Design | 2026-08-18 | — |
 | [ADR-007](decisions/ADR-007-fields-are-typed-prose-is-not.md) | Python owns typed fields; agents own prose; nothing parses documents | Architecture | 2026-08-19 | — |
 | [ADR-008](decisions/ADR-008-opencode-first-class-host.md) | OpenCode is a first-class Perry host | Design | 2026-08-19 | — |
+| [ADR-009](decisions/ADR-009-task-summary-field.md) | Tasks carry an optional plain-language summary | Architecture | 2026-08-19 | — |
 
 ## Superseded / Expired / Archived (historical)
 

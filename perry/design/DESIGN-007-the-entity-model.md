@@ -313,12 +313,12 @@ Phase ────┴─ Phase KR              links to one overall KR
   └─ decomposes into
        │
        ▼
-  ┌─ Task ──────────────┐          DURABLE — what the work is
-  │  id · title · phase │          survives every rework; the id never changes
-  │  serves · rung_req  │
-  └──────────┬──────────┘
-             │ has at least one
-             ▼
+  ┌─ Task ───────────────────┐      DURABLE — what the work is
+  │ id · title · summary     │      survives every rework; the id never changes
+  │ phase · serves · rung_req│
+  └────────────┬─────────────┘
+               │ has at least one
+               ▼
   ┌─ Run ───────────────┐          RUNTIME — how one attempt went
   │  agent (exactly 1)  │──▶ Agent      a role, not a session
   │  status · stage     │
@@ -378,7 +378,8 @@ renders and never inspects. That is ADR-007 rule 1 and 2 applied per field.)*
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` · `title` | typed / prose | the identity and its label. A title that changes is an event with `from`/`to`, not a per-run value — otherwise the board shows a different name depending on which run you look at |
+| `id` · `title` | typed / prose | the identity and its short list label. A title that changes is an event with `from`/`to`, not a per-run value — otherwise the board shows a different name depending on which run you look at |
+| `summary` | prose | **new, optional.** A stable one- or two-sentence explanation of why the task exists and the intended outcome. It is not the current step and is never inferred from the title, spec, evidence, or journal. ADR-009 |
 | `phase` | typed | **new.** `<NNN>-<slug>`. Decision #3 |
 | `serves` | typed | **new.** The KR id — one value, because decision #4 made ids project-unique |
 | `priority` · `track` · `group` · `order` | typed | placement |
@@ -463,6 +464,15 @@ implementable: a tool can only be called for a field that has been declared.
 
 Two properties follow, and both are requirements on the model rather than on
 the tools:
+
+**Typed identity lookup.** A namespace with a canonical entity store is not
+resolved by scanning documents that happen to mention its ids. In a project
+with Perry's task store, `perry-explain TASK-*` reads through the typed Task
+domain, including terminal tasks, and does not fall back to the generic
+Markdown harvester for an id absent from that store. Its human explanation is
+the canonical `title` plus the optional `summary`; an unset summary stays
+unset. The generic harvester remains available for projects without a Perry
+task store and for namespaces that do not yet have a typed owner. ADR-009.
 
 **Cross-project.** Eleven of the sixteen tools in `bin/` already take `--root`
 and resolve the state root from `.perry/config.md`; the five that do not are
@@ -699,8 +709,8 @@ Two earlier decisions are refined by this and neither is silently overwritten:
 
 ## 6. Implementation plan
 
-Ordered by what unblocks what. Every step lands with a migration and its own
-V4.
+Ordered by what unblocks what. Every step lands with a migration where one is
+needed and with its specified verification rung.
 
 | # | Step | Depends on | Note |
 |---|---|---|---|
@@ -708,14 +718,16 @@ V4.
 | 2 | **A fresh V5 signature on the hand-off contract**, moving `.perry/roles/` to a lane | — | Decision #2 changes who writes the card. That table is the one thing in Perry with a human gate; nothing in step 3 starts before it |
 | 3 | Agent becomes a store: an id, typed `may_touch[]` / `must_escalate[]`, the card rendered from it. `role` becomes a foreign key or is deleted; `events.actor` uses the id | 1, 2 | The empty layer — five strings that do not join today |
 | 4 | Init instantiates role cards from the shipped templates | 3 | Decision #8. Three templates ship and nothing has ever written a card from them |
-| 5 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1, 12 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9`. **Depends on Runs** — `documents[].run` is a foreign key, and a foreign key with no table is a counter (§ 5.9) |
-| 6 | `perry-task add` requires a spec and writes it | 5 | Decision #5. Refused at creation, not at close — § 5.7 |
-| 7 | **TASK-092** — `OKR.md` becomes a store; `Metric / Target` and `Deadline` split like `Due` did | 1 | Decision #6 |
-| 8 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 7 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` currently names two different KRs |
-| 9 | Task gains `phase` and `serves` | 1, 8 | Decision #3. `serves` stores one value because step 8 made the id project-unique |
-| 10 | `supervised_by` lands; `supervises[]` is derived | 1, 3 | Decision #1 and § 5.6. **Not** a reuse of `parent` |
-| 11 | The phase table becomes a rendering of the linkage record | 7, 9 | Ends the two-fidelity split § 1.4 measures |
-| 12 | Run records, with the dispatch path that writes them | 3 | Decision #7 and § 5.9. **Lands with its writer or not at all** — a Run nothing writes is `role` again. Events gain a `run` so field changes join to the attempt they happened in |
+| 5 | **TASK-105** — `perry-explain TASK-*` resolves through the typed Task store | 1 | The identity path lands before the new field, so canonical titles stop losing to incidental Markdown definitions without waiting for the schema change |
+| 6 | **TASK-106** — optional Task `summary` across store, writers, contract, migration and explanation | 5, TASK-044 | ADR-009. Legacy tasks stay unset; no title, spec, evidence or journal prose is used to manufacture the field |
+| 7 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1, 14 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9`. **Depends on Runs** — `documents[].run` is a foreign key, and a foreign key with no table is a counter (§ 5.9) |
+| 8 | `perry-task add` requires a spec and writes it | 7 | Decision #5. Refused at creation, not at close — § 5.7 |
+| 9 | **TASK-092** — `OKR.md` becomes a store; `Metric / Target` and `Deadline` split like `Due` did | 1 | Decision #6 |
+| 10 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 9 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` currently names two different KRs |
+| 11 | Task gains `phase` and `serves` | 1, 10 | Decision #3. `serves` stores one value because step 10 made the id project-unique |
+| 12 | `supervised_by` lands; `supervises[]` is derived | 1, 3 | Decision #1 and § 5.6. **Not** a reuse of `parent` |
+| 13 | The phase table becomes a rendering of the linkage record | 9, 11 | Ends the two-fidelity split § 1.4 measures |
+| 14 | Run records, with the dispatch path that writes them | 3 | Decision #7 and § 5.9. **Lands with its writer or not at all** — a Run nothing writes is `role` again. Events gain a `run` so field changes join to the attempt they happened in |
 
 ## 7. Risks & mitigations
 
@@ -756,12 +768,18 @@ V4.
 
 ## 9. Changes (append-only after lock)
 
-*(none yet — draft)*
+- 2026-08-19 — Added the optional Task `summary` field and required typed
+  `TASK-*` lookup in `perry-explain` — the generic Markdown harvester resolved
+  `TASK-091` as the design-table value `2` even though the canonical Task store
+  held the correct title; the user also needed a stable plain-language purpose
+  distinct from both the short title and the mutable next action (ADR-009).
 
 ## 10. References
 
 - `perry/decisions/ADR-007-fields-are-typed-prose-is-not.md` — the rule this
   document instantiates
+- `perry/decisions/ADR-009-task-summary-field.md` — the Task summary and typed
+  explanation lookup decision
 - `perry/design/DESIGN-003-work-modes.md § 5.5` — tracks, modes, and why a
   phase is not calendar-bound
 - `perry/design/DESIGN-004-deterministic-writes.md` — the write contract
