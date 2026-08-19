@@ -114,9 +114,31 @@ def lane_dirs(root: Path = PERRY_HOME) -> list[Path]:
 
 
 def procedure_pages(root: Path = PERRY_HOME) -> list[Path]:
-    """The lane entry point plus every page it can load — the whole tree.
+    """Every lane's entry point plus its whole `reference/` tree.
 
     `rglob`, not `glob`: a page filed one directory deeper is still a page.
+
+    **It is the whole LANE tree, not the whole repository, and the difference
+    is load-bearing.** This said "every page it can load — the whole tree",
+    which was false in two directions a V4 measured: the root `SKILL.md` and
+    `reference/` are not under any lane (the walk iterates `root.iterdir()`,
+    so `root` itself is never a lane), and `packs/software-ops/*.md` has no
+    `SKILL.md`, so the shape predicate excludes it — even though
+    `work/SKILL.md` loads three of those pages as work-lane procedure. One
+    live violation sits in the gap: `packs/software-ops/incidents.md` step 5
+    instructs appending a `## Status changes` line to the journal by hand, the
+    section `perry-task` owns, with no tool named.
+
+    So the module's headline 0 is **0 across the three lanes**, not 0 across
+    everything an agent can be told to follow. Widening it is TASK-101 and not
+    a one-line change: the same scan over the root and pack pages reports six
+    more, and all six are prose the guard should suppress and cannot — a
+    closing backtick between subject and verb defeats the descriptive
+    exemption twice, `Detect` is missing from the read verbs, and two
+    sentences put the target in the SUBJECT position ("the BOARD row flips
+    to `review`") where the guard reads it as an order. Widening without
+    those four is a guard that reports six correct pages, which is a guard
+    people switch off.
     """
     pages: list[Path] = []
     for lane in lane_dirs(root):
@@ -244,7 +266,23 @@ NOT_BY_HAND = re.compile(
 
 #: Exemption 5 — the heading says this is adoption of something that already
 #: exists. Scoped to authored documents; a projection is never transcribed.
-ADOPTION_HEADING = re.compile(r"migrat|adopt|legacy|pre-existing|import", re.I)
+#:
+#: **`import` is bounded and the other four are not, and that asymmetry is the
+#: whole comment.** The bare stem matched `## Hand-off contract with PMO (the
+#: most **import**ant rule)` in `decide/SKILL.md`, which is not an adoption
+#: section — so every step under it stopped being reportable for authored
+#: documents, and a planted `Edit the target ADR yourself: flip its Status:
+#: header` sat there silent while the identical plant four lines lower, under
+#: `## Style rules`, went red. One of the two headings this pattern matched on
+#: the live tree was a false match. Found by a V4 probing the exemption set
+#: rather than the assertion, which sits at 0 and looks the same either way.
+#:
+#: `migrat` / `adopt` are left unbounded because their continuations are all in
+#: the same family (migrate, migration, adopting, adoption) — there is no
+#: English word that contains them and means something else. `import` is the
+#: one stem here with a common unrelated descendant.
+ADOPTION_HEADING = re.compile(
+    r"migrat|adopt|legacy|pre-existing|\bimport(?:s|ed|ing)?\b", re.I)
 
 #: Exemption 6 — instantiating a file from its shipped template is bootstrap,
 #: not a field write, and it is exempt only where the owning tool cannot create
@@ -435,6 +473,118 @@ class ProceduresCallTheTool(unittest.TestCase):
                              "the template exemption is conditioned on whether "
                              "the owning tool can create the file, not on the "
                              f"word 'template'; got {boot}")
+
+    def test_adoption_headings_are_actually_about_adoption(self):
+        """Every live heading exemption 5 fires on, listed and justified.
+
+        Exemption 5 is the widest suppression here: it turns off document
+        reporting for **everything** under a heading, and it fires on a
+        substring of that heading. So the set of headings it matches is the set
+        of places this guard has agreed to stop looking, and that set has to be
+        readable rather than inferred.
+
+        It was inferred, and it was wrong. `\bimport\b` was `import`, which
+        matched `## Hand-off contract with PMO (the most important rule)` — a
+        section about who writes what, suppressed as if it were a migration
+        guide. Nothing was hiding under it, so the module's headline assertion
+        stayed at 0 and reported the same number either way. A count cannot
+        catch this; only the list can.
+
+        A new match is a red, not a silent widening. If the heading really is
+        adoption, add it here with a clause saying so.
+        """
+        expected = {
+            # Transcribing the pre-split monolithic index into per-ADR files.
+            "decide/reference/decisions.md":
+                ["## Migration: old monolithic `DECISIONS.md`"],
+        }
+        actual: dict[str, list[str]] = {}
+        for page in procedure_pages():
+            for line in page.read_text().split("\n"):
+                if line.lstrip().startswith("#") and ADOPTION_HEADING.search(line):
+                    rel = str(page.relative_to(PERRY_HOME))
+                    actual.setdefault(rel, []).append(line.strip())
+        self.assertEqual(actual, expected,
+                         "exemption 5 fires on a heading nobody signed off. "
+                         "Either the heading is adoption — add it above with "
+                         "the reason — or the pattern matched a word that is "
+                         "not about adoption, which is how `important` got in")
+
+    def test_adoption_exempts_a_document_and_never_a_projection(self):
+        """The document/projection split, exercised on both sides.
+
+        The row calls this the subtlest of the six exemptions and the docstring
+        argues it at length: adoption may transcribe an **authored document**,
+        because that is what adoption is, but never a **projection**, because a
+        projection is re-rendered from the documents and a transcribed one is
+        drift by the next tool call.
+
+        Both halves were argued and neither was tested. Replacing the
+        `kind == "document"` condition with `True` — which is exactly the
+        mistake the paragraph exists to prevent — left the module green.
+        """
+        import tempfile
+
+        step = ("1. Edit the target ADR yourself: flip its `Status:` header "
+                "to `active`.\n"
+                "2. Add the matching row to the `DECISIONS.md` index by hand.\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            page = Path(tmp) / "migrate.md"
+
+            page.write_text("# m\n\n## Migration from a legacy board\n\n" + step)
+            under = scan(page)
+            self.assertEqual([f[1] for f in under], ["DECISIONS.md index"],
+                             "under an adoption heading the ADR file is the "
+                             "authored document adoption exists to transcribe, "
+                             "and the index is the projection it may never "
+                             f"write; got {under}")
+
+            page.write_text("# m\n\n## Style rules\n\n" + step)
+            outside = scan(page)
+            self.assertEqual(
+                sorted(f[1] for f in outside),
+                ["DECISIONS.md index", "an ADR's typed header"],
+                "outside an adoption heading both are reportable — if the "
+                "document half is silent here, the exemption is not scoped to "
+                f"the heading at all; got {outside}")
+
+    def test_r2_reports_a_licensed_hand_edit_and_a_refusal_is_not_one(self):
+        """R2 fires, and its own refusal clause turns it off.
+
+        R2 is the rule that caught the two steps teaching a hand edit months
+        after the tool had closed the gap — the ones the docstring calls the
+        kind that rot. Neutering `HAND_LICENCE` left the module green: the rule
+        was described in three paragraphs and exercised by nothing, so a
+        rewrite of the pattern could delete the whole rule and pass.
+
+        The refusal half is tested with it because `NOT_BY_HAND` is what keeps
+        R2 off the sentences that *forbid* the hand edit, and a suppression
+        with no test is how a guard ends up reporting the cases people know
+        are fine.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            page = Path(tmp) / "steps.md"
+
+            page.write_text(
+                "# s\n\n## Procedure\n\n"
+                "1. Run `perry-task list` first. The status-change line is "
+                "still written by hand.\n")
+            hit = scan(page)
+            self.assertEqual([(f[1], f[2]) for f in hit],
+                             [("the journal's status / definition block", "R2")],
+                             "R2 must fire even though the step names the tool "
+                             "— licensing the hand edit one clause after "
+                             f"calling the tool is the live shape; got {hit}")
+
+            page.write_text(
+                "# s\n\n## Procedure\n\n"
+                "1. Run `perry-task list` first. The status-change line is "
+                "never written by hand.\n")
+            self.assertEqual(scan(page), [],
+                             "a sentence refusing the hand edit is the "
+                             "instruction this guard wants, not a violation")
 
     def test_owner_tools_exist(self):
         """Every rule names a tool that is actually in `bin/`.
