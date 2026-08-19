@@ -124,7 +124,7 @@ than a documentation exercise: the model cannot be extended before
    actually happened.
 3. **A Task names its Phase and at least one Agent**, both as typed edges, and
    `perry-lint` reports a task that names neither.
-4. **A Task's documents are a typed relation** — `{path, kind, round}` — so
+4. **A Task's documents are a typed relation** — `{path, kind, run}` — so
    the spec, the deliverable and each review round are separately addressable
    and a round-N verdict can be paired with round-N evidence.
 5. **Every id is unique in its declared namespace**, and the namespace is
@@ -166,6 +166,7 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 5 | What makes a Task exempt from a spec | **Nothing — every task has one** / An explicit `--no-spec` flag / A rung or priority threshold | **Nothing — every task has one** | 2026-08-19 |
 | 6 | Whether `Metric / Target` splits like `Due` did | **Yes — `target` typed, `metric` prose, never parsed** / Only in the linkage / Leave as prose | **Split** | 2026-08-19 |
 | 7 | Whether a Run is recorded at all | **Yes — a run joins Agent, Task and outcome** / `events.actor` as an id is enough / Later, its own design | **Record it** | 2026-08-19 |
+| 9 | When rework becomes a different task | **Never — the id is stable and the run history carries the change** / `supersedes` / `superseded_by` on tasks / A retitle beyond some threshold splits the row | — | — |
 | 8 | Whether an Agent is per-project or shared | **Per project, instantiated at init from a shipped template** / Definition shared at `~/.perry/agents/` / Per project, hand-written | **Per project, from a template** | 2026-08-19 |
 
 Notes on the non-obvious rows:
@@ -341,7 +342,7 @@ Existing nineteen stored fields, plus:
 | `phase` | typed | **new.** `<NNN>-<slug>`. Decision #3 |
 | `agent` | typed | **new.** The accountable Agent id — **exactly one** (decision #1). Replaces free-text `owner` |
 | `supervised_by` | typed | **new.** The supervising task, for the PMO tree in § 5.6. **Not `parent`** — see below |
-| `documents[]` | typed | **new.** `{path, kind, round}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}`. **A task with no `spec` document is refused at creation** (decision #5) |
+| `documents[]` | typed | **new.** `{path, kind, run}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}`. **A task with no `spec` document is refused at creation** (decision #5) |
 | `serves` | typed | **new.** The KR id this task is attributed to — one value, because decision #4 made the id project-unique. Today implicit in `linkage.tasks[]` |
 
 `role` is either given the meaning it never had — a foreign key to a card — or
@@ -376,7 +377,8 @@ meaning** is the rule this whole document exists to restate.
 | `id` · `task` · `agent` | typed | |
 | `started` · `ended` | typed | |
 | `outcome` | typed | enum |
-| `documents[]` | typed | what this run produced, joining to the Task's documents by round |
+| `documents[]` | typed | what this run produced — the join `documents[].run` points back at |
+| `spec` | typed | the spec document this run was judged against; inherited from the latest one at or before it |
 
 ### 5.3 Where each entity's truth lives
 
@@ -441,7 +443,7 @@ agent finishes, the durable record has two halves and they move differently:
 
 | Half | Moves how | Owned by |
 |---|---|---|
-| The fields — status, rung, the document's `{path, kind, round}` | a tool call, which writes the store, the journal and the event atomically | Python |
+| The fields — status, rung, the document's `{path, kind, run}` | a tool call, which writes the store, the journal and the event atomically | Python |
 | The document itself — the spec, the evidence, the verdict | written as prose by the agent, at the path the tool recorded | the agent |
 
 **Python records that a document exists, of that kind, from that round. It
@@ -551,6 +553,62 @@ rows for something real (a per-phase retro that has to be reconstructed), the
 cheap move is still not a reset — it is one migration commit that assigns
 phases by `created` date and *records that it guessed*.
 
+### 5.9 Iteration is the Run sequence, and a round is not a number
+
+A task is reworked, its requirements change, its deliverable changes, and
+sometimes its title changes. **Measured on this project**, that is the normal
+case rather than the exception:
+
+- Eight tasks entered `review` more than once; `TASK-042` and `TASK-028` three
+  times each.
+- Three tasks were retitled, and the changes are semantic, not cosmetic:
+  `TASK-038` went from *"event log becomes canonical"* to *"the task store
+  becomes canonical"* — **a different piece of work under the same id.**
+- 252 of 321 events carry `from`/`to`, so the field history is already there.
+
+What is missing is not history. It is **grouping**: nothing says which changes,
+which documents and which verdict belong to the same attempt. "Round 2" is a
+number written into a filename by hand, and § 5.2's first draft stored it as a
+bare integer on a document — a number with no definition of when it increments
+and nothing that increments it. That is `role` again, in a different costume.
+
+**A round is a Run.** Decision #7 already introduced the entity; this makes it
+the spine of iteration rather than an audit nicety:
+
+| Question | Answered by |
+|---|---|
+| what did round 3 produce | `documents[]` where `run` = that run |
+| what was the requirement in round 2 | the `spec` document in force at run 2 |
+| who did round 3, and how long did it take | the Run record |
+| what changed between rounds | events, joined by their `run` |
+
+So `documents[].run` is a **foreign key, not a counter**. A run is opened by
+`perry-task start` and closed by the transition out of `in_progress`; nothing
+has to guess a boundary from the shape of the history, which is what deriving
+rounds from status transitions would have required.
+
+**The spec is versioned by being rewritten, not edited.** `documents[]` may
+hold several `spec` entries, each joined to the run whose work it governed. A
+run whose requirement is unchanged writes no new spec and resolves to the
+latest one at or before it — so *"the requirements changed"* becomes a visible
+event (a second spec appears) rather than a silent overwrite of the file a
+completed run was judged against. **This is what makes an old verdict still
+readable**: a V4 that passed against spec v1 is not retroactively wrong because
+spec v2 exists.
+
+Title and every other field change need no new machinery — they are already
+events with `from`/`to`, and gain a `run` so they join to the attempt they
+happened in.
+
+**What this deliberately does not do** is decide when rework stops being the
+same task. `TASK-038`'s retitle is arguably a new task; keeping the id and
+letting the run history show two different requirements is the cheaper answer
+and it stays readable, because each run names the spec it was judged against.
+The alternative — `supersedes` / `superseded_by` on tasks, as ADRs have — adds
+a judgement call ("is this a new task?") that nobody makes consistently, which
+is the class of mechanism decision #5 just removed. Decision #9 records the
+choice rather than leaving it implied.
+
 ## 6. Implementation plan
 
 Ordered by what unblocks what. Every step lands with a migration and its own
@@ -562,14 +620,14 @@ V4.
 | 2 | **A fresh V5 signature on the hand-off contract**, moving `.perry/roles/` to a lane | — | Decision #2 changes who writes the card. That table is the one thing in Perry with a human gate; nothing in step 3 starts before it |
 | 3 | Agent becomes a store: an id, typed `may_touch[]` / `must_escalate[]`, the card rendered from it. `role` becomes a foreign key or is deleted; `events.actor` uses the id | 1, 2 | The empty layer — five strings that do not join today |
 | 4 | Init instantiates role cards from the shipped templates | 3 | Decision #8. Three templates ship and nothing has ever written a card from them |
-| 5 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9` |
+| 5 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1, 12 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9`. **Depends on Runs** — `documents[].run` is a foreign key, and a foreign key with no table is a counter (§ 5.9) |
 | 6 | `perry-task add` requires a spec and writes it | 5 | Decision #5. Refused at creation, not at close — § 5.7 |
 | 7 | **TASK-092** — `OKR.md` becomes a store; `Metric / Target` and `Deadline` split like `Due` did | 1 | Decision #6 |
 | 8 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 7 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` currently names two different KRs |
 | 9 | Task gains `phase` and `serves` | 1, 8 | Decision #3. `serves` stores one value because step 8 made the id project-unique |
 | 10 | `supervised_by` lands; `supervises[]` is derived | 1, 3 | Decision #1 and § 5.6. **Not** a reuse of `parent` |
 | 11 | The phase table becomes a rendering of the linkage record | 7, 9 | Ends the two-fidelity split § 1.4 measures |
-| 12 | Run records, with the dispatch path that writes them | 3 | Decision #7. **Lands with its writer or not at all** — a Run nothing writes is `role` again |
+| 12 | Run records, with the dispatch path that writes them | 3 | Decision #7 and § 5.9. **Lands with its writer or not at all** — a Run nothing writes is `role` again. Events gain a `run` so field changes join to the attempt they happened in |
 
 ## 7. Risks & mitigations
 
