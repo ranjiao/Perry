@@ -33,7 +33,6 @@
 | TASK-093 | A hand edit to a rendered file is reported rather than honoured | Coding Agent | in_progress | Cover M2-M7, correct tests/test_store_drift.py:123, distinguish no-store from clean JSON, then dispatch a fresh V4 round | — | V4 |  |
 | TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 |
-| TASK-096 | Lane procedures call the tool before writing prose | Coding Agent | in_progress | Implement the bounded lane-only guard contract in TASK-096-spec.md; keep root/reference/packs and incidents.md deferred to TASK-101, then dispatch fresh mutation-sensitive V4. | evidence/2026-08/TASK-096-spec.md | V4 | — |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — |  | TASK-090, TASK-092 |
