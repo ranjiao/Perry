@@ -343,7 +343,11 @@ def typed_task_lookup(root: Path, token: str) -> dict | None:
         return None
     state_root = resolve_state_root(root)
     store = perry_store.store_path(state_root)
-    if not store.exists():
+    adopted = ((root / ".perry" / "config.md").exists()
+               or (state_root / "BOARD.md").exists()
+               or (state_root / "OKR.md").exists()
+               or (state_root / "phase").is_dir())
+    if not adopted or not store.exists():
         return None
     rel = str(store.relative_to(root))
     try:

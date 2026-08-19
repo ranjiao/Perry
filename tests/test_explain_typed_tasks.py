@@ -18,6 +18,11 @@ class TypedTaskLookup(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: .\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self):
         self.temp.cleanup()
@@ -93,6 +98,17 @@ class TypedTaskLookup(unittest.TestCase):
     def test_no_store_keeps_the_generic_cross_project_lookup(self):
         self.write_false_markdown_definition("TASK-999")
         result = self.run_explain("TASK-999", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["title"], "2")
+
+    def test_an_unadopted_projects_tasks_jsonl_is_not_claimed_by_perry(self):
+        self.write_false_markdown_definition("TASK-999")
+        self.write_store([{"id": "TASK-999", "title": "unrelated store"}])
+        (self.root / ".perry" / "config.md").unlink()
+        (self.root / ".perry").rmdir()
+
+        result = self.run_explain("TASK-999", "--json")
+
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["title"], "2")
 
