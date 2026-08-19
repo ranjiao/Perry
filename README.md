@@ -4,7 +4,7 @@
 
 **[中文文档 →](README_cn.md)**
 
-Perry is a skill for **Claude Code** and **Codex CLI** that keeps track of your project for you: what you're trying to achieve, what's being worked on right now, what's blocking you, and what was decided and why.
+Perry is one skill for **Claude Code**, **OpenCode**, and **Codex CLI** that keeps track of your project for you: what you're trying to achieve, what's being worked on right now, what's blocking you, and what was decided and why.
 
 You talk to it with **one command: `/perry`**.
 
@@ -33,12 +33,12 @@ It is also not only for software. A content calendar, an operations queue and a 
 
 ## Install
 
-`setup` finds whichever agent you have (`claude` and/or `codex`) and installs Perry for it.
+`setup` finds whichever host you have (`claude`, `opencode`, and/or `codex`) and installs the one Perry skill for it.
 
-Paste this into a fresh Claude Code or Codex CLI session:
+Paste this into a fresh Claude Code, OpenCode, or Codex CLI session:
 
 ```
-Install the Perry skill set from https://github.com/ranjiao/Perry.
+Install the Perry skill from https://github.com/ranjiao/Perry.
 
 Steps:
 1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
@@ -54,11 +54,11 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 
 `~/perry` is only a suggestion — any folder works.
 
-**Options:** `setup --claude` or `setup --codex` to force one host, `setup --claude --codex` for both.
+**Options:** `setup --claude`, `setup --opencode`, or `setup --codex` to force hosts; combine flags to install several. Add `--local` for a project-local Claude Code/OpenCode install.
 
 **Update:** `cd ~/perry && git pull` (Perry also reminds you about once a week).
 
-Details, dependencies and Codex differences: **[INSTALL.md](INSTALL.md)**.
+Details, dependencies and host differences: **[INSTALL.md](INSTALL.md)**.
 
 ---
 
@@ -330,7 +330,7 @@ Any language works for prose. Details, and how to switch later: [reference/i18n.
 
 ## More
 
-- **[INSTALL.md](INSTALL.md)** — install details, dependencies, Claude Code vs Codex differences
+- **[INSTALL.md](INSTALL.md)** — install details, dependencies, and host differences
 - **[reference/i18n.md](reference/i18n.md)** — writing in another language
 - **[modes/](modes/)** — the four kinds of work, one file each: what ends them, what the spine is, what triage asks
 - **[reference/diagnose.md](reference/diagnose.md)** — how the project audit works

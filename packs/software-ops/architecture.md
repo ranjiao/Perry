@@ -103,12 +103,14 @@ Drift detection — replaces the older `audit` name. Two layers:
 
 **Layer 1 — mechanical checks**: for every §6 NN with a `Check:` field, run the command. Non-zero exit → violation row.
 
-**Layer 2 — LLM consistency scan**: dispatch a review agent (claude-subagent or codex) with input:
+**Layer 2 — LLM consistency scan**: dispatch a host-valid review agent (`claude-subagent | opencode-subagent | codex`) with input:
 - Full `ARCHITECTURE.md`
 - Project file tree (depth ≤ 3) + headers of top-level files
 - `git log --since=<last audit date> --oneline`
 
 The review agent answers ONE question: *"What does the code currently do that `ARCHITECTURE.md` doesn't describe, or describes differently?"* Output structured drift items: `<section reference> | <what code does> | <what doc says> | <severity>`.
+
+The complete executor enum is `claude-subagent | opencode-subagent | codex | manual`. `manual` means render the review prompt for a human-run session. Automated architecture audit and post-primary review enforce the normal host matrix; no native executor is silently translated to another host.
 
 **Write the report** at `architecture/audit-history/<YYYY-MM-DD>.md` with both layers' findings.
 
@@ -160,7 +162,7 @@ Missing or empty ARCHITECTURE COMPLIANCE block → executor fails with stderr "a
 
 After the executor returns and objective verification passes, but BEFORE the BOARD row flips to `review`, dispatch launches a SECOND agent (the **architecture review agent**):
 
-- **Executor**: same options as primary (claude-subagent on Claude Code; codex on either host).
+- **Executor**: host matrix applies. Claude Code uses synchronous `claude-subagent`, OpenCode uses synchronous `Task(subagent_type: general)` as `opencode-subagent`, and Codex CLI uses synchronous `codex`; `codex` remains available as an explicit override on every host.
 - **Estimated cycle**: always `small` (it's a read + judgment task, no code changes).
 - **Prompt**: full `ARCHITECTURE.md` + the diff (`git diff <base>..<head>`) + the primary agent's ARCHITECTURE COMPLIANCE block + this instruction:
 
@@ -266,7 +268,7 @@ Seed non-negotiables at bootstrap:
   Check: <command>
 - NN-2 (soft): <rule>
 
-Review agent executor preference: codex | claude-subagent | (auto)
+Review agent executor preference: codex | claude-subagent | opencode-subagent | (auto)
 Audit cadence: per-phase | quarterly | per-PR
 ```
 

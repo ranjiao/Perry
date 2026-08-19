@@ -44,7 +44,8 @@ version of it, which is a rule only a write path can enforce.
 ## Calling convention
 
 There is no PATH install. `setup` places the skill somewhere (`~/.claude/skills/perry/`
-on Claude Code, `~/.agents/skills/perry/` on Codex CLI) and every call is written
+on Claude Code, `~/.config/opencode/skills/perry/` on OpenCode, or
+`~/.agents/skills/perry/` on Codex CLI) and every call is written
 against `$PERRY_HOME`, the directory that contains this `bin/`:
 
 ```bash
@@ -261,17 +262,16 @@ fail, `--quiet` to use only the exit code.
 ### Before dispatching work
 
 ```bash
-bash "$PERRY_HOME/bin/perry-detect-host"                     # claude-code | codex-cli | unknown
+bash "$PERRY_HOME/bin/perry-detect-host"                     # claude-code | opencode | codex-cli | unknown
 bash "$PERRY_HOME/bin/perry-codex-preflight"                 # exit 0 = codex is usable
 "$PERRY_HOME/bin/perry-dispatch-limit" register REL-002 codex
 # … run the dispatch …
 "$PERRY_HOME/bin/perry-dispatch-limit" release REL-002
 ```
 
-`perry-detect-host` checks `CODEX_*` before `CLAUDE_*` on purpose — a Codex session
-launched from Claude Code inherits `CLAUDECODE=1`, and the innermost runtime is the
-live one. `PERRY_HOST` in the environment always wins; that env var, not the
-heuristic, is the durable contract.
+`perry-detect-host` checks `CODEX_*`, then `OPENCODE`, then `CLAUDE_*`. A nested
+Codex session inherits its parent host environment, and OpenCode can inherit a
+Claude environment. `PERRY_HOST` always wins when valid.
 
 `perry-codex-preflight` fails fast (within ~60s) so a background `codex exec` can't
 hang on a broken CLI, and caches a pass for 6h under `~/.cache/perry/`. `--force`
@@ -280,7 +280,7 @@ bypasses the cache.
 `perry-dispatch-limit` refuses `register` when a slot cap is hit and prints what is
 in flight. `release` is idempotent. Markers older than an hour are treated as stale
 and cleaned before counting, which covers a previous session that crashed without
-releasing. Defaults: 2 codex, 2 claude-subagent, 3 total.
+releasing. Defaults: 2 codex, 2 claude-subagent, 2 opencode-subagent, 3 total.
 
 ### Sizing up an unfamiliar project
 

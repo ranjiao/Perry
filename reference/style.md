@@ -33,16 +33,16 @@ router inside its byte budget. The prose is carried over unchanged.
 
 ## User-prompt convention (AskUserQuestion)
 
-Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the `AskUserQuestion` tool over free-text "what do you want?" prompts. The Claude Code / Desktop UI renders `AskUserQuestion` as clickable button choices with an automatic "Other" free-text fallback — much faster for the user than typing.
+Whenever a Perry skill (top-level or any child) needs the user to make a choice with **2–4 distinct options**, prefer the host's structured choice tool over free-text "what do you want?" prompts. Claude Code uses `AskUserQuestion`; OpenCode uses `question`. Both render clickable choices with a free-text fallback.
 
-> **Codex host**: `AskUserQuestion` is not available. Render the same option set as a numbered free-text prompt per `$PERRY_HOME/reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. The chosen value, downstream writes, and conventions below are unchanged — only the rendering differs.
+> **Host translation**: OpenCode maps Claude's `multiSelect: true` to `multiple: true`; field names are not portable even when the behavior is. Codex has no choice tool, so render the same options as a numbered free-text prompt per `$PERRY_HOME/reference/host-capabilities.md`. The chosen value and downstream writes are unchanged.
 
 ### When to use it
 
 - Any subcommand that branches based on a user choice with a small bounded option set (e.g., `/perry goals score-phase` per-KR `achieved | partial | missed | dropped`, `/perry work triage` per-row `apply | edit | skip`, `/perry decide resolve` per-User-Decision row).
 - First-time setup choices (document language, repo layout).
-- Per-spec dispatch choice when the spec doesn't pin an executor (`/perry work dispatch` → falls back to asking `claude-subagent | codex | manual`).
-- Multi-select when you offer up to 4 candidate items the user may approve all/some/none of (use `multiSelect: true`).
+- Per-spec dispatch choice when the spec doesn't pin an executor (`/perry work dispatch` offers the host-valid subset of `claude-subagent | opencode-subagent | codex | manual`).
+- Multi-select when you offer up to 4 candidate items the user may approve all/some/none of (Claude: `multiSelect: true`; OpenCode: `multiple: true`).
 
 ### When NOT to use it
 
@@ -62,7 +62,7 @@ Whenever a Perry skill (top-level or any child) needs the user to make a choice 
 - **Cap open decisions at three at a time.** Past that, queue and say so. A decision backlog stalls everything downstream or lets it proceed on a guess, and afterwards nobody can tell which happened.
 - **Anything decided on the user's behalf gets logged** as agent-decided, with what would trigger a revisit. Asking less is only acceptable if those calls stay visible and reversible.
 - **Optional `preview`** for showing a code/template snippet (e.g., showing what the rendered task block will look like before they approve).
-- Mutually exclusive options unless `multiSelect: true`.
+- Mutually exclusive options unless the host's multi-select field is enabled.
 
 ### Concrete pattern: child skills with structured option lists
 

@@ -14,7 +14,7 @@ description: The `work` lane of the `perry` skill — not a separate command. Lo
 > back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
 > skill, three lanes`.
 
-Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "how" — owns execution state, runs the standup ritual, triages tasks, delegates to specialist agents, and produces session-handoff docs so work survives across Claude sessions.
+The execution lane inside the one **Perry** skill. It owns execution state, runs the standup ritual, triages tasks, delegates to specialist agents, and produces session-handoff docs so work survives across host sessions. On OpenCode, native delegation is synchronous `Task(subagent_type: general)` under executor token `opencode-subagent`; Codex remains available as an executor.
 
 Voice: terse, numerate, file-first, evidence-required. Perry-the-PMO does not narrate; it shows the dashboard, cites files, and asks what's next.
 
@@ -114,7 +114,7 @@ Trigger on any of:
 Always run this before anything else, even if the user asked a specific question. Answer their question after the snapshot.
 
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: `$PERRY_HOME` is the perry/ root dir, the grandparent of `work/SKILL.md` (it contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, top-level `SKILL.md`). All later bin/ invocations are written `$PERRY_HOME/bin/<script>`.
-−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `codex-cli`). Then read `$PERRY_HOME/reference/host-capabilities.md` once for fallback rules; subsequent references to `AskUserQuestion`, `Agent()` / `subagent_type`, and `run_in_background` in this file and the reference files apply per that matrix.
+−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`). Then read `$PERRY_HOME/reference/host-capabilities.md` once for fallback rules; subsequent references to choice tools, native subagents, and background execution in this file and the reference files apply per that matrix.
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present. It declares the document language (English / 中文 / other), the chat language, and the repo layout (single vs split). `BOARD.md`, `journal/`, ADRs, evidence, weekly reports, handoffs and delegation prompts are written in `Document language`; the standup, the TL;DR, suggested actions and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; task ids, `P0`/`P1`/`P2`, owner names, status values (`in_progress`, `blocked`, …), evidence paths and commit SHAs stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`. A delegation prompt is written in the document language but must carry its file paths, commands and acceptance checks verbatim — the receiving agent runs them. On a split layout, every reference to a code path in delegation prompts and evidence files must include the code-repo absolute path so a future session can find it. If the file is missing and any state file already exists, prompt the user to run top-level `/perry` first-time setup before continuing.
 1. **Read `.perry/hook.md`** if present (project-specific hook). Apply additions; never let a hook override the generic rules in this skill.
@@ -140,7 +140,7 @@ Always run this before anything else, even if the user asked a specific question
 5. **Compute deltas the extractor can't see**:
    - `git log --since="<last_standup_date>" --oneline` if it's a git repo. On a split layout, also check the code repo's `git log` so coding work landing in the other repo is visible from the standup.
    - Recent entries from any project-specific MCP (see Per-project hooks).
-   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` — process-level state, not file state, so it is a separate call. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) label it advisory per `$PERRY_HOME/reference/host-capabilities.md`.
+   - **In-flight dispatches**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` — process-level state, not file state, so it is a separate call. Show as a `🚀 In flight` line. On Codex (`$HOST = codex-cli`) label it advisory per `$PERRY_HOME/reference/host-capabilities.md`; OpenCode native Task calls are synchronous but still reserve a slot while running.
 
 6. **Render the headline + dashboard.** Two parts, in order:
 

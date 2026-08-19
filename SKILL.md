@@ -82,9 +82,9 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 −2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
 
-−1. **Detect host once**: `bash "$PERRY_HOME/bin/perry-detect-host"` → `claude-code` | `codex-cli` | `unknown`. Remember as `$HOST`, then read `$PERRY_HOME/reference/host-capabilities.md`. On `unknown`, default to `claude-code`, say so once, recommend setting `PERRY_HOST`.
+−1. **Detect host once**: `bash "$PERRY_HOME/bin/perry-detect-host"` → `claude-code` | `opencode` | `codex-cli` | `unknown`. Remember as `$HOST`, then read `$PERRY_HOME/reference/host-capabilities.md`. On `unknown`, default to `claude-code`, say so once, recommend setting `PERRY_HOST`.
 
-0. **Auto-update check**, silently in the background: `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
 1. **Read `.perry/config.md`** for document language, chat language and repo layout. If absent and any state file exists, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
@@ -196,7 +196,7 @@ Reasoning and examples: `reference/style.md § Style rules`.
 
 ## User-prompt convention, per-project hooks, auto-update
 
-- **`AskUserQuestion`** over free text whenever a choice has **2-4 distinct options**: label ≤ 5 words, header ≤ 12 chars, recommended first, each `description` carrying the trade-off **in consequences, not mechanism**, and an escape hatch on anything the user may not be equipped for. Cap open decisions at three. It is **not** a permission grant. Unavailable on Codex: render a numbered free-text prompt per `reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. Conventions: `reference/style.md § User-prompt convention (AskUserQuestion)`.
+- **Host-native choice UI** over free text whenever a choice has **2-4 distinct options**: Claude Code uses `AskUserQuestion`, OpenCode uses `question`, and Codex uses the numbered free-text fallback in `reference/host-capabilities.md § Prompt rendering`. Keep the same labels, recommendations, consequence-oriented descriptions, and selected value. Cap open decisions at three. It is **not** a permission grant. Conventions: `reference/style.md § User-prompt convention (AskUserQuestion)`.
 - **Per-project hooks** live at `<project_root>/.perry/hook.md`; hook blocks go in the *children's* SKILL.md files, so this router stays project-agnostic. `reference/style.md § Per-project hooks (optional)`
 - **Auto-update** is step 0 of the ritual: once per 7 days, fetch-and-report-only in dev mode, always exit 0. `reference/style.md § Auto-update`
 

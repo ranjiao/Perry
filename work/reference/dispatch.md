@@ -2,11 +2,13 @@
 
 Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders the prompt, fires it at an executor, watches for completion, parses the result, runs any objective verification commands declared in the spec, writes an evidence file, updates BOARD + journal, and reports back. Subjective verification stays with the user (status moves to `review`, not `done`).
 
+Executor contract: `claude-subagent | opencode-subagent | codex | manual`. `manual` routes to `delegate`; automated dispatch strictly follows the host matrix in `../../reference/host-capabilities.md`.
+
 ## Pre-flight (any failure → refuse and fall back to `delegate`)
 
 1. `evidence/<YYYY-MM>/<TASK-ID>-spec.md` exists.
 2. Spec contains `Dispatch mode: auto` (default `manual` — explicit opt-in required).
-3. Spec contains `Executor: claude-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use `AskUserQuestion` (header `"Executor"`, options = `claude-subagent | codex (if installed) | manual — fall back to delegate`) for a one-shot choice this run; do NOT silently default. Persist the answer back into the spec only if the user explicitly says "save this for next time". On Codex (`$HOST = codex-cli`) **omit** the `claude-subagent` option (the executor isn't available) — see `../../reference/host-capabilities.md`. If a spec already pins `Executor: claude-subagent` on Codex, refuse the dispatch and tell the user to switch to `codex` or fall back to `/pmo delegate`.
+3. Spec contains `Executor: claude-subagent | opencode-subagent | codex` (not `manual`). **If spec is `Dispatch mode: auto` but `Executor` is missing**, use the host-native choice UI for a one-shot choice; do NOT silently default. Offer `claude-subagent | codex | manual` on Claude Code, `opencode-subagent | codex | manual` on OpenCode, and `codex | manual` on Codex CLI. Persist the answer only if the user explicitly says "save this for next time". A spec pinned to another host's native executor is a hard host mismatch: refuse and request a spec edit or `/perry work delegate`. Matrix: `../../reference/host-capabilities.md`.
 4. **Safety re-validation**: scan spec's `Files in scope`, `Deliverable`, `Out of scope` against the **escalation union** — `"$PERRY_HOME/bin/perry-state" --section project` → `escalation.union`. Any positive match in `Files in scope` or `Deliverable` (i.e. the task touches it) → refuse. Any positive match in `Out of scope` (task explicitly avoids it) → that's a green light for the line in question.
 
    **The union is the project's list plus every role's, never one instead of the other** (DESIGN-006 § 5.2, goal 6). `escalation.project` is `.perry/hook.md § High-stakes operations`; `escalation.roles` is each `.perry/roles/*.md § Must escalate`, extracted by the same backticked-span rule. A role can only ADD to what this project refuses to do unsupervised. If it could subtract, hiring a role would quietly narrow the gate and nothing would show it — a narrowed scan passes everything it is asked, cheerfully. With no roles declared `escalation.union` *is* `escalation.project`, so a project that has declared none is screened exactly as it was before roles existed.
@@ -20,7 +22,7 @@ Same goal as `delegate` (see `delegate.md`) but **fully automated**. PMO renders
     - For soft non-negotiables → single `AskUserQuestion` (header = `Architecture`, multiSelect) listing each soft NN as an option with description = the rule text. Selection = acknowledgement.
     - `Touches architecture: (none)` → no friction at this stage, but the review agent still runs after completion (§ Architecture review below).
 5b. **Deployed-task pre-check**: if spec has `Deployed: yes`, verify the spec contains a non-empty `## Observability` section (Success signal / Failure diagnosis / Runbook path). If missing → refuse and ask user to fix the spec first. The runbook file itself is not required to exist yet at dispatch time (often the dispatched task creates it) — only the observability spec field is mandatory.
-6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, ask the user via `AskUserQuestion` (header `"Dispatch full"`, options): `Wait — show in-flight (Recommended) | Switch to other executor (if it has slots) | Fall back to /pmo delegate (manual paste)`. Default limits: 2 codex, 2 claude-subagent, 3 total — overridable via env (`PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_TOTAL`). On Codex the cap is advisory across separate sessions — see `../../reference/host-capabilities.md § perry-dispatch-limit`.
+6. **Concurrency check**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" register <task-id> <executor>`. Exit 0 = slot reserved, proceed. Exit 1 = limit hit; stderr lists what's currently in flight. On limit-hit, use the host-native choice UI: `Wait — show in-flight (Recommended) | Switch to another host-valid executor | Fall back to /perry work delegate`. Defaults are 2 per automated executor and 3 total; overrides are `PERRY_MAX_DISPATCH_CODEX`, `PERRY_MAX_DISPATCH_SUBAGENT`, `PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT`, and `PERRY_MAX_DISPATCH_TOTAL`. On Codex the cap is advisory across separate sessions.
 
 ## Dispatch
 
@@ -41,11 +43,19 @@ may narrow which runtimes are acceptable; it never grants a slot.
 
 ### `Executor: claude-subagent` (Claude Code only)
 
-- **Host gate**: requires `$HOST = claude-code`. On Codex this executor is unavailable — refuse and route per `../../reference/host-capabilities.md § Agent / subagent_type`.
+- **Host gate**: requires `$HOST = claude-code`. On OpenCode or Codex this executor is unavailable — refuse per the strict matrix in `../../reference/host-capabilities.md`.
 - Use the `Agent` tool with `subagent_type: general-purpose`.
 - Build prompt = **`ARCHITECTURE.md` full text + architecture preamble (see § Architecture preamble below)** + spec full text + project hook safety constraints + Git expectation block (see `git-boundaries.md`) + RESULT format including the mandatory `ARCHITECTURE COMPLIANCE` block (see § Architecture compliance RESULT).
 - Async-ness from spec's size hint: `Estimated cycle: small` → `run_in_background: false`; `medium | large` → `run_in_background: true`.
 - Sub-agent shares parent cwd. For split-repo projects: instruct sub-agent to use `git -C <code-repo-path> ...` for every git command (do NOT `cd`; preserves parent cwd state).
+
+### `Executor: opencode-subagent` (OpenCode only)
+
+- **Host gate**: requires `$HOST = opencode`; refuse on Claude Code or Codex CLI.
+- Use the `Task` tool with `subagent_type: general`.
+- Build the same complete prompt as `claude-subagent`: architecture text/preamble + spec + safety constraints + git expectation + RESULT and ARCHITECTURE COMPLIANCE contracts.
+- The call is always synchronous. On return, release the slot and continue directly to objective verification and architecture review. Do not rely on a background notification or write an awaiting-completion message after Task has returned.
+- Task shares the project context. For split repos, retain the explicit absolute code-repo path and `git -C` instruction.
 
 ### `Executor: codex`
 
@@ -55,7 +65,7 @@ may narrow which runtimes are acceptable; it never grants a slot.
   ```
   The script: (a) `codex --version` ≥ `PERRY_CODEX_MIN_VERSION` (default `0.100.0`); (b) smoke test (`codex exec "Reply with just: PERRY_OK"`, 60s timeout if `timeout` / `gtimeout` is installed). Cached 6h at `~/.cache/perry/codex-smoke-pass`. Exit non-0 → **refuse + surface stderr verbatim + fall back to delegate**. Catches stuck CLI / broken auth / version-rejected-by-API BEFORE we fire async dispatch that would silently hang.
 - Then: Bash → `cd <code-repo-path> && codex exec "<prompt>"`.
-- Always async (codex is its own session). On Claude Code, pass `run_in_background: true`. On Codex (`$HOST = codex-cli`), wrap in shell backgrounding (`codex exec "..." > /tmp/perry-dispatch-<id>.log 2>&1 &`); see `../../reference/host-capabilities.md § Bash run_in_background: true`.
+- Always async (codex is its own session). On Claude Code, pass `run_in_background: true`. On OpenCode or Codex CLI, use shell backgrounding with log + PID; see `../../reference/host-capabilities.md § No-background-shell-tool fallback`.
 - Prompt MUST be self-contained (codex doesn't see the journal, BOARD, or any prior context). Include: **`ARCHITECTURE.md` full text + architecture preamble** + spec full text + relevant project hook excerpts + git expectation + RESULT format including mandatory `ARCHITECTURE COMPLIANCE` block + the explicit list of files codex can read for context.
 - Capture stdout to a temp file; on completion, parse for the RESULT block.
 - If the long-running codex call fails (non-0 exit / no RESULT block / timeout), per the failure handling below, mark task `review` and surface raw output. Pre-flight is the cheap pre-check; this is the post-check.
@@ -107,8 +117,9 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 1. **Executor selection**:
    - On Claude Code (`$HOST = claude-code`): `Agent(subagent_type: general-purpose, run_in_background: false)` — small task, sync.
+   - On OpenCode (`$HOST = opencode`): `Task(subagent_type: general)` — synchronous.
    - On Codex (`$HOST = codex-cli`): `codex exec` (sync, ~60s).
-   - Per-project hook may pin `Review agent executor:` to override (`codex | claude-subagent | (auto)`).
+   - Per-project hook may pin `Review agent executor:` to a host-valid value (`codex | claude-subagent | opencode-subagent | (auto)`). A host-mismatched pin is refused, not rerouted.
 
 2. **Prompt**: full `ARCHITECTURE.md` + the diff (`git diff <base>..<head>` from the primary's PR, captured with `gh pr diff <pr>` or `git diff` for direct-push) + the primary's `ARCHITECTURE COMPLIANCE` block + the literal instruction:
 
@@ -159,8 +170,9 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 ## Common (post-dispatch, before completion)
 
-- `"$PERRY_HOME/bin/perry-task" start <TASK-ID> --next "dispatched <time>; awaiting completion"` — writes the BOARD row, the journal status-change line and the event in one atomic call. Add the executor and async flag to today's `## Notes` by hand; they are context, not state.
-- Reply to user: `Dispatched <TASK-X> via <executor>. Will report when done.` Do NOT block waiting for sync; rely on runtime notification.
+- **Every executor makes the in-flight state visible before it starts.** If the row is `not_started`, run `perry-task start`; if it is `blocked` or `review`, run `perry-task status <ID> --status in_progress`; if it is already `in_progress`, run `perry-task next`. In every case set `Next action` to `dispatched <time> via <executor>; awaiting completion`. This happens after the slot is registered and before invoking the executor, including synchronous OpenCode Task. A crashed parent then leaves an honest in-progress row plus a stale-cleanable slot rather than a task that still says `not_started`.
+- For OpenCode native Task, call Task synchronously after that transition, then process completion in the same turn. Do not promise a later notification.
+- For asynchronous executors, reply `Dispatched <TASK-X> via <executor>. Will report when done.` OpenCode native dispatch instead reports the verified result after synchronous completion.
 
 ## On completion (notification arrives)
 
@@ -203,6 +215,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 ## Cost / quota awareness
 
 - Each `claude-subagent` call counts against the parent CC session quota (5-hour Sonnet caps, weekly Opus caps).
+- Each `opencode-subagent` call consumes the OpenCode model/session quota and blocks the dispatch flow until Task returns.
 - Each `codex` call counts against OpenAI quota.
 - PMO does not enforce a per-call dollar cap; spec writer chooses executor as a quota-routing hint.
 - Hooks may declare project-specific quota limits (e.g., "no more than 5 dispatches per day") — PMO honors those if present.

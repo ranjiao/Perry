@@ -560,7 +560,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
    **Required header fields in every spec file** (used by `dispatch` and `close-task`):
    ```
    > Dispatch mode: auto | manual               # default 'manual'; 'auto' is explicit opt-in
-   > Executor: claude-subagent | codex | manual # only consulted when Dispatch mode = auto
+   > Executor: claude-subagent | opencode-subagent | codex | manual # only consulted when Dispatch mode = auto
    > Estimated cycle: small | medium | large    # informs sync vs async + cycle-time tracking
    > Subjective verification: <list, or '(none)'>
    > Touches architecture: <comma-separated §-section refs (§2, §3, §6.NN-3), or '(none)'>   # used by dispatch pre-flight + review agent; see $PERRY_HOME/packs/software-ops/architecture.md
@@ -578,6 +578,7 @@ A pipeline- or inquiry-mode board must carry `Stage` and `Stage since`; a queue-
 
    **Choosing executor (spec writer responsibility)**:
    - `claude-subagent`: small task, needs MCP tools the parent session has, needs codebase familiarity.
+   - `opencode-subagent`: OpenCode-native codebase work through synchronous `Task(subagent_type: general)`.
    - `codex`: medium/large self-contained, no MCP dependency, save Claude Code quota.
    - `manual`: high-stakes per project hook (production deploys, prod credentials, .env, paid APIs, cost ceiling raise) OR subjective decision-making (research candidate selection, design choices).
 

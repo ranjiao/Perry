@@ -5,11 +5,12 @@
 #
 #   claude-code   running inside Claude Code (CLI / Desktop)
 #   codex-cli     running inside OpenAI Codex CLI
+#   opencode      running inside OpenCode
 #   unknown       cannot determine (treat as claude-code by default in
 #                 SKILL.md branches; manual override below recommended)
 #
 # Manual override (always wins):
-#   export PERRY_HOST=claude-code      # or codex-cli
+#   export PERRY_HOST=claude-code      # or codex-cli or opencode
 #
 # Detection is best-effort: env-var sniffing first, parent-process name
 # second. Both can change as host runtimes evolve; the env override is
@@ -33,7 +34,7 @@ esac
 # ─── 1. Manual override wins ─────────────────────────────────
 if [ -n "${PERRY_HOST:-}" ]; then
   case "$PERRY_HOST" in
-    claude-code|codex-cli|unknown)
+    claude-code|codex-cli|opencode|unknown)
       echo "$PERRY_HOST"
       exit 0
       ;;
@@ -54,13 +55,20 @@ fi
 # CLAUDECODE; standalone Claude Code sessions don't have CODEX_*.
 # Either way, this ordering returns the correct innermost host.
 #
-# Verified against codex-cli 0.130.0 in 2026-05; the actual sentinel
-# vars set inside `codex exec` are: CODEX_SANDBOX, CODEX_SANDBOX_*,
-# CODEX_THREAD_ID, CODEX_CI, CODEX_MANAGED_BY_NPM. CODEX_HOME is NOT
-# set automatically — it's a user-level pointer to ~/.codex. Match
-# any var starting with CODEX_ to stay robust to version drift.
-if [ -n "${CODEX_SANDBOX:-}" ] || [ -n "${CODEX_THREAD_ID:-}" ] || env | grep -q '^CODEX_'; then
+# Verified against codex-cli 0.130.0 in 2026-05. Only runtime-owned
+# sentinels belong here: CODEX_HOME is a user-level pointer to ~/.codex and
+# can legitimately be inherited by OpenCode or Claude Code.
+if [ -n "${CODEX_SANDBOX:-}" ] || [ -n "${CODEX_THREAD_ID:-}" ] || \
+   [ -n "${CODEX_CI:-}" ] || [ -n "${CODEX_MANAGED_BY_NPM:-}" ]; then
   echo "codex-cli"
+  exit 0
+fi
+
+# OpenCode exports OPENCODE=1 and/or OPENCODE_PID. It must be checked after
+# Codex (a nested `codex exec` inherits its OpenCode parent environment) and
+# before Claude (OpenCode may itself have been launched from Claude Code).
+if [ "${OPENCODE:-}" = "1" ] || [ -n "${OPENCODE_PID:-}" ]; then
+  echo "opencode"
   exit 0
 fi
 
@@ -81,6 +89,7 @@ for _ in 1 2 3; do
   [ "$pid" -le 1 ] && break
   parent_cmd=$(ps -p "$pid" -o comm= 2>/dev/null | tr -d ' ' || true)
   case "$parent_cmd" in
+    *opencode*) echo "opencode";    exit 0 ;;
     *codex*)  echo "codex-cli";   exit 0 ;;
     *claude*) echo "claude-code"; exit 0 ;;
   esac
