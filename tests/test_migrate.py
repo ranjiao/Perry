@@ -1099,9 +1099,7 @@ A legend, not a task table:
                             "--root", str(p.root)], capture_output=True, text=True)
         out = json.loads(r.stdout)
         self.assertEqual(out["tasks"], [], "the legend's rows became tasks")
-        self.assertEqual(
-            [s["heading"] for s in out["conformance"]["sections_skipped"]],
-            ["P0 holding"])
+        self.assertEqual(out["conformance"]["sections_skipped"], [])
 
     def test_a_table_missing_a_minority_of_the_schemas_names_is_still_widened(self):
         """The discrimination must not cost the behaviour it protects. The

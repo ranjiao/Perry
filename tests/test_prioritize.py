@@ -77,6 +77,12 @@ class Base(unittest.TestCase):
 
     def write(self, text):
         (self.root / "perry" / "BOARD.md").write_text(text, encoding="utf-8")
+        seeded = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(self.root)],
+            capture_output=True, text=True)
+        if seeded.returncode:
+            raise AssertionError(seeded.stdout + seeded.stderr)
 
     def read(self):
         return (self.root / "perry" / "BOARD.md").read_text(encoding="utf-8")
@@ -494,8 +500,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         decision.
         """
         fn = self.mod.idish_tokens_that_resolve_nowhere
-        ctx = {"board": self.mod.Board(TOOL.parent.parent / "perry"
-                                       / "BOARD.md")}
+        state_root = TOOL.parent.parent / "perry"
+        ctx = {"task_records": self.mod.load_task_records(state_root)}
         self.assertEqual(fn("the ROUND-2 defect", ctx), ["ROUND-2"])
         self.assertEqual(fn("see ADR-006 and USER-014", ctx), [])
         self.assertEqual(fn("round 2, plainly", ctx), [])

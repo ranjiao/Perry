@@ -17,9 +17,9 @@ not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
 from the nineteen plus the event log, and storing any of them would be the
 "a stored value that is derived" defect this repository keeps finding.
 
-Because the derived nine keep being computed the same way, `perry-task/list`
-does not change shape — which is phase 002's `P-O3.2`, and the reason a
-consumer pinned at `perry-task/list/1.9` needs no edit.
+The derived nine keep the same payload shape. `status_text` changed meaning at
+`perry-task/list/1.10`: it is now the legacy display alias of typed `status`,
+not raw text recovered from the rendered board.
 
 The record shape and the renderer live in `bin/perry_store.py`, which
 `bin/perry-task` imports too. One implementation, two callers: two renderers of

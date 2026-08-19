@@ -258,6 +258,11 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
             (root / ".perry" / "roles" / f"{r}.md").write_text(
                 self.CARD.format(name=r), encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text(self.BOARD, encoding="utf-8")
+        seeded = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(root)],
+            capture_output=True, text=True)
+        self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
         return root
 
     def roster(self, root: Path) -> dict:
@@ -329,19 +334,18 @@ class TestTheRosterAnswersAimarksAsk(unittest.TestCase):
         not exist until a mutation of the `.lower()` came back green — the
         fixture was lowercase on both sides, so the guard was untested."""
         root = self.project()
-        board = root / "perry" / "BOARD.md"
-        board.write_text(board.read_text().replace("| coding |", "| Coding |"),
-                         encoding="utf-8")
+        store = root / "perry" / "tasks.jsonl"
+        records = [json.loads(line) for line in store.read_text().splitlines()]
+        records[0]["role"] = "Coding"
+        store.write_text("".join(json.dumps(row) + "\n" for row in records))
         self.assertEqual(self.held_by(root, "coding"), ["T-1", "T-2"])
 
-    def test_the_edge_is_a_join_not_a_stored_registry(self):
-        """Nothing writes the roster down. Deleting a row's `Role` cell changes
-        the roster on the next read — which is the property that stops it
-        becoming a third copy that drifts."""
+    def test_the_edge_is_a_join_over_the_task_store(self):
         root = self.project()
-        board = (root / "perry" / "BOARD.md")
-        board.write_text(board.read_text().replace("| coding |\n", "| review |\n", 1),
-                         encoding="utf-8")
+        store = root / "perry" / "tasks.jsonl"
+        records = [json.loads(line) for line in store.read_text().splitlines()]
+        records[0]["role"] = "review"
+        store.write_text("".join(json.dumps(row) + "\n" for row in records))
         self.assertNotIn("T-1", self.held_by(root, "coding"))
         self.assertIn("T-1", self.held_by(root, "review"))
 

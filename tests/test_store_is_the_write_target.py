@@ -73,7 +73,7 @@ BOARD = """# Board — T
 class Project:
     """A throwaway project the writer can write into."""
 
-    def __init__(self, case, board: str = BOARD):
+    def __init__(self, case, board: str = BOARD, seed_store: bool = True):
         self.root = pathlib.Path(tempfile.mkdtemp()).resolve()
         case.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         (self.root / ".perry").mkdir()
@@ -81,6 +81,12 @@ class Project:
             "# Perry configuration\n\n- Document language: English\n"
             "- Repo layout: single\n- State root: .\n", encoding="utf-8")
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
+        if seed_store:
+            proc = subprocess.run(
+                [sys.executable, str(TASKS), "write", "--from-board", "--root",
+                 str(self.root)], capture_output=True, text=True)
+            if proc.returncode:
+                raise AssertionError(proc.stdout + proc.stderr)
 
     ADD_DEFAULTS = ("--deliverable", "a thing that exists afterwards",
                     "--verification", "the suite is green")
@@ -243,7 +249,7 @@ class TestOneTaskTableDefinition(Fixture):
 
     def test_duplicate_ids_refuse_even_a_non_task_mutation_and_direct_import(self):
         duplicate = self.SECOND_TABLE.replace("TASK-005", "TASK-001")
-        p = Project(self, duplicate)
+        p = Project(self, duplicate, seed_store=False)
         before = p.board()
         code, out = p.task("ask", "--needed", "a separate decision")
         self.assertEqual(code, 1, out)
@@ -339,6 +345,7 @@ class TestCanonicalRecovery(unittest.TestCase):
             "**迁移 done，占比目标 not_started**", "not_started"))
         mod = task_module()
         before = p.board()
+        before_store = (p.root / "tasks.jsonl").read_bytes()
         calls = []
         real = mod.replace_canonical_pair
 
@@ -365,12 +372,12 @@ class TestCanonicalRecovery(unittest.TestCase):
                        if path.name != "tasks.jsonl")
         self.assertEqual(journal.parent.parent.name, "journal")
         self.assertEqual(p.board(), before)
-        self.assertFalse((p.root / "tasks.jsonl").exists())
+        self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before_store)
         self.assertFalse((p.root / ".perry" / "events.jsonl").exists())
 
 
-class TestStoreEditsAreNotOverwrittenBeforeTask090(Fixture):
-    def test_an_unrelated_write_refuses_until_the_store_is_rendered(self):
+class TestStoreEditsRemainAuthoritativeAfterTask090(Fixture):
+    def test_an_unrelated_write_preserves_and_renders_the_store_edit(self):
         p = Project(self, BOARD.replace(
             "**迁移 done，占比目标 not_started**", "not_started"))
         self.assertEqual(p.task("start", "TASK-001")[0], 0)
@@ -380,11 +387,11 @@ class TestStoreEditsAreNotOverwrittenBeforeTask090(Fixture):
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
         before = (p.root / "tasks.jsonl").read_bytes()
         code, out = p.task("ask", "--needed", "unrelated")
-        self.assertEqual(code, 1, out)
-        self.assertIn("render --write", out["refused"])
+        self.assertEqual(code, 0, out)
         self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
+        self.assertIn("Store-only owner", p.board())
 
-    def test_a_store_only_created_edit_is_also_refused(self):
+    def test_a_store_only_created_edit_is_preserved(self):
         p = Project(self, BOARD.replace(
             "**迁移 done，占比目标 not_started**", "not_started"))
         code, added = p.task("add", "--title", "Tool-created", "--priority", "P0")
@@ -396,15 +403,15 @@ class TestStoreEditsAreNotOverwrittenBeforeTask090(Fixture):
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
         before = (p.root / "tasks.jsonl").read_bytes()
         code, out = p.task("ask", "--needed", "unrelated")
-        self.assertEqual(code, 1, out)
-        self.assertIn("render --write", out["refused"])
+        self.assertEqual(code, 0, out)
         self.assertEqual((p.root / "tasks.jsonl").read_bytes(), before)
 
 
 class TestTheStoreIsWhatIsWritten(Fixture):
-    def test_the_write_creates_the_store_and_names_it(self):
+    def test_the_write_names_the_existing_canonical_store(self):
         p = Project(self)
-        self.assertEqual(p.store(), [], "the fixture started with a store")
+        before = p.store()
+        self.assertTrue(before)
         code, out = p.task("start", "TASK-001")
         self.assertEqual(code, 0, out)
         self.assertTrue((p.root / "tasks.jsonl").exists())
@@ -487,34 +494,31 @@ class TestTheStoreIsWhatIsWritten(Fixture):
 
 
 class TestAStatusTheStoreCannotHold(Fixture):
-    """TASK-089 decision 1, both halves: the refusal and its blast radius."""
+    """After migration, an unstorable projection cell is not task truth."""
 
-    def test_the_row_itself_cannot_be_written(self):
-        p = Project(self)
+    def test_the_store_record_can_be_written_despite_projection_prose(self):
         for argv in (("start", "TASK-003"),
                      ("status", "TASK-003", "--status", "review"),
                      ("done", "TASK-003", "--evidence", "BOARD.md"),
                      ("drop", "TASK-003", "--reason", "x"),
                      ("prioritize", "TASK-003", "--priority", "P1")):
             with self.subTest(cmd=argv[0]):
+                p = Project(self)
                 code, out = p.task(*argv)
-                self.assertEqual(code, 1, out)
-                self.assertIn("TASK-003", out["refused"])
-                self.assertIn("迁移 done", out["refused"])
+                self.assertEqual(code, 0, out)
 
-    def test_the_refusal_wrote_nothing(self):
+    def test_the_write_replaces_projection_prose_with_store_truth(self):
         p = Project(self)
-        before = {x: x.read_bytes() for x in p.root.rglob("*") if x.is_file()}
-        self.assertEqual(p.task("start", "TASK-003")[0], 1)
-        after = {x: x.read_bytes() for x in p.root.rglob("*") if x.is_file()}
-        self.assertEqual(before, after, "a refusal left bytes behind")
+        self.assertEqual(p.task("start", "TASK-003")[0], 0)
+        self.assertEqual(p.record("TASK-003")["status"], "in_progress")
+        self.assertNotIn("迁移 done", p.board())
 
-    def test_a_dry_run_previews_the_refusal_rather_than_the_write(self):
-        """A preview that succeeds where the write refuses is worse than no
-        preview — `cmd_add` argues it about `check_header` and it is the same
-        argument here."""
+    def test_a_dry_run_uses_store_truth_and_writes_nothing(self):
         p = Project(self)
-        self.assertEqual(p.task("start", "TASK-003", "--dry-run")[0], 1)
+        before = {path: path.read_bytes() for path in p.root.rglob("*") if path.is_file()}
+        self.assertEqual(p.task("start", "TASK-003", "--dry-run")[0], 0)
+        after = {path: path.read_bytes() for path in p.root.rglob("*") if path.is_file()}
+        self.assertEqual(before, after)
 
     def test_every_other_row_is_unaffected(self):
         """The scope that two pinned tests forced, and they were right.

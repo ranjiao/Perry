@@ -62,6 +62,13 @@ class Base(unittest.TestCase):
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text, encoding="utf-8")
+        if (root / "BOARD.md").exists():
+            seeded = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                 "write", "--from-board", "--root", str(root)],
+                capture_output=True, text=True)
+            if seeded.returncode:
+                raise AssertionError(seeded.stdout + seeded.stderr)
         return root
 
     def run_tool(self, root: Path, *args: str) -> subprocess.CompletedProcess:

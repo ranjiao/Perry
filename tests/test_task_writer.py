@@ -90,6 +90,7 @@ class Project:
             "# Perry configuration\n\n- Document language: English\n"
             "- Repo layout: single\n- State root: .\n" + tracks)
         (self.root / "BOARD.md").write_text(board)
+        self.import_board()
 
     # `add` requires a deliverable and a verification in production — a task
     # whose only record is a title cannot be picked up by anyone who was not in
@@ -253,9 +254,9 @@ class TestAtomicThreeWayWrite(unittest.TestCase):
         # one new canonical file a first write creates. The lock is still the
         # thing this test is about, and it is still not here.
         self.assertEqual(
-            after - before, {"journal", "tasks.jsonl"},
+            after - before, {"journal"},
             f"a write left files in the project beyond the journal and the "
-            f"store: {sorted(after - before - {'journal', 'tasks.jsonl'})}")
+            f"store: {sorted(after - before - {'journal'})}")
         self.assertFalse(
             list(p.root.rglob("*.lock")),
             "a lock file was written into the project tree")
@@ -687,15 +688,15 @@ class TestFullTaskSet(unittest.TestCase):
         self.assertEqual([e["event"] for e in t["timeline"]],
                          ["add", "start", "done"])
 
-    def test_an_untitled_id_is_reported_rather_than_papered_over(self):
-        """Events written before the `title` field exists cannot name their
-        task. Saying so beats printing a bare id and hoping."""
+    def test_an_event_without_a_store_record_is_not_a_task(self):
+        """The event stream supplies history, never current task identity."""
         p = Project()
         (p.root / ".perry" / "events.jsonl").write_text(
             json.dumps({"ts": "2026-01-01T00:00:00", "event": "done",
                         "id": "TASK-900", "to": "done"}) + "\n")
         _, out = p.run("list", "--all")
-        self.assertIn("TASK-900", out["untitled"])
+        self.assertNotIn("TASK-900", out["untitled"])
+        self.assertNotIn("TASK-900", {task["id"] for task in out["tasks"]})
 
     def test_the_live_board_wins_over_the_event_stream(self):
         """A row still on the board is the truth; events are derived. If they
@@ -887,8 +888,8 @@ class TestDriftReconciliation(unittest.TestCase):
             f"a cadence row was reported as predating the log on a board the "
             f"tool wrote entirely, and no user action could ever clear it: {d}")
 
-    def test_drift_is_reported_and_a_write_refuses_before_discarding_the_store(self):
-        """Until TASK-090, a board edit cannot silently overwrite the store."""
+    def test_drift_is_reported_and_a_write_repairs_from_the_store(self):
+        """Projection drift cannot discard store truth after TASK-090."""
         p = Project()
         _, a = p.run("add", "--title", "A", "--priority", "P0")
         board = p.root / "BOARD.md"
@@ -900,8 +901,12 @@ class TestDriftReconciliation(unittest.TestCase):
              "--root", str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0)
         code, out = p.run("add", "--title", "must not discard the store")
-        self.assertEqual(code, 1, out)
-        self.assertIn("render --write", out["refused"])
+        self.assertEqual(code, 0, out)
+        stored_ids = {json.loads(line)["id"] for line in
+                      (p.root / "tasks.jsonl").read_text().splitlines()
+                      if line.strip()}
+        self.assertIn(a["id"], stored_ids)
+        self.assertIn(a["id"], out["projection"]["rows_not_on_board"])
 
 
 class TestModeAwareWrites(unittest.TestCase):
@@ -1365,7 +1370,8 @@ class TestListContract(unittest.TestCase):
                         "rows_with_no_computable_age",
                         "next_action_cites_closed",
                         "depends_on_unknown", "dependency_cycles",
-                        "blocked_without_dependency", "has_event_log"}
+                        "blocked_without_dependency", "has_event_log",
+                        "missing_projection"}
     # `field` (1.7) says what `from`/`to` refer to on this event, so a
     # consumer needs no hardcoded set of events that overload the pair.
     EVENT_KEYS = {"ts", "event", "from", "to", "field", "actor"}
@@ -1531,20 +1537,11 @@ class TestListContract(unittest.TestCase):
         self.assertEqual(by_id["DATA-007"]["priority"], "P2")
         self.assertEqual(by_id["TECH-conftest"]["next_action"], "—")
 
-    def test_what_it_could_not_read_is_reported_not_dropped(self):
+    def test_projection_only_rows_do_not_enter_task_conformance(self):
         c = self.payload(Project(board=self.MESSY))["conformance"]
-
-        self.assertIn("ID prefixes (canonical)",
-                      [s["heading"] for s in c["sections_skipped"]],
-                      "a reference table was silently treated as work, or "
-                      "silently ignored — neither is reportable to a user")
-        self.assertEqual(
-            [r["cell"] for r in c["rows_with_unrecognized_id"]], ["2 待核项"],
-            "a row whose first cell is prose vanished without a word")
-        self.assertEqual(c["off_enum_status"], [{"id": "IPS-004", "status": "起草中"}],
-                         "a status outside the enum was passed through as if "
-                         "valid — a front-end would render it as a state it "
-                         "has no colour for, or silently bucket it wrong")
+        self.assertEqual(c["sections_skipped"], [])
+        self.assertEqual(c["rows_with_unrecognized_id"], [])
+        self.assertEqual(c["off_enum_status"], [])
         self.assertFalse(c["has_event_log"])
         self.assertEqual(
             {s["heading"] for s in c["sections_read"]},
@@ -1627,8 +1624,7 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         by = {t["id"]: t for t in d["tasks"]}
         self.assertEqual(by["TASK-001"]["status"], "done")
         self.assertEqual(by["TASK-002"]["status"], "not_started")
-        self.assertEqual(by["TASK-001"]["status_text"], "**done**",
-                         "the verbatim cell was lost")
+        self.assertEqual(by["TASK-001"]["status_text"], "done")
 
     def test_a_composite_cell_is_not_rounded_to_one_state(self):
         """`迁移 done，占比目标 not_started` is two states. Picking either is a
@@ -1636,9 +1632,10 @@ class TestFromAimarksProductionReport(unittest.TestCase):
         _, d = self.payload(self.BOARD_WITH_EMPHASIS)
         t = next(x for x in d["tasks"] if x["id"] == "TASK-003")
         self.assertEqual(t["status"], "")
-        self.assertIn("迁移 done", t["status_text"])
-        self.assertIn({"id": "TASK-003", "status": "**迁移 done，占比目标 not_started**"},
-                      d["conformance"]["off_enum_status"])
+        self.assertEqual(t["status_text"], "")
+        self.assertIn(
+            "TASK-003",
+            [row["id"] for row in d["conformance"]["rows_with_no_status"]])
 
     def test_open_is_false_for_a_row_whose_status_is_terminal(self):
         """`open` meant "still on the board", which was true when closing
@@ -3857,10 +3854,7 @@ class TestADependencyIsQueryable(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn("itself", out["refused"])
 
-    def test_a_cycle_already_on_a_hand_edited_board_is_reported_not_refused(self):
-        """A board is hand-editable by design (DESIGN-004 decision 5). A reader
-        that refused a state a human can legitimately create is a reader that
-        stops working."""
+    def test_a_cycle_only_on_the_projection_is_not_task_truth(self):
         p = Project()
         a, b = self.two(p)
         p.run("depends", b, "--on", a)
@@ -3870,10 +3864,8 @@ class TestADependencyIsQueryable(unittest.TestCase):
         (p.root / "BOARD.md").write_text(board)
         d = self.payload(p)
         cycles = d["conformance"]["dependency_cycles"]
-        self.assertTrue(cycles, "a loop on the board was not reported")
-        self.assertEqual({a, b}, set(cycles[0]))
-        self.assertFalse(any(t["startable"] for t in d["tasks"]),
-                         "a row inside a dependency loop read as startable")
+        self.assertEqual(cycles, [])
+        self.assertEqual(["TASK-999"], self.task(p, a)["depends_on"])
 
     # ── the write paths ───────────────────────────────────────────────────
 
@@ -3953,6 +3945,7 @@ class TestADependencyIsQueryable(unittest.TestCase):
         board = board.replace(f"| {a} | first | Coding Agent | not_started | — | — |",
                               f"| {a} | first | Coding Agent | not_started | — | — | {b} |")
         (p.root / "BOARD.md").write_text(board)
+        p.import_board()
         self.assertEqual([b], self.task(p, a)["depends_on"],
                          "a `依赖` column was invisible to the reader")
 

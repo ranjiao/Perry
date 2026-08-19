@@ -93,7 +93,7 @@
     }
   },
   "perry-task/list": {
-    "contract": "perry-task/list/1.9",
+    "contract": "perry-task/list/1.10",
     "shape": {
       "asks": "dict",
       "asks.items": "list",
@@ -107,6 +107,7 @@
       "conformance.evidence_not_found[].id": "str",
       "conformance.evidence_not_found[].paths": "list",
       "conformance.has_event_log": "bool",
+      "conformance.missing_projection": "str",
       "conformance.next_action_cites_closed": "list",
       "conformance.next_action_cites_closed[].cites": "str",
       "conformance.next_action_cites_closed[].id": "str",

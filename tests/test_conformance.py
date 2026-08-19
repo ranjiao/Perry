@@ -378,7 +378,7 @@ class TestReadingIsNotGated(unittest.TestCase):
         # freeze still freezes: every other key in the set is unchanged, the
         # version string had to move in the same edit, and a fourth key added
         # without touching this line still fails here.
-        "perry-task/list/1.9": (
+        "perry-task/list/1.10": (
             TASK, ("list", "--all"),
             {"project_root", "state_root", "contract", "semantics", "tasks",
              "open", "closed", "events", "untitled", "conformance", "intake",
@@ -546,12 +546,15 @@ class TestMigrationDoesNotReachTheWholeBoard(unittest.TestCase):
                          "a plan with residual errors must not be applied — "
                          "ADR-004 guarantee 5, partial migration is per file")
 
-    def test_that_board_is_still_read_in_full_while_it_is_unwritable(self):
-        """The other half, and the thing that makes read-only an acceptable
-        cost rather than a broken project: the same board `enforce` would make
-        unwritable is read completely, with the gate enforcing."""
+    def test_that_the_migrated_store_is_read_while_board_is_unwritable(self):
+        """Conformance gates projection writes, not reads of canonical tasks."""
         if self.tmp is None:
             self.skipTest(f"no corpus at {REAL}")
+        seeded = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(self.root)],
+            capture_output=True, text=True, timeout=300)
+        self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
         r = subprocess.run(
             ["python3", str(TASK), "list", "--all",
              "--root", str(self.root), "--json"],

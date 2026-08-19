@@ -205,8 +205,11 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                                        and not isinstance(value, bool))
                 expected = "integer or null"
             elif field == "depends_on":
-                ok = value is None or isinstance(value, list)
-                expected = "list or null"
+                ok = value is None or (
+                    isinstance(value, list)
+                    and all(isinstance(item, str) for item in value)
+                )
+                expected = "list of strings or null"
             else:
                 ok = value is None or isinstance(value, str)
                 expected = "string or null"
