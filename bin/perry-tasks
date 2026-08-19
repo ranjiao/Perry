@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""`perry/tasks.jsonl` — the task store, and the projection of it.
+
+**Phase 002, ADR-007's first slice, and it does not write yet.** This builds the
+store from what exists today and proves it can reproduce `BOARD.md`. Nothing
+here is canonical until that proof holds on a real project, which is the same
+posture `perry-migrate` takes and for the same reason: a store that cannot
+reproduce the document it replaces is a store that has already lost data.
+
+    perry-tasks build   [--root <p>]        derive the store; write nothing
+    perry-tasks verify  [--root <p>]        rebuild BOARD.md from it and diff
+    perry-tasks write   [--root <p>]        actually write perry/tasks.jsonl
+
+**Eighteen fields are STORED and nine are DERIVED.** That split is the design,
+not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
+`evidence_paths`, `status_text`, `timeline` and `updated` are all computable
+from the eighteen plus the event log, and storing any of them would be the
+"a stored value that is derived" defect this repository keeps finding.
+
+Because the derived nine keep being computed the same way, `perry-task/list`
+does not change shape — which is phase 002's `P-O3.2`, and the reason a
+consumer pinned at `perry-task/list/1.9` needs no edit.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
+import parsers as P  # noqa: E402
+
+#: Written to the store. Everything else in `perry-task/list` is computed.
+STORED = ("id", "title", "owner", "status", "priority", "track", "stage",
+          "stage_since", "arrived", "verification", "evidence", "next_action",
+          "depends_on", "commitment", "parent", "group", "role", "created")
+
+
+def build(project_root: Path) -> list[dict]:
+    """The store, derived from today's canonical sources.
+
+    Reads the board AND the event log, because `done` removes a row: a store
+    built from the board alone would lose every closed task, which is the trap
+    `check_verification` documents and `walk_design` repeated.
+    """
+    out, seen = [], set()
+    task_mod = _task_module()
+    payload = task_mod.cmd_list(_all_args(project_root), _ctx(project_root, task_mod))
+    for t in payload["tasks"]:
+        rec = {k: t.get(k, "") for k in STORED}
+        rec["depends_on"] = list(t.get("depends_on") or [])
+        out.append(rec)
+        seen.add(t["id"])
+    return out
+
+
+def _task_module():
+    import importlib.machinery
+    import importlib.util
+    path = Path(__file__).resolve().parent / "perry-task"
+    spec = importlib.util.spec_from_loader(
+        "perry_task_mod", importlib.machinery.SourceFileLoader(
+            "perry_task_mod", str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _all_args(project_root: Path):
+    mod = _task_module()
+    args = mod.parse(["list", "--all", "--root", str(project_root)])
+    return args
+
+
+def _ctx(project_root: Path, mod):
+    state_root = P.resolve_state_root(project_root)
+    return {"schema": mod.load_schema(), "project_root": project_root,
+            "state_root": state_root, "config": {"tracks": []},
+            "board": mod.Board(state_root / "BOARD.md"),
+            "events": mod.read_events(project_root)}
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+    cmd = argv[0]
+    root = Path.cwd()
+    if "--root" in argv:
+        root = Path(argv[argv.index("--root") + 1]).expanduser().resolve()
+    root = Path(os.environ.get("PERRY_PROJECT") or root).resolve()
+
+    if cmd not in ("build", "verify", "write"):
+        print(f"perry-tasks: expected build / verify / write, got {cmd!r}",
+              file=sys.stderr)
+        return 2
+
+    records = build(root)
+    if cmd == "build":
+        print(json.dumps({"records": len(records),
+                          "stored_fields": len(STORED),
+                          "sample": records[0] if records else None},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if cmd == "write":
+        state_root = P.resolve_state_root(root)
+        dest = state_root / "tasks.jsonl"
+        dest.write_text("\n".join(json.dumps(r, ensure_ascii=False)
+                                  for r in records) + "\n", encoding="utf-8")
+        print(f"perry-tasks: wrote {dest} ({len(records)} records)")
+        return 0
+
+    # **`verify` reads the store FROM DISK, not the one just built.**
+    #
+    # The first version rebuilt the store and compared it to the board it had
+    # just been built from — a tautology that could never fail. A test planted
+    # a hand edit into the board and `verify` passed, because both sides saw
+    # the same edited value. That is the same defect as a test that passes with
+    # its subject deleted, in the tool written to detect exactly that.
+    #
+    # The store on disk is the only independent thing to compare against, and
+    # when there is none the honest answer is "nothing to verify" rather than a
+    # pass.
+    state_root = P.resolve_state_root(root)
+    store_path = state_root / "tasks.jsonl"
+    if not store_path.exists():
+        print(json.dumps({
+            "store": str(store_path), "exists": False,
+            "records": 0, "board_rows": 0,
+            "note": "no store on disk yet — run `perry-tasks write` first. "
+                    "Verifying a store against the board it was just built "
+                    "from proves nothing.",
+        }, ensure_ascii=False, indent=2))
+        return 2
+    records = [json.loads(l) for l in store_path.read_text().split("\n") if l.strip()]
+    board = P.parse_board((state_root / "BOARD.md").read_text(errors="replace"))
+    by_id = {r["id"]: r for r in records}
+    missing = [t.id for t in board.all_tasks if t.id and t.id not in by_id]
+    wrong = []
+    for t in board.all_tasks:
+        r = by_id.get(t.id)
+        if not r:
+            continue
+        for field, live in (("title", t.title), ("owner", t.owner),
+                            ("status", t.status), ("next_action", t.next_action),
+                            ("evidence", t.evidence),
+                            ("verification", t.verification)):
+            if (r.get(field) or "") != (live or ""):
+                wrong.append(f"{t.id}.{field}: store={r.get(field)!r} "
+                             f"board={live!r}")
+    print(json.dumps({"records": len(records),
+                      "board_rows": len([t for t in board.all_tasks if t.id]),
+                      "rows_missing_from_store": missing,
+                      "field_mismatches": wrong[:10],
+                      "mismatch_count": len(wrong)},
+                     ensure_ascii=False, indent=2))
+    return 0 if not missing and not wrong else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

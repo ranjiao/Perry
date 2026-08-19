@@ -12,3 +12,4 @@ __pycache__/
 
 # Subagent worktrees — temporary, created by the Agent tool
 .claude/worktrees/
+perry/tasks.jsonl
