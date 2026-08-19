@@ -273,6 +273,33 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         out = json.loads(run("diff", root=d).stdout)
         self.assertIn("GHOST-001", out["rows_not_on_board"])
 
+    def test_missing_projection_excludes_terminal_and_deduplicates_tables(self):
+        board = """# Board
+
+## Open
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-001 | First | User | not_started | — | — |
+
+## Open
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-002 | Second | User | in_progress | — | — |
+"""
+        d = Project.fixture(self, board)
+        recs = records(d)
+        active = dict(recs[0], id="GHOST-001", title="Missing",
+                      status="in_progress", order=2)
+        terminal = dict(recs[0], id="DONE-001", title="Closed",
+                        status="done", order=3)
+        rewrite(d, [*recs, active, terminal])
+
+        out = json.loads(run("diff", root=d).stdout)
+        self.assertTrue(out["identical"])
+        self.assertEqual(out["rows_not_on_board"], ["GHOST-001"])
+
 
 class TestItRendersAndNothingElse(unittest.TestCase):
     def test_rendering_without_a_store_is_not_a_pass(self):

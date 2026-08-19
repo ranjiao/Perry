@@ -67,6 +67,8 @@ FIELD_BY_COLUMN = {
     "verification": "verification", "role": "role", "depends on": "depends_on",
 }
 
+TERMINAL_STATUSES = frozenset(("done", "dropped"))
+
 
 # ── markdown tables ───────────────────────────────────────────────────────
 
@@ -372,8 +374,10 @@ def plan(board, records: list[dict], ops) -> dict:
               "rows_not_on_board": [], "cells_verbatim": {},
               "cells_the_store_and_board_disagree_on": [],
               "sections_out_of_stored_order": [], "sections": []}
+    task_tables = board.task_tables()
+    missing_reported: set[str] = set()
 
-    for table in board.task_tables():
+    for table in task_tables:
         heading = table["heading"]
         header = table["header"]
         keys = [ops.norm(h) for h in header]
@@ -381,7 +385,8 @@ def plan(board, records: list[dict], ops) -> dict:
             # Not a task table — a reference table, a legend. `task_tables()`
             # reports it and reads nothing from it; so does this.
             continue
-        wanted = {r["id"] for r in by_group.get(heading, [])}
+        wanted = {r["id"] for r in by_group.get(heading, [])
+                  if r.get("status") not in TERMINAL_STATUSES}
         seen: set = set()
         in_line_order: list[str] = []
         for item in table["row_items"]:
@@ -428,13 +433,15 @@ def plan(board, records: list[dict], ops) -> dict:
         # record carried by the second as absent.
         later_same_section = any(
             t["heading"] == heading and t["table_index"] > table["table_index"]
-            and t["readable"] for t in board.task_tables())
+            and t["readable"] for t in task_tables)
         if not later_same_section:
             section_seen = {ops.strip_handle(r["values"].get("id", ""))
-                            for t in board.task_tables()
+                            for t in task_tables
                             if t["heading"] == heading and t["readable"]
                             for r in t["row_items"]}
-            report["rows_not_on_board"].extend(sorted(wanted - section_seen))
+            missing = wanted - section_seen - missing_reported
+            report["rows_not_on_board"].extend(sorted(missing))
+            missing_reported.update(missing)
         # `order` is only a claim until something can be shown to disagree with
         # it. A record with no `order` at all — a store written before the
         # field existed — is not a disagreement, so it is skipped rather than
