@@ -1949,11 +1949,123 @@ def _tasks_module():
 
 
 def _board_line_of(text: str, task_id: str) -> int | None:
-    """The 1-based line the row is written on, for the finding to point at."""
+    """The 1-based line THIS ROW is written on, or None if there is no row.
+
+    **The first cell, not any cell.** This matched the id anywhere in the line,
+    so a closed row still named in some open row's `Depends on` cell resolved
+    to that other row's line number — and `check_store_drift` uses this as its
+    predicate for *"the board carries this row"*, so it reported
+    `TASK-088 — the file carries this row and the store has no record of it`
+    pointing at the line where the **TASK-089** row is written, for a TASK-088
+    row that does not exist. Reproduced on the real board and the real store by
+    a V4; three live ids qualified that day, and the set grows with every closed
+    row that has dependents.
+
+    The decoration is stripped the way `Board.find` strips it, because a row
+    struck through or bolded is the same row.
+    """
     for n, line in enumerate(text.split("\n"), 1):
-        if line.lstrip().startswith("|") and task_id in split_row(line):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = split_row(line)
+        if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
             return n
     return None
+
+
+#: The shape of a store record, read off `perry_store.record()` rather than
+#: asserted: `order` is an integer or `null`, `depends_on` is a LIST, and every
+#: other stored field is a string.
+#:
+#: The first version of this table said "every field is a string except
+#: `order`" and added, in a comment, that `depends_on` is a comma-joined string
+#: "because that is what the board cell holds". It is a list —
+#: `perry_store.record()` writes `list(task.get("depends_on") or [])` — and the
+#: guard excluded all 98 records on its first run, which is how the wrong
+#: comment was found rather than shipped. Left in writing because a type table
+#: derived from memory is exactly the failure this table exists to catch.
+_STORE_FIELD_TYPES = {"order": (int, type(None)),
+                      "depends_on": (list, type(None))}
+_STORE_DEFAULT_TYPE = (str, type(None))
+_TYPE_NAMES = {"order": "integer or null", "depends_on": "list"}
+
+
+def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
+    """Split the store into records the checks can compare, and findings.
+
+    **A store is a file a person can open, and every check below indexes,
+    sorts or compares its fields.** Three of them died on a wrong-typed value
+    rather than reporting it: `id` as a list is unhashable and killed the dict
+    build; a store mixing `id: 3` with `id: "TASK-001"` killed `sorted(set(…))`;
+    `order` as `"3"` killed `_order_drift`'s sort. Each exited the WHOLE lint at
+    rc 2 with no findings at all — so a store with one bad line reported the
+    same as a project with no problems, only louder.
+
+    Two V4 rounds found this independently and one of them by a typed sweep
+    (19 fields x 9 JSON shapes), which is the reason this is one function and
+    not three `try:` blocks. TASK-093 enumerated four instances of the category
+    "a guard that crashes instead of reporting"; these were the fifth, sixth and
+    seventh, and they were added *by the fix for the first four*. A patch per
+    crash site would have produced the eighth.
+
+    A bad record is **excluded and named**, not coerced. Coercing `"3"` to `3`
+    would make the lint report clean on a file that no other reader can load —
+    and `bin/perry-task` reads this same file.
+    """
+    good, findings = [], []
+    for n, rec in enumerate(on_disk, 1):
+        bad = [f"`{k}` is {type(rec[k]).__name__}, expected "
+               f"{_TYPE_NAMES.get(k, 'string or null')}"
+               for k in sorted(rec)
+               if k in _STORED_FIELDS
+               and not isinstance(rec[k],
+                                  _STORE_FIELD_TYPES.get(k, _STORE_DEFAULT_TYPE))]
+        if bad:
+            tid = rec.get("id")
+            who = repr(tid) if isinstance(tid, str) else f"line {n}"
+            findings.append(Finding(
+                "warn", rel_store, "store-badly-typed",
+                f"{who} — {'; '.join(bad[:3])}"
+                + (f"; and {len(bad) - 3} more field(s)" if len(bad) > 3 else "")
+                + ". The record is excluded from the drift comparison, so this "
+                  "row's drift is unknown here rather than absent. Every field "
+                  "in the store is a string except `order`, which is an integer "
+                  "or null."))
+            continue
+        if not (rec.get("id") or "").strip():
+            # **`{}` parses, is a dict, and has every field of the right type
+            # — vacuously.** Both the JSONL check and the type table above pass
+            # it, and then `{r.get("id"): r for r in on_disk if r.get("id")}`
+            # drops it with no finding: a line in the canonical store that no
+            # reader will ever see and nothing reports. A record with no id is
+            # not a record, and saying so is cheaper than a store that quietly
+            # holds fewer rows than it has lines.
+            findings.append(Finding(
+                "warn", rel_store, "store-badly-typed",
+                f"line {n} has no `id`, so nothing can be said about it and "
+                f"every reader silently skips it. A record with no id is a "
+                f"line the store holds and does not carry."))
+            continue
+        good.append(rec)
+    return good, findings
+
+
+def _stored_fields() -> tuple:
+    """`perry_store.STORED` — the field list, not a second copy of it.
+
+    Loaded once at import. Writing the nineteen names here would be the "N
+    implementations of one rule" defect with N=2, and the copy would go stale
+    the first time a field is added.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "perry_store", Path(__file__).resolve().parent / "perry_store.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.STORED
+
+
+_STORED_FIELDS = _stored_fields()
 
 
 def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
@@ -2035,14 +2147,15 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         return [Finding("warn", rel_store, "store-unreadable",
                         f"`tasks.jsonl` is not readable as JSONL "
                         f"({type(exc).__name__}: {exc}) — there is nothing to "
-                        f"compare the file against; `perry-tasks write` "
-                        f"re-derives it")]
+                        f"compare the file against. `perry-tasks write "
+                        f"--from-board` re-derives it — which is safe here "
+                        f"only because nothing readable is being discarded")]
     if not all(isinstance(r, dict) for r in on_disk):
         return [Finding("warn", rel_store, "store-unreadable",
                         "`tasks.jsonl` holds something other than one JSON "
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record; "
-                        "`perry-tasks write` re-derives it")]
+                        "`perry-tasks write --from-board` re-derives it")]
 
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
@@ -2056,6 +2169,9 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                         f"the store could not be derived from the current "
                         f"files ({type(exc).__name__}: {exc}), so drift is "
                         f"unknown here rather than absent")]
+
+    on_disk, type_findings = _well_typed(on_disk, rel_store)
+    findings.extend(type_findings)
 
     stored = {r.get("id"): r for r in on_disk if r.get("id")}
     live = {r.get("id"): r for r in derived if r.get("id")}
@@ -2096,8 +2212,11 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             "warn", rel_board, "store-drift",
             f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
             f"output and `{rel_store}` is what the field means, so a hand edit "
-            f"is drift: put the change back through `perry-task`, or run "
-            f"`perry-tasks write` to re-derive the store from the file.",
+            f"is drift: `perry-tasks render --write` puts the file back in "
+            f"line with the store, which is the fix whenever `perry-task` "
+            f"wrote the value — the ordinary case. `perry-tasks write "
+            f"--from-board` runs the other direction and DISCARDS the stored "
+            f"value; it is for a board edited before the store existed.",
             line))
     if len(rows) > DRIFT_ROWS_SHOWN:
         findings.append(Finding(
@@ -2150,8 +2269,8 @@ def _order_drift(stored: dict, live: dict, rel_board: str,
             f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
             f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
             f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
-            f"like any other cell: `perry-task prioritize` moves a row, or "
-            f"`perry-tasks write` re-derives the store from the file."))
+            f"like any other cell: `perry-task prioritize` moves a row, and "
+            f"`perry-tasks render --write` puts the file back in line."))
     return out
 
 
