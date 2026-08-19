@@ -151,10 +151,16 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
                       "current minor is unrepresented")
 
 
+# Recording is its own entry, ABOVE the canonical one, so the file still ends
+# with exactly `if __name__ == "__main__": unittest.main()`. `test_claims`
+# requires that tail and was right to: a file whose last statement is anything
+# else can run directly, skip its tests and still report OK. It caught this.
+if __name__ == "__main__" and "--record" in sys.argv:
+    BASELINE.parent.mkdir(parents=True, exist_ok=True)
+    BASELINE.write_text(json.dumps(capture(), indent=2, sort_keys=True))
+    print(f"recorded {BASELINE}")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
-    if "--record" in sys.argv:
-        BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps(capture(), indent=2, sort_keys=True))
-        print(f"recorded {BASELINE}")
-    else:
-        unittest.main()
+    unittest.main()
