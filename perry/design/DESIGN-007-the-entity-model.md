@@ -150,7 +150,8 @@ than a documentation exercise: the model cannot be extended before
 - **Not retroactive.** Existing rows are migrated where a value exists and
   left explicitly unset where one does not. Inventing a Phase for a task
   written before phases had ids would be the "stored value that is derived"
-  defect with a guess in it.
+  defect with a guess in it. See § 5.8 — a reset of Perry's own history was
+  authorised and measured, and is not being taken.
 
 ## 4. User Decisions
 
@@ -158,21 +159,29 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | Task→Agent cardinality | One primary, plus reviewers, as separate fields (Recommended) / Exactly one / A flat list of agents | — | — |
+| 1 | Task→Agent cardinality | **Exactly one** / One primary plus reviewers / A flat list | **Exactly one** | 2026-08-19 |
 | 2 | Where an Agent is defined | `.perry/roles/*.md` card stays the definition; the store holds only assignments (Recommended) / A new agent store / Both, with the card generated | — | — |
 | 3 | Which side holds the Task↔Phase edge | Task stores `phase` (Recommended) / Phase stores `tasks[]`, as linkage does today / Both, with lint checking agreement | — | — |
 | 4 | KR id namespace | Phase KR ids get a phase prefix — `002/P-O3.1` (Recommended) / Keep phase-scoped and document it / Renumber globally | — | — |
-| 5 | What makes a Task exempt from a spec | An explicit `--no-spec "<reason>"` flag (Recommended) / Below a rung threshold / Below a priority threshold | — | — |
+| 5 | What makes a Task exempt from a spec | **Nothing — every task has one** / An explicit `--no-spec` flag / A rung or priority threshold | **Nothing — every task has one** | 2026-08-19 |
 | 6 | Whether `Metric / Target` splits like `Due` did | Yes — `target` typed, `metric` prose, never parsed (Recommended) / Leave Objectives as prose / Only in the phase linkage | — | — |
 | 7 | Whether a Run is recorded at all | Yes — a run record joins Agent, Task and outcome (Recommended) / No — `events.actor` is enough once it is an id / Later, as its own design | — | — |
-| 8 | Whether an Agent is per-project or shared | Definition shared at `~/.perry/agents/`, assignment per project (Recommended) / Per project, as the card is today / Per project, with an explicit import | — | — |
+| 8 | Whether an Agent is per-project or shared | **Per project, instantiated at init from a shipped template** / Definition shared at `~/.perry/agents/` / Per project, hand-written | **Per project, from a template** | 2026-08-19 |
 
 Notes on the non-obvious rows:
 
-- **#1** — the user's phrasing is *"every task is associated with at least one
-  agent by default"*, which rules out a single required field. But a flat list
-  cannot answer "who is accountable", and the close-task gate needs exactly one
-  `Accepted by`. One primary plus a reviewer list keeps both answerable.
+- **#1 — resolved: exactly one, and collaboration is modelled as a task tree.**
+  A task needing several agents is not one task with several assignees; it is a
+  supervising task assigned to PMO plus one task per working agent, and PMO
+  schedules them. **This keeps "who is accountable" a single-valued question at
+  every node**, which is what the close-task gate needs, and it makes
+  collaboration visible on the board as rows rather than invisible inside a
+  cell.
+
+  The cost, stated: coordinating two agents now costs three rows instead of
+  one. That is the intended trade — a coordination that is not worth a row is
+  not a coordination, and the alternative was a list field whose second entry
+  never had a defined meaning.
 - **#2** — the card is `owner: user` and deliberately outside every lane's
   write contract (`tests/test_ownership.py` refuses a lane-owned path the
   signed hand-off contract does not list). A store that *wrote* agent
@@ -181,20 +190,31 @@ Notes on the non-obvious rows:
 - **#3** — the board can render a `Phase` column, so storing it on the Task
   survives the board→store rebuild that exists today. Storing it on the Phase
   does not, until TASK-090 lands.
-- **#5** — "unless it is a short lightweight task" is a human judgement, and
-  every mechanical proxy for it that this project has tried (a rung threshold,
-  a priority threshold) has been wrong in both directions. A flag that makes
-  the person say why is the only version that records the judgement instead of
-  imitating it.
-- **#8** — the workflow is explicitly cross-project: agents use the tool layer
-  to move state and hand off documents *between* projects. A role card is
-  `anchor: project` today, so the same agent working three projects is three
-  cards with no key relating them, and its file scope is redeclared three
-  times. Sharing the definition raises a real question this document does not
-  answer: a scope like `bin/**` means something different in each project, so a
-  shared card either declares scope in portable terms or declares it per
-  project anyway. The cheap option — leave it per project — is honest and
-  costs a maintenance burden that grows linearly with projects.
+- **#5 — resolved: no exemption.** The draft proposed a flag on the argument
+  that "short and lightweight" is a human judgement no threshold captures. The
+  answer makes the argument moot: **writing a spec is not an expensive
+  operation for a model driving this system**, so the judgement does not need
+  to be captured, because it does not need to be made.
+
+  This is the better answer for a reason the draft missed. Every exemption
+  mechanism — a flag, a rung floor, a priority floor — is a second code path
+  that must be checked, and this project's own history is that an optional
+  guard becomes an unused guard: `role` is a field on 98 records that has never
+  been written. **A rule with no exemption needs no enforcement branch.**
+- **#8 — resolved: per project, instantiated at init from a shipped template.**
+  The definition stays `anchor: project`, so a scope like `bin/**` keeps meaning
+  what it means *in this project* — which was the objection to sharing
+  definitions. What is shared is the **template**, and at project init the user
+  chooses to take it as-is or edit it.
+
+  Measured: `packs/software-ops/roles/` already ships three cards (`coding`,
+  `research`, `review`) and `work/state/role_card_TEMPLATE.md` ships the blank
+  form. **Nothing instantiates them.** The only reference to them anywhere in
+  `bin/` is a refusal message in `perry-task` pointing a user at the directory;
+  neither `reference/first-run.md` nor `work/reference/bootstrap.md` mentions
+  `roles/` at all. So this decision is less a design choice than a missing
+  step: the library exists, the instantiation does not, and this project has
+  zero cards as a result.
 
 - **#7** — this is the one that decides whether "which agent did this" is
   answerable. `events.actor` is already the trace; making it an id would answer
@@ -274,13 +294,23 @@ Existing nineteen stored fields, plus:
 | Field | Type | Notes |
 |---|---|---|
 | `phase` | typed | **new.** Decision #3 |
-| `agent` | typed | **new.** The accountable Agent id. Replaces free-text `owner` |
-| `reviewers[]` | typed | **new.** Decision #1 |
-| `documents[]` | typed | **new.** `{path, kind, round}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}` |
+| `agent` | typed | **new.** The accountable Agent id — **exactly one** (decision #1). Replaces free-text `owner` |
+| `supervised_by` | typed | **new.** The supervising task, for the PMO tree in § 5.6. **Not `parent`** — see below |
+| `documents[]` | typed | **new.** `{path, kind, round}` — replaces the `evidence` prose cell. `kind ∈ {spec, deliverable, review, reference}`. **A task with no `spec` document is refused at creation** (decision #5) |
 | `serves` | typed | the KR id this task is attributed to; today implicit in `linkage.tasks[]` |
 
 `role` is either given the meaning it never had — a foreign key to a card — or
 deleted. **A field on 98 records that has never been written is not a field.**
+
+**`supervised_by` is a new field and not a reuse of `parent`, deliberately.**
+`parent` is declared for inquiry-mode rows as *"the ID of the question this one
+was split out of"*, and `triage` reads it to report which branches of a
+question tree are still open. A supervision edge and a question-decomposition
+edge are the same *shape* and different *claims*, and storing both in one cell
+would make `triage` report supervised work as open questions. Zero rows use
+`parent` today, which makes the reuse tempting and would have made the
+collision invisible until an inquiry-mode project hit it. **One field, one
+meaning** is the rule this whole document exists to restate.
 
 **Agent** — `.perry/roles/*.md`, owner `user` (decision #2)
 
@@ -377,6 +407,101 @@ It is a tool call by the first and a tool call by the second, with the
 documents as attachments both can read and neither has to interpret to know
 what state the work is in.
 
+### 5.6 Collaboration is a task tree, not a multi-valued field
+
+Decision #1 says a Task has exactly one Agent. Work needing several agents is
+modelled as a **supervising task plus one task per working agent**:
+
+```
+TASK-A  agent: pmo           ← accountable for the outcome
+  │     supervises B, C, D      (derived from the children's `supervised_by`)
+  ├── TASK-B  agent: coding
+  ├── TASK-C  agent: research
+  └── TASK-D  agent: review
+```
+
+The PMO agent on `TASK-A` schedules B, C and D and is the one answer to *"who
+is accountable for A"*. Each of B, C and D has one answer of its own. There is
+no node at which the question has two answers, which is what the close-task
+gate and the `Accepted by` handshake both require.
+
+**`supervises[]` is derived, `supervised_by` is stored.** The parent cannot
+hold the list: adding a fourth child would be a write to two rows, and one of
+them could fail. This is the same rule `depends_on` / `blocks` already follows
+— one stored edge, one derived inverse — and storing both would be the "a
+stored value that is derived" defect by name.
+
+**What this does not model, and deliberately.** `supervised_by` says who is
+accountable, not what must finish first. A supervising task that also needs its
+children *complete* before it can close says so with `depends_on`, which
+already exists and already computes `blocked_by` and `startable`. Two edges
+because they are two claims: PMO may well close a supervising task while one
+child is deliberately abandoned.
+
+### 5.7 Every task has a spec
+
+Decision #5: no exemption, no flag, no threshold. `perry-task add` requires a
+spec document and writes the file it records, so the `documents[]` entry and
+the file on disk are produced by the same call rather than by a call and a
+promise.
+
+Three consequences worth stating, because each is a place the rule could rot:
+
+1. **The refusal is at creation, not at close.** A spec written to close a task
+   is a description of what was done, which is a deliverable. Its value is
+   being the acceptance criteria *before* the work — which is exactly what
+   makes a V4 round possible at all, since `work/reference/review.md` refuses
+   to dispatch a round with no written criteria.
+2. **`intake` and `ask` rows are not tasks and are unaffected.** An intake row
+   is a request that has not been triaged into work yet, and requiring a spec
+   there would move the judgement to the wrong end.
+3. **A cadence row is not a task either.** It recurs against a definition that
+   is already written down once.
+
+The argument for the rule is that writing a spec is cheap for a model driving
+this system. The argument that makes it *safe* is different and stronger: **a
+rule with no exemption needs no enforcement branch.** Every optional guard in
+this repository has decayed — `role` is the extreme case, a field never written
+on any of 98 records.
+
+### 5.8 Perry's own history migrates; it is not being reset
+
+Discarding the incompatible parts of Perry's own `perry/` directory and
+starting clean was explicitly authorised, on the reasonable ground that this is
+a workflow redesign. **Measured 2026-08-19, it is not warranted**, and the
+measurement is recorded here so the option can be re-taken later on evidence
+rather than re-argued from impression.
+
+100 store records, 33 of them still open, 320 events, 49 tasks carrying
+documents on disk.
+
+| New field | Source | Verdict |
+|---|---|---|
+| `agent` | `owner` — 3 distinct values across 33 non-empty rows | **migrates**, a 3-row mapping |
+| `documents[]` | the 49 tasks with files under `evidence/` | **migrates**, and from a *better* source than the `evidence` cell — the filenames already carry the kind and the round |
+| `supervised_by` | nothing, and `parent` is used by 0 rows | **nothing to migrate**; empty going forward is correct |
+| `phase` | `linkage` covers 41 tasks, all in phase 001 | **59 rows have no honest source** → left unset, per Non-Goals |
+
+So exactly one field cannot be filled for most rows, and the design already
+says what to do about that: leave it unset, because "not recorded" and "phase
+001" are different claims.
+
+**The one place the new rules meet history is the spec rule.** 22 of 100 tasks
+carry a spec document; among the 33 open rows, 9 do. But § 5.7 refuses at
+*creation*, so no existing row is invalidated by it — the only question is
+whether `perry-lint` reports the gap, and 24 open rows without a spec is a
+working number rather than an obstacle.
+
+Against that, a reset discards 320 events and 49 documents that are the entire
+audit trail of the ADR-007 work — **including every V4 verdict this design's
+own § 1 measurements are drawn from.** A design document that justified itself
+with evidence and then deleted the evidence would be unreviewable.
+
+**What would change the answer:** if `phase` turns out to be needed on closed
+rows for something real (a per-phase retro that has to be reconstructed), the
+cheap move is still not a reset — it is one migration commit that assigns
+phases by `created` date and *records that it guessed*.
+
 ## 6. Implementation plan
 
 Ordered by what unblocks what. Every step lands with a migration and its own
@@ -386,6 +511,9 @@ V4.
 |---|---|---|---|
 | 1 | **TASK-090** — `perry-task` reads the store | — | **Hard prerequisite for everything below.** Until it lands, any field the board cannot express is destroyed by the next command |
 | 2 | Agent gets an id; `role` becomes a foreign key or is deleted; `events.actor` uses the id | 1 | The empty layer. `.perry/roles/` also needs `may_touch` typed |
+| 2b | **Init instantiates role cards from the shipped templates** | 2 | Decision #8. Three templates ship and nothing has ever written a card from them; the only reference in `bin/` is a refusal message |
+| 3b | **`perry-task add` requires a spec and writes it** | 3 | Decision #5. Refused at creation, not at close — § 5.7 |
+| 5b | **`supervised_by` lands; `supervises[]` is derived** | 1, 5 | Decision #1 and § 5.6. Explicitly NOT a reuse of `parent` |
 | 3 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9` |
 | 4 | **TASK-092** — `OKR.md` becomes a store, and `Metric / Target` splits like `Due` did | 1 | Decision #6 |
 | 5 | Task gains `phase` and `serves` | 1, 4 | Decision #3 |
