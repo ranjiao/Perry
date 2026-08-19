@@ -994,6 +994,7 @@ def encode_risk(r):
 
 
 TERMINAL_STAGES = {"done", "abandoned"}
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 
 def stale_run_days() -> int | None:
@@ -1006,6 +1007,143 @@ def stale_run_days() -> int | None:
     except (OSError, ValueError):
         return None
     return ((schema.get("thresholds") or {}).get("stale_run_days") or {}).get("value")
+
+
+def recovery_enums() -> dict:
+    """The pipeline vocabulary needed to decide whether resume is safe."""
+    try:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return schema.get("enums") or {}
+
+
+def inspect_dossier(path: Path, pipeline: str) -> tuple[dict, list[str]]:
+    """Read the small frontmatter subset required for safe resume.
+
+    Full YAML/schema conformance remains `perry-lint`'s job. This check only
+    prevents a damaged restore point from disappearing or being offered as a
+    resumable run during startup.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {}, [f"cannot read dossier: {type(exc).__name__}: {exc}"]
+
+    if not lines or lines[0].strip() != "---":
+        return {}, ["missing opening frontmatter delimiter"]
+    closing = next((i for i, line in enumerate(lines[1:], 1)
+                    if line.strip() == "---"), None)
+    if closing is None:
+        return {}, ["missing closing frontmatter delimiter"]
+
+    fm: dict[str, str] = {}
+    for line in lines[1:closing]:
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
+        if m:
+            fm[m.group(1)] = m.group(2).strip().strip('"\'')
+
+    discriminator = "adoption" if pipeline == "adopt" else "diagnosis"
+    stage_enum = f"{discriminator}_stage"
+    enums = recovery_enums()
+    errors: list[str] = []
+    if fm.get(discriminator) != "1":
+        errors.append(f"expected {discriminator}: 1")
+
+    stage = (fm.get("stage") or "").strip()
+    stages = enums.get(stage_enum)
+    if not stage:
+        errors.append("missing stage")
+    elif not isinstance(stages, list):
+        errors.append(f"schema enum unavailable: {stage_enum}")
+    elif stage not in stages:
+        errors.append(f"invalid stage: {stage}")
+    else:
+        step = (fm.get("step") or "").strip()
+        enum_by_stage = {
+            ("adopt", "confirm"): "adoption_step_confirm",
+            ("adopt", "commit"): "adoption_step_commit",
+            ("diagnose", "interview"): "diagnosis_step_interview",
+        }
+        step_enum = enum_by_stage.get((pipeline, stage))
+        if step and step_enum:
+            allowed = enums.get(step_enum)
+            if not isinstance(allowed, list):
+                errors.append(f"schema enum unavailable: {step_enum}")
+            elif step not in allowed:
+                errors.append(f"invalid step for {stage}: {step}")
+        if step and pipeline == "diagnose" and stage == "execute" \
+                and re.fullmatch(r"rx-\d+", step) is None:
+            errors.append(f"invalid step for execute: {step}")
+    return fm, errors
+
+
+def dossier_records(perry_root: Path) -> list[dict]:
+    out: list[dict] = []
+    for pipeline, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
+        directory = perry_root / ".perry" / sub
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            fm, errors = inspect_dossier(path, pipeline)
+            out.append({
+                "pipeline": pipeline,
+                "path": path.relative_to(perry_root).as_posix(),
+                "file": path,
+                "frontmatter": fm,
+                "errors": errors,
+            })
+    return out
+
+
+def display_path(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def scan_recovery(state_root: Path, project_root: Path) -> dict:
+    """Startup hazards that require repair before normal state is trusted."""
+    pending: list[dict] = []
+    marker = state_root / ".perry-task-transaction.json"
+    if marker.exists():
+        error = None
+        phase = None
+        entries = None
+        try:
+            transaction = json.loads(marker.read_text(encoding="utf-8"))
+            if not isinstance(transaction, dict):
+                raise ValueError("expected a JSON object")
+            phase = transaction.get("phase", "commit")
+            raw_entries = transaction.get("entries")
+            entries = len(raw_entries) if isinstance(raw_entries, list) else None
+            if transaction.get("version") != 1:
+                raise ValueError("version must be 1")
+            if not isinstance(raw_entries, list):
+                raise ValueError("entries must be a list")
+            if phase not in {"commit", "rollback"}:
+                raise ValueError("phase must be commit or rollback")
+        except (OSError, ValueError, TypeError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        pending.append({
+            "path": display_path(marker, project_root),
+            "valid": error is None,
+            "phase": phase,
+            "entries": entries,
+            "error": error,
+        })
+
+    malformed = [
+        {"pipeline": row["pipeline"], "path": row["path"],
+         "errors": row["errors"]}
+        for row in dossier_records(project_root) if row["errors"]
+    ]
+    return {
+        "blocking": bool(pending or malformed),
+        "pending_transactions": pending,
+        "malformed_dossiers": malformed,
+    }
 
 
 def scan_interrupted(perry_root: Path) -> list[dict]:
@@ -1024,59 +1162,36 @@ def scan_interrupted(perry_root: Path) -> list[dict]:
     terminal."""
     out: list[dict] = []
     limit = stale_run_days()
-    for kind, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
-        d = perry_root / ".perry" / sub
-        if not d.is_dir():
+    for row in dossier_records(perry_root):
+        if row["errors"]:
             continue
-        for f in sorted(d.glob("*.md")):
-            fm = read_frontmatter(f)
-            stage = (fm.get("stage") or "").strip()
-            if not stage or stage in TERMINAL_STAGES:
-                continue
-            out.append({
-                "pipeline": kind,
-                "path": f.relative_to(perry_root).as_posix(),
-                "stage": stage,
-                "step": (fm.get("step") or "").strip() or None,
-                "started": fm.get("started"),
-                "updated": fm.get("updated"),
-                "depth": fm.get("depth"),
-                "lanes": fm.get("lanes"),
-                "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
-                # The card offers "Abandon" on every run; on a stale one it
-                # should lead with it. Computed here so the card never has to
-                # decide what "stale" means.
-                "stale": bool(limit and idle is not None and idle >= limit),
-                "stale_after_days": limit,
-                # What the user has already banked. The card needs both numbers:
-                # they are being asked to spend an hour or throw one away.
-                "declarations": count_list_items(f, "declarations"),
-                "interview_answers": count_list_items(f, "interview"),
-                "candidates_pending": count_status(f, "pending"),
-                "candidates_settled": sum(count_status(f, k) for k in
-                                          ("accepted", "edited", "rejected", "deferred")),
-            })
-    return out
-
-
-def read_frontmatter(path: Path) -> dict:
-    """Top-level `key: value` pairs from a `---` fenced block. Stdlib only."""
-    out: dict = {}
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return out
-    if not lines or lines[0].strip() != "---":
-        return out
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
-        if m:
-            # Strip the quoting YAML allows on scalars. Leaving it on turned
-            # `updated` into `"2026-08-10T…` and silently nulled idle_days,
-            # which is the one number the interrupted-run card needs most.
-            out[m.group(1)] = m.group(2).strip().strip('"\'')
+        kind, f, fm = row["pipeline"], row["file"], row["frontmatter"]
+        stage = (fm.get("stage") or "").strip()
+        if stage in TERMINAL_STAGES:
+            continue
+        out.append({
+            "pipeline": kind,
+            "path": row["path"],
+            "stage": stage,
+            "step": (fm.get("step") or "").strip() or None,
+            "started": fm.get("started"),
+            "updated": fm.get("updated"),
+            "depth": fm.get("depth"),
+            "lanes": fm.get("lanes"),
+            "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
+            # The card offers "Abandon" on every run; on a stale one it
+            # should lead with it. Computed here so the card never has to
+            # decide what "stale" means.
+            "stale": bool(limit and idle is not None and idle >= limit),
+            "stale_after_days": limit,
+            # What the user has already banked. The card needs both numbers:
+            # they are being asked to spend an hour or throw one away.
+            "declarations": count_list_items(f, "declarations"),
+            "interview_answers": count_list_items(f, "interview"),
+            "candidates_pending": count_status(f, "pending"),
+            "candidates_settled": sum(count_status(f, k) for k in
+                                      ("accepted", "edited", "rejected", "deferred")),
+        })
     return out
 
 
@@ -1129,6 +1244,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             # Computed even here — especially here. An abandoned adoption looks
             # exactly like a virgin folder to `installed`, and routing it to
             # First-time setup is the bug this field exists to prevent.
+            "recovery": scan_recovery(root, perry_root),
             "interrupted": scan_interrupted(perry_root),
             "warnings": ["No Perry state found — run /perry for first-time setup."],
         }
@@ -1238,6 +1354,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         "schema": 1,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "installed": True,
+        "recovery": scan_recovery(root, perry_root),
         "interrupted": scan_interrupted(perry_root),
         "project": {
             "root": root.as_posix(),

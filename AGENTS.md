@@ -12,13 +12,14 @@ the live project state is rooted at `perry/` through `.perry/config.md`.
    rules; do not run a second startup path here.
 2. For ordinary repository work, run these read-only checks before editing:
    ```bash
+   bin/perry-state --section recovery
    bin/perry-state --section interrupted
    bin/perry-state --dashboard
    git status --short --branch
    git log -8 --oneline --decorate
    ```
-3. If `interrupted` is non-empty, stop and ask whether to resume, restart, or
-   abandon it. Never resume an interrupted Perry pipeline automatically.
+3. If recovery is blocking, stop and report its paths/errors. Otherwise, if
+   `interrupted` is non-empty, ask; never resume a pipeline automatically.
 4. Use `perry-state` for counts and status. Do not derive a dashboard by
    eyeballing `perry/BOARD.md` or walking the journal.
 5. Read only the current phase and the selected task's spec, evidence, and

@@ -88,6 +88,7 @@ class TestRepositoryAgentStartup(unittest.TestCase):
     def test_agents_file_names_the_fast_read_contract(self):
         agents = read("AGENTS.md")
         for required in (
+                "bin/perry-state --section recovery",
                 "bin/perry-state --section interrupted",
                 "bin/perry-state --dashboard",
                 "git status --short --branch",

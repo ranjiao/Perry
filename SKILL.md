@@ -88,7 +88,19 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 1. **Read `.perry/config.md`** for document language, chat language and repo layout. If absent and any state file exists, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
-2. **Check for an interrupted run — before anything else reads project state.**
+2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
+
+   ```
+   "$PERRY_HOME/bin/perry-state" --section recovery
+   ```
+
+   This is the deterministic, read-only startup recovery gate. If
+   `blocking: true`, stop before any further project-state read or mutation and
+   report every exact path and error. A pending task transaction must be
+   recovered by the task command; a malformed dossier must be repaired or
+   explicitly retired. Do not reinterpret either as routine PMO hygiene.
+
+   Only after `blocking: false`, run the interrupted-pipeline gate:
 
    ```
    "$PERRY_HOME/bin/perry-state" --section interrupted
@@ -117,13 +129,13 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
    ```
    "$PERRY_HOME/bin/perry-state" --json
    ```
-   `installed: false` → jump to **First-time setup** below — **but only if step 2 found no interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
+   `installed: false` → jump to **First-time setup** below — **but only if step 2 found neither a recovery hazard nor an interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
 
 The rest is `reference/snapshot.md`: **3b** load one mode file per distinct `mode` in `project.config.tracks[]` (never empty; a mode with no file means no rules — say so and fall back rather than skip). **3c** apply `project.config.packs[]`'s glossary to prose only. **4** render the dashboard in the exact shape given there, `—` for empty, never fabricated, **every ID carrying its title**. **5** suggest 1–3 next actions, then **6** ask "What do you want to do?", routing to `$PERRY_HOME/goals/SKILL.md`, `$PERRY_HOME/work/SKILL.md` or `$PERRY_HOME/decide/SKILL.md` — read the lane file in full first.
 
 ## First-time setup
 
-When `/perry` runs in a project with no Perry state files at all **and step 2 found no interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
+When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
 
 1. Briefly explain Perry (≤3 sentences).
 
