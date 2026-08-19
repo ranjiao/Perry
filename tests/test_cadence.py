@@ -722,5 +722,71 @@ class TestTheLegacyProjectionIsUnchanged(unittest.TestCase):
         self.assertEqual(drift["orphaned"], [])
 
 
+class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
+    """A scored phase's linkage registry is not dangling.
+
+    `linkage-kr-exists` judged **every** `phase/*-linkage.md` against the
+    **current** phase's KR set. So the moment a phase was scored and the next
+    one opened, the old phase's registry — which correctly names the KRs it was
+    written for — was reported as pointing at KRs that do not exist.
+
+    It fired on this project's first rollover ever, on `phase/001-linkage.md`,
+    naming `P-O1.4` — a KR that exists exactly where it should. A guard written
+    when there had only ever been one phase.
+
+    The file names its own phase (`<NNN>-linkage.md`), so the right KR set is
+    derivable with no new state.
+    """
+
+    def project(self, current):
+        import shutil
+        import tempfile
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / "phase").mkdir()
+        (d / ".perry").mkdir()
+        (d / ".perry" / "config.md").write_text("State root: .\n")
+        (d / "BOARD.md").write_text("# Board\n")
+        (d / "phase" / "CURRENT").write_text(current + "\n")
+        (d / "phase" / "001-old.md").write_text(
+            "# Phase #001 — old\n\n> **Started**: 2026-08-01\n"
+            "> **Status**: scored\n\n## Objective 1 — a\n\n"
+            "| Id | KR text | Metric / Target | Linked overall KR |\n"
+            "|---|---|---|---|\n| P-O1.1 | old work | 1 | — |\n")
+        (d / "phase" / "002-new.md").write_text(
+            "# Phase #002 — new\n\n> **Started**: 2026-08-19\n"
+            "> **Status**: active\n\n## Objective 1 — b\n\n"
+            "| Id | KR text | Metric / Target | Linked overall KR |\n"
+            "|---|---|---|---|\n| P-O1.9 | new work | 1 | — |\n")
+        (d / "phase" / "001-linkage.md").write_text(
+            '---\nlinkage: 1\nphase: "001-old"\nobjectives:\n  - id: O1\n'
+            '    title: "a"\n    krs:\n      - id: P-O1.1\n'
+            '        title: "old work"\n        metric: "1"\n        target: 1\n'
+            '        current: 1\n        stretch: false\n        tasks: []\n---\n')
+        return d
+
+    def rules(self, d):
+        import json
+        import subprocess
+        import sys
+        proc = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
+             "--root", str(d), "--json"], capture_output=True, text=True)
+        return [f["rule"] for f in json.loads(proc.stdout)["findings"]]
+
+    def test_the_old_phases_registry_is_not_reported_after_a_rollover(self):
+        self.assertNotIn("linkage-kr-exists",
+                         self.rules(self.project("002-new")))
+
+    def test_a_genuinely_wrong_kr_is_still_reported(self):
+        """The guard has to keep working, or moving the KR set just turns it
+        off. A registry naming a KR its OWN phase does not have is a real
+        finding."""
+        d = self.project("002-new")
+        p = d / "phase" / "001-linkage.md"
+        p.write_text(p.read_text().replace("P-O1.1", "P-O9.9"))
+        self.assertIn("linkage-kr-exists", self.rules(d))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -886,6 +886,23 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         rel = lf.relative_to(root).as_posix()
         if not link.ok:
             continue
+        # **A linkage file belongs to ITS phase, not to the current one.**
+        # This judged every `*-linkage.md` against the CURRENT phase's KR set,
+        # so the moment a phase was scored and the next one opened, the old
+        # phase's registry — which correctly names the KRs it was written for —
+        # was reported as dangling. It fired on the first rollover this project
+        # ever did, on `phase/001-linkage.md`, naming KRs that exist exactly
+        # where they should.
+        #
+        # A guard written when there had only ever been one phase. The file
+        # names its own phase (`<NNN>-linkage.md`), so the right KR set is
+        # derivable with no new state.
+        own = lf.name.split("-", 1)[0]
+        mine = sorted((root / "phase").glob(f"{own}-*.md"))
+        mine = [m for m in mine if not m.name.endswith("-linkage.md")]
+        if mine:
+            phase_krs = set(re.findall(
+                KR_ID_RE, strip_comments(mine[0].read_text())))
         for pr in link.projects:
             if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
                 findings.append(Finding(

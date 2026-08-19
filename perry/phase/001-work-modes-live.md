@@ -2,7 +2,7 @@
 
 > **Owner**: `okr` skill (only writer). PMO reads this every standup.
 > **Started**: 2026-08-17
-> **Status**: active
+> **Status**: scored
 > **Source**: `OKR.md` v1
 > **Predecessor**: (none — first phase)
 > **Tier 1 hard cap**: ≤ 300 lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-001-<topic>.md` and reference via link.
@@ -230,6 +230,45 @@ PMO cadence (Monday Planning, Midweek Check, Friday Review, Mid-Phase Review, En
 - **Scope-reduction rule status**: armed
 
 ## Retro — phase scored     <!-- filled by `okr score-phase` when the phase closes -->
+
+**Scored 2026-08-19 by Ran Jiao**, on the decision to roll to phase 002 for
+ADR-007. Every score below was **measured**, and the command is given so the
+number can be re-derived rather than trusted.
+
+| KR | Score | Measured |
+|---|---|---|
+| P-O1.1 | **missed** | `parse_tracks` on `.perry/config.md` returns `[('main','project')]` — 0 of 3 non-`project` modes on a live track |
+| P-O1.2 | **partial** | The code ships — `perry-state` carries `stage_counts`, `wip_breaches` and `intake`. Two of the three report empty **because no track is declared to exercise them**, so the capability is built and unproven |
+| P-O1.3 | **missed** | No revert test for a mode switch exists in `tests/test_work_modes.py` |
+| P-O1.4 | **partial** | Baseline 6, target 0. Two of three closed on TASK-019; TASK-020's round-6 finding is open (`route` ignores `--group`) |
+| P-O2.1 | **achieved** | `bin/perry-goals`, `bin/perry-task`, `bin/perry-decide` all exist and write — 3 of 3 |
+| P-O2.2 | **achieved** | The byte-identity test lives in `tests/test_goals_writer.py` and runs against all four `OKR.md` files |
+| P-O3.1 | **achieved** | `perry-conform status` reports **13/14 declared and matching**, and all three writers gate on it (ADR-004) |
+| P-O3.2 | **achieved** | TASK-044: dry-run byte-identical, 365 → 380 ids with none lost, 59 → 15 errors on gimegime-pmo, PolyForge refused in one sentence. Guarantee 3 FAILed on three unguarded write sites and was fixed; **its re-review has not run** |
+
+**4 achieved · 2 partial · 2 missed.**
+
+### Why the phase ends here rather than when its KRs hit
+
+Perry's own model says a phase ends when its KRs hit, not on a calendar, and
+this one ends at day 3 with two missed. That is a deliberate exception, and the
+reason is `ADR-007`: it **changes the premise of two of these KRs** rather than
+merely competing with them.
+
+- **P-O1.1** wants three non-`project` modes live on a real track. A track is
+  declared in `.perry/config.md`, which ADR-007 turns into a store — so the
+  file that KR is measured against is being replaced.
+- **P-O3.1** wants a state file to declare it is Perry-shaped at a version.
+  That declaration is about **markdown shape**, and three of the files it
+  covers stop being markdown.
+
+Carrying them forward unchanged would have scored the same work twice under two
+different meanings. They are re-expressed in phase 002 against the shapes that
+will actually exist.
+
+**P-O2.1 was already met and unscored** — 3 of 3 write tools — which is what
+the check for this rollover found first.
+
 
 - **Scored on**: —
 - **P-O1 score**: —
