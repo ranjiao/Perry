@@ -1567,6 +1567,10 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
         return [f for _, f, _ in seen.get(tid, [])]
 
     live: dict[str, str] = {}
+    #: The rung each live row declares, so the symmetric check below can ask
+    #: "is this row even at a rung that needs a round" rather than reporting
+    #: every `review` row on the board.
+    rungs: dict[str, str] = {}
     for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
             got = [norm(c) for c in header]
@@ -1584,6 +1588,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 if not tid:
                     continue
                 live[tid] = cell(ci_st)
+                rungs[tid] = cell(ci_v)
                 if cell(ci_st) == "done" and cell(ci_v).upper() == "V4":
                     if not any(f.get("result") for f in verdicts_for(tid)):
                         findings.append(Finding(
@@ -1666,6 +1671,60 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 f"{tid} is at `review` and {where} already FAILed it — "
                 f"`review` means out for verification, so a row whose verdict "
                 f"has arrived does not belong there"))
+
+    # **The symmetric half, and it was missing.** The check above reports a
+    # verdict that arrived and was ignored. Nothing reported the opposite: a row
+    # at `review` for which no round was ever dispatched.
+    #
+    # Found on this board. TASK-093 sat at `review` because I moved it there
+    # and never sent the round — and `--reviews` said the board was clean,
+    # because the only shape it knew was a verdict nobody acted on. Two
+    # symmetric failure modes, one covered.
+    #
+    # It reports the AGE rather than judging it: a row sent an hour ago and one
+    # forgotten a week ago are the same state, and only the reader knows which
+    # is which. A threshold here would be the checker guessing.
+    #: When each row last moved TO `review`, so the finding can say how long it
+    #: has sat there. Reported, never judged — a row sent an hour ago and one
+    #: forgotten a week ago are the same STATE, and a threshold here would be
+    #: the checker guessing which.
+    _days_at_review: dict[str, int] = {}
+    if log.exists():
+        from datetime import date as _date, datetime as _dt
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if str(ev.get("to") or "") != "review":
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            ts = str(ev.get("ts") or "")[:10]
+            if not tid or not ts:
+                continue
+            try:
+                _days_at_review[tid] = (_date.today() - _dt.strptime(
+                    ts, "%Y-%m-%d").date()).days
+            except ValueError:
+                continue
+
+    for tid, status in live.items():
+        if status != "review" or verdicts_for(tid):
+            continue
+        if (rungs.get(tid) or "").upper() != "V4":
+            continue
+        age = _days_at_review.get(tid)
+        how_long = (f"{age} day(s) ago" if age is not None
+                    else "at an unknown time — no event records the move")
+        findings.append(Finding(
+            "warn", "BOARD.md", "review-with-no-verdict",
+            f"{tid} is at `review` at V4 and no evidence document carries a "
+            f"verdict block naming it. It moved there {how_long}. Either a "
+            f"round is in flight, or one was never sent — `review` is not a "
+            f"resting place, and only you can tell those apart"))
 
     check_reviews.blocks_seen = sum(len(v) for v in seen.values())
     return findings

@@ -192,6 +192,69 @@ class TestAResentRowIsNotTheSameAsAnIgnoredOne(ReviewLintCase):
         self.assertIn("fail-verdict-left-at-review", self.rules())
 
 
+class TestTheSymmetricHalf(ReviewLintCase):
+    """A row at `review` for which no round was ever sent.
+
+    **Found on this board, by the user asking whether TASK-093 was finished.**
+    It sat at `review` because it had been moved there and no round dispatched,
+    and `--reviews` called the board clean — the only shape it knew was a
+    verdict nobody acted on. Two symmetric failure modes and one covered.
+
+    The finding reports the AGE and does not judge it: a row sent an hour ago
+    and one forgotten a week ago are the same STATE, and a threshold would be
+    the checker guessing which.
+    """
+
+    def events_to_review(self, tid="TASK-001", ts="2026-08-19T10:00:00"):
+        (self.dir / ".perry" / "events.jsonl").write_text(
+            json.dumps({"event": "status", "task": tid, "field": "status",
+                        "to": "review", "ts": ts}) + "\n")
+
+    def test_a_row_at_review_with_no_verdict_is_reported(self):
+        self.board([self.row("TASK-001", "review")])
+        self.events_to_review()
+        self.assertIn("review-with-no-verdict", self.rules())
+
+    def test_a_row_with_a_verdict_is_not(self):
+        """A round that HAS returned is the other check's business, not this
+        one's — reporting both would name every row twice."""
+        self.board([self.row("TASK-001", "review")])
+        self.evidence("r.md", verdict("TASK-001", "PASS"))
+        self.events_to_review()
+        self.assertNotIn("review-with-no-verdict", self.rules())
+
+    def test_a_lower_rung_is_not_asked_for_a_round(self):
+        """V4 is the rung that means *a fresh reviewer ran*. V2 and V3 make no
+        such claim, and asking them for a verdict would turn the finding into
+        noise on every board that uses `review` as a normal status."""
+        self.board([self.row("TASK-001", "review", rung="V3")])
+        self.events_to_review()
+        self.assertNotIn("review-with-no-verdict", self.rules())
+
+    def test_a_row_not_at_review_is_not(self):
+        self.board([self.row("TASK-001", "in_progress")])
+        self.events_to_review()
+        self.assertNotIn("review-with-no-verdict", self.rules())
+
+    def test_the_age_is_reported_and_not_judged(self):
+        """No threshold: the message must carry the number so the reader can
+        decide, and must not decide for them."""
+        self.board([self.row("TASK-001", "review")])
+        self.events_to_review(ts="2026-08-01T10:00:00")
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-with-no-verdict")
+        self.assertIn("day(s) ago", msg)
+        self.assertIn("only you can tell", msg)
+
+    def test_with_no_event_the_age_is_unknown_not_zero(self):
+        """Silence about when is not the same as "today", and a row whose move
+        predates the event log must not be reported as fresh."""
+        self.board([self.row("TASK-001", "review")])
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-with-no-verdict")
+        self.assertIn("unknown time", msg)
+
+
 class TestTheRungIsRunNotClaimed(ReviewLintCase):
     def test_a_v4_close_with_no_verdict_anywhere_is_reported(self):
         self.board([self.row("TASK-001", "done")])
