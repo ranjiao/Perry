@@ -1,10 +1,42 @@
 # DESIGN-007: The entity model — Goal, KR, Phase, Task, Agent, Run
 
-> Status: draft
-> Date: 2026-08-19 · Locked: —
+> Status: locked
+> Date: 2026-08-19 · Locked: 2026-08-19
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: P-O3.1 (phase 002 — `fields-are-typed`)
 > Supersedes: —   · Superseded by: —
+
+> **Signed off: Ran Jiao, 2026-08-19.**
+>
+> Checked: all ten rows of `## 4 User Decisions`, each answered individually
+> rather than as a block — #1, #5 and #8 first, then #2, #3, #4, #6, #7 and #9
+> in turn, with #10 raised by the reviewer rather than offered. Two corrections
+> were made against the draft and both changed the design:
+>
+> - the phase-KR id, from the drafted `002/P-O3.1` to **`P002-O3-KR1`**, on the
+>   ground that every segment should carry its own label rather than rely on
+>   position (decision #4);
+> - **the Task/Run duplication** — `documents[]` stored on both entities and
+>   `spec` on the Run beside a Task document already carrying `kind: spec`.
+>   That is what produced § 5.10 and moved eight of the nineteen stored fields.
+>   The reviewer found it; the author had written it into the document arguing
+>   against exactly that defect.
+>
+> The workflow in § 1.2, § 5.6 and § 5.7 is the reviewer's own description,
+> not a reconstruction.
+>
+> **Not separately confirmed, and recorded as such:** the measurements in § 1
+> and § 5.8 were not independently re-run — they are the author's, and every
+> one names the file and the count it came from so they can be. **§ 5.8's
+> recommendation not to reset Perry's own history was made against an explicit
+> authorisation to do so, and that recommendation was not accepted or rejected
+> in words** — the sign-off is being read as leaving it in force. Say so if
+> that is wrong; it is the one place this signature infers rather than records.
+>
+> Recorded at this precision on purpose. V5's value is saying what was actually
+> checked, and this document schedules a second V5 — step 2 of § 6, which moves
+> a row in `SKILL.md § The hand-off contract`. Blurring the first one would set
+> the standard for that.
 
 ## 1. Problem
 
