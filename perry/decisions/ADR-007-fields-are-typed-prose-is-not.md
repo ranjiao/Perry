@@ -112,6 +112,30 @@ Every existing project is markdown-canonical today. `perry-migrate` and ADR-004'
 migrate-once posture are the path; the two real projects on this machine
 (gimegime-pmo, PolyForge) are the test.
 
+## 5b. The split runs per FILE, not per repository — measured
+
+The parser serves **16 state files**, not just the board, so "stop parsing
+documents" is not one decision. Counting each file's typed table columns
+against its prose sections settles most of it:
+
+| File | Table columns | Prose sections | What it is |
+|---|---|---|---|
+| `BOARD.md` | **35** | 0 | a store, rendered |
+| `OKR.md` | **12** | 0 | a store, rendered |
+| `.perry/config.md` | **8** | 0 | a store, rendered |
+| `phase/NNN-*.md` | 4 | some | mixed — the KR table is a store, the rest is prose |
+| `DECISIONS.md` | 4 | some | mixed — the index is a store, each ADR is prose |
+| `.perry/roles/*.md` | 0 | **5** | a document. Stays one |
+| `design/*.md` | 0 | **10** | a document. Stays one |
+
+**So rule 1 and rule 2 partition the files, not just the fields**, and the
+first slice picks itself: `BOARD.md` has 35 typed columns and no prose
+sections, which is why every recurring defect this ADR cites lives there.
+
+`design/*.md` and `.perry/roles/*.md` go the other way and go there **harder**:
+under rule 2 Python should not be parsing them at all, not even leniently. It
+should locate the file and hand it to an agent.
+
 ## 6. User decisions — NOT YET MADE
 
 | # | Question | Options |
