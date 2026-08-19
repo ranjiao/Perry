@@ -116,7 +116,9 @@ checkout` would undo — but it is not a refusal.
 from __future__ import annotations
 
 import atexit
+import base64
 import difflib
+import fnmatch
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -252,6 +254,8 @@ class Edit:
     path: Path
     before: str
     after: str
+    before_bytes: bytes | None = None
+    after_bytes: bytes | None = None
     #: the same file relative to the *project* root. `key` is relative to the
     #: state root (or to the project root for the `.perry/` entries), which is
     #: what the schema declares and what a declaration is filed under; the
@@ -267,7 +271,15 @@ class Edit:
 
     @property
     def touched(self) -> bool:
-        return self.after != self.before
+        return self.image_after != self.image_before
+
+    @property
+    def image_before(self) -> bytes:
+        return self.before_bytes if self.before_bytes is not None else self.before.encode("utf-8")
+
+    @property
+    def image_after(self) -> bytes:
+        return self.after_bytes if self.after_bytes is not None else self.after.encode("utf-8")
 
     @property
     def writable(self) -> bool:
@@ -282,8 +294,8 @@ class Edit:
     def as_dict(self) -> dict:
         return {
             "path": self.key,
-            "before_sha256": sha(self.before),
-            "after_sha256": sha(self.after),
+            "before_sha256": sha(self.image_before),
+            "after_sha256": sha(self.image_after),
             "before_errors": self.before_errors,
             "after_errors": len(self.residual),
             "changes": [c.as_dict() for c in self.changes],
@@ -294,8 +306,30 @@ class Edit:
         }
 
 
-def sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+def sha(value: str | bytes) -> str:
+    data = value if isinstance(value, bytes) else value.encode("utf-8")
+    return hashlib.sha256(data).hexdigest()
+
+
+def decode_image(data: bytes, key: str) -> tuple[str, str]:
+    """Decode one UTF-8 file and return logical LF text plus its line ending."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Refused(
+            f"{key} is not valid UTF-8 ({exc}). Migration only rewrites UTF-8 "
+            f"text files and left this path byte-identical") from None
+    crlf = data.count(b"\r\n")
+    lf = data.count(b"\n")
+    if crlf and crlf == lf:
+        return text.replace("\r\n", "\n"), "\r\n"
+    return text, "\n"
+
+
+def encode_image(text: str, newline: str) -> bytes:
+    if newline != "\n":
+        text = text.replace("\n", newline)
+    return text.encode("utf-8")
 
 
 # ── locating things in a file ─────────────────────────────────────────────
@@ -1361,44 +1395,41 @@ def cross_file_delta(plan: Plan, schema: dict) -> list:
                                           plan.project_root)}
     if not plan.writable:
         return []
-    with tempfile.TemporaryDirectory(prefix="perry-migrate-xf-") as tmp:
-        mirror = Path(tmp) / "state"
-        mirror.mkdir(parents=True)
-        (mirror.parent / "project").mkdir(exist_ok=True)
-        for name in CROSS_FILE_INPUTS:
-            src = plan.state_root / name
-            if src.is_dir():
-                shutil.copytree(src, mirror / name)
-            elif src.is_file():
-                shutil.copy2(src, mirror / name)
-        hook = plan.project_root / ".perry" / "hook.md"
-        if hook.exists():
-            (mirror.parent / "project" / ".perry").mkdir(parents=True, exist_ok=True)
-            shutil.copy2(hook, mirror.parent / "project" / ".perry" / "hook.md")
-        # **The mirror is made writable before anything is written into it.**
-        #
-        # `copy2` and `copytree` preserve mode bits, so a source file the
-        # project has marked read-only produced a read-only copy in a scratch
-        # directory Perry owns — and the next line wrote to it. The result was
-        # an unhandled `PermissionError` **during planning**, which is worse
-        # than the one in `apply_plan` that was fixed first: at plan time there
-        # is no restore point yet, so the traceback was the whole of what the
-        # user got, and `--dry-run` died as well as `apply`.
-        #
-        # Preserving the mode of a throwaway mirror buys nothing. Found by a V4
-        # reviewer who noticed the earlier fix guarded the apply loop while the
-        # crash was one stage upstream.
-        for f in mirror.parent.rglob("*"):
-            if f.is_file():
-                f.chmod(f.stat().st_mode | stat.S_IWUSR)
-        for e in plan.writable:
-            rel = Path(e.key)
-            if rel.parts[0] not in CROSS_FILE_INPUTS and rel.name not in CROSS_FILE_INPUTS:
-                continue
-            target = mirror / rel
-            if target.parent.exists():
-                target.write_text(e.after)
-        after = L.check_cross_file(mirror, schema["enums"], mirror.parent / "project")
+    try:
+        with tempfile.TemporaryDirectory(prefix="perry-migrate-xf-") as tmp:
+            mirror = Path(tmp) / "state"
+            mirror.mkdir(parents=True)
+            (mirror.parent / "project").mkdir(exist_ok=True)
+            for name in CROSS_FILE_INPUTS:
+                src = plan.state_root / name
+                if src.is_dir():
+                    shutil.copytree(src, mirror / name)
+                elif src.is_file():
+                    shutil.copy2(src, mirror / name)
+            hook = plan.project_root / ".perry" / "hook.md"
+            if hook.exists():
+                (mirror.parent / "project" / ".perry").mkdir(
+                    parents=True, exist_ok=True)
+                shutil.copy2(
+                    hook, mirror.parent / "project" / ".perry" / "hook.md")
+            # Preserve content, not read-only modes, in the throwaway mirror.
+            for f in mirror.parent.rglob("*"):
+                if f.is_file():
+                    f.chmod(f.stat().st_mode | stat.S_IWUSR)
+            for e in plan.writable:
+                rel = Path(e.key)
+                if (rel.parts[0] not in CROSS_FILE_INPUTS
+                        and rel.name not in CROSS_FILE_INPUTS):
+                    continue
+                target = mirror / rel
+                if target.parent.exists():
+                    target.write_text(e.after)
+            after = L.check_cross_file(
+                mirror, schema["enums"], mirror.parent / "project")
+    except OSError as exc:
+        raise Refused(
+            f"cross-file scratch planning failed ({exc}). Nothing in the "
+            f"project was touched") from None
     return [f for f in after if (f.file, f.rule, f.message) not in before]
 
 
@@ -1429,9 +1460,51 @@ def git_dirty(project_root: Path) -> bool:
     return out.returncode == 0 and bool(out.stdout.strip())
 
 
+def preflight_file_object(project_root: Path, path: Path, key: str) -> None:
+    """Refuse one write target whose filesystem topology cannot be restored."""
+    try:
+        rel = path.relative_to(project_root)
+    except ValueError:
+        raise Refused(f"{key} is outside the project root") from None
+    cursor = project_root
+    for part in rel.parts[:-1]:
+        cursor /= part
+        if cursor.is_symlink():
+            raise Refused(
+                f"{key} crosses symlink {cursor}. Migration refuses before "
+                f"writing because it cannot restore link topology")
+    if path.is_symlink():
+        raise Refused(
+            f"{key} is a symlink. Migration refuses before writing because "
+            f"replacing it would destroy link topology")
+    if path.exists() and not path.is_file():
+        raise Refused(
+            f"{key} is not a regular file. Migration refuses before writing "
+            f"because it cannot restore this filesystem object")
+
+
+def preflight_file_objects(project_root: Path, state_root: Path, schema: dict,
+                           only: list[str] | None) -> None:
+    """Refuse filesystem objects migration cannot reproduce byte-for-byte."""
+    for spec in schema["files"]:
+        base = project_root if spec.get("anchor") == "project" else state_root
+        pattern = spec["path"]
+        candidates = (sorted(base.glob(pattern))
+                      if any(ch in pattern for ch in "*?[") else [base / pattern])
+        for path in candidates:
+            key = path.relative_to(base).as_posix()
+            if only and key not in only:
+                continue
+            exclude = spec.get("exclude")
+            if exclude and fnmatch.fnmatch(key, exclude):
+                continue
+            preflight_file_object(project_root, path, key)
+
+
 def plan_project(project_root: Path, state_root: Path, schema: dict,
                  only: list[str] | None = None) -> Plan:
     C = conform()
+    preflight_file_objects(project_root, state_root, schema, only)
     plan = Plan(project_root=project_root, state_root=state_root,
                 shape_version=C.shape_version(schema))
     plan.dirty_git = git_dirty(project_root)
@@ -1455,14 +1528,18 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
                               "Its findings belong to the tool that produced it, "
                               "not to this project's shape."})
             continue
-        edit = migrate_text(path.read_text(errors="replace"), key, spec, schema,
-                            lang, linter, mint)
+        image = path.read_bytes()
+        text, newline = decode_image(image, key)
+        edit = migrate_text(text, key, spec, schema, lang, linter, mint)
         edit.path = path
         edit.key_rel = path.relative_to(project_root).as_posix()
+        edit.before_bytes = image
+        edit.after_bytes = encode_image(edit.after, newline)
         if edit.touched or edit.residual:
             plan.edits.append(edit)
     plan.newly_visible = cross_file_delta(plan, schema)
-    _plan_task_store(plan)
+    if not only or "BOARD.md" in only:
+        _plan_task_store(plan)
     return plan
 
 
@@ -1485,6 +1562,7 @@ def _plan_task_store(plan: Plan) -> None:
     if not board_path.exists():
         return
     store_path = perry_store.store_path(plan.state_root)
+    preflight_file_object(plan.project_root, store_path, "tasks.jsonl")
     baseline = _task_records(plan.project_root, plan.state_root,
                              board_path.read_text(errors="replace"))
     if store_path.exists():
@@ -1529,6 +1607,59 @@ def _plan_task_store(plan: Plan) -> None:
 # every state file they have.
 
 
+def file_image(data: bytes) -> dict:
+    return {
+        "type": "file",
+        "sha256": sha(data),
+        "bytes_b64": base64.b64encode(data).decode("ascii"),
+    }
+
+
+def absent_image() -> dict:
+    return {"type": "absent"}
+
+
+def image_signature(data: bytes | None) -> dict:
+    return ({"type": "absent"} if data is None else
+            {"type": "file", "sha256": sha(data)})
+
+
+def image_bytes(entry, rel: str, legacy: bool = False) -> bytes | None:
+    """Decode a restore image, optionally accepting the pre-version format."""
+    if entry is None:
+        if legacy:
+            return None
+        raise Refused(f"restore payload for {rel!r} has an invalid image type")
+    if isinstance(entry, str):
+        if legacy:
+            return entry.encode("utf-8")
+        raise Refused(f"restore payload for {rel!r} has an invalid image type")
+    if not isinstance(entry, dict) or entry.get("type") not in {"file", "absent"}:
+        raise Refused(f"restore payload for {rel!r} has an invalid image type")
+    if entry["type"] == "absent":
+        return None
+    try:
+        data = base64.b64decode(entry["bytes_b64"], validate=True)
+    except (KeyError, ValueError) as exc:
+        raise Refused(f"restore payload for {rel!r} has invalid base64 ({exc})") from None
+    if entry.get("sha256") != sha(data):
+        raise Refused(f"restore payload for {rel!r} fails its stored sha256")
+    return data
+
+
+def current_signature(path: Path, rel: str) -> dict:
+    if path.is_symlink():
+        return {"type": "symlink"}
+    if not path.exists():
+        return {"type": "absent"}
+    if not path.is_file():
+        return {"type": "special"}
+    try:
+        return image_signature(path.read_bytes())
+    except OSError as exc:
+        raise Refused(f"restore preflight could not read {rel!r} ({exc})") from None
+
+
 def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     """The bytes of every file this run is about to touch, before it touches it.
 
@@ -1537,24 +1668,46 @@ def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     the declarations standing would leave the record claiming conformance for
     files that no longer have it."""
     record = plan.project_root / P.CONFORMANCE_FILE
-    files = {e.key_rel: (e.before if e.existed else None) for e in edits}
-    # `None` means "did not exist before the run", and restore deletes it.
-    files[P.CONFORMANCE_FILE] = (record.read_text(errors="replace")
-                                 if record.exists() else None)
+    files = {e.key_rel: (file_image(e.image_before)
+                         if e.existed else absent_image()) for e in edits}
+    files[P.CONFORMANCE_FILE] = (file_image(record.read_bytes())
+                                 if record.exists() else absent_image())
     payload = {
+        "version": 1,
         "run": run_id,
         "created": datetime.now().isoformat(timespec="seconds"),
         "project_root": str(plan.project_root),
         "tool": "perry-migrate",
         "files": files,
-        "expected_after": {e.key_rel: sha(e.after) for e in edits},
+        "expected_after": {
+            **{e.key_rel: image_signature(e.image_after) for e in edits},
+            P.CONFORMANCE_FILE: current_signature(record, P.CONFORMANCE_FILE),
+        },
     }
     out = plan.project_root / MIGRATE_DIR / f"{run_id}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
+    if out.exists():
+        raise Refused(f"restore point {out} already exists; refusing to overwrite it")
     tmp = out.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1))
     tmp.replace(out)
     return out
+
+
+def next_run_id(project_root: Path) -> str:
+    base = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    candidate = base
+    n = 0
+    while (project_root / MIGRATE_DIR / f"{candidate}.json").exists():
+        n += 1
+        candidate = f"{base}-{n:02d}"
+    return candidate
+
+
+def update_expected_after(point: Path, rel: str, path: Path) -> None:
+    payload = json.loads(point.read_text(encoding="utf-8"))
+    payload["expected_after"][rel] = current_signature(path, rel)
+    write_atomic(point, json.dumps(payload, ensure_ascii=False, indent=1))
 
 
 def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
@@ -1570,7 +1723,15 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         # renderer — a traceback where "there was nothing to do" belongs.
         return {"applied": [], "restore_point": None, "run": None,
                 "declared": [], "refused": []}
-    run_id = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    for e in edits:
+        preflight_file_object(plan.project_root, e.path, e.key)
+    if declare:
+        preflight_file_object(
+            plan.project_root,
+            plan.project_root / P.CONFORMANCE_FILE,
+            P.CONFORMANCE_FILE,
+        )
+    run_id = next_run_id(plan.project_root)
     try:
         # **Site 2 of 5.** Pre-write, so a failure here leaves the project
         # valid — but a traceback where a refusal belongs, and the refusal has
@@ -1584,8 +1745,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
     applied = []
     for e in edits:
         try:
-            write_atomic(e.path, e.after)
-            got = sha(e.path.read_text(errors="replace"))
+            published = write_atomic(e.path, e.image_after)
+            got = sha(e.path.read_bytes())
         except OSError as exc:
             # **A write that FAILS, as opposed to one that lands wrong.** Only
             # the second was handled: a read-only file, a full disk or a
@@ -1595,13 +1756,17 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             # ran. `TASK-044-spec.md` guarantee 3 requires the recovery path be
             # named in the output; a traceback names nothing.
             raise Refused(rollback_message(point, e.key, exc)) from None
-        if got != sha(e.after):
-            # The bytes on disk are not the bytes the preview showed. Undo the
-            # whole run rather than leave a project half-written.
+        if got != sha(e.image_after):
+            # Roll back this image only when it is provably the one our atomic
+            # writer published. A different digest may be a non-cooperating
+            # user edit that landed before the verification read.
+            allow_changed = ({e.key_rel: {"type": "file", "sha256": got}}
+                             if published == got else None)
             raise Refused(rollback_message(
                 point, e.key,
                 f"written but does not match the plan "
-                f"({got[:12]} vs {sha(e.after)[:12]})"))
+                f"({got[:12]} vs {sha(e.image_after)[:12]})",
+                allow_changed=allow_changed))
         applied.append(e)
     result = {"applied": [e.key for e in applied], "restore_point": str(point),
               "run": run_id, "declared": [], "refused": []}
@@ -1620,18 +1785,26 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             out = C.declare(plan.project_root, plan.state_root,
                             [e.key for e in applied if e.key != "tasks.jsonl"],
                             schema, route="migrate")
-        except OSError as exc:
+            update_expected_after(point, P.CONFORMANCE_FILE,
+                                  plan.project_root / P.CONFORMANCE_FILE)
+        except (OSError, Refused, ValueError) as exc:
+            record = plan.project_root / P.CONFORMANCE_FILE
             raise Refused(rollback_message(
                 point, P.CONFORMANCE_FILE,
                 f"the files were migrated but the declaration could not be "
-                f"written ({exc})")) from None
+                f"written ({exc})",
+                allow_changed={
+                    P.CONFORMANCE_FILE: current_signature(
+                        record, P.CONFORMANCE_FILE),
+                })) from None
         result["declared"] = [d["path"] for d in out["declared"]]
         result["refused"] = out["refused"]
         result["record"] = out["record"]
     return result
 
 
-def rollback_message(point: Path, key: str, why) -> str:
+def rollback_message(point: Path, key: str, why,
+                     allow_changed: dict[str, dict] | None = None) -> str:
     """Roll the run back and say so — **and name the restore point either way.**
 
     `undo` writes, so it can fail for the same reason the run did. If the
@@ -1643,10 +1816,10 @@ def rollback_message(point: Path, key: str, why) -> str:
     """
     cmd = f"perry-migrate restore {point.stem}"
     try:
-        back = undo(point)
+        back = undo(point, allow_partial=True, allow_changed=allow_changed)
         rolled = (f"The run was rolled back — {len(back)} file(s) restored. "
                   f"Nothing on disk changed.")
-    except OSError as exc2:
+    except (OSError, Refused, ValueError) as exc2:
         rolled = (f"**The automatic rollback also failed** ({exc2}). Files "
                   f"written before the failure are still migrated. Put them "
                   f"back with:\n    {cmd}")
@@ -1655,18 +1828,102 @@ def rollback_message(point: Path, key: str, why) -> str:
             f"Recover at any time with:\n    {cmd}")
 
 
-def undo(point: Path) -> list[str]:
-    payload = json.loads(point.read_text())
-    root = Path(payload["project_root"])
+def restore_target(root: Path, rel: str) -> Path:
+    if not isinstance(rel, str) or not rel or Path(rel).is_absolute():
+        raise Refused(f"restore payload path {rel!r} is not project-relative")
+    parts = Path(rel).parts
+    if any(part in {"", ".", ".."} for part in parts):
+        raise Refused(f"restore payload path {rel!r} escapes the project root")
+    target = root.joinpath(*parts)
+    cursor = root
+    for part in parts[:-1]:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise Refused(
+                f"restore payload path {rel!r} crosses symlink {cursor}")
+    return target
+
+
+def expected_signature(value, rel: str) -> dict:
+    if isinstance(value, str):
+        return {"type": "file", "sha256": value}
+    if value is None:
+        return {"type": "absent"}
+    if not isinstance(value, dict) or value.get("type") not in {"file", "absent"}:
+        raise Refused(f"restore payload expected-after type for {rel!r} is invalid")
+    if value["type"] == "file" and not re.fullmatch(
+            r"[0-9a-f]{64}", str(value.get("sha256") or "")):
+        raise Refused(f"restore payload expected-after hash for {rel!r} is invalid")
+    return value
+
+
+def load_restore_payload(point: Path, expected_root: Path | None = None) -> tuple:
+    try:
+        payload = json.loads(point.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise Refused(f"restore payload {point} is unreadable ({exc})") from None
+    if not isinstance(payload, dict):
+        raise Refused(f"restore payload {point} is not a JSON object")
+    version = payload.get("version")
+    if version not in {None, 1}:
+        raise Refused(f"restore payload {point} has unsupported version {version!r}")
+    try:
+        root = Path(payload["project_root"])
+        files = payload["files"]
+        expected = payload["expected_after"]
+    except (KeyError, TypeError) as exc:
+        raise Refused(f"restore payload {point} is missing {exc}") from None
+    if not root.is_absolute():
+        raise Refused("restore payload project_root is not absolute")
+    if expected_root is not None and root.resolve() != expected_root.resolve():
+        raise Refused(
+            f"restore payload belongs to {root}, not requested project {expected_root}")
+    if not isinstance(files, dict) or not isinstance(expected, dict):
+        raise Refused("restore payload files/expected_after must be objects")
+    if version == 1 and set(files) != set(expected):
+        raise Refused("restore payload files and expected_after name different paths")
+
+    decoded = {}
+    signatures = {}
+    targets = {}
+    for rel, entry in files.items():
+        targets[rel] = restore_target(root, rel)
+        decoded[rel] = image_bytes(entry, rel, legacy=version is None)
+        if rel not in expected:
+            raise Refused(f"restore payload has no expected-after state for {rel!r}")
+        signatures[rel] = expected_signature(expected[rel], rel)
+    return payload, root, targets, decoded, signatures
+
+
+def undo(point: Path, expected_root: Path | None = None,
+         allow_partial: bool = False,
+         allow_changed: dict[str, dict] | None = None) -> list[str]:
+    _, _, targets, decoded, expected = load_restore_payload(point, expected_root)
+    conflicts = []
+    for rel, target in targets.items():
+        current = current_signature(target, rel)
+        allowed = [expected[rel]]
+        if allow_partial:
+            allowed.append(image_signature(decoded[rel]))
+        if rel in (allow_changed or {}):
+            allowed.append(allow_changed[rel])
+        if current not in allowed:
+            conflicts.append(
+                f"{rel} changed since migration ({current} != {expected[rel]})")
+    if conflicts:
+        raise Refused(
+            "restore preflight refused before writing any path: "
+            + "; ".join(conflicts))
+
     back = []
-    for rel, text in payload["files"].items():
-        target = root / rel
-        if text is None:
-            if target.exists():
+    for rel, target in targets.items():
+        data = decoded[rel]
+        if data is None:
+            if target.exists() or target.is_symlink():
                 target.unlink()
                 back.append(f"{rel} (removed — it did not exist before the run)")
             continue
-        write_atomic(target, text)
+        write_atomic(target, data)
         back.append(rel)
     return back
 
@@ -1860,13 +2117,17 @@ def do_restore(project_root: Path, positional: list[str], do_list: bool,
         if not points:
             raise Refused(f"no restore points under {MIGRATE_DIR}/ — nothing "
                           f"to undo")
+        summaries = []
+        for p in points:
+            payload, _, _, _, _ = load_restore_payload(
+                p, expected_root=project_root)
+            summaries.append((p, payload))
         if as_json:
             print(json.dumps({"restore_points": [p.stem for p in points]},
                              ensure_ascii=False, indent=2))
         else:
             print(f"\n🔧 Restore points · {project_root.name}\n")
-            for p in points:
-                payload = json.loads(p.read_text())
+            for p, payload in summaries:
                 n = len([k for k in payload["files"]])
                 print(f"   {p.stem}   {n} file(s)   {payload['created']}")
             print(f"\n   perry-migrate restore <run-id>\n")
@@ -1879,8 +2140,13 @@ def do_restore(project_root: Path, positional: list[str], do_list: bool,
     # the record still claiming conformance for a rolled-back file, which is
     # the exact thing `restore_point`'s own docstring exists to prevent.
     try:
-        back = undo(point)
-    except OSError as exc:
+        # A previous restore may have stopped after putting only some paths
+        # back. Accept those exact before-images so the documented retry is
+        # idempotent, while still refusing any third state as a later edit.
+        back = undo(point, expected_root=project_root, allow_partial=True)
+    except Refused:
+        raise
+    except (OSError, ValueError) as exc:
         raise Refused(
             f"the restore is incomplete ({exc}). Some files were put back and "
             f"some were not, and `{P.CONFORMANCE_FILE}` may still claim "

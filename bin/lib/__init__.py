@@ -52,8 +52,10 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # ── writing ───────────────────────────────────────────────────────────────
 
 
-def stage(path: Path, text: str) -> str:
-    """Write `text` to a fresh temp file beside `path`, fsynced. Returns its name.
+def stage(path: Path, text: str | bytes) -> str:
+    """Write text/bytes to a fresh temp file beside `path`, fsynced.
+
+    Returns its name.
 
     Split out of `write_atomic` for `perry-task § commit`, which stages **two**
     files before renaming either — `BOARD.md` and the journal land together or
@@ -80,7 +82,8 @@ def stage(path: Path, text: str) -> str:
         # 0600. The replacement inherits the target's current permission bits.
         if path.exists():
             os.fchmod(fd, stat.S_IMODE(path.stat().st_mode))
-        with os.fdopen(fd, "w") as fh:
+        mode = "wb" if isinstance(text, bytes) else "w"
+        with os.fdopen(fd, mode) as fh:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
@@ -91,22 +94,26 @@ def stage(path: Path, text: str) -> str:
     return tmp
 
 
-def write_atomic(path: Path, text: str) -> None:
-    """Replace `path` with `text`, or leave it exactly as it was.
+def write_atomic(path: Path, text: str | bytes) -> str:
+    """Replace `path` with text/bytes and return the published SHA-256.
 
     A reader that opens the file at any moment sees the whole old version or
     the whole new one — `os.replace` is atomic on POSIX — which is the property
     every Perry state file depends on, because the readers are other Perry
-    tools and the user's editor, not a database client waiting on a lock.
+    tools and the user's editor, not a database client waiting on a lock. The
+    digest identifies the staged image, so a caller can distinguish its own
+    write from a non-cooperating edit that lands immediately afterwards.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = stage(path, text)
     try:
+        published = hashlib.sha256(Path(tmp).read_bytes()).hexdigest()
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    return published
 
 
 def sync_directory(path: Path) -> None:

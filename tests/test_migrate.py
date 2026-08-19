@@ -392,7 +392,8 @@ class TestNothingIsLost(unittest.TestCase):
 
         def corrupt_the_first_write(path, text):
             calls.append(path)
-            real(path, text + "\n" if len(calls) == 1 else text)
+            suffix = b"\n" if isinstance(text, bytes) else "\n"
+            return real(path, text + suffix if len(calls) == 1 else text)
 
         M.write_atomic = corrupt_the_first_write
         try:
@@ -402,6 +403,59 @@ class TestNothingIsLost(unittest.TestCase):
             M.write_atomic = real
         for path, digest in before.items():
             self.assertEqual(p.tree().get(path), digest, path)
+
+    def test_automatic_rollback_does_not_overwrite_a_later_concurrent_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        real_write = M.write_atomic
+        real_undo = M.undo
+        writes = []
+
+        def corrupt_the_first_write(path, text):
+            writes.append(path)
+            suffix = b"\n" if isinstance(text, bytes) else "\n"
+            real_write(path, text + suffix if len(writes) == 1 else text)
+
+        def edit_between_detection_and_rollback(point, **kwargs):
+            board.write_bytes(board.read_bytes() + b"CONCURRENT EDIT\n")
+            return real_undo(point, **kwargs)
+
+        M.write_atomic = corrupt_the_first_write
+        M.undo = edit_between_detection_and_rollback
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(plan, SCHEMA)
+        finally:
+            M.write_atomic = real_write
+            M.undo = real_undo
+
+        self.assertIn("automatic rollback also failed", str(caught.exception))
+        self.assertTrue(board.read_bytes().endswith(b"CONCURRENT EDIT\n"))
+
+    def test_post_write_concurrent_edit_is_not_treated_as_the_tools_image(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        real = M.write_atomic
+        writes = {"n": 0}
+
+        def edit_before_verification(path, text):
+            published = real(path, text)
+            writes["n"] += 1
+            if writes["n"] == 1:
+                path.write_bytes(path.read_bytes() + b"CONCURRENT EDIT\n")
+            return published
+
+        M.write_atomic = edit_before_verification
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(plan, SCHEMA)
+        finally:
+            M.write_atomic = real
+
+        self.assertIn("automatic rollback also failed", str(caught.exception))
+        self.assertTrue(board.read_bytes().endswith(b"CONCURRENT EDIT\n"))
 
     def test_a_line_edited_without_being_recorded_is_caught(self):
         """`rewritten` is the tool's own claim about what it changed. A
@@ -500,7 +554,6 @@ class TestRecoverable(unittest.TestCase):
                 self.assertEqual(rc, 1, (out, err))
                 self.assertEqual(p.text("BOARD.md"), before)
                 self.assertIn("tasks.jsonl", out.get("refused", ""))
-
     def test_apply_plans_and_writes_while_the_project_lock_is_held(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         active = {"value": False}
@@ -554,6 +607,225 @@ class TestRecoverable(unittest.TestCase):
         r = subprocess.run(["python3", str(LINT), "--claims", "--root",
                             str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(json.loads(r.stdout)["collisions"], 0)
+
+
+class TestFileImageFidelity(unittest.TestCase):
+    def test_crlf_apply_and_restore_preserve_the_exact_file_image(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        before = LEGACY_BOARD.replace("\n", "\r\n").encode("utf-8")
+        board.write_bytes(before)
+
+        dry_before = board.read_bytes()
+        dry_rc, _, dry_err = p.run()
+        self.assertEqual(dry_rc, 0, dry_err)
+        self.assertEqual(board.read_bytes(), dry_before)
+
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        applied = board.read_bytes()
+        self.assertNotEqual(applied, before)
+        self.assertEqual(applied.count(b"\r\n"), applied.count(b"\n"))
+
+        restore_rc, _, restore_err = p.run("restore")
+        self.assertEqual(restore_rc, 0, restore_err)
+        self.assertEqual(board.read_bytes(), before)
+
+    def test_a_symlinked_state_file_is_refused_before_any_write(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        target = p.root / "outside-board.md"
+        target.write_bytes(board.read_bytes())
+        before = target.read_bytes()
+        board.unlink()
+        board.symlink_to(target)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("symlink", out["refused"].lower())
+        self.assertTrue(board.is_symlink())
+        self.assertEqual(target.read_bytes(), before)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_a_non_regular_state_path_is_a_refusal_not_a_traceback(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board.unlink()
+        board.mkdir()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("not a regular file", out["refused"])
+        self.assertNotIn("Traceback", err)
+        self.assertTrue(board.is_dir())
+
+    def test_a_symlinked_derived_task_store_is_refused_before_any_write(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board_before = board.read_bytes()
+        target = p.root / "outside-tasks.jsonl"
+        target.write_text("", encoding="utf-8")
+        store = p.root / "tasks.jsonl"
+        store.symlink_to(target)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("tasks.jsonl is a symlink", out["refused"])
+        self.assertEqual(board.read_bytes(), board_before)
+        self.assertTrue(store.is_symlink())
+        self.assertEqual(target.read_bytes(), b"")
+
+    def test_a_state_file_below_a_symlinked_parent_is_refused(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        design = p.root / "design"
+        outside = p.root / "outside-design"
+        design.rename(outside)
+        design.symlink_to(outside, target_is_directory=True)
+        before = (outside / "DESIGN-001-x.md").read_bytes()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("crosses symlink", out["refused"])
+        self.assertEqual((outside / "DESIGN-001-x.md").read_bytes(), before)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_a_symlinked_declaration_record_is_refused_before_state_writes(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        before = board.read_bytes()
+        record = p.root / ".perry" / "conformance.md"
+        record.parent.mkdir(exist_ok=True)
+        target = p.root / "outside-conformance.md"
+        target.write_text("outside\n", encoding="utf-8")
+        record.symlink_to(target)
+
+        with self.assertRaises(M.Refused) as caught:
+            M.apply_plan(plan, SCHEMA)
+
+        self.assertIn("conformance.md is a symlink", str(caught.exception))
+        self.assertEqual(board.read_bytes(), before)
+        self.assertTrue(record.is_symlink())
+        self.assertEqual(target.read_text(encoding="utf-8"), "outside\n")
+        self.assertFalse((p.root / ".perry" / "migrate").exists())
+
+
+class TestRestoreTransactionProtocol(unittest.TestCase):
+    def test_restore_preflights_every_path_before_overwriting_a_new_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        board = p.root / "BOARD.md"
+        design = p.root / "design" / "DESIGN-001-x.md"
+        board.write_bytes(board.read_bytes() + b"\nPOST MIGRATION USER EDIT\n")
+        current = {"BOARD.md": board.read_bytes(), "design": design.read_bytes()}
+
+        rc, out, err = p.run("restore")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("changed since migration", out["refused"])
+        self.assertEqual(board.read_bytes(), current["BOARD.md"])
+        self.assertEqual(design.read_bytes(), current["design"],
+                         "restore wrote one file before discovering the conflict")
+
+    def test_restore_can_retry_after_a_partial_restore_failure(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        point = next((p.root / ".perry" / "migrate").glob("*.json"))
+
+        real = M.write_atomic
+        calls = {"n": 0}
+
+        def fail_second_restore_write(path, data):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise PermissionError(13, "simulated restore failure", str(path))
+            return real(path, data)
+
+        M.write_atomic = fail_second_restore_write
+        try:
+            with self.assertRaises(PermissionError):
+                M.undo(point, expected_root=p.root)
+        finally:
+            M.write_atomic = real
+
+        rc, out, err = p.run("restore", point.stem)
+
+        self.assertEqual(rc, 0, (out, err))
+        self.assertEqual(p.text("BOARD.md"), LEGACY_BOARD)
+        self.assertEqual(p.text("design/DESIGN-001-x.md"), LEGACY_DESIGN)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_two_runs_in_one_second_never_share_a_restore_point(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        real_datetime = M.datetime
+
+        class Frozen:
+            @classmethod
+            def now(cls):
+                return real_datetime(2026, 1, 2, 3, 4, 5)
+
+        M.datetime = Frozen
+        try:
+            board_run = M.apply_plan(
+                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"]),
+                SCHEMA, declare=False)
+            design_run = M.apply_plan(
+                M.plan_project(p.root, p.root, SCHEMA,
+                               ["design/DESIGN-001-x.md"]),
+                SCHEMA, declare=False)
+        finally:
+            M.datetime = real_datetime
+
+        self.assertNotEqual(board_run["run"], design_run["run"])
+        points = sorted((p.root / ".perry" / "migrate").glob("*.json"))
+        self.assertEqual(len(points), 2)
+
+    def test_restore_payload_path_type_and_hash_are_validated_before_writes(self):
+        mutations = ("path", "type", "hash", "unhashed")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                self.assertEqual(p.run("apply")[0], 0)
+                point = next((p.root / ".perry" / "migrate").glob("*.json"))
+                payload = json.loads(point.read_text())
+                board = p.root / "BOARD.md"
+                before = board.read_bytes()
+                escape = p.root.parent / f"{p.root.name}-escape"
+
+                if mutation == "path":
+                    entry = payload["files"].pop("BOARD.md")
+                    expected = payload["expected_after"].pop("BOARD.md")
+                    rel = f"../{escape.name}"
+                    payload["files"][rel] = entry
+                    payload["expected_after"][rel] = expected
+                elif mutation == "type":
+                    payload["files"]["BOARD.md"]["type"] = "symlink"
+                elif mutation == "unhashed":
+                    payload["files"]["BOARD.md"] = "unverified replacement\n"
+                else:
+                    payload["files"]["BOARD.md"]["sha256"] = "0" * 64
+                point.write_text(json.dumps(payload))
+
+                try:
+                    rc, out, err = p.run("restore", point.stem)
+
+                    self.assertEqual(rc, 1, (out, err))
+                    self.assertIn("restore payload", out["refused"])
+                    self.assertEqual(board.read_bytes(), before)
+                    self.assertFalse(escape.exists())
+                finally:
+                    if escape.exists():
+                        escape.unlink()
 
 
 # ── 4 · the user declares ─────────────────────────────────────────────────
@@ -670,6 +942,20 @@ class TestPartialIsAState(unittest.TestCase):
         p.run("apply", "--only", "BOARD.md")
         self.assertEqual(p.text("design/DESIGN-001-x.md"), design_before)
         self.assertNotEqual(p.text("BOARD.md"), LEGACY_BOARD)
+
+    def test_only_design_does_not_derive_a_store_from_the_unselected_board(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        board_before = (p.root / "BOARD.md").read_bytes()
+
+        rc, out, err = p.run("apply", "--only", "design/DESIGN-001-x.md")
+
+        self.assertEqual(rc, 0, (out, err))
+        self.assertEqual(out["applied"]["applied"],
+                         ["design/DESIGN-001-x.md"])
+        self.assertEqual((p.root / "BOARD.md").read_bytes(), board_before)
+        self.assertFalse((p.root / "tasks.jsonl").exists(),
+                         "--only design crossed its boundary through the task store")
 
     def test_the_refusal_names_the_finding_that_blocked_the_file(self):
         p = Project({"BOARD.md": UNRESOLVABLE_BOARD})
@@ -1609,7 +1895,7 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         point = Path(tempfile.mkdtemp()) / "2026-01-01-000000.json"
         point.write_text("{}")
         real = M.undo
-        M.undo = lambda _p: (_ for _ in ()).throw(
+        M.undo = lambda _p, **_kwargs: (_ for _ in ()).throw(
             PermissionError(13, "Permission denied"))
         try:
             msg = M.rollback_message(point, "BOARD.md", "boom")
@@ -1618,6 +1904,54 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         self.assertIn("rollback also failed", msg)
         self.assertIn("perry-migrate restore 2026-01-01-000000", msg)
         self.assertIn("still migrated", msg)
+
+
+class TestIOFailuresAreStructuredRefusals(unittest.TestCase):
+    def test_scratch_copy_failure_is_a_refusal_during_planning(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        before = p.tree()
+        real = M.shutil.copy2
+
+        def denied(*_args, **_kwargs):
+            raise PermissionError(13, "scratch denied")
+
+        M.shutil.copy2 = denied
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.plan_project(p.root, p.root, SCHEMA)
+        finally:
+            M.shutil.copy2 = real
+
+        self.assertIn("scratch", str(caught.exception).lower())
+        self.assertEqual(p.tree(), before)
+
+    def test_invalid_utf8_is_refused_without_changing_the_file(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board.write_bytes(b"# Board\n\xff\xfe\n")
+        before = board.read_bytes()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("not valid UTF-8", out["refused"])
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(board.read_bytes(), before)
+
+    def test_malformed_restore_json_is_refused_for_restore_and_list(self):
+        for args in (("restore", "broken"), ("restore", "--list")):
+            with self.subTest(args=args):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                point = p.root / ".perry" / "migrate" / "broken.json"
+                point.parent.mkdir(parents=True)
+                point.write_text("{broken")
+
+                rc, out, err = p.run(*args)
+
+                self.assertEqual(rc, 1, (out, err))
+                self.assertIn("restore payload", out["refused"])
+                self.assertNotIn("Traceback", err)
 
 
 class TestNothingWritableIsNotACrash(unittest.TestCase):
@@ -1811,7 +2145,8 @@ class TestAReadOnlyFileDoesNotCrashPlanning(unittest.TestCase):
         self.assertTrue(points, "no restore point was written")
         payload = json.loads(points[-1].read_text())
         self.assertIn("BOARD.md", payload["files"])
-        self.assertEqual(payload["files"]["BOARD.md"].encode(), before)
+        self.assertEqual(M.image_bytes(payload["files"]["BOARD.md"], "BOARD.md"),
+                         before)
 
     def test_the_rest_of_the_project_still_migrates(self):
         """One unwritable file must not stop the run — guarantee 5, partial
@@ -1846,7 +2181,8 @@ class TestEveryWriteSiteIsGuarded(unittest.TestCase):
     #: Functions that ARE the guarded body — the `try` is around their callers,
     #: so calls inside them are covered by that.
     INSIDE_GUARDED = {"write_atomic", "undo", "restore_point", "render",
-                      "cross_file_delta", "main"}
+                      "decode_image", "encode_image", "update_expected_after",
+                      "main"}
 
     @staticmethod
     def _name(node):
