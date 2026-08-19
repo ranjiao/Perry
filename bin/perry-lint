@@ -2206,6 +2206,12 @@ def _stored_fields() -> tuple:
 _STORED_FIELDS = _stored_fields()
 
 
+def _empty_store_drift_stats() -> dict:
+    """The typed machine-readable state before a store comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
 def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     """The rendered file and the store disagree — ADR-007 decision 2.
 
@@ -2215,37 +2221,23 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     `perry-state § reconcile_drift` as the precedent for what happens next.
     That precedent reports; it does not refuse. So does this.
 
-    **Silent when there is no store, and that is the whole gate.** `perry-tasks`
-    does not write `tasks.jsonl` yet, so no ordinary project has one — "no
-    store" and "clean" are different answers, and printing a checkmark for
-    having compared nothing is the defect `--verification` and `--provenance`
-    each already refuse to commit. With no store this emits nothing, counts
-    nothing, and the test for it asserts that silence rather than trusting it.
+    **Silent finding list when there is no store, but explicit machine state.**
+    "No store" and "clean" are different answers. The former emits no finding
+    because there is no comparison to fail, while `store_drift` in the JSON
+    payload and the human summary say that the comparison was not performed.
 
-    **`warn`, not `error`, deliberately.** ADR-007 left the severity unset;
-    three things decide it, and the third is the one that would be irreversible:
+    **`warn`, not `error`, deliberately.** ADR-007 makes the store authoritative,
+    so drift never changes Task truth and rendering can restore the projection.
+    `reconcile_drift` establishes the same report-don't-honour posture. More
+    importantly, the conformance gate's own boundary is precise: warnings are
+    quality signals, while errors are shape violations. A drifted Board still
+    has a valid Board shape.
 
-      (a) `NS-01` is the standing precedent for a finding about Perry's own
-          footprint: `warn`, permanently, *so a user can knowingly live with
-          it* (DESIGN-002 § risks). Drift has that shape — the user edited
-          their own markdown, which is still how the board is written today.
-      (b) `reconcile_drift` reports drift and honours the board anyway
-          (DESIGN-004 decision 5). Two tools disagreeing about whether one fact
-          is fatal is worse than either verdict alone.
-      (c) ~~An `error` escalates into a write refusal under ADR-004's gate.~~
-          **FALSE, and a V4 round measured it.** `bin/perry-conform §
-          shape_errors` runs `check_file` ONLY — its own docstring says so —
-          and this check is called from `main()`. Promoting all four findings
-          to `error` on a copy still returned `conformant, errors: 0`, and a
-          gated write under `PERRY_CONFORMANCE=enforce` succeeded. The claim was
-          asserted in a commit message before it was checked.
-
-          What is true, and is the better argument anyway, is the criterion
-          `shape_errors` states itself: **warnings are quality signals, not
-          shape violations.** A board carrying drift is still a board every
-          reader parses correctly, which is the only thing a writer needs to
-          know. Drift is time-dependent in the same way `stale-run` is — the
-          bytes did not change, the store did.
+    A prior rationale claimed an `error` here would reach ADR-004's per-file
+    conformance gate and make `BOARD.md` read-only. A V4 round disproved that:
+    `shape_errors` calls `check_file`, while this cross-file check is called from
+    `main()`. The tests preserve the true severity contract without repeating
+    that false mechanism or leaning on NS-01, whose claims boundary is TASK-100.
 
     **Field-level, and it stays field-level even though the renderer landed.**
     This said "there is no renderer" and TASK-088 shipped one two commits later
@@ -2255,17 +2247,18 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     not cover — so a whole-line byte diff would report every
     untouched row as drift. What is compared instead is what the store WOULD
     hold if derived from the file as it stands (`perry-tasks.build()`, the one
-    derivation there is) against what it holds on disk. When a renderer lands,
-    this is the check that gains the byte comparison, and `build`/`verify` keep
-    the semantics they have: read here, never redefined.
+    derivation there is) against what it holds on disk. The renderer's byte diff
+    remains a separate projection check; `build`/`verify` keep the field
+    semantics they have rather than redefining them here.
     """
     findings: list[Finding] = []
-    check_store_drift.stats = {"store": False, "records": 0, "drifted": 0}
+    check_store_drift.stats = _empty_store_drift_stats()
 
     store_path = state_root / "tasks.jsonl"
     if not store_path.exists():
         return []
 
+    check_store_drift.stats["store_present"] = True
     rel_store = _rel(store_path, project_root)
     # **Four reachable store states used to kill the whole lint**, rc 2 and no
     # `--json` payload: a store written as one JSON array — which is the
@@ -2294,6 +2287,7 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                         "OBJECT per line — a whole-file array and a bare "
                         "scalar both parse and neither is a record; "
                         "`perry-tasks write --from-board` re-derives it")]
+    check_store_drift.stats["records"] = len(on_disk)
 
     board_path = state_root / "BOARD.md"
     rel_board = _rel(board_path, project_root)
@@ -2313,10 +2307,13 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
 
     stored = {r.get("id"): r for r in on_disk if r.get("id")}
     live = {r.get("id"): r for r in derived if r.get("id")}
-    check_store_drift.stats = {"store": True, "records": len(stored),
-                               "drifted": 0}
+    check_store_drift.stats.update({
+        "comparison_performed": not type_findings,
+        "records": len(stored),
+    })
 
     rows: list[tuple[str, str, int | None]] = []
+    projected_live: dict[str, dict] = {}
     for tid in sorted(live):
         want, got = stored.get(tid), live[tid]
         line = _board_line_of(board_text, tid)
@@ -2332,6 +2329,16 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             rows.append((tid, "the file carries this row and the store has no "
                               "record of it", line))
             continue
+        if line is None:
+            # Terminal rows deliberately leave the projection. They remain in
+            # the canonical store even if the disposable event log is gone, so
+            # their absence from BOARD.md is not drift. An open stored row,
+            # however, is expected to have a rendered row.
+            if want.get("status") not in ("done", "dropped"):
+                rows.append((tid, "the store holds this open row but the file "
+                                  "renders no row for it", None))
+            continue
+        projected_live[tid] = got
         differing = [f"`{k}`: file={_cell(got.get(k))!r} "
                      f"store={_cell(want.get(k))!r}"
                      for k in sorted(set(want) | set(got))
@@ -2341,6 +2348,8 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                          + (f"; and {len(differing) - 3} more field(s)"
                             if len(differing) > 3 else ""), line))
     for tid in sorted(set(stored) - set(live)):
+        if stored[tid].get("status") in ("done", "dropped"):
+            continue
         rows.append((tid, "the store holds this row and nothing in the file or "
                           "the event log still derives it", None))
 
@@ -2362,7 +2371,7 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
             f"`{rel_store}` — at this scale the store is stale rather than the "
             f"file hand-edited, and `perry-tasks verify` caps at ten too."))
-    findings.extend(_order_drift(stored, live, rel_board, rel_store))
+    findings.extend(_order_drift(stored, projected_live, rel_board, rel_store))
     return findings
 
 
@@ -2785,6 +2794,7 @@ def main(argv: list[str]) -> int:
     load_glossary(schema)
 
     findings: list[Finding] = []
+    check_store_drift.stats = _empty_store_drift_stats()
 
     if mode_templates:
         root = PERRY_HOME
@@ -2874,6 +2884,8 @@ def main(argv: list[str]) -> int:
         }
         if not mode_templates:
             payload["conformance"] = conformance_note
+            payload["store_drift"] = dict(getattr(
+                check_store_drift, "stats", _empty_store_drift_stats()))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -2891,11 +2903,15 @@ def main(argv: list[str]) -> int:
         # when it returns rc 2 rather than 0 with no store.
         _st = getattr(check_store_drift, "stats", None)
         if _st and not mode_templates:
-            print(f"  · store: {_st['records']} record(s), "
-                  f"{_st['drifted']} row(s) drifted"
-                  if _st["store"] else
-                  "  · no `tasks.jsonl` — drift against the store is "
-                  "unchecked, not clean")
+            if not _st["store_present"]:
+                print("  · no `tasks.jsonl` — drift against the store is "
+                      "unchecked, not clean")
+            elif not _st["comparison_performed"]:
+                print(f"  · store: {_st['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · store: {_st['records']} record(s), "
+                      f"{_st['drifted']} row(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "

@@ -2,17 +2,16 @@
 
 ADR-007 decision 2: `BOARD.md` becomes rendered output and **a hand edit
 becomes drift**. The ADR left the severity unset, and this suite pins the
-answer as much as the behaviour — `warn`, never `error`, on the `NS-01`
-precedent (a finding about Perry's own footprint stays `warn` so a user can
-knowingly live with it) and on `perry-state § reconcile_drift`, which reports
-drift and honours the board anyway.
+answer as much as the behaviour: `warn`, never `error`, because drift is a
+quality signal rather than a shape violation and `reconcile_drift` establishes
+the same report-don't-honour posture. The cross-file check does not participate
+in ADR-004's per-file conformance gate.
 
 **Three cases, and the third is the one that is easy to get wrong.** A project
 with a store and an edited file yields the finding; a project with a store and
 an untouched file does not; a project with **no store at all** yields nothing —
-`perry-tasks` does not write `tasks.jsonl` yet, so that is every real project
-today, and "no store" and "clean" are different answers. The silence is
-asserted rather than assumed.
+"no store" and "clean" are different answers. The finding list stays silent in
+the former case, while the typed JSON state records that no comparison ran.
 
 Run: python3 tests/parallel test_store_drift
 """
@@ -73,6 +72,20 @@ class Fixture(unittest.TestCase):
                         f"{proc.stdout[-300:]}{proc.stderr[-300:]}")
         return proc.returncode, json.loads(proc.stdout)
 
+    def lint_text(self, d: pathlib.Path, *extra) -> tuple[int, str]:
+        proc = subprocess.run([sys.executable, str(LINT), "--root", str(d),
+                               *extra], capture_output=True, text=True, cwd=ROOT)
+        return proc.returncode, proc.stdout
+
+    def records(self, d: pathlib.Path) -> list[dict]:
+        return [json.loads(line) for line in
+                (d / "perry" / "tasks.jsonl").read_text().split("\n")
+                if line.strip()]
+
+    def put_records(self, d: pathlib.Path, records: list[dict]) -> None:
+        (d / "perry" / "tasks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+
     def drift(self, payload: dict) -> list[dict]:
         return [f for f in payload["findings"]
                 if f["rule"].startswith("store-")]
@@ -121,11 +134,12 @@ class TestAnEditedFileIsReported(Fixture):
         self.assertIn("TASK-901", rows[0]["message"])
 
     def test_it_is_warn_and_not_a_refusal(self):
-        """`NS-01`'s posture, and `reconcile_drift`'s. An `error` would go red
-        on every project that has ever hand-edited a board, on the first run
-        after upgrading — and under ADR-004's gate would take `BOARD.md`
-        read-only with it. `--strict` is how a project opts into the stronger
-        reading."""
+        """Drift is a quality signal, not a malformed Board shape.
+
+        `reconcile_drift` reports rather than honours it. ADR-004's gate is
+        per-file and does not consume this cross-file check; `--strict` is how a
+        project asks advisory findings to make the lint process red.
+        """
         d = self.project()
         self.store(d)
         self.edit_a_title(d)
@@ -136,6 +150,17 @@ class TestAnEditedFileIsReported(Fixture):
         self.assertEqual(self.lint(d, "--strict")[0], 1,
                          "--strict does not promote the warning")
 
+    def test_the_warn_rationale_names_the_real_boundary(self):
+        source = LINT.read_text()
+        start = source.index("def check_store_drift(")
+        end = source.index("def _order_drift(", start)
+        rationale = source[start:end]
+        self.assertIn("quality signals", rationale)
+        self.assertIn("shape violations", rationale)
+        self.assertNotIn(
+            "An `error` escalates into a write refusal under ADR-004's gate",
+            rationale)
+
 
 class TestAnUntouchedFileIsNotReported(Fixture):
     def test_a_store_written_from_the_file_is_clean(self):
@@ -144,6 +169,12 @@ class TestAnUntouchedFileIsNotReported(Fixture):
         rc, payload = self.lint(d)
         self.assertEqual(self.drift(payload), [])
         self.assertEqual(rc, 0)
+        self.assertEqual(payload["store_drift"], {
+            "store_present": True,
+            "comparison_performed": True,
+            "records": len(self.records(d)),
+            "drifted": 0,
+        })
 
     def test_the_store_it_writes_is_not_reported_as_a_stray_file(self):
         """`perry-tasks write` puts `tasks.jsonl` inside the state root. A lint
@@ -157,10 +188,11 @@ class TestAnUntouchedFileIsNotReported(Fixture):
 
 
 class TestNoStoreIsSilent(Fixture):
-    """**The case that must be asserted rather than assumed.** `perry-tasks`
-    writes nothing on an ordinary project, so this is the state every project
-    is in today; a check that reported "clean" here would be answering a
-    question it never asked."""
+    """**The case that must be asserted rather than assumed.**
+
+    A project may predate the store or be mid-adoption. Reporting its projection
+    as checked would answer a question the lint never asked.
+    """
 
     def test_a_project_with_no_store_yields_nothing_at_all(self):
         d = self.project()
@@ -169,6 +201,12 @@ class TestNoStoreIsSilent(Fixture):
         rc, payload = self.lint(d)
         self.assertEqual(self.drift(payload), [])
         self.assertEqual(rc, 0)
+        self.assertEqual(payload["store_drift"], {
+            "store_present": False,
+            "comparison_performed": False,
+            "records": 0,
+            "drifted": 0,
+        })
 
     def test_the_silence_is_the_missing_store_and_not_a_dead_check(self):
         """The same project, the same hand edit, twice — once without a store
@@ -182,6 +220,163 @@ class TestNoStoreIsSilent(Fixture):
         self.edit_a_title(d, "a second title nothing wrote")
         self.assertNotEqual(self.drift(self.lint(d)[1]), [],
                             "the check is silent even with a store present")
+
+
+class TestTheComparisonStateIsObservable(Fixture):
+    def test_a_derivation_failure_is_uncheckable_not_clean(self):
+        """M2: a duplicate Board row makes the projection derivation refuse."""
+        d = self.project()
+        self.store(d)
+        board = d / "perry" / "BOARD.md"
+        text = board.read_text()
+        row = re.search(r"^\| TASK-\d+ \|.*\n", text, re.M)
+        self.assertIsNotNone(row)
+        board.write_text(text[:row.end()] + row.group(0) + text[row.end():])
+
+        rc, payload = self.lint(d)
+        self.assertEqual(rc, 0)
+        self.assertIn("store-drift-uncheckable",
+                      [f["rule"] for f in payload["findings"]])
+        self.assertEqual(payload["store_drift"], {
+            "store_present": True,
+            "comparison_performed": False,
+            "records": len(self.records(d)),
+            "drifted": 0,
+        })
+
+    def test_human_output_distinguishes_absent_clean_and_uncheckable(self):
+        absent = self.project()
+        _, absent_text = self.lint_text(absent)
+        self.assertIn("no `tasks.jsonl`", absent_text)
+        self.assertIn("unchecked, not clean", absent_text)
+
+        clean = self.project()
+        self.store(clean)
+        _, clean_text = self.lint_text(clean)
+        self.assertIn("0 row(s) drifted", clean_text)
+
+        broken = self.project()
+        self.store(broken)
+        board = broken / "perry" / "BOARD.md"
+        text = board.read_text()
+        row = re.search(r"^\| TASK-\d+ \|.*\n", text, re.M)
+        board.write_text(text[:row.end()] + row.group(0) + text[row.end():])
+        _, broken_text = self.lint_text(broken)
+        self.assertIn("comparison incomplete", broken_text)
+        self.assertIn("unchecked, not clean", broken_text)
+
+
+class TestBothRowSetDirectionsAreReported(Fixture):
+    def _extra_record(self, d: pathlib.Path, tid: str) -> dict:
+        record = dict(self.records(d)[0])
+        record.update({"id": tid, "title": f"store only {tid}",
+                       "status": "not_started", "order": 999})
+        return record
+
+    def test_a_store_only_open_record_is_reported(self):
+        """M3: deleting the store-only loop makes this disappear."""
+        d = self.project()
+        self.store(d)
+        records = self.records(d)
+        records.append(self._extra_record(d, "TASK-9901"))
+        self.put_records(d, records)
+
+        _, payload = self.lint(d)
+        rows = self.drift(payload)
+        self.assertTrue(any("TASK-9901" in row["message"] for row in rows), rows)
+        self.assertEqual(payload["store_drift"]["drifted"], 1)
+
+    def test_the_cap_is_ten_named_rows_then_one_summary(self):
+        """M4: the boundary, plus the uncapped typed count."""
+        for count in (10, 11):
+            with self.subTest(count=count):
+                d = self.project()
+                self.store(d)
+                records = self.records(d)
+                records.extend(self._extra_record(d, f"TASK-98{i:02d}")
+                               for i in range(count))
+                self.put_records(d, records)
+                _, payload = self.lint(d)
+                rows = self.drift(payload)
+                summaries = [r for r in rows
+                             if "further row(s)" in r["message"]]
+                self.assertEqual(len(rows), 10 if count == 10 else 11, rows)
+                self.assertEqual(len(summaries), 0 if count == 10 else 1, rows)
+                self.assertEqual(payload["store_drift"]["drifted"], count)
+
+
+class TestOrderAndIdentityAreIndependent(Fixture):
+    def _task_row_indices(self, board: pathlib.Path) -> list[int]:
+        return [i for i, line in enumerate(board.read_text().splitlines())
+                if re.match(r"^\| TASK-\d+ \|", line)]
+
+    def test_swapping_adjacent_rows_is_one_section_order_finding(self):
+        """M5: removing `_order_drift` makes the only finding disappear."""
+        d = self.project()
+        self.store(d)
+        board = d / "perry" / "BOARD.md"
+        lines = board.read_text().splitlines()
+        pairs = [(a, b) for a, b in zip(self._task_row_indices(board),
+                                         self._task_row_indices(board)[1:])
+                 if b == a + 1]
+        self.assertTrue(pairs, "fixture has no adjacent task rows to swap")
+        a, b = pairs[0]
+        lines[a], lines[b] = lines[b], lines[a]
+        board.write_text("\n".join(lines) + "\n")
+
+        _, payload = self.lint(d)
+        rows = self.drift(payload)
+        order = [r for r in rows if "different order" in r["message"]]
+        self.assertEqual(len(order), 1, rows)
+        self.assertEqual(payload["store_drift"]["drifted"], 0,
+                         "order is one section finding, not N row mismatches")
+
+    def test_an_id_only_in_depends_on_is_not_a_board_row(self):
+        """M6: the missing-row guard and first-cell identity are both live."""
+        d = self.project()
+        self.store(d)
+        board = d / "perry" / "BOARD.md"
+        lines = board.read_text().splitlines()
+        header_i = next(i for i, line in enumerate(lines)
+                        if line.startswith("| ID |") and "Depends on" in line)
+        headers = [c.strip() for c in lines[header_i].split("|")[1:-1]]
+        depends_i = headers.index("Depends on")
+        row_i = next(i for i in range(header_i + 2, len(lines))
+                     if re.match(r"^\| TASK-\d+ \|", lines[i]))
+        cells = lines[row_i].split("|")[1:-1]
+        cells[depends_i] = " TASK-9999 "
+        lines[row_i] = "|" + "|".join(cells) + "|"
+        board.write_text("\n".join(lines) + "\n")
+        with (d / ".perry" / "events.jsonl").open("a") as stream:
+            stream.write(json.dumps({"ts": "2026-08-19T00:00:00",
+                                     "event": "done", "id": "TASK-9999",
+                                     "to": "done", "actor": "test"}) + "\n")
+
+        _, payload = self.lint(d)
+        messages = [r["message"] for r in self.drift(payload)]
+        self.assertFalse(any(message.startswith("TASK-9999 ")
+                             for message in messages),
+                         messages)
+
+
+class TestSharedStoreValidationIsUsed(Fixture):
+    def test_a_duplicate_id_is_named_instead_of_last_record_wins(self):
+        d = self.project()
+        self.store(d)
+        records = self.records(d)
+        duplicate = dict(records[0])
+        duplicate["title"] = "CORRUPT DUPLICATE MUST NOT WIN"
+        records.append(duplicate)
+        self.put_records(d, records)
+
+        rc, payload = self.lint(d)
+        self.assertEqual(rc, 0)
+        typed = [f for f in payload["findings"]
+                 if f["rule"] == "store-badly-typed"]
+        self.assertTrue(any("unique task id" in f["message"] for f in typed), typed)
+        self.assertFalse(any("CORRUPT DUPLICATE" in f["message"]
+                             for f in self.drift(payload)))
+        self.assertFalse(payload["store_drift"]["comparison_performed"])
 
 
 class TestOneCheckMayNotKillTheLint(unittest.TestCase):
@@ -210,7 +405,7 @@ class TestOneCheckMayNotKillTheLint(unittest.TestCase):
         write_store(d / "perry" / "tasks.jsonl")
         return d
 
-    def rules(self, d):
+    def payload(self, d):
         import json
         import subprocess
         import sys
@@ -219,7 +414,10 @@ class TestOneCheckMayNotKillTheLint(unittest.TestCase):
              "--root", str(d), "--json"], capture_output=True, text=True)
         self.assertTrue(proc.stdout.strip(),
                         f"the lint produced no payload: {proc.stderr[-200:]}")
-        return [f["rule"] for f in json.loads(proc.stdout)["findings"]]
+        return json.loads(proc.stdout)
+
+    def rules(self, d):
+        return [f["rule"] for f in self.payload(d)["findings"]]
 
     def test_a_whole_file_json_array_is_reported(self):
         import json
@@ -229,6 +427,13 @@ class TestOneCheckMayNotKillTheLint(unittest.TestCase):
     def test_a_bare_scalar_line_is_reported(self):
         d = self.project(lambda p: p.write_text("null\n"))
         self.assertIn("store-unreadable", self.rules(d))
+
+    def test_an_unreadable_store_is_present_but_not_compared(self):
+        d = self.project(lambda p: p.write_text("not json\n"))
+        state = self.payload(d)["store_drift"]
+        self.assertEqual(state, {"store_present": True,
+                                 "comparison_performed": False,
+                                 "records": 0, "drifted": 0})
 
     def test_a_directory_where_the_store_should_be_is_reported(self):
         d = self.project(lambda p: p.mkdir())
