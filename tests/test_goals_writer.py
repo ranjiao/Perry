@@ -65,7 +65,8 @@ ELSEWHERE = [
 
 
 def goals_module():
-    """`bin/perry-goals` as a module, for asserting on `CLOCK_RE` directly."""
+    """`bin/perry-goals` as a module, for asserting on its patterns and on
+    what TASK-091 deleted directly rather than through the CLI."""
     import importlib.machinery
     import importlib.util
     spec = importlib.util.spec_from_loader(
@@ -236,6 +237,10 @@ Ship it.
 #: Deliberately hand-aligned, and deliberately NOT in the schema's column
 #: order — a writer that places cells by position rather than by resolved name
 #: fills `To whom` with a date here and the test says so.
+#:
+#: Post-TASK-091 it carries `Due` and **no** `By when note`: the note is
+#: optional, most registers will not have it, and every widening path is
+#: exercised by a table that starts without it.
 ALIGNED = """# OKR — fixture
 
 ## Mission
@@ -246,18 +251,65 @@ Ship it.
 
 > a note the user wrote
 
-| Track | Id      | Promise                | To whom | By when    | Status | Discharged by |
+| Track | Id      | Promise                | To whom | Due        | Status | Discharged by |
 |-------|---------|------------------------|---------|------------|--------|---------------|
 | rel   | rel/1   | Release 2.0            | Users   | {past}     | active |               |
-| ops   | ops/7   | Invoices reconciled    | Finance | within SLA | active | oldest-first  |
+| ops   | ops/7   | Invoices reconciled    | Finance | 3d         | active | oldest-first  |
 
 ## Anti-Goals
 
 - not this
 """
 
+#: The same register as it was written **before** the split: one `By when`
+#: column holding a date on one row and prose on the other. Every migration
+#: test starts here, and so does every "this tool will not write into a
+#: pre-split table" refusal.
+PRE_SPLIT = """# OKR — fixture
+
+## Mission
+
+Ship it.
+
+## Commitments
+
+> a note the user wrote
+
+| Id    | Track | Promise             | To whom | By when              | Status |
+|-------|-------|---------------------|---------|----------------------|--------|
+| rel/1 | rel   | Release 2.0         | Users   | 2027-01-01           | active |
+| ops/7 | ops   | Invoices reconciled | Finance | within the track SLA | active |
+| ops/8 | ops   | Statements filed    | Auditor | 3d                   | active |
+| ops/9 | ops   | Ledger closed       | Finance | —                    | active |
+
+## Anti-Goals
+
+- not this
+"""
+
+#: The Chinese half of the same thing, and the reason the migration is
+#: value-driven. `截止` is `Due`'s own Chinese spelling, so there is no header
+#: cell to rename — only cells to route.
+PRE_SPLIT_CN = """# OKR — 项目
+
+## 使命
+
+做出来。
+
+## 承诺
+
+| 编号 | 轨道 | 承诺内容 | 承诺对象 | 截止 | 状态 |
+|---|---|---|---|---|---|
+| ops/1 | ops | 对账 | 财务 | 下周期 | active |
+| ops/2 | ops | 报表 | 审计 | 2027-01-01 | active |
+
+## 反目标
+
+- 不做这个
+"""
+
 #: The same table with the headers Perry's own glossary declares for zh. Note
-#: `截止`, which the glossary maps from BOTH `Deadline` and `By when`.
+#: `截止`, which the glossary maps from BOTH `Deadline` and `Due`.
 CHINESE = """# OKR — 项目
 
 ## 使命
@@ -268,7 +320,7 @@ CHINESE = """# OKR — 项目
 
 | 编号 | 轨道 | 承诺内容 | 承诺对象 | 截止 | 状态 |
 |---|---|---|---|---|---|
-| ops/1 | ops | 对账 | 财务 | within the track SLA | active |
+| ops/1 | ops | 对账 | 财务 | 3d | active |
 
 ## 反目标
 
@@ -298,8 +350,8 @@ class Project:
             assert p.returncode == expect, (p.returncode, p.stdout, p.stderr)
         return p
 
-    def commit(self, *argv, expect=0):
-        return self.run("commit", *argv, expect=expect)
+    def commit(self, *argv, expect=0, **env):
+        return self.run("commit", *argv, expect=expect, **env)
 
     def text(self) -> str:
         return self.okr_path.read_text()
@@ -344,7 +396,7 @@ class TestCreatingACommitment(WriterCase):
         p = self.project(ALIGNED.format(past="2027-01-01"))
         before = p.text()
         p.commit("--track", "ops", "--promise", "Statements filed",
-                 "--to", "Auditor", "--by", "within the track SLA")
+                 "--to", "Auditor", "--due", "3d")
         diff = p.changed_lines(before)
         self.assertEqual([d[0] for d in diff], ["+"], diff)
         self.assertIn("ops/8", diff[0][1])
@@ -359,7 +411,7 @@ class TestCreatingACommitment(WriterCase):
         this register then follows a link that points at nothing."""
         p = self.project(ALIGNED.format(past="2027-01-01"))
         p.commit("--track", "ops", "--promise", "Statements filed",
-                 "--to", "Auditor", "--by", "within the track SLA")
+                 "--to", "Auditor", "--due", "3d")
         row = [l for l in p.text().split("\n") if "ops/8" in l][0]
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
         self.assertEqual("ops", cells[0])
@@ -370,11 +422,11 @@ class TestCreatingACommitment(WriterCase):
     def test_the_id_is_minted_per_track(self):
         p = self.project()
         p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                 "--by", "5 days")
+                 "--due", "3d")
         p.commit("--track", "rel", "--promise", "b", "--to", "y",
-                 "--by", "2027-01-01")
+                 "--due", "2027-01-01")
         p.commit("--track", "ops", "--promise", "c", "--to", "z",
-                 "--by", "5 days")
+                 "--due", "3d")
         ids = [e["id"] for e in p.events() if e["event"] == "commit"]
         self.assertEqual(["ops/1", "rel/1", "ops/2"], ids)
 
@@ -383,16 +435,29 @@ class TestCreatingACommitment(WriterCase):
         row's `Commitment` cell points at this string; reusing a number does
         not dangle visibly, it silently re-points work at another promise."""
         p = self.project()
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         p.okr_path.write_text(
             "\n".join(l for l in p.text().split("\n") if "ops/1" not in l))
-        p.commit("--track", "ops", "--promise", "b", "--to", "y", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "b", "--to", "y", "--due", "3d")
         self.assertIn("ops/2", p.text())
         self.assertNotIn("ops/1 ", p.text())
 
+    def test_a_note_on_a_table_without_the_column_widens_it_and_says_so(self):
+        """`By when note` is optional, so most registers do not carry it.
+        Adding it reaches lines the caller did not name — the same edit as
+        `Discharged by`, reported for the same reason."""
+        p = self.project(ALIGNED.format(past="2027-01-01"))
+        r = p.commit("--track", "ops", "--promise", "Statements filed",
+                     "--to", "Auditor", "--due", "3d",
+                     "--by-when-note", "within the track SLA")
+        self.assertIn("widened", r.stdout)
+        self.assertIn("By when note", r.stdout)
+        row = [l for l in p.text().split("\n") if "ops/8" in l][0]
+        self.assertIn("within the track SLA", row)
+
     def test_status_is_active_and_discharged_by_is_left_empty(self):
         p = self.project()
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         row = [l for l in p.text().split("\n") if "ops/1" in l][0]
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
         self.assertEqual("active", cells[5])
@@ -411,13 +476,13 @@ class TestCreatingTheSection(WriterCase):
         p = self.project(BARE_OKR, only_project)
         before = p.text()
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                     "--by", "5 days", expect=1)
+                     "--due", "3d", expect=1)
         self.assertIn("no track", r.stderr)
         self.assertEqual(before, p.text())
 
     def test_it_is_created_from_the_template_note_included(self):
         p = self.project()
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         note = "> Promises to a named party by a date"
         self.assertIn(note, p.text())
         self.assertIn(note, (ROOT / "goals" / "state" / "OKR_TEMPLATE.md").read_text())
@@ -427,7 +492,7 @@ class TestCreatingTheSection(WriterCase):
     def test_it_lands_before_anti_goals_and_leaves_every_other_line_alone(self):
         p = self.project()
         before = p.text()
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         self.assertLess(p.text().index("## Commitments"),
                         p.text().index("## Anti-Goals"))
         for line in before.split("\n"):
@@ -436,66 +501,148 @@ class TestCreatingTheSection(WriterCase):
 
     def test_a_file_with_no_anti_goals_gets_the_section_at_the_end(self):
         p = self.project("# OKR\n\n## Mission\n\nShip it.\n")
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         self.assertTrue(p.text().startswith("# OKR\n\n## Mission\n\nShip it.\n"))
         self.assertIn("## Commitments", p.text())
 
 
-class TestByWhenCarriesTwoFormats(WriterCase):
-    """`phases.md § commit` step 4."""
+#: Every phrase the five failed review rounds fought over, in both languages.
+#:
+#: Round 1 refused `3d`. Round 2 fixed the Chinese half and left the English.
+#: Round 3 fixed the English half, broke eleven pairs that had agreed, and
+#: admitted `上天保佑` ("god willing") and `这年头` ("nowadays"). Round 4
+#: measured why: three hand-kept vocabularies that only looked paired. Round 5
+#: found the last one — `\b` does not exist in Chinese, so `下周期` ("next
+#: cycle") wrote a live commitment row while `next cycle` was refused.
+#:
+#: **Not one of them is a question any more.** None of these is an ISO date or
+#: an SLA token, so every one is refused by `--due` — including the ones the
+#: old rule accepted — and every one is accepted verbatim by `--by-when-note`,
+#: because nothing looks at it. One rule, two fields, no vocabulary.
+FOUGHT_OVER = [
+    "within the track SLA", "same business day", "5 days", "next cycle",
+    "soon", "ASAP", "when we get to it", "eventually", "best effort",
+    "month by month", "end of quarter", "the weekend", "god willing",
+    "下周期", "下周", "下周五", "每周一次", "每月两次", "在时限内",
+    "五个工作日", "季度末", "月底", "尽快", "有空再说", "日后再说",
+    "上天保佑", "这年头", "改天", "年后再说",
+]
 
-    def test_a_pipeline_track_refuses_prose(self):
+
+class TestDueIsTypedAndTheNoteIsNot(WriterCase):
+    """`phases.md § commit` step 4, after ADR-007 decision 3.
+
+    The old column asked *does this cell name a clock?* — a natural-language
+    question, asked of a regex, five times. `Due` asks *is this cell an ISO
+    date or an SLA token?*, which has one answer in every language, and the
+    prose the old column also carried moved to a field nothing inspects.
+    """
+
+    def test_a_pipeline_track_refuses_anything_but_a_date(self):
         p = self.project()
-        r = p.commit("--track", "rel", "--promise", "a", "--to", "x",
-                     "--by", "when it is ready", expect=1)
-        self.assertIn("must be a date", r.stderr)
+        for value in ("when it is ready", "3d", "within the track SLA"):
+            with self.subTest(value=value):
+                r = p.commit("--track", "rel", "--promise", "a", "--to", "x",
+                             "--due", value, expect=1)
+                self.assertIn("must be an ISO date", r.stderr)
 
     def test_a_pipeline_track_refuses_a_date_that_is_not_one(self):
         p = self.project()
         p.commit("--track", "rel", "--promise", "a", "--to", "x",
-                 "--by", "2026-02-30", expect=1)
+                 "--due", "2026-02-30", expect=1)
 
-    def test_a_queue_track_refuses_prose_that_names_no_clock(self):
-        """The category, not the three examples. `phases.md` lists `soon`,
-        `ASAP` and `when we get to it`; a guard built from that list passes
-        every other clockless phrase while claiming to implement the rule."""
+    def test_a_date_with_prose_around_it_is_not_a_date(self):
+        """The predecessor SEARCHED for a date, so `2026-09-30 or so` counted
+        as one and triage compared a sentence against today. A typed field
+        asks whether the WHOLE cell is a date."""
         p = self.project()
-        for prose in ("soon", "ASAP", "when we get to it", "eventually",
-                      "next time we look at it", "尽快", "有空再说",
-                      "best effort", "when resourcing allows"):
-            with self.subTest(prose=prose):
-                r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                             "--by", prose, expect=1)
-                self.assertIn("names no clock", r.stderr)
+        r = p.commit("--track", "rel", "--promise", "a", "--to", "x",
+                     "--due", "2027-01-01 or so", expect=1)
+        self.assertIn("must be an ISO date", r.stderr)
 
-    def test_a_queue_track_accepts_prose_that_does_name_one(self):
+    def test_due_accepts_a_date_and_the_sla_shorthand_and_nothing_else(self):
         p = self.project()
-        for prose in ("within the track SLA", "same business day", "5 days",
-                      "2027-01-01", "每周一次", "在时限内"):
-            with self.subTest(prose=prose):
+        for value in ("2027-01-01", "3d", "2w", "24h", "6m", "1y"):
+            with self.subTest(value=value):
                 p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                         "--by", prose)
+                         "--due", value)
+
+    def test_every_phrase_the_five_rounds_fought_over_is_refused_by_due(self):
+        """**In BOTH languages, under ONE rule.** The fifth round's defect was
+        that the two halves were matched under different rules; there is now
+        one rule and it mentions no language."""
+        p = self.project()
+        for value in FOUGHT_OVER:
+            with self.subTest(value=value):
+                before = p.text()
+                r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                             "--due", value, expect=1)
+                self.assertIn("`Due` is typed", r.stderr)
+                self.assertIn("--by-when-note", r.stderr,
+                              "the refusal did not say where the words go")
+                self.assertEqual(before, p.text())
+
+    def test_every_phrase_the_five_rounds_fought_over_lands_in_the_note(self):
+        """The other half, and the point of the split: nothing is lost. Each
+        phrase is stored **verbatim**, and the pair `下周期` / `next cycle` —
+        which round 5 judged differently — gets the same verdict here because
+        no rule is applied to either."""
+        for value in FOUGHT_OVER:
+            with self.subTest(value=value):
+                p = self.project()
+                p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                         "--due", "3d", "--by-when-note", value)
+                row = [l for l in p.text().split("\n") if "ops/1" in l][0]
+                self.assertIn(value, row)
+
+    def test_the_note_alone_is_not_a_commitment(self):
+        """A note ABOUT a deadline is not a deadline. `--due` has no default
+        and the note cannot stand in for it."""
+        p = self.project()
+        r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                     "--by-when-note", "within the track SLA", expect=1)
+        self.assertIn("--due is required", r.stderr)
+
+    def test_the_retired_flag_is_refused_by_name(self):
+        """`--by` fed one column holding two value spaces. Aliasing it to
+        `--due` would refuse every standing commitment whose deadline was
+        worded rather than dated, with a message about a flag nobody typed."""
+        p = self.project()
+        r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                     "--by", "within the track SLA", expect=1)
+        self.assertIn("--by is gone", r.stderr)
+        self.assertIn("--by-when-note", r.stderr)
+        self.assertEqual([], p.events())
+
+    def test_the_retired_flag_refuses_in_json_too(self):
+        """A refusal raised while reading the flags has no `args` to ask about
+        `--json`. Without the guard in `main` it exited through the
+        module-level handler with empty stdout."""
+        p = self.project()
+        r = p.run("commit", "--json", "--track", "ops", "--promise", "a",
+                  "--to", "x", "--by", "3d", expect=1)
+        self.assertIn("--by is gone", json.loads(r.stdout)["refused"])
 
     def test_a_queue_track_with_no_sla_in_the_register_is_refused(self):
         """"within the track SLA" pointing at an empty register is a promise
         with no clock at all."""
         p = self.project()
         r = p.commit("--track", "bare", "--promise", "a", "--to", "x",
-                     "--by", "within the track SLA", expect=1)
+                     "--due", "3d", "--by-when-note", "within the track SLA", expect=1)
         self.assertIn("no `SLA`", r.stderr)
         self.assertNotIn("bare/1", p.text())
 
     def test_an_undeclared_track_is_refused(self):
         p = self.project()
         r = p.commit("--track", "ghost", "--promise", "a", "--to", "x",
-                     "--by", "5 days", expect=1)
+                     "--due", "3d", expect=1)
         self.assertIn("not declared", r.stderr)
 
     def test_a_promise_to_nobody_is_routed_not_filed(self):
         """*A promise with no named party is a KR, and belongs under an
         Objective instead* — the refusal says where it goes."""
         p = self.project()
-        r = p.commit("--track", "ops", "--promise", "a", "--by", "5 days",
+        r = p.commit("--track", "ops", "--promise", "a", "--due", "3d",
                      expect=1)
         self.assertIn("Objective", r.stderr)
 
@@ -573,7 +720,7 @@ class TestAMissedCommitmentIsNeverSilentlyReDated(WriterCase):
     def test_re_dating_a_past_due_active_row_is_refused(self):
         p = self.project(ALIGNED.format(past=self.past()))
         before = p.text()
-        r = p.commit("--id", "rel/1", "--by", self.future(), expect=1)
+        r = p.commit("--id", "rel/1", "--due", self.future(), expect=1)
         self.assertIn("--miss rel/1", r.stderr)
         self.assertEqual(before, p.text())
 
@@ -582,19 +729,19 @@ class TestAMissedCommitmentIsNeverSilentlyReDated(WriterCase):
         date. A guard keyed on "is this an active row" would block the ordinary
         correction the procedure never forbade."""
         p = self.project(ALIGNED.format(past=self.future()))
-        p.commit("--id", "rel/1", "--by",
+        p.commit("--id", "rel/1", "--due",
                  f"{date.today() + timedelta(days=60):%Y-%m-%d}")
 
     def test_re_dating_a_past_due_row_that_was_already_missed_is_allowed(self):
         p = self.project(ALIGNED.format(past=self.past()))
         p.commit("--miss", "rel/1", "--reason", "slipped")
-        p.commit("--id", "rel/1", "--by", self.future())
+        p.commit("--id", "rel/1", "--due", self.future())
 
     def test_the_route_the_refusal_names_actually_works(self):
         p = self.project(ALIGNED.format(past=self.past()))
         p.commit("--miss", "rel/1", "--reason", "the build broke")
         p.commit("--track", "rel", "--promise", "Release 2.0",
-                 "--to", "Users", "--by", self.future())
+                 "--to", "Users", "--due", self.future())
         self.assertIn("rel/2", p.text())
         self.assertEqual(
             2, sum(1 for e in p.events() if e["id"].startswith("rel/")))
@@ -607,10 +754,10 @@ class TestAHandEditIsReconciledNotOverwritten(WriterCase):
 
     def edited(self) -> Project:
         p = self.project()
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         p.okr_path.write_text(
-            p.text().replace("| ops/1 | ops | a | x | 5 days | active |",
-                             "| ops/1 | ops | a | x | 5 days | closed |"))
+            p.text().replace("| ops/1 | ops | a | x | 3d | active |",
+                             "| ops/1 | ops | a | x | 3d | closed |"))
         return p
 
     def test_a_row_the_log_disagrees_with_refuses(self):
@@ -643,7 +790,7 @@ class TestTheEventLog(WriterCase):
 
     def test_every_write_emits_one_event(self):
         p = self.project(ALIGNED.format(past="2027-01-01"))
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         p.commit("--close", "ops/7", "--discharged-by", "done")
         p.commit("--miss", "rel/1", "--reason", "slipped")
         p.commit("--id", "ops/8", "--promise", "a, revised")
@@ -662,7 +809,7 @@ class TestTheEventLog(WriterCase):
     def test_a_refusal_writes_no_event(self):
         p = self.project()
         p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                 "--by", "soon", expect=1)
+                 "--due", "soon", expect=1)
         self.assertEqual([], p.events())
 
     def test_the_okr_write_stands_even_when_the_event_cannot_be_appended(self):
@@ -673,7 +820,7 @@ class TestTheEventLog(WriterCase):
         p = self.project()
         (p.dir / ".perry" / "events.jsonl").mkdir()  # a directory, not a file
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                     "--by", "5 days")
+                     "--due", "3d")
         self.assertIn("ops/1", p.text())
         self.assertIn("warning", r.stderr)
 
@@ -724,7 +871,7 @@ class TestTheHandOffContract(WriterCase):
         (p.dir / "DECISIONS.md").write_text("# decisions\n")
         (p.dir / "journal").mkdir()
         (p.dir / "journal" / "2026-08-17.md").write_text("# day\n")
-        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--by", "5 days")
+        p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         self.assertEqual("# board\n", (p.dir / "BOARD.md").read_text())
         self.assertEqual("# decisions\n", (p.dir / "DECISIONS.md").read_text())
         self.assertEqual("# day\n",
@@ -736,7 +883,7 @@ class TestTheHandOffContract(WriterCase):
         lane's file asks in chat and stops."""
         p = self.project()
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                     "--by", "5 days")
+                     "--due", "3d")
         self.assertIn("hand-off", r.stdout)
         self.assertIn("ops/1", r.stdout)
         self.assertIn("does not write BOARD.md", r.stdout)
@@ -754,7 +901,7 @@ class TestTheLockAndTheGate(WriterCase):
         with open(lock, "w") as fh:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
             r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                         "--by", "5 days", expect=1)
+                         "--due", "3d", expect=1)
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
         self.assertIn("another Perry write is holding", r.stderr)
         self.assertNotIn("Commitments", p.text())
@@ -765,7 +912,7 @@ class TestTheLockAndTheGate(WriterCase):
         p = self.project()
         before = p.text()
         r = p.run("commit", "--track", "ops", "--promise", "a", "--to", "x",
-                  "--by", "5 days", expect=1, PERRY_CONFORMANCE="enforce")
+                  "--due", "3d", expect=1, PERRY_CONFORMANCE="enforce")
         self.assertIn("ADR-004", r.stderr)
         self.assertEqual(before, p.text())
 
@@ -777,7 +924,7 @@ class TestTheLockAndTheGate(WriterCase):
         p = self.project()
         before = p.text()
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                     "--by", "5 days", "--dry-run", "--json")
+                     "--due", "3d", "--dry-run", "--json")
         self.assertEqual(before, p.text())
         self.assertEqual([], p.events())
         self.assertTrue(json.loads(r.stdout)["dry_run"])
@@ -785,18 +932,28 @@ class TestTheLockAndTheGate(WriterCase):
 
 class TestALocalizedTable(WriterCase):
 
-    def test_the_by_when_column_resolves_even_though_zh_shares_a_word(self):
+    def test_the_due_column_resolves_even_though_zh_shares_a_word(self):
         """`schema/state-schema.json § i18n.columns` maps BOTH `Deadline` and
-        `By when` onto `截止`. Resolved globally, a Chinese Commitments table
-        loses its `By when` column and a writer places the date by position.
+        `Due` onto `截止`. Resolved globally, a Chinese Commitments table
+        loses its `Due` column and a writer places the date by position.
         Resolution here is table-local, so the question has one answer."""
         p = self.project(CHINESE)
         p.commit("--track", "ops", "--promise", "报表", "--to", "审计",
-                 "--by", "within the track SLA")
+                 "--due", "3d", "--by-when-note", "within the track SLA")
         row = [l for l in p.text().split("\n") if "ops/2" in l][0]
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
-        self.assertEqual(["ops/2", "ops", "报表", "审计",
-                          "within the track SLA", "active"], cells)
+        self.assertEqual(["ops/2", "ops", "报表", "审计", "3d", "active",
+                          "within the track SLA"], cells)
+
+    def test_the_note_column_is_widened_in_chinese_too(self):
+        """A table this tool can still read and a human cannot is the same
+        failure as reformatting prose."""
+        p = self.project(CHINESE)
+        p.commit("--track", "ops", "--promise", "报表", "--to", "审计",
+                 "--due", "3d", "--by-when-note", "在时限内")
+        header = [l for l in p.text().split("\n") if l.startswith("| 编号")][0]
+        self.assertIn("截止说明", header)
+        self.assertNotIn("By when note", p.text())
 
     def test_the_chinese_heading_is_found(self):
         p = self.project(CHINESE)
@@ -871,7 +1028,7 @@ class TestWideningIsTheOnlyEditThatTouchesOtherRows(WriterCase):
             "| To whom ", "").replace("|---------|---------|", "|---------|")
         p = self.project(okr.replace("| Users   |", "").replace("| Finance |", ""))
         r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                     "--by", "5 days", expect=1)
+                     "--due", "3d", expect=1)
         self.assertIn("To whom", r.stderr)
 
 
@@ -899,7 +1056,7 @@ class TestTheRealFilesOnThisMachine(WriterCase):
             with self.subTest(path=str(source)):
                 before = p.text()
                 r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                             "--by", "5 days", expect=1)
+                             "--due", "3d", expect=1)
                 self.assertIn("pipeline", r.stderr)
                 self.assertEqual(before, p.text())
                 self.assertEqual(source.read_text(), before,
@@ -922,7 +1079,7 @@ class TestTheRealFilesOnThisMachine(WriterCase):
             with self.subTest(path=str(source)):
                 before = p.text()
                 p.commit("--track", "ops", "--promise", "Statements filed",
-                         "--to", "Auditor", "--by", "within the track SLA")
+                         "--to", "Auditor", "--due", "3d", "--by-when-note", "within the track SLA")
                 added = [d for d in p.changed_lines(before) if d[0] == "-"]
                 self.assertEqual([], added, "an existing line was rewritten")
                 lines = p.text().split("\n")
@@ -949,63 +1106,241 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
         self.assertIn("## Changelog", doc)
 
 
-class TestTheClockRuleIsEnforcedInBothLanguages(unittest.TestCase):
-    """`CLOCK_RE` required a whole word in English and a bare character in
-    Chinese.
+class TestTheClockRegexIsGone(unittest.TestCase):
+    """TASK-091's deliverable, asserted as an absence.
 
-    `[天日周月年]` matched any stray 日 or 年, so **`日后再说`** ("we'll talk
-    about it later"), `改天` and `年后再说` were **accepted and written into
-    `OKR.md` as live `By when` values** — while the English `when we get to it`
-    and the criteria file's own `有空再说` were correctly refused.
-
-    A rule enforced in one language and not the other is worse than a rule
-    enforced in neither: a Chinese project got a commitments register full of
-    deadlines that are not deadlines, and passed every check.
-
-    Found by a V4 reviewer. The second half — `3d` and `2w`, the shorthand
-    Perry's own `## Tracks` examples use — was **refused** by the same pattern,
-    so a legitimate SLA could not be written either.
+    The phase's Definition of Done is literally `grep -c CLOCK_RE bin/`
+    returning 0, so that is what this runs. The vocabulary table and its two
+    pattern builders go with it: a table nobody reads is documentation of a
+    rule that no longer exists, and this repository's own measurement says
+    unused vocabulary is its most-found defect class.
     """
 
-    CLOCKS = ["2026-09-30", "3d", "5 d", "2w", "2 weeks", "within the SLA",
-              "30 days", "hourly", "5个工作日", "两周内", "三天", "24小时",
-              "季度末", "月底", "本周内", "时限内"]
-    VAGUE = ["日后再说", "改天", "年后再说", "有空再说", "尽快", "有时间了做",
-             "when we get to it", "next time we look at it", "best effort",
-             "soon", "ASAP", "when resourcing allows"]
+    GONE = ["CLOCK_RE", "CLOCK_VOCAB", "_CN_EDGE", "_CN_EXTEND",
+            "_CN_NUM_CHARS", "_EN_NUM", "_alts", "_group", "check_by_when"]
 
-    def test_every_real_clock_is_accepted_in_both_languages(self):
-        for v in self.CLOCKS:
-            with self.subTest(value=v):
-                self.assertTrue(G.CLOCK_RE.search(v), f"{v!r} is a clock")
+    def test_no_file_under_bin_mentions_the_regex(self):
+        for path in sorted((ROOT / "bin").rglob("*")):
+            if not path.is_file():
+                continue
+            with self.subTest(path=path.name):
+                self.assertNotIn(
+                    "CLOCK_RE", path.read_text(errors="replace"),
+                    f"{path.name} still mentions the deleted regex")
 
-    def test_every_vague_promise_is_refused_in_both_languages(self):
-        for v in self.VAGUE:
-            with self.subTest(value=v):
-                self.assertFalse(G.CLOCK_RE.search(v),
-                                 f"{v!r} names no clock and was accepted")
+    def test_the_vocabulary_and_its_helpers_are_not_importable(self):
+        mod = goals_module()
+        for name in self.GONE:
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(mod, name),
+                                 f"{name} survived the deletion")
 
-    def test_the_two_languages_are_held_to_the_same_standard(self):
-        """The property, not the instances: for each pair meaning the same
-        thing, the two must agree. This is what a per-language list of
-        phrases cannot assert."""
-        pairs = [("日后再说", "when we get to it"),
-                 ("尽快", "ASAP"),
-                 ("两周内", "within 2 weeks"),
-                 ("三天", "3 days")]
-        for zh, en in pairs:
-            with self.subTest(pair=(zh, en)):
-                self.assertEqual(
-                    bool(G.CLOCK_RE.search(zh)), bool(G.CLOCK_RE.search(en)),
-                    f"{zh!r} and {en!r} mean the same and are judged "
-                    f"differently")
+    def test_what_replaced_it_is_two_anchored_formats(self):
+        """Not a smaller vocabulary — a format. Both patterns are anchored at
+        both ends, which is what makes "is the WHOLE cell this" the question
+        rather than "does this cell contain something like this"."""
+        mod = goals_module()
+        self.assertEqual("^", mod.ISO_DATE_RE.pattern[0])
+        self.assertEqual("$", mod.ISO_DATE_RE.pattern[-1])
+        self.assertEqual("^", mod.SLA_TOKEN_RE.pattern[0])
+        self.assertEqual("$", mod.SLA_TOKEN_RE.pattern[-1])
 
-    def test_a_bare_unit_with_no_quantity_is_not_a_clock(self):
-        """The category. `日` alone is a character, not a deadline — it becomes
-        one when something counts or bounds it."""
-        for v in ["日", "年", "周", "月"]:
-            with self.subTest(value=v):
-                self.assertFalse(G.CLOCK_RE.search(v))
+    def test_the_typed_check_names_no_language(self):
+        """The fifth round's defect was two halves matched under different
+        rules. There is now one rule, and it contains no CJK at all — so it
+        cannot be enforced asymmetrically."""
+        mod = goals_module()
+        for pattern in (mod.ISO_DATE_RE.pattern, mod.SLA_TOKEN_RE.pattern):
+            with self.subTest(pattern=pattern):
+                self.assertFalse(
+                    [c for c in pattern if "\u4e00" <= c <= "\u9fff"],
+                    "the typed check grew a language-specific half")
+
+
+class TestMigratingAPreSplitRegister(WriterCase):
+    """`commit --migrate`, and the counting that proves nothing was lost.
+
+    ADR-004's *a project migrates once*: the split is its own named write, not
+    something a `--close` does on the way past. The count is the evidence —
+    non-empty clock cells before must equal `Due` plus `By when note` after.
+    """
+
+    def clock_cells(self, text: str) -> list[str]:
+        """Every non-empty cell of the register's clock column(s), in order.
+
+        Read positionally FROM THE HEADER, so it works on both the pre-split
+        table (one column) and the post-split one (two) without knowing which
+        it is looking at."""
+        rows = [l for l in text.split("\n")
+                if l.strip().startswith("|") and not set(l) <= set("|- :\n")]
+        header = [c.strip() for c in rows[0].strip().strip("|").split("|")]
+        want = [i for i, c in enumerate(header)
+                if c in ("By when", "Due", "By when note", "截止", "截止说明")]
+        out = []
+        for row in rows[1:]:
+            cells = [c.strip() for c in row.strip().strip("|").split("|")]
+            for i in want:
+                v = cells[i] if i < len(cells) else ""
+                if v and v not in G.BLANKISH:
+                    out.append(v)
+        return out
+
+    def test_nothing_is_lost_and_each_cell_lands_in_its_own_field(self):
+        p = self.project(PRE_SPLIT)
+        before = self.clock_cells(p.text())
+        self.assertEqual(["2027-01-01", "within the track SLA", "3d"], before)
+
+        r = p.commit("--migrate")
+        after = self.clock_cells(p.text())
+        self.assertEqual(sorted(before), sorted(after),
+                         "a clock cell was dropped or rewritten")
+
+        rows = {l.split("|")[1].strip(): l for l in p.text().split("\n")
+                if l.strip().startswith("| ")}
+        self.assertIn("2027-01-01", rows["rel/1"])
+        self.assertIn("within the track SLA", rows["ops/7"])
+        self.assertIn("3d", rows["ops/8"])
+        self.assertIn("3 non-empty clock cell(s) before, 3 after", r.stdout)
+
+    def test_the_counts_are_reported_and_add_up(self):
+        p = self.project(PRE_SPLIT)
+        r = p.run("commit", "--migrate", "--json", expect=0)
+        m = json.loads(r.stdout)["migrated"]
+        self.assertEqual(4, m["rows"])
+        self.assertEqual(2, m["kept_as_due"])       # 2027-01-01 and 3d
+        self.assertEqual(1, m["moved_to_note"])     # within the track SLA
+        self.assertEqual(1, m["empty"])             # the em dash
+        self.assertEqual(m["rows"],
+                         m["kept_as_due"] + m["moved_to_note"] + m["empty"],
+                         "a row was counted twice or not at all")
+
+    def test_the_header_is_renamed_and_the_note_column_added(self):
+        p = self.project(PRE_SPLIT)
+        p.commit("--migrate")
+        header = [l for l in p.text().split("\n") if l.startswith("| Id ")][0]
+        self.assertIn("Due", header)
+        self.assertNotIn("By when |", header)
+        self.assertIn("By when note", header)
+
+    def test_an_em_dash_is_left_alone_rather_than_called_prose(self):
+        """`SKILL.md`'s own example rows write an empty cell as an em dash. A
+        migration that moved one into the note column would file a placeholder
+        as the user's words."""
+        p = self.project(PRE_SPLIT)
+        p.commit("--migrate")
+        row = [l for l in p.text().split("\n") if l.startswith("| ops/9")][0]
+        self.assertIn("—", row)
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        self.assertEqual("", cells[-1], "the em dash was moved into the note")
+
+    def test_it_works_in_chinese_where_there_is_no_header_to_rename(self):
+        """`截止` is `Due`'s own Chinese spelling, so the header cell does not
+        move — only the values do. This is the half of the problem that has an
+        answer in both languages, which the deleted regex did not."""
+        p = self.project(PRE_SPLIT_CN)
+        before = self.clock_cells(p.text())
+        self.assertEqual(["下周期", "2027-01-01"], before)
+        p.commit("--migrate")
+        self.assertEqual(sorted(before), sorted(self.clock_cells(p.text())))
+        header = [l for l in p.text().split("\n") if l.startswith("| 编号")][0]
+        self.assertIn("截止说明", header)
+        row = [l for l in p.text().split("\n") if l.startswith("| ops/1 ")][0]
+        self.assertTrue(row.rstrip().rstrip("|").rstrip().endswith("下周期"),
+                        row)
+
+    def test_prose_outside_the_table_is_untouched(self):
+        p = self.project(PRE_SPLIT)
+        before = p.text().split("\n")
+        p.commit("--migrate")
+        for old, new in zip(before, p.text().split("\n")):
+            if not old.strip().startswith("|"):
+                self.assertEqual(old, new)
+
+    def test_running_it_twice_changes_nothing_the_second_time(self):
+        p = self.project(PRE_SPLIT)
+        p.commit("--migrate")
+        once = p.text()
+        p.commit("--migrate")
+        self.assertEqual(once, p.text(), "the migration is not idempotent")
+
+    def test_a_dry_run_writes_nothing_and_still_counts(self):
+        p = self.project(PRE_SPLIT)
+        before = p.text()
+        r = p.run("commit", "--migrate", "--dry-run", "--json", expect=0)
+        self.assertEqual(before, p.text())
+        self.assertEqual([], p.events())
+        self.assertEqual(1, json.loads(r.stdout)["migrated"]["moved_to_note"])
+
+    def test_every_other_write_path_refuses_until_it_has_run(self):
+        """Half-splitting a table on the way past a `--close` is exactly the
+        migrate-as-a-side-effect ADR-004 forbids."""
+        for argv in (["--track", "ops", "--promise", "a", "--to", "x",
+                      "--due", "3d"],
+                     ["--close", "ops/7", "--discharged-by", "done"],
+                     ["--miss", "ops/7", "--reason", "slipped"],
+                     ["--id", "ops/7", "--promise", "revised"]):
+            with self.subTest(path=argv[0]):
+                p = self.project(PRE_SPLIT)
+                before = p.text()
+                r = p.commit(*argv, expect=1)
+                self.assertIn("commit --migrate", r.stderr)
+                self.assertEqual(before, p.text())
+                self.assertEqual([], p.events())
+
+    def test_the_refusal_also_fires_where_there_is_no_header_to_see(self):
+        """The Chinese case has no `By when` cell to find, so the gate is on
+        the VALUES — a typed question asked of a typed column, which is the
+        one thing the deleted regex was not."""
+        p = self.project(PRE_SPLIT_CN)
+        r = p.commit("--close", "ops/1", "--discharged-by", "已完成", expect=1)
+        self.assertIn("commit --migrate", r.stderr)
+
+    def test_after_migrating_the_ordinary_paths_work_again(self):
+        p = self.project(PRE_SPLIT)
+        p.commit("--migrate")
+        p.commit("--close", "ops/7", "--discharged-by", "worked oldest-first")
+        self.assertIn("closed", p.text())
+
+    def test_two_clock_columns_at_once_is_reported_not_guessed(self):
+        """A shape nothing here can produce — a hand edit, or a column-adding
+        migration run before `perry-migrate` learned to stand aside. A row
+        with a value in each is two deadlines for one promise, and picking one
+        is not a call a writer gets to make."""
+        p = self.project(PRE_SPLIT.replace(
+            "| By when              | Status |",
+            "| By when              | Status | Due        |").replace(
+            "| active |", "| active | 2028-01-01 |"))
+        before = p.text()
+        r = p.commit("--migrate", expect=1)
+        self.assertIn("BOTH", r.stderr)
+        self.assertIn("By when", r.stderr)
+        self.assertEqual(before, p.text())
+        self.assertEqual([], p.events())
+
+    def test_the_conformance_gate_does_not_lock_the_split_out(self):
+        """**The deadlock this exemption exists to break.** Under `enforce`,
+        ADR-004's gate makes a file that is not Perry's shape read-only — and a
+        pre-split register is out of shape by exactly the defect this command
+        fixes. Gated, the file could never be written to and never be repaired,
+        with no third command. `perry-migrate` is exempt from its own gate for
+        the same reason, and this is the transform it hands over."""
+        p = self.project(PRE_SPLIT)
+        blocked = p.commit("--track", "ops", "--promise", "a", "--to", "x",
+                           "--due", "3d", expect=1,
+                           PERRY_CONFORMANCE="enforce")
+        self.assertIn("read-only", blocked.stderr)
+
+        r = p.commit("--migrate", PERRY_CONFORMANCE="enforce")
+        self.assertIn("split", r.stdout)
+        self.assertIn("Due", p.text())
+        self.assertIn("By when note", p.text())
+
+    def test_it_takes_no_row_flags(self):
+        p = self.project(PRE_SPLIT)
+        r = p.commit("--migrate", "--track", "ops", "--promise", "a",
+                     "--to", "x", "--due", "3d", expect=1)
+        self.assertIn("Run it alone", r.stderr)
+
 
 
 class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
@@ -1026,7 +1361,7 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
     """
 
     OKR = ("# OKR\n\n## Mission\n\nx\n\n## Commitments\n\n"
-           "| Id | Track | Promise | To whom | By when | Status | Discharged by |\n"
+           "| Id | Track | Promise | To whom | Due | Status | Discharged by |\n"
            "|---|---|---|---|---|---|---|\n"
            "| C-1 | ops | keep it up | Finance | 3d | active | — |\n")
     TRACKS = ("\n## Tracks\n\n"
@@ -1052,124 +1387,6 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                                  f"accepted silently: {out.stderr}")
                 self.assertEqual(p.okr_path.read_bytes(),
                                  before, "a refusal wrote to the file")
-
-    def test_no_row_of_the_vocabulary_has_an_empty_side(self):
-        """**The check the last three rounds needed and none of them had.**
-
-        Round 2 fixed the Chinese half. Round 3 fixed the English half and left
-        eleven pairs that had previously agreed. Round 4 measured why: three
-        hand-kept vocabularies that only LOOKED paired — the Chinese side
-        carried `半几数每逐` and the English side carried none of them, so
-        `逐月` wrote a live commitment row and `month by month` was refused.
-
-        A reviewer's mutation proved the tests could not catch it: shrinking
-        the Chinese demonstratives to the four the old table happened to name
-        left **all 75 tests green** while `上个月`, `这周`, `去年` and `上季度`
-        flipped to refused. The table was the previous round's list
-        transcribed, so fix and test were shaped around the same phrases.
-
-        This walks the CORRESPONDENCE instead. A row with an empty side is a
-        rule enforced in one language and not the other, by construction.
-        """
-        mod = goals_module()
-        for kind, en, cn in mod.CLOCK_VOCAB:
-            with self.subTest(kind=kind, english=en[:1]):
-                self.assertTrue(en, f"{kind} row has no English spelling")
-                self.assertTrue(cn, f"{kind} row has no Chinese spelling")
-
-    def test_every_spelling_in_the_table_is_recognised(self):
-        """Every entry must reach `CLOCK_RE`, or the table is documentation.
-
-        Enumerated FROM the table, so adding a row without wiring it fails
-        here rather than silently doing nothing.
-        """
-        mod = goals_module()
-        for kind, en, cn in mod.CLOCK_VOCAB:
-            if kind in ("unit", "fuzzy", "qty"):
-                continue          # need a partner; covered below
-            for word in en + cn:
-                with self.subTest(word=word):
-                    self.assertTrue(bool(mod.CLOCK_RE.search(word)),
-                                    f"{word!r} is in CLOCK_VOCAB and is not "
-                                    f"recognised")
-
-    def test_every_unit_counts_when_counted_and_not_when_bare(self):
-        """Both halves of the rule, over the whole table rather than a list."""
-        mod = goals_module()
-        for kind, en, cn in mod.CLOCK_VOCAB:
-            if kind != "unit":
-                continue
-            for word in en:
-                with self.subTest(en=word):
-                    self.assertFalse(bool(mod.CLOCK_RE.search(word)),
-                                     f"a bare {word!r} names no time")
-                    self.assertTrue(bool(mod.CLOCK_RE.search(f"3 {word}")))
-            for word in cn:
-                with self.subTest(cn=word):
-                    self.assertFalse(bool(mod.CLOCK_RE.search(word)))
-                    self.assertTrue(bool(mod.CLOCK_RE.search(f"3{word}")))
-
-    def test_paired_rows_give_the_same_verdict(self):
-        """The property, walked over the table rather than a phrase list —
-        every English spelling and its Chinese partner must agree."""
-        mod = goals_module()
-        for kind, en, cn in mod.CLOCK_VOCAB:
-            if kind in ("unit", "fuzzy", "qty"):
-                continue
-            for e in en:
-                for c in cn:
-                    with self.subTest(pair=(e, c)):
-                        self.assertEqual(bool(mod.CLOCK_RE.search(e)),
-                                         bool(mod.CLOCK_RE.search(c)))
-
-    #: Phrases that name no clock. **Not the mirror of the table** — these are
-    #: the ones a cross product of demonstratives and units wrongly admitted.
-    #: `上天保佑` ("god willing") and `这年头` ("nowadays") were accepted by
-    #: round 3's fix and refused before it: a fix that introduced two new false
-    #: accepts of exactly the class it was closing.
-    NOT_A_CLOCK = ["上天保佑", "这年头", "改天", "有空再说", "日后再说",
-                   "年后再说", "when we get to it", "later", "some day",
-                   "eventually", "god willing", "nowadays"]
-
-    #: Compounds that CONTAIN a table entry. `\b` does not exist in Chinese,
-    #: so the Chinese side matched as a bare substring and `下周期` ("next
-    #: cycle") contained `下周` — a live commitment row, while `next cycle` was
-    #: correctly refused. Found by a V4 round 5.
-    #:
-    #: The rule is not "no CJK may follow": `下周五` and `上周三` are real
-    #: deadlines of exactly that shape. It is a closed set of characters that
-    #: keep the expression a TIME — numerals, bound markers, counters.
-    CJK_COMPOUNDS = [
-        ("下周期", False), ("下周五", True), ("上周三", True),
-        ("本周内", True), ("周末", True), ("每周一次", True),
-        ("每月两次", True), ("每季度三次", True), ("这年头", False),
-        ("上天保佑", False), ("下周", True),
-    ]
-
-    def test_a_compound_containing_a_time_word_is_judged_as_a_whole(self):
-        """The CJK equivalent of `\\b`, which the English side has had all
-        along. Two sides of a paired vocabulary matched under different rules
-        is a decorative pairing."""
-        mod = goals_module()
-        for phrase, expected in self.CJK_COMPOUNDS:
-            with self.subTest(phrase=phrase):
-                self.assertEqual(bool(mod.CLOCK_RE.search(phrase)), expected)
-
-    def test_the_extension_set_reuses_the_numerals(self):
-        """It was written out by hand first and dropped `两`, so `每月两次`
-        failed while `每月一次` passed — one rule with two spellings, inside
-        the fix for one rule having two spellings."""
-        mod = goals_module()
-        for ch in mod._CN_NUM_CHARS:
-            self.assertIn(ch, mod._CN_EXTEND,
-                          f"{ch} counts a unit but cannot extend one")
-
-    def test_prose_that_names_no_clock_is_still_refused(self):
-        mod = goals_module()
-        for phrase in self.NOT_A_CLOCK:
-            with self.subTest(phrase=phrase):
-                self.assertFalse(bool(mod.CLOCK_RE.search(phrase)),
-                                 f"{phrase!r} names no clock")
 
     def test_whitespace_only_is_refused_rather_than_erasing_the_cell(self):
         """Refused on create, **silently erasing** on amend — the same shape as
@@ -1234,7 +1451,7 @@ class TestCreateAndAmendAgreeAboutWhatACellCanHold(unittest.TestCase):
                      ["--id", "C-1", "--close",
                       "--discharged-by", self.MULTILINE],
                      ["--track", "ops", "--promise", self.MULTILINE,
-                      "--to", "x", "--by", "3d"]):
+                      "--to", "x", "--due", "3d"]):
             with self.subTest(path=" ".join(argv[:3])):
                 out = self.project().run("commit", *argv)
                 self.assertEqual(out.returncode, 1)

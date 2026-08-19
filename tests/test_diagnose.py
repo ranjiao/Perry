@@ -1139,7 +1139,7 @@ class TestWorkModeDetection(unittest.TestCase):
             write(root, ".perry/config.md", CONFIG)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
-                  "| Id | Track | Promise | To whom | By when | Status |\n"
+                  "| Id | Track | Promise | To whom | Due | Status |\n"
                   "|---|---|---|---|---|---|\n"
                   "| blog/1 | blog | Launch post | Marketing | 2026-09-30 | active |\n")
             write(root, "BOARD.md", board(
@@ -1152,10 +1152,53 @@ class TestWorkModeDetection(unittest.TestCase):
         self.assertTrue(any("Stage since" in e
                             for e in t["evidence"]["pipeline"]))
         self.assertTrue(any("Commitment" in e for e in t["evidence"]["pipeline"]))
-        self.assertTrue(any("dated `By when`" in e
+        self.assertTrue(any("dated `Due`" in e
                             for e in t["evidence"]["pipeline"]))
         self.assertTrue(any("stage vocabulary" in e
                             for e in t["evidence"]["pipeline"]))
+
+    def test_a_by_when_note_reads_as_a_standing_commitment(self):
+        """After TASK-091 the pipeline/queue signal is a COLUMN, not a regex
+        over a cell: a dated promise carries `Due`, a standing one carries
+        `By when note`."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| Id | Track | Promise | To whom | Due | Status | By when note |\n"
+                  "|---|---|---|---|---|---|---|\n"
+                  "| ops/1 | ops | Invoices | Finance | 3d | active | within the track SLA |\n")
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status |\n"
+                "|---|---|---|---|\n"
+                "| OPS-1 | Reconcile | Agent | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertTrue(any("By when note" in e for e in t["evidence"]["queue"]),
+                        t["evidence"]["queue"])
+
+    def test_a_pre_split_register_is_still_recognised(self):
+        """This tool diagnoses FOREIGN projects — the one job ADR-007 keeps a
+        parser for. A register written before the split still has to read as
+        what it is, or adoption reports a project has no commitments."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| Id | Track | Promise | To whom | By when | Status |\n"
+                  "|---|---|---|---|---|---|\n"
+                  "| blog/1 | blog | Launch post | Marketing | 2026-09-30 | active |\n"
+                  "| ops/1 | ops | Invoices | Finance | within the track SLA | active |\n")
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status |\n"
+                "|---|---|---|---|\n"
+                "| POST-1 | Launch post | Agent | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertTrue(any("dated `Due`" in e for e in t["evidence"]["pipeline"]),
+                        t["evidence"]["pipeline"])
+        self.assertTrue(any("By when note" in e for e in t["evidence"]["queue"]),
+                        t["evidence"]["queue"])
 
     def test_conflicting_signals_are_reported_as_a_tie_not_a_winner(self):
         """`low` and `none` are both 'cannot tell', and the payload keeps them

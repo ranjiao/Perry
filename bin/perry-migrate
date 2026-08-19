@@ -517,6 +517,36 @@ def fix_tables(lines: list[str], spec: dict, schema: dict,
                 if not got:
                     continue
                 missing = [c for c in tspec["columns"] if not satisfied(c, got)]
+                # **A column SPLIT is not a column ADD, and doing the add is
+                # worse than doing nothing.** `OKR.md § Commitments` used to
+                # carry one `By when` cell holding either a date or prose;
+                # TASK-091 split it into a typed `Due` and a prose `By when
+                # note` (ADR-007, decision 3). Appending an empty `Due` here
+                # leaves the table with both columns, every promise's clock
+                # still in the retired one, and `perry-lint` calling it clean —
+                # a file that looks migrated and is not.
+                #
+                # The transform that moves the VALUES belongs to the register's
+                # own writer, which is also the one tool that may write this
+                # file: `perry-goals commit --migrate`. So this reports and
+                # leaves the table byte-identical, which is what every other
+                # table this tool does not recognise already gets.
+                if "Due" in missing and L.norm("By when") in got:
+                    # Reported once, not once per pass: `migrate_text` runs the
+                    # transforms until the linter stops finding fixable things,
+                    # and this one is never fixable, so it is seen on every
+                    # pass. A finding printed twice reads as two tables.
+                    if not any(c.kind == "split-needed" for c in changes):
+                        changes.append(Change(
+                            "split-needed",
+                            "`Commitments` still carries the pre-split "
+                            "`By when` column. That is a column SPLIT, not a "
+                            "column add — run `perry-goals commit --migrate`, "
+                            "which moves each cell into `Due` or `By when "
+                            "note` by its value and drops nothing. Left "
+                            "byte-identical here.",
+                            hdr_i + 1))
+                    continue
                 if not missing:
                     continue
                 if not is_the_schemas_table(tspec, got, satisfied):

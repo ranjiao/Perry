@@ -121,7 +121,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 |---|---|---|
 | `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
-| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `By when` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
+| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
@@ -155,7 +155,7 @@ With arg: locate the row for `<subcommand>`, print it, then **read the matching 
 
 **`OKR.md § Commitments` has a deterministic writer.** `bin/perry-goals commit`
 edits that table in place — never re-rendering the file — mints `<track>/<n>`
-ids that are never reused, checks `By when` against the track's mode, refuses
+ids that are never reused, checks the typed `Due` against the track's mode, refuses
 to silently re-date a missed promise, and appends an event to
 `.perry/events.jsonl` for every write. Full rules and the exact commands:
 `reference/phases.md § commit <promise>`. The rest of `OKR.md` is still written

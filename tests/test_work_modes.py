@@ -705,7 +705,13 @@ class TestV4Corrections(unittest.TestCase):
         self.assertIn("Track", t["columns"],
                       "two tracks in one table need a key or the promises merge")
         self.assertIn("Promise", t["columns"])
-        self.assertIn("By when", t["columns"])
+        self.assertIn("Due", t["columns"],
+                      "the typed half of the clock is required (TASK-091)")
+        self.assertNotIn("By when", t["columns"],
+                         "the column that carried two value spaces is gone")
+        self.assertIn("By when note", t["optional_columns"],
+                      "the prose half has to have somewhere to go, or the "
+                      "split loses what the old column also held")
 
     def test_commitments_is_optional_so_no_existing_okr_breaks(self):
         okr = file_spec("okr")

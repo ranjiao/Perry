@@ -1562,23 +1562,36 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
                    f"{krs} board row(s) attribute work to a KR")
         mine_c = [c for c in commitments if single
                   or (c.get("track") or "").strip().lower() == name.lower()]
-        dated = sum(1 for c in mine_c if DATEISH.search(c.get("by when") or ""))
-        prose = sum(1 for c in mine_c
-                    if (c.get("by when") or "").strip().lower() not in BLANK_CELL
-                    and not DATEISH.search(c.get("by when") or ""))
         # `OKR.md § Commitments` is the spine of **both** pipeline and queue, so
-        # the table's existence distinguishes nothing. The cell does: `By when`
-        # "is a **date** for pipeline rows; queue rows in the same table may
-        # carry prose" (`modes/pipeline.md § contract`), and `modes/queue.md §
-        # Standing commitments` says the queue value is prose and the clock
-        # lives once, in the register's `SLA`. So the form of the cell is the
-        # signal, and each form has one owner.
+        # the table's existence distinguishes nothing. The **columns** do, and
+        # since TASK-091 they do it by name rather than by regex: a dated
+        # promise is one carrying `Due`, and a standing one is one carrying
+        # `By when note` — prose recording how the deadline was worded, whose
+        # real clock lives once in the register's `SLA` (`modes/queue.md §
+        # Standing commitments`).
+        #
+        # `by when` is still read, and only here. This tool diagnoses FOREIGN
+        # projects, which is the one job ADR-007 keeps a parser for; a register
+        # written before the split is exactly what it exists to recognise.
+        def _cell(c: dict, *names: str) -> str:
+            for n in names:
+                v = (c.get(n) or "").strip()
+                if v and v.lower() not in BLANK_CELL:
+                    return v
+            return ""
+
+        dated = sum(1 for c in mine_c
+                    if DATEISH.search(_cell(c, "due", "by when")))
+        prose = sum(1 for c in mine_c
+                    if _cell(c, "by when note")
+                    or (_cell(c, "by when")
+                        and not DATEISH.search(_cell(c, "by when"))))
         if dated:
             _award(ev, ("pipeline",), STRUCTURAL,
-                   f"{dated} commitment(s) promise a dated `By when`")
+                   f"{dated} commitment(s) promise a dated `Due`")
         if prose:
             _award(ev, ("queue",), CORROBORATING,
-                   f"{prose} standing commitment(s) whose `By when` is prose, not a date")
+                   f"{prose} standing commitment(s) carrying a `By when note`")
         return ev
 
     out = []

@@ -647,9 +647,14 @@
           "承诺对象"
         ]
       },
-      "By when": {
+      "Due": {
         "zh": [
           "截止"
+        ]
+      },
+      "By when note": {
+        "zh": [
+          "截止说明"
         ]
       },
       "Discharged by": {
@@ -1064,16 +1069,17 @@
         },
         {
           "under": "^Commitments\\b|^承诺",
-          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it. `By when` is PER-MODE: a date for pipeline-track rows, which triage compares against; free prose for queue-track rows ('within the track SLA'), whose real clock is the register's `SLA`. One shared table, two formats - stated here because a pipeline triage that hits a queue row's prose would otherwise just stop (V4 re-review round 3, finding 4).",
+          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it.\n\nThe clock is TWO columns, not one (ADR-007 decision 3; TASK-091). `Due` is TYPED - an ISO date (2026-09-30) or a declared SLA token (3d, 2w) - and nothing else is accepted, so triage can compare it against today and sort by it without asking a regex a question about prose. `By when note` is PROSE and is NEVER validated: 'within the track SLA', '\u4e0b\u5468\u671f', whatever the promise was actually worded as. It is stored and rendered verbatim and no regex asks it anything.\n\nThis replaces the single `By when` column, which carried both value spaces and needed one regex (CLOCK_RE) to answer a natural-language question. That regex failed five V4 review rounds in four shapes - the last because \\b does not exist in Chinese, so the English half matched on word boundaries and the Chinese half on bare substrings. It is deleted, not fixed a sixth time. A pre-split register is migrated by `perry-goals commit --migrate`: a bare date or SLA token becomes `Due`, anything else becomes `By when note`, and no cell is dropped.",
           "columns": [
             "Id",
             "Track",
             "Promise",
             "To whom",
-            "By when",
+            "Due",
             "Status"
           ],
           "optional_columns": {
+            "By when note": "Free prose recording how the deadline was worded to the party it was promised to - 'within the track SLA', 'same business day', '\u4e0b\u5468\u671f'. PROSE, in the ADR-007 rule-2 sense: it is stored and rendered verbatim and NOTHING validates it, because the bounded half of the old `By when` column now lives in `Due`, and a second reader asking prose a question is the defect ADR-007 exists to remove. Optional: a promise whose deadline needs no words beyond its date leaves it empty.",
             "Discharged by": "Free prose describing how the promise is satisfied. NOT a list of row IDs: the authoritative link runs the other way - each BOARD.md row's `Commitment` cell carries the `Id` from this table. Row position must never be used as the reference; the goals lane rewrites this file, and a position reference does not dangle when a row is inserted, it silently re-points every board row to the wrong promise (V4 re-review N9)."
           }
         }

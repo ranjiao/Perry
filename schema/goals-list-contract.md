@@ -137,6 +137,27 @@ consumer would key on it right up until two headings were reordered.
 `perry-goals commit` (TASK-042) and is **not** carried in this payload. See the
 Changelog below for why that was a decision rather than an oversight.
 
+Its columns changed under TASK-091 and this payload still did not move. For a
+consumer that parses the markdown — which is what `modes/pipeline.md § Triage`
+step 3 still instructs — the register now reads:
+
+- `Id`, `Track`, `Promise`, `To whom`, `Status` — as before.
+- **`Due`** — an ISO date (`2026-09-30`) or an SLA token (`3d`, `2w`, `24h`).
+  Typed: nothing else can be written into it.
+- **`By when note`**, optional — prose recording how the deadline was worded to
+  the party it was promised to. Never validated.
+
+(These are markdown columns of a file, not keys of this payload. Nothing in the
+JSON above changed — that is the point of the row this task added to the
+Changelog.)
+
+They replace one `By when` column that held both, which needed one regular
+expression to decide whether a sentence named a clock. It failed five V4 review
+rounds in four shapes and is deleted rather than fixed again (ADR-007, decision
+3). A consumer may now **sort and compare `Due` without parsing it**, and must
+not read anything out of `By when note`. A register written before the split is
+converted once, by `perry-goals commit --migrate`.
+
 **Writes, in this command.** `list` is read-only, takes no lock, and is not
 gated. The tool as a whole is no longer read-only — see `perry-goals --help`
 and `goals/reference/phases.md § commit <promise>`.
@@ -148,6 +169,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `1.0` | 2026-08-17 | first published. Carried a per-KR `progress` percentage. |
 | `2.0` | 2026-08-17 | **breaking**: `progress` removed. Perry cannot tell which direction a KR runs, and half of a real OKR's targets are ceilings; a max-drawdown limit rendered two-thirds achieved is the worst thing a dashboard can say. Live for one day, no consumer had adopted it. |
 | `2.0` | 2026-08-18 | **unchanged by TASK-037.** The writer shipped and this payload gained no key. |
+| `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a
 deterministic writer and still has no deterministic *reader* — a consumer that

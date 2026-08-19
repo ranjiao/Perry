@@ -1138,6 +1138,88 @@ A legend, not a task table:
 # ── 10 · what the file now says ───────────────────────────────────────────
 
 
+class TestAColumnSplitIsNotAColumnAdd(unittest.TestCase):
+    """TASK-091. `OKR.md § Commitments` traded one `By when` column for a typed
+    `Due` plus a prose `By when note` (ADR-007, decision 3).
+
+    T2's whole job is appending a column the schema declares and the file
+    lacks, and doing that here is worse than doing nothing: the table ends up
+    with an empty `Due`, every promise's clock still in the retired column, and
+    `perry-lint` reporting zero errors. A file that looks migrated and is not
+    is the failure ADR-004 exists to prevent, so this transform stands aside
+    and names the command that owns the values."""
+
+    PRE_SPLIT = """# OKR — legacy
+
+## Mission
+
+Ship it.
+
+## Operating Principles
+
+- one
+
+## Commitments
+
+| Id | Track | Promise | To whom | By when | Status |
+|---|---|---|---|---|---|
+| ops/1 | ops | Invoices | Finance | within the track SLA | active |
+| rel/1 | rel | Release | Users | 2027-01-01 | active |
+
+## Anti-Goals
+
+- not this
+
+## v1: 2026-01-01
+
+### Objective 1 — ship
+
+## Versioning log
+
+- v1: 2026-01-01 — initial.
+"""
+
+    def project(self):
+        return Project({"OKR.md": self.PRE_SPLIT})
+
+    def test_the_table_is_left_byte_identical(self):
+        p = self.project()
+        before = p.text("OKR.md")
+        p.run("apply")
+        self.assertEqual(before, p.text("OKR.md"),
+                         "an empty `Due` was bolted onto a pre-split register")
+
+    def test_the_finding_names_the_command_that_owns_the_values(self):
+        p = self.project()
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertIn("split-needed", kinds, out)
+        detail = next(c["detail"] for e in out["files"] for c in e["changes"]
+                      if c["kind"] == "split-needed")
+        self.assertIn("perry-goals commit --migrate", detail)
+
+    def test_it_is_reported_once_and_not_once_per_pass(self):
+        """`migrate_text` runs the transforms until the linter stops finding
+        fixable things, and this one is never fixable — so it is seen on every
+        pass. Printed twice it reads as two tables."""
+        p = self.project()
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertEqual(1, kinds.count("split-needed"), kinds)
+
+    def test_a_register_already_split_is_not_touched_either(self):
+        p = Project({"OKR.md": self.PRE_SPLIT.replace(
+            "| To whom | By when | Status |",
+            "| To whom | Due | Status |")})
+        before = p.text("OKR.md")
+        p.run("apply")
+        self.assertEqual(before, p.text("OKR.md"))
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertNotIn("split-needed", kinds,
+                         "a migrated register was reported as needing it")
+
+
 class TestTheAssertionsAskWhatTheFileSays(unittest.TestCase):
     """TASK-052. Every assertion in `losslessness()` answers *is it all still
     there*. None answers *does it still mean that*, which is why thirty
