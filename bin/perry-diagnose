@@ -53,7 +53,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 from tables import split_row, squash  # noqa: E402
-from lib import resolve_state_root  # noqa: E402
+from lib import is_iso_date, resolve_state_root  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
@@ -1248,7 +1248,12 @@ COLUMN_SIGNALS = (
     ("parent", ("inquiry",), "name a `Parent` question"),
 )
 
-DATEISH = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+#: **Deleted, not narrowed.** This was `re.compile(r"\b\d{4}-\d{2}-\d{2}\b")`
+#: and every caller `search`ed it, so `2026-09-30 or so` counted as a dated
+#: promise here while `bin/perry-goals` refused the identical value on `--due`.
+#: The commit that anchored the goals copy claimed the property was gone from
+#: the repository; it was gone from one of the two places that had it.
+#: `lib.is_iso_date` is now the only answer. See `lib.ISO_DATE_RE`.
 BLANK_CELL = {"", "—", "-", "–", "n/a", "none"}
 
 # Columns read by name. English always resolves; the other languages come from
@@ -1580,12 +1585,20 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
                     return v
             return ""
 
-        dated = sum(1 for c in mine_c
-                    if DATEISH.search(_cell(c, "due", "by when")))
+        # **Both counters read the SAME cells**, so every commitment lands in
+        # exactly one of them. `prose` used to read `by when` while `dated`
+        # read `due` OR `by when` — and TASK-091 renamed the schema i18n key
+        # `By when` → `Due`, so a Chinese register's `截止` resolved to `due`,
+        # carried prose, failed the date test, and was counted by NEITHER.
+        # Measured across that commit on one register: a board that scored
+        # `queue` with 1 standing commitment before scored no mode and no
+        # evidence after, while the English one was unchanged. The asymmetry
+        # the commit removed from `bin/perry-goals` had moved here.
+        promise = {id(c): _cell(c, "due", "by when") for c in mine_c}
+        dated = sum(1 for c in mine_c if is_iso_date(promise[id(c)]))
         prose = sum(1 for c in mine_c
                     if _cell(c, "by when note")
-                    or (_cell(c, "by when")
-                        and not DATEISH.search(_cell(c, "by when"))))
+                    or (promise[id(c)] and not is_iso_date(promise[id(c)])))
         if dated:
             _award(ev, ("pipeline",), STRUCTURAL,
                    f"{dated} commitment(s) promise a dated `Due`")

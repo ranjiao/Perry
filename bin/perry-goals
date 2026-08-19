@@ -854,11 +854,11 @@ def commitment_columns() -> tuple[list[str], list[str]]:
 #: so and names the flag, so a user is never guessing where their words go.
 SLA_TOKEN_RE = re.compile(r"^\d+\s*[dwhmy]$", re.I)
 
-#: The one spelling of "is this cell a date", **anchored**. The predecessor
-#: searched, so `2026-09-30 or so` counted as a date; a typed field asks
-#: whether the WHOLE cell is one, and a cell with a date buried in prose is
-#: prose. It goes in `By when note`.
-ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+#: `lib.ISO_DATE_RE` — imported, not re-spelled. This module declared itself
+#: "the one spelling" while `bin/perry-diagnose` carried a second, unanchored
+#: one; a claim of uniqueness that a `grep` disproves is worse than no claim,
+#: because it stops the next reader from grepping.
+ISO_DATE_RE = lib.ISO_DATE_RE
 
 
 def real_date(value: str) -> date | None:

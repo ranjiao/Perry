@@ -189,7 +189,7 @@ def read_cards(state_root: Path) -> list[dict]:
         claim = re.sub(r"^.*?\s+[—–-]\s+", "", first[2:].strip()) if first else ""
         seen = L.field_value(text, "Last verified") or ""
         age = None
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen):
+        if lib.is_iso_date(seen):
             age = (today - date.fromisoformat(seen)).days
         out.append({
             "path": rel,

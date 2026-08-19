@@ -84,6 +84,8 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # Frontmatter files are read with the SAME reader Perry uses, so "the linter
 # passed" and "Perry can read it" cannot diverge.
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
 import parsers as P
 from tables import split_row, squash  # noqa: E402
 
@@ -1806,7 +1808,7 @@ def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"re-open is a claim about the agent's memory."))
 
         seen = field_value(text, "Last verified")
-        if seen and re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen):
+        if seen and lib.is_iso_date(seen):
             age = (today - date.fromisoformat(seen)).days
             if age > stale_days:
                 trip = field_value(text, "Invalidated by")

@@ -42,6 +42,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
 
 try:
     import parsers as P  # noqa: E402
@@ -809,7 +811,7 @@ def subscribed_knowledge(state_root: Path, topics: list[str]) -> list[dict]:
                 continue                     # a digest, not a card
             seen = _card_field(text, "Last verified")
             age = None
-            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen or ""):
+            if lib.is_iso_date(seen or ""):
                 age = (today - date.fromisoformat(seen)).days
             title = next((l.lstrip("# ").strip()
                           for l in text.split("\n") if l.startswith("# ")), md.stem)

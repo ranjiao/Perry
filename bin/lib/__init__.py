@@ -36,6 +36,7 @@ import os
 import sys
 import tempfile
 import time
+import re
 from pathlib import Path
 
 #: `bin/lib/` → `bin/` → the install. Every tool computes `PERRY_HOME` the same
@@ -175,6 +176,29 @@ def project_lock(state_root: Path, timeout: float = 10.0,
 
 
 # ── the shape ─────────────────────────────────────────────────────────────
+
+
+#: **The one spelling of "is this cell a date", anchored.** It lives here and
+#: not in a tool because two tools ask it: `bin/perry-goals` validates `--due`
+#: with it and `bin/perry-diagnose` counts dated promises with it.
+#:
+#: TASK-091 anchored the goals copy and wrote above it "the one spelling",
+#: which was false the moment it was written — `bin/perry-diagnose` kept a
+#: second one that `search`ed, so `2026-09-30 or so` was refused by the writer
+#: and counted as a dated promise by the reader. **The same value, two
+#: answers, in the tool pair whose whole job is to agree.** Found by a V4 that
+#: read the commit's claim and then grepped for the property rather than
+#: trusting the diff.
+#:
+#: Anchored because a typed field asks whether the WHOLE cell is a date. A
+#: cell with a date buried in prose is prose, and prose goes in
+#: `By when note`.
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def is_iso_date(value: str) -> bool:
+    """Does this cell hold exactly one ISO date, decoration stripped?"""
+    return bool(ISO_DATE_RE.match((value or "").strip().strip("*` ")))
 
 
 def load_schema(refused: type[BaseException] = RuntimeError) -> dict:
