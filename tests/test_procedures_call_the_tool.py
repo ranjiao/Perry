@@ -28,9 +28,10 @@ followed.
 Four guards in this repository have been defeated the same way: a reviewer
 planted a file the guard's hardcoded list did not name, and the guard reported
 clean. So the corpus here is **derived**: every top-level directory that holds a
-`SKILL.md` beside a `reference/` directory is a lane, and every markdown page
-under it is scanned. A fourth lane, or a new page in an existing one, is covered
-the day it is written and without editing this file.
+`SKILL.md` beside a `reference/` directory is a lane, and its `SKILL.md` plus
+`reference/**/*.md` are scanned. Lane `state/` pages are shipped templates, not
+procedures, and are deliberately outside this task. A fourth lane, or a new
+reference page in an existing one, is covered without editing this file.
 
 What IS declared here is the rule, not the corpus: which state file has a
 deterministic writer, and what that writer is called. That list is closed by
@@ -93,7 +94,9 @@ Run: python3 tests/parallel test_procedures_call_the_tool
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
@@ -118,8 +121,9 @@ def procedure_pages(root: Path = PERRY_HOME) -> list[Path]:
 
     `rglob`, not `glob`: a page filed one directory deeper is still a page.
 
-    **It is the whole LANE tree, not the whole repository, and the difference
-    is load-bearing.** This said "every page it can load — the whole tree",
+    **It is the lane PROCEDURE corpus, not the whole lane directory or the
+    whole repository, and the difference is load-bearing.** This said "every
+    page it can load — the whole tree",
     which was false in two directions a V4 measured: the root `SKILL.md` and
     `reference/` are not under any lane (the walk iterates `root.iterdir()`,
     so `root` itself is never a lane), and `packs/software-ops/*.md` has no
@@ -166,7 +170,9 @@ TARGETS = {
         # `perry-task` refuses on a missing board — "no BOARD.md at <path>" —
         # so instantiating it from `state/BOARD_TEMPLATE.md` at bootstrap is the
         # only way the file comes to exist. See `creates_file` below.
-        tool="perry-task", kind="projection", creates_file=False),
+        tool="perry-task", kind="projection", creates_file=False,
+        template=r"\b(?:from|copy(?:ing)?|instantiate[sd]?)\b"
+                 r"[^.]{0,80}\bBOARD_TEMPLATE\.md\b"),
     # The journal's two TOOL-WRITTEN sections, named exactly. `## Notes` is
     # absent on purpose (exemption 1: nothing writes it), and so is the ADR
     # body's `## Status change` — singular, a different file, a different lane,
@@ -203,9 +209,10 @@ def owner_pattern(tool: str) -> str:
     return rf"{tool}|`[a-z]+-[a-z-]+`\s*(?:mints|writes|records|creates|refuses)"
 
 
-WRITE = (r"\b(?:re-?writes?|re-?write|writes?|write|adds?|add|appends?|append"
-         r"|updates?|update|edits?|edit|inserts?|insert|creates?|create"
-         r"|flips?|flip|records?|record|fills?|fill|marks?|mark|ticks?|tick"
+WRITE = (r"\b(?:re-?writes?|re-?write|writes?|write|adds?|add|added"
+         r"|appends?|append|appended|updates?|update|updated|edits?|edit|edited"
+         r"|inserts?|insert|inserted|creates?|create|flips?|flip|flipped"
+         r"|records?|record|fills?|fill|marks?|mark|ticks?|tick"
          r"|removes?|remove|deletes?|delete|bumps?|bump|sets?|stamps?|stamp"
          r"|mints?|mint|increments?|increment|moves?|move|puts?|put"
          r"|populate[sd]?)\b")
@@ -247,7 +254,14 @@ PROHIBITION = re.compile(
 DESCRIPTIVE = re.compile(
     r"(?:`?(?:bin/)?perry-\w+`?|\bthe tool\b|\bPMO\b|\bOKR\b|\bwork\b|\bgoals\b"
     r"|\bdecide\b|\bdesign\b|\bit\b|\bwhich\b|\bthat\b)\s+"
-    r"(?:already |also |still |then |never |only )?" + WRITE, re.I)
+    r"(?:already |also |still |then |never |only )?" + WRITE
+    + r"|^\**(?:writes|adds|appends|updates|edits|inserts|creates|flips|records"
+      r"|fills|marks|ticks|removes|deletes|bumps|sets|stamps|mints|increments"
+      r"|moves|puts|populates)\b"
+    + r"|^\**(?:changing|creating)\b.{0,180}?" + WRITE
+    + r"|(?:`?(?:BOARD\.md|DECISIONS\.md|OKR\.md)`?|\bthe row\b|\bthe index\b)"
+      r"\s+(?:is|are)\s+(?:\w+\s+){0,4}"
+      r"(?:rendered|written|appended|reported|created|updated)", re.I)
 
 #: R2 — a copula asserting the hand path is how it is done *now*. Not "a
 #: hand-written row is reported as `unrecorded`", which describes the detector.
@@ -291,7 +305,21 @@ ADOPTION_HEADING = re.compile(
 #: how the board comes to exist at all. `perry-decide bootstrap` DOES create
 #: `DECISIONS.md`, so the same phrasing about the index stays reportable —
 #: which is what caught three of the nineteen.
-FROM_TEMPLATE = re.compile(r"_TEMPLATE\.md|from (?:its |the )?template", re.I)
+def from_target_template(flat: str, spec: dict) -> bool:
+    """The step names template provenance for this target, not any template."""
+    return bool(re.search(spec["template"], flat, re.I))
+
+
+@dataclass(frozen=True)
+class Suppression:
+    """One target the guard deliberately stopped evaluating."""
+
+    page: Path
+    line: int
+    section: str
+    exemption: str
+    target: str
+    step: str
 
 
 def blocks(text: str):
@@ -335,14 +363,29 @@ def steps(block: str):
 
 
 def sentences(unit: str):
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", unit) if s.strip()]
+    return [s.strip() for s in re.split(r"(?<=[.!?;])\s+", unit) if s.strip()]
 
 
-def scan(page: Path) -> list[tuple[int, str, str, str]]:
-    """Every hand-edit instruction on one page: (line, target, rule, text)."""
+def scan(
+        page: Path,
+        suppressions: list[Suppression] | None = None,
+) -> list[tuple[int, str, str, str]]:
+    """Every hand-edit instruction, optionally exposing each suppression."""
     text = page.read_text()
     section = ""
     found = []
+
+    def suppress(line: int, exemption: str, target: str, step: str) -> None:
+        if suppressions is not None:
+            suppressions.append(Suppression(
+                page=page,
+                line=line,
+                section=section,
+                exemption=exemption,
+                target=target,
+                step=step,
+            ))
+
     for bstart, block in blocks(text):
         lines = block.split("\n")
         # A heading and the prose under it are one block when no blank line
@@ -354,53 +397,94 @@ def scan(page: Path) -> list[tuple[int, str, str, str]]:
             lines.pop(0)
             bstart += 1
         # Exemption 4 — a table row or a block quote is not a procedure step.
-        lines = [l for l in lines if not l.lstrip().startswith(("|", ">"))]
+        # Expose target-bearing exclusions through the same suppression stream
+        # as the semantic exemptions below; otherwise this branch can widen
+        # without a test being able to observe what disappeared.
+        kept = []
+        for line_offset, markdown_line in enumerate(lines):
+            if not markdown_line.lstrip().startswith(("|", ">")):
+                kept.append(markdown_line)
+                continue
+            flat_line = " ".join(markdown_line.split())
+            for name, spec in TARGETS.items():
+                if (re.search(spec["pattern"], flat_line)
+                        and (writes_to(flat_line, spec["pattern"])
+                             or HAND_LICENCE.search(flat_line))):
+                    suppress(bstart + line_offset, "quoted-or-table", name,
+                             flat_line)
+        lines = kept
         if not lines:
             continue
         block = "\n".join(lines)
         adoption = bool(ADOPTION_HEADING.search(section))
         for offset, step in steps(block):
             flat = " ".join(step.split())
+            units = sentences(flat)
             for name, spec in TARGETS.items():
                 if not re.search(spec["pattern"], flat):
                     continue
-                # Exemption 5 — adoption may transcribe an authored document.
-                if adoption and spec["kind"] == "document":
-                    continue
-                # Exemption 6 — bootstrap from a shipped template, for a file
-                # the owning tool cannot create.
-                if (not spec.get("creates_file", True)
-                        and FROM_TEMPLATE.search(flat)):
-                    continue
                 line = bstart + offset
+                # Exemption 5 is section-scoped and records one suppressed
+                # target per procedure step, regardless of sentence wrapping.
+                if adoption and spec["kind"] == "document":
+                    suppress(line, "adoption-document", name, flat)
+                    continue
 
                 # R2 first, and it is NOT discharged by naming the tool. A step
                 # that runs the tool for one field and then says the next one is
                 # "still written by hand" is the exact shape both live instances
                 # had: the tool named, the hand edit licensed one clause later.
                 hit = None
-                for sentence in sentences(flat):
+                for sentence in units:
                     if (HAND_LICENCE.search(sentence)
-                            and not NOT_BY_HAND.search(sentence)
                             and re.search(spec.get("cell", spec["pattern"]),
                                           sentence)):
+                        if NOT_BY_HAND.search(sentence):
+                            suppress(line, "r2-refusal", name, sentence)
+                            continue
                         hit = (line, name, "R2", sentence)
                         break
                 if hit:
                     found.append(hit)
                     continue
 
-                if re.search(owner_pattern(spec["tool"]), flat):
-                    continue
-                if (writes_to(flat, spec["pattern"])
-                        and not PROHIBITION.search(flat)
-                        and not DESCRIPTIVE.search(flat)):
-                    found.append((line, name, "R1", flat))
+                # R1 exemptions are local to the sentence containing the
+                # target. A refusal, template, or tool call for one target may
+                # not discharge a hand edit in the next sentence.
+                for sentence in units:
+                    if not re.search(spec["pattern"], sentence):
+                        continue
+                    # Exemption 6 — bootstrap from this target's shipped
+                    # template, only where its writer cannot create the file.
+                    if (not spec.get("creates_file", True)
+                            and from_target_template(sentence, spec)):
+                        suppress(line, "target-template", name, sentence)
+                        continue
+                    if re.search(owner_pattern(spec["tool"]), sentence):
+                        suppress(line, "owner-call", name, sentence)
+                        continue
+                    if not writes_to(sentence, spec["pattern"]):
+                        continue
+                    if PROHIBITION.search(sentence):
+                        suppress(line, "prohibition", name, sentence)
+                        continue
+                    if DESCRIPTIVE.search(sentence):
+                        suppress(line, "descriptive", name, sentence)
+                        continue
+                    found.append((line, name, "R1", sentence))
     return found
 
 
 class ProceduresCallTheTool(unittest.TestCase):
     """ADR-007 rule 3 over the lane procedures, target 0 (KR `P-O3.1`)."""
+
+    def scan_text(self, text: str, name: str = "page.md"):
+        with tempfile.TemporaryDirectory() as tmp:
+            page = Path(tmp) / name
+            page.write_text(text)
+            suppressed: list[Suppression] = []
+            findings = scan(page, suppressed)
+            return findings, suppressed
 
     def test_corpus_is_walked_not_listed(self):
         """The corpus is derived, and it is not empty or accidentally tiny.
@@ -414,7 +498,11 @@ class ProceduresCallTheTool(unittest.TestCase):
         pages = procedure_pages()
         for lane in lanes:
             self.assertIn(lane / "SKILL.md", pages)
-        refs = [p for p in pages if p.parent.name == "reference"]
+            self.assertTrue(set((lane / "reference").rglob("*.md")) <= set(pages),
+                            f"nested reference pages dropped for {lane.name}")
+            self.assertFalse(any(lane / "state" in p.parents for p in pages),
+                             f"{lane.name}/state is not a procedure corpus")
+        refs = [p for p in pages if "reference" in p.parts]
         self.assertGreater(len(refs), 10,
                            "the reference trees were not walked")
 
@@ -429,12 +517,11 @@ class ProceduresCallTheTool(unittest.TestCase):
         zero, so without this the whole module would pass with the scanner
         broken.
         """
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             lane = root / "reckon"
             (lane / "reference" / "deep").mkdir(parents=True)
+            (lane / "state").mkdir()
             (lane / "SKILL.md").write_text(
                 "# reckon\n\n## Procedure\n\n"
                 "1. Update `DECISIONS.md` index: add a row in the Active section.\n")
@@ -454,10 +541,22 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "tables.\n"
                 "2. Write `DECISIONS.md` from "
                 "`state/DECISIONS_TEMPLATE.md`, empty index.\n")
+            (lane / "state" / "SHIPPED.md").write_text(
+                "1. Update `BOARD.md`: add a row by hand.\n")
+
+            only_skill = root / "only-skill"
+            only_skill.mkdir()
+            (only_skill / "SKILL.md").write_text("# not a lane\n")
+            only_reference = root / "only-reference" / "reference"
+            only_reference.mkdir(parents=True)
+            (only_reference / "page.md").write_text("# not a lane\n")
 
             pages = procedure_pages(root)
+            self.assertEqual(lane_dirs(root), [lane],
+                             "both halves of the lane shape are required")
             self.assertIn(lane / "SKILL.md", pages)
             self.assertIn(lane / "reference" / "deep" / "buried.md", pages)
+            self.assertNotIn(lane / "state" / "SHIPPED.md", pages)
 
             reported = {p.name: scan(p) for p in pages}
             self.assertTrue(reported["SKILL.md"], "planted lane not scanned")
@@ -474,41 +573,84 @@ class ProceduresCallTheTool(unittest.TestCase):
                              "the owning tool can create the file, not on the "
                              f"word 'template'; got {boot}")
 
-    def test_adoption_headings_are_actually_about_adoption(self):
-        """Every live heading exemption 5 fires on, listed and justified.
-
-        Exemption 5 is the widest suppression here: it turns off document
-        reporting for **everything** under a heading, and it fires on a
-        substring of that heading. So the set of headings it matches is the set
-        of places this guard has agreed to stop looking, and that set has to be
-        readable rather than inferred.
-
-        It was inferred, and it was wrong. `\bimport\b` was `import`, which
-        matched `## Hand-off contract with PMO (the most important rule)` — a
-        section about who writes what, suppressed as if it were a migration
-        guide. Nothing was hiding under it, so the module's headline assertion
-        stayed at 0 and reported the same number either way. A count cannot
-        catch this; only the list can.
-
-        A new match is a red, not a silent widening. If the heading really is
-        adoption, add it here with a clause saying so.
-        """
-        expected = {
-            # Transcribing the pre-split monolithic index into per-ADR files.
-            "decide/reference/decisions.md":
-                ["## Migration: old monolithic `DECISIONS.md`"],
-        }
-        actual: dict[str, list[str]] = {}
+    def test_adoption_suppressions_are_observed_from_scan(self):
+        """Pin what `scan()` suppressed, not raw headings a regex matched."""
+        suppressed: list[Suppression] = []
         for page in procedure_pages():
-            for line in page.read_text().split("\n"):
-                if line.lstrip().startswith("#") and ADOPTION_HEADING.search(line):
-                    rel = str(page.relative_to(PERRY_HOME))
-                    actual.setdefault(rel, []).append(line.strip())
-        self.assertEqual(actual, expected,
-                         "exemption 5 fires on a heading nobody signed off. "
-                         "Either the heading is adoption — add it above with "
-                         "the reason — or the pattern matched a word that is "
-                         "not about adoption, which is how `important` got in")
+            scan(page, suppressed)
+        adoption = [s for s in suppressed
+                    if s.exemption == "adoption-document"]
+        self.assertEqual(len(adoption), 1, adoption)
+        item = adoption[0]
+        self.assertEqual(
+            (str(item.page.relative_to(PERRY_HOME)), item.line, item.section,
+             item.target),
+            ("decide/reference/decisions.md", 286,
+             "## Migration: old monolithic `DECISIONS.md`",
+             "an ADR's typed header"),
+            "the signed-off set is the suppressions scan actually performed")
+        self.assertTrue(item.step.startswith(
+            "3. Write each to `decisions/ADR-NNN-<slug>.md`"), item.step)
+
+    def test_adoption_scope_ends_at_the_next_real_heading(self):
+        """A fenced heading is invisible and adoption cannot leak afterward."""
+        findings, suppressed = self.scan_text(
+            "# page\n\n"
+            "## Import existing decisions\n\n"
+            "1. Edit the target ADR: flip its `Status:` header.\n\n"
+            "```md\n## Import example inside a fence\n```\n\n"
+            "## Style rules\n\n"
+            "1. Edit the target ADR: flip its `Status:` header.\n")
+        self.assertEqual([(f[1], f[2]) for f in findings],
+                         [("an ADR's typed header", "R1")])
+        adoption = [s for s in suppressed
+                    if s.exemption == "adoption-document"]
+        self.assertEqual(len(adoption), 1, adoption)
+        self.assertEqual(adoption[0].section, "## Import existing decisions")
+        self.assertEqual(adoption[0].target, "an ADR's typed header")
+
+    def test_stacked_headings_preserve_suppression_location_and_scope(self):
+        """Contiguous headings are all peeled and advance the source line."""
+        with tempfile.TemporaryDirectory() as tmp:
+            page = Path(tmp) / "stacked.md"
+            page.write_text(
+                "# page\n"
+                "## Import existing decisions\n"
+                "1. Edit the target ADR: flip its `Status:` header.\n")
+            suppressed: list[Suppression] = []
+            self.assertEqual(scan(page, suppressed), [])
+            self.assertEqual(
+                suppressed,
+                [Suppression(
+                    page=page,
+                    line=3,
+                    section="## Import existing decisions",
+                    exemption="adoption-document",
+                    target="an ADR's typed header",
+                    step="1. Edit the target ADR: flip its `Status:` header.",
+                )],
+                "each stacked heading advances the line and the last heading "
+                "owns the procedure step")
+
+    def test_each_adoption_vocabulary_branch_is_load_bearing(self):
+        """Dropping any justified adoption form exposes a document write."""
+        headings = [
+            "## Migration procedure",
+            "## Adoption procedure",
+            "## Legacy conversion",
+            "## Pre-existing decisions",
+            "## Import existing decisions",
+        ]
+        for heading in headings:
+            with self.subTest(heading=heading):
+                findings, suppressed = self.scan_text(
+                    f"# page\n\n{heading}\n\n"
+                    "1. Edit the target ADR: flip its `Status:` header.\n")
+                self.assertEqual(findings, [])
+                self.assertEqual(
+                    [(s.exemption, s.section, s.target) for s in suppressed],
+                    [("adoption-document", heading,
+                      "an ADR's typed header")])
 
     def test_adoption_exempts_a_document_and_never_a_projection(self):
         """The document/projection split, exercised on both sides.
@@ -523,8 +665,6 @@ class ProceduresCallTheTool(unittest.TestCase):
         `kind == "document"` condition with `True` — which is exactly the
         mistake the paragraph exists to prevent — left the module green.
         """
-        import tempfile
-
         step = ("1. Edit the target ADR yourself: flip its `Status:` header "
                 "to `active`.\n"
                 "2. Add the matching row to the `DECISIONS.md` index by hand.\n")
@@ -548,6 +688,221 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "document half is silent here, the exemption is not scoped to "
                 f"the heading at all; got {outside}")
 
+    def test_template_exemption_is_bound_to_the_target_template(self):
+        findings, suppressed = self.scan_text(
+            "# bootstrap\n\n## Procedure\n\n"
+            "1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`.\n"
+            "2. Write `BOARD.md` from `state/DECISIONS_TEMPLATE.md`.\n")
+        self.assertEqual([(f[0], f[1], f[2]) for f in findings],
+                         [(6, "BOARD.md row", "R1")])
+        templates = [s for s in suppressed
+                     if s.exemption == "target-template"]
+        self.assertEqual(len(templates), 1, templates)
+        self.assertEqual((templates[0].line, templates[0].target),
+                         (5, "BOARD.md row"))
+        self.assertIn("BOARD_TEMPLATE.md", templates[0].step)
+
+        findings, _ = self.scan_text(
+            "# bootstrap\n\n## Procedure\n\n"
+            "1. Read `state/BOARD_TEMPLATE.md` for context. Then write a row "
+            "to `BOARD.md` by hand.\n")
+        self.assertEqual([(f[1], f[2]) for f in findings],
+                         [("BOARD.md row", "R1")],
+                         "mentioning the right template is not provenance")
+
+    def test_exemptions_are_local_to_the_target_sentence(self):
+        cases = [
+            ("1. Do not edit `BOARD.md`. Append the `## Status changes` line "
+             "by hand.\n", "the journal's status / definition block"),
+            ("1. Do not edit `BOARD.md`; append the `## Status changes` line "
+             "by hand.\n", "the journal's status / definition block"),
+            ("1. The tool updates `BOARD.md`. Append the "
+             "`## Status changes` line by hand.\n",
+             "the journal's status / definition block"),
+            ("1. Run `perry-task add` to write `BOARD.md`. Append the "
+             "`## Status changes` line by hand.\n",
+             "the journal's status / definition block"),
+            ("1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`. Then add "
+             "another row to `BOARD.md` by hand.\n", "BOARD.md row"),
+        ]
+        for text, expected in cases:
+            with self.subTest(text=text):
+                findings, _ = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + text)
+                self.assertIn((expected, "R1"),
+                              [(f[1], f[2]) for f in findings])
+
+    def test_every_declared_target_has_positive_and_negative_behavior(self):
+        cases = {
+            "BOARD.md row": (
+                "1. Add a row to `BOARD.md`.\n",
+                "1. `perry-task add` writes the row to `BOARD.md`.\n"),
+            "the journal's status / definition block": (
+                "1. Append the `## Status changes` line to the journal.\n",
+                "1. `perry-task status` records the `## Status changes` line.\n"),
+            "DECISIONS.md index": (
+                "1. Update the `DECISIONS.md` index.\n",
+                "1. `perry-decide bootstrap` writes `DECISIONS.md`.\n"),
+            "an ADR's typed header": (
+                "1. Flip the target ADR's `Status:` header.\n",
+                "1. `perry-decide status` flips the target ADR's `Status:`.\n"),
+            "OKR.md § Commitments": (
+                "1. Insert a row into `OKR.md § Commitments`.\n",
+                "1. `perry-goals commit` writes `OKR.md § Commitments`.\n"),
+        }
+        self.assertEqual(set(TARGETS), set(cases),
+                         "a declared rule without both fixtures is unreviewed")
+        for target, (positive, negative) in cases.items():
+            with self.subTest(target=target, branch="positive"):
+                findings, _ = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + positive)
+                self.assertEqual([(f[1], f[2]) for f in findings],
+                                 [(target, "R1")])
+            with self.subTest(target=target, branch="negative"):
+                findings, suppressed = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + negative)
+                self.assertEqual(findings, [])
+                self.assertIn(
+                    ("owner-call", target),
+                    [(s.exemption, s.target) for s in suppressed])
+
+    def test_r2_cell_and_multiple_targets_are_independent(self):
+        findings, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Read `BOARD.md` first. The existing row is still written by "
+            "hand. Append the `## Status changes` line yourself.\n")
+        self.assertEqual(
+            [(f[1], f[2]) for f in findings],
+            [("BOARD.md row", "R2"),
+             ("the journal's status / definition block", "R1")],
+            "R2 uses the cell form, then scanning continues to later targets")
+
+        findings, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. The existing row is still written by hand.\n")
+        self.assertEqual(findings, [],
+                         "the broad cell form cannot create an R1 target")
+
+    def test_paragraph_steps_lists_and_leading_prose_are_all_scanned(self):
+        paragraph, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "Update the `DECISIONS.md` index by hand.\n")
+        self.assertEqual([(f[1], f[2]) for f in paragraph],
+                         [("DECISIONS.md index", "R1")])
+
+        split_from_tool, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Run `perry-task list` to inspect the project\n"
+            "2. Add a row to `BOARD.md` by hand\n")
+        self.assertEqual([(f[1], f[2]) for f in split_from_tool],
+                         [("BOARD.md row", "R1")])
+
+        split_from_refusal, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Do not edit `BOARD.md`\n"
+            "2. Add a row to `BOARD.md` by hand\n")
+        self.assertEqual([(f[1], f[2]) for f in split_from_refusal],
+                         [("BOARD.md row", "R1")])
+
+        leading, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "Update the `DECISIONS.md` index by hand.\n"
+            "1. Run `perry-decide list` afterward.\n")
+        self.assertEqual([(f[1], f[2]) for f in leading],
+                         [("DECISIONS.md index", "R1")])
+
+    def test_bulleted_steps_keep_exemptions_inside_their_item(self):
+        """Both Markdown bullet forms segment steps just like numbered items."""
+        findings, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "- Do not edit `BOARD.md`\n"
+            "* Add a row to `BOARD.md` by hand\n")
+        self.assertEqual([(f[1], f[2]) for f in findings],
+                         [("BOARD.md row", "R1")],
+                         "a refusal in one bullet cannot exempt the next")
+
+    def test_owner_boundary_and_both_proximity_directions(self):
+        bare, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. `add` writes a row to `BOARD.md`.\n")
+        self.assertEqual([(f[1], f[2]) for f in bare],
+                         [("BOARD.md row", "R1")])
+
+        hyphenated, suppressed = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. `task-add` writes a row to `BOARD.md`.\n")
+        self.assertEqual(hyphenated, [])
+        self.assertIn(("owner-call", "BOARD.md row"),
+                      [(s.exemption, s.target) for s in suppressed])
+
+        backward, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Update the owner and status in the `BOARD.md` row.\n")
+        forward, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. For the `BOARD.md` row, after checking its id and owner, "
+            "update the Status cell.\n")
+        self.assertEqual([f[1] for f in backward], ["BOARD.md row"])
+        self.assertEqual([f[1] for f in forward], ["BOARD.md row"])
+
+        distant, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n1. For the `BOARD.md` row, "
+            + ("context " * 20) + "update the weekly narrative.\n")
+        self.assertEqual(distant, [],
+                         "a distant write to another output is not a row edit")
+
+    def test_prohibition_description_and_markdown_exemptions_are_observable(self):
+        cases = [
+            ("1. No edits to the `BOARD.md` row are allowed.\n",
+             "prohibition"),
+            ("1. It updates the `BOARD.md` row.\n", "descriptive"),
+            ("1. It already updates the `BOARD.md` row.\n", "descriptive"),
+            ("1. Writes the accompanying `DECISIONS.md` index itself.\n",
+             "descriptive"),
+            ("1. Creating a queue row also creates `BOARD.md § Intake`.\n",
+             "descriptive"),
+            ("1. `BOARD.md` is rendered afterwards and a derived-surface "
+             "write is reported.\n", "descriptive"),
+        ]
+        for text, exemption in cases:
+            with self.subTest(text=text):
+                findings, suppressed = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + text)
+                self.assertEqual(findings, [])
+                self.assertTrue(any(s.exemption == exemption
+                                    for s in suppressed), suppressed)
+
+        findings, suppressed = self.scan_text(
+            "# page\n\n## Inventory\n\n"
+            "| Action | Update `BOARD.md`: add a row. |\n"
+            "> Update `DECISIONS.md`: add an index row.\n")
+        self.assertEqual(findings, [])
+        self.assertEqual(
+            [(s.exemption, s.target) for s in suppressed],
+            [("quoted-or-table", "BOARD.md row"),
+             ("quoted-or-table", "DECISIONS.md index")])
+
+    def test_write_participles_and_read_anchors_do_not_go_silent(self):
+        passive, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. The row must be added to `BOARD.md` by hand.\n")
+        self.assertEqual([(f[1], f[2]) for f in passive],
+                         [("BOARD.md row", "R1")])
+
+        read_only, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Consult `BOARD.md`, then append a note to the weekly report.\n")
+        self.assertEqual(read_only, [],
+                         "a read target is not the later write destination")
+
+        write_after_check, _ = self.scan_text(
+            "# page\n\n## Procedure\n\n"
+            "1. Check the prerequisites and permissions, then update the "
+            "`BOARD.md` row.\n")
+        self.assertEqual([(f[1], f[2]) for f in write_after_check],
+                         [("BOARD.md row", "R1")],
+                         "READ is anchored immediately before the target")
+
     def test_r2_reports_a_licensed_hand_edit_and_a_refusal_is_not_one(self):
         """R2 fires, and its own refusal clause turns it off.
 
@@ -562,8 +917,6 @@ class ProceduresCallTheTool(unittest.TestCase):
         with no test is how a guard ends up reporting the cases people know
         are fine.
         """
-        import tempfile
-
         with tempfile.TemporaryDirectory() as tmp:
             page = Path(tmp) / "steps.md"
 
@@ -582,9 +935,22 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "# s\n\n## Procedure\n\n"
                 "1. Run `perry-task list` first. The status-change line is "
                 "never written by hand.\n")
-            self.assertEqual(scan(page), [],
+            suppressed: list[Suppression] = []
+            self.assertEqual(scan(page, suppressed), [],
                              "a sentence refusing the hand edit is the "
                              "instruction this guard wants, not a violation")
+            self.assertIn(
+                ("r2-refusal", "the journal's status / definition block"),
+                [(s.exemption, s.target) for s in suppressed])
+
+            page.write_text(
+                "# s\n\n## Procedure\n\n"
+                "1. The status-change line is never written by hand. Later, "
+                "the status-change line is still written by hand.\n")
+            hit = scan(page)
+            self.assertEqual([(f[1], f[2]) for f in hit],
+                             [("the journal's status / definition block", "R2")],
+                             "one refusal cannot discharge a later licence")
 
     def test_owner_tools_exist(self):
         """Every rule names a tool that is actually in `bin/`.
