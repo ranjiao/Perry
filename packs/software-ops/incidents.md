@@ -81,7 +81,7 @@ This is where the feedback loop lives. Refuse the close until all three question
    ```
 
 4. Flip incident status to `resolved`. Update `incidents/INDEX.md` with the derived-change ID(s).
-5. Append a `## Status changes` line to today's journal: `Incident <slug> resolved · root cause: <one-line> · derived: <list of changes>`.
+5. Append a `## Notes` line to today's journal: `Incident <slug> resolved · root cause: <one-line> · derived: <list of changes>`. Incident state is not task state, so it does not belong in the `perry-task`-owned status section.
 
 The 3-question gate is intentionally noisy. Skipping all three with reasons is allowed — but each skip is a recorded choice, which means a pattern of "skipped — too narrow" across many incidents becomes visible in `mid-phase-review`.
 

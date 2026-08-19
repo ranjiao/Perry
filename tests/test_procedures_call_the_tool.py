@@ -5,16 +5,17 @@
      evidence documents."
                     — perry/decisions/ADR-007-fields-are-typed-prose-is-not.md
 
-A lane procedure that says *"update the `DECISIONS.md` index"* or *"append the
-full definition to the journal"* is that rule inverted back. The field write
+A procedure that says *"update the `DECISIONS.md` index"* or *"append the full
+definition to the journal"* is that rule inverted back. The field write
 lands wherever the agent's markdown happened to land, the tool's event is never
 appended, and the row shows up at the next standup as drift — which is the
 failure ADR-006 and ADR-007 both exist to end.
 
-**Measured before it was fixed: 19 such steps across 26 procedure pages** — 15
-in `decide/`, 4 in `work/`, 0 in `goals/`, which had already been through
-TASK-042 and reads the way the rest now does. That number is the baseline for
-KR `P-O3.1` and its target is 0, so this module's third test is the KR.
+**Measured before it was fixed: 19 such steps across the original 26 lane
+procedure pages** — 15 in `decide/`, 4 in `work/`, 0 in `goals/`, which had
+already been through TASK-042 and reads the way the rest now does. TASK-101
+widens that same rule to the root router, root references and shipped pack
+procedures; the target remains 0 across the complete loadable corpus.
 
 Two of the 19 were teaching a hand edit that had had a tool path for weeks:
 `plan-week`'s *"the tool has no `priority` subcommand yet"* (it has `prioritize`)
@@ -27,11 +28,12 @@ followed.
 
 Four guards in this repository have been defeated the same way: a reviewer
 planted a file the guard's hardcoded list did not name, and the guard reported
-clean. So the corpus here is **derived**: every top-level directory that holds a
-`SKILL.md` beside a `reference/` directory is a lane, and its `SKILL.md` plus
-`reference/**/*.md` are scanned. Lane `state/` pages are shipped templates, not
-procedures, and are deliberately outside this task. A fourth lane, or a new
-reference page in an existing one, is covered without editing this file.
+clean. So the corpus here is **derived**: the root `SKILL.md`, root
+`reference/**/*.md`, every `packs/*/*.md`, and every top-level directory that
+holds a `SKILL.md` beside a `reference/` directory. A lane contributes its
+`SKILL.md` plus `reference/**/*.md`; lane `state/` pages remain shipped
+templates rather than procedures. A fourth lane, a nested reference page, or a
+new pack procedure is covered without editing a filename list here.
 
 What IS declared here is the rule, not the corpus: which state file has a
 deterministic writer, and what that writer is called. That list is closed by
@@ -117,38 +119,23 @@ def lane_dirs(root: Path = PERRY_HOME) -> list[Path]:
 
 
 def procedure_pages(root: Path = PERRY_HOME) -> list[Path]:
-    """Every lane's entry point plus its whole `reference/` tree.
+    """Every loadable procedure page, derived from the repository shape.
 
-    `rglob`, not `glob`: a page filed one directory deeper is still a page.
-
-    **It is the lane PROCEDURE corpus, not the whole lane directory or the
-    whole repository, and the difference is load-bearing.** This said "every
-    page it can load — the whole tree",
-    which was false in two directions a V4 measured: the root `SKILL.md` and
-    `reference/` are not under any lane (the walk iterates `root.iterdir()`,
-    so `root` itself is never a lane), and `packs/software-ops/*.md` has no
-    `SKILL.md`, so the shape predicate excludes it — even though
-    `work/SKILL.md` loads three of those pages as work-lane procedure. One
-    live violation sits in the gap: `packs/software-ops/incidents.md` step 5
-    instructs appending a `## Status changes` line to the journal by hand, the
-    section `perry-task` owns, with no tool named.
-
-    So the module's headline 0 is **0 across the three lanes**, not 0 across
-    everything an agent can be told to follow. Widening it is TASK-101 and not
-    a one-line change: the same scan over the root and pack pages reports six
-    more, and all six are prose the guard should suppress and cannot — a
-    closing backtick between subject and verb defeats the descriptive
-    exemption twice, `Detect` is missing from the read verbs, and two
-    sentences put the target in the SUBJECT position ("the BOARD row flips
-    to `review`") where the guard reads it as an order. Widening without
-    those four is a guard that reports six correct pages, which is a guard
-    people switch off.
+    `rglob`, not `glob`, for reference trees: a page filed one directory deeper
+    remains procedure. Packs have one declared shape, `packs/*/*.md`; files
+    elsewhere under `packs/` are not silently promoted into agent procedure.
     """
     pages: list[Path] = []
+    if (root / "SKILL.md").is_file():
+        pages.append(root / "SKILL.md")
+    if (root / "reference").is_dir():
+        pages.extend(sorted((root / "reference").rglob("*.md")))
     for lane in lane_dirs(root):
         pages.append(lane / "SKILL.md")
         pages.extend(sorted((lane / "reference").rglob("*.md")))
-    return pages
+    if (root / "packs").is_dir():
+        pages.extend(sorted((root / "packs").glob("*/*.md")))
+    return sorted(set(pages))
 
 
 # ---------------------------------------------------------------- the rule
@@ -195,6 +182,16 @@ TARGETS = {
     "OKR.md § Commitments": dict(
         pattern=r"##\s*Commitments|OKR\.md\s*§\s*Commitments",
         tool="perry-goals", kind="projection"),
+    "knowledge/INDEX.md": dict(
+        # `perry-knowledge` owns only the card catalog. Digest registration and
+        # archive metadata share this file but remain authored by the digest
+        # flow, so a bare index reference is deliberately not a target.
+        pattern=r"(?:##\s*Cards by topic[^.]{0,80}knowledge/INDEX\.md"
+                r"|knowledge/INDEX\.md[^.]{0,80}##\s*Cards by topic)",
+        tool="perry-knowledge", kind="projection"),
+    ".perry/conformance.md": dict(
+        pattern=r"\.perry/conformance\.md",
+        tool="perry-conform", kind="projection"),
 }
 
 def owner_pattern(tool: str) -> str:
@@ -206,7 +203,14 @@ def owner_pattern(tool: str) -> str:
     alternative requires a hyphen — otherwise every sentence containing the
     word "add" would discharge itself.
     """
-    return rf"{tool}|`[a-z]+-[a-z-]+`\s*(?:mints|writes|records|creates|refuses)"
+    lanes = {
+        "perry-task": r"`?(?:/perry\s+(?:work|pmo)|/pmo)\b",
+        "perry-goals": r"`?(?:/perry\s+(?:goals|okr)|/okr)\b",
+        "perry-decide": r"`?(?:/perry\s+(?:decide|design)|/design)\b",
+    }
+    lane = f"|{lanes[tool]}" if tool in lanes else ""
+    return (rf"{tool}{lane}|`[a-z]+-[a-z-]+`\s*"
+            rf"(?:mints|writes|records|creates|refuses)")
 
 
 WRITE = (r"\b(?:re-?writes?|re-?write|writes?|write|adds?|add|added"
@@ -221,8 +225,18 @@ WRITE = (r"\b(?:re-?writes?|re-?write|writes?|write|adds?|add|added"
 #: open with one. "Reads `BOARD.md` + last week's `weekly/…`. … Append to the
 #: week's file" mentions a target and a write and does neither to the other.
 READ = (r"\b(?:reads?|reading|scans?|scanning|opens?|opening|consults?|greps?"
+        r"|detects?|detecting"
         r"|cross-checks?|checks?|walks?|surfaces?|from|in|against|per|of)"
         r"\s+[`'\"*(\[]*$")
+
+# `Detect A / B / C` is one read instruction. For the second and later target,
+# the verb is not immediately adjacent, so the ordinary READ anchor cannot see
+# it. Keep this bounded to slash/comma inventories; "detect a problem, then
+# update BOARD.md" remains a write.
+DETECTION_LIST = re.compile(
+    r"\b(?:detects?|detecting)\b(?:`[^`]*`|[^.!?;:]){0,80}"
+    r"(?:/|,\s*(?:and\s+)?)"
+    r"\s*[`'\"*(\[]*$", re.I)
 
 #: How close a write verb has to sit to the target to be a write TO it. Wide
 #: enough for "Update `DECISIONS.md` index (move row to Expired section)",
@@ -234,8 +248,8 @@ BEFORE, AFTER = 60, 90
 def writes_to(flat: str, pattern: str) -> bool:
     """Does this unit write the thing `pattern` names, as opposed to read it?"""
     for m in re.finditer(pattern, flat):
-        lead = flat[max(0, m.start() - 20):m.start()]
-        if re.search(READ, lead, re.I):
+        lead = flat[max(0, m.start() - BEFORE):m.start()]
+        if re.search(READ, lead, re.I) or DETECTION_LIST.search(lead):
             continue
         near = (flat[max(0, m.start() - BEFORE):m.start()]
                 + " " + flat[m.end():m.end() + AFTER])
@@ -253,8 +267,8 @@ PROHIBITION = re.compile(
 #: describes a write rather than commanding one.
 DESCRIPTIVE = re.compile(
     r"(?:`?(?:bin/)?perry-\w+`?|\bthe tool\b|\bPMO\b|\bOKR\b|\bwork\b|\bgoals\b"
-    r"|\bdecide\b|\bdesign\b|\bit\b|\bwhich\b|\bthat\b)\s+"
-    r"(?:already |also |still |then |never |only )?" + WRITE
+    r"|\bdecide\b|\bdesign\b|\bit\b|\bwhich\b|\bthat\b)`?\s+"
+    r"(?:already |also |still |then |never |only |gets? )?" + WRITE
     + r"|^\**(?:writes|adds|appends|updates|edits|inserts|creates|flips|records"
       r"|fills|marks|ticks|removes|deletes|bumps|sets|stamps|mints|increments"
       r"|moves|puts|populates)\b"
@@ -262,6 +276,23 @@ DESCRIPTIVE = re.compile(
     + r"|(?:`?(?:BOARD\.md|DECISIONS\.md|OKR\.md)`?|\bthe row\b|\bthe index\b)"
       r"\s+(?:is|are)\s+(?:\w+\s+){0,4}"
       r"(?:rendered|written|appended|reported|created|updated)", re.I)
+
+
+def target_is_subject(sentence: str, pattern: str) -> bool:
+    """The target changes; the procedure is not ordering the reader to change it.
+
+    Markdown closers and a paired path may sit between the target and its verb,
+    as in ``DECISIONS.md` + `decisions/` move``. A comma is intentionally not
+    accepted: "For the BOARD row, update Status" remains an instruction.
+    """
+    for match in re.finditer(pattern, sentence, re.I):
+        tail = re.sub(r"^[`*_]+", "", sentence[match.end():]).lstrip()
+        paired = r"(?:\+\s+`[^`]+`\s+)?"
+        if re.match(paired + WRITE, tail, re.I):
+            return True
+        if re.match(r"is\s+explicitly\b", tail, re.I):
+            return True
+    return False
 
 #: R2 — a copula asserting the hand path is how it is done *now*. Not "a
 #: hand-written row is reported as `unrecorded`", which describes the detector.
@@ -468,7 +499,8 @@ def scan(
                     if PROHIBITION.search(sentence):
                         suppress(line, "prohibition", name, sentence)
                         continue
-                    if DESCRIPTIVE.search(sentence):
+                    if (DESCRIPTIVE.search(sentence)
+                            or target_is_subject(sentence, spec["pattern"])):
                         suppress(line, "descriptive", name, sentence)
                         continue
                     found.append((line, name, "R1", sentence))
@@ -476,7 +508,7 @@ def scan(
 
 
 class ProceduresCallTheTool(unittest.TestCase):
-    """ADR-007 rule 3 over the lane procedures, target 0 (KR `P-O3.1`)."""
+    """ADR-007 rule 3 over every loadable procedure, target 0 (`P-O3.1`)."""
 
     def scan_text(self, text: str, name: str = "page.md"):
         with tempfile.TemporaryDirectory() as tmp:
@@ -496,6 +528,13 @@ class ProceduresCallTheTool(unittest.TestCase):
         lanes = lane_dirs()
         self.assertGreaterEqual(len(lanes), 3, "no lanes found — the walk broke")
         pages = procedure_pages()
+        self.assertIn(PERRY_HOME / "SKILL.md", pages)
+        self.assertTrue(
+            set((PERRY_HOME / "reference").rglob("*.md")) <= set(pages),
+            "root reference pages were dropped")
+        self.assertTrue(
+            set((PERRY_HOME / "packs").glob("*/*.md")) <= set(pages),
+            "pack procedure pages were dropped")
         for lane in lanes:
             self.assertIn(lane / "SKILL.md", pages)
             self.assertTrue(set((lane / "reference").rglob("*.md")) <= set(pages),
@@ -505,6 +544,34 @@ class ProceduresCallTheTool(unittest.TestCase):
         refs = [p for p in pages if "reference" in p.parts]
         self.assertGreater(len(refs), 10,
                            "the reference trees were not walked")
+
+    def test_root_router_reference_and_pack_shapes_are_each_load_bearing(self):
+        """The TASK-101 expansion is derived, not a second filename list."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "reference" / "deep").mkdir(parents=True)
+            (root / "packs" / "ops").mkdir(parents=True)
+            (root / "packs" / "TOO_SHALLOW.md").write_text(
+                "1. Add a row to `BOARD.md` by hand.\n")
+            (root / "packs" / "ops" / "nested").mkdir()
+            (root / "packs" / "ops" / "nested" / "TOO_DEEP.md").write_text(
+                "1. Add a row to `BOARD.md` by hand.\n")
+            planted = {
+                root / "SKILL.md":
+                    "1. Add a row to `BOARD.md` by hand.\n",
+                root / "reference" / "deep" / "page.md":
+                    "1. Update the `DECISIONS.md` index by hand.\n",
+                root / "packs" / "ops" / "incidents.md":
+                    "1. Append the `## Status changes` line by hand.\n",
+            }
+            for page, text in planted.items():
+                page.write_text(text)
+
+            pages = procedure_pages(root)
+            self.assertEqual(set(pages), set(planted),
+                             "only the three declared root/pack shapes belong")
+            for page in planted:
+                self.assertTrue(scan(page), f"{page.relative_to(root)} not scanned")
 
     def test_a_planted_lane_and_a_planted_page_are_both_caught(self):
         """The anti-defeat property, exercised rather than asserted.
@@ -559,8 +626,10 @@ class ProceduresCallTheTool(unittest.TestCase):
             self.assertNotIn(lane / "state" / "SHIPPED.md", pages)
 
             reported = {p.name: scan(p) for p in pages}
-            self.assertTrue(reported["SKILL.md"], "planted lane not scanned")
-            self.assertTrue(reported["buried.md"], "nested page not scanned")
+            self.assertEqual(len(reported["SKILL.md"]), 1,
+                             "the lane entry-point plant must stay red")
+            self.assertEqual(len(reported["buried.md"]), 2,
+                             "both nested-page plants must stay red")
             self.assertEqual(reported["config.md"], [],
                              "`.perry/config.md` is the user's own file — "
                              "reporting it is how a guard gets switched off")
@@ -749,6 +818,13 @@ class ProceduresCallTheTool(unittest.TestCase):
             "OKR.md § Commitments": (
                 "1. Insert a row into `OKR.md § Commitments`.\n",
                 "1. `perry-goals commit` writes `OKR.md § Commitments`.\n"),
+            "knowledge/INDEX.md": (
+                "1. Update `## Cards by topic` in `knowledge/INDEX.md` by hand.\n",
+                "1. `perry-knowledge promote` writes `## Cards by topic` in "
+                "`knowledge/INDEX.md`.\n"),
+            ".perry/conformance.md": (
+                "1. Append a declaration to `.perry/conformance.md`.\n",
+                "1. `perry-conform declare` writes `.perry/conformance.md`.\n"),
         }
         self.assertEqual(set(TARGETS), set(cases),
                          "a declared rule without both fixtures is unreviewed")
@@ -850,6 +926,59 @@ class ProceduresCallTheTool(unittest.TestCase):
             + ("context " * 20) + "update the weekly narrative.\n")
         self.assertEqual(distant, [],
                          "a distant write to another output is not a row edit")
+
+    def test_lane_commands_only_discharge_their_own_writer(self):
+        cases = [
+            ("/perry work", "BOARD.md", []),
+            ("/perry goals", "OKR.md § Commitments", []),
+            ("/perry decide", "DECISIONS.md", []),
+        ]
+        for command, target, expected in cases:
+            with self.subTest(command=command, target=target):
+                findings, suppressed = self.scan_text(
+                    "# page\n\n## Procedure\n\n"
+                    f"1. `{command}` then writes {target}.\n")
+                self.assertEqual([(f[1], f[2]) for f in findings], expected)
+                if not expected:
+                    self.assertTrue(any(s.exemption == "owner-call"
+                                        for s in suppressed), suppressed)
+        self.assertIsNone(re.search(owner_pattern("perry-task"),
+                                    "`/perry goals`"))
+        self.assertIsNone(re.search(owner_pattern("perry-goals"),
+                                    "`/perry work`"))
+
+    def test_expanded_corpus_false_positive_boundaries_are_precise(self):
+        """Four TASK-101 exemptions suppress descriptions, not instructions."""
+        allowed = [
+            ("1. `pmo` still writes `BOARD.md`.\n", True),
+            ("1. Detect `OKR.md` / code / `DECISIONS.md` to pre-fill a draft.\n",
+             False),
+            ("1. The BOARD row flips to `review` after verification.\n", True),
+            ("1. `DECISIONS.md` + `decisions/` move to `decide`.\n", True),
+            ("1. **`OKR.md § Commitments` is explicitly `goals`.** Tracks put "
+             "their spine there.\n", True),
+            ("1. A reason that gets appended under `## Status changes` is "
+             "auditable.\n", True),
+        ]
+        for text, observable in allowed:
+            with self.subTest(text=text):
+                findings, suppressed = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + text)
+                self.assertEqual(findings, [])
+                if observable:
+                    self.assertTrue(suppressed,
+                                    "semantic exemptions must be observable")
+
+        refused = [
+            "1. Detect the problem, then update the `DECISIONS.md` index.\n",
+            "1. Detect `OKR.md` / code. Then update `DECISIONS.md`.\n",
+            "1. For the BOARD row, after checking its id, update Status.\n",
+        ]
+        for text in refused:
+            with self.subTest(text=text):
+                findings, _ = self.scan_text(
+                    "# page\n\n## Procedure\n\n" + text)
+                self.assertTrue(findings, text)
 
     def test_prohibition_description_and_markdown_exemptions_are_observable(self):
         cases = [
