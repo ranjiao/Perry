@@ -397,3 +397,209 @@ def resolve_state_root(project_root: Path) -> Path:
     below where it computes `PERRY_HOME`.
     """
     return _parsers().resolve_state_root(project_root)
+
+
+# ── what a KR's `current` actually is ─────────────────────────────────────
+#
+# `phase/<NNN>-linkage.md` carries `target` and `current` per KR, both
+# hand-written, and until TASK-120 nothing derived, checked or aged them. Two
+# readings on Perry's own register on 2026-08-21 were wrong in OPPOSITE
+# directions and neither payload could say so:
+#
+#   P-O1.1  target 1, current 0  → read as 0% while all four linked tasks
+#                                  were closed and the board WAS rendered
+#                                  from the store;
+#   P-O2.2  target 0, current 0  → read as MET while TASK-094 had measured
+#                                  13 row splits and 87 header resolutions
+#                                  still reaching `BOARD.md`.
+#
+# Six of the register's eight phase KRs have `target: 0`, so any KR whose
+# `current` is left at the template's `0` reads as met the day it is written.
+#
+# **The line this code does not cross.** It never computes `current`. A KR's
+# metric is typically a count of something in the repository — P-O2.1's is "0
+# occurrences of the regex TASK-091 deleted" — and "the linked task is closed"
+# does not establish that the count is zero; only re-running the count does.
+# `perry/OKR.md § Operating Principles` opens with that rule, and the phase's
+# own Definition of Done is a `grep -c` over `bin/`, which is why this comment
+# does not name the symbol. So the linked-task tally below is emitted
+# BESIDE `current`, under its own name, as a count of tasks and never as a
+# fraction: a reader may put the two side by side and conclude the number is
+# suspect, which is exactly the P-O1.1 reading, but nothing here draws that
+# conclusion for them.
+
+#: `schema/state-schema.json § enums.task_status`, restated rather than read so
+#: this module has no load-order dependency on the schema file — and pinned to
+#: it by `tests/test_kr_progress_provenance.py`, so the two cannot drift.
+TASK_STATUSES = frozenset((
+    "not_started", "blocked", "in_progress", "review", "done", "dropped"))
+
+#: `bin/perry_store.py § TERMINAL_STATUSES`, and `viewer/parsers.py`'s copy of
+#: the same set. Same pin, same test.
+CLOSED_STATUSES = frozenset(("done", "dropped"))
+
+#: Events whose `to` is a task status are state moves. `next`, `evidence` and
+#: `rung` also carry `from`/`to`, holding prose, a file path and a rung — which
+#: is why this filters on the VALUE rather than on the event name: a new event
+#: kind that moves status is picked up, and a new one that does not cannot
+#: sneak in by being named plausibly.
+def _is_state_move(event: dict) -> bool:
+    return str(event.get("to") or "") in TASK_STATUSES
+
+
+def _ts_key(value: str) -> str:
+    """A timestamp reduced to something two of them can be compared on.
+
+    The register writes `updated` as an ISO datetime with a `Z`; the event log
+    writes `ts` as a naive local datetime with no zone at all. There is no
+    conversion that is honest between those two, so the `Z` is STRIPPED rather
+    than applied — stated here because it means a register written within a few
+    hours of a task move can order wrongly, and a reader is entitled to know
+    that before trusting a `stale: false`.
+
+    A date-only value becomes midnight, which errs toward reporting staleness:
+    a false "recheck this" costs a look, and a false "this number is fine"
+    costs the number.
+    """
+    text = str(value or "").strip().rstrip("Z")
+    if not text:
+        return ""
+    if len(text) == 10:          # YYYY-MM-DD
+        return text + "T00:00:00"
+    return text
+
+
+def task_status_index(state_root, board=None) -> dict:
+    """`id` → status, from the STORE first and the projection second.
+
+    `board.all_tasks` alone is not enough on an adopted project. The store's
+    projection deliberately drops every closed row — `viewer/parsers.py §
+    _records_by_group` skips a terminal status, because a closed row leaves
+    `BOARD.md` — so a KR every one of whose tasks is finished would see none of
+    them and report them all as unknown. `tasks.jsonl` keeps them, and it is
+    the canonical side, so it wins where the two are both present.
+
+    A project with no store has only the markdown, and there a closed row
+    really is gone from the board. That is what the event log is asked about
+    afterwards, in `kr_progress_provenance`.
+    """
+    out: dict[str, str] = {}
+    for task in (getattr(board, "all_tasks", None) or []):
+        if getattr(task, "id", ""):
+            out[task.id] = task.status or ""
+    for record in (_parsers().load_task_store(Path(state_root)) or []):
+        if record.get("id"):
+            out[str(record["id"])] = str(record.get("status") or "")
+    return out
+
+
+def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
+                           status_by_id: dict | None = None,
+                           events: list | None = None,
+                           events_present: bool = False) -> dict:
+    """The three blocks that go beside a KR's `target` / `current`.
+
+    Returns `current_provenance`, `current_staleness` and
+    `linked_task_completion` — computed once, here, because `bin/perry-state`
+    and `bin/perry-goals` both emit them and a second implementation is how the
+    two would come to disagree about whether a number is stale.
+
+    `current` is `None` for a KR the register never gave a number, and that is
+    reported as `unasserted` rather than as `0.0`. The default matters more
+    than it looks: with six of eight phase KRs driving a count to zero, a
+    `current` defaulted to `0` reads as **met before the work starts**.
+    """
+    status_by_id = status_by_id or {}
+    events = events or []
+    ids = [str(t) for t in (task_ids or [])]
+
+    asserted = current is not None
+    provenance = {
+        # What the number IS, not how good it is.
+        "state": "asserted" if asserted else "unasserted",
+        # Always false, and emitted rather than implied. No tool in Perry
+        # re-runs a KR's metric, so no `current` it publishes is a measurement.
+        # A future tool that does re-run one sets this true; until then a
+        # consumer that wants to show "measured" has an explicit answer.
+        "measured": False,
+        "source": "linkage-register" if asserted else "",
+        # The register timestamps ITSELF, not each KR. A reader must not take
+        # this for the date this KR's number was arrived at, so the granularity
+        # is emitted with the date.
+        "asserted_at": _ts_key(register_updated) if asserted else "",
+        "asserted_scope": "register" if asserted else "",
+    }
+
+    # ── the tally that is NOT progress ────────────────────────────────────
+    # A task closed after `perry-task done` may be off `BOARD.md` entirely, so
+    # the board is asked first and the event log second. An id neither knows is
+    # `unknown` — never silently counted as open, which would report a dangling
+    # edge as work outstanding.
+    last_status: dict[str, str] = {}
+    for event in events:
+        if _is_state_move(event) and event.get("id"):
+            last_status[str(event["id"])] = str(event["to"])
+    tally = {"total": len(ids), "done": 0, "dropped": 0, "open": 0, "unknown": 0}
+    for tid in ids:
+        status = str(status_by_id.get(tid) or "") or last_status.get(tid, "")
+        if status == "done":
+            tally["done"] += 1
+        elif status == "dropped":
+            tally["dropped"] += 1
+        elif status in TASK_STATUSES:
+            tally["open"] += 1
+        else:
+            tally["unknown"] += 1
+
+    # ── staleness ─────────────────────────────────────────────────────────
+    # This is the linkage edge finally being read: not to compute the metric,
+    # but to know when the number can no longer be trusted.
+    since = provenance["asserted_at"]
+    staleness = {"stale": False, "evaluated": False, "reason": "",
+                 "since": since, "moved_tasks": []}
+    if not asserted:
+        staleness["reason"] = (
+            "`current` was never asserted, so there is nothing to go stale")
+    elif not since:
+        staleness["reason"] = (
+            "the register states no `updated` timestamp, so staleness cannot "
+            "be evaluated")
+    elif not events_present:
+        staleness["reason"] = (
+            "no event log, so whether a linked task has moved since "
+            f"{since} cannot be evaluated")
+    elif not ids:
+        staleness["evaluated"] = True
+        staleness["reason"] = "the register links no task to this KR"
+    else:
+        staleness["evaluated"] = True
+        wanted = set(ids)
+        moved: dict[str, dict] = {}
+        for event in events:
+            tid = str(event.get("id") or "")
+            if tid not in wanted or not _is_state_move(event):
+                continue
+            at = _ts_key(event.get("ts", ""))
+            if not at or at <= since:
+                continue
+            # Last move wins, so a task that moved twice is named once with
+            # where it ended up.
+            moved[tid] = {"id": tid, "from": str(event.get("from") or ""),
+                          "to": str(event["to"]), "at": at}
+        staleness["moved_tasks"] = [moved[t] for t in ids if t in moved]
+        if moved:
+            staleness["stale"] = True
+            named = ", ".join(
+                f"{m['id']} ({m['from'] or 'created'} → {m['to']})"
+                for m in staleness["moved_tasks"])
+            staleness["reason"] = (
+                f"{len(moved)} linked task"
+                f"{'s' if len(moved) != 1 else ''} changed state after "
+                f"{since}: {named}")
+        else:
+            staleness["reason"] = (
+                f"no linked task has changed state since {since}")
+
+    return {"current_provenance": provenance,
+            "current_staleness": staleness,
+            "linked_task_completion": tally}
