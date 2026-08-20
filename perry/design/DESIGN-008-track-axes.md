@@ -198,22 +198,133 @@ on that track is a code defect, and a resolution note is not evidence.
 
 ### 5.2 The slot table — where the work is
 
-Each of the ~28 distinct slots gets one axis, or is derived, or is a plain
-field. The groups are settled; the row-by-row assignment is step 1.
+*Completed slot by slot on 2026-08-20 (`TASK-140`), and counted rather than
+estimated. The four contract tables hold **10 / 14 / 12 / 14 = 50 slots, 21
+distinct** — `tests/test_track_axes.py` asserts both numbers against the mode
+files. §§ 1.1 and 2 say "~28"; that figure was written before anyone counted
+and 21 is what is there. The sections that carry it are not edited, because a
+locked document does not get quietly corrected in passing — this is the count.*
 
-| Slot | Axis | Note |
+**How to read a row.** A slot sits on an axis when its value follows that leg
+and is unchanged by the other. The test is a mixed track, not a preset.
+
+| Axis | A slot belongs to it when |
+|---|---|
+| `spine` | its value follows the spine leg and the flow leg does not move it |
+| `flow` | its value follows the flow leg and the spine leg does not move it |
+| `derived` | it is written nowhere, and is rendered at read time — from the spine alone (`Unit`, #2) or from both legs |
+| `field` | it is declared per track in the register, independently of both legs |
+
+`In` names the mode files that carry the slot; `tests/test_track_axes.py` checks
+that column against the four files, so deleting a slot from one of them reddens
+this table even when three others still carry it.
+
+| Slot | In | Axis | Why |
+|---|---|---|---|
+| **Spine** | project · pipeline · queue · inquiry | `spine` | |
+| **Ends when** | project · pipeline · queue · inquiry | `spine` | the container ends when the thing it is accountable to concludes; changing how a row advances does not move it |
+| **Horizon** | project · pipeline · queue · inquiry | `spine` | the horizon's *kind* is spine-fixed — phase, cycle, review period, root question. `Tracks` → `Cycle` holds the instance, and that cell is a field |
+| **Commitment link** | pipeline | `spine` | |
+| **Question tree** | inquiry | `spine` | `BOARD.md` → `Parent` does not accompany the spine, it constitutes it: inquiry's spine cell is defined as the rows whose `Parent` is empty |
+| **The answer** | inquiry | `spine` | the artifact the spine's unit closes into. A question answered under any flow still writes one answer file |
+| **Sources** | inquiry | `spine` | |
+| **Claim → source** | inquiry | `spine` | not part of the rung despite sharing a sentence with it — the rung is a scalar `V0`–`V6` and "clean provenance" is not one of its values, so it cannot live in the field |
+| **Item states** | project · pipeline · queue · inquiry | `flow` | |
+| **Stage vocabulary** | pipeline | `flow` | |
+| **Stage clock** | pipeline | `flow` | |
+| **Question clock** | inquiry | `flow` | the same `BOARD.md` → `Stage since` column as `Stage clock`, under a second name. The sketch omitted it; it is the one slot no group named |
+| **Arrival** | queue | `flow` | |
+| **SLA** | queue | `flow` | the *promise* of a turnaround sits in queue's spine cell; this slot is the clock the flow runs against it, which is why pipeline reads the same `Tracks` → `SLA` column under the name `Dwell time` |
+| **Dwell time** | pipeline | `flow` | see `SLA` — one register column, two flow readings |
+| **WIP control** | project · pipeline · queue · inquiry | `flow` | |
+| **Unit that gets an ID** | project · pipeline · queue · inquiry | `derived` | from the spine alone (#2). One-to-one with the spine value by the map below, and never declared, so it cannot contradict it |
+| **Calendar** | project · pipeline · queue · inquiry | `derived` | moved off `flow`; the argument is below |
+| **Triage asks** | project · pipeline · queue | `derived` | |
+| **Signature failure** | project · pipeline · queue · inquiry | `derived` | reads the rung as well as both legs — project's "`done` rows with no evidence" is a rung clause, so the rendering is over (spine, flow, rung) rather than the two legs alone |
+| **Default rung** | project · pipeline · queue · inquiry | `field` | unchanged from today (#1). Under #4 a blank cell inherits the **preset's** default rather than either leg's, which is what holds a mixed track's rung floor still |
+
+Eight spine, eight flow, four derived, one field.
+
+**`Calendar` is `derived`, and that is a disagreement with § 1.1.** Both § 1.1's
+`Axis` column and this section's sketch put it on flow. It cannot sit there,
+because binding-ness has two independent sources that coincide on the four
+diagonals and only there: the **spine** may name a date promised to a party
+(pipeline's `Due`, queue's standing SLA), and the **flow** may run a breach
+clock (pipeline's dwell, queue's arrival + SLA). Their independence is visible
+without leaving the presets — `inquiry`'s flow carries a stage clock exactly as
+`pipeline`'s does, yet inquiry's calendar is advisory and pipeline's is binding.
+**A clock is not what makes a date binding; a promise is.** Each single-leg
+assignment then breaks a live case in the opposite direction: on flow,
+`Mode: pipeline · Flow: project` reports a dated promise to a client as
+advisory, dropping an enforcement somebody was actually given; on spine,
+`Mode: project · Flow: queue` — § 1.3's case, this repository — reports a real
+SLA on an arriving row as a nudge. Derived answers both, because it is binding
+when **either** leg says so. It also settles this section's own arithmetic,
+which claimed four derived slots while listing three.
+
+**The five slots the sketch marked "spine, provisionally" are all spine.**
+`Commitment link`, `Question tree`, `The answer`, `Sources` and `Claim → source`
+each survive the mixed-track test: run an inquiry spine under any flow and it
+still needs sources, a parent and an answer file; run a commitments spine under
+an inquiry flow and it needs none of them, because what it owes is a shipped
+thing. The provisional mark comes off.
+
+**The spine → unit map** (#2). § 7's third risk is that a spine value with no
+unit is unrepresentable rather than merely awkward, so this table is where a new
+spine finds a row it has to fill.
+
+| Spine | What the work is accountable to | Unit that gets an ID |
 |---|---|---|
-| Ends when · Horizon · Spine | spine | |
-| Item states · Stage vocabulary · Stage clock · Arrival · Dwell · SLA · WIP · Calendar | flow | |
-| **Unit that gets an ID** | **derived from spine** (#2) | one-to-one with the spine value; never declared, so it cannot contradict it |
-| Commitment link · Question tree · The answer · Sources · Claim → source | spine, provisionally | each names a file or a column that exists because of what the work is accountable to |
-| Triage asks · Signature failure | derived | rendered from spine + flow, never declared |
-| **Default rung** | **neither — a plain per-track field** (#1) | unchanged from today: a column in the register, overridable per track and per row |
+| `project` | `OKR.md` objectives → `phase/<NNN>-<slug>.md` | **task** |
+| `pipeline` | `OKR.md § Commitments` — a dated promise to a named party | **deliverable** |
+| `queue` | `OKR.md § Commitments` — standing promises + an SLA, no objectives cascade | **request** |
+| `inquiry` | the open root questions — `BOARD.md` rows with an empty `Parent` | **question** |
 
-Two axes, one plain field, and four derived slots. **Completing this table row
-by row is the implementation, not a preliminary** — ~28 distinct slots across
-four files, and the two hardest were resolved in § 4 rather than left to
-whoever writes the code.
+Complete over the four spine values and one-to-one over the four units.
+`tests/test_track_axes.py` reddens on a spine with no unit and on one unit
+appearing under two spines.
+
+**`queue`'s unit is the `request`, and it was not a free choice.**
+`modes/queue.md` writes "the request — or the incident", which is two nouns
+where #2 allows one. Three things pick the same one: `schema/state-schema.json §
+work_modes.modes.queue.unit` already reads `request`; § 4's note on #2 uses
+"request" as queue's unit when arguing that flow-ownership would wrongly rename
+a task to one; and one ID is minted per arrival either way, so *incident* names
+an arrival nobody filed rather than a second unit.
+
+**`pipeline` and `queue` do not share a spine, and the map is why.** Both cells
+cite `OKR.md § Commitments`, which is what invited the sketch to group them.
+One spine value has one unit, and queue's is not `deliverable` — so they are two
+values that happen to be backed by one file. Giving them one value is not a
+style choice that reads oddly; it makes `Spine`, `Ends when`, `Horizon` and
+`Unit` disagree across two presets claiming a single value, and the round-trip
+check reddens on all four at once.
+
+**The presets** (#3, #4). Each mode name expands to its diagonal pair, and a
+blank leg in `## Tracks` inherits from the preset — never from `project`.
+
+| Mode | Spine | Flow |
+|---|---|---|
+| `project` | `project` | `project` |
+| `pipeline` | `pipeline` | `pipeline` |
+| `queue` | `queue` | `queue` |
+| `inquiry` | `inquiry` | `inquiry` |
+
+**What a mixed pair can and cannot render yet.** The eight spine slots and the
+eight flow slots compose for all sixteen pairs, and the field follows the
+preset. The four `derived` slots are recorded here only for the four diagonals:
+rendering `Triage asks`, `Signature failure` and `Calendar` for an off-diagonal
+pair is step 4's job, and § 6 depends on this table for exactly that. `Unit` is
+the exception among the derived four — it reads the spine alone, so it is
+already total over all sixteen pairs, which is what lets § 4's worked example
+(`Mode: project · Flow: queue` has a **task**, not a request) be checked rather
+than asserted.
+
+**One gap this walk found in a mode file, left for step 3.** `modes/inquiry.md`
+has no `Triage asks` row, where the other three do; and `modes/queue.md` has no
+`Commitment link`, though its spine is a set of promises. Neither is an axis
+question and neither is fixed here — annotating the mode files is § 6 step 3,
+and this row does not touch `modes/`.
 
 ### 5.3 What is not changing
 
@@ -313,6 +424,21 @@ DESIGN-003 gained its § 5.9.
   § 5.2's slot table, one § 7 risk and § 8's second open question all moved as a
   consequence, and the title's "three axes" is now the position the document
   argues *against*.
+- 2026-08-20 — **§ 5.2 moved from sketch to complete** (`TASK-140`, § 6 step 1).
+  All 50 contract slots across the four mode files are assigned, the spine →
+  unit map is written, and the preset expansion is stated. Three things changed
+  against the sketch, each argued in the section: `Calendar` moved from `flow`
+  to `derived`, which is a disagreement with § 1.1's own `Axis` column and which
+  reconciles this section's claim of four derived slots with its list of three;
+  `Question clock` was added, the one slot no group had named; and `pipeline`
+  and `queue` were separated into two spine values rather than the one
+  `commitments` the sketch implied, because the map gives them different units.
+  The distinct-slot count is **21**, measured — §§ 1.1 and 2 estimate "~28" and
+  are left as written, since a locked document is not corrected in passing.
+  `tests/test_track_axes.py` is the mechanical check: coverage against the four
+  mode files in both directions, the preset round-trip value by value, and the
+  map's completeness and one-to-one-ness. No other section is touched, and
+  `modes/` is untouched — annotating the mode files is step 3.
 
 ## 10. References
 
