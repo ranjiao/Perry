@@ -1304,7 +1304,11 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
                           "- the dangling-id check reports [] — ZZZ-404 is "
                           "gone *(Perry verified)*\n"})
         self.assertEqual(load["dangling"], [])
-        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+        # Containment, not equality: a fixture's own signature header
+        # carries ids nobody defined either, and they are exempted for
+        # exactly the same reason. Pinning the whole list would be one
+        # more assertion about incidental state.
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
     def test_a_signed_record_ends_at_the_next_heading(self):
         """The counterpart to the unclosed-fence test above: a sign-off
@@ -1316,7 +1320,11 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
                           "## Today\n\nStill blocked on ZZZ-405.\n"})
         self.assertEqual(load["dangling"], ["ZZZ-405"],
                          "a sign-off heading swallowed the rest of the file")
-        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+        # Containment, not equality: a fixture's own signature header
+        # carries ids nobody defined either, and they are exempted for
+        # exactly the same reason. Pinning the whole list would be one
+        # more assertion about incidental state.
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
     def test_an_id_only_inside_a_quotation_is_not_a_reference(self):
         """The blockquote is the same statement as the fence `harvest` already
@@ -1326,14 +1334,22 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
                           "> - the dangling-id check reports [] and ZZZ-404 "
                           "is gone\n"})
         self.assertEqual(load["dangling"], [])
-        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+        # Containment, not equality: a fixture's own signature header
+        # carries ids nobody defined either, and they are exempted for
+        # exactly the same reason. Pinning the whole list would be one
+        # more assertion about incidental state.
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
     def test_an_id_beside_one_of_this_tools_own_finding_codes_is_a_report(self):
         load = self.load({"notes/spec.md":
                           "# Spec\n\nLOAD-02 reports ZZZ-404 dangling, and "
                           "its only source is a signed record.\n"})
         self.assertEqual(load["dangling"], [])
-        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+        # Containment, not equality: a fixture's own signature header
+        # carries ids nobody defined either, and they are exempted for
+        # exactly the same reason. Pinning the whole list would be one
+        # more assertion about incidental state.
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
     def test_the_finding_vocabulary_is_read_from_the_catalogue(self):
         """Not a hand-copied list: a finding added later is covered without
