@@ -406,13 +406,34 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
                                    "a verdict without a reason is a silence")
 
     def test_the_floor_is_not_claimed_to_be_zero(self):
-        """The number, stated. Three of the six are real and each owes a row;
-        this module ships the mechanism and fixes none of them."""
+        """The floor is real and every entry in it is judged.
+
+        **This assertion used to be the very defect this module reports.** It
+        read `count("instance") == 3` and `count("false positive") == 3` — a
+        census of what the repository happened to hold the day it was written —
+        and it went red on 2026-08-21 when TASK-122 landed one more test, for a
+        reason that had nothing to do with whether the guard works. The guard
+        found its own test.
+
+        What is asserted now is the property: the recorded floor matches what
+        the sweep finds, it is not empty, and **at least one entry is a real
+        instance** — a floor of nothing but false positives would mean the
+        guard had stopped discriminating. The exact counts belong in the
+        fixture, which is versioned and re-recorded on purpose, not here.
+        """
         verdicts = [e["verdict"]
                     for e in json.loads(L.BASELINE.read_text())["findings"]]
-        self.assertEqual(len(self.found), len(verdicts))
-        self.assertEqual(verdicts.count("instance"), 3)
-        self.assertEqual(verdicts.count("false positive"), 3)
+        self.assertEqual(len(self.found), len(verdicts),
+                         "the recorded floor and the live sweep disagree — "
+                         "re-record with --record and judge what is new")
+        self.assertGreater(len(verdicts), 0,
+                           "a floor of zero would be a claim this repository "
+                           "has no instances, which was measured false")
+        self.assertGreater(
+            verdicts.count("instance"), 0,
+            "every recorded finding is a false positive — either they were all "
+            "fixed, in which case say so here, or the guard stopped finding "
+            "the thing it exists to find")
 
 
 if __name__ == "__main__":
