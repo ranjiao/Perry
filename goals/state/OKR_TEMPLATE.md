@@ -29,15 +29,17 @@ This document is the long-term reference for the system. The `okr` skill uses it
 > section entirely on a project whose tracks are all `project` mode; a KR is
 > the special case where the party is the project itself.
 >
-> `By when` is a **date** for pipeline rows, which triage compares against, and
-> may be prose for queue rows ("within the track SLA") whose real clock is the
-> register's `SLA`. Board rows point here by putting this table's `Id` in their
+> The clock is **two columns**. `Due` is typed — an ISO date (`2026-09-30`) or
+> an SLA token (`3d`, `2w`) — so triage can compare it against today and sort
+> by it. `By when note` is prose, records how the deadline was worded to the
+> party it was promised to ("within the track SLA"), and is **never
+> validated**. Board rows point here by putting this table's `Id` in their
 > `Commitment` cell — the link runs from the board side, so this table never
 > accumulates ids that rot as rows close.
 
-| Id | Track | Promise | To whom | By when | Status | Discharged by |
-|---|---|---|---|---|---|---|
-| {{track}}/1 | {{track}} | {{what was promised}} | {{who is waiting}} | {{YYYY-MM-DD or prose}} | active | {{how, in prose}} |
+| Id | Track | Promise | To whom | Due | Status | By when note | Discharged by |
+|---|---|---|---|---|---|---|---|
+| {{track}}/1 | {{track}} | {{what was promised}} | {{who is waiting}} | {{YYYY-MM-DD or 3d}} | active | {{how it was worded, or empty}} | {{how, in prose}} |
 
 ## Anti-Goals
 

@@ -25,10 +25,13 @@ board row carrying it at a different promise.
 # create
 "$PERRY_HOME/bin/perry-goals" commit --root . \
     --track ops --promise "Vendor invoices reconciled" \
-    --to Finance --by "within the track SLA"
+    --to Finance --due 3d --by-when-note "within the track SLA"
 
 # amend
-"$PERRY_HOME/bin/perry-goals" commit --root . --id ops/1 --by 2026-11-30
+"$PERRY_HOME/bin/perry-goals" commit --root . --id ops/1 --due 2026-11-30
+
+# split a register written before TASK-091 (once, per project)
+"$PERRY_HOME/bin/perry-goals" commit --root . --migrate
 
 # end
 "$PERRY_HOME/bin/perry-goals" commit --root . --close ops/1 \
@@ -57,28 +60,36 @@ including the event that was appended.
    — a row created by the tool and later deleted by hand is gone from the file
    and still in the log, and its number stays spent.
 
-3. **`To whom` and `By when` have no defaults.** Ask for both — one
+3. **`To whom` and `Due` have no defaults.** Ask for both — one
    `AskUserQuestion`, both fields — before running the command. A promise with
    no named party is a KR, and belongs under an Objective instead; the tool
    refuses `--to` with that sentence rather than filing a commitment to nobody.
 
-4. **`By when` is checked against the track's mode**, because the column
-   carries two formats in one table:
+4. **The clock is two fields, and only one of them is checked.**
 
-   | Track mode | Accepted | Refused |
+   | Field | Value space | Checked? |
    |---|---|---|
-   | `pipeline` | a date (`2026-09-30`) | prose — triage compares this cell against today, and cannot compare prose |
-   | `queue` | prose naming the SLA (`within the track SLA`), or a date | prose that names no clock (`soon`, `ASAP`, `when we get to it`) |
+   | `Due` (`--due`) | an ISO date (`2026-09-30`), or an SLA token (`3d`, `2w`, `24h`) | **yes** — anything else is refused, in every language |
+   | `By when note` (`--by-when-note`) | how the deadline was worded to the party: `within the track SLA`, `same business day`, `下周期` | **never** — no regex asks it anything |
 
-   "Names no clock" is enforced as the **category**, not as those three
-   examples: the cell must carry a date, the word `SLA`, or a unit of time.
-   `eventually` and `有空再说` are refused for the same reason `soon` is. What
-   the tool checks is that a clock is *named*, not that the naming is sincere —
-   `one day` passes, and no parser can do better.
+   `pipeline` narrows `Due` further: it must be an ISO date, because triage
+   compares that cell against today and an SLA token has no day in it.
+
+   This replaced a single `By when` column that carried both value spaces and
+   needed one regular expression to decide whether a sentence "named a clock".
+   That expression failed five V4 review rounds in four shapes and is deleted
+   rather than fixed again (ADR-007, decision 3). If a promise's deadline needs
+   words, the words go in the note and the date still goes in `Due`.
 
    For a queue track, the tool refuses if `.perry/config.md § Tracks` has no
-   `SLA` cell for it: "within the track SLA" pointing at an empty register is a
-   promise with no clock at all. Set the track's SLA first.
+   `SLA` cell for it: a commitment measured against the track's SLA, pointing
+   at an empty register, is a promise with no clock at all. Set the track's SLA
+   first.
+
+   **A register written before the split** — one `By when` column holding both
+   — is refused on every write path with the command that fixes it:
+   `perry-goals commit --migrate`. That moves each cell into the field its
+   value belongs to, drops nothing, and reports the before/after count.
 
 5. **The row is written** with `Status: active` and `Discharged by` empty.
    That cell is free prose describing *how* the promise gets satisfied; it is
@@ -95,11 +106,11 @@ including the event that was appended.
 | `--close <Id>` | `Status: closed` | Refused while `Discharged by` is empty and `--discharged-by` was not passed. A promise closed with no account of how is indistinguishable from one abandoned quietly. |
 | `--miss <Id> --reason <text>` | `Status: missed`, `<reason>` appended to `Discharged by` | Appended, never replacing what is already there. |
 
-**A missed commitment is recorded, never silently re-dated.** Editing `By when`
+**A missed commitment is recorded, never silently re-dated.** Editing `Due`
 on a promise whose date has passed erases the fact that it was missed, and the
 party it was made to is the one person who cannot see the edit. If the promise
 still stands under a new date, `--miss` the old row and `commit` a new one; the
-register then reads as what happened. The tool refuses a `By when` edit on any
+register then reads as what happened. The tool refuses a `Due` edit on any
 row whose current date is in the past and whose `Status` is `active` — that is
 the one edit it will not make, and the refusal names the two commands that do
 it properly.

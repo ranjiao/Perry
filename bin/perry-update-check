@@ -51,12 +51,14 @@ fail() { warn "$@"; [ "$STRICT" -eq 1 ] && exit 1 || exit 0; }
 #   1. $PERRY_HOME if set (explicit override; works for any custom install)
 #   2. $HOME/.claude/skills/perry (Claude Code default)
 #   3. $HOME/.agents/skills/perry (Codex CLI default)
-#   4. Self-locate via $0 (script's own grandparent dir)
+#   4. $HOME/.config/opencode/skills/perry (OpenCode default)
+#   5. Self-locate via $0 (script's own grandparent dir)
 PERRY_LINK=""
 for candidate in \
   "${PERRY_HOME:-}" \
   "$HOME/.claude/skills/perry" \
-  "$HOME/.agents/skills/perry"
+  "$HOME/.agents/skills/perry" \
+  "$HOME/.config/opencode/skills/perry"
 do
   [ -z "$candidate" ] && continue
   # Require a real Perry install (SKILL.md present), not just any existing path.
@@ -78,7 +80,7 @@ if [ -z "$PERRY_LINK" ]; then
 fi
 
 if [ -z "$PERRY_LINK" ] || [ ! -e "$PERRY_LINK" ]; then
-  fail "Perry install not found — checked \$PERRY_HOME, ~/.claude/skills/perry, ~/.agents/skills/perry. Set PERRY_HOME to override."
+  fail "Perry install not found — checked \$PERRY_HOME, ~/.claude/skills/perry, ~/.agents/skills/perry, ~/.config/opencode/skills/perry. Set PERRY_HOME to override."
 fi
 
 # Resolve to real path (follows symlinks). readlink behavior differs on

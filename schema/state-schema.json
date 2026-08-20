@@ -647,9 +647,14 @@
           "承诺对象"
         ]
       },
-      "By when": {
+      "Due": {
         "zh": [
           "截止"
+        ]
+      },
+      "By when note": {
+        "zh": [
+          "截止说明"
         ]
       },
       "Discharged by": {
@@ -722,6 +727,30 @@
           "提问"
         ]
       }
+    },
+    "blank_cell": {
+      "note": "Values that mean THE CELL SAYS NOTHING. Declared here beside the column translations, for the same reason those are: adding a language must be a schema edit, not a code edit in whichever tool noticed first.\n\nThere were THREE lists in `bin/`, with three different contents — `perry-task` (the only one carrying 无), `perry-diagnose`, and `perry-lint`, whose copy was added by the very commit whose thesis is one-rule-one-implementation. Measured across them: `n/a`, `TBD`, `none`, `?` and `—` were refused by the writer and linted clean, while 无, 待定 and 不适用 were refused by the writer AND reported. Same meaning, two verdicts, split on language — which is TASK-042 criterion 1 verbatim. Found by a V4 inside the check added to close the previous Chinese gap.\n\nMatched case-insensitively with markdown decoration and terminal sentence punctuation stripped. The empty string is always blank and is not listed.",
+      "en": [
+        "—",
+        "-",
+        "–",
+        "n/a",
+        "na",
+        "none",
+        "tbd",
+        "?",
+        "N.A.",
+        "TBA"
+      ],
+      "zh": [
+        "无",
+        "无。",
+        "待定",
+        "不适用",
+        "暂无",
+        "—",
+        "？"
+      ]
     }
   },
   "migration": {
@@ -1064,18 +1093,23 @@
         },
         {
           "under": "^Commitments\\b|^承诺",
-          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it. `By when` is PER-MODE: a date for pipeline-track rows, which triage compares against; free prose for queue-track rows ('within the track SLA'), whose real clock is the register's `SLA`. One shared table, two formats - stated here because a pipeline triage that hits a queue row's prose would otherwise just stop (V4 re-review round 3, finding 4).",
+          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it.\n\nThe clock is TWO columns, not one (ADR-007 decision 3; TASK-091). `Due` is TYPED - an ISO date (2026-09-30) or a declared SLA token (3d, 2w) - and nothing else is accepted, so triage can compare it against today and sort by it without asking a regex a question about prose. `By when note` is PROSE and is NEVER validated: 'within the track SLA', '下周期', whatever the promise was actually worded as. It is stored and rendered verbatim and no regex asks it anything.\n\nThis replaces the single `By when` column, which carried both value spaces and needed one regex (CLOCK_RE) to answer a natural-language question. That regex failed five V4 review rounds in four shapes - the last because \\b does not exist in Chinese, so the English half matched on word boundaries and the Chinese half on bare substrings. It is deleted, not fixed a sixth time. A pre-split register is migrated by `perry-goals commit --migrate`: a bare date or SLA token becomes `Due`, anything else becomes `By when note`, and no cell is dropped.",
           "columns": [
             "Id",
             "Track",
             "Promise",
             "To whom",
-            "By when",
+            "Due",
             "Status"
           ],
           "optional_columns": {
+            "By when note": "Free prose recording how the deadline was worded to the party it was promised to - 'within the track SLA', 'same business day', '下周期'. PROSE, in the ADR-007 rule-2 sense: it is stored and rendered verbatim and NOTHING validates it, because the bounded half of the old `By when` column now lives in `Due`, and a second reader asking prose a question is the defect ADR-007 exists to remove. Optional: a promise whose deadline needs no words beyond its date leaves it empty.",
             "Discharged by": "Free prose describing how the promise is satisfied. NOT a list of row IDs: the authoritative link runs the other way - each BOARD.md row's `Commitment` cell carries the `Id` from this table. Row position must never be used as the reference; the goals lane rewrites this file, and a position reference does not dangle when a row is inserted, it silently re-points every board row to the wrong promise (V4 re-review N9)."
-          }
+          },
+          "typed_columns": {
+            "Due": "iso-date-or-sla"
+          },
+          "typed_columns_note": "The reader half of 'nothing else is accepted'. That sentence was true of `perry-goals commit` and of nothing else: a hand-written `| ... | 下周期 | active |` under a `Due` header linted clean, so the typed column had a validated writer and an unvalidated file. Reported as `error`, like an off-enum value: `perry-goals commit --migrate` is explicitly exempt from the conformance write gate, so error severity names invalid typed state without blocking its repair."
         }
       ],
       "anchor": "state"
@@ -1931,7 +1965,7 @@
           "name": "Conformance gate",
           "required": false,
           "pattern": "advisory|enforce",
-          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'advisory' for one release: every project that predates the marker is undeclared, and for the ones that are not already Perry-shaped the way forward is the migration (TASK-044), which does not exist yet - a refusal naming a command nobody can run is a wall. The env var PERRY_CONFORMANCE overrides this field. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.md, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself."
+          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.md, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself."
         }
       ],
       "tables": [
@@ -2148,5 +2182,11 @@
       "Glossary": "Optional. A two-column table, `Term | Shown as`, that renames what Perry RENDERS. It is a third axis on the same mechanism as i18n: file names, IDs, enum values, column keys and command names stay invariant, and only the nouns a human reads change. A pack that renamed a file name would break every parser, which is why the glossary cannot reach them."
     },
     "invariant": "Everything in i18n.invariant, plus: a glossary may never rename a schema column key, a heading the schema matches on, an enum value, or a path. It renames prose."
+  },
+  "typed_cell_kinds": {
+    "iso-date-or-sla": {
+      "accepts": "an ISO date like `2026-09-30`, or an SLA token like `3d` / `2w`",
+      "note": "The KIND is declared here and the PREDICATE is in `bin/lib § is_iso_date` / `is_sla_token`, which `bin/perry-goals` also validates `--due` with — one value space, one implementation, so the writer's “accepted” and the file check's “valid” cannot drift apart. The prose lives here rather than in the linter for the reason ADR-007 gives generally: the shape is Python's and the words are the declaration's. `tests/test_work_modes.py § test_the_linter_does_not_carry_its_own_copy_of_the_list` enforces exactly that boundary, and caught the first version of this string sitting in `bin/perry-lint`."
+    }
   }
 }

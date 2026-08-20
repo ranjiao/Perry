@@ -18,6 +18,8 @@
 
 Walks the BOARD top-to-bottom and dispatches every task that's safe to dispatch without user input, until budget exhausts or no actionable tasks remain. Designed for "user goes to lunch / sleep / out for the day, comes back to a wall of `review` rows".
 
+The executor enum is `claude-subagent | opencode-subagent | codex | manual`. Autopilot skips `manual`; it enforces the host matrix without substitution: Claude Code native = `claude-subagent`, OpenCode native = synchronous `opencode-subagent`, Codex CLI has no native subagent, and `codex` works on all three.
+
 **Autopilot does NOT close tasks.** Per the project's standing rule (subjective verification = human), every successfully-completed dispatch lands at `review`, not `done`. The user reviews on return.
 
 ## When to use
@@ -59,7 +61,8 @@ What this command does:
   or no candidates remain.
 
 What it CAN do:
-  - Dispatch tasks marked `Dispatch mode: auto` with `Executor: claude-subagent | codex`
+  - Dispatch tasks marked `Dispatch mode: auto` with a host-valid executor:
+    `claude-subagent | opencode-subagent | codex`
   - Run objective verification commands declared in spec
   - Write evidence files, update BOARD rows to `review`, append journal entries
   - Wait when dispatch concurrency cap is hit (poll up to 10 min)
@@ -79,7 +82,7 @@ Default budget (override via flags):
   --dry-run              print the plan, don't execute
 
 How to stop autopilot mid-run:
-  (a) Close the Claude Code session — the autopilot loop dies; partial
+  (a) Close the host session — the autopilot loop dies; partial
       progress already on disk is preserved (BOARD rows, evidence, journal
       entries). In-flight dispatches keep running in their own processes.
   (b) From a separate shell:
@@ -131,7 +134,7 @@ First-run protection:
    - **Skipped — no spec**: P0/P1 missing `<TASK-ID>-spec.md` → never auto-dispatched (spec is the safety contract).
    - **Skipped — blocked**: open dependency.
    - **Skipped — already in flight**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` shows it as currently running.
-   - **Skipped — host mismatch** (Codex only): spec pins `Executor: claude-subagent` but `$HOST = codex-cli`. The `claude-subagent` executor isn't available on Codex; the spec must be edited to `codex` (or `manual`) before autopilot can dispatch it. Per `../../reference/host-capabilities.md § Agent / subagent_type`.
+    - **Skipped — host mismatch**: the spec pins a native executor unavailable on `$HOST`. Claude Code permits `claude-subagent`; OpenCode permits `opencode-subagent`; Codex CLI permits neither. Every host also permits `codex`. The spec must be edited explicitly; autopilot never reroutes it.
    - **Skipped — review/done**: already past dispatch.
 4. Apply priority order: P0 first, then P1, then P2 (within each, oldest-pending first).
 5. Truncate eligible list to `max-dispatches` (default 10).
@@ -164,12 +167,13 @@ Repeat:
      - Pick next task (P0 > P1 > P2; oldest first).
      - Run full `/pmo dispatch <task-id>` flow (see `dispatch.md`):
        - Pre-flight (codex preflight if codex; safety re-validation; concurrency register)
-       - Dispatch via executor with async (Claude Code: `run_in_background: true`; Codex: shell `&` per `../../reference/host-capabilities.md`).
+        - Apply dispatch.md's mandatory `in_progress` transition, then dispatch via the selected executor. Claude native medium/large work and `codex` are async; OpenCode native `Task(subagent_type: general)` is synchronous and completes this item before another native Task starts.
        - Increment `dispatches_done`. The journal status-change line is already written — `dispatch` ran `perry-task start`, which writes row, journal and event together. Appending one here duplicates it.
        - Append a row to the run summary's per-task table: dispatched at, executor.
 
-3. **Wait for ANY in-flight dispatch to complete**:
-   - On Claude Code: receive runtime notification (background dispatches notify on completion). On Codex (`$HOST = codex-cli`): poll the per-task log files (`/tmp/perry-dispatch-<id>.log`) every 30s and the PID files (`/tmp/perry-dispatch-<id>.pid`) for process exit; treat first appearance of `=== END RESULT ===` (or process exit) as completion. See `../../reference/host-capabilities.md § Bash run_in_background: true`.
+3. **Process completion**:
+    - OpenCode native Task returns synchronously: release its slot and process its RESULT immediately. Do not wait for or promise a background notification.
+    - Claude Code background calls use the runtime completion notification. OpenCode/Codex `codex` calls use the no-background-shell-tool fallback: poll `/tmp/perry-dispatch-<id>.log` and its PID every 30s; completion is `=== END RESULT ===` or process exit.
    - For each completion, run the standard post-completion routine (see `dispatch.md` § "On completion"): release slot, parse RESULT, run objective verification, write evidence file, then move the row with `perry-task status <ID> --status review` — one call that updates `BOARD.md` and appends the journal line. Do not do either by hand: an autopilot run that hand-edits the board on every completion drowns the drift signal in output it produced itself, which is the failure this file's own header warns about.
    - Append result to the run summary's per-task table: completed at, status, evidence path.
    - If completion was a failure (executor error / verification fail / scope creep) → `failures += 1`. Mark the task `review` with the failure named: `perry-task status <ID> --status review --reason "<what failed>"`. **Never auto-retry.**

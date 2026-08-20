@@ -148,9 +148,9 @@ true — and an SLA against which arrivals are measured.
 ```markdown
 ## Commitments      (in OKR.md — written by the goals lane)
 
-| Id | Track | Promise | To whom | By when | Status | Discharged by |
-|---|---|---|---|---|---|---|
-| ops/1 | ops | Vendor invoices reconciled | Finance | within the track SLA | active | routed intake, worked oldest-first |
+| Id | Track | Promise | To whom | Due | Status | By when note | Discharged by |
+|---|---|---|---|---|---|---|---|
+| ops/1 | ops | Vendor invoices reconciled | Finance | 3d | active | within the track SLA | routed intake, worked oldest-first |
 ```
 
 The link is written from the **board** side — each row's `Commitment` cell
@@ -163,13 +163,15 @@ nothing looks broken.
 Triage reads it in the direction it actually needs: given a commitment due this
 week, which board rows carry its id, and how far along are they.
 
-**`By when` is prose; the clock is `SLA` in the track register.** A standing
-commitment's `By when` says what was promised in the words it was promised in
-("within the track SLA", "same business day"); the number triage actually
-measures against lives once, in `.perry/config.md § Tracks` → `SLA`. Writing
-"5 working days" here as well is how the same value ends up in two places
-disagreeing about whether days are calendar or working. **`5d` means five
-calendar days.**
+**The clock is two columns; the authority is `SLA` in the track register.**
+`Due` is typed — an ISO date or the same `<n><unit>` SLA shorthand — and is
+what triage sorts and compares. `By when note` is prose and says what was
+promised in the words it was promised in ("within the track SLA", "same
+business day"); **nothing validates it, and no regex asks it anything**
+(ADR-007, rule 2). The number triage actually measures against still lives
+once, in `.perry/config.md § Tracks` → `SLA`. Writing "5 working days" into the
+note as well is how the same value ends up in two places disagreeing about
+whether days are calendar or working. **`5d` means five calendar days.**
 
 **The goals lane owns this section**, like every other section of `OKR.md`. The
 modes read it and never write it — the same one-writer-per-file rule that

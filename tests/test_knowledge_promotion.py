@@ -18,6 +18,8 @@ Run: python3 -m unittest discover -s tests
 from __future__ import annotations
 
 import json
+import importlib.machinery
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -25,12 +27,23 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-knowledge"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 CARD_SPEC = next(f for f in SCHEMA["files"] if f["id"] == "knowledge-card")
 INDEX_TEMPLATE = PERRY_HOME / "work" / "state" / "knowledge_INDEX_TEMPLATE.md"
+
+
+def load_tool_module():
+    loader = importlib.machinery.SourceFileLoader(
+        "perry_knowledge_binding", str(TOOL))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 EVIDENCE = """# TASK-001 — the monthly export double-counted every tenant row
 
@@ -48,7 +61,8 @@ class Base(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n", encoding="utf-8")
+            "# Perry configuration\n\n- State root: .\n" + GATE_OFF,
+            encoding="utf-8")
         (root / "evidence" / "2026-08").mkdir(parents=True)
         (root / "evidence" / "2026-08" / "TASK-001-export-fix.md").write_text(
             EVIDENCE, encoding="utf-8")
@@ -62,6 +76,13 @@ class Base(unittest.TestCase):
             p = root / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(text, encoding="utf-8")
+        if (root / "BOARD.md").exists():
+            seeded = subprocess.run(
+                [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"),
+                 "write", "--from-board", "--root", str(root)],
+                capture_output=True, text=True)
+            if seeded.returncode:
+                raise AssertionError(seeded.stdout + seeded.stderr)
         return root
 
     def run_tool(self, root: Path, *args: str) -> subprocess.CompletedProcess:
@@ -189,6 +210,38 @@ class TestTheOtherMandatoryFields(Base):
             (root / "knowledge" / "reporting" / "test-tenants.md").read_text(),
             before, "a refused promotion still changed the record")
 
+    def test_list_rejects_impossible_dates_before_calendar_arithmetic(self):
+        card_text = (
+            "# reporting/broken — claim\n\n"
+            "- Kind: knowledge\n- Owner role: —\n"
+            f"- Source: {SRC}\n- Last verified: 2026-02-30\n"
+            "- Invalidated by: source changes\n\nclaim\n")
+        root = self.project({"knowledge/reporting/broken.md": card_text})
+        r = self.run_tool(root, "list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout)
+        self.assertEqual(len(payload["cards"]), 1)
+        self.assertFalse(payload["cards"][0]["stale"])
+
+    def test_list_calls_lib_is_iso_date(self):
+        root = self.project({
+            "knowledge/reporting/binding.md": (
+                "# reporting/binding — claim\n\n"
+                "- Kind: knowledge\n- Owner role: —\n"
+                f"- Source: {SRC}\n- Last verified: DATE-SENTINEL\n"
+                "- Invalidated by: source changes\n\nclaim\n")})
+        mod = load_tool_module()
+        mod.load_schema()
+        calls = []
+        original = mod.lib.is_iso_date
+        try:
+            mod.lib.is_iso_date = lambda value: calls.append(value) is None and False
+            cards = mod.read_cards(root)
+        finally:
+            mod.lib.is_iso_date = original
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(calls, ["DATE-SENTINEL"])
+
 
 class TestARealCloseProducesACard(Base):
     """V3, end to end: `perry-task done` writes the evidence citation, the
@@ -196,7 +249,7 @@ class TestARealCloseProducesACard(Base):
     reports the result clean."""
 
     BOARD = ("# Task board — demo\n\n## Active\n\n"
-             "| ID | Task | Owner | Status | Priority | Evidence | Notes |\n"
+             "| ID | Title | Owner | Status | Priority | Evidence | Notes |\n"
              "|---|---|---|---|---|---|---|\n"
              "| TASK-001 | Fix the monthly export | Coding Agent | in_progress "
              "| P1 | — | — |\n")

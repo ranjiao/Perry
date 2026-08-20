@@ -222,7 +222,7 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | 5 | Rename the lanes | Rename to goals/work/decide with aliases (Recommended) / Keep names, change display only / Keep okr/pmo/design as-is | **Rename to goals/work/decide with aliases** | 2026-08-16 |
 | 6 | Move ADR ownership out of PMO | Yes — decisions join the design lane (Recommended) / No — keep in PMO / Split: ADRs PMO, RFCs design | **Yes — decisions join the design lane** | 2026-08-16 |
 | 7 | Software-ops references | Move to a bundled `packs/software-ops/` (Recommended) / Leave in `pmo/reference/` / Move to a separate repo | **Bundled `packs/software-ops/`** | 2026-08-16 |
-| 8 | Third+ host support | Add OpenCode next (Recommended) / Claude Code + Codex only / Any SKILL.md-reading host, untested | **Claude Code + Codex only** | 2026-08-16 |
+| 8 | Third+ host support | Add OpenCode next (Recommended) / Claude Code + Codex only / Any SKILL.md-reading host, untested | **Claude Code + Codex only** — superseded by ADR-008 after the recorded revisit trigger fired | 2026-08-16 |
 
 Notes on the non-obvious rows:
 
@@ -527,8 +527,9 @@ against the mode table in §5.1), G at V5.
   concern in every legal-tooling source [5]. Perry has no model for "this track
   must never leave this folder" and probably needs one before pipeline mode is
   recommended for legal work.
-- ~~**Third host.**~~ Closed by §4 decision 8: Claude Code + Codex only. Not
-  reopened by this design. The revisit trigger is recorded under §4's notes.
+- ~~**Third host.**~~ Reopened and closed by ADR-008 on 2026-08-19 after Perry
+  failed inside OpenCode. OpenCode is now an explicit tested adapter; “any
+  SKILL.md-reading host” remains rejected.
 
 ## 9. Changes (append-only after lock)
 
@@ -557,6 +558,9 @@ against the mode table in §5.1), G at V5.
   `Arrived` on routing, making its own SLA triage uncomputable; `Arrived` is now
   a carried column. None of these change the design's shape, which is why this
   is a `## Changes` entry rather than a `revise`.
+- 2026-08-19 — decision 8 superseded by ADR-008 after its own revisit trigger
+  fired in a real OpenCode session. Added the explicit `opencode` host and
+  `opencode-subagent` executor; generic untested host support remains rejected.
 
 ## 10. References
 

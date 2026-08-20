@@ -157,8 +157,14 @@ Hypothesis / data period / universe / method / metrics / risk + failure modes / 
 
 ## Role ≠ executor
 
+The executor enum is `claude-subagent | opencode-subagent | codex | manual`.
+`delegate` is the `manual` path and only renders a prompt; it does not bypass
+the automated host matrix. If that prompt is later switched to dispatch,
+Claude Code permits `claude-subagent`, OpenCode permits `opencode-subagent`,
+Codex CLI permits neither native token, and every host permits `codex`.
+
 `<role>` is the contract; the executor is what instantiates it. One role runs on
-`claude-subagent` today and `codex` tomorrow with no edit to its card, and
+`claude-subagent`, `opencode-subagent`, or `codex` with no edit to its card, and
 `bin/perry-dispatch-limit` counts executors, not roles — a project with four
 roles and two codex slots has two slots, not eight. A card's `executors` field
 may restrict which runtimes are acceptable (`any` by default); it never grants

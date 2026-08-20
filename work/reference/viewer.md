@@ -36,13 +36,13 @@ Run from the project directory (where `BOARD.md` lives — the standup's CWD).
      bash "$PERRY_HOME/bin/perry-viewer" --port <PORT>
      ```
      Remember the returned background task id for `stop`.
-   - **Codex / no background tool** (`$HOST = codex-cli`, see `$PERRY_HOME/reference/host-capabilities.md`):
+    - **OpenCode or Codex / no background shell tool** (`$HOST = opencode | codex-cli`, see `$PERRY_HOME/reference/host-capabilities.md`):
      ```
      mkdir -p ~/.cache/perry
      nohup bash "$PERRY_HOME/bin/perry-viewer" --port <PORT> > ~/.cache/perry/viewer.log 2>&1 &
      ```
 
-4. **Wait until it answers.** Poll `curl -sf "http://127.0.0.1:$PORT/" >/dev/null` until it returns 0. **First run can take ~60s** (venv creation + `pip install`); allow up to 90s. Do **not** use a foreground `sleep` loop (the harness blocks it) — on Claude Code use the **Monitor** tool with an until-condition on that curl command; on Codex, a short `for` loop with `sleep` in the backgrounded shell is fine. If it never comes up, read `~/.cache/perry/viewer.log` (or the background task output) and surface the error — common causes: no `python3` on PATH, pip/network failure during first-run install, port already taken by another app.
+4. **Wait until it answers.** Poll `curl -sf "http://127.0.0.1:$PORT/" >/dev/null` until it returns 0. **First run can take ~60s** (venv creation + `pip install`); allow up to 90s. Do **not** use a foreground `sleep` loop when the harness blocks it — on Claude Code use the Monitor tool; on OpenCode/Codex poll from the shell fallback. If it never comes up, read `~/.cache/perry/viewer.log` (or background task output) and surface the error.
 
 5. **Open the browser at the address** — for the human, use the OS default browser (not an agent-browsing tool):
    ```
@@ -67,7 +67,7 @@ Run from the project directory (where `BOARD.md` lives — the standup's CWD).
 ## Procedure — stop
 
 - **Claude Code**: stop the background task this session started (its task id from step 3) via the harness (TaskStop). Confirm the port stops answering.
-- **Fallback (any host)**: `pkill -f "viewer/serve.py"` — the viewer has no PID file; matching on its script path is safe on a single-user localhost box.
+- **OpenCode/Codex fallback**: `pkill -f "viewer/serve.py"` — the viewer has no PID file; matching on its script path is safe on a single-user localhost box.
 - Tell the user it's stopped; nothing runs afterward (no daemon).
 
 ## Notes & guardrails

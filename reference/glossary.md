@@ -89,6 +89,12 @@ A versioned, frozen JSON payload a front-end may code against —
 keys; a removal or retype is a major.
 Implemented: schema/task-list-contract.md
 
+### field path
+A path to one key inside a contract payload — `conformance.evidence_not_found[].id`.
+**Not** a Key Result id. Called `key path` for one afternoon until a reader
+took it for `KR`, which is what `key` already means here.
+Implemented: tests/test_contract_invariance.py
+
 ### semantics
 The array in a read contract's payload naming which fields **changed meaning**
 in which minor version. Exists because "1.x only adds keys" does not cover a
@@ -102,7 +108,9 @@ Implemented: schema/task-list-contract.md
 
 ### drift
 The board and the event log disagreeing — a state change that happened without
-a tool writing it, usually a hand edit. Reported, never refused.
+a tool writing it, usually a hand edit. Reported, never refused. Under ADR-007
+the same word covers the board disagreeing with the task store, which
+`perry-lint` reports as `store-drift` at `warn` and on the same posture.
 Implemented: bin/perry-state
 
 ### intake

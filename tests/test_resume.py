@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -287,6 +288,136 @@ class TestDetectionIsComputedNotEyeballed(unittest.TestCase):
                         "detection must work on a folder with no state files — "
                         "that is the case that was routing users into "
                         "First-time setup and losing their work")
+
+
+class TestRecoveryGate(unittest.TestCase):
+    """Unsafe restore points block startup without being changed."""
+
+    def test_no_hazards_is_not_blocking(self):
+        with tempfile.TemporaryDirectory() as td:
+            recovery = state(Path(td), "recovery")["recovery"]
+        self.assertEqual(recovery, {
+            "blocking": False,
+            "pending_transactions": [],
+            "malformed_dossiers": [],
+        })
+
+    def test_valid_pending_transaction_is_reported_without_mutation(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            marker = root / ".perry-task-transaction.json"
+            content = json.dumps({
+                "version": 1,
+                "phase": "commit",
+                "entries": [{"target": "tasks.jsonl", "tmp": "tasks.tmp"}],
+            })
+            marker.write_text(content)
+            recovery = state(root, "recovery")["recovery"]
+            self.assertEqual(marker.read_text(), content,
+                             "perry-state must never recover or rewrite a transaction")
+        self.assertTrue(recovery["blocking"])
+        self.assertEqual(recovery["pending_transactions"], [{
+            "path": ".perry-task-transaction.json",
+            "valid": True,
+            "phase": "commit",
+            "entries": 1,
+            "error": None,
+        }])
+
+    def test_malformed_transaction_is_blocking(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".perry-task-transaction.json").write_text("{not json")
+            transaction = state(root, "recovery")["recovery"][
+                "pending_transactions"][0]
+        self.assertFalse(transaction["valid"])
+        self.assertIn("JSONDecodeError", transaction["error"])
+
+    def test_transaction_path_is_relative_to_project_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = root / ".perry" / "config.md"
+            config.parent.mkdir()
+            config.write_text("State root: perry\n")
+            state_root = root / "perry"
+            state_root.mkdir()
+            (state_root / ".perry-task-transaction.json").write_text(
+                json.dumps({"version": 1, "entries": []}))
+            transaction = state(root, "recovery")["recovery"][
+                "pending_transactions"][0]
+        self.assertEqual(transaction["path"],
+                         "perry/.perry-task-transaction.json")
+
+    def _recovery_for_dossier(self, text: str, pipeline: str = "adopt") -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            sub = "adoption" if pipeline == "adopt" else "diagnose"
+            directory = root / ".perry" / sub
+            directory.mkdir(parents=True)
+            (directory / "run.md").write_text(text)
+            return state(root, "recovery")["recovery"]
+
+    def test_missing_frontmatter_is_reported(self):
+        recovery = self._recovery_for_dossier("# unfinished adoption\n")
+        self.assertTrue(recovery["blocking"])
+        self.assertEqual(recovery["malformed_dossiers"][0]["errors"],
+                         ["missing opening frontmatter delimiter"])
+
+    def test_missing_closing_frontmatter_is_reported(self):
+        recovery = self._recovery_for_dossier("---\nadoption: 1\nstage: scan\n")
+        self.assertEqual(recovery["malformed_dossiers"][0]["errors"],
+                         ["missing closing frontmatter delimiter"])
+
+    def test_missing_pipeline_discriminator_is_reported(self):
+        recovery = self._recovery_for_dossier("---\nstage: scan\n---\n")
+        self.assertIn("expected adoption: 1",
+                      recovery["malformed_dossiers"][0]["errors"])
+
+    def test_missing_stage_is_reported(self):
+        recovery = self._recovery_for_dossier("---\nadoption: 1\n---\n")
+        self.assertIn("missing stage",
+                      recovery["malformed_dossiers"][0]["errors"])
+
+    def test_invalid_stage_enum_is_reported(self):
+        recovery = self._recovery_for_dossier(
+            "---\nadoption: 1\nstage: almost-done\n---\n")
+        self.assertIn("invalid stage: almost-done",
+                      recovery["malformed_dossiers"][0]["errors"])
+
+    def test_invalid_stage_specific_step_is_reported(self):
+        recovery = self._recovery_for_dossier(
+            "---\ndiagnosis: 1\nstage: execute\nstep: prescription-3\n---\n",
+            pipeline="diagnose")
+        self.assertIn("invalid step for execute: prescription-3",
+                      recovery["malformed_dossiers"][0]["errors"])
+
+    def test_valid_nonterminal_dossier_is_interrupted_not_malformed(self):
+        recovery = state(FIXTURE, "recovery")["recovery"]
+        interrupted = state(FIXTURE)["interrupted"]
+        self.assertEqual(recovery["malformed_dossiers"], [])
+        self.assertEqual({row["pipeline"] for row in interrupted},
+                         {"adopt", "diagnose"})
+
+    def test_valid_terminal_dossier_is_not_interrupted(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            directory = root / ".perry" / "adoption"
+            directory.mkdir(parents=True)
+            (directory / "done.md").write_text(
+                "---\nadoption: 1\nstage: done\n---\n")
+            interrupted = state(root)["interrupted"]
+            recovery = state(root, "recovery")["recovery"]
+        self.assertEqual(interrupted, [])
+        self.assertFalse(recovery["blocking"])
+
+    def test_recovery_is_available_when_not_installed(self):
+        payload = state(FIXTURE, "recovery")["recovery"]
+        self.assertFalse(state(FIXTURE, "installed")["installed"])
+        self.assertIn("blocking", payload)
+
+    def test_interrupted_section_shape_is_unchanged(self):
+        payload = state(FIXTURE)
+        self.assertEqual(set(payload), {"interrupted"})
 
 
 class TestStaleRuns(unittest.TestCase):

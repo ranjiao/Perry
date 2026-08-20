@@ -409,6 +409,9 @@ class BoardState:
     #: `perry-state` could not see the section at all.
     intake: list[dict] = field(default_factory=list)
     cadence: list[Task] = field(default_factory=list)
+    # Task tables under project-defined headings. The writer accepts these via
+    # `--group`; keeping them separate avoids inventing a P0/P1/P2 priority.
+    task_groups: list[tuple[str, list[Task]]] = field(default_factory=list)
     backbone_groups: list[tuple[str, list[Task]]] = field(default_factory=list)
     user_input_queue: list[UserInput] = field(default_factory=list)
     risks: list[Risk] = field(default_factory=list)
@@ -416,7 +419,7 @@ class BoardState:
     @property
     def all_tasks(self) -> list[Task]:
         out = list(self.p0) + list(self.p1) + list(self.p2) + list(self.cadence)
-        for _, tasks in self.backbone_groups:
+        for _, tasks in self.task_groups:
             out.extend(tasks)
         return out
 
@@ -674,6 +677,13 @@ def parse_board(text: str) -> BoardState:
             state.intake = _parse_intake(chunk)
         elif head.startswith("Backbone"):
             backbone_chunk = chunk
+            tasks = _parse_task_table(chunk, "Backbone", task_headers_only=True)
+            if tasks:
+                state.task_groups.append((head, tasks))
+        else:
+            tasks = _parse_task_table(chunk, "", task_headers_only=True)
+            if tasks:
+                state.task_groups.append((head, tasks))
 
     if backbone_chunk:
         state.backbone_groups = _parse_backbone(backbone_chunk)
@@ -720,7 +730,8 @@ def _split_status(raw: str) -> tuple[str, str]:
     return clean, ""
 
 
-def _parse_task_table(section: str, priority: str) -> list[Task]:
+def _parse_task_table(section: str, priority: str,
+                      *, task_headers_only: bool = False) -> list[Task]:
     """Collect task rows from EVERY markdown table inside the section, not just
     the first. A priority section (## P0 …) may hold several tables split by
     ### sub-headings (e.g. "### Web v2.0", "### Research Workbench"); all of
@@ -746,9 +757,14 @@ def _parse_task_table(section: str, priority: str) -> list[Task]:
     idx: dict[str, int] = {}
     for line in lines:
         if re.match(r"^\|\s*---", line):
-            in_table = True
             header = ([squash(c) for c in split_row(prev)]
                       if prev.strip().startswith("|") else [])
+            # Project-defined groups may contain reference tables beside work.
+            # The writer treats only tables with resolvable ID + Title columns
+            # as task tables, so the state reader must apply the gate per table.
+            in_table = (not task_headers_only or
+                        (any(h in _column_keys("ID") for h in header) and
+                         any(h in _column_keys("Title") for h in header)))
             idx = {}
             # `Track` and `Stage` were absent from this list, so the two
             # columns the non-`project` modes are DEFINED by resolved to -1 and

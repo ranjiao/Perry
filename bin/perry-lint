@@ -13,6 +13,12 @@ Usage:
              [--json]
              [--state-root <path>] [--strict] [--quiet]
 
+The default pass also reports `store-drift`: when `<state root>/tasks.jsonl`
+exists, a rendered file whose fields disagree with what the store would produce
+(ADR-007 decision 2 — the board is rendered output, so a hand edit is drift).
+`warn`, on the `NS-01` precedent, and SILENT when there is no store, because
+"no store" and "clean" are different answers.
+
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
                 schema is what silently breaks the viewer and the standup.
@@ -78,6 +84,8 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # Frontmatter files are read with the SAME reader Perry uses, so "the linter
 # passed" and "Perry can read it" cannot diverge.
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
 import parsers as P
 from tables import split_row, squash  # noqa: E402
 
@@ -252,6 +260,7 @@ def load_glossary(schema: dict) -> None:
     copy of this loop is exactly the two-implementations-of-one-rule defect
     ADR-004 is about."""
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
     for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
         MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
     STAGE_SEPARATORS.update(
@@ -289,6 +298,15 @@ def column_index(got: list[str], column: str) -> int:
     return -1
 
 
+def canonical_column(header: str) -> str:
+    """A normalized localized header mapped back to its schema column name."""
+    value = norm(header)
+    for column in COLUMN_ALIASES:
+        if value in accepted(column):
+            return norm(column)
+    return value
+
+
 def field_re(name: str) -> str:
     """Alternation matching a header field name in any accepted language."""
     names = [name, *FIELD_ALIASES.get(name, [])]
@@ -312,6 +330,10 @@ def heading_re(name: str) -> re.Pattern:
 # Filled from schema["thresholds"] in main(). Module-level rather than threaded
 # through two signatures, so every check reads the one declared number.
 SCHEMA_THRESHOLDS: dict = {}
+#: Declared task statuses, filled from the schema by the same loader that
+#: fills the thresholds — never listed here, so it cannot drift from what
+#: `perry-task` writes.
+TASK_STATUSES: set = set()
 
 #: The `Kind:` values that make a `knowledge/*/*.md` file a CARD rather than a
 #: digest, and the fields a card must carry — both read from
@@ -505,6 +527,99 @@ def spec_claims(spec: dict, text: str, schema: dict) -> bool:
         if field_value(text, d["field"]) in (d.get("values") or []):
             return False
     return True
+
+
+#: schema `typed_columns` value → the predicate that answers it. Both halves
+#: come from `lib`, which is where `bin/perry-goals` reads them too.
+#:
+#: **The predicate takes the track's MODE**, because the writer's does.
+#: `perry-goals § check_due` refuses an SLA token on a `pipeline` track — that
+#: track's triage compares the cell against today and a token has no day in it
+#: — while the file check was mode-blind. A V4 generated 17,889 values across
+#: four modes and found **398 disagreements**, every one of them an SLA token
+#: in a pipeline register: refused by the writer, clean in the file. A reader
+#: that is laxer than its writer is the same defect as one that is stricter,
+#: and this pair was split to end exactly that.
+TYPED_CELL = {
+    "iso-date-or-sla": lib.due_is_valid,
+}
+#: What each kind ACCEPTS, in words, read from `schema § typed_cell_kinds`.
+#: Not written here: the guard in `tests/test_work_modes.py` forbids this file
+#: from naming a column's vocabulary in code, and it is right to — the words
+#: are the declaration's and only the predicate above is Python's.
+
+
+_TYPED_CELL_KINDS: dict = {}
+
+
+def _accepts(kind: str) -> str:
+    """The declared prose for a typed cell kind, or a plain fallback.
+
+    Read from `schema § typed_cell_kinds` and cached, not written here. The
+    fallback is deliberately shapeless: a kind the schema declares without
+    words should read as under-documented, not as something this file invented
+    a vocabulary for.
+    """
+    if not _TYPED_CELL_KINDS:
+        try:
+            _TYPED_CELL_KINDS.update(
+                json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                .get("typed_cell_kinds") or {})
+        except (OSError, ValueError):
+            pass
+    return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
+
+
+_TRACK_CONTEXTS: dict = {}
+
+
+def _track_context(state_file: Path, cell: str) -> dict:
+    """A track cell → its declared row from `.perry/config.md § Tracks`.
+
+    The root is walked up from the file being linted rather than passed in, so
+    `check_file`'s signature — which `bin/perry-conform` also calls — does not
+    move, and so there is no second answer to "where does this project start".
+
+    An undeclared track reports `{}`, which every predicate treats as the
+    permissive case. A typo in the register must not silently make a column
+    stricter: `perry-lint` already reports an unknown mode as `bad-enum`, and
+    two findings for one typo is how a check gets switched off.
+    """
+    name = squash(cell or "")
+    if not name:
+        return {}
+    root = state_file.resolve().parent
+    for _ in range(5):
+        if (root / ".perry" / "config.md").is_file():
+            break
+        root = root.parent
+    cfg = root / ".perry" / "config.md"
+    key = str(cfg)
+    if key not in _TRACK_CONTEXTS:
+        table: dict = {}
+        try:
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        header: list = []
+        canonical_header: list[str] = []
+        for line in text.split("\n"):
+            if not line.lstrip().startswith("|"):
+                continue
+            cells = [squash(c) for c in split_row(line)]
+            track_i = column_index(cells, "Track")
+            mode_i = column_index(cells, "Mode")
+            if track_i >= 0 and mode_i >= 0:
+                header = cells
+                canonical_header = [canonical_column(cell) for cell in header]
+                continue
+            if not header or set(cells) <= {"", "-", "--", "---", ":---", "---:"}:
+                continue
+            row = dict(zip(canonical_header, cells))
+            if row.get("track"):
+                table[row["track"]] = row
+        _TRACK_CONTEXTS[key] = table
+    return _TRACK_CONTEXTS[key].get(name, {})
 
 
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
@@ -722,6 +837,77 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 "error", rel, "bad-enum",
                                 f"{col} = {val!r} is not one of {enums[enum_name]}",
                             ))
+                # **The reader half of a typed column.** `enum_columns`
+                # above says "this cell is one of these words"; this says
+                # "this cell is a value of this shape". The schema declares
+                # both, so a column whose value space is written down in
+                # `state-schema.json` is checked here rather than only in
+                # whichever tool happens to write it.
+                #
+                # It exists because the Commitments table's own note reads
+                # "`Due` is TYPED … and nothing else is accepted", and that
+                # was true of `perry-goals commit` and of nothing else — a
+                # hand-written `| … | 下周期 | active |` under a `Due` header
+                # linted clean. This is an error like an off-enum value.
+                # Migration remains possible because its write path is
+                # explicitly exempt from the conformance gate.
+                for col, kind in (tspec.get("typed_columns") or {}).items():
+                    ci = column_index(got, col)
+                    tci = column_index(got, "Track")
+                    if ci < 0:
+                        continue
+                    ok = TYPED_CELL.get(kind)
+                    if ok is None:
+                        findings.append(Finding(
+                            "warn", rel, "schema-unknown-type",
+                            f"the schema types column `{col}` as {kind!r} and "
+                            f"this lint has no predicate for that, so the "
+                            f"column is unchecked rather than clean"))
+                        continue
+                    for row in rows:
+                        if ci >= len(row):
+                            # A ragged row — fewer cells than the header. It is
+                            # already `ragged-row`'s finding, and indexing it
+                            # here exited the whole lint at rc 2 with an
+                            # `IndexError`. Deleting this line leaves the suite
+                            # green, which is why it has its own test.
+                            continue
+                        val = row[ci]
+                        # `lib.is_blank_cell` strips the decoration; doing it
+                        # here as well produced a THIRD spelling of "strip" —
+                        # `.replace("*", "")` vs `lib`'s end-strip disagreed on
+                        # `2026-**09**-30`, which lint accepted and the writer
+                        # refused.
+                        if lib.is_blank_cell(val):
+                            continue
+                        if is_template and PLACEHOLDER.search(val):
+                            continue
+                        track = {}
+                        if 0 <= tci < len(row):
+                            track = _track_context(path, row[tci])
+                        if not ok(track, val):
+                            classification = (lib.classify_due(track, val)
+                                              if kind == "iso-date-or-sla"
+                                              else lib.DUE_INVALID)
+                            context = ""
+                            mode = str(track.get("mode") or "").lower()
+                            if lib.due_track_missing_clock(track):
+                                context = (" The row's queue track has no "
+                                           "declared clock, so no populated "
+                                           "`Due` is valid.")
+                            elif mode == "pipeline":
+                                context = (" The row's pipeline track requires "
+                                           "a calendar date, not a duration token.")
+                            findings.append(Finding(
+                                "error", rel, "bad-typed-cell",
+                                f"{col} = {val!r} — this column is typed "
+                                f"({_accepts(kind)}) and nothing else "
+                                f"is accepted, so a reader cannot compare or "
+                                f"sort it. Prose about a deadline belongs in "
+                                f"`By when note`, which is never validated: "
+                                f"`perry-goals commit --migrate` moves it."
+                                f"{context}"))
+
                 # A column the row's own mode has no honest default for, left
                 # undeclared.
                 #
@@ -886,6 +1072,23 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         rel = lf.relative_to(root).as_posix()
         if not link.ok:
             continue
+        # **A linkage file belongs to ITS phase, not to the current one.**
+        # This judged every `*-linkage.md` against the CURRENT phase's KR set,
+        # so the moment a phase was scored and the next one opened, the old
+        # phase's registry — which correctly names the KRs it was written for —
+        # was reported as dangling. It fired on the first rollover this project
+        # ever did, on `phase/001-linkage.md`, naming KRs that exist exactly
+        # where they should.
+        #
+        # A guard written when there had only ever been one phase. The file
+        # names its own phase (`<NNN>-linkage.md`), so the right KR set is
+        # derivable with no new state.
+        own = lf.name.split("-", 1)[0]
+        mine = sorted((root / "phase").glob(f"{own}-*.md"))
+        mine = [m for m in mine if not m.name.endswith("-linkage.md")]
+        if mine:
+            phase_krs = set(re.findall(
+                KR_ID_RE, strip_comments(mine[0].read_text())))
         for pr in link.projects:
             if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
                 findings.append(Finding(
@@ -1539,6 +1742,10 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
         return [f for _, f, _ in seen.get(tid, [])]
 
     live: dict[str, str] = {}
+    #: The rung each live row declares, so the symmetric check below can ask
+    #: "is this row even at a rung that needs a round" rather than reporting
+    #: every `review` row on the board.
+    rungs: dict[str, str] = {}
     for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
             got = [norm(c) for c in header]
@@ -1556,6 +1763,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 if not tid:
                     continue
                 live[tid] = cell(ci_st)
+                rungs[tid] = cell(ci_v)
                 if cell(ci_st) == "done" and cell(ci_v).upper() == "V4":
                     if not any(f.get("result") for f in verdicts_for(tid)):
                         findings.append(Finding(
@@ -1610,7 +1818,16 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
             except (ValueError, TypeError):
                 continue
             to = str(ev.get("to") or "")
-            if ev.get("field") not in (None, "status") or not to:
+            # **`field` missing does NOT mean "this is a status event".**
+            # Events written before that key existed carry no `field` at all,
+            # and a `next` event's `to` is the next-action TEXT — so treating
+            # `None` as status made a 900-character prose blob the row's
+            # "current status", and no row ever looked re-sent. Four rows sat
+            # reported as verdict-ignored while they had been acted on.
+            #
+            # The honest test is the VALUE: a status transition ends at one of
+            # the declared statuses, read from the schema rather than listed.
+            if to not in TASK_STATUSES:
                 continue
             tid = str(ev.get("task") or ev.get("id") or "")
             if tid:
@@ -1629,6 +1846,60 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                 f"{tid} is at `review` and {where} already FAILed it — "
                 f"`review` means out for verification, so a row whose verdict "
                 f"has arrived does not belong there"))
+
+    # **The symmetric half, and it was missing.** The check above reports a
+    # verdict that arrived and was ignored. Nothing reported the opposite: a row
+    # at `review` for which no round was ever dispatched.
+    #
+    # Found on this board. TASK-093 sat at `review` because I moved it there
+    # and never sent the round — and `--reviews` said the board was clean,
+    # because the only shape it knew was a verdict nobody acted on. Two
+    # symmetric failure modes, one covered.
+    #
+    # It reports the AGE rather than judging it: a row sent an hour ago and one
+    # forgotten a week ago are the same state, and only the reader knows which
+    # is which. A threshold here would be the checker guessing.
+    #: When each row last moved TO `review`, so the finding can say how long it
+    #: has sat there. Reported, never judged — a row sent an hour ago and one
+    #: forgotten a week ago are the same STATE, and a threshold here would be
+    #: the checker guessing which.
+    _days_at_review: dict[str, int] = {}
+    if log.exists():
+        from datetime import date as _date, datetime as _dt
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if str(ev.get("to") or "") != "review":
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            ts = str(ev.get("ts") or "")[:10]
+            if not tid or not ts:
+                continue
+            try:
+                _days_at_review[tid] = (_date.today() - _dt.strptime(
+                    ts, "%Y-%m-%d").date()).days
+            except ValueError:
+                continue
+
+    for tid, status in live.items():
+        if status != "review" or verdicts_for(tid):
+            continue
+        if (rungs.get(tid) or "").upper() != "V4":
+            continue
+        age = _days_at_review.get(tid)
+        how_long = (f"{age} day(s) ago" if age is not None
+                    else "at an unknown time — no event records the move")
+        findings.append(Finding(
+            "warn", "BOARD.md", "review-with-no-verdict",
+            f"{tid} is at `review` at V4 and no evidence document carries a "
+            f"verdict block naming it. It moved there {how_long}. Either a "
+            f"round is in flight, or one was never sent — `review` is not a "
+            f"resting place, and only you can tell those apart"))
 
     check_reviews.blocks_seen = sum(len(v) for v in seen.values())
     return findings
@@ -1710,7 +1981,7 @@ def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"re-open is a claim about the agent's memory."))
 
         seen = field_value(text, "Last verified")
-        if seen and re.fullmatch(r"\d{4}-\d{2}-\d{2}", seen):
+        if seen and lib.is_iso_date(seen):
             age = (today - date.fromisoformat(seen)).days
             if age > stale_days:
                 trip = field_value(text, "Invalidated by")
@@ -1805,6 +2076,353 @@ def check_provenance(state_root: Path) -> list["Finding"]:
 
     check_provenance.stats = {"defined": len(defined), "cited": len(cited)}
     return findings
+
+
+#: How many drifted rows are named one by one before the tail is summarised.
+#: `perry-tasks verify` caps its own mismatch list at ten for the same reason:
+#: a stale store drifts on EVERY row, and a hundred warnings saying one thing
+#: is a check people learn to scroll past.
+DRIFT_ROWS_SHOWN = 10
+
+
+def _rel(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _cell(value) -> str:
+    """One field, as the text a cell would carry.
+
+    `depends_on` is a list in the store and a comma-separated cell in the
+    document, and `None` and `""` are the same absent field written two ways.
+    Comparing them raw would report drift on a store nobody has touched.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
+def _tasks_module():
+    """`bin/perry-tasks`, imported rather than shelled out to.
+
+    Same loader `perry-tasks` itself uses on `perry-task`, and for the same
+    reason: the filename carries a dash, so `import` cannot reach it.
+    """
+    import importlib.machinery
+    import importlib.util
+    path = HERE / "perry-tasks"
+    spec = importlib.util.spec_from_loader(
+        "perry_tasks_mod",
+        importlib.machinery.SourceFileLoader("perry_tasks_mod", str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _board_line_of(text: str, task_id: str) -> int | None:
+    """The 1-based line THIS ROW is written on, or None if there is no row.
+
+    **The first cell, not any cell.** This matched the id anywhere in the line,
+    so a closed row still named in some open row's `Depends on` cell resolved
+    to that other row's line number — and `check_store_drift` uses this as its
+    predicate for *"the board carries this row"*, so it reported
+    `TASK-088 — the file carries this row and the store has no record of it`
+    pointing at the line where the **TASK-089** row is written, for a TASK-088
+    row that does not exist. Reproduced on the real board and the real store by
+    a V4; three live ids qualified that day, and the set grows with every closed
+    row that has dependents.
+
+    The decoration is stripped the way `Board.find` strips it, because a row
+    struck through or bolded is the same row.
+    """
+    for n, line in enumerate(text.split("\n"), 1):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = split_row(line)
+        if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
+            return n
+    return None
+
+
+def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
+    """Split the store into records the checks can compare, and findings.
+
+    **A store is a file a person can open, and every check below indexes,
+    sorts or compares its fields.** Three of them died on a wrong-typed value
+    rather than reporting it: `id` as a list is unhashable and killed the dict
+    build; a store mixing `id: 3` with `id: "TASK-001"` killed `sorted(set(…))`;
+    `order` as `"3"` killed `_order_drift`'s sort. Each exited the WHOLE lint at
+    rc 2 with no findings at all — so a store with one bad line reported the
+    same as a project with no problems, only louder.
+
+    Two V4 rounds found this independently and one of them by a typed sweep
+    (19 fields x 9 JSON shapes), which is the reason this is one function and
+    not three `try:` blocks. TASK-093 enumerated four instances of the category
+    "a guard that crashes instead of reporting"; these were the fifth, sixth and
+    seventh, and they were added *by the fix for the first four*. A patch per
+    crash site would have produced the eighth.
+
+    A bad record is **excluded and named**, not coerced. Coercing `"3"` to `3`
+    would make the lint report clean on a file that no other reader can load —
+    and `bin/perry-task` reads this same file.
+    """
+    good, issues = _tasks_module().perry_store.validate_records(on_disk)
+    findings = []
+    for issue in issues:
+        tid = issue.get("id")
+        who = repr(tid) if tid else f"line {issue['line']}"
+        message = issue["message"]
+        if any(f.get("field") == "id" and f.get("expected") == "non-empty string"
+               for f in issue.get("fields", [])):
+            message = ("has no `id`, so nothing can be said about it and every "
+                       "reader silently skips it")
+        findings.append(Finding(
+            "warn", rel_store, "store-badly-typed",
+            f"{who} — {message}. The record is excluded from the drift "
+            f"comparison, so this row's drift is unknown here rather than "
+            f"absent."))
+    return good, findings
+
+
+def _stored_fields() -> tuple:
+    """`perry_store.STORED` — the field list, not a second copy of it.
+
+    Loaded once at import. Writing the twenty names here would be the "N
+    implementations of one rule" defect with N=2, and the copy would go stale
+    the first time a field is added.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "perry_store", Path(__file__).resolve().parent / "perry_store.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.STORED
+
+
+_STORED_FIELDS = _stored_fields()
+
+
+def _empty_store_drift_stats() -> dict:
+    """The typed machine-readable state before a store comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """The rendered file and the store disagree — ADR-007 decision 2.
+
+    Under ADR-007 `BOARD.md` is **rendered output**: the store is what a field
+    means and the document is a projection of it. Decision 2 accepted the cost
+    of that in the user's own words — *a hand edit becomes drift* — and named
+    `perry-state § reconcile_drift` as the precedent for what happens next.
+    That precedent reports; it does not refuse. So does this.
+
+    **Silent finding list when there is no store, but explicit machine state.**
+    "No store" and "clean" are different answers. The former emits no finding
+    because there is no comparison to fail, while `store_drift` in the JSON
+    payload and the human summary say that the comparison was not performed.
+
+    **`warn`, not `error`, deliberately.** ADR-007 makes the store authoritative,
+    so drift never changes Task truth and rendering can restore the projection.
+    `reconcile_drift` establishes the same report-don't-honour posture. More
+    importantly, the conformance gate's own boundary is precise: warnings are
+    quality signals, while errors are shape violations. A drifted Board still
+    has a valid Board shape.
+
+    A prior rationale claimed an `error` here would reach ADR-004's per-file
+    conformance gate and make `BOARD.md` read-only. A V4 round disproved that:
+    `shape_errors` calls `check_file`, while this cross-file check is called from
+    `main()`. The tests preserve the true severity contract without repeating
+    that false mechanism or leaning on NS-01, whose claims boundary is TASK-100.
+
+    **Field-level, and it stays field-level even though the renderer landed.**
+    This said "there is no renderer" and TASK-088 shipped one two commits later
+    — `perry-tasks diff` reports `identical: true` on this project today. A V4
+    round caught the stale note. The comparison is still field-level on purpose:
+    `BOARD.md` carries columns (`By when`, `Notes`) that the stored fields do
+    not cover — so a whole-line byte diff would report every
+    untouched row as drift. What is compared instead is what the store WOULD
+    hold if derived from the file as it stands (`perry-tasks.build()`, the one
+    derivation there is) against what it holds on disk. The renderer's byte diff
+    remains a separate projection check; `build`/`verify` keep the field
+    semantics they have rather than redefining them here.
+    """
+    findings: list[Finding] = []
+    check_store_drift.stats = _empty_store_drift_stats()
+
+    store_path = state_root / "tasks.jsonl"
+    if not store_path.exists():
+        return []
+
+    check_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    # **Four reachable store states used to kill the whole lint**, rc 2 and no
+    # `--json` payload: a store written as one JSON array — which is the
+    # ordinary way to get `.jsonl` wrong, `json.dump(records, f)` — a bare
+    # `null` or scalar line, a directory where the file should be, and an
+    # unreadable file. Only `JSONDecodeError` was caught; the first two die
+    # later on `r.get`, and the last two die on the read itself.
+    #
+    # The sibling guard eight lines down states the rule this broke: **one
+    # check may not kill the lint.** Found by a V4 round that went looking for
+    # the case the author had not listed.
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "store-unreadable",
+                        f"`tasks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare the file against. `perry-tasks write "
+                        f"--from-board` re-derives it — which is safe here "
+                        f"only because nothing readable is being discarded")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "store-unreadable",
+                        "`tasks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record; "
+                        "`perry-tasks write --from-board` re-derives it")]
+    check_store_drift.stats["records"] = len(on_disk)
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    board_text = (board_path.read_text(errors="replace")
+                  if board_path.exists() else "")
+
+    try:
+        derived = _tasks_module().build(project_root)
+    except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
+        return [Finding("warn", rel_board, "store-drift-uncheckable",
+                        f"the store could not be derived from the current "
+                        f"files ({type(exc).__name__}: {exc}), so drift is "
+                        f"unknown here rather than absent")]
+
+    on_disk, type_findings = _well_typed(on_disk, rel_store)
+    findings.extend(type_findings)
+
+    stored = {r.get("id"): r for r in on_disk if r.get("id")}
+    live = {r.get("id"): r for r in derived if r.get("id")}
+    check_store_drift.stats.update({
+        "comparison_performed": not type_findings,
+        "records": len(stored),
+    })
+
+    rows: list[tuple[str, str, int | None]] = []
+    projected_live: dict[str, dict] = {}
+    for tid in sorted(live):
+        want, got = stored.get(tid), live[tid]
+        line = _board_line_of(board_text, tid)
+        if want is None:
+            # **`build()` includes CLOSED tasks from the event log**, whose
+            # rows `done` removed from the board — 63 of 95 on this project.
+            # Saying "the file carries this row" of a row the file does not
+            # contain was false for two-thirds of what this branch reported,
+            # with `line: null` and a remedy that does not apply. Found by a V4
+            # round; the board is the authority on what the board carries.
+            if line is None:
+                continue
+            rows.append((tid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        if line is None:
+            # Terminal rows deliberately leave the projection. They remain in
+            # the canonical store even if the disposable event log is gone, so
+            # their absence from BOARD.md is not drift. An open stored row,
+            # however, is expected to have a rendered row.
+            if want.get("status") not in ("done", "dropped"):
+                rows.append((tid, "the store holds this open row but the file "
+                                  "renders no row for it", None))
+            continue
+        projected_live[tid] = got
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((tid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for tid in sorted(set(stored) - set(live)):
+        # Terminal status does not by itself prove that a record legitimately
+        # left the projection. Historical `done`/`drop` events are already in
+        # `live` through `build()`, so they were handled by the loop above and
+        # remain excluded. Reaching this set means neither BOARD.md nor the
+        # event log can derive the record; silently excusing it would make a
+        # store-only terminal insertion indistinguishable from real history.
+        rows.append((tid, "the store holds this row and nothing in the file or "
+                          "the event log still derives it", None))
+
+    check_store_drift.stats["drifted"] = len(rows)
+    for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift: `perry-tasks render --write` puts the file back in "
+            f"line with the store, which is the fix whenever `perry-task` "
+            f"wrote the value — the ordinary case. `perry-tasks write "
+            f"--from-board` runs the other direction and DISCARDS the stored "
+            f"value; it is for a board edited before the store existed.",
+            line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
+            f"`{rel_store}` — at this scale the store is stale rather than the "
+            f"file hand-edited, and `perry-tasks verify` caps at ten too."))
+    findings.extend(_order_drift(stored, projected_live, rel_board, rel_store))
+    return findings
+
+
+def _order_drift(stored: dict, live: dict, rel_board: str,
+                 rel_store: str) -> list["Finding"]:
+    """`order` compared ONCE PER SECTION, and never per row.
+
+    **`order` is a fact about a sequence, not about a row**, and comparing it
+    like the other nineteen fields amplified one hand edit into a finding for
+    every row beneath it: a line typed into `## P1` shifts the index of all
+    four rows under it, and this check reported five drifted rows for one
+    inserted one. That is the whole-table-diff-burying-the-change objection
+    `order` exists to answer, re-created inside the report about it — found by
+    `test_store_drift § test_a_row_the_store_never_saw_is_reported`, which
+    asserts exactly one finding for exactly one edit.
+
+    So what is compared is the RELATIVE order of the rows both sides carry.
+    An inserted or removed row moves every successor's integer and moves
+    nobody's neighbour, and is already reported once, by id, as the row it is.
+    A row genuinely moved past another changes the sequence and is reported
+    here, once, naming the section rather than the rows.
+
+    A record with no `order` at all — a store written before the field existed
+    — is skipped rather than sorted to the front, because "not recorded" and
+    "recorded as first" are different claims.
+    """
+    out: list[Finding] = []
+    groups = sorted({(r.get("group") or "") for r in live.values()
+                     if r.get("group")})
+    for group in groups:
+        ids = [tid for tid, r in live.items()
+               if (r.get("group") or "") == group
+               and r.get("order") is not None
+               and (stored.get(tid) or {}).get("order") is not None]
+        on_file = sorted(ids, key=lambda t: live[t]["order"])
+        in_store = sorted(ids, key=lambda t: stored[t]["order"])
+        if on_file == in_store:
+            continue
+        out.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"`{group}` — the rows of this section sit in a different order in "
+            f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
+            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
+            f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
+            f"like any other cell: `perry-task prioritize` moves a row, and "
+            f"`perry-tasks render --write` puts the file back in line."))
+    return out
 
 
 # ── main ──────────────────────────────────────────────────────────────────
@@ -1974,6 +2592,7 @@ def main(argv: list[str]) -> int:
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
 
     if mode_claims:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
@@ -2179,6 +2798,7 @@ def main(argv: list[str]) -> int:
     load_glossary(schema)
 
     findings: list[Finding] = []
+    check_store_drift.stats = _empty_store_drift_stats()
 
     if mode_templates:
         root = PERRY_HOME
@@ -2235,6 +2855,10 @@ def main(argv: list[str]) -> int:
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
+            # Costs nothing on a project with no store — it returns before
+            # deriving anything — and that is every project today, which is
+            # why it runs in the default pass rather than behind a flag.
+            findings.extend(check_store_drift(project_root, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -2264,6 +2888,8 @@ def main(argv: list[str]) -> int:
         }
         if not mode_templates:
             payload["conformance"] = conformance_note
+            payload["store_drift"] = dict(getattr(
+                check_store_drift, "stats", _empty_store_drift_stats()))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -2273,6 +2899,23 @@ def main(argv: list[str]) -> int:
             for f in errors + warns:
                 print(f)
             print(f"\n  {len(errors)} error(s), {len(warns)} warning(s)")
+        # **"no store" and "clean" printed byte-identically.** `stats` was
+        # assigned three times and read nowhere — its sibling
+        # `check_provenance.stats` is printed, which is what made the omission
+        # look deliberate. A V4 round caught it. Two different answers must not
+        # look the same, which is the same rule `perry-tasks verify` follows
+        # when it returns rc 2 rather than 0 with no store.
+        _st = getattr(check_store_drift, "stats", None)
+        if _st and not mode_templates:
+            if not _st["store_present"]:
+                print("  · no `tasks.jsonl` — drift against the store is "
+                      "unchecked, not clean")
+            elif not _st["comparison_performed"]:
+                print(f"  · store: {_st['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · store: {_st['records']} record(s), "
+                      f"{_st['drifted']} row(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "

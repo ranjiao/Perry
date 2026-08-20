@@ -43,6 +43,10 @@ from pathlib import Path
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 from tables import split_row, squash  # noqa: E402
+from parsers import resolve_state_root  # noqa: E402
+
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import perry_store  # noqa: E402
 
 SKIP_DIRS = {
     ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
@@ -52,6 +56,7 @@ SKIP_DIRS = {
 
 # REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's KR form P-O1.2
 ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+TASK_ID = re.compile(r"^TASK-\d{1,4}$", re.I)
 
 # Tokens shaped exactly like a project ID that are nothing of the kind. Without
 # this, running against Perry's own repo reported SHA-256 and a `#L12-40` line
@@ -314,6 +319,8 @@ def render_one(e: dict) -> str:
         L.append(f'  kind       {e["kind"]}')
     if e.get("status"):
         L.append(f'  status     {e["status"]}')
+    if e.get("summary"):
+        L.append(f'  summary    {e["summary"]}')
     L.append(f'  defined    {e["defined"] or "NOWHERE — this ID is referenced but never defined"}')
     if e["mentions"]:
         L.append(f'  mentioned  {e["mentions"][0]}')
@@ -324,6 +331,86 @@ def render_one(e: dict) -> str:
     else:
         L.append("  mentioned  nowhere else")
     return "\n".join(L)
+
+
+def typed_task_lookup(root: Path, token: str) -> dict | None:
+    """Resolve a Task from its canonical store, or return None if none exists.
+
+    ``None`` is the only state that permits the generic Markdown lookup. Once
+    a project has a Task store, an absent or malformed record is a Task-domain
+    answer rather than an invitation to let an incidental document definition
+    win (ADR-009).
+    """
+    if not TASK_ID.fullmatch(token or ""):
+        return None
+    state_root = resolve_state_root(root)
+    store = perry_store.store_path(state_root)
+    adopted = ((root / ".perry" / "config.md").exists()
+               or (state_root / "BOARD.md").exists()
+               or (state_root / "OKR.md").exists()
+               or (state_root / "phase").is_dir())
+    if not adopted or not store.exists():
+        return None
+    rel = str(store.relative_to(root))
+    try:
+        records = perry_store.load_store(state_root)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return {"state": "invalid", "store": rel, "findings": [{
+            "message": f"{type(exc).__name__}: {exc}",
+        }]}
+    valid, findings = perry_store.validate_records(records)
+    if findings:
+        return {"state": "invalid", "store": rel, "findings": findings}
+    wanted = token.upper()
+    for line, record in enumerate(valid, 1):
+        if record["id"].upper() != wanted:
+            continue
+        entry = {
+            "id": record["id"],
+            "title": record.get("title") or None,
+            "kind": "Task",
+            "status": record.get("status") or None,
+            "defined": f"{rel}:{line}",
+            "mentions": [],
+            "in_tracking_doc": False,
+        }
+        if record.get("summary"):
+            entry["summary"] = record["summary"]
+        return {"state": "found", "store": rel, "entry": entry}
+    return {"state": "missing", "store": rel, "findings": []}
+
+
+def render_typed_task_result(result: dict, token: str, as_json: bool) -> int:
+    state = result["state"]
+    if state == "found":
+        entry = result["entry"]
+        print(json.dumps(entry, indent=2, ensure_ascii=False)
+              if as_json else render_one(entry))
+        return 0
+
+    payload = {
+        "id": token.upper(),
+        "kind": "Task",
+        "found": False,
+        "store": result["store"],
+        "error": ("task-store-invalid" if state == "invalid"
+                  else "not-found-in-task-store"),
+        "findings": result.get("findings", []),
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    elif state == "invalid":
+        print(f"{token.upper()} — canonical Task store is invalid: "
+              f"{result['store']}", file=sys.stderr)
+        for finding in result.get("findings", [])[:8]:
+            print(f"  {finding.get('message', 'invalid Task record')}",
+                  file=sys.stderr)
+    else:
+        print(f"{token.upper()} — not found in canonical Task store "
+              f"{result['store']}.")
+        print("  Markdown lookup was not used because the Task store is "
+              "authoritative.")
+    return 1
 
 
 #: The verification ladder, resolved from the schema rather than restated here.
@@ -432,6 +519,11 @@ def main(argv: list[str]) -> int:
         print(f"perry-explain: not a directory: {root}", file=sys.stderr)
         return 1
     root = root.resolve()
+    if mode == "one" and want:
+        task_result = typed_task_lookup(root, want)
+        if task_result is not None:
+            return render_typed_task_result(task_result, want, as_json)
+
     entries = harvest(root)
 
     if mode == "all":

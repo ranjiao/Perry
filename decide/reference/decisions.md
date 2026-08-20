@@ -117,17 +117,44 @@ Files **never move** on status change — only the `Status:` header field flips.
 
 ### `/perry decide adr <topic>` — new ADR
 
+**The typed fields are the tool's; the reasoning is yours.** That is ADR-007
+rule 3 — *call the tool to write the fields, then generate the document from
+what it returned* — and it is why the numbered walk below no longer contains a
+step that composes an id, opens a template, or edits an index. Those three
+steps existed here for a release, and the id one is the reason: a number
+arrived at by eye is reused the first time two ADRs are filed in one session,
+and a reused id does not dangle visibly.
+
 1. **Read `.perry/config.md`** for document language. If absent, refuse and ask user to run top-level `/perry` first-time setup.
-2. **Determine next ADR-NNN**: scan `decisions/` for highest existing `ADR-NNN-*.md`, increment. (PMO bootstrap creates ADR-NNN as the bootstrap-marker; subsequent ADRs are ADR-NNN+.)
-3. **Walk Context → Options → Chosen → Consequences** interactively with the user:
+2. **Walk Context → Options → Chosen → Consequences** interactively with the user:
    - Use `AskUserQuestion` (header `"ADR Type"`) to pick Type from project hook's declared list (default `Process | Architecture | Operations | Risk | Cost | Design | Tooling`).
    - Use `AskUserQuestion` for binary / small-set yes/no in the Options walk if relevant.
    - Free-text prompt for Context, Options, Chosen rationale, Consequences.
-4. **If time-bound**: ask for Sunset criteria explicitly (`AskUserQuestion` header `"Sunset"`, options): `Date-based (Recommended for documented exceptions) | Metric-threshold | Event-triggered | None — permanent decision`. Capture the actual triggers.
-5. **Slug the title**: `<short-kebab>` (5-8 words max), lowercase, hyphenated. Final filename: `decisions/ADR-NNN-<slug>.md`.
-6. **Write the ADR file** from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with all fields filled.
-7. **Update `DECISIONS.md` index**: add a row in the Active section.
-8. **Do not write the journal.** `journal/` is the `work` lane's file, and
+3. **If time-bound**: ask for Sunset criteria explicitly (`AskUserQuestion` header `"Sunset"`, options): `Date-based (Recommended for documented exceptions) | Metric-threshold | Event-triggered | None — permanent decision`. Capture the actual triggers.
+4. **Slug the title**: `<short-kebab>` (5-8 words max), lowercase, hyphenated. It is an *argument*, not a filename you compose — the tool joins it to the id it mints.
+5. **Create the record with the tool.**
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" new <slug> --title "…" --type <Type> \
+       [--sunset "…"] [--deciders "…"] [--supersedes ADR-NNN]
+   ```
+
+   One call does what three separate hand steps used to ask for — *determine
+   the next `ADR-NNN` by scanning and incrementing*, *write the file from the
+   template*, *add a row to the index* — and it does them in one write: it mints the
+   id from the files that exist, writes the header block with `Status`, `Type`,
+   `Date`, `Supersedes` and `Sunset` filled, and **re-renders the index from
+   every ADR on disk**. `--json` returns the id and the path; take both from
+   the result rather than reconstructing them. `--dry-run` prints the plan and
+   writes nothing.
+
+6. **Generate the body at the path it returned.** `perry-decide new` writes a
+   skeleton and says so in its own result: *"the ADR body is a skeleton — fill
+   Context / Options / Chosen / Consequences by hand; this tool writes
+   structure, never reasoning."* That split is ADR-007 rules 1 and 2 — the
+   header is typed and belongs to Python, the argument is unbounded prose and
+   belongs to you, and nothing parses the second. Leave the header block alone.
+7. **Do not write the journal.** `journal/` is the `work` lane's file, and
    `$PERRY_HOME/SKILL.md § The hand-off contract` names *"`decide` writing
    `journal/`"* as one of three cases that must refuse. This step used to
    instruct it as a numbered instruction in the lane's primary procedure — the
@@ -137,29 +164,65 @@ Files **never move** on status change — only the `Status:` header field flips.
    stop: *"`ADR-NNN` recorded; if today's journal should note it, that is
    `/perry work`'s to write."* Asking and stopping is the contract; writing and
    apologising is the thing it forbids.
-9. **Reply with the ADR path** + 1-line summary.
+8. **Reply with the ADR path** + 1-line summary.
 
 ### `/perry decide adr --supersede ADR-NNN` — new ADR replacing an old one
 
-Same flow as new ADR, with extra steps:
-1. The new ADR's header gets `Supersedes: ADR-NNN`.
-2. The old ADR file's `Status:` flips to `superseded`; header gets `Superseded by: ADR-<new>`; flip happens AFTER the new ADR is written so the chain is intact.
-3. `DECISIONS.md` index: new ADR in Active section; old ADR moves to Superseded section with `Replaced by` populated.
+Same flow as new ADR, with the supersession **passed to the tool** rather than
+performed as three follow-up edits:
+
+1. Create the successor with `--supersedes`:
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" new <slug> --title "…" --type <Type> \
+       --supersedes ADR-NNN
+   ```
+
+   In one call it fills the successor's `Supersedes`, flips the predecessor to
+   `superseded`, fills its `Superseded by`, and re-renders the index — **in that
+   order**, which is the ordering the old step 2 spelled out for a person to
+   keep. It refuses if `--supersedes` names an ADR that does not exist, so a
+   chain cannot be half-linked by a typo.
+
+2. When both ADRs already exist, the same move is one command:
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" supersede <OLD> <NEW>
+   ```
+
+3. Then generate the successor's body, as in step 6 above. Its References
+   section should say what changed at the framing level; that is the part no
+   tool can supply.
 
 ### `/perry decide adr --expire ADR-NNN [<trigger-note>]`
 
 For time-boxed ADRs whose sunset fired:
-1. Flip target ADR's `Status:` to `expired`.
-2. Append a `## Status change` entry in the target ADR file: `Expired <YYYY-MM-DD> — <trigger note>`.
-3. Update DECISIONS.md index (move row to Expired section).
-4. Surface the expiration in chat: "ADR-NNN has expired; you may need a new ADR to handle the now-uncovered situation."
+
+1. **Flip the field with the tool**, which re-renders the index in the same
+   call and refuses a status outside the declared set:
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" status ADR-NNN --status expired
+   ```
+
+2. **Then write the account into the body**: a `## Status change` entry reading
+   `Expired <YYYY-MM-DD> — <trigger note>`. `perry-decide` writes the field and
+   deliberately not this — the status is typed and the reason is prose, and
+   ADR-007 rule 2 is that Python never touches the second.
+3. Surface the expiration in chat: "ADR-NNN has expired; you may need a new ADR to handle the now-uncovered situation."
 
 ### `/perry decide adr --archive ADR-NNN <reason>`
 
 For ADRs whose context has passed (project pivot, scope change, etc.):
-1. Flip target ADR's `Status:` to `archived`.
-2. Append a `## Status change` entry: `Archived <YYYY-MM-DD> — <reason>`.
-3. Update DECISIONS.md index (move row to Archived section).
+
+1. **Flip the field with the tool**, index re-rendered in the same call:
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" status ADR-NNN --status archived
+   ```
+
+2. **Then write the account into the body**: a `## Status change` entry reading
+   `Archived <YYYY-MM-DD> — <reason>`. Same split as `--expire`.
 
 Use sparingly. Most retired ADRs should be `superseded` (have a successor) or `expired` (sunset hit). `archived` is for "this decision is just no longer relevant" — should be rare.
 
@@ -182,17 +245,37 @@ PMO reads specific `decisions/ADR-NNN-*.md` files only when needed — e.g., whe
 
 ## Bootstrap
 
-On `/pmo` bootstrap (per `SKILL.md § Bootstrap`):
-1. Create `decisions/` directory.
-2. Write `DECISIONS.md` from `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md` (empty index).
-3. Write `decisions/ADR-NNN-<slug>.md` from `$PERRY_HOME/decide/state/ADR_TEMPLATE.md` with:
-   - Type: Process
-   - Title: "Bootstrap PMO state for this project"
-   - Status: active
-   - Context: "Project started using Perry skill PMO on <date>"
-   - Chosen: "Adopt Perry's BOARD / journal / decisions / evidence / weekly / handoff state layout"
-   - Sunset: none (permanent)
-4. Update `DECISIONS.md` to include ADR-NNN in the Active section.
+Run once per project, from `decide/SKILL.md § init` — **not** from `/pmo`
+bootstrap, which correctly refuses to create either path (`work/reference/bootstrap.md`).
+
+1. **Create the pair with the tool.**
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" bootstrap
+   ```
+
+   It makes `decisions/` and renders the index, and refuses if either already
+   exists — safe on an existing project, useless to run twice.
+
+   This replaces four hand steps (make the directory, copy the index template,
+   copy the ADR template for a bootstrap marker, add that marker's row to the
+   index), and the replacement is not cosmetic: **nothing ever ran them.**
+   First-time setup invoked no `decide` subcommand at all, so every later step
+   that "updates the index" was editing a file no code path produced, and every
+   Perry project reported zero decisions forever.
+
+2. **Then record the adoption as a real decision**, if the project wants one —
+   through the same `adr` walk above, not from a template:
+
+   ```bash
+   "$PERRY_HOME/bin/perry-decide" new adopt-perry --type Process \
+       --title "Adopt Perry's state layout for this project"
+   ```
+
+   and fill Context / Chosen / Consequences in the file it returns. There is no
+   template-shaped "bootstrap marker" any more: a decision whose reasoning
+   nobody wrote is a row, not a record, and it was pre-filling four fields with
+   sentences no one had said.
 
 ## Migration: old monolithic `DECISIONS.md`
 
@@ -200,9 +283,21 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 
 1. PMO reads the old `DECISIONS.md` top-to-bottom; identifies ADR boundaries (lines matching `^## ADR-NNN — `).
 2. For each ADR: extract content; parse Type / Status / Date / Supersedes from the header section; slug the title (≤8 words, lowercase, hyphenated).
-3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`).
-4. Rewrite `DECISIONS.md` as the index per `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md`. Active section + Superseded / Expired / Archived sections.
-5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 8 above.
+3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`). **Transcription is the exception, and this is the one place it applies**: the source is a document Perry did not write, so reading it is parsing by definition (ADR-007 § 6, answer 4) and there is nothing to call a tool with until the per-ADR files exist. The ids are the ones the old file already used — they are being *preserved*, not minted.
+4. **Move the old monolithic file aside, then let the tool render the index.**
+
+   ```bash
+   git mv DECISIONS.md evidence/<YYYY-MM>/decisions-pre-split.md
+   "$PERRY_HOME/bin/perry-decide" bootstrap
+   ```
+
+   With `decisions/` already populated, `bootstrap` creates only the index and
+   renders it from the files step 3 just wrote. That is the point of doing it
+   this way round rather than typing the index out: the index is a projection,
+   and a projection typed by hand is wrong at the next `perry-decide` call.
+   Check it with `perry-decide list --json` — `conformance.filed_without_index_row`
+   is empty when every transcribed ADR made it in.
+5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 7 of the `adr` walk above.
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
 When a `/pmo` standup detects old-style format (no `decisions/` directory; `DECISIONS.md` contains `^## ADR-NNN — ` headers), surface the migration suggestion in the standup's "next actions" list; user kicks off the migration in chat. PMO walks the steps above, shows the user a diff summary before commit. **Do not** auto-migrate during standup — wait for explicit user confirmation.

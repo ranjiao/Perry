@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Perry setup — install perry/ into the host's skills directory (Claude Code
-# at ~/.claude/skills/, Codex CLI at ~/.agents/skills/) so it surfaces /perry.
+# at ~/.claude/skills/, Codex CLI at ~/.agents/skills/, OpenCode at
+# ~/.config/opencode/skills/) so it surfaces /perry.
 #
 # ONE skill is registered. goals, work and decide are lanes inside it, reached as
 # `/perry goals …`, and loaded on demand by the router. Earlier versions also
@@ -8,16 +9,16 @@
 # because `design` and `okr` are common words in a shared namespace and Perry
 # should not claim them (see install_at for the full reasoning).
 #
-# Both hosts read SKILL.md frontmatter natively for skill discovery; the
+# All hosts read SKILL.md frontmatter for skill discovery; the
 # install is just a symlink in the host's canonical skills directory.
 #
 # Host selection:
 #   No flag         → auto-detect; install for whichever host(s) are present
-#                     in PATH (claude / codex). Fails if neither is detected
+#                     in PATH (claude / codex / opencode). Fails if none is detected
 #                     and no flag forces.
 #   --claude        → force install for Claude Code (~/.claude/skills/)
 #   --codex         → force install for Codex CLI (~/.agents/skills/)
-#   --claude --codex → install for both regardless of detection
+#   --opencode      → force install for OpenCode (~/.config/opencode/skills/)
 #
 # Before the symlink phase, runs a dependency check (Phase 0). On a fresh
 # macOS, several deps may be missing — git (Xcode CLT), Homebrew, gtimeout
@@ -34,6 +35,7 @@ LOCAL=0
 QUIET=0
 EXPLICIT_CLAUDE=0
 EXPLICIT_CODEX=0
+EXPLICIT_OPENCODE=0
 ANY_EXPLICIT=0
 DEPS_MODE="prompt"  # prompt | yes | no | check-only
 while [ $# -gt 0 ]; do
@@ -41,25 +43,27 @@ while [ $# -gt 0 ]; do
     --local)            LOCAL=1; shift ;;
     --claude)           EXPLICIT_CLAUDE=1; ANY_EXPLICIT=1; shift ;;
     --codex)            EXPLICIT_CODEX=1;  ANY_EXPLICIT=1; shift ;;
+    --opencode)         EXPLICIT_OPENCODE=1; ANY_EXPLICIT=1; shift ;;
     --quiet)            QUIET=1; shift ;;
     --yes-deps)         DEPS_MODE="yes"; shift ;;
     --no-deps)          DEPS_MODE="no"; shift ;;
     --check-deps-only)  DEPS_MODE="check-only"; shift ;;
     -h|--help)
       cat <<'USAGE'
-Perry setup — register the Perry skill set with your host (Claude Code or Codex CLI or both).
+Perry setup — register the one Perry skill with Claude Code, Codex CLI, and/or OpenCode.
 
-Usage: setup [--claude] [--codex] [--local] [--yes-deps|--no-deps|--check-deps-only] [--quiet]
+Usage: setup [--claude] [--codex] [--opencode] [--local] [--yes-deps|--no-deps|--check-deps-only] [--quiet]
 
 Host selection:
-  (no flag)   Auto-detect: install for whichever of claude / codex is in
-              PATH. Both → install both. Neither → fail with instructions.
+  (no flag)   Auto-detect: install for whichever of claude / codex / opencode
+              is in PATH. Multiple found → install all. None → fail.
   --claude    Force install for Claude Code (~/.claude/skills/).
   --codex     Force install for Codex CLI    (~/.agents/skills/).
-              Combine --claude --codex to force both regardless of detection.
+  --opencode  Force install for OpenCode     (~/.config/opencode/skills/).
+              Combine host flags to force multiple targets.
 
-  --local     Per-project Claude Code install (./.claude/skills/).
-              Has no effect on Codex install — Codex install is always global.
+  --local     Per-project install for Claude Code (./.claude/skills/) and
+              OpenCode (./.opencode/skills/). Codex remains global.
 
 Dependency handling (Phase 0, runs before symlink phase):
   (default)            Check deps; prompt for each missing one.
@@ -78,7 +82,7 @@ What setup does:
                                 Xcode CLT prompts for git on first run)
     claude                    — required only if installing for Claude Code
     codex                     — required only if installing for Codex CLI
-                                (also useful as an executor regardless of host)
+    opencode                  — required only if installing for OpenCode
     Homebrew                  — optional gate for other Mac installs
     coreutils (gtimeout)      — soft; Perry's codex preflight uses timeout
                                 if available, else runs unprotected (warning)
@@ -133,23 +137,26 @@ DEPS_SKIPPED_INSTALL=()
 # ─── Host selection: which hosts are we installing for? ───────
 INSTALL_CLAUDE=0
 INSTALL_CODEX=0
+INSTALL_OPENCODE=0
 
 if [ "$ANY_EXPLICIT" -eq 1 ]; then
-  # User specified at least one of --claude / --codex — honor their choice
+  # User specified at least one host flag — honor that exact set.
   INSTALL_CLAUDE=$EXPLICIT_CLAUDE
   INSTALL_CODEX=$EXPLICIT_CODEX
+  INSTALL_OPENCODE=$EXPLICIT_OPENCODE
 else
   # Auto-detect from PATH
   dep_present claude && INSTALL_CLAUDE=1 || true
   dep_present codex  && INSTALL_CODEX=1  || true
+  dep_present opencode && INSTALL_OPENCODE=1 || true
 fi
 
-if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
+if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ]; then
   warn ""
-  warn "❌ No host detected and no --claude/--codex flag given."
+  warn "❌ No host detected and no --claude/--codex/--opencode flag given."
   warn ""
-  warn "Perry installs as a skill for either Claude Code or Codex CLI (or both)."
-  warn "Detection looks for the 'claude' or 'codex' binaries in PATH."
+  warn "Perry installs as one skill for Claude Code, Codex CLI, or OpenCode."
+  warn "Detection looks for the 'claude', 'codex', or 'opencode' binaries in PATH."
   warn ""
   warn "Options:"
   warn "  1. Install Claude Code from https://claude.com/download and re-run setup."
@@ -158,6 +165,7 @@ if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
   warn "       ~/perry/setup --claude"
   warn "       ~/perry/setup --codex"
   warn "       ~/perry/setup --claude --codex"
+  warn "       ~/perry/setup --opencode"
   exit 1
 fi
 
@@ -189,6 +197,7 @@ check_deps() {
   log "  Installing for: $(
     [ "$INSTALL_CLAUDE" -eq 1 ] && printf "claude-code "
     [ "$INSTALL_CODEX"  -eq 1 ] && printf "codex-cli"
+    [ "$INSTALL_OPENCODE" -eq 1 ] && printf " opencode"
   )"
   if [ "$IS_INTERACTIVE" -eq 0 ]; then
     log "  ℹ️  Non-interactive stdin (likely run by an agent's Bash tool)."
@@ -250,6 +259,16 @@ check_deps() {
     else
       log "  ℹ️  codex       (optional — only if you use codex executor in /perry work dispatch)"
       DEPS_MISSING_OPTIONAL+=("codex")
+    fi
+  fi
+
+  # --- opencode (only required if installing OpenCode host) ---
+  if [ "$INSTALL_OPENCODE" -eq 1 ]; then
+    if dep_present opencode; then
+      log "  ✅ opencode    ($(command -v opencode))"
+    else
+      log "  ❌ opencode    (REQUIRED for OpenCode install target)"
+      DEPS_MISSING_REQUIRED+=("opencode")
     fi
   fi
 
@@ -408,6 +427,9 @@ if [ "$DEPS_MODE" != "no" ]; then
           warn "   Install codex: npm install -g @openai/codex   (needs Node.js)"
           warn "   (Or drop --codex / pass --claude only if you don't use Codex CLI.)"
           ;;
+        opencode)
+          warn "   Install OpenCode, or drop --opencode and select another host."
+          ;;
         *)
           warn "   $d is missing — install before re-running setup."
           ;;
@@ -472,10 +494,12 @@ install_at() {
       warn "  [$label] perry/ symlink points at $resolved"
       warn "  [$label] this script lives at $SOURCE_DIR — leaving existing link in place."
       warn "  [$label] rm \"$perry_target\" and re-run if you want to repoint."
+      return 1
     fi
   elif [ -d "$perry_target" ]; then
     warn "  [$label] perry/ exists at $perry_target (not a symlink) — leaving in place."
     warn "  [$label] Sync new content with: rsync -a --delete \"$SOURCE_DIR/\" \"$perry_target/\""
+    return 1
   elif [ -e "$perry_target" ]; then
     warn "  [$label] $perry_target exists and is not a directory — refusing to touch."
     return 1
@@ -507,6 +531,8 @@ install_at() {
 log ""
 log "── Phase 1: skill symlink ────────────────────────────────"
 
+INSTALL_FAILURES=0
+
 # Claude Code install
 CC_DIR=""
 # Legacy sibling links, swept once from every directory Perry could have
@@ -530,8 +556,8 @@ CC_DIR=""
 PERRY_LEGACY_CHILDREN=(okr pmo design goals work decide)
 
 sweep_legacy_links() {
-  local dirs=("$HOME/.claude/skills" "$HOME/.agents/skills")
-  [ "$LOCAL" -eq 1 ] && dirs+=("$(pwd)/.claude/skills")
+  local dirs=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.config/opencode/skills")
+  [ "$LOCAL" -eq 1 ] && dirs+=("$(pwd)/.claude/skills" "$(pwd)/.opencode/skills")
   local removed=() d name
   for d in "${dirs[@]}"; do
     [ -d "$d" ] || continue
@@ -557,7 +583,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   else
     CC_DIR="$HOME/.claude/skills"
   fi
-  install_at "$CC_DIR" "claude-code" || warn "  [claude-code] install step failed; continuing so other hosts and the summary still run."
+  install_at "$CC_DIR" "claude-code" || { warn "  [claude-code] install step failed; continuing with other hosts."; INSTALL_FAILURES=$((INSTALL_FAILURES + 1)); }
 fi
 
 # Codex install
@@ -565,10 +591,10 @@ CODEX_DIR=""
 if [ "$INSTALL_CODEX" -eq 1 ]; then
   if [ "$LOCAL" -eq 1 ]; then
     log ""
-    log "  Note: --local applies to Claude Code only; Codex install always goes to global ~/.agents/skills/"
+    log "  Note: --local does not apply to Codex; its install stays global at ~/.agents/skills/"
   fi
   CODEX_DIR="$HOME/.agents/skills"
-  install_at "$CODEX_DIR" "codex" || warn "  [codex] install step failed; continuing so the summary still runs."
+  install_at "$CODEX_DIR" "codex" || { warn "  [codex] install step failed; continuing with other hosts."; INSTALL_FAILURES=$((INSTALL_FAILURES + 1)); }
 
   if [ -z "${PERRY_HOME:-}" ] || [ -z "${PERRY_HOST:-}" ]; then
     log ""
@@ -578,16 +604,35 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
   fi
 fi
 
+# OpenCode install
+OPENCODE_DIR=""
+if [ "$INSTALL_OPENCODE" -eq 1 ]; then
+  if [ "$LOCAL" -eq 1 ]; then
+    OPENCODE_DIR="$(pwd)/.opencode/skills"
+  else
+    OPENCODE_DIR="$HOME/.config/opencode/skills"
+  fi
+  install_at "$OPENCODE_DIR" "opencode" || { warn "  [opencode] install step failed; continuing with other hosts."; INSTALL_FAILURES=$((INSTALL_FAILURES + 1)); }
+fi
+
 # ─── Summary ──────────────────────────────────────────────────
 log ""
-log "Perry ready."
+if [ "$INSTALL_FAILURES" -gt 0 ]; then
+  warn ""
+  warn "Perry setup incomplete: $INSTALL_FAILURES selected host install(s) failed."
+else
+  log "Perry ready."
+fi
 log "  source       : $SOURCE_DIR"
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  claude-code  : $CC_DIR"   || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  codex        : $CODEX_DIR" || true
+[ "$INSTALL_OPENCODE" -eq 1 ] && log "  opencode     : $OPENCODE_DIR" || true
 log "  skill        : /perry  (one entrance; goals / work / decide are lanes inside it)"
 log "  lanes        : /perry goals … · /perry work … · /perry decide … · /perry diagnose"
 log ""
 [ "$INSTALL_CLAUDE" -eq 1 ] && log "  Claude Code: invoke /perry inside a project for the combined dashboard." || true
 [ "$INSTALL_CODEX"  -eq 1 ] && log "  Codex CLI  : invoke /skills, then pick perry — or type \$perry to mention." || true
+[ "$INSTALL_OPENCODE" -eq 1 ] && log "  OpenCode   : invoke the perry skill; lanes remain arguments to that one skill." || true
 
+if [ "$INSTALL_FAILURES" -gt 0 ]; then exit 1; fi
 exit 0

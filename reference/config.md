@@ -43,7 +43,7 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 - Repo layout: <single | split>
 - State root: <. | relative path>
 - Packs: <comma-separated pack names, or absent for software-ops>
-- Conformance gate: <advisory | enforce>   (optional; default advisory)
+- Conformance gate: <advisory | enforce>   (optional; default enforce)
 - PMO repo path: <absolute path>
 - Code repo path: <absolute path or — if single>
 - Last updated: <YYYY-MM-DD>
@@ -87,10 +87,15 @@ marker: *this file matches Perry's shape, at shape version N, and the user said
 so*. The declarations live in `.perry/conformance.md`; `bin/perry-conform`
 computes the verdict and is the only thing that writes them.
 
-Today the gate is **advisory** — `perry-task` and `perry-decide` write anyway
-and print what they found. Set `Conformance gate: enforce` (or export
-`PERRY_CONFORMANCE=enforce`) to make them refuse instead. **Reading is never
-gated in either mode.**
+The gate **enforces** — `perry-task`, `perry-goals` and `perry-decide` refuse a
+file nobody has declared, and the refusal names the file, the shape version it
+was checked against, and the command that fixes it (`perry-conform declare` for
+a file that already matches Perry's shape, `perry-migrate` for one that does
+not). Set `Conformance gate: advisory` (or export `PERRY_CONFORMANCE=advisory`)
+to make them write anyway and print what they found instead. **Reading is never
+gated in either mode**, and neither is `perry-migrate` — it is how an undeclared
+project becomes declarable, so a gate that refused it would be a wall with no
+door. `perry-goals commit --migrate` is exempt for the same reason.
 
 When a write prints a conformance line, **relay it and let the user decide.** Do
 not run `perry-conform declare` on the user's behalf: `perry/OKR.md` — *"adoption

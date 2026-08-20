@@ -13,10 +13,17 @@ set -e
 # ─── Defaults (override via env) ─────────────────────────────
 MAX_CODEX="${PERRY_MAX_DISPATCH_CODEX:-2}"
 MAX_SUBAGENT="${PERRY_MAX_DISPATCH_SUBAGENT:-2}"
+MAX_OPENCODE_SUBAGENT="${PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT:-2}"
 MAX_TOTAL="${PERRY_MAX_DISPATCH_TOTAL:-3}"
 STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-3600}"  # 1 hour
 
 CACHE_DIR="$HOME/.cache/perry/in-flight"
+LOCK_DIR="$CACHE_DIR/.lock"
+LOCK_WAIT_TIMEOUT=10
+LOCK_UNOWNED_TTL=300
+LOCK_HELD=0
+LOCK_TOKEN=""
+TEMP_MARKER=""
 mkdir -p "$CACHE_DIR"
 
 # ─── Helpers ─────────────────────────────────────────────────
@@ -36,11 +43,13 @@ Subcommands:
   check      Print current count for <executor>. Exit 0 if room, 1 if at limit.
   list       Print all active markers (after cleaning stale).
 
-Executors: codex, claude-subagent
+Executors: codex, claude-subagent, opencode-subagent
 
 Env overrides (defaults shown):
   PERRY_MAX_DISPATCH_CODEX=2       Max concurrent codex dispatches
   PERRY_MAX_DISPATCH_SUBAGENT=2    Max concurrent claude-subagent dispatches
+  PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT=2
+                                    Max concurrent opencode-subagent dispatches
   PERRY_MAX_DISPATCH_TOTAL=3       Cap across all executors (whichever hits first wins)
   PERRY_DISPATCH_STALE_TTL=3600    Stale-marker TTL in seconds (default 1h)
 
@@ -50,6 +59,77 @@ USAGE
 
 mtime() {
   stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+}
+
+release_lock() {
+  local owner
+  [ "$LOCK_HELD" -eq 1 ] || return 0
+  owner=$(cat "$LOCK_DIR/owner" 2>/dev/null || true)
+  if [ -z "$owner" ] || [ "$owner" = "$LOCK_TOKEN" ]; then
+    rm -f "$LOCK_DIR/owner" "$LOCK_DIR/acquired_at" 2>/dev/null || true
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+  [ -z "$TEMP_MARKER" ] || rm -f "$TEMP_MARKER" 2>/dev/null || true
+  LOCK_HELD=0
+}
+
+recover_stale_lock() {
+  local owner owner_pid started now age stale stale_dir
+  [ -d "$LOCK_DIR" ] || return 0
+  owner=$(cat "$LOCK_DIR/owner" 2>/dev/null || true)
+  owner_pid=${owner%%.*}
+  started=$(cat "$LOCK_DIR/acquired_at" 2>/dev/null || mtime "$LOCK_DIR")
+  case "$started" in *[!0-9]*|"") started=0 ;; esac
+  now=$(date +%s)
+  age=$((now - started))
+  stale=0
+  case "$owner_pid" in
+    *[!0-9]*|"")
+      if [ "$age" -gt "$LOCK_UNOWNED_TTL" ]; then
+        stale=1
+      fi
+      ;;
+    *)
+      if ! kill -0 "$owner_pid" 2>/dev/null; then
+        stale=1
+      fi
+      ;;
+  esac
+  [ "$stale" -eq 1 ] || return 0
+
+  # Rename first so cleanup can never remove a lock acquired by another waiter.
+  stale_dir="$CACHE_DIR/.lock.stale.$$.$RANDOM"
+  if mv "$LOCK_DIR" "$stale_dir" 2>/dev/null; then
+    rm -f "$stale_dir/owner" "$stale_dir/acquired_at" 2>/dev/null || true
+    rmdir "$stale_dir" 2>/dev/null || true
+  fi
+}
+
+acquire_lock() {
+  local wait_started now owner_tmp started_tmp
+  wait_started=$(date +%s)
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    recover_stale_lock
+    now=$(date +%s)
+    if [ $((now - wait_started)) -ge "$LOCK_WAIT_TIMEOUT" ]; then
+      echo "Failed to acquire dispatch marker lock after ${LOCK_WAIT_TIMEOUT}s" >&2
+      exit 2
+    fi
+    sleep 0.05
+  done
+
+  LOCK_HELD=1
+  LOCK_TOKEN="$$.$RANDOM.$(date +%s)"
+  trap release_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  owner_tmp="$LOCK_DIR/.owner.$$.$RANDOM"
+  started_tmp="$LOCK_DIR/.started.$$.$RANDOM"
+  printf '%s\n' "$LOCK_TOKEN" > "$owner_tmp"
+  printf '%s\n' "$(date +%s)" > "$started_tmp"
+  mv "$owner_tmp" "$LOCK_DIR/owner"
+  mv "$started_tmp" "$LOCK_DIR/acquired_at"
 }
 
 # Task IDs become filenames + JSON values + glob patterns, so restrict them to
@@ -114,6 +194,7 @@ max_for_executor() {
   case "$1" in
     codex) echo "$MAX_CODEX" ;;
     claude-subagent) echo "$MAX_SUBAGENT" ;;
+    opencode-subagent) echo "$MAX_OPENCODE_SUBAGENT" ;;
     *) echo "0" ;;
   esac
 }
@@ -131,12 +212,19 @@ case "$cmd" in
       exit 2
     fi
     validate_task_id "$task_id"
-    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
-      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ] && [ "$executor" != "opencode-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent | opencode-subagent)" >&2
       exit 2
     fi
 
+    acquire_lock
     clean_stale
+    for existing in "$CACHE_DIR/${task_id}-"*.json; do
+      [ -e "$existing" ] || continue
+      echo "❌ $task_id already has an active dispatch: $(basename "$existing" .json)" >&2
+      list_markers >&2
+      exit 1
+    done
     max_per=$(max_for_executor "$executor")
     cur_per=$(count_executor "$executor")
     cur_total=$(count_all)
@@ -153,7 +241,8 @@ case "$cmd" in
     fi
 
     marker="$CACHE_DIR/${task_id}-${executor}.json"
-    cat > "$marker" <<EOF
+    TEMP_MARKER="$CACHE_DIR/.${task_id}-${executor}.$$.$RANDOM.tmp"
+    cat > "$TEMP_MARKER" <<EOF
 {
   "task_id": "$task_id",
   "executor": "$executor",
@@ -161,8 +250,10 @@ case "$cmd" in
   "registered_pid": $$
 }
 EOF
-    new_per=$((cur_per + 1))
-    new_total=$((cur_total + 1))
+    mv "$TEMP_MARKER" "$marker"
+    TEMP_MARKER=""
+    new_per=$(count_executor "$executor")
+    new_total=$(count_all)
     echo "🟢 Slot reserved: $task_id ($executor). Now $new_per / $max_per for $executor; $new_total / $MAX_TOTAL total."
     ;;
 
@@ -173,6 +264,7 @@ EOF
       exit 2
     fi
     validate_task_id "$task_id"
+    acquire_lock
     rm -f "$CACHE_DIR"/"${task_id}"-*.json 2>/dev/null
     echo "🟢 Released: $task_id"
     ;;
@@ -183,11 +275,12 @@ EOF
       echo "Usage: check <executor>" >&2
       exit 2
     fi
-    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
-      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ] && [ "$executor" != "opencode-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent | opencode-subagent)" >&2
       exit 2
     fi
 
+    acquire_lock
     clean_stale
     max_per=$(max_for_executor "$executor")
     cur_per=$(count_executor "$executor")
@@ -200,6 +293,7 @@ EOF
     ;;
 
   list)
+    acquire_lock
     clean_stale
     list_markers
     ;;

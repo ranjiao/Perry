@@ -302,7 +302,7 @@ Recognized in `.perry/hook.md` under `## Digest archive thresholds`:
 
 ## Bootstrap
 
-When `/pmo` bootstraps a new project (per `SKILL.md § Bootstrap`), also create:
+When `/pmo` bootstraps a new project (per `SKILL.md § First-time setup`), also create:
 - Empty `inputs/` directory
 - Empty `knowledge/` directory
 - `knowledge/INDEX.md` from `state/knowledge_INDEX_TEMPLATE.md` (just headers, no entries)

@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+"""`perry/tasks.jsonl` — the task store, and the projection of it.
+
+**Phase 002, ADR-007's first slice.** This tool derives the store, proves it can
+reproduce `BOARD.md`, and writes it. `bin/perry-task` is what writes it on every
+ordinary command (TASK-089); this one is the migration and inspection surface.
+
+    perry-tasks build   [--root <p>]        derive the store; write nothing
+    perry-tasks verify  [--root <p>]        field-compare the store to the board
+    perry-tasks render  [--root <p>] [--write]   the store → BOARD.md
+    perry-tasks write   [--root <p>] --from-board  the board → the store
+    perry-tasks diff    [--root <p>]        render and byte-compare with the file
+
+**Twenty fields are STORED and nine are DERIVED.** That split is the design,
+not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
+`evidence_paths`, `status_text`, `timeline` and `updated` are all computable
+from the twenty plus the event log, and storing any of them would be the
+"a stored value that is derived" defect this repository keeps finding.
+
+The derived nine keep the same payload shape. `status_text` changed meaning at
+`perry-task/list/1.10`: it is now the legacy display alias of typed `status`,
+not raw text recovered from the rendered board.
+
+The record shape and the renderer live in `bin/perry_store.py`, which
+`bin/perry-task` imports too. One implementation, two callers: two renderers of
+one file is the defect that produced `viewer/parsers.py` and `bin/perry-task`
+disagreeing silently, with the arrow reversed.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lib  # noqa: E402
+import parsers as P  # noqa: E402
+import perry_store  # noqa: E402
+
+#: Written to the store — `bin/perry_store.py` owns the list, and this name is
+#: kept so a reader of either file lands in the same place.
+STORED = perry_store.STORED
+
+
+class Refused(Exception):
+    pass
+
+
+def build(project_root: Path) -> list[dict]:
+    """The store, derived from today's canonical sources.
+
+    Reads the board AND the event log, because `done` removes a row: a store
+    built from the board alone would lose every closed task, which is the trap
+    `check_verification` documents and `walk_design` repeated.
+
+    **One derivation, in `bin/perry-task § store_records`.** This used to hold
+    its own copy of the projection and `perry-task` grew a second one the day
+    it started writing the store — two functions answering "what does the store
+    hold for this row", which is the shape of every silent disagreement in this
+    repository's history.
+    """
+    task_mod = _task_module()
+    state_root = P.resolve_state_root(project_root)
+    board = task_mod.Board(state_root / "BOARD.md")
+    try:
+        records, _conformance = task_mod.store_records(
+            project_root, state_root, board, task_mod.read_events(project_root))
+    except task_mod.Refused as exc:
+        raise Refused(str(exc)) from None
+    return records
+
+
+_TASK_MODULE = None
+
+
+def _task_module():
+    """`bin/perry-task` as a module, loaded ONCE per process.
+
+    It was loaded per call and this file now calls it three times on one
+    `diff` — 4,200 lines re-executed each time, for a module with no state to
+    reset between them.
+    """
+    global _TASK_MODULE
+    if _TASK_MODULE is not None:
+        return _TASK_MODULE
+    import importlib.machinery
+    import importlib.util
+    path = Path(__file__).resolve().parent / "perry-task"
+    spec = importlib.util.spec_from_loader(
+        "perry_task_mod", importlib.machinery.SourceFileLoader(
+            "perry_task_mod", str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    _TASK_MODULE = mod
+    return mod
+
+
+# ── the renderer ──────────────────────────────────────────────────────────
+#
+# `bin/perry_store.py` holds it. These names are re-bound rather than
+# reimplemented so `perry-tasks.render` and the renderer `perry-task` runs on
+# every write are the same function — a second copy here is exactly how the two
+# parsers of `BOARD.md` came to disagree, and the round trip would go red one
+# project later rather than one test earlier.
+
+FIELD_BY_COLUMN = perry_store.FIELD_BY_COLUMN
+cell_text = perry_store.cell_text
+describe_cell = perry_store.describe_cell
+render_line = perry_store.render_line
+
+
+def plan(root: Path, records: list[dict]) -> dict:
+    """Today's board on disk, split into the lines the store fills and the rest."""
+    mod = _task_module()
+    board = mod.Board(P.resolve_state_root(root) / "BOARD.md")
+    return perry_store.plan(board, records, mod)
+
+
+def render(root: Path, records: list[dict]) -> tuple[str, dict]:
+    """`perry/tasks.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
+    mod = _task_module()
+    board = mod.Board(P.resolve_state_root(root) / "BOARD.md")
+    return perry_store.render(board, records, mod)
+
+
+def load_store(root: Path) -> tuple[list[dict], Path]:
+    """The store as it is ON DISK — never the one just built.
+
+    `verify` documents why at length and the reason is the same one: a
+    renderer fed a store built from the board it is being compared against
+    proves that `split_row` and `render_row` are inverses, which nobody
+    doubted, and proves nothing at all about the store.
+    """
+    store_path = P.resolve_state_root(root) / "tasks.jsonl"
+    if not store_path.exists():
+        return [], store_path
+    return [json.loads(l) for l in store_path.read_text(encoding="utf-8")
+            .split("\n") if l.strip()], store_path
+
+
+def cmd_render(root: Path, byte_compare: bool,
+               write_board: bool = False) -> int:
+    try:
+        records, store_path = load_store(root)
+    except (OSError, ValueError) as exc:
+        payload = {"identical": False, "store_valid": False,
+                   "store_findings": [{"message":
+                       f"store is not readable JSONL ({type(exc).__name__}: {exc})"}]}
+        print(json.dumps(payload, ensure_ascii=False, indent=2),
+              file=sys.stdout if byte_compare else sys.stderr)
+        return 2
+    if not records:
+        print(json.dumps({
+            "store": str(store_path), "exists": store_path.exists(),
+            "note": "no store on disk yet — run `perry-tasks write "
+                    "--from-board` to perform the explicit board import. "
+                    "Rendering the board from a store built out of that same "
+                    "board proves nothing.",
+        }, ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+    records, findings = perry_store.validate_records(records)
+    if findings:
+        payload = {"identical": False, "store_valid": False,
+                   "store_findings": findings}
+        print(json.dumps(payload, ensure_ascii=False, indent=2),
+              file=sys.stdout if byte_compare else sys.stderr)
+        return 2
+    text, report = render(root, records)
+    if not byte_compare:
+        if write_board:
+            # The missing direction. `write` ran board → store and `render` ran
+            # store → stdout, so there was no command that put a drifted board
+            # back in line with the store — which is exactly what
+            # `perry-lint § store-drift` needs to recommend, and why it was
+            # recommending `write` instead.
+            state_root = P.resolve_state_root(root)
+            lib.write_atomic(state_root / "BOARD.md", text)
+            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} from "
+                  f"{len(records)} stored record(s)")
+            return 0
+        sys.stdout.write(text)
+        return 0
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    report["identical"] = text == live
+    if not report["identical"]:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        report["first_difference"] = {
+            "line": n + 1,
+            "file": (a[n] if n < len(a) else "<past end of file>")[:400],
+            "rendered": (b[n] if n < len(b) else "<past end of render>")[:400],
+        }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if report["identical"] else 1
+
+
+def _would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
+    """Stored values the board-derived records do not carry, one line each.
+
+    Compared **by field**, not by record and not by count. A record-level
+    "differs" would print one line for a row whose title gained a comma and one
+    line for a row whose status the store alone knows about, and the user
+    cannot tell those apart — which is the whole decision this refusal is
+    asking them to make.
+
+    A record that is only in the store is reported as a whole: the board has no
+    row for it, so `write` would delete it outright.
+    """
+    by_id = {r.get("id"): r for r in derived if r.get("id")}
+    out: list[str] = []
+    for rec in on_disk:
+        tid = rec.get("id")
+        if not tid:
+            continue
+        new = by_id.get(tid)
+        if new is None:
+            out.append(f"{tid}: in the store, no row on the board — "
+                       f"the whole record would be dropped")
+            continue
+        for field in sorted(set(rec) | set(new)):
+            a, b = rec.get(field), new.get(field)
+            if a == b:
+                continue
+            out.append(f"{tid}.{field}: store={a!r} → board={b!r}")
+    return out
+
+
+def main(argv: list[str], _locked: bool = False) -> int:
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0
+    cmd = argv[0]
+    root = Path.cwd()
+    if "--root" in argv:
+        root = Path(argv[argv.index("--root") + 1]).expanduser().resolve()
+    root = Path(os.environ.get("PERRY_PROJECT") or root).resolve()
+
+    if cmd not in ("build", "verify", "write", "render", "diff"):
+        print(f"perry-tasks: expected build / verify / write / render / diff, "
+              f"got {cmd!r}", file=sys.stderr)
+        return 2
+
+    # One lock spans source reads, derivation, comparison, and replacement.
+    # Taking it only around `os.replace` still lets a concurrent writer make
+    # every decision above that point against stale bytes.
+    if not _locked:
+        state_root = P.resolve_state_root(root)
+        try:
+            with lib.project_lock(state_root, refused=Refused):
+                return main(argv, _locked=True)
+        except Refused as exc:
+            print(f"perry-tasks: refused — {exc}", file=sys.stderr)
+            return 1
+
+    if cmd in ("render", "diff"):
+        # **Not `build(root)`.** These two read the store from disk for the
+        # reason `verify` spells out below.
+        return cmd_render(root, byte_compare=cmd == "diff",
+                          write_board="--write" in argv)
+
+    records = build(root)
+    if cmd == "build":
+        print(json.dumps({"records": len(records),
+                          "stored_fields": len(STORED),
+                          "sample": records[0] if records else None},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if cmd == "write":
+        state_root = P.resolve_state_root(root)
+        dest = state_root / "tasks.jsonl"
+
+        if "--from-board" not in argv:
+            print("perry-tasks: refusing board-to-store import without "
+                  "`--from-board`. `tasks.jsonl` is authoritative; use "
+                  "`perry-tasks render --write` for store-to-board recovery, "
+                  "or explicitly run `perry-tasks write --from-board` to "
+                  "replace the store from BOARD.md.", file=sys.stderr)
+            return 1
+
+        # **This command runs BOARD.md → store, and since TASK-089 that is the
+        # backwards direction.** It is the migration and adoption surface: it
+        # exists to mint a store for a project that has none. ADR-007 decision
+        # 2 made the store canonical and `BOARD.md` rendered output, so once a
+        # store exists, re-deriving it from the file overwrites the canonical
+        # value with the projection.
+        #
+        # `perry-lint § store-drift` PRINTED THIS COMMAND AS A REMEDY, in the
+        # same sentence that called `tasks.jsonl` "what the field means".
+        # Measured on a copy: a store carrying `status: in_progress` and a
+        # next-action the board did not have, one `perry-tasks write`, and both
+        # were gone — reported as a success, with a record count that did not
+        # change. A remedy that destroys the thing it is repairing is worse
+        # than no remedy, because the user runs it *because Perry told them
+        # to*.
+        #
+        # So it refuses when a store already exists and disagrees, and names
+        # what it would discard. `--from-board` is the explicit opt-in, for the
+        # one case where the board really is the truth: someone edited it
+        # before the store existed, or adoption is importing a foreign one.
+        if dest.exists():
+            try:
+                on_disk = [json.loads(l) for l in
+                           dest.read_text(encoding="utf-8").split("\n") if l.strip()]
+            except (OSError, ValueError) as exc:
+                print(f"perry-tasks: {dest} exists but cannot be read "
+                      f"({type(exc).__name__}: {exc}). Refusing to overwrite a "
+                      f"store this tool cannot compare against; move it aside "
+                       f"and re-run.", file=sys.stderr)
+                return 2
+            _valid, malformed = perry_store.validate_records(on_disk)
+            if malformed:
+                print(json.dumps({"refused": f"{dest} is malformed; refusing "
+                                  f"to overwrite a store that cannot be safely "
+                                  f"compared", "store_findings": malformed},
+                                 ensure_ascii=False, indent=2), file=sys.stderr)
+                return 2
+            losses = _would_discard(on_disk, records)
+            if losses and "--from-board" not in argv:
+                print(f"perry-tasks: refusing to overwrite {dest}.\n\n"
+                      f"  This command derives the store FROM `BOARD.md`, and "
+                      f"the board is rendered output (ADR-007 decision 2). "
+                      f"{len(losses)} stored value(s) would be replaced by "
+                      f"what the file happens to say:\n",
+                      file=sys.stderr)
+                for line in losses[:10]:
+                    print(f"    {line}", file=sys.stderr)
+                if len(losses) > 10:
+                    print(f"    … and {len(losses) - 10} more", file=sys.stderr)
+                print(f"\n  If the STORE is right — the ordinary case, because "
+                      f"`perry-task` writes it — run `perry-tasks render "
+                      f"--write` to bring the board back in line.\n"
+                      f"  If the BOARD is right — someone edited it before the "
+                      f"store existed, or adoption is importing one — re-run "
+                      f"with --from-board.", file=sys.stderr)
+                return 1
+
+        # Staged and renamed under the project lock, like every other write to
+        # a canonical file. `dest.write_text` was a plain truncate-and-write on
+        # the ONE file `bin/perry-task` stages so carefully, and it completed
+        # while another process held the lock.
+        lib.write_atomic(dest, perry_store.store_text(records))
+        print(f"perry-tasks: wrote {dest} ({len(records)} records)")
+        return 0
+
+    # **`verify` reads the store FROM DISK, not the one just built.**
+    #
+    # The first version rebuilt the store and compared it to the board it had
+    # just been built from — a tautology that could never fail. A test planted
+    # a hand edit into the board and `verify` passed, because both sides saw
+    # the same edited value. That is the same defect as a test that passes with
+    # its subject deleted, in the tool written to detect exactly that.
+    #
+    # The store on disk is the only independent thing to compare against, and
+    # when there is none the honest answer is "nothing to verify" rather than a
+    # pass.
+    state_root = P.resolve_state_root(root)
+    store_path = state_root / "tasks.jsonl"
+    if not store_path.exists():
+        print(json.dumps({
+            "store": str(store_path), "exists": False,
+            "records": 0, "board_rows": 0,
+            "note": "no store on disk yet — run `perry-tasks write "
+                    "--from-board` to perform the explicit board import. "
+                    "Verifying a store against the board it was just built "
+                    "from proves nothing.",
+        }, ensure_ascii=False, indent=2))
+        return 2
+    try:
+        records = [json.loads(l) for l in store_path.read_text().split("\n")
+                   if l.strip()]
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"store_valid": False, "store_findings": [
+            {"message": f"store is not readable JSONL ({type(exc).__name__}: {exc})"}
+        ]}, ensure_ascii=False, indent=2))
+        return 2
+    records, findings = perry_store.validate_records(records)
+    if findings:
+        print(json.dumps({"store_valid": False, "store_findings": findings},
+                         ensure_ascii=False, indent=2))
+        return 2
+    board = P.parse_board((state_root / "BOARD.md").read_text(errors="replace"))
+    by_id = {r["id"]: r for r in records}
+    missing = [t.id for t in board.all_tasks if t.id and t.id not in by_id]
+    wrong = []
+    for t in board.all_tasks:
+        r = by_id.get(t.id)
+        if not r:
+            continue
+        for field, live in (("title", t.title), ("owner", t.owner),
+                            ("status", t.status), ("next_action", t.next_action),
+                            ("evidence", t.evidence),
+                            ("verification", t.verification)):
+            if (r.get(field) or "") != (live or ""):
+                wrong.append(f"{t.id}.{field}: store={r.get(field)!r} "
+                             f"board={live!r}")
+    print(json.dumps({"records": len(records),
+                      "board_rows": len([t for t in board.all_tasks if t.id]),
+                      "rows_missing_from_store": missing,
+                      "field_mismatches": wrong[:10],
+                      "mismatch_count": len(wrong)},
+                     ensure_ascii=False, indent=2))
+    return 0 if not missing and not wrong else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

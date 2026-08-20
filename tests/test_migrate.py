@@ -22,6 +22,7 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import hashlib
+import contextlib
 import importlib.machinery
 import importlib.util
 import json
@@ -38,6 +39,7 @@ MIGRATE = PERRY_HOME / "bin" / "perry-migrate"
 CONFORM = PERRY_HOME / "bin" / "perry-conform"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 TASK = PERRY_HOME / "bin" / "perry-task"
+TASKS = PERRY_HOME / "bin" / "perry-tasks"
 
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
@@ -390,7 +392,8 @@ class TestNothingIsLost(unittest.TestCase):
 
         def corrupt_the_first_write(path, text):
             calls.append(path)
-            real(path, text + "\n" if len(calls) == 1 else text)
+            suffix = b"\n" if isinstance(text, bytes) else "\n"
+            return real(path, text + suffix if len(calls) == 1 else text)
 
         M.write_atomic = corrupt_the_first_write
         try:
@@ -400,6 +403,59 @@ class TestNothingIsLost(unittest.TestCase):
             M.write_atomic = real
         for path, digest in before.items():
             self.assertEqual(p.tree().get(path), digest, path)
+
+    def test_automatic_rollback_does_not_overwrite_a_later_concurrent_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        real_write = M.write_atomic
+        real_undo = M.undo
+        writes = []
+
+        def corrupt_the_first_write(path, text):
+            writes.append(path)
+            suffix = b"\n" if isinstance(text, bytes) else "\n"
+            real_write(path, text + suffix if len(writes) == 1 else text)
+
+        def edit_between_detection_and_rollback(point, **kwargs):
+            board.write_bytes(board.read_bytes() + b"CONCURRENT EDIT\n")
+            return real_undo(point, **kwargs)
+
+        M.write_atomic = corrupt_the_first_write
+        M.undo = edit_between_detection_and_rollback
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(plan, SCHEMA)
+        finally:
+            M.write_atomic = real_write
+            M.undo = real_undo
+
+        self.assertIn("automatic rollback also failed", str(caught.exception))
+        self.assertTrue(board.read_bytes().endswith(b"CONCURRENT EDIT\n"))
+
+    def test_post_write_concurrent_edit_is_not_treated_as_the_tools_image(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        real = M.write_atomic
+        writes = {"n": 0}
+
+        def edit_before_verification(path, text):
+            published = real(path, text)
+            writes["n"] += 1
+            if writes["n"] == 1:
+                path.write_bytes(path.read_bytes() + b"CONCURRENT EDIT\n")
+            return published
+
+        M.write_atomic = edit_before_verification
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(plan, SCHEMA)
+        finally:
+            M.write_atomic = real
+
+        self.assertIn("automatic rollback also failed", str(caught.exception))
+        self.assertTrue(board.read_bytes().endswith(b"CONCURRENT EDIT\n"))
 
     def test_a_line_edited_without_being_recorded_is_caught(self):
         """`rewritten` is the tool's own claim about what it changed. A
@@ -446,7 +502,88 @@ class TestRecoverable(unittest.TestCase):
         p.run("restore")
         self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
                          "the record was created by the run and must go back "
-                         "to not existing")
+                          "to not existing")
+
+    def test_apply_and_restore_keep_board_and_store_in_the_same_restore_set(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        p.run("apply")
+        store = p.root / "tasks.jsonl"
+        self.assertTrue(store.exists())
+        diff = subprocess.run(
+            [sys.executable, str(TASKS), "diff", "--root", str(p.root)],
+            capture_output=True, text=True)
+        self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
+        self.assertTrue(json.loads(diff.stdout)["identical"])
+        p.run("restore")
+        self.assertFalse(store.exists(),
+                         "restore left a store for the pre-migration board")
+
+    def test_apply_recreates_a_missing_store_when_the_board_needs_no_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        self.assertEqual(p.run("apply")[0], 0)
+        store = p.root / "tasks.jsonl"
+        self.assertTrue(store.exists())
+        store.unlink()
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, (out, err))
+        self.assertTrue(store.exists(),
+                        "a structurally current board suppressed store creation")
+        diff = subprocess.run(
+            [sys.executable, str(TASKS), "diff", "--root", str(p.root)],
+            capture_output=True, text=True)
+        self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
+        self.assertTrue(json.loads(diff.stdout)["identical"])
+
+    def test_apply_refuses_a_malformed_or_drifted_store_before_board_changes(self):
+        for malformed in (True, False):
+            with self.subTest(malformed=malformed):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                store = p.root / "tasks.jsonl"
+                if malformed:
+                    store.write_text('{"id":"INV-DRAFT-1","order":true}\n')
+                else:
+                    made = subprocess.run(
+                        [sys.executable, str(TASKS), "write", "--from-board",
+                         "--root", str(p.root)], capture_output=True, text=True)
+                    self.assertEqual(made.returncode, 0, made.stderr)
+                    records = [json.loads(line) for line in store.read_text().splitlines()]
+                    records[0]["owner"] = "store-only edit"
+                    store.write_text("".join(json.dumps(r) + "\n" for r in records))
+                before = p.text("BOARD.md")
+                rc, out, err = p.run("apply")
+                self.assertEqual(rc, 1, (out, err))
+                self.assertEqual(p.text("BOARD.md"), before)
+                self.assertIn("tasks.jsonl", out.get("refused", ""))
+
+
+    def test_apply_plans_and_writes_while_the_project_lock_is_held(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        active = {"value": False}
+        real_lock, real_plan, real_apply = M.lib.project_lock, M.plan_project, M.apply_plan
+
+        @contextlib.contextmanager
+        def lock(*_args, **_kwargs):
+            active["value"] = True
+            try:
+                yield
+            finally:
+                active["value"] = False
+
+        def checked_plan(*args, **kwargs):
+            self.assertTrue(active["value"], "migration planning escaped the lock")
+            return real_plan(*args, **kwargs)
+
+        def checked_apply(*args, **kwargs):
+            self.assertTrue(active["value"], "migration writes escaped the lock")
+            return real_apply(*args, **kwargs)
+
+        M.lib.project_lock, M.plan_project, M.apply_plan = lock, checked_plan, checked_apply
+        try:
+            rc = M.main(["apply", "--root", str(p.root), "--json"])
+        finally:
+            M.lib.project_lock, M.plan_project, M.apply_plan = \
+                real_lock, real_plan, real_apply
+        self.assertEqual(rc, 0)
 
     def test_a_dirty_git_tree_is_reported_and_not_refused(self):
         """Refusing on a dirty tree answers the question only for projects
@@ -472,6 +609,225 @@ class TestRecoverable(unittest.TestCase):
         r = subprocess.run(["python3", str(LINT), "--claims", "--root",
                             str(p.root), "--json"], capture_output=True, text=True)
         self.assertEqual(json.loads(r.stdout)["collisions"], 0)
+
+
+class TestFileImageFidelity(unittest.TestCase):
+    def test_crlf_apply_and_restore_preserve_the_exact_file_image(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        before = LEGACY_BOARD.replace("\n", "\r\n").encode("utf-8")
+        board.write_bytes(before)
+
+        dry_before = board.read_bytes()
+        dry_rc, _, dry_err = p.run()
+        self.assertEqual(dry_rc, 0, dry_err)
+        self.assertEqual(board.read_bytes(), dry_before)
+
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        applied = board.read_bytes()
+        self.assertNotEqual(applied, before)
+        self.assertEqual(applied.count(b"\r\n"), applied.count(b"\n"))
+
+        restore_rc, _, restore_err = p.run("restore")
+        self.assertEqual(restore_rc, 0, restore_err)
+        self.assertEqual(board.read_bytes(), before)
+
+    def test_a_symlinked_state_file_is_refused_before_any_write(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        target = p.root / "outside-board.md"
+        target.write_bytes(board.read_bytes())
+        before = target.read_bytes()
+        board.unlink()
+        board.symlink_to(target)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("symlink", out["refused"].lower())
+        self.assertTrue(board.is_symlink())
+        self.assertEqual(target.read_bytes(), before)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_a_non_regular_state_path_is_a_refusal_not_a_traceback(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board.unlink()
+        board.mkdir()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("not a regular file", out["refused"])
+        self.assertNotIn("Traceback", err)
+        self.assertTrue(board.is_dir())
+
+    def test_a_symlinked_derived_task_store_is_refused_before_any_write(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board_before = board.read_bytes()
+        target = p.root / "outside-tasks.jsonl"
+        target.write_text("", encoding="utf-8")
+        store = p.root / "tasks.jsonl"
+        store.symlink_to(target)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("tasks.jsonl is a symlink", out["refused"])
+        self.assertEqual(board.read_bytes(), board_before)
+        self.assertTrue(store.is_symlink())
+        self.assertEqual(target.read_bytes(), b"")
+
+    def test_a_state_file_below_a_symlinked_parent_is_refused(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        design = p.root / "design"
+        outside = p.root / "outside-design"
+        design.rename(outside)
+        design.symlink_to(outside, target_is_directory=True)
+        before = (outside / "DESIGN-001-x.md").read_bytes()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("crosses symlink", out["refused"])
+        self.assertEqual((outside / "DESIGN-001-x.md").read_bytes(), before)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_a_symlinked_declaration_record_is_refused_before_state_writes(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        plan = p.plan()
+        board = p.root / "BOARD.md"
+        before = board.read_bytes()
+        record = p.root / ".perry" / "conformance.md"
+        record.parent.mkdir(exist_ok=True)
+        target = p.root / "outside-conformance.md"
+        target.write_text("outside\n", encoding="utf-8")
+        record.symlink_to(target)
+
+        with self.assertRaises(M.Refused) as caught:
+            M.apply_plan(plan, SCHEMA)
+
+        self.assertIn("conformance.md is a symlink", str(caught.exception))
+        self.assertEqual(board.read_bytes(), before)
+        self.assertTrue(record.is_symlink())
+        self.assertEqual(target.read_text(encoding="utf-8"), "outside\n")
+        self.assertFalse((p.root / ".perry" / "migrate").exists())
+
+
+class TestRestoreTransactionProtocol(unittest.TestCase):
+    def test_restore_preflights_every_path_before_overwriting_a_new_edit(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        board = p.root / "BOARD.md"
+        design = p.root / "design" / "DESIGN-001-x.md"
+        board.write_bytes(board.read_bytes() + b"\nPOST MIGRATION USER EDIT\n")
+        current = {"BOARD.md": board.read_bytes(), "design": design.read_bytes()}
+
+        rc, out, err = p.run("restore")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("changed since migration", out["refused"])
+        self.assertEqual(board.read_bytes(), current["BOARD.md"])
+        self.assertEqual(design.read_bytes(), current["design"],
+                         "restore wrote one file before discovering the conflict")
+
+    def test_restore_can_retry_after_a_partial_restore_failure(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        apply_rc, _, apply_err = p.run("apply")
+        self.assertEqual(apply_rc, 0, apply_err)
+        point = next((p.root / ".perry" / "migrate").glob("*.json"))
+
+        real = M.write_atomic
+        calls = {"n": 0}
+
+        def fail_second_restore_write(path, data):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise PermissionError(13, "simulated restore failure", str(path))
+            return real(path, data)
+
+        M.write_atomic = fail_second_restore_write
+        try:
+            with self.assertRaises(PermissionError):
+                M.undo(point, expected_root=p.root)
+        finally:
+            M.write_atomic = real
+
+        rc, out, err = p.run("restore", point.stem)
+
+        self.assertEqual(rc, 0, (out, err))
+        self.assertEqual(p.text("BOARD.md"), LEGACY_BOARD)
+        self.assertEqual(p.text("design/DESIGN-001-x.md"), LEGACY_DESIGN)
+        self.assertFalse((p.root / "tasks.jsonl").exists())
+
+    def test_two_runs_in_one_second_never_share_a_restore_point(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        real_datetime = M.datetime
+
+        class Frozen:
+            @classmethod
+            def now(cls):
+                return real_datetime(2026, 1, 2, 3, 4, 5)
+
+        M.datetime = Frozen
+        try:
+            board_run = M.apply_plan(
+                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"]),
+                SCHEMA, declare=False)
+            design_run = M.apply_plan(
+                M.plan_project(p.root, p.root, SCHEMA,
+                               ["design/DESIGN-001-x.md"]),
+                SCHEMA, declare=False)
+        finally:
+            M.datetime = real_datetime
+
+        self.assertNotEqual(board_run["run"], design_run["run"])
+        points = sorted((p.root / ".perry" / "migrate").glob("*.json"))
+        self.assertEqual(len(points), 2)
+
+    def test_restore_payload_path_type_and_hash_are_validated_before_writes(self):
+        mutations = ("path", "type", "hash", "unhashed")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                self.assertEqual(p.run("apply")[0], 0)
+                point = next((p.root / ".perry" / "migrate").glob("*.json"))
+                payload = json.loads(point.read_text())
+                board = p.root / "BOARD.md"
+                before = board.read_bytes()
+                escape = p.root.parent / f"{p.root.name}-escape"
+
+                if mutation == "path":
+                    entry = payload["files"].pop("BOARD.md")
+                    expected = payload["expected_after"].pop("BOARD.md")
+                    rel = f"../{escape.name}"
+                    payload["files"][rel] = entry
+                    payload["expected_after"][rel] = expected
+                elif mutation == "type":
+                    payload["files"]["BOARD.md"]["type"] = "symlink"
+                elif mutation == "unhashed":
+                    payload["files"]["BOARD.md"] = "unverified replacement\n"
+                else:
+                    payload["files"]["BOARD.md"]["sha256"] = "0" * 64
+                point.write_text(json.dumps(payload))
+
+                try:
+                    rc, out, err = p.run("restore", point.stem)
+
+                    self.assertEqual(rc, 1, (out, err))
+                    self.assertIn("restore payload", out["refused"])
+                    self.assertEqual(board.read_bytes(), before)
+                    self.assertFalse(escape.exists())
+                finally:
+                    if escape.exists():
+                        escape.unlink()
 
 
 # ── 4 · the user declares ─────────────────────────────────────────────────
@@ -588,6 +944,20 @@ class TestPartialIsAState(unittest.TestCase):
         p.run("apply", "--only", "BOARD.md")
         self.assertEqual(p.text("design/DESIGN-001-x.md"), design_before)
         self.assertNotEqual(p.text("BOARD.md"), LEGACY_BOARD)
+
+    def test_only_design_does_not_derive_a_store_from_the_unselected_board(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        board_before = (p.root / "BOARD.md").read_bytes()
+
+        rc, out, err = p.run("apply", "--only", "design/DESIGN-001-x.md")
+
+        self.assertEqual(rc, 0, (out, err))
+        self.assertEqual(out["applied"]["applied"],
+                         ["design/DESIGN-001-x.md"])
+        self.assertEqual((p.root / "BOARD.md").read_bytes(), board_before)
+        self.assertFalse((p.root / "tasks.jsonl").exists(),
+                         "--only design crossed its boundary through the task store")
 
     def test_the_refusal_names_the_finding_that_blocked_the_file(self):
         p = Project({"BOARD.md": UNRESOLVABLE_BOARD})
@@ -1017,9 +1387,7 @@ A legend, not a task table:
                             "--root", str(p.root)], capture_output=True, text=True)
         out = json.loads(r.stdout)
         self.assertEqual(out["tasks"], [], "the legend's rows became tasks")
-        self.assertEqual(
-            [s["heading"] for s in out["conformance"]["sections_skipped"]],
-            ["P0 holding"])
+        self.assertEqual(out["conformance"]["sections_skipped"], [])
 
     def test_a_table_missing_a_minority_of_the_schemas_names_is_still_widened(self):
         """The discrimination must not cost the behaviour it protects. The
@@ -1136,6 +1504,169 @@ A legend, not a task table:
 
 
 # ── 10 · what the file now says ───────────────────────────────────────────
+
+
+class TestAColumnSplitIsNotAColumnAdd(unittest.TestCase):
+    """TASK-091. `OKR.md § Commitments` traded one `By when` column for a typed
+    `Due` plus a prose `By when note` (ADR-007, decision 3).
+
+    T2's whole job is appending a column the schema declares and the file
+    lacks, and doing that here is worse than doing nothing: the table ends up
+    with an empty `Due`, every promise's clock still in the retired column, and
+    `perry-lint` reporting zero errors. A file that looks migrated and is not
+    is the failure ADR-004 exists to prevent, so this transform stands aside
+    and names the command that owns the values."""
+
+    PRE_SPLIT = """# OKR — legacy
+
+## Mission
+
+Ship it.
+
+## Operating Principles
+
+- one
+
+## Commitments
+
+| Id | Track | Promise | To whom | By when | Status |
+|---|---|---|---|---|---|
+| ops/1 | ops | Invoices | Finance | within the track SLA | active |
+| rel/1 | rel | Release | Users | 2027-01-01 | active |
+
+## Anti-Goals
+
+- not this
+
+## v1: 2026-01-01
+
+### Objective 1 — ship
+
+## Versioning log
+
+- v1: 2026-01-01 — initial.
+"""
+
+    PRE_SPLIT_CN = PRE_SPLIT.replace(
+        "| Id | Track | Promise | To whom | By when | Status |",
+        "| 编号 | 轨道 | 承诺内容 | 承诺对象 | 截止 | 状态 |").replace(
+        "| ops/1 | ops | Invoices | Finance | within the track SLA | active |",
+        "| ops/1 | ops | 对账 | 财务 | 下周期 | active |")
+
+    TRACKS = (CONFIG_EN +
+              "\n## Tracks\n\n"
+              "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+              "|---|---|---|---|---|---|---|---|\n"
+              "| ops | queue | commitments | intake -> doing | — | 5d | weekly | V2 |\n"
+              "| rel | pipeline | commitments | draft -> shipped | 3 | 10d | weekly | V3 |\n")
+
+    def project(self):
+        return Project({"OKR.md": self.PRE_SPLIT})
+
+    def test_the_table_is_left_byte_identical(self):
+        p = self.project()
+        before = p.text("OKR.md")
+        p.run("apply")
+        self.assertEqual(before, p.text("OKR.md"),
+                         "an empty `Due` was bolted onto a pre-split register")
+
+    def test_the_finding_names_the_command_that_owns_the_values(self):
+        p = self.project()
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertIn("split-needed", kinds, out)
+        detail = next(c["detail"] for e in out["files"] for c in e["changes"]
+                      if c["kind"] == "split-needed")
+        self.assertIn("perry-goals commit --migrate", detail)
+
+    def test_it_is_reported_once_and_not_once_per_pass(self):
+        """`migrate_text` runs the transforms until the linter stops finding
+        fixable things, and this one is never fixable — so it is seen on every
+        pass. Printed twice it reads as two tables."""
+        p = self.project()
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertEqual(1, kinds.count("split-needed"), kinds)
+
+    def test_a_register_already_split_is_not_touched_either(self):
+        p = Project({"OKR.md": self.PRE_SPLIT.replace(
+            "| To whom | By when | Status |",
+            "| To whom | Due | Status |")})
+        before = p.text("OKR.md")
+        p.run("apply")
+        self.assertEqual(before, p.text("OKR.md"))
+        _, out, _ = p.run()
+        kinds = [c["kind"] for e in out["files"] for c in e["changes"]]
+        self.assertNotIn("split-needed", kinds,
+                         "a migrated register was reported as needing it")
+
+    def test_chinese_pre_split_is_an_error_not_nothing_to_migrate(self):
+        p = Project({"OKR.md": self.PRE_SPLIT_CN}, config=CONFIG_ZH)
+        before = p.text("OKR.md")
+
+        dry_rc, dry, _ = p.run()
+        apply_rc, applied, _ = p.run("apply")
+
+        self.assertEqual((dry_rc, apply_rc), (1, 1))
+        self.assertEqual(before, p.text("OKR.md"))
+        dry_file = next(f for f in dry["files"] if f["path"] == "OKR.md")
+        apply_file = next(f for f in applied["files"] if f["path"] == "OKR.md")
+        self.assertEqual(dry_file["residual"], apply_file["residual"],
+                         "dry-run and apply classified the same cell differently")
+        self.assertEqual([f["rule"] for f in dry_file["residual"]],
+                         ["bad-typed-cell"])
+        self.assertFalse(dry_file["writable"])
+
+        rc, out, _ = p.run(json_out=False)
+        self.assertEqual(rc, 1)
+        self.assertNotIn("nothing to migrate", out)
+        self.assertIn("bad-typed-cell", out)
+
+    def test_migration_lint_uses_the_project_track_context(self):
+        split = self.PRE_SPLIT.replace("| By when |", "| Due |")
+        pipeline_bad = split.replace("within the track SLA", "2027-02-01") \
+                            .replace("2027-01-01", "3d")
+        queue_bad = split.replace("within the track SLA", "2027-02-01")
+        no_clock = self.TRACKS.replace("| ops | queue | commitments | intake -> doing | — | 5d |",
+                                       "| ops | queue | commitments | intake -> doing | — |  |")
+
+        for text, config, phrase in (
+                (pipeline_bad, self.TRACKS, "pipeline track requires"),
+                (queue_bad, no_clock, "queue track has no declared clock")):
+            with self.subTest(phrase=phrase):
+                p = Project({"OKR.md": text}, config=config)
+                rc, out, _ = p.run()
+                self.assertEqual(rc, 1)
+                residual = next(f for f in out["files"]
+                                if f["path"] == "OKR.md")["residual"]
+                self.assertEqual([f["rule"] for f in residual], ["bad-typed-cell"])
+                self.assertIn(phrase, residual[0]["message"])
+
+    def test_migration_lint_uses_localized_track_headers(self):
+        split = self.PRE_SPLIT.replace("| By when |", "| Due |")
+        pipeline_bad = split.replace("within the track SLA", "2027-02-01") \
+                            .replace("2027-01-01", "3d")
+        queue_bad = split.replace("within the track SLA", "2027-02-01")
+        tracks = (CONFIG_ZH +
+                  "\n## 轨道\n\n"
+                  "| 轨道 | 模式 | 时限 |\n"
+                  "|---|---|---|\n"
+                  "| ops | queue | 5d |\n"
+                  "| rel | pipeline | 10d |\n")
+        no_clock = tracks.replace("| ops | queue | 5d |",
+                                  "| ops | queue | |")
+
+        for text, config, phrase in (
+                (pipeline_bad, tracks, "pipeline track requires"),
+                (queue_bad, no_clock, "queue track has no declared clock")):
+            with self.subTest(phrase=phrase):
+                p = Project({"OKR.md": text}, config=config)
+                rc, out, _ = p.run()
+                self.assertEqual(rc, 1)
+                residual = next(f for f in out["files"]
+                                if f["path"] == "OKR.md")["residual"]
+                self.assertEqual([f["rule"] for f in residual], ["bad-typed-cell"])
+                self.assertIn(phrase, residual[0]["message"])
 
 
 class TestTheAssertionsAskWhatTheFileSays(unittest.TestCase):
@@ -1366,7 +1897,7 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         point = Path(tempfile.mkdtemp()) / "2026-01-01-000000.json"
         point.write_text("{}")
         real = M.undo
-        M.undo = lambda _p: (_ for _ in ()).throw(
+        M.undo = lambda _p, **_kwargs: (_ for _ in ()).throw(
             PermissionError(13, "Permission denied"))
         try:
             msg = M.rollback_message(point, "BOARD.md", "boom")
@@ -1375,6 +1906,54 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         self.assertIn("rollback also failed", msg)
         self.assertIn("perry-migrate restore 2026-01-01-000000", msg)
         self.assertIn("still migrated", msg)
+
+
+class TestIOFailuresAreStructuredRefusals(unittest.TestCase):
+    def test_scratch_copy_failure_is_a_refusal_during_planning(self):
+        p = Project({"BOARD.md": LEGACY_BOARD,
+                     "design/DESIGN-001-x.md": LEGACY_DESIGN})
+        before = p.tree()
+        real = M.shutil.copy2
+
+        def denied(*_args, **_kwargs):
+            raise PermissionError(13, "scratch denied")
+
+        M.shutil.copy2 = denied
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.plan_project(p.root, p.root, SCHEMA)
+        finally:
+            M.shutil.copy2 = real
+
+        self.assertIn("scratch", str(caught.exception).lower())
+        self.assertEqual(p.tree(), before)
+
+    def test_invalid_utf8_is_refused_without_changing_the_file(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        board = p.root / "BOARD.md"
+        board.write_bytes(b"# Board\n\xff\xfe\n")
+        before = board.read_bytes()
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, (out, err))
+        self.assertIn("not valid UTF-8", out["refused"])
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(board.read_bytes(), before)
+
+    def test_malformed_restore_json_is_refused_for_restore_and_list(self):
+        for args in (("restore", "broken"), ("restore", "--list")):
+            with self.subTest(args=args):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                point = p.root / ".perry" / "migrate" / "broken.json"
+                point.parent.mkdir(parents=True)
+                point.write_text("{broken")
+
+                rc, out, err = p.run(*args)
+
+                self.assertEqual(rc, 1, (out, err))
+                self.assertIn("restore payload", out["refused"])
+                self.assertNotIn("Traceback", err)
 
 
 class TestNothingWritableIsNotACrash(unittest.TestCase):
@@ -1568,7 +2147,8 @@ class TestAReadOnlyFileDoesNotCrashPlanning(unittest.TestCase):
         self.assertTrue(points, "no restore point was written")
         payload = json.loads(points[-1].read_text())
         self.assertIn("BOARD.md", payload["files"])
-        self.assertEqual(payload["files"]["BOARD.md"].encode(), before)
+        self.assertEqual(M.image_bytes(payload["files"]["BOARD.md"], "BOARD.md"),
+                         before)
 
     def test_the_rest_of_the_project_still_migrates(self):
         """One unwritable file must not stop the run — guarantee 5, partial
@@ -1603,7 +2183,8 @@ class TestEveryWriteSiteIsGuarded(unittest.TestCase):
     #: Functions that ARE the guarded body — the `try` is around their callers,
     #: so calls inside them are covered by that.
     INSIDE_GUARDED = {"write_atomic", "undo", "restore_point", "render",
-                      "cross_file_delta", "main"}
+                      "decode_image", "encode_image", "update_expected_after",
+                      "main"}
 
     @staticmethod
     def _name(node):
@@ -1658,6 +2239,69 @@ class TestEveryWriteSiteIsGuarded(unittest.TestCase):
         self.assertGreaterEqual(len(found), 4,
                                 f"the scan sees almost no writes: {found}")
         self.assertIn("write_atomic", found)
+
+
+class TestTaskSummaryMigration(unittest.TestCase):
+    """TASK-106: migration neither invents nor erases non-projected summaries."""
+
+    def test_legacy_board_records_get_an_explicit_empty_summary(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, (out, err))
+        records = [json.loads(line) for line in
+                   (p.root / "tasks.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(records)
+        self.assertTrue(all(record.get("summary") == "" for record in records))
+
+    def test_existing_store_summary_survives_board_migration(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        made = subprocess.run(
+            [sys.executable, str(TASKS), "write", "--from-board",
+             "--root", str(p.root)], capture_output=True, text=True)
+        self.assertEqual(made.returncode, 0, made.stderr)
+        path = p.root / "tasks.jsonl"
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        task_id = records[0]["id"]
+        # This is SETUP, not the thing under test: it puts a summary in the
+        # store so the assertion below can prove migration preserved it. The
+        # board is deliberately legacy, so after TASK-047 the shipped
+        # `enforce` default refuses this write — correctly, and that refusal is
+        # asserted in `tests/test_conformance.py`, not here. Scoped to this one
+        # call rather than the fixture, because the rest of this module is
+        # about `perry-migrate`, which is exempt from the gate anyway.
+        summarized = subprocess.run(
+            [sys.executable, str(TASK), "summary", task_id, "--summary",
+             "SUMMARY-SURVIVES-MIGRATION", "--root", str(p.root), "--json"],
+            capture_output=True, text=True,
+            env=dict(os.environ, PERRY_CONFORMANCE="advisory"))
+        self.assertEqual(summarized.returncode, 0, summarized.stderr)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 0, (out, err))
+        migrated = [json.loads(line) for line in path.read_text().splitlines()]
+        record = next(item for item in migrated if item["id"] == task_id)
+        self.assertEqual(record["summary"], "SUMMARY-SURVIVES-MIGRATION")
+
+    def test_non_projected_summary_is_the_only_allowed_store_difference(self):
+        for field in ("owner", "title"):
+            with self.subTest(field=field):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                made = subprocess.run(
+                    [sys.executable, str(TASKS), "write", "--from-board",
+                     "--root", str(p.root)], capture_output=True, text=True)
+                self.assertEqual(made.returncode, 0, made.stderr)
+                path = p.root / "tasks.jsonl"
+                records = [json.loads(line) for line in path.read_text().splitlines()]
+                records[0][field] = f"STORE-ONLY-{field.upper()}"
+                path.write_text("".join(json.dumps(record) + "\n"
+                                        for record in records))
+
+                rc, out, err = p.run("apply")
+
+                self.assertEqual(rc, 1, (out, err))
+                self.assertIn("differs from the current BOARD.md-derived baseline",
+                              out.get("refused", ""))
 
 
 if __name__ == "__main__":

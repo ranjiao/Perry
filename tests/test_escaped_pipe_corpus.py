@@ -63,6 +63,11 @@ class TestEveryReaderAgrees(unittest.TestCase):
         (self.dir / ".perry").mkdir()
         (self.dir / ".perry" / "config.md").write_text("State root: perry\n")
         (self.dir / "perry" / "BOARD.md").write_text(BOARD)
+        seeded = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(self.dir)],
+            capture_output=True, text=True)
+        self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
 
     def run_tool(self, name, *args, expect_zero=True):
         proc = subprocess.run(

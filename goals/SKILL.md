@@ -14,7 +14,7 @@ description: The `goals` lane of the `perry` skill — not a separate command. L
 > back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
 > skill, three lanes`.
 
-Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "why" layer that drives the PMO's "how". Owns goal-setting at three cadences (overall → current phase → weekly proposals) and hands weekly tasks to PMO. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
+The goal-setting lane inside the one **Perry** skill. It drives the execution lane's "how", owns goal-setting at three cadences (overall → current phase → weekly proposals), and hands weekly tasks to work. Built for solo or small projects (1–3 Objectives, not enterprise OKR sprawl).
 
 ## How this file is organized
 
@@ -30,7 +30,7 @@ This `SKILL.md` is intentionally lean: it holds what runs on **every** invocatio
 | `reference/hooks.md` | Configuring `.perry/hook.md` for a project |
 | `$PERRY_HOME/reference/input-quality.md` (shared) | `init`, `plan-phase`, `plan-week` — the advisory quality pass |
 | `$PERRY_HOME/reference/okr-linkage.md` (shared) | Any attribution question. The "never guess — resolve by ID or ask" gate |
-| `$PERRY_HOME/reference/host-capabilities.md` (shared) | Per-host tool fallbacks (Codex has no `AskUserQuestion`) |
+| `$PERRY_HOME/reference/host-capabilities.md` (shared) | Per-host choice rendering (`AskUserQuestion`, OpenCode `question`, Codex free text) |
 
 When a subcommand fires, **read the matching reference file first**, then act.
 
@@ -64,7 +64,7 @@ Trigger on any of:
 Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `goals/SKILL.md`).
-−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback; same chosen value, same downstream writes).
+−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text; same chosen value and writes).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P-O1.2`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
@@ -121,7 +121,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 |---|---|---|
 | `init` | First-time bootstrap of overall `OKR.md` (interview) | `reference/setup.md` |
 | `revise` | Append a new version to `OKR.md` (material goal change) | `reference/setup.md` |
-| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `By when` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
+| `commit <promise>` | Add or update a row in `OKR.md § Commitments` — the spine for pipeline- and queue-mode tracks. **`bin/perry-goals commit` does the write**; ask for `To whom` / `Due` first, then run it. `--close <Id>` / `--miss <Id> --reason <text>` end one | `reference/phases.md` |
 | `plan-phase <slug>` | Start a new phase. Auto-assigns `#<NNN>`; writes `phase/<NNN>-<slug>.md` with all 10 mandatory sections + the `phase/<NNN>-linkage.md` graph. **If any track is `pipeline` or `queue` mode, also walks `OKR.md § Commitments`**: creates the section if absent, and asks whether each active commitment still stands | `reference/phases.md` |
 | `score-phase [<NNN>]` | End current phase: per-KR scoring → `evidence/<YYYY-MM>/retro.md`, writes `phase/<NNN>-<slug>.md § Retro`, suggests next `plan-phase` | `reference/phases.md` |
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
@@ -155,7 +155,7 @@ With arg: locate the row for `<subcommand>`, print it, then **read the matching 
 
 **`OKR.md § Commitments` has a deterministic writer.** `bin/perry-goals commit`
 edits that table in place — never re-rendering the file — mints `<track>/<n>`
-ids that are never reused, checks `By when` against the track's mode, refuses
+ids that are never reused, checks the typed `Due` against the track's mode, refuses
 to silently re-date a missed promise, and appends an event to
 `.perry/events.jsonl` for every write. Full rules and the exact commands:
 `reference/phases.md § commit <promise>`. The rest of `OKR.md` is still written
@@ -175,7 +175,7 @@ If `OKR.md` exists but no current phase (no `phase/CURRENT` or it points at a ph
 - **Show the snapshot first.** No "Let me think about your goals…" preamble.
 - **KRs must be measurable.** Reject anything qualitative — push for number + unit + deadline. The full rubric (outcome-not-output, baseline present, Objective carries no metric, no sandbagging) lives in `$PERRY_HOME/reference/input-quality.md § 1`; run it at `init` / `plan-phase` / `plan-week`. Advisory + override — surface ≤3 issues, never silently rewrite the user's goal prose.
 - **Cap phase KRs at 4 per Objective.** Solo project; more is dilution.
-- **Tier 1 hard size caps (REFUSE writes that exceed)** — see `work/SKILL.md § Two file models § Axis B`:
+- **Tier 1 hard size caps (REFUSE writes that exceed)** — see `work/SKILL.md § Axis B`:
   - `OKR.md` ≤ **200** lines. Overflow → move historical `## v<N>` retro blocks to `evidence/<YYYY-MM>/okr-vN-retro.md`; main file keeps current version + version log only.
   - `phase/<NNN>-<slug>.md` ≤ **300** lines. Overflow → move long Stretch trackers / project lists / narrative addenda to `evidence/<YYYY-MM>/phase-<NNN>-<topic>.md`; main file references via link.
   - `init` / `plan-phase` / `revise` MUST verify line count before write; if would exceed, AskUserQuestion (header `"Tier 1 cap"`, options): `Split — move section X to evidence file (Recommended) | Trim section X in place | Override — write past cap with reason logged`. Override path requires written reason in journal.

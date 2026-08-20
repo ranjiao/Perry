@@ -51,11 +51,20 @@ is that rule as code, and the board-side link — a `Commitment` cell carrying a
 Usage:
   perry-goals list [--json] [--level overall|phase]
 
-  perry-goals commit --track <t> --promise <text> --to <whom> --by <when>
-  perry-goals commit --id <Id> [--by <when>] [--promise <t>] [--to <whom>]
+  perry-goals commit --track <t> --promise <text> --to <whom> --due <when>
+                     [--by-when-note <prose>]
+  perry-goals commit --id <Id> [--due <when>] [--by-when-note <prose>]
+                                [--promise <t>] [--to <whom>]
                                 [--discharged-by <text>]
   perry-goals commit --close <Id> [--discharged-by <text>]
   perry-goals commit --miss <Id> --reason <text>
+  perry-goals commit --migrate       split a pre-TASK-091 `By when` column
+
+  --due <when>    TYPED: an ISO date (2026-09-30) or an SLA token (3d, 2w).
+                  Anything else is refused, in every language.
+  --by-when-note <prose>
+                  PROSE: how the deadline was worded to the party it was
+                  promised to. **Never validated.** No regex asks it anything.
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --json          machine-readable result
@@ -828,165 +837,45 @@ def commitment_columns() -> tuple[list[str], list[str]]:
     return list(spec.get("columns") or []), list(spec.get("optional_columns") or {})
 
 
-DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
-
-#: What it means for `By when` to **name a clock**. Stated as the category —
-#: "a date, the register's SLA, or a unit of time" — and not as a blacklist of
-#: `soon` / `ASAP` / `when we get to it`. Those three are the examples
-#: `phases.md` happens to give; the rule is about every phrase that names no
-#: clock, and a writer built from the examples would pass `eventually`,
-#: `next time we look` and `有空再说` while claiming to implement the rule.
+#: The typed half of the promise's clock, and the whole of what `Due` accepts.
 #:
-#: The honest limit, said out loud: this checks that a clock is NAMED, not that
-#: the naming is sincere. "one day" passes. No parser can do better, and the
-#: refusal message says what is accepted so a user is never guessing.
-#: Chinese numerals and quantifiers that make a unit a QUANTITY.
-#: `每` and `逐` are quantifiers too — `每周` is "every week", a cadence, which
-#: is a clock in exactly the way `weekly` is. Left out of the first version and
-#: caught by an existing test asserting `每周一次`, which was right.
-#: **ONE table, and both patterns are BUILT from it.**
+#: **The clock regex lived here and is gone** (ADR-007 decision 3, TASK-091).
+#: It was one regex asked a natural-language question — *does this cell name a
+#: clock?* — over a column holding both an ISO date and free prose. It failed five
+#: V4 review rounds in four shapes; the last because `\b` does not exist in
+#: Chinese, so the English half matched on word boundaries and the Chinese half
+#: on bare substrings, and `下周期` ("next cycle") wrote a live commitment row
+#: while `next cycle` was refused. No sixth round: the column split instead.
 #:
-#: Round 2 fixed the Chinese half and left the English one. Round 3 fixed the
-#: English half and left eleven pairs that had previously agreed — and
-#: introduced two Chinese false accepts, `上天保佑` ("god willing") and
-#: `这年头` ("nowadays"), because it cross-produced demonstratives with units
-#: and Chinese compounds are not a cross product. Three rounds, three hand-kept
-#: vocabularies that only LOOKED paired: `_CN_NUM` carried `半几数每逐` and the
-#: English side carried none of them, so `逐月` wrote a live row and
-#: `month by month` was refused.
-#:
-#: A reviewer's mutation measured the real problem: shrinking the Chinese
-#: demonstratives to the four the test table happened to name left **all 75
-#: tests green** while `上个月`, `这周`, `去年` and `上季度` flipped to refused.
-#: The test table was the previous round's list transcribed, so the fix and the
-#: test were shaped around the same phrases. Its recommendation was not to add
-#: more literals but to **represent the correspondence in the code and walk it
-#: with a test**, which is what this is.
-#:
-#: Each row is one meaning. A row with an empty side is a rule enforced in one
-#: language and not the other, and `tests/test_goals_writer.py` fails on it.
-CLOCK_VOCAB: list[tuple[str, list[str], list[str]]] = [
-    # kind        english                          chinese
-    ("unit",     ["day", "days"],                 ["天", "日"]),
-    ("unit",     ["week", "weeks"],               ["周", "星期", "礼拜"]),
-    ("unit",     ["month", "months"],             ["月"]),
-    ("unit",     ["year", "years"],               ["年"]),
-    ("unit",     ["quarter", "quarters"],         ["季度"]),
-    ("unit",     ["hour", "hours"],               ["小时"]),
-    ("unit",     ["minute", "minutes"],           ["分钟"]),
-    ("unit",     ["business day", "business days",
-                  "working day", "working days"], ["工作日"]),
+#: What is left is a **format**, not a judgement. Two spellings, both closed:
+#: an ISO date, or the `<n><unit>` SLA shorthand `.perry/config.md § Tracks`
+#: already uses. Anything else is not "vague" — it is simply not this field,
+#: and it belongs in `By when note`, which nothing validates. The refusal says
+#: so and names the flag, so a user is never guessing where their words go.
+SLA_TOKEN_RE = lib.SLA_TOKEN_RE  # see `lib.ISO_DATE_RE`
 
-    # Complete words, NOT a demonstrative crossed with a unit — that cross
-    # product is what admitted `上天保佑` and `这年头`.
-    ("deictic",  ["today"],                       ["今天", "今日", "当天"]),
-    ("deictic",  ["tomorrow"],                    ["明天", "明日"]),
-    ("deictic",  ["the day after tomorrow"],      ["后天"]),
-    ("deictic",  ["this week"],                   ["本周", "这周", "这个星期"]),
-    ("deictic",  ["next week"],                   ["下周", "下个星期"]),
-    ("deictic",  ["last week"],                   ["上周", "上个星期"]),
-    ("deictic",  ["this month"],                  ["本月", "这个月"]),
-    ("deictic",  ["next month"],                  ["下月", "下个月"]),
-    ("deictic",  ["last month"],                  ["上月", "上个月"]),
-    ("deictic",  ["this quarter"],                ["本季度", "这个季度"]),
-    ("deictic",  ["next quarter"],                ["下季度", "下个季度"]),
-    ("deictic",  ["last quarter"],                ["上季度", "上个季度"]),
-    ("deictic",  ["this year"],                   ["今年", "本年"]),
-    ("deictic",  ["next year"],                   ["明年"]),
-    ("deictic",  ["last year"],                   ["去年"]),
-    ("deictic",  ["this half", "second half",
-                  "first half", "h1", "h2"],      ["下半年", "上半年", "本半年"]),
-
-    ("cadence",  ["daily", "every day"],          ["每天", "每日"]),
-    ("cadence",  ["weekly", "every week"],        ["每周", "每星期"]),
-    ("cadence",  ["monthly", "every month",
-                  "month by month"],              ["每月", "逐月"]),
-    ("cadence",  ["quarterly", "every quarter"],  ["每季度", "逐季"]),
-    ("cadence",  ["yearly", "annually",
-                  "every year"],                  ["每年", "逐年"]),
-    ("cadence",  ["hourly", "every hour"],        ["每小时"]),
-    ("cadence",  ["week by week"],                ["逐周"]),
-
-    ("bound",    ["end of month", "month end",
-                  "month-end"],                   ["月底", "月末"]),
-    ("bound",    ["end of quarter", "quarter end",
-                  "quarter-end"],                 ["季度末", "季末"]),
-    ("bound",    ["end of year", "year end",
-                  "year-end"],                    ["年底", "年末"]),
-    ("bound",    ["end of week", "week end"],     ["周末", "本周内"]),
-
-    # `some` is deliberately absent: `some days` counts and `some day` means
-    # "eventually", and the singular is the one a commitment register gets.
-    # `several` already pairs with `若干`, so nothing is lost on either side.
-    # `same` earns its row the way `每` did: an EXISTING test asserts
-    # `same business day` is a clock, and it went red when this table replaced
-    # the hand-written quantifier list. That test was right both times — a
-    # suite that already encodes a real phrase is evidence, not an obstacle.
-    ("qty",      ["same", "this"],                ["当", "同", "本"]),
-
-    ("fuzzy",    ["a few", "several",
-                  "a couple of"],                 ["几", "数", "若干"]),
-    ("fuzzy",    ["half a", "half"],              ["半"]),
-]
-
-
-def _alts(kinds: tuple[str, ...], side: int) -> list[str]:
-    """Every spelling of one side, longest first so `week end` beats `week`."""
-    out: list[str] = []
-    for kind, en, cn in CLOCK_VOCAB:
-        if kind in kinds:
-            out.extend(en if side == 0 else cn)
-    return sorted(set(out), key=len, reverse=True)
-
-
-def _group(kinds: tuple[str, ...], side: int) -> str:
-    return "(?:" + "|".join(re.escape(a) for a in _alts(kinds, side)) + ")"
-
-
-#: Counting words. `_EN_NUM` and `_CN_NUM` are the only pieces still written
-#: by hand, because digits and numerals correspond by construction rather than
-#: by meaning — and `fuzzy` quantifiers, which do NOT, are in the table above.
-_EN_NUM = r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a|an|the)"
-_CN_NUM = r"(?:\d+|[一二两三四五六七八九十百])"
-
-_EN_UNIT = _group(("unit",), 0)
-_CN_UNIT = _group(("unit",), 1)
-_EN_WORD = _group(("deictic", "cadence", "bound"), 0)
-_CN_WORD = _group(("deictic", "cadence", "bound"), 1)
-_EN_FUZZ = _group(("fuzzy", "qty"), 0)
-_CN_FUZZ = _group(("fuzzy", "qty"), 1)
-
-CLOCK_RE = re.compile(
-    # A date, in either convention. `September 30, 2026` was refused while
-    # `2026年9月30日` was accepted — the asymmetry pointing the other way.
-    r"\d{4}-\d{2}-\d{2}"
-    r"|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日"
-    r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*\d{1,2}\b"
-    r"|\d{1,2}\s*[月日]"
-    # `3d`, `5d`, `2w` — the shorthand Perry's own `## Tracks` examples use.
-    r"|\b\d+\s*[dhwmy]\b"
-    r"|\bSLA\b|时限"
-    r"|\bQ[1-4]\b|第[一二三四1234]\s*季度"
-    # Words that are already a clock: a named day, a cadence, a bound. Built
-    # from `CLOCK_VOCAB`, so neither language can grow one the other lacks.
-    r"|\b" + _EN_WORD + r"\b"
-    r"|" + _CN_WORD +
-    # A counted or fuzzily-counted unit. **A BARE unit is refused in both.**
-    r"|\b(?:" + _EN_NUM + r"|" + _EN_FUZZ + r")\s+" + _EN_UNIT + r"\b"
-    r"|(?:" + _CN_NUM + r"|" + _CN_FUZZ + r")\s*(?:个)?\s*" + _CN_UNIT +
-    r"|\bwithin\s+(?:the\s+)?(?:" + _EN_NUM + r"\s+)?" + _EN_UNIT + r"\b"
-    r"|" + _CN_UNIT + r"\s*内",
-    re.I)
+#: `lib.ISO_DATE_RE` — imported, not re-spelled. This module declared itself
+#: "the one spelling" while `bin/perry-diagnose` carried a second, unanchored
+#: one; a claim of uniqueness that a `grep` disproves is worse than no claim,
+#: because it stops the next reader from grepping.
+ISO_DATE_RE = lib.ISO_DATE_RE
 
 
 def real_date(value: str) -> date | None:
-    m = DATE_RE.search(value or "")
-    if not m:
+    """The `Due` cell as a `date`, or `None` when it does not hold one.
+
+    `None` covers both "empty" and "an SLA token" — neither is a calendar day,
+    and every caller here wants a day it can compare against today.
+    """
+    text = lib.normalize_typed_cell(value)
+    if not lib.is_iso_date(text):
         return None
-    try:
-        return datetime.strptime(m.group(0), "%Y-%m-%d").date()
-    except ValueError:
-        return None
+    return date.fromisoformat(text)
+
+
+def is_sla_token(value: str) -> bool:
+    """`3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes."""
+    return lib.is_sla_token(value)
 
 
 def tracks_of(project_root: Path) -> list[dict]:
@@ -1007,41 +896,47 @@ def track_named(tracks: list[dict], name: str) -> dict:
         f"track, and an undeclared one has no mode and no SLA. Nothing was written")
 
 
-def check_by_when(track: dict, value: str) -> None:
-    """`phases.md § commit` step 4 — the column carries two formats.
+def check_due(track: dict, value: str) -> None:
+    """`phases.md § commit` step 4 — **one column, one value space.**
 
-    | pipeline | a date            | prose is refused: triage compares this
-    |          |                   | cell against today and cannot compare prose
-    | queue    | prose naming the  | prose that names no clock is refused
-    |          | SLA, or a date    |
+    | pipeline | an ISO date            | an SLA token is refused: triage
+    |          |                        | compares this cell against today
+    | queue    | an ISO date, or the    | anything else is refused, and the
+    |          | track's SLA shorthand  | refusal names `--by-when-note`
+
+    The predecessor asked whether the cell *named a clock*, over a column that
+    also held prose. That is not a question a regex can answer, and the regex
+    that tried proved it five times. Here the question is *is this cell an ISO
+    date or an SLA token*, which has one answer in every language — and the
+    prose that column also carried now has a field nothing asks anything.
     """
-    mode = (track.get("mode") or "project").lower()
-    if not (value or "").strip():
+    classification = lib.classify_due(track, value)
+    if classification == lib.DUE_UNFILLED:
         raise Refused(
-            "--by is required and has no default. A promise with no date and "
-            "no named clock is not a commitment. Nothing was written")
-    if mode == "pipeline":
-        if real_date(value) is None:
-            raise Refused(
-                f"track {track.get('track')!r} is `pipeline` mode, so `By when` "
-                f"must be a date (2026-09-30) — triage compares this cell "
-                f"against today and cannot compare prose. Got {value!r}. "
-                f"Nothing was written")
-        return
-    if mode == "queue":
-        if not track.get("sla"):
-            raise Refused(
-                f"track {track.get('track')!r} is `queue` mode and "
-                f"`.perry/config.md § Tracks` gives it no `SLA`. "
-                f"\"within the track SLA\" pointing at an empty register is a "
-                f"promise with no clock at all. Set the track's SLA first. "
-                f"Nothing was written")
-        if not CLOCK_RE.search(value):
-            raise Refused(
-                f"`By when` names no clock: {value!r}. On a `queue` track it "
-                f"must be a date, or prose that names one — the track SLA "
-                f"(\"within the track SLA\"), or a unit of time (\"same "
-                f"business day\", \"5 days\"). Nothing was written")
+            "--due is required and has no default. A promise with no date is "
+            "not a commitment — and `--by-when-note` is a note ABOUT the "
+            "deadline, never a substitute for one. Nothing was written")
+    if lib.due_track_missing_clock(track):
+        raise Refused(
+            f"track {track.get('track')!r} is `queue` mode and "
+            f"`.perry/config.md § Tracks` gives it no `SLA`. "
+            f"A commitment measured against the track's SLA, pointing at "
+            f"an empty register, is a promise with no clock at all. Set "
+            f"the track's SLA first. Nothing was written")
+    if ((track.get("mode") or "project").lower() == "pipeline"
+            and classification != lib.DUE_DATE):
+        raise Refused(
+            f"track {track.get('track')!r} is `pipeline` mode, so `Due` "
+            f"must be an ISO date (2026-09-30) — triage compares this cell "
+            f"against today, and an SLA token has no day in it. Got "
+            f"{value!r}. Nothing was written")
+    if classification == lib.DUE_INVALID:
+        raise Refused(
+            f"`Due` is typed: an ISO date (2026-09-30) or an SLA token "
+            f"(3d, 2w, 24h). Got {value!r}. If that is how the deadline was "
+            f"WORDED to the party — \"within the track SLA\", \"same business "
+            f"day\" — it belongs in `--by-when-note`, which is prose and is "
+            f"never validated. Nothing was written")
 
 
 def commitments_table(okr: Okr) -> tuple[int, int, list[str]]:
@@ -1063,6 +958,142 @@ def read_commitments(okr: Okr) -> list[dict]:
         for name, k in at.items():
             row[name] = cells[k] if 0 <= k < len(cells) else ""
         out.append(row)
+    return out
+
+
+#: The column this split replaced. Named once, here, and only ever read — no
+#: writer in this file can produce it again.
+LEGACY_DUE_COLUMN = "By when"
+
+
+def legacy_due_at(header: list[str]) -> int:
+    """Index of a pre-split `By when` header cell, or -1.
+
+    The **English** spelling only, and that is not an oversight. A Chinese
+    register spells the column `截止`, which is `Due`'s own Chinese spelling —
+    the two columns are one word in that language, so there is no header cell
+    to find and nothing to rename. The split is carried out on the **values**
+    instead, which is the half that has an answer in both languages. That is
+    the whole lesson of the deleted regex's fifth round, applied to its
+    replacement.
+    """
+    want = {squash(LEGACY_DUE_COLUMN)}
+    for i, cell in enumerate(header):
+        if squash(cell) in want:
+            return i
+    return -1
+
+
+def unsplit_rows(okr: Okr, tracks: list[dict]) -> list[str]:
+    """Ids whose `Due` cell is neither empty nor typed — a pre-split register.
+
+    A **typed** question asked of a typed column: is this cell an ISO date or
+    an SLA token? It is not the deleted regex under another name, because it
+    never
+    asks what the prose *means* — every answer of "no" routes the cell to a
+    field that is never examined again.
+    """
+    out = []
+    for row in read_commitments(okr):
+        try:
+            track = track_named(tracks, row.get("Track", ""))
+        except Refused:
+            track = {}
+        if lib.classify_due(track, row.get("Due") or "") not in {
+                lib.DUE_UNFILLED, lib.DUE_DATE, lib.DUE_DURATION}:
+            out.append((row.get("Id") or "").strip() or f"line {row['_line'] + 1}")
+    return out
+
+
+def migrate_commitments(okr: Okr, tracks: list[dict]) -> dict:
+    """Split a pre-TASK-091 `By when` column into `Due` + `By when note`.
+
+    A bare ISO date or SLA token stays where it is and is now typed; anything
+    else is moved verbatim into `By when note`, which nothing validates. **No
+    cell is dropped and no cell is rewritten** — a moved value is the same
+    string in a different column, which is what makes the before/after count
+    of non-empty clock cells the proof that nothing was lost.
+
+    ADR-004's *a project migrates once*: this runs from `commit --migrate`,
+    and every other write path refuses while the register still needs it
+    rather than half-splitting a table on the way past.
+    """
+    lo, hi, header = commitments_table(okr)
+    required, optional = commitment_columns()
+    out = {"renamed_column": "", "widened": [], "rows": 0,
+           "kept_as_due": 0, "moved_to_note": 0, "empty": 0}
+
+    at_due = column_at(header, "Due")
+    at_legacy = legacy_due_at(header)
+    if at_due < 0 and at_legacy < 0:
+        raise Refused(
+            "`## Commitments` has neither a `Due` column nor the `By when` "
+            "column it replaced, so there is nothing to split. Nothing was "
+            "written")
+    if at_due >= 0 and at_legacy >= 0 and at_due != at_legacy:
+        # Two clock columns, both populated, is not a migration this tool gets
+        # to resolve: for a row carrying a date in each, only the person who
+        # made the promise knows which one the party is holding them to. It is
+        # also a shape nothing here can produce — a hand edit, or a
+        # column-adding migration run before `perry-migrate` learned to stand
+        # aside. Reported, and the file left alone.
+        raise Refused(
+            f"`## Commitments` carries BOTH a `Due` column and the retired "
+            f"`{LEGACY_DUE_COLUMN}` column it replaced. A row with a value in "
+            f"each is two deadlines for one promise, and only the person who "
+            f"made it knows which one the party is holding them to. Move the "
+            f"cells you want kept into `Due` or `By when note` and delete the "
+            f"`{LEGACY_DUE_COLUMN}` column, then re-run. Nothing was written")
+    lang = header_language(header, required + optional)
+    if at_due < 0:
+        sep, _ = okr.table(lo, hi)
+        okr.set_cell(sep - 1, at_legacy, display_name("Due", lang))
+        out["renamed_column"] = f"{LEGACY_DUE_COLUMN} → Due"
+        lo, hi, header = commitments_table(okr)
+        at_due = column_at(header, "Due")
+
+    prose: list[tuple[int, str]] = []
+    at_track = column_at(header, "Track")
+    at_id = column_at(header, "Id")
+    for i in okr.row_indexes(lo, hi):
+        out["rows"] += 1
+        cells = split_row(okr.lines[i])
+        raw = cells[at_due] if 0 <= at_due < len(cells) else ""
+        try:
+            track = track_named(
+                tracks, cells[at_track] if 0 <= at_track < len(cells) else "")
+        except Refused:
+            track = {}
+        classification = lib.classify_due(track, raw)
+        if classification == lib.DUE_UNFILLED:
+            out["empty"] += 1
+        elif classification in {lib.DUE_DATE, lib.DUE_DURATION}:
+            out["kept_as_due"] += 1
+        elif classification in {lib.DUE_PIPELINE_REQUIRES_DATE,
+                              lib.DUE_QUEUE_MISSING_CLOCK}:
+            cid = cells[at_id] if 0 <= at_id < len(cells) else "—"
+            raise Refused(
+                f"commitment {cid!r} has `Due` value {raw!r} that its track "
+                f"does not allow ({classification}). Migration will not "
+                f"relabel a typed value as prose. Fix the track configuration "
+                f"or the value, then retry. Nothing was written")
+        else:
+            prose.append((i, raw.strip()))
+
+    if prose:
+        at_note = column_at(header, "By when note")
+        if at_note < 0:
+            okr.widen(lo, hi, display_name("By when note", lang))
+            out["widened"].append("By when note")
+            lo, hi, header = commitments_table(okr)
+            at_note = column_at(header, "By when note")
+        for i, value in prose:
+            cells = split_row(okr.lines[i])
+            existing = (cells[at_note] if 0 <= at_note < len(cells) else "").strip()
+            okr.set_cell(i, at_note,
+                         f"{existing} · {value}" if existing else value)
+            okr.set_cell(i, at_due, "")
+            out["moved_to_note"] += 1
     return out
 
 
@@ -1167,6 +1198,33 @@ def cmd_commit(args, ctx) -> dict:
     if args.close and args.miss:
         raise Refused("--close and --miss end a commitment two different ways; "
                       "pass one. Nothing was written")
+    if args.migrate and (ending or args.id or args.track or args.due
+                         or args.by_when_note or args.promise or args.to):
+        raise Refused(
+            "--migrate splits the register's clock column and writes nothing "
+            "else; it does not take a row's flags. Run it alone, then commit. "
+            "Nothing was written")
+
+    if args.migrate:
+        if not okr.has_section(COMMITMENTS_HEADING):
+            raise Refused(
+                "`OKR.md` has no `## Commitments` section, so there is no "
+                "register to split. Nothing was written")
+        counts = migrate_commitments(okr, ctx["tracks"])
+        result = {"migrated": counts, "id": "—", "created_section": False,
+                  "widened": list(counts["widened"]), "file": str(okr.path)}
+        result["event"] = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "event": "commit-migrate", "id": "—", "track": "",
+            "actor": args.actor, "from": None, "to": None,
+            "counts": result["migrated"]}
+        if args.dry_run:
+            result["dry_run"] = True
+            result["would_write"] = okr.render() != okr.text
+            return result
+        write_atomic(sr, okr.path, okr.render())
+        result["event_written"] = append_event(ctx["project_root"], result["event"])
+        return result
 
     created_section = False
     if not okr.has_section(COMMITMENTS_HEADING):
@@ -1200,6 +1258,32 @@ def cmd_commit(args, ctx) -> dict:
         created_section = True
 
     lo, hi, header = commitments_table(okr)
+    # ADR-004's *a project migrates once*, at the one point it can be enforced.
+    # A register still carrying the pre-split column is not half-fixed on the
+    # way past a `--close`: the split is a separate, named, countable write.
+    #
+    # It speaks only about a table that is OTHERWISE the schema's shape. A
+    # register missing `To whom` has cells sitting under the wrong headers
+    # entirely, so `Due` reads whatever the shift put there — reporting that
+    # as "prose in Due" would name the wrong defect, and the create branch and
+    # `perry-lint` already name the right one. `Due` itself is excluded from
+    # the test, because a pre-split table is missing it by definition.
+    if not created_section:
+        misshapen = [c for c in commitment_columns()[0]
+                     if c != "Due" and column_at(header, c) < 0]
+        stale = [] if misshapen else unsplit_rows(okr, ctx["tracks"])
+        if not misshapen and (legacy_due_at(header) >= 0 or stale):
+            raise Refused(
+                f"`OKR.md § Commitments` predates the `By when` split "
+                f"(ADR-007 decision 3): "
+                + (f"the table still has a `{LEGACY_DUE_COLUMN}` column"
+                   if legacy_due_at(header) >= 0 else
+                   f"{len(stale)} row(s) hold prose in `Due` — {stale[:4]}")
+                + ". `Due` is typed and `By when note` is prose, and this tool "
+                  "will not write into a table that still mixes them. Run "
+                  "`perry-goals commit --migrate` first: it moves each cell "
+                  "into the field its value belongs to and drops nothing. "
+                  "Nothing was written")
     rows = read_commitments(okr)
     required, optional = commitment_columns()
     widened = []
@@ -1255,23 +1339,29 @@ def cmd_commit(args, ctx) -> dict:
         row = find_commitment(rows, args.id)
         was = check_hand_edit(events, row, args.accept_hand_edit)
         changes = {}
-        if args.by is not None:
+        if args.due is not None:
             # `phases.md`: *"A missed commitment is recorded, never silently
-            # re-dated."* Editing `By when` on a promise whose date has passed
+            # re-dated."* Editing `Due` on a promise whose date has passed
             # erases the fact that it was missed, and the party it was made to
             # is the one person who cannot see the edit.
-            current = real_date(row.get("By when", ""))
+            current = real_date(row.get("Due", ""))
             if current and current < date.today() and squash(was) == "active":
                 raise Refused(
-                    f"{args.id}'s `By when` is {current:%Y-%m-%d}, which is in "
+                    f"{args.id}'s `Due` is {current:%Y-%m-%d}, which is in "
                     f"the past, and its `Status` is `active` — that promise was "
                     f"missed. Re-dating it here would erase the fact, and the "
                     f"party it was made to is the one person who cannot see the "
                     f"edit. Use `--miss {args.id} --reason <what happened>`, "
                     f"then `commit` a new row under the new date. "
                     f"Nothing was written")
-            check_by_when(track_named(ctx["tracks"], row.get("Track", "")), args.by)
-            changes["By when"] = args.by
+            check_due(track_named(ctx["tracks"], row.get("Track", "")), args.due)
+            changes["Due"] = args.due
+        # **`By when note` is prose and this is the whole of its handling.**
+        # No format check, no vocabulary, no regex — ADR-007 rule 2. It is not
+        # swept into the whitespace guard below either: clearing the note is
+        # how a wrong one is withdrawn, and `Due` still carries the promise.
+        if args.by_when_note is not None:
+            changes["By when note"] = args.by_when_note
         # **Whitespace-only is a refusal on create and was an ERASE on amend.**
         # `--promise '   '` was rejected outright by the create branch and
         # silently wiped the cell here, because this path tested `is not None`
@@ -1315,7 +1405,7 @@ def cmd_commit(args, ctx) -> dict:
     else:
         if not (args.track or "").strip():
             raise Refused("--track is required: a commitment is filed against a "
-                          "track, and the track's mode decides what `By when` "
+                          "track, and the track's mode decides what `Due` "
                           "may say. Nothing was written")
         if not (args.promise or "").strip():
             raise Refused("--promise is required. Nothing was written")
@@ -1327,10 +1417,12 @@ def cmd_commit(args, ctx) -> dict:
                 "party is a KR, and belongs under an Objective in this file "
                 "rather than in the commitments register. Nothing was written")
         track = track_named(ctx["tracks"], args.track)
-        check_by_when(track, args.by or "")
+        check_due(track, args.due or "")
         cid = mint_commitment_id(args.track, rows, events)
         values = {"Id": cid, "Track": args.track, "Promise": args.promise,
-                  "To whom": args.to, "By when": args.by,
+                  "To whom": args.to, "Due": args.due,
+                  # Prose, written exactly as given and never inspected.
+                  "By when note": args.by_when_note or "",
                   # `phases.md` step 5: `Status: active`, `Discharged by` empty.
                   # That cell is free prose describing HOW the promise gets
                   # satisfied; it is never a list of row ids.
@@ -1345,6 +1437,8 @@ def cmd_commit(args, ctx) -> dict:
                 f"register this tool did not write. Nothing was written")
         if values["Discharged by"]:
             ensure("Discharged by")
+        if values["By when note"]:
+            ensure("By when note")
         _, line = okr.append_table_row(
             lo, hi, [values.get(c, "") for c in
                      [canonical_of(h, required + optional) for h in header]])
@@ -1353,8 +1447,8 @@ def cmd_commit(args, ctx) -> dict:
                  "event": "commit", "id": cid, "track": args.track,
                  "mode": (track.get("mode") or "project").lower(),
                  "promise": args.promise, "to_whom": args.to,
-                 "by_when": args.by, "actor": args.actor,
-                 "from": None, "to": "active"}
+                 "due": args.due, "by_when_note": args.by_when_note or "",
+                 "actor": args.actor, "from": None, "to": "active"}
 
     result["created_section"] = created_section
     result["widened"] = widened
@@ -1393,13 +1487,14 @@ class Args:
 def parse(argv: list[str]) -> Args:
     a = Args()
     a.cmd = a.root = a.level = None
-    a.id = a.track = a.promise = a.to = a.by = None
+    a.id = a.track = a.promise = a.to = a.due = a.by_when_note = None
     a.close = a.miss = a.reason = a.discharged_by = None
     a.actor = "agent"
-    a.as_json = a.dry_run = a.accept_hand_edit = False
+    a.as_json = a.dry_run = a.accept_hand_edit = a.migrate = False
     flags = {"--root": "root", "--level": "level", "--id": "id",
              "--track": "track", "--promise": "promise", "--to": "to",
-             "--by": "by", "--close": "close", "--miss": "miss",
+             "--due": "due", "--by-when-note": "by_when_note",
+             "--close": "close", "--miss": "miss",
              "--reason": "reason", "--discharged-by": "discharged_by",
              "--actor": "actor"}
     i = 0
@@ -1412,8 +1507,22 @@ def parse(argv: list[str]) -> Args:
             a.as_json = True
         elif t == "--dry-run":
             a.dry_run = True
+        elif t == "--migrate":
+            a.migrate = True
         elif t == "--accept-hand-edit":
             a.accept_hand_edit = True
+        elif t == "--by":
+            # **The flag the split removed, refused by name rather than
+            # swallowed.** `--by` fed one column that held both a date and
+            # prose; silently aliasing it to `--due` would refuse every
+            # standing commitment whose deadline was worded rather than dated,
+            # with a message about a flag the caller never typed.
+            raise Refused(
+                "--by is gone. `By when` was one column carrying two value "
+                "spaces, and it is now two fields: `--due` takes an ISO date "
+                "or an SLA token (3d, 2w) and is validated, `--by-when-note` "
+                "takes the words the deadline was promised in and is not. "
+                "Nothing was written")
         elif t in flags:
             i += 1
             setattr(a, flags[t], argv[i] if i < len(argv) else None)
@@ -1435,7 +1544,20 @@ def handoff_line(cid: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    args = parse(argv)
+    try:
+        args = parse(argv)
+    except Refused as exc:
+        # A refusal raised while reading the flags has no `args` to ask about
+        # `--json`, so the question is put to `argv` — the same answer, one
+        # layer earlier. Without this the retired `--by` would have exited
+        # through the module-level handler with empty stdout under `--json`,
+        # which is the shape of defect `UnrenderableCell`'s handler already
+        # cost this file once.
+        if "--json" in argv:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-goals: refused — {exc}", file=sys.stderr)
+        return 1
     if args.cmd not in COMMANDS:
         print(f"perry-goals: expected one of {' / '.join(COMMANDS)} "
               f"(try --help)", file=sys.stderr)
@@ -1454,11 +1576,30 @@ def main(argv: list[str]) -> int:
             # refusal rather than the write it would not be allowed to perform.
             gate = perry_conform().gate(project_root, state_root, GATED_FILE,
                                         tool="perry-goals", root_arg=args.root)
+            # **`--migrate` is exempt, and the exemption is the whole point of
+            # the gate rather than a hole in it.** The gate stops writers
+            # writing into a file that is not Perry's shape (ADR-004); a
+            # pre-split register IS out of shape, by exactly the defect this
+            # command exists to fix, so enforcing it here would make the file
+            # permanently unmigratable — refuse to write, refuse to fix, no
+            # third command. `perry-migrate` is exempt from its own gate for
+            # the same reason, and this is the transform it hands over.
+            # Three outcomes, and they are mutually exclusive — the first
+            # version wrote them as three independent `if`s, which was
+            # unreachable while the gate shipped advisory (`gate.ok` was always
+            # true) and started double-printing the moment TASK-047 flipped the
+            # default: an exempt `--migrate` run announced the exemption and
+            # then announced itself as advisory, under `enforce`.
             if not gate.ok:
-                raise Refused(gate.message)
-            if gate.message and not args.as_json:
-                print(f"perry-goals: ⚠ conformance (advisory) — {gate.message}",
-                      file=sys.stderr)
+                if not args.migrate:
+                    raise Refused(gate.message)
+                if not args.as_json:
+                    print(f"perry-goals: ⚠ migrating a file the conformance "
+                          f"gate refuses — that is what a migration is. "
+                          f"{gate.message}", file=sys.stderr)
+            elif gate.message and not args.as_json:
+                print(f"perry-goals: ⚠ conformance ({gate.mode}) — "
+                      f"{gate.message}", file=sys.stderr)
             with project_lock(state_root):
                 ctx = {"project_root": project_root, "state_root": state_root,
                        "okr": Okr(state_root / "OKR.md"),
@@ -1479,6 +1620,20 @@ def main(argv: list[str]) -> int:
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "commit" and result.get("migrated"):
+        m = result["migrated"]
+        verb = "would split" if args.dry_run else "split"
+        print(f"perry-goals: {verb} OKR.md § Commitments — {m['rows']} row(s): "
+              f"{m['kept_as_due']} kept as `Due`, {m['moved_to_note']} moved to "
+              f"`By when note`, {m['empty']} already empty")
+        if m["renamed_column"]:
+            print(f"  · header cell renamed: {m['renamed_column']}")
+        for column in m["widened"]:
+            print(f"  · widened the table with a `{column}` column; every row "
+                  f"was padded for it")
+        print(f"  · {m['kept_as_due'] + m['moved_to_note']} non-empty clock "
+              f"cell(s) before, {m['kept_as_due'] + m['moved_to_note']} after "
+              f"— nothing was dropped")
     elif args.cmd == "commit":
         verb = "would write" if args.dry_run else "wrote"
         print(f"perry-goals: {verb} OKR.md § Commitments — {result['id']}"

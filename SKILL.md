@@ -82,13 +82,25 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 −2. **Set `$PERRY_HOME`** — if unset, derive it from the path of the SKILL.md you just read: the directory containing this top-level SKILL.md (it also contains `bin/`, `reference/`, `modes/`, `packs/`, `goals/`, `work/`, `decide/`). For a lane SKILL.md, use the grandparent. Every `$PERRY_HOME/bin/<script>` call needs this step.
 
-−1. **Detect host once**: `bash "$PERRY_HOME/bin/perry-detect-host"` → `claude-code` | `codex-cli` | `unknown`. Remember as `$HOST`, then read `$PERRY_HOME/reference/host-capabilities.md`. On `unknown`, default to `claude-code`, say so once, recommend setting `PERRY_HOST`.
+−1. **Detect host once**: `bash "$PERRY_HOME/bin/perry-detect-host"` → `claude-code` | `opencode` | `codex-cli` | `unknown`. Remember as `$HOST`, then read `$PERRY_HOME/reference/host-capabilities.md`. On `unknown`, default to `claude-code`, say so once, recommend setting `PERRY_HOST`.
 
-0. **Auto-update check**, silently in the background: `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
+0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
 1. **Read `.perry/config.md`** for document language, chat language and repo layout. If absent and any state file exists, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
-2. **Check for an interrupted run — before anything else reads project state.**
+2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
+
+   ```
+   "$PERRY_HOME/bin/perry-state" --section recovery
+   ```
+
+   This is the deterministic, read-only startup recovery gate. If
+   `blocking: true`, stop before any further project-state read or mutation and
+   report every exact path and error. A pending task transaction must be
+   recovered by the task command; a malformed dossier must be repaired or
+   explicitly retired. Do not reinterpret either as routine PMO hygiene.
+
+   Only after `blocking: false`, run the interrupted-pipeline gate:
 
    ```
    "$PERRY_HOME/bin/perry-state" --section interrupted
@@ -117,13 +129,13 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
    ```
    "$PERRY_HOME/bin/perry-state" --json
    ```
-   `installed: false` → jump to **First-time setup** below — **but only if step 2 found no interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
+   `installed: false` → jump to **First-time setup** below — **but only if step 2 found neither a recovery hazard nor an interrupted run.** An abandoned adoption reports `installed: false` too, because stages 0–3 write no state file; treating that as a fresh project is the failure step 2 exists to prevent. Otherwise the payload carries everything the dashboard needs; a field it lacks prints `—`.
 
 The rest is `reference/snapshot.md`: **3b** load one mode file per distinct `mode` in `project.config.tracks[]` (never empty; a mode with no file means no rules — say so and fall back rather than skip). **3c** apply `project.config.packs[]`'s glossary to prose only. **4** render the dashboard in the exact shape given there, `—` for empty, never fabricated, **every ID carrying its title**. **5** suggest 1–3 next actions, then **6** ask "What do you want to do?", routing to `$PERRY_HOME/goals/SKILL.md`, `$PERRY_HOME/work/SKILL.md` or `$PERRY_HOME/decide/SKILL.md` — read the lane file in full first.
 
 ## First-time setup
 
-When `/perry` runs in a project with no Perry state files at all **and step 2 found no interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
+When `/perry` runs in a project with no Perry state files at all **and step 2 found neither a recovery hazard nor an interrupted run**. If a dossier or diagnosis exists with a non-terminal `stage`, this does not run — the user already answered these questions.
 
 1. Briefly explain Perry (≤3 sentences).
 
@@ -182,7 +194,7 @@ Moves every path Perry claims under a new state root and rewrites `State root:` 
 
 `.perry/config.md` is where a project's preferences live; every lane and script reads it. First-time setup creates it. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
-The field list and the four subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), **tracks**, and the **conformance gate** (advisory today — never run `perry-conform declare` for the user; adoption proposes, the user declares).
+The field list and the four subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), **tracks**, and the **conformance gate** (enforces — never run `perry-conform declare` for the user; adoption proposes, the user declares).
 
 ## Style rules
 
@@ -196,7 +208,7 @@ Reasoning and examples: `reference/style.md § Style rules`.
 
 ## User-prompt convention, per-project hooks, auto-update
 
-- **`AskUserQuestion`** over free text whenever a choice has **2-4 distinct options**: label ≤ 5 words, header ≤ 12 chars, recommended first, each `description` carrying the trade-off **in consequences, not mechanism**, and an escape hatch on anything the user may not be equipped for. Cap open decisions at three. It is **not** a permission grant. Unavailable on Codex: render a numbered free-text prompt per `reference/host-capabilities.md § AskUserQuestion → numbered free-text prompt`. Conventions: `reference/style.md § User-prompt convention (AskUserQuestion)`.
+- **Host-native choice UI** over free text whenever a choice has **2-4 distinct options**: Claude Code uses `AskUserQuestion`, OpenCode uses `question`, and Codex uses the numbered free-text fallback in `reference/host-capabilities.md § Prompt rendering`. Keep the same labels, recommendations, consequence-oriented descriptions, and selected value. Cap open decisions at three. It is **not** a permission grant. Conventions: `reference/style.md § User-prompt convention (AskUserQuestion)`.
 - **Per-project hooks** live at `<project_root>/.perry/hook.md`; hook blocks go in the *children's* SKILL.md files, so this router stays project-agnostic. `reference/style.md § Per-project hooks (optional)`
 - **Auto-update** is step 0 of the ritual: once per 7 days, fetch-and-report-only in dev mode, always exit 0. `reference/style.md § Auto-update`
 

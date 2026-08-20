@@ -632,13 +632,29 @@ class TestLaneFrontmatterDescribesALaneNotACommand(unittest.TestCase):
     """
 
     @staticmethod
-    def description(lane: str) -> str:
+    def frontmatter(lane: str) -> str:
         text = (PERRY_HOME / lane / "SKILL.md").read_text()
         m = re.search(r"^---\n(.*?)\n---", text, re.S)
         assert m, f"{lane}/SKILL.md has no frontmatter"
-        d = re.search(r"^description:\s*(.*)$", m.group(1), re.M)
+        return m.group(1)
+
+    @classmethod
+    def description(cls, lane: str) -> str:
+        d = re.search(r"^description:\s*(.*)$", cls.frontmatter(lane), re.M)
         assert d, f"{lane}/SKILL.md declares no description"
         return d.group(1)
+
+    def test_every_frontmatter_name_is_the_live_lane_name(self):
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                match = re.search(
+                    r"^name:\s*(\S+)\s*$", self.frontmatter(lane), re.M)
+                self.assertIsNotNone(
+                    match, f"{lane}/SKILL.md declares no frontmatter name")
+                self.assertEqual(
+                    match.group(1), lane,
+                    f"{lane}/SKILL.md still registers the retired "
+                    f"`{match.group(1)}` lane name")
 
     def test_no_description_promises_a_withdrawn_command(self):
         for lane in LANES:
@@ -803,6 +819,52 @@ class TestLaneReferencePointersResolve(unittest.TestCase):
 
 
 ALIASES = {"okr": "goals", "pmo": "work", "design": "decide"}
+
+
+class TestStartupRootDescriptionsNameLiveLaneDirectories(unittest.TestCase):
+    """Filesystem inventories are facts, not lane-document shorthand.
+
+    The carve-out still permits commands such as `/pmo triage` inside lane
+    instructions. This guard is deliberately narrower: it checks only the
+    startup lines that tell an agent how to identify `$PERRY_HOME` on disk.
+    """
+
+    DESCRIPTIONS = {
+        "SKILL.md": "**Set `$PERRY_HOME`**",
+        "goals/SKILL.md": "**Set `$PERRY_HOME`**",
+        "work/SKILL.md": "**Set `$PERRY_HOME`**",
+        "decide/SKILL.md": "**Set `$PERRY_HOME`**",
+        "reference/host-capabilities.md": "The Perry root contains",
+    }
+
+    def root_description(self, rel: str, marker: str) -> str:
+        matches = [line for line in read(rel).splitlines() if marker in line]
+        self.assertEqual(
+            len(matches), 1,
+            f"{rel} has {len(matches)} startup root descriptions; expected one")
+        return matches[0]
+
+    def test_startup_root_descriptions_name_no_retired_lane_directory(self):
+        for rel, marker in self.DESCRIPTIONS.items():
+            line = self.root_description(rel, marker)
+            for retired in ALIASES:
+                with self.subTest(rel=rel, retired=retired):
+                    self.assertNotIn(
+                        f"`{retired}/`", line,
+                        f"{rel} describes the live Perry root with the retired "
+                        f"`{retired}/` lane directory")
+
+    def test_explicit_root_inventories_name_all_live_lane_directories(self):
+        for rel, marker in self.DESCRIPTIONS.items():
+            line = self.root_description(rel, marker)
+            if "contains" not in line:
+                continue
+            for lane in LANES:
+                with self.subTest(rel=rel, lane=lane):
+                    self.assertIn(
+                        f"`{lane}/`", line,
+                        f"{rel} inventories `$PERRY_HOME` without `{lane}/`")
+
 
 # `/perry` with no lane at all, plus the pipelines that belong to the router
 # rather than to any lane. Harvested from `SKILL.md` rather than listed, so a
@@ -1118,11 +1180,6 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         ".github": "CI configuration",
         "perry": "this project's own state, not the skill",
         "viewer/static": "third-party assets",
-        # Deliberately empty, kept as a placeholder after `b98b1c4` dropped the
-        # AGENTS.md routing layer — `SKILL.md` says both hosts read frontmatter
-        # natively and no such file is needed. It ships zero bytes of prose, so
-        # there is nothing for either list to cover.
-        "AGENTS.md": "an empty placeholder; ships no prose",
     }
 
     def test_the_viewer_is_enforced_not_merely_listed(self):
@@ -1184,7 +1241,7 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         # `bin/`, `*/state/*_TEMPLATE.md`, `packs/`, `reference/`, `setup`.
         exempt = {m.strip("`/*").split("/")[0]
                   for m in re.findall(r"`([^`]+)`", note)}
-        enforced = {"work", "goals", "decide", "modes", "SKILL.md",
+        enforced = {"work", "goals", "decide", "modes", "SKILL.md", "AGENTS.md",
                     "README.md", "README_cn.md", "INSTALL.md", "viewer"}
         uncovered = []
         for p in sorted(PERRY_HOME.iterdir()):

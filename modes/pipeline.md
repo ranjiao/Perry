@@ -14,7 +14,7 @@ because pipeline's rules exist nowhere else in Perry yet.
 |---|---|---|
 | **Ends when** | The item ships — or is explicitly dropped | — |
 | **Unit that gets an ID** | The deliverable, not the task. One ID per thing that will leave the building | `BOARD.md` row |
-| **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · by when · status. `By when` is a **date** for pipeline rows; queue rows in the same table may carry prose | Written by the **goals** lane |
+| **Spine** | `OKR.md § Commitments` — id · track · promise · to whom · due · status. `Due` is typed — an ISO date for pipeline rows — and the prose half lives in `By when note`, which nothing validates | Written by the **goals** lane |
 | **Horizon** | The cycle, declared explicitly (`2026-W34`, `until 2026-09-30`) | `.perry/config.md § Tracks` → `Cycle` |
 | **Calendar** | **Binding** — see *What "binding" does and does not mean* below | — |
 | **Item states** | Two orthogonal fields: `Status` (the global lifecycle enum, unchanged) and `Stage` (this track's vocabulary) | `BOARD.md` → `Status`, `Stage` |
@@ -237,7 +237,7 @@ Ordered. The first question is not "what's important" but "what's stuck":
 3. **Commitments due within the track's `SLA` window.** Nothing records when a
    triage last ran or when the next one is due, so "before the next triage" is
    not a datum — read `OKR.md § Commitments` for rows in this `Track` whose
-   `By when` date falls inside that window, take each
+   `Due` date falls inside that window, take each
    one's `Id`, then scan `BOARD.md` for rows whose `Commitment` cell carries
    that id and report how far along each is. **The link is followed from the
    board side**, never by dereferencing the commitment row's `Discharged by`

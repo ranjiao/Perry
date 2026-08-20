@@ -36,6 +36,9 @@ import os
 import sys
 import tempfile
 import time
+import re
+import stat
+from datetime import date as _date
 from pathlib import Path
 
 #: `bin/lib/` → `bin/` → the install. Every tool computes `PERRY_HOME` the same
@@ -49,8 +52,10 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # ── writing ───────────────────────────────────────────────────────────────
 
 
-def stage(path: Path, text: str) -> str:
-    """Write `text` to a fresh temp file beside `path`, fsynced. Returns its name.
+def stage(path: Path, text: str | bytes) -> str:
+    """Write text/bytes to a fresh temp file beside `path`, fsynced.
+
+    Returns its name.
 
     Split out of `write_atomic` for `perry-task § commit`, which stages **two**
     files before renaming either — `BOARD.md` and the journal land together or
@@ -71,7 +76,14 @@ def stage(path: Path, text: str) -> str:
     """
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
-        with os.fdopen(fd, "w") as fh:
+        # `mkstemp` deliberately creates 0600 files. That is right for a new
+        # secret and wrong for replacing an existing tracked document: the
+        # rename would silently change a 0644 BOARD.md, journal, or store to
+        # 0600. The replacement inherits the target's current permission bits.
+        if path.exists():
+            os.fchmod(fd, stat.S_IMODE(path.stat().st_mode))
+        mode = "wb" if isinstance(text, bytes) else "w"
+        with os.fdopen(fd, mode) as fh:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
@@ -82,22 +94,35 @@ def stage(path: Path, text: str) -> str:
     return tmp
 
 
-def write_atomic(path: Path, text: str) -> None:
-    """Replace `path` with `text`, or leave it exactly as it was.
+def write_atomic(path: Path, text: str | bytes) -> str:
+    """Replace `path` with text/bytes and return the published SHA-256.
 
     A reader that opens the file at any moment sees the whole old version or
     the whole new one — `os.replace` is atomic on POSIX — which is the property
     every Perry state file depends on, because the readers are other Perry
-    tools and the user's editor, not a database client waiting on a lock.
+    tools and the user's editor, not a database client waiting on a lock. The
+    digest identifies the staged image, so a caller can distinguish its own
+    write from a non-cooperating edit that lands immediately afterwards.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = stage(path, text)
     try:
+        published = hashlib.sha256(Path(tmp).read_bytes()).hexdigest()
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    return published
+
+
+def sync_directory(path: Path) -> None:
+    """Fsync a directory after durable-name changes, where the OS supports it."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # ── locking ───────────────────────────────────────────────────────────────
@@ -175,6 +200,142 @@ def project_lock(state_root: Path, timeout: float = 10.0,
 
 
 # ── the shape ─────────────────────────────────────────────────────────────
+
+
+#: **The one spelling of "is this cell a date", anchored.** It lives here and
+#: not in a tool because two tools ask it: `bin/perry-goals` validates `--due`
+#: with it and `bin/perry-diagnose` counts dated promises with it.
+#:
+#: TASK-091 anchored the goals copy and wrote above it "the one spelling",
+#: which was false the moment it was written — `bin/perry-diagnose` kept a
+#: second one that `search`ed, so `2026-09-30 or so` was refused by the writer
+#: and counted as a dated promise by the reader. **The same value, two
+#: answers, in the tool pair whose whole job is to agree.** Found by a V4 that
+#: read the commit's claim and then grepped for the property rather than
+#: trusting the diff.
+#:
+#: Anchored because a typed field asks whether the WHOLE cell is a date. A
+#: cell with a date buried in prose is prose, and prose goes in
+#: `By when note`.
+ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+#: Values meaning "this cell says nothing", from `schema § i18n.blank_cell`.
+#: Read from the schema rather than written here, so a new language is a schema
+#: edit. Three tools carried three different hardcoded lists and only one of
+#: them had 无 — see the schema note for what that cost.
+_BLANK_CELLS: set = set()
+
+
+def normalize_typed_cell(value: str) -> str:
+    """Normalize presentation around a typed cell, never its interior."""
+    return (value or "").strip().strip("*`~ ")
+
+
+def _blank_key(value: str) -> str:
+    """Case/punctuation-insensitive key for one declared unfilled idiom."""
+    return normalize_typed_cell(value).strip().lower().rstrip(".。!！?？").strip()
+
+
+def is_blank_cell(value: str) -> bool:
+    """Does this cell mean nothing, in any declared language?"""
+    text = _blank_key(value)
+    if not text:
+        return True
+    if not _BLANK_CELLS:
+        try:
+            blank = (load_schema().get("i18n") or {}).get("blank_cell") or {}
+        except Exception:                                        # noqa: BLE001
+            blank = {}
+        for key, vals in blank.items():
+            if key == "note" or not isinstance(vals, list):
+                continue
+            _BLANK_CELLS.update(_blank_key(str(v)) for v in vals)
+        # A schema that cannot be read must not make every cell non-blank:
+        # that would report every `—` on the board as a bad value.
+        _BLANK_CELLS.update(_blank_key(v) for v in
+                            {"—", "-", "–", "n/a", "none", "无"})
+    return text in _BLANK_CELLS
+
+
+#: `3d`, `2w`, `24h` — the shorthand `.perry/config.md § Tracks` writes. Here
+#: for the same reason `ISO_DATE_RE` is: `bin/perry-goals` validates `--due`
+#: with it and `bin/perry-lint` now checks the column against it, and a typed
+#: column whose writer and reader disagree about the value space is the defect
+#: this pair was split to remove.
+SLA_TOKEN_RE = re.compile(r"^\d+\s*[dwhmy]$", re.I)
+
+
+def is_sla_token(value: str) -> bool:
+    return bool(SLA_TOKEN_RE.fullmatch(normalize_typed_cell(value)))
+
+
+def is_iso_date(value: str) -> bool:
+    """Does this cell hold exactly one REAL ISO date, decoration stripped?
+
+    **The calendar, not only the shape.** `2026-13-45` and `2026-02-30` match
+    the pattern and are not days. `bin/perry-goals § real_date` had always
+    parsed as well as matched, so the writer refused them; a shape-only reader
+    accepted them, and a sweep of sixteen values across the writer and the file
+    check found exactly these two disagreeing.
+
+    Three callers then do `date.fromisoformat(seen)` on the strength of this
+    answer — `perry-lint`, `perry-knowledge`, `perry-state`, all on a knowledge
+    card's `Last verified`. A shape-only `True` handed each of them a
+    `ValueError` on a hand-typed card.
+    """
+    text = normalize_typed_cell(value)
+    if not ISO_DATE_RE.fullmatch(text):
+        return False
+    try:
+        _date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
+DUE_UNFILLED = "unfilled"
+DUE_DATE = "date"
+DUE_DURATION = "sla"
+DUE_INVALID = "invalid"
+DUE_PIPELINE_REQUIRES_DATE = "pipeline-requires-date"
+DUE_QUEUE_MISSING_CLOCK = "queue-missing-sla"
+
+
+def due_track_missing_clock(track: dict | None) -> bool:
+    track = track or {}
+    return (str(track.get("mode") or "project").strip().lower() == "queue"
+            and is_blank_cell(str(track.get("sla") or "")))
+
+
+def classify_due(track: dict | None, value: str) -> str:
+    """Classify one `Due` cell under the track contract that governs it.
+
+    This returns semantics rather than a writer refusal. The writer, lint, and
+    migration need different actions for the same answer, but none gets to
+    implement a different value space.
+    """
+    if is_blank_cell(value):
+        return DUE_UNFILLED
+
+    track = track or {}
+    mode = str(track.get("mode") or "project").strip().lower()
+    if is_iso_date(value):
+        if due_track_missing_clock(track):
+            return DUE_QUEUE_MISSING_CLOCK
+        return DUE_DATE
+    if is_sla_token(value):
+        if due_track_missing_clock(track):
+            return DUE_QUEUE_MISSING_CLOCK
+        if mode == "pipeline":
+            return DUE_PIPELINE_REQUIRES_DATE
+        return DUE_DURATION
+    return DUE_INVALID
+
+
+def due_is_valid(track: dict | None, value: str) -> bool:
+    """Whether `value` is a populated `Due` allowed by `track`."""
+    return classify_due(track, value) in {DUE_DATE, DUE_DURATION}
 
 
 def load_schema(refused: type[BaseException] = RuntimeError) -> dict:

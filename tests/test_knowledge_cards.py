@@ -156,6 +156,16 @@ class TestStaleness(Base):
         self.assertIn("knowledge_stale_days", src)
         self.assertNotIn("age > 90", src)
 
+    def test_impossible_dates_are_rejected_before_calendar_arithmetic(self):
+        for value in ("2026-02-30", "2026-13-45", "2026-**09**-30"):
+            with self.subTest(value=value):
+                root = self.project({
+                    "knowledge/t/c.md": GOOD.format(today=value),
+                    "evidence/2026-08/note.md": "x"})
+                out = self.knowledge(root)
+                self.assertEqual(out["cards"], 1)
+                self.assertNotIn("card-stale", self.rules(out))
+
 
 class TestCardsAndDigestsDoNotReportEachOther(Base):
     """They share `knowledge/*/*.md`. Neither is malformed for not being the

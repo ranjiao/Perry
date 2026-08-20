@@ -31,6 +31,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
@@ -72,11 +74,17 @@ class Base(unittest.TestCase):
         (self.root / "perry").mkdir()
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n", encoding="utf-8")
+            "# Config\n\nState root: perry/\n" + GATE_OFF, encoding="utf-8")
         self.addCleanup(self.tmp.cleanup)
 
     def write(self, text):
         (self.root / "perry" / "BOARD.md").write_text(text, encoding="utf-8")
+        seeded = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(self.root)],
+            capture_output=True, text=True)
+        if seeded.returncode:
+            raise AssertionError(seeded.stdout + seeded.stderr)
 
     def read(self):
         return (self.root / "perry" / "BOARD.md").read_text(encoding="utf-8")
@@ -470,8 +478,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         which name a concept rather than a cell."""
         payload_keys = set(self.mod.LIST_TASK_KEYS) if hasattr(
             self.mod, "LIST_TASK_KEYS") else None
-        allowed = {"status", "section", "stage", "title", "next_action",
-                   "verification", "evidence", "depends_on"}
+        allowed = {"status", "section", "stage", "title", "summary",
+                   "next_action", "verification", "evidence", "depends_on"}
         self.assertLessEqual(set(self.mod.EVENT_FIELD.values()), allowed)
 
     def test_a_section_move_is_not_reported_as_a_status_move(self):
@@ -494,8 +502,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         decision.
         """
         fn = self.mod.idish_tokens_that_resolve_nowhere
-        ctx = {"board": self.mod.Board(TOOL.parent.parent / "perry"
-                                       / "BOARD.md")}
+        state_root = TOOL.parent.parent / "perry"
+        ctx = {"task_records": self.mod.load_task_records(state_root)}
         self.assertEqual(fn("the ROUND-2 defect", ctx), ["ROUND-2"])
         self.assertEqual(fn("see ADR-006 and USER-014", ctx), [])
         self.assertEqual(fn("round 2, plainly", ctx), [])
@@ -506,8 +514,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         aiMark's round-2 report proposed `field: "status"` on every event
         except `prioritize`. Two paragraphs of `schema/task-list-contract.md`
         rebut that, and both said it would be false for three events —
-        `retitle`, `next`, `rung`. It is false for **six**: those three plus
-        `stage`, `evidence` and `depends`.
+        `retitle`, `next`, `rung`. It is now false for **seven**: those three
+        plus `stage`, `summary`, `evidence` and `depends`.
 
         The `1.7` paragraph enumerates all seven non-`status` fields two
         sentences before claiming three would be wrong, so the doc contradicted
@@ -525,7 +533,7 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
                / "task-list-contract.md").read_text(encoding="utf-8")
         claims = re.findall(
             r"proposed `status` for everything except `prioritize`;.*?"
-            r"\*\*(\w+)\*\* of the thirteen — (.*?) — and a wrong word",
+            r"\*\*(\w+)\*\* of the fourteen — (.*?) — and a wrong word",
             doc, re.S)
         self.assertEqual(len(claims), 2,
                          "the rebuttal is stated twice; both must be checked")

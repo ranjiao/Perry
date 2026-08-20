@@ -19,6 +19,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
@@ -57,7 +59,8 @@ class Base(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\nState root: perry/\n", encoding="utf-8")
+            "# Perry configuration\n\nState root: perry/\n" + GATE_OFF,
+            encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text("\n".join([
             "# Board", "",
             "## P1", "", T.render_row(HEADER), "|" + "---|" * len(HEADER), "",
@@ -174,9 +177,10 @@ class TestAProjectThatHasDeclaredRoles(Base):
 class TestTheContractDeclaresIt(unittest.TestCase):
     def test_the_version_moved_and_the_doc_says_why(self):
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
-        self.assertIn("perry-task/list/1.9", doc)
+        self.assertIn("perry-task/list/1.11", doc)
         self.assertIn("### 1.8", doc)
         self.assertIn("### 1.9", doc)
+        self.assertIn("### 1.10", doc)
         self.assertIn("Goal 7", doc,
                       "the changelog must say a roleless project is unaffected")
 

@@ -1047,6 +1047,158 @@ def modes_of(payload: dict) -> dict:
     return {t["track"]: t for t in payload["work_modes"]["tracks"]}
 
 
+class TheDatedAndProseCountersPartitionTheCommitments(unittest.TestCase):
+    """Every commitment is counted exactly once, in whichever language.
+
+    TASK-091 split `By when` into a typed `Due` and a prose `By when note`, and
+    renamed the schema i18n key with it. `diagnose`'s two counters did not move
+    together: `dated` read `due` OR `by when`, `prose` read only `by when` — so
+    a Chinese register's `截止`, which now resolves to `due`, carried prose,
+    failed the date test, and **was counted by neither**. Measured across that
+    commit by a V4: a board that scored `queue` with 1 standing commitment
+    before scored no mode and no evidence after, while the English board was
+    unchanged.
+
+    The invariant is a partition, so it is tested as one: a commitment with a
+    promise in it is either dated or prose, never both and never neither. That
+    is why these assert on the SUM rather than on each counter — a future
+    third counter that silently swallowed a case would pass a per-counter test.
+    """
+
+    def commitments(self, td: str, header: str, cell: str) -> dict:
+        root = Path(td)
+        write(root, ".perry/config.md", CONFIG)
+        write(root, "OKR.md",
+              "# OKR v1\n\n## Commitments\n\n"
+              f"| ID | Promise | To whom | {header} | Status |\n"
+              "|---|---|---|---|---|\n"
+              f"| C-001 | ship the thing | ops | {cell} | open |\n")
+        ev = modes_of(scan(root))["main"]["evidence"]
+        flat = [e for v in ev.values() for e in v]
+        return {
+            "dated": sum(1 for e in flat if "promise a dated" in e),
+            "prose": sum(1 for e in flat if "standing commitment" in e),
+        }
+
+    def test_english_and_chinese_score_the_same_promise_the_same_way(self):
+        pairs = [("By when", "month by month", "截止", "逐月"),
+                 ("Due", "2026-09-30", "截止", "2026-09-30"),
+                 ("By when note", "quarterly-ish", "截止说明", "大约每季度")]
+        for en_h, en_c, zh_h, zh_c in pairs:
+            with self.subTest(promise=en_c):
+                with tempfile.TemporaryDirectory() as td:
+                    en = self.commitments(td, en_h, en_c)
+                with tempfile.TemporaryDirectory() as td:
+                    zh = self.commitments(td, zh_h, zh_c)
+                self.assertEqual(en, zh,
+                                 f"`{en_h}`/`{en_c}` and `{zh_h}`/`{zh_c}` are "
+                                 f"the same promise written twice; scoring "
+                                 f"them differently is the asymmetry the "
+                                 f"`By when` → `Due` rename introduced")
+                self.assertEqual(en["dated"] + en["prose"], 1,
+                                 f"a commitment carrying a promise must be "
+                                 f"counted exactly once; got {en}")
+
+    def test_a_date_buried_in_prose_is_prose(self):
+        """`2026-09-30 or so` is not a dated promise.
+
+        `bin/perry-goals` refuses that value on `--due` and files it under
+        `By when note`. `diagnose` used an unanchored `\\b...\\b` search and
+        called it dated — the same cell, two answers, from the tool pair whose
+        job is to agree. `lib.is_iso_date` is now the only spelling.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            got = self.commitments(td, "Due", "2026-09-30 or so")
+        self.assertEqual(got, {"dated": 0, "prose": 1}, got)
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(self.commitments(td, "Due", "2026-09-30"),
+                             {"dated": 1, "prose": 0})
+
+    def test_impossible_and_interior_decorated_dates_are_not_dates(self):
+        for value in ("2026-02-30", "2026-13-45", "2026-**09**-30"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as td:
+                self.assertEqual(self.commitments(td, "Due", value),
+                                 {"dated": 0, "prose": 1})
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(self.commitments(td, "Due", "**2026-09-30**"),
+                             {"dated": 1, "prose": 0})
+
+    def test_unfilled_markers_are_not_reclassified_as_prose(self):
+        for value in ("n/a", "N/a", "N.A.", "TBD", "?", "？", "无", "无。", "待定",
+                      "不适用", "不适用。", "**暂无！**"):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as td:
+                self.assertEqual(self.commitments(td, "Due", value),
+                                 {"dated": 0, "prose": 0})
+
+    def test_diagnose_calls_the_shared_blank_and_date_predicates(self):
+        mod = load_bin_module("perry-diagnose")
+        blank_calls = []
+        date_calls = []
+        original_blank = mod.lib.is_blank_cell
+        original_date = mod.lib.is_iso_date
+        mod.lib.is_blank_cell = lambda value: blank_calls.append(value) is None and value == "BLANK-SENTINEL"
+        mod.lib.is_iso_date = lambda value: date_calls.append(value) is None and value == "DATE-SENTINEL"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| ID | Track | Promise | To whom | Due | Status | By when note |\n"
+                  "|---|---|---|---|---|---|---|\n"
+                  "| C-1 | main | a | ops | DATE-SENTINEL | open | BLANK-SENTINEL |\n")
+            try:
+                mod.scan_work_modes(root, root)
+            finally:
+                mod.lib.is_blank_cell = original_blank
+                mod.lib.is_iso_date = original_date
+        self.assertIn("BLANK-SENTINEL", blank_calls)
+        self.assertIn("DATE-SENTINEL", date_calls)
+
+    def test_there_is_one_spelling_of_is_this_cell_a_date(self):
+        """The uniqueness claim, checked by grep rather than asserted in prose.
+
+        `bin/perry-goals` carried a comment reading "the one spelling of 'is
+        this cell a date'" while `bin/perry-diagnose` carried a second,
+        unanchored one — so `2026-09-30 or so` was refused by the writer and
+        counted as a dated promise by the reader. A claim of uniqueness that a
+        grep disproves is worse than no claim, because it stops the next reader
+        from grepping.
+
+        **Scoped to the PREDICATE form**, `fullmatch` against a bare date, and
+        that scope is deliberate. Three tools asked exactly this about a
+        knowledge card's `Last verified` and each spelled it out; they now
+        import `lib.is_iso_date`, which also strips the decoration a cell may
+        carry.
+
+        What this does NOT cover, said plainly rather than left to be
+        discovered: `re.search` for a date INSIDE text is a different question
+        (four sites: `perry-task` x2, `perry-goals`, `perry-state` — extracting
+        a date from a status line is not asking whether a cell is one), and
+        `bin/perry-decide:459` prefix-matches a sunset timestamp and then
+        slices ten characters, which is a third. Both are real duplication and
+        neither is this defect; folding them in without measuring what changes
+        would be a rename wearing a fix's clothes.
+        """
+        bad = []
+        for tool in sorted((PERRY_HOME / "bin").iterdir()):
+            if not tool.is_file() or tool.name.startswith("."):
+                continue
+            try:
+                text = tool.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for n, line in enumerate(text.split("\n"), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if "fullmatch" in line and r"\d{4}-\d{2}-\d{2}" in line:
+                    bad.append(f"{tool.name}:{n}: {line.strip()[:70]}")
+        self.assertEqual(bad, [],
+                         "a second predicate for `is this cell a date` — "
+                         "import `lib.is_iso_date` instead, or this is how "
+                         "`--due` and `diagnose` disagreed about the same "
+                         "cell")
+
+
 class TestWorkModeDetection(unittest.TestCase):
     """`diagnose` names which of DESIGN-003's four shapes a track's work fits.
 
@@ -1139,7 +1291,7 @@ class TestWorkModeDetection(unittest.TestCase):
             write(root, ".perry/config.md", CONFIG)
             write(root, "OKR.md",
                   "# OKR\n\n## Commitments\n\n"
-                  "| Id | Track | Promise | To whom | By when | Status |\n"
+                  "| Id | Track | Promise | To whom | Due | Status |\n"
                   "|---|---|---|---|---|---|\n"
                   "| blog/1 | blog | Launch post | Marketing | 2026-09-30 | active |\n")
             write(root, "BOARD.md", board(
@@ -1152,10 +1304,53 @@ class TestWorkModeDetection(unittest.TestCase):
         self.assertTrue(any("Stage since" in e
                             for e in t["evidence"]["pipeline"]))
         self.assertTrue(any("Commitment" in e for e in t["evidence"]["pipeline"]))
-        self.assertTrue(any("dated `By when`" in e
+        self.assertTrue(any("dated `Due`" in e
                             for e in t["evidence"]["pipeline"]))
         self.assertTrue(any("stage vocabulary" in e
                             for e in t["evidence"]["pipeline"]))
+
+    def test_a_by_when_note_reads_as_a_standing_commitment(self):
+        """After TASK-091 the pipeline/queue signal is a COLUMN, not a regex
+        over a cell: a dated promise carries `Due`, a standing one carries
+        `By when note`."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| Id | Track | Promise | To whom | Due | Status | By when note |\n"
+                  "|---|---|---|---|---|---|---|\n"
+                  "| ops/1 | ops | Invoices | Finance | 3d | active | within the track SLA |\n")
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status |\n"
+                "|---|---|---|---|\n"
+                "| OPS-1 | Reconcile | Agent | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertTrue(any("By when note" in e for e in t["evidence"]["queue"]),
+                        t["evidence"]["queue"])
+
+    def test_a_pre_split_register_is_still_recognised(self):
+        """This tool diagnoses FOREIGN projects — the one job ADR-007 keeps a
+        parser for. A register written before the split still has to read as
+        what it is, or adoption reports a project has no commitments."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            write(root, ".perry/config.md", CONFIG)
+            write(root, "OKR.md",
+                  "# OKR\n\n## Commitments\n\n"
+                  "| Id | Track | Promise | To whom | By when | Status |\n"
+                  "|---|---|---|---|---|---|\n"
+                  "| blog/1 | blog | Launch post | Marketing | 2026-09-30 | active |\n"
+                  "| ops/1 | ops | Invoices | Finance | within the track SLA | active |\n")
+            write(root, "BOARD.md", board(
+                "## P1\n\n| ID | Title | Owner | Status |\n"
+                "|---|---|---|---|\n"
+                "| POST-1 | Launch post | Agent | in_progress |\n"))
+            t = modes_of(scan(root))["main"]
+        self.assertTrue(any("dated `Due`" in e for e in t["evidence"]["pipeline"]),
+                        t["evidence"]["pipeline"])
+        self.assertTrue(any("By when note" in e for e in t["evidence"]["queue"]),
+                        t["evidence"]["queue"])
 
     def test_conflicting_signals_are_reported_as_a_tie_not_a_winner(self):
         """`low` and `none` are both 'cannot tell', and the payload keeps them

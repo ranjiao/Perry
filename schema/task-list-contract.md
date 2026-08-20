@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.9`**
+> Contract: **`perry-task/list/1.11`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -16,7 +16,7 @@ purpose is to **not move when Perry's storage does**.
 
 | Flag | Effect |
 |---|---|
-| `--all` | include closed and dropped tasks. **Without it you get open work only** — `BOARD.md` holds open rows and closed ones leave it, so "everything" is always a reconstruction and always needs this flag. |
+| `--all` | include closed and dropped tasks from `tasks.jsonl`. **Without it you get open work only.** |
 | `--json` | the payload below. Without it, a human-readable table. |
 | `--track <name>` | restrict to one declared track. |
 | `--root <path>` | the project. Defaults to `$PERRY_PROJECT`, else walks up from the cwd. |
@@ -36,9 +36,8 @@ stays quiet.
 
 **`event_written` is on every write result**, and it is the difference between
 *"the row moved"* and *"the row moved and its timeline will have a hole"*. The
-board write lands first and the event is appended second, deliberately: the
-canonical file never disagrees with itself, and the derived record may be
-missing. When it is `false` the write succeeded and this payload's `timeline`
+store+journal transaction lands first; the Board projection and event are
+written afterwards. When it is `false` the canonical write succeeded but this payload's `timeline`
 will not show it. **§ Polling rests on the log being complete**, so a front-end
 that polls should surface this rather than assume.
 
@@ -57,20 +56,19 @@ owner, and the open count as zero — with `perry-lint` calling the board clean,
 because column order is not something the schema constrains. A front-end
 parsing the markdown itself would be a third chance at exactly that.
 
-It is also what makes a front-end survive a storage change. Whether `BOARD.md`
-should stay the canonical task store at all is an open architectural question —
-a quarter of the writer is markdown-format handling, and most of this migration's
-blocking defects came out of that quarter. This payload is deliberately not part
-of that question: whatever the answer, `list --json` keeps this shape.
+It is also what makes a front-end survive the completed storage change:
+`tasks.jsonl` is canonical task truth and `BOARD.md` is its human projection.
+The payload shape remains stable even though its current values no longer come
+from task rows in Markdown.
 
 ## The payload
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.6",   // check this before anything else
+  "contract":     "perry-task/list/1.11",  // check this before anything else
   "project_root": "/abs/path",
-  "state_root":   "/abs/path",             // where BOARD.md and journal/ live
-  "conformance":  { /* see below */ },     // what this board did NOT parse cleanly
+  "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
+  "conformance":  { /* see below */ },     // store findings and projection availability
   "intake":       { /* see below */ },     // queue mode's inbox, by position
   "risks":        { /* see below */ },     // `## Top risks`, open ones
   "asks":         { /* see below */ },     // `## User Input Queue` — needs-you
@@ -101,10 +99,11 @@ counts; without it, `closed` is a constant.
 |---|---|---|
 | `id` | string | **An opaque stable string.** Conventionally `TASK-NNN`, but a real board carries ids under several project-declared prefixes, some with no number at all — a board's own `## ID prefixes` section is where a project states them. Never reused, including after close, which is the part you may depend on. **Do not parse a number out of it** or sort by a numeric suffix. |
 | `title` | string | |
+| `summary` | string | Optional stable explanation of why the task exists and the intended outcome. `""` means unset. It is stored explicitly and is never inferred from `title`, `next_action`, specifications, evidence or journal prose. Added in 1.11. |
 | `owner` | string | free text; the project's own owner model |
 | `priority` | string | `P0` \| `P1` \| `P2`. May be `""` for a closed task whose creating event predates the field. |
-| `status` | string | one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — **or `""`**. Markdown emphasis is stripped before matching, so a board cell of `**done**` arrives as `done`. `""` means the board did not say, or said something that is not one state; `status_text` has the cell verbatim and `conformance` says which case it was. |
-| `status_text` | string | the `Status` cell exactly as written, emphasis and all. Some cells are genuinely not one state — `迁移 done，占比目标 not_started` is two, and rounding it to either is a lie about the work. |
+| `status` | string | the typed current status from `tasks.jsonl`: one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — or `""` for a legacy record that predates a known value. `BOARD.md` is a projection and cannot change this value. |
+| `status_text` | string | **Legacy display alias of `status`.** Kept so existing consumers do not lose a key or change type; from 1.10 onward it is always byte-equal to `status` and never exposes raw, emphasized, or off-enum text from `BOARD.md`. |
 | `track` | string | declared track name; `main` when the project declares none |
 | `mode` | string | `project` \| `pipeline` \| `queue` \| `inquiry`. **Derived** from this row's `track` and `.perry/config.md § Tracks`, never stored — a project with no track register reports `project` for `main`, and a row on a track the register does not declare reports `""`. It was read out of the event log until a review found that `route`-created rows shipped `""` on exactly the mode where routing is normal, and that deleting the derived-and-disposable event log blanked it for every row. |
 | `stage` | string | non-`project` modes only; `""` otherwise |
@@ -113,13 +112,13 @@ counts; without it, `closed` is a constant.
 | `parent` | string | inquiry mode: the question this was split from |
 | `commitment` | string | the commitment id this row discharges |
 | `next_action` | string | |
-| `evidence` | string | the cell verbatim. Free text: often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
+| `evidence` | string | stored relation text. Often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
 | `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. **Resolved for closed rows as well as open ones** — it was not until 1.5, and a closed row's evidence is the document that justifies the close, which is the one a reader most wants to open. |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
 | `role` | string — the declared role accountable for this row, or `""`. **Required once the project declares any `.perry/roles/*.md`, absent otherwise** (1.8). A project with no role cards is never asked for one and never refused for omitting one, which is DESIGN-006's Goal 7. |
-| `group` | string | the board section this row came from, verbatim. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` on a project that organizes its board its own way. |
-| `open` | bool | **`true` unless the work is finished** — the row left the board with a `done`/`drop` event, or its status is `done`/`dropped`. Still the live/closed test; do not derive it from `status` yourself, because a row can be closed by either route. **One limit, stated because it cannot be fixed from here:** a row whose `Status` cell is empty is reported `open: true`, and Perry cannot know better. Perry's own board stages finished work under `## Done this period (leaves the board at next triage)` in a table with no `Status` column — 20 rows that are done and say nothing. `conformance.rows_with_no_status` names every one. |
-| `depends_on` | array | the ids this row waits on, verbatim from its `Depends on` cell, in cell order. **Opaque handles, like `id`** — an entry may name a task that is closed (that is what a satisfied dependency looks like), or a `DESIGN-`/`ADR-` id no board carries at all. `[]` when the row declares nothing, which on a board that predates 1.6 is every row. |
+| `group` | string | the stored projection group. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` when the project organizes its Board that way. |
+| `open` | bool | `false` exactly when typed `status` is `done` or `dropped`; `true` otherwise. Use this served field as the live/closed test. |
+| `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
 | `blocked_by` | array | the subset of `depends_on` that is **not known-finished** — an id whose task is still open, or an id this payload does not carry. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
 | `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
 | `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, its own `status` is not `blocked` or `review` (both mean somebody else has the ball), and `blocked_by` is empty. This is served so you never walk the graph yourself. |
@@ -139,11 +138,10 @@ changed with your flags would be a different graph per query.
 
 A dependency is written by `perry-task depends <ID> --on "TASK-050, TASK-051"`,
 by `perry-task status <ID> --status blocked --on …`, or by `add --depends`. It
-lives in a `Depends on` **board cell** — not in the event log, which is derived
-and disposable, and not in the journal's definition block, which is append-only
-and cannot record a dependency being satisfied. A cycle is refused at write
-time; a cycle already on a hand-edited board is **reported, never refused** —
-see `conformance.dependency_cycles`.
+lives in `tasks.jsonl.depends_on`; the event log records its transition and the
+Board renderer projects it into a `Depends on` cell. A cycle is refused at
+write time; a cycle introduced by an external store edit is reported by
+`conformance.dependency_cycles`.
 
 
 ### A timeline entry
@@ -151,7 +149,7 @@ see `conformance.dependency_cycles`.
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
-| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
 | `field` | string — **what `from`/`to` refer to on this event** (1.7) |
@@ -169,6 +167,7 @@ Its value, per event:
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
 - **`title`** — on `retitle`. The row's title.
+- **`summary`** — on `summary`. The stable purpose/outcome explanation; `""` is an explicit clear.
 - **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
 - **`verification`** — on `rung`. A rung, `V0`–`V6`.
 - **`evidence`** — on `evidence`. The evidence cell.
@@ -177,42 +176,37 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **six** of the thirteen — `stage`, `retitle`, `next`, `rung`,
-`evidence` and `depends` — and a wrong word in the field whose job is to stop
+false for **seven** of the fourteen — `stage`, `retitle`, `summary`, `next`,
+`rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
-### `conformance` — what the board did not parse cleanly
+### `conformance` — what task truth or its projection could not classify
 
-**Read this before you trust `tasks`.** Perry's own template is not what real
-projects look like. A live Perry project checked while writing this organizes
-its board by workstream (`## Open — 投资线`, `## Open — 工程线 · phase #004`,
-`## Backbone`) with exactly one section named `P2`, tables of four and five
-columns rather than six, ids in strikethrough, statuses written in the project's
-own language, and a `## ID prefixes` reference table that is not work at all.
-
-Every one of those is legitimate. This block says which of them this board has,
-so a front-end can show "12 tasks, 1 row unreadable" instead of quietly
-rendering 12 and dropping one.
+**Read this before you trust completeness.** Current task findings come from
+validated `tasks.jsonl` plus disposable history. Projection-only findings are
+explicit compatibility fields and `missing_projection` says when Board-backed
+non-task registers could not be read.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `sections_read` | array | `{heading, priority, rows}` per section that yielded tasks. `priority` is `null` unless the heading is `P0`/`P1`/`P2`. |
-| `sections_skipped` | array | `{heading, why, columns}` — a `## ` section with a table that has no `ID`+`Title`. Usually a reference or legend table. |
-| `rows_with_unrecognized_id` | array | `{section, cell}` — a row whose first cell is prose rather than a handle. **These are not in `tasks`.** |
-| `off_enum_status` | array | `{id, status}` — the cell said something, and after stripping emphasis it is still not one of the six. `status` is `""` for these and `status_text` has the original. |
-| `rows_with_no_status` | array | `{id, section}` — the row's `Status` cell was empty, usually because its section's table has no `Status` column. **`open` is an assumption for these**, see below. |
+| `sections_read` | array | `{heading, priority, rows}` per stored task group. `priority` is `null` unless the group is `P0`/`P1`/`P2`. |
+| `sections_skipped` | array | Legacy compatibility field; task reads do not scan Board tables, so this is empty. |
+| `rows_with_unrecognized_id` | array | Legacy compatibility field; projection-only rows never enter task truth, so this is empty. |
+| `off_enum_status` | array | `{id, status}` — a legacy or externally edited store record carries a status string outside the six typed values. The board projection is never consulted to populate this finding. |
+| `rows_with_no_status` | array | `{id, section}` — a legacy store record has no typed status. `open` is `true` because no terminal value is present. |
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. Covers open and closed rows alike, ordered by `id`. Together with `evidence_paths` this is the pair that lets you tell **"the file is gone"** from **"Perry did not look"**: a row whose cell names something reaches exactly one of the two, never neither. |
 | `next_action_cites_closed` | array | `{id, cites, status}` — an open row whose `Next action` points at a task that has since closed. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
 | `depends_on_unknown` | array | `{id, unknown}` — dependency ids this payload does not carry, ordered by `id`. Not an error and not refused at write time: a dependency **must** be able to name a closed task, or every satisfied dependency would have to be deleted from the record to be written in the first place, and `DESIGN-`/`ADR-` ids are legitimate here too. This is where a typo shows up. |
-| `dependency_cycles` | array | arrays of ids, each a loop found in the declared edges, e.g. `[["A","B","A"]]`. Every row in one waits forever and none is `startable`. The write path refuses to create one; a board is hand-editable by design, so the reader reports what it finds rather than refusing to answer. |
+| `dependency_cycles` | array | arrays of ids, each a loop found in the stored edges, e.g. `[["A","B","A"]]`. Every task in one waits forever and none is `startable`. The write path refuses to create one; an externally edited store is reported rather than hidden. |
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
-| `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` are empty for every task, and **that is not an error** — the markdown is canonical, the log is derived. |
+| `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
+| `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records and event history remain readable, while Board-backed risks, asks and intake keep their empty contract shapes. |
 
 Two consequences worth designing for rather than discovering:
 
 - **`status` is not guaranteed to be one of the six.** The enum is what Perry
-  *writes*; a board that predates the tool holds whatever a human typed. Render
+  *writes*; a legacy or externally edited store may hold another string. Render
   an unknown status as itself, never as a default bucket.
 - **`priority` is `""` for any row outside `P0`/`P1`/`P2`**, which on a
   workstream-organized board is most of them. Group by `group` and fall back to
@@ -305,7 +299,7 @@ An ask:
 | `status` | string | the cell verbatim |
 | `priority` | string | `P0` when the ask blocks a P0 task, else `""` |
 
-### `drift` — does the board agree with the record of how it got that way
+### `drift` — legacy Board/event history reconciliation
 
 The polling section below already told you to surface `drift.unrecorded` rather
 than assume the event log is complete, and then left it in the payload with no
@@ -321,7 +315,9 @@ version. Same block, same meaning, now under this contract.
 | `orphaned` | array | ids an event opened and the board has neither a row nor a close for — the mutation did not land in the markdown |
 | `stale_done` | array | `done` rows whose latest event is not their close — edited after the tool wrote them |
 
-A hand-edited board is legitimate; the right response is that Perry notices.
+A hand edit to the Board projection is not task truth. `perry-lint` reports
+store/projection drift; this compatibility block only describes whether the
+event history explains the rows visible in that projection.
 
 
 ## The three rules that make it safe to code against
@@ -360,11 +356,10 @@ A hand-edited board is legitimate; the right response is that Perry notices.
 
 `updated` is the cheapest change signal per task; for the project as a whole,
 `stat` the event log at `<project_root>/.perry/events.jsonl` — it is appended to
-on every write. Both are advisories, not guarantees: **a hand-edited board
-changes state and produces no event**, which is legitimate and reported rather
-than refused. `bin/perry-state --json`'s `board.drift` block is what names those
-rows; a front-end that wants to be honest about staleness should surface
-`drift.unrecorded` rather than assume the log is complete.
+on every tool write. Both are advisories, not guarantees: an external store
+edit changes truth without adding history, and a failed event append leaves a
+hole. A front-end that wants to be honest about staleness must not treat the
+event log as the canonical current record.
 
 ## What this contract does not cover
 
@@ -379,8 +374,36 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+### 1.11 — 2026-08-20
 
+**Added `tasks[].summary` as a string on every Task.** It is optional task
+truth, so legacy records and tasks created without it return `""`; consumers
+never need a missing-key branch. `perry-task add --summary` creates it and
+`perry-task summary` updates or explicitly clears it. The Board remains a
+compact projection with no required Summary column.
 
+This minor is additive: no existing key changed type or meaning. Perry does
+not synthesize the value from a title, next action, specification, evidence or
+journal text. A consumer that wants an explanation may display `summary` when
+non-empty and otherwise show only the canonical title.
+
+### 1.10 — 2026-08-19
+
+**`status_text` is now a legacy display alias of typed `status`.** The key and
+its string type are unchanged, but its meaning moved: raw Markdown decoration
+and off-enum prose in `BOARD.md` are projection bytes, not task truth. A hand
+edit to that cell cannot change either payload field. Consumers that displayed
+`status_text` may keep doing so; consumers that used it to recover raw board
+text must stop, because `tasks.jsonl.status` is now the only current status.
+
+This semantic change is listed in the payload's `semantics` array. It is the
+explicit typed-status authority for TASK-090's store-only read cutover, rather
+than an undocumented reinterpretation under contract 1.9.
+
+The same entry announces the conformance cutover: `sections_read` now
+summarizes stored groups, while `sections_skipped` and
+`rows_with_unrecognized_id` remain shape-compatible legacy keys and are empty
+because current task reads do not scan Board tables.
 
 ### 1.9 — 2026-08-18
 
@@ -445,10 +468,10 @@ were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
 `field` is `status` on six events, and `section` / `stage` / `title` /
-`next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
+`summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**six** of the thirteen — `stage`, `retitle`, `next`, `rung`, `evidence` and
-`depends` — and a wrong word in the field whose job is to stop you guessing is
+**seven** of the fourteen — `stage`, `retitle`, `summary`, `next`, `rung`,
+`evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out

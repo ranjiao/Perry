@@ -53,7 +53,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 from tables import split_row, squash  # noqa: E402
-from lib import resolve_state_root  # noqa: E402
+import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
@@ -1248,9 +1248,12 @@ COLUMN_SIGNALS = (
     ("parent", ("inquiry",), "name a `Parent` question"),
 )
 
-DATEISH = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-BLANK_CELL = {"", "—", "-", "–", "n/a", "none"}
-
+#: **Deleted, not narrowed.** This was `re.compile(r"\b\d{4}-\d{2}-\d{2}\b")`
+#: and every caller `search`ed it, so `2026-09-30 or so` counted as a dated
+#: promise here while `bin/perry-goals` refused the identical value on `--due`.
+#: The commit that anchored the goals copy claimed the property was gone from
+#: the repository; it was gone from one of the two places that had it.
+#: `lib.is_iso_date` is now the only answer. See `lib.ISO_DATE_RE`.
 # Columns read by name. English always resolves; the other languages come from
 # the schema, so this script carries no second copy of that list.
 _FALLBACK_COLUMNS = ("id", "track", "stage", "stage since", "commitment",
@@ -1331,7 +1334,7 @@ def _as_dict(header: dict[str, int], cells: list[str]) -> dict[str, str]:
 
 
 def _filled(rows: list[dict], col: str) -> int:
-    return sum(1 for r in rows if (r.get(col) or "").strip().lower() not in BLANK_CELL)
+    return sum(1 for r in rows if not lib.is_blank_cell(r.get(col) or ""))
 
 
 def _award(ev: dict[str, list], owners: tuple[str, ...], weight: int,
@@ -1484,11 +1487,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     single = not any(t.get("declared") for t in tracks)
 
     # **The implicit `main` track was never enumerated.** With a register that
-    # declares only `ops`, rows carrying no `Track` belong to `main` by the
-    # schema's rule — and `main` was in nobody's list, so their evidence went
-    # to `ops` or nowhere. Added only when such rows exist, so a project whose
-    # every row is tracked gains no phantom.
-    if not single and any(not (r.get("track") or "").strip() for r in rows):
+    # declares only `ops`, rows or commitments carrying no `Track` belong to
+    # `main` by the schema's rule — and `main` was in nobody's list, so their
+    # evidence went to `ops` or nowhere. Added only when such work exists, so a
+    # project whose every record is tracked gains no phantom.
+    untracked_work = any(not (r.get("track") or "").strip() for r in rows) \
+        or any(not (c.get("track") or "").strip() for c in commitments)
+    if not single and untracked_work:
         # The key is `track`, not `name` — `parse_tracks` returns
         # `{'track': 'ops', ...}`. Written as `name` first, which would have
         # matched nothing and injected a record every downstream reader would
@@ -1500,49 +1505,41 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
                                       "stages_declared": False}]
 
     #: Which track owns evidence that describes the repository rather than a
-    #: work shape: the implicit `main` when untracked rows put one on the
-    #: board, the single declared track when it is the only candidate, and the
-    #: one implicit track when no register exists at all. `""` when several
-    #: tracks are declared and every row names one — then nothing owns it, which
-    #: is what the two-track test asserts.
-    project_wide = (
-        "main" if any((t.get("track") or "").lower() == "main" for t in tracks)
-        else (tracks[0].get("track") or "").lower() if len(tracks) == 1
+    #: work shape. It belongs to an implicit/declared `main` in project mode,
+    #: or to the sole declared track when that track itself is project mode.
+    #: A sole pipeline/queue/inquiry track is not made project-shaped merely
+    #: because no second track was declared.
+    main_project = next(
+        ((t.get("track") or "").lower() for t in tracks
+         if (t.get("track") or "").lower() == "main"
+         and (t.get("mode") or "project").lower() == "project"), "")
+    sole_project = (
+        (tracks[0].get("track") or "").lower()
+        if len(tracks) == 1
+        and (tracks[0].get("mode") or "project").lower() == "project"
         else "")
+    project_wide = main_project or sole_project
+
+    def record_track(record: dict) -> str:
+        """A blank `Track` cell belongs to the implicit `main` track."""
+        return (record.get("track") or "main").strip().lower()
 
     def evidence_for(name: str) -> dict[str, list]:
         # **Project-wide file evidence belongs to the project-wide track.**
         # `phase/`, `OKR.md`'s objectives and the rest describe the whole
-        # repository, so with no register they are the one track's — and with a
-        # register they are `main`'s, which is what "blank `Track`" means. They
-        # used to go to the single track whether or not it was declared, and
-        # once that was fixed they went to nobody, which is the same error
-        # pointed the other way: a declared `ops` track was being told the
-        # project's objectives were its evidence, and then no track was told
-        # anything at all.
+        # repository, so with no register they are the implicit project track's
+        # — and with a register they are an explicit or implicit project
+        # track's. They never belong to a sole non-project track merely because
+        # it is the only declared candidate.
         # Shape evidence reaches every track; repository evidence reaches the
-        # project-wide one — which is the single track when no register exists
-        # and the implicit `main` when one does.
-        # **Two existing tests assert opposite things here, and both are
-        # right.** One says a project with two declared tracks must attribute
-        # `phase/` to neither. The other says a project with ONE declared track
-        # does get the project-wide signals, because "withholding them would
-        # throw away the strongest evidence a Perry project has".
-        #
-        # The V4 finding contradicted the second — until you look at its board:
-        # it has **no rows**. The finding's scenario has one declared track
-        # *and untracked rows beside it*, and those rows are the implicit
-        # `main`'s. So the rule is not about how many tracks are declared; it
-        # is about whether there is a project-wide track to own them.
-        #
-        # `main` is enumerated above exactly when such rows exist, so
-        # `project_wide` is that question already answered.
+        # project-wide one — the implicit `main` when untracked work exists, or
+        # a sole declared project-mode track. `project_wide` is that question
+        # already answered.
         ev: dict[str, list] = {m: list(v) for m, v in shape_ev.items()}
         if name.lower() == project_wide:
             for mode, items in project_wide_ev.items():
                 ev[mode] = list(items) + ev[mode]
-        mine = [r for r in rows if single
-                or (r.get("track") or "").strip().lower() == name.lower()]
+        mine = [r for r in rows if single or record_track(r) == name.lower()]
         n = lambda col: _filled(mine, col)  # noqa: E731
         for col, owners, phrase in COLUMN_SIGNALS:
             filled = n(col)
@@ -1560,25 +1557,46 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         if krs:
             _award(ev, ("project",), CORROBORATING,
                    f"{krs} board row(s) attribute work to a KR")
-        mine_c = [c for c in commitments if single
-                  or (c.get("track") or "").strip().lower() == name.lower()]
-        dated = sum(1 for c in mine_c if DATEISH.search(c.get("by when") or ""))
-        prose = sum(1 for c in mine_c
-                    if (c.get("by when") or "").strip().lower() not in BLANK_CELL
-                    and not DATEISH.search(c.get("by when") or ""))
+        mine_c = [c for c in commitments
+                  if single or record_track(c) == name.lower()]
         # `OKR.md § Commitments` is the spine of **both** pipeline and queue, so
-        # the table's existence distinguishes nothing. The cell does: `By when`
-        # "is a **date** for pipeline rows; queue rows in the same table may
-        # carry prose" (`modes/pipeline.md § contract`), and `modes/queue.md §
-        # Standing commitments` says the queue value is prose and the clock
-        # lives once, in the register's `SLA`. So the form of the cell is the
-        # signal, and each form has one owner.
+        # the table's existence distinguishes nothing. The **columns** do, and
+        # since TASK-091 they do it by name rather than by regex: a dated
+        # promise is one carrying `Due`, and a standing one is one carrying
+        # `By when note` — prose recording how the deadline was worded, whose
+        # real clock lives once in the register's `SLA` (`modes/queue.md §
+        # Standing commitments`).
+        #
+        # `by when` is still read, and only here. This tool diagnoses FOREIGN
+        # projects, which is the one job ADR-007 keeps a parser for; a register
+        # written before the split is exactly what it exists to recognise.
+        def _cell(c: dict, *names: str) -> str:
+            for n in names:
+                v = (c.get(n) or "").strip()
+                if not lib.is_blank_cell(v):
+                    return v
+            return ""
+
+        # **Both counters read the SAME cells**, so every commitment lands in
+        # exactly one of them. `prose` used to read `by when` while `dated`
+        # read `due` OR `by when` — and TASK-091 renamed the schema i18n key
+        # `By when` → `Due`, so a Chinese register's `截止` resolved to `due`,
+        # carried prose, failed the date test, and was counted by NEITHER.
+        # Measured across that commit on one register: a board that scored
+        # `queue` with 1 standing commitment before scored no mode and no
+        # evidence after, while the English one was unchanged. The asymmetry
+        # the commit removed from `bin/perry-goals` had moved here.
+        promise = {id(c): _cell(c, "due", "by when") for c in mine_c}
+        dated = sum(1 for c in mine_c if lib.is_iso_date(promise[id(c)]))
+        prose = sum(1 for c in mine_c
+                    if _cell(c, "by when note")
+                    or (promise[id(c)] and not lib.is_iso_date(promise[id(c)])))
         if dated:
             _award(ev, ("pipeline",), STRUCTURAL,
-                   f"{dated} commitment(s) promise a dated `By when`")
+                   f"{dated} commitment(s) promise a dated `Due`")
         if prose:
             _award(ev, ("queue",), CORROBORATING,
-                   f"{prose} standing commitment(s) whose `By when` is prose, not a date")
+                   f"{prose} standing commitment(s) carrying a `By when note`")
         return ev
 
     out = []
@@ -1906,7 +1924,7 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
 
 
 def diagnose(root: Path, max_files: int) -> dict:
-    state_root = resolve_state_root(root)
+    state_root = lib.resolve_state_root(root)
     inv = walk(root, max_files)
     ctx = scan_context_load(root, inv)
     tier0_paths = {f["path"] for f in ctx["always_loaded"]}

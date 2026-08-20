@@ -4,7 +4,7 @@
 
 **[English →](README.md)**
 
-Perry 是一个面向 **Claude Code** 和 **Codex CLI** 的技能，帮你把项目盯住：你想达成什么、现在在做什么、什么卡住了、当初为什么那样决定。
+Perry 是一个面向 **Claude Code**、**OpenCode** 和 **Codex CLI** 的单一技能，帮你把项目盯住：你想达成什么、现在在做什么、什么卡住了、当初为什么那样决定。
 
 你只用一个命令跟它打交道：**`/perry`**。
 
@@ -35,12 +35,12 @@ Perry 是给**一个人或小团队**用的。它提供结构，但不带来会�
 
 ## 安装
 
-`setup` 会自动找到你装了哪个 agent（`claude` 和/或 `codex`）并为它安装。
+`setup` 会自动找到已安装的宿主（`claude`、`opencode` 和/或 `codex`），并为它安装唯一的 Perry skill。
 
-把这段粘贴到一个全新的 Claude Code 或 Codex CLI 会话里：
+把这段粘贴到一个全新的 Claude Code、OpenCode 或 Codex CLI 会话里：
 
 ```
-Install the Perry skill set from https://github.com/ranjiao/Perry.
+Install the Perry skill from https://github.com/ranjiao/Perry.
 
 Steps:
 1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
@@ -56,11 +56,11 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 
 `~/perry` 只是个建议位置 —— 放哪个目录都行。
 
-**可选参数：** `setup --claude` 或 `setup --codex` 指定单个宿主，`setup --claude --codex` 两个都装。
+**可选参数：** `setup --claude`、`setup --opencode` 或 `setup --codex` 指定宿主；多个参数可组合。Claude Code 和 OpenCode 可加 `--local` 安装到当前项目。
 
 **更新：** `cd ~/perry && git pull`（Perry 大约每周也会提醒你一次）。
 
-安装细节、依赖、以及 Claude Code 和 Codex 的差异，见 **[INSTALL.md](INSTALL.md)**。
+安装细节、依赖和宿主差异，见 **[INSTALL.md](INSTALL.md)**。
 
 ***
 
@@ -338,4 +338,3 @@ Perry 本身是英文写的，你的项目不必是。首次配置时它会记�
 - **[reference/diagnose.md](reference/diagnose.md)** —— 项目体检是怎么做的
 - **[reference/adoption.md](reference/adoption.md)** —— 接管已有项目是怎么做的
 - **[schema/README.md](schema/README.md)** —— 文件格式，如果你要写东西来读 Perry 的文件
-

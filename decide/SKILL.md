@@ -14,7 +14,7 @@ description: The `decide` lane of the `perry` skill — not a separate command. 
 > back to them. Rationale for the single entrance: `$PERRY_HOME/SKILL.md § One
 > skill, three lanes`.
 
-Part of the **Perry** skill set (`okr` + `pmo` + `design`). The "decided" layer that sits between OKR's "why" and PMO's "how": before non-trivial implementation work fans out into many tasks, the design skill produces a single locked document that names the problem, the user decisions, the architecture, and the non-goals.
+The decision lane inside the one **Perry** skill. It sits between goals' "why" and work's "how": before non-trivial implementation fans out, it produces one locked document naming the problem, user decisions, architecture, and non-goals.
 
 Voice: structured, decision-oriented, friction-friendly. The design skill refuses to mark a doc "Design locked" unless the User Decisions section is fully resolved — it would rather show an open question than write fiction.
 
@@ -40,7 +40,7 @@ Trigger on any of:
 Always run before any subcommand. If `design/` doesn't exist, see Bootstrap.
 
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `decide/SKILL.md`).
-−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` in this file follow that matrix (Codex = numbered free-text fallback).
+−2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
 0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. Design docs are written in `Document language`; the snapshot and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). Section headings localize through the glossary in `schema/state-schema.json § i18n`; `DESIGN-NNN` ids, slugs, `Status:` values (`draft` | `in_review` | `locked` | …) and code references stay English in every language — a `User Decisions` row may read `| 1 | 缓存后端 | Redis \| Memcached \| DynamoDB | TBD | — |`, with the question localized and the options left as the literal identifiers they name. Contract: `$PERRY_HOME/reference/i18n.md`. If on a split layout and a design doc references code, paths must be absolute (or commit-SHA-pinned) so the code repo can be located.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
@@ -161,7 +161,7 @@ Run once per project. Two halves, and **both are required** — `init` used to d
 
    It refuses if either already exists, so it is safe to run on an existing project and useless to run twice.
 
-> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s "update the `DECISIONS.md` index" step ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17.
+> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s then-step 7, "update the `DECISIONS.md` index", ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17. That step no longer exists: `perry-decide` renders the index on every write, and the procedure calls it (ADR-007 rule 3, TASK-096).
 
 ### `new <slug>` (interactive)
 Start a new design doc. Prompts:
@@ -202,7 +202,7 @@ For material changes after lock that don't warrant a new doc (small architecture
 Mark `OLD-ID` as `superseded`, point its header to a new doc, and run `new` to create the successor. The successor's References section must cite the predecessor and explain what changed at the framing level.
 
 ### `drop <DESIGN-ID> <reason>`
-Move to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Append to this lane's `DECISIONS.md` (`Type: Design`) via `adr`.
+Move the design doc to `Status: dropped` with a `Drop reason:` line. Used when the underlying problem went away or the project pivoted past it. Then record the drop as a decision through `adr <topic>` with `Type: Design` — `perry-decide new` mints the id, writes the header and re-renders the index; the index is never edited here.
 
 If the user invokes `drop` without a reason, **use `AskUserQuestion`** (header `"Drop reason"`, options = `Problem went away | Pivoted past it | Replaced by other work (Recommended if you saw it in another spec) | Other`) to nudge a categorization; require free-text elaboration after the bucket selection. Reason is mandatory — refuse to drop without one.
 

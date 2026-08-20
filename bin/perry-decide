@@ -534,8 +534,10 @@ def main(argv: list[str]) -> int:
             if not gate.ok:
                 raise Refused(gate.message)
             if gate.message and not args.as_json:
-                print(f"perry-decide: ⚠ conformance (advisory) — {gate.message}",
-                      file=sys.stderr)
+                # `gate.mode`, not the literal "advisory" — see `bin/perry-task`
+                # for why the hardcoded word survived until TASK-047.
+                print(f"perry-decide: ⚠ conformance ({gate.mode}) — "
+                      f"{gate.message}", file=sys.stderr)
         result = COMMANDS[args.cmd](args, ctx)
         if gate is not None and isinstance(result, dict):
             result["conformance"] = gate.as_dict()
