@@ -1377,11 +1377,16 @@ class TestTheRealFilesOnThisMachine(WriterCase):
 
 
 class TestTheReadContractDidNotMove(unittest.TestCase):
-    """`perry-goals/list/2.0` is frozen and published. Shipping a writer is not
-    a read-contract change, and this says so where it can fail."""
+    """The published contract moves only when a READ changes, and by a minor.
+
+    Shipping a writer is not a read-contract change, and this says so where it
+    can fail. TASK-120 moved it to `2.1` — additively, four keys, none removed
+    or retyped — which is the other half of the same rule: a payload that gains
+    a key states that it did.
+    """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/2.0", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/2.1", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

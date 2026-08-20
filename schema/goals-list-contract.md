@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/2.0`**
+> Contract: **`perry-goals/list/2.1`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/2.0",
+  "contract":     "perry-goals/list/2.1",
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
   "conformance":  { /* below */ },
@@ -41,7 +41,21 @@ Perry's tests cannot reach.
                     "operating_principles": [], "anti_goals": [],
                     "objectives": [ {"title": "…", "krs": ["KR1"]} ] },
   "phase":        { /* below, or null */ },
-  "krs":          [ /* below */ ],
+  "krs":          [ { /* every key below; the three provenance blocks in full */
+      "id": "KR1", "level": "phase", "objective": "…", "title": "…",
+      "metric": "…", "qualifier": "", "linked_to": "", "stretch": false,
+      "target": 0, "current": 0, "due": "", "task_ids": ["TASK-094"],
+      "current_provenance": {
+        "state": "asserted", "measured": false, "source": "linkage-register",
+        "asserted_at": "2026-08-20T20:32:00", "asserted_scope": "register" },
+      "current_staleness": {
+        "stale": true, "evaluated": true, "since": "2026-08-20T20:32:00",
+        "reason": "1 linked task changed state after 2026-08-20T20:32:00: …",
+        "moved_tasks": [ { "id": "TASK-094", "from": "review", "to": "done",
+                           "at": "2026-08-21T09:10:00" } ] },
+      "linked_task_completion": {
+        "total": 2, "done": 1, "dropped": 0, "open": 1, "unknown": 0 }
+  } ],
   "answered_by":  "linkage",               // linkage | prose | none
   "unlinked_task_ids": ["REL-009"],        // DECLARED, never inferred
   "linkage":      { "present": true, "phase": "002-…", "updated": "…", "error": "" },
@@ -62,9 +76,69 @@ Perry's tests cannot reach.
 | `linked_to` | string | the overall KR this phase KR rolls up to, or `""` |
 | `stretch` | bool | |
 | `target` | number \| null | from the linkage register only |
-| `current` | number \| null | from the linkage register only |
+| `current` | number \| null | from the linkage register only. **Asserted by a human, never measured** — see below |
 | `due` | string | from the register, else the KR row |
 | `task_ids` | array | task ids attributed to this KR by the register |
+| `current_provenance` | object | who asserted `current` and when |
+| `current_staleness` | object | whether a linked task has moved since |
+| `linked_task_completion` | object | how many linked tasks are closed. **Not progress** |
+
+### `current` is an assertion, and these three blocks say so
+
+Added in `2.1`. Until then the payload emitted `target` and `current` as bare
+numbers, and both of the readings a consumer could take from Perry's own
+register on 2026-08-21 were wrong — in opposite directions:
+
+- `P-O1.1` read `0.0 / 1.0`, i.e. nothing done, while all four of its linked
+  tasks were closed and the thing it asks for had shipped.
+- `P-O2.2` read `0.0 / 0.0`, i.e. **met**, while the task under it had measured
+  13 row splits and 87 header resolutions still live.
+
+The second is the systemic one. Six of that register's eight phase KRs drive a
+count to zero, and the register template writes `current: 0`, so a
+drive-to-zero KR reads as achieved on the day it is written.
+
+**What is NOT here, and will not be.** `linked_task_completion` is a count of
+tasks and never a fraction of the KR. A KR's metric is a count of something in
+the repository — *"0 occurrences of `CLOCK_RE`"* — and a closed task does not
+establish that the count is zero; only re-running the count does. Rolling the
+edges up into `current` would publish a fabricated measurement, which
+`perry/OKR.md § Operating Principles` forbids in its first line. The two
+numbers are emitted side by side, in different units, and the consumer draws
+whatever conclusion it likes from the pair. Perry draws none.
+
+| Key | Type | Notes |
+|---|---|---|
+| `current_provenance.state` | string | `asserted` when the register gave a number, `unasserted` when it did not. **An absent `current` is `null` and `unasserted`, never `0`** — that default is what makes a drive-to-zero KR read as met before the work starts |
+| `current_provenance.measured` | bool | **always `false` today.** No tool in Perry re-runs a KR's metric, so nothing it publishes as `current` is a measurement. Emitted rather than implied, so a consumer showing "measured" has an explicit answer to key on |
+| `current_provenance.source` | string | `linkage-register`, or `""` when unasserted |
+| `current_provenance.asserted_at` | string | the register's own `updated` timestamp, or `""` |
+| `current_provenance.asserted_scope` | string | `register` — the date above belongs to the **whole register**, not to this KR. Emitted with the date so it cannot be read as "when this number was arrived at" |
+| `current_staleness.stale` | bool | a linked task changed state after `asserted_at` |
+| `current_staleness.evaluated` | bool | whether staleness could be decided at all. `false` with `stale: false` means *nobody asked*, not *nothing moved* — a register with no `updated`, or a project with no event log, cannot answer |
+| `current_staleness.since` | string | the timestamp compared against, or `""` |
+| `current_staleness.reason` | string | prose, always populated, in both directions |
+| `current_staleness.moved_tasks` | array | the tasks that moved, each `{id, from, to, at}`. `from` is `""` for a task created after the assertion |
+| `linked_task_completion.total` | int | ids in `task_ids` |
+| `linked_task_completion.done` | int | |
+| `linked_task_completion.dropped` | int | counted apart from `done`: a dropped task closed without advancing anything |
+| `linked_task_completion.open` | int | in any non-terminal status |
+| `linked_task_completion.unknown` | int | an id neither the board nor the event log knows — a dangling edge, never silently counted as open |
+
+A task closed with `perry-task done` may be off `BOARD.md` altogether, so a
+task's status is taken from the board first and from the last state-moving
+event second. `moved_tasks` reads the event log only, and an event counts as a
+state move when its `to` is a task status — `next`, `evidence` and `rung` also
+carry `from`/`to` and hold prose, a path and a rung.
+
+**One honest limit.** The register writes `updated` as an ISO datetime with a
+`Z`; the event log writes `ts` as a naive local datetime with no zone. There is
+no conversion between those that is not a guess, so the `Z` is stripped rather
+than applied. A register written within a few hours of a task move can
+therefore order wrongly, and `stale: false` is that much weaker than it looks.
+A date-only `updated` is read as midnight, which errs toward reporting
+staleness on purpose: a false *recheck this* costs a look, a false *this number
+is fine* costs the number.
 
 ### The phase
 
@@ -94,6 +168,7 @@ normal state, not an error.
 | `krs_without_numbers` | array | ids missing `target`, `current`, or both — a bar cannot be drawn for these |
 | `krs_not_in_linkage` | array | phase KRs the register never mentions |
 | `duplicate_kr_ids` | array | ids used more than once |
+| `krs_with_stale_current` | array | ids whose linked tasks moved after `current` was asserted. There is deliberately no companion entry for *`current` disagrees with its tasks*: that judgement needs the metric re-run |
 
 ## `answered_by` and `unlinked_task_ids`
 
@@ -169,6 +244,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `1.0` | 2026-08-17 | first published. Carried a per-KR `progress` percentage. |
 | `2.0` | 2026-08-17 | **breaking**: `progress` removed. Perry cannot tell which direction a KR runs, and half of a real OKR's targets are ceilings; a max-drawdown limit rendered two-thirds achieved is the worst thing a dashboard can say. Live for one day, no consumer had adopted it. |
 | `2.0` | 2026-08-18 | **unchanged by TASK-037.** The writer shipped and this payload gained no key. |
+| `2.1` | 2026-08-21 | **additive, TASK-120.** Four keys added, none removed or retyped: `krs[].current_provenance`, `krs[].current_staleness`, `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. `current` itself is unchanged in type and in value; what changed is that the payload now says it is an author's assertion rather than a measurement, and says when a linked task has moved since. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a

@@ -999,6 +999,32 @@ def encode_risk(r):
     return out
 
 
+def encode_linkage_objective(obj, *, updated, status_by_id, events,
+                             events_present):
+    """One objective from the register, with each KR's `current` carrying the
+    provenance the register cannot state for itself.
+
+    Same rule as `encode_risk` one function up: the register STORES a number
+    and the thing a reader needs — whether it can still be trusted — is derived
+    at read time, because a stored verdict is stale the morning after it is
+    written. `target` and `current` are untouched; what is added beside them is
+    who asserted `current` and when, whether a linked task has moved since, and
+    a separate count of how many of those tasks are closed.
+
+    **The count is not the number.** `bin/lib § kr_progress_provenance` carries
+    the argument in full; the short version is that "TASK-091 is closed" does
+    not establish that the regex that task deleted now occurs zero times, and
+    only re-running the count does.
+    """
+    out = encode(obj)
+    for encoded, kr in zip(out.get("krs") or [], getattr(obj, "krs", []) or []):
+        encoded.update(lib.kr_progress_provenance(
+            kr.current, kr.tasks, register_updated=updated,
+            status_by_id=status_by_id, events=events,
+            events_present=events_present))
+    return out
+
+
 # ── payload ───────────────────────────────────────────────────────────────
 
 
@@ -1292,6 +1318,46 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         else:
             unlinked.append({"id": t.id, "title": t.title})
 
+    # KR `current` provenance (TASK-120). The register's numbers are
+    # hand-written and nothing re-derives them; these say so, and say when a
+    # linked task has moved since one was asserted. Computed once and used
+    # both by the `linkage` section below and by the roll-up in `attribution`,
+    # so the section and the count cannot disagree.
+    # `perry_root`, not `root`: `.perry/` is anchored at the PROJECT root even
+    # when state lives in a subdirectory, which is the same rule the block at
+    # the top of this function states for config and hook.
+    _events = raw_events(perry_root)
+    _events_present = (perry_root / ".perry" / "events.jsonl").exists()
+    _status_by_id = lib.task_status_index(root, board)
+    linkage_objectives = [
+        encode_linkage_objective(o, updated=link.updated,
+                                 status_by_id=_status_by_id, events=_events,
+                                 events_present=_events_present)
+        for o in link.objectives] if link.ok else []
+    _kr_rows = [k for o in linkage_objectives for k in (o.get("krs") or [])]
+    stale_krs = [k["id"] for k in _kr_rows if k["current_staleness"]["stale"]]
+    kr_currents = {
+        "total": len(_kr_rows),
+        "asserted": sum(1 for k in _kr_rows
+                        if k["current_provenance"]["state"] == "asserted"),
+        "unasserted": sum(1 for k in _kr_rows
+                          if k["current_provenance"]["state"] == "unasserted"),
+        # Not a placeholder for a number nobody filled in: no tool in Perry
+        # re-runs a KR's metric, so this is zero by construction and is emitted
+        # so that a reader treating `current` as measured data is contradicted
+        # by the payload rather than by a docstring.
+        "measured": sum(1 for k in _kr_rows
+                        if k["current_provenance"]["measured"]),
+        "stale": len(stale_krs),
+        "stale_ids": stale_krs,
+    }
+    if stale_krs:
+        warnings.append(
+            f"{len(stale_krs)} KR `current` value(s) were asserted before a "
+            f"linked task moved and can no longer be trusted: "
+            f"{', '.join(stale_krs)} — re-measure the metric and run "
+            f"/perry goals score-phase.")
+
     # Only what the user still owes an answer to. `len(section)` counted every
     # row ever added — on Perry's own board both rows were answered on
     # 2026-08-16 and the dashboard still said "2 items waiting on you", which
@@ -1448,12 +1514,15 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "registry_rows": len(link.projects),
             "registry_present": link.ok,
             "linkage_error": link.error,
+            # How much of the KR roll-up is a measurement. `measured` is zero
+            # by construction — see the comment where it is built.
+            "kr_currents": kr_currents,
         },
         "linkage": None if not link.ok else {
             "spec": link.spec,
             "phase": link.phase,
             "updated": link.updated,
-            "objectives": [encode(o) for o in link.objectives],
+            "objectives": linkage_objectives,
             "unlinked": link.unlinked,
             "agents": [encode(a) for a in link.agents],
             "projects": [encode(p) for p in link.projects],
