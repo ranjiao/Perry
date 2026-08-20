@@ -158,7 +158,11 @@ class TestTheBytesMatch(unittest.TestCase):
         self.assertTrue(out["identical"])
         self.assertEqual(out["rows_verbatim"], [])
         self.assertEqual(out["cells_verbatim"], {})
-        self.assertGreater(out["rows_from_store"], 20)
+        # Closing a task removes one projected row, so a fixed live-row count
+        # makes project progress break this test. The zero-fallback assertions
+        # above and the field-mutation tests below prove store ownership; here
+        # we only need to show that the live board exercised that path.
+        self.assertGreater(out["rows_from_store"], 0)
 
     def test_a_board_shaped_like_the_second_real_project(self):
         d = Project.fixture(self, SECOND_PROJECT_BOARD)
@@ -263,6 +267,35 @@ class TestTheBytesComeFromTheStore(unittest.TestCase):
         out = json.loads(run("diff", root=d).stdout)
         self.assertTrue(out["identical"])
         self.assertEqual(out["cells_verbatim"], {"Status": 1})
+
+    def test_a_declared_blank_marker_is_layout_not_verbatim_data(self):
+        """`[]` projects through the schema's authored empty-cell marker.
+
+        The marker is not an escape hatch: once the store carries a dependency,
+        the rendered cell must move with it and the report must name the drift.
+        """
+        board = """# Board
+
+## P1
+
+| ID | Title | Owner | Status | Depends on |
+|---|---|---|---|---|
+| TASK-001 | First | User | blocked | — |
+"""
+        d = Project.fixture(self, board)
+        out = json.loads(run("diff", root=d).stdout)
+        self.assertTrue(out["identical"])
+        self.assertEqual(out["cells_verbatim"], {})
+
+        recs = records(d)
+        recs[0]["depends_on"] = ["TASK-002"]
+        rewrite(d, recs)
+        self.assertIn("| TASK-002 |", self.rendered(d))
+        out = json.loads(run("diff", root=d).stdout)
+        self.assertEqual(
+            [(c["id"], c["column"], c["board"], c["store"])
+             for c in out["cells_the_store_and_board_disagree_on"]],
+            [("TASK-001", "Depends on", "—", "TASK-002")])
 
     def test_a_store_row_no_line_holds_is_reported(self):
         d = Project.fixture(self, SECOND_PROJECT_BOARD)

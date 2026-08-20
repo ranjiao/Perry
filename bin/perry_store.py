@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
+import lib  # noqa: E402
 from tables import cell_spans, split_row  # noqa: E402
 
 #: Written to the store. Everything else in `perry-task/list` is computed.
@@ -286,11 +287,12 @@ def describe_cell(raw: str, field: str, rec: dict) -> dict:
                                meant to be testing. **A renderer that cannot be
                                made to print a wrong value cannot be shown to
                                print a right one.**
-      the store is EMPTY       `{"lit": …}` — `""` is the contract's word for
-                               "not known" (`schema/task-list-contract.md`).
-                               Kept verbatim AND COUNTED, because a fallback
-                               nobody counts is how a renderer passes `cmp`
-                               while reproducing nothing.
+      the store is EMPTY       A declared blank marker such as `—` is layout:
+                               it stays while the value is empty and is
+                               replaced when the store gains a value. Arbitrary
+                               prose is `{"lit": …}` instead, kept verbatim AND
+                               COUNTED, because an uncounted fallback is how a
+                               renderer passes `cmp` while reproducing nothing.
 
     An off-enum `Status` cell used to be the fourth case's headline example.
     It is not one any more: `bin/perry-task § refuse_unstorable_status` refuses
@@ -304,18 +306,26 @@ def describe_cell(raw: str, field: str, rec: dict) -> dict:
     lead = raw[:len(raw) - len(raw.lstrip())]
     trail = raw[len(raw.rstrip()):]
     if not body:
-        # A blank cell is ALL padding, and splitting it into a leading half and
-        # a trailing half counts it twice — `|  |` came back `|    |` on every
-        # empty `Depends on` cell of Perry's own board. The padding it had is
-        # kept as one piece for as long as the value is empty; the day the
-        # store fills that field the cell gets ordinary `| x |` spacing,
-        # because there is no hand alignment in a cell that held nothing.
+        # A whitespace-only cell is ALL padding, and splitting it into a
+        # leading half and a trailing half counts it twice — `|  |` came back
+        # `|    |` on every empty `Depends on` cell of Perry's own board.
         c = {"f": field, "lead": " ", "trail": " ", "blank": raw}
         if want:
             c["disagrees"] = body
         return c
     if body == want:
         return {"f": field, "lead": lead, "trail": trail}
+    if lib.is_blank_cell(body):
+        # A declared marker such as `—` is different bytes but the same typed
+        # value as an empty store field: schema.i18n.blank_cell says the cell
+        # says nothing. It stays as authored layout while the store is empty
+        # and is replaced by the stored value when that field becomes
+        # populated. Exact matches were handled above because legacy string
+        # fields may themselves store the marker as their literal value.
+        c = {"f": field, "lead": lead, "trail": trail, "blank": raw}
+        if want:
+            c["disagrees"] = body
+        return c
     if not want:
         return {"lit": raw}
     if want in body:

@@ -1,13 +1,13 @@
 ---
 name: perry
-description: Perry — a virtual project office for solo or small projects, with one entrance. Use for a where-are-we project snapshot or standup; setting, revising or scoring goals (OKR, objectives, key results, phases); planning a week; running a task board and triaging blockers; logging decisions and ADRs; drafting or locking a design doc / RFC; weekly status, session handoff, and delegating work to agents; converting an existing project into tracked state (/perry adopt); and auditing how a project is structured for agent work (/perry diagnose). Three lanes live inside it — goals (objectives, phases, commitments), work (board, journal, evidence), decide (RFCs and decisions) — reached as "/perry goals plan-phase", "/perry work triage", "/perry decide lock". The former names okr / pmo / design keep working as permanent aliases. They are NOT separate skills. State lives at the project root in OKR.md, phase/, BOARD.md, journal/, DECISIONS.md and design/.
+description: Perry — one virtual project office for solo or small projects. Use for project snapshots or standups; setting, revising or scoring OKR goals, objectives, key results and phases; weekly planning; task boards and blockers; decisions, ADRs, RFCs or design docs; weekly status, session handoff and agent delegation; existing-project adoption (/perry adopt); or agent-work structure audits (/perry diagnose). Internal lanes are goals, work and decide, reached as "/perry goals plan-phase", "/perry work triage" and "/perry decide lock". Permanent aliases: okr, pmo, design. They are NOT separate skills.
 ---
 
 # Perry — virtual project office
 
 > *Perry runs the office. You run the project.*
 
-Perry is one skill with three internal lanes sharing a project's state files. This file is the entrance and the router. It is **tier 0**, read on every invocation, so it carries the commands, the ordering-critical steps and one pointer per subject; the bodies live one file away under `reference/`.
+Perry has three internal lanes sharing project state. This tier-0 router is read on every invocation, so it keeps commands, ordering-critical steps and one pointer per subject; bodies live under `reference/`.
 
 Activate on `/perry`, on the word "Perry", on a session wanting a "where are we" overview without naming a lane, and on a user asking how Perry works. Only goal-setting → `goals`; only execution → `work`. `/perry help` does **not** trigger the snapshot.
 
@@ -15,7 +15,7 @@ Activate on `/perry`, on the word "Perry", on a session wanting a "where are we"
 
 **Perry registers exactly one skill: `perry`.** The lanes live under `$PERRY_HOME/<lane>/SKILL.md`, are **loaded on demand by this router**, and are not separately invocable commands. Read a lane's SKILL.md in full before acting on it.
 
-Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design` worked directly. That was withdrawn: the host's skill namespace is shared, and those names collide with design-review, design-html, an entire `design:` plugin family and lark-okr. Claiming a common English word in a namespace Perry doesn't own is the same error as claiming a project's own `design/` directory — see `## Configuration`. `setup` removes the stale links on upgrade.
+Earlier versions symlinked them as sibling skills so `/okr`, `/pmo` and `/design` worked directly. That was withdrawn: the shared host namespace collides with design tools and lark-okr. Perry claims no common name it does not own; see `## Configuration`. `setup` removes stale upgrade links.
 
 ### Command surface
 
