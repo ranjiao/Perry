@@ -24,18 +24,16 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
-| TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | review | user verifies: merge PR #6, and decide USER-004 (refuse vs report) which this task deliberately left open | evidence/2026-08/TASK-079-dispatch-2026-08-20-1345.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | review | merge PR #16; nine rows are downstream, and the .perry/config.md projection question is unanswered | evidence/2026-08/TASK-092-dispatch-2026-08-20-1654.md | V4 | TASK-090 | main |  |  |  |  |  |  |
 | TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — | main |  |  |  |  |  |  |
-| TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | holds the execute half only; TASK-110 measures and proposes first, and nothing is deleted until the user approves that proposal | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
-| TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
+| TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | decide the retention proposal in TASK-110's evidence; nothing is deleted until then | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | review | the user decides the retention policy; the measurement says the whole proposal recovers 1.4 days of growth | evidence/2026-08/TASK-110-dispatch-2026-08-20-1725.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
-| TASK-113 | three checks read the project living around them, so ordinary progress turns them red | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-113 | three checks read the project living around them, so ordinary progress turns them red | Coding Agent | in_progress | dispatched 17:09 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 
 ## P2
@@ -48,6 +46,10 @@
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  |
+| TASK-115 | two guards on the read-only report have a hole beside them, found by mutation not by review | Coding Agent | not_started | — | — | V3 |  |
+| TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  |
+| TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  |
+| TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
