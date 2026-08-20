@@ -36,7 +36,7 @@
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 7c0bb99; state-schema.json scoped out so the gate passes without a release | evidence/2026-08/TASK-120-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
