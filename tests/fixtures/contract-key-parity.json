@@ -29,12 +29,12 @@
       "unassigned": [],
       "unparsed_sketches": []
     },
-    "perry-goals/list/2.0": {
+    "perry-goals/list/2.1": {
       "command": "perry-goals list --json",
-      "contract": "perry-goals/list/2.0",
-      "documented": 54,
+      "contract": "perry-goals/list/2.1",
+      "documented": 77,
       "documented_not_emitted": [],
-      "emitted": 59,
+      "emitted": 78,
       "emitted_not_documented": [
         "okr.objectives[].id",
         "phase.objectives",
@@ -43,7 +43,12 @@
         "phase.objectives[].title"
       ],
       "file": "schema/goals-list-contract.md",
-      "not_observable": {},
+      "not_observable": {
+        "krs[].current_staleness.moved_tasks[].at": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
+        "krs[].current_staleness.moved_tasks[].from": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
+        "krs[].current_staleness.moved_tasks[].id": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
+        "krs[].current_staleness.moved_tasks[].to": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run"
+      },
       "unassigned": [],
       "unparsed_sketches": []
     },
@@ -66,12 +71,12 @@
       ],
       "unparsed_sketches": []
     },
-    "perry-task/list/1.11": {
+    "perry-task/list/1.12": {
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.11",
-      "documented": 87,
+      "contract": "perry-task/list/1.12",
+      "documented": 88,
       "documented_not_emitted": [],
-      "emitted": 99,
+      "emitted": 100,
       "emitted_not_documented": [
         "conformance.evidence_not_found[].id",
         "conformance.evidence_not_found[].paths",

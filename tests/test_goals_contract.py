@@ -1,4 +1,4 @@
-"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.0`.
+"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.1`.
 
 The third read contract, and the last one a front-end needs before it can show
 a whole project without opening a markdown file.
@@ -41,10 +41,15 @@ class TestShape(unittest.TestCase):
            "okr", "phase", "krs", "linkage", "counts",
            "answered_by", "unlinked_task_ids"}
     KR = {"id", "level", "objective", "title", "metric", "qualifier",
-          "linked_to", "stretch", "target", "current", "due", "task_ids"}
+          "linked_to", "stretch", "target", "current", "due", "task_ids",
+          # `2.1`, TASK-120. `current` is an author's assertion and the
+          # payload now says so, says when a linked task moved after it, and
+          # counts the closed edges separately — never folded into `current`.
+          "current_provenance", "current_staleness", "linked_task_completion"}
     CONF = {"okr_present", "phase_present", "linkage_present",
             "krs_without_metric", "krs_without_numbers",
-            "krs_not_in_linkage", "duplicate_kr_ids"}
+            "krs_not_in_linkage", "duplicate_kr_ids",
+            "krs_with_stale_current"}
 
     def test_the_shape_is_exact(self):
         code, d = run(FIXTURE)
@@ -280,6 +285,11 @@ class TestContractDocAgrees(unittest.TestCase):
             "slug", "status", "started", "day", "kr_total", "cost_ceiling",
             "updated", "error", "phase", "name", "answered_by",
             "unlinked_task_ids"}
+        # The `2.1` blocks' own children (`current_provenance.state` and the
+        # rest) are documented as dotted paths, which this scan deliberately
+        # does not match — it compares WHOLE keys against the payload's top
+        # level. Every dotted path is checked, path by path, by
+        # `tests/test_contract_key_parity.py`.
         undocumented = (TestShape.KR | TestShape.CONF) - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "

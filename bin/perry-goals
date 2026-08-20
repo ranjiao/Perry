@@ -428,7 +428,14 @@ class Okr:
 # TASK-037 shipped the writer and did NOT move this. See
 # `schema/goals-list-contract.md § Changelog`: a writer is not a read-contract
 # change, and the commitments register gained no key here.
-LIST_CONTRACT = "perry-goals/list/2.0"
+#
+# TASK-120 DOES move it, to `2.1`. Four keys are added and none is removed or
+# retyped: `krs[].current_provenance`, `krs[].current_staleness`,
+# `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. The
+# contract document's own rule for this is written at the bottom of its
+# Changelog — "if it is added later it is `2.1`, additive, and this table
+# records it" — so the minor moves in the same edit that adds the keys.
+LIST_CONTRACT = "perry-goals/list/2.1"
 
 #: `list` only reads, and reading is never gated (ADR-004). Every other
 #: subcommand writes `OKR.md`, which is the one file this lane gates on — one
@@ -720,7 +727,8 @@ def plain(x):
     return asdict(x) if is_dataclass(x) else x
 
 
-def kr_rows(snap) -> list[dict]:
+def kr_rows(snap, events: list | None = None,
+            events_present: bool = False) -> list[dict]:
     """Every KR, flat, with its level and objective attached.
 
     Three sources, deliberately merged in one pass rather than three shapes:
@@ -728,6 +736,13 @@ def kr_rows(snap) -> list[dict]:
     linkage register carries them — `target` / `current` / `tasks`. A KR that
     appears in both the phase file and the register is one KR; the register's
     numbers win, because they are the ones a task edge actually updated.
+
+    **`current` arrives with its provenance from TASK-120.** The register's
+    numbers are hand-written and nothing re-derives them, so each row also
+    carries who asserted the number and when, whether a linked task has moved
+    since, and — separately, never folded in — how many of the linked tasks are
+    closed. `bin/lib § kr_progress_provenance` computes all three; see its
+    comment for why the tally is beside `current` rather than inside it.
     """
     reg: dict[str, dict] = {}
     lk = getattr(snap, "linkage", None)
@@ -735,6 +750,9 @@ def kr_rows(snap) -> list[dict]:
         for k in (getattr(o, "krs", None) or []):
             reg[k.id] = {"target": k.target, "current": k.current,
                          "due": k.due, "tasks": list(k.tasks or [])}
+    register_updated = getattr(lk, "updated", "") or ""
+    status_by_id = lib.task_status_index(
+        getattr(snap, "project_root", "."), getattr(snap, "board", None))
 
     out = []
     for level, src in (("overall", getattr(snap, "okr", None)),
@@ -763,6 +781,11 @@ def kr_rows(snap) -> list[dict]:
                     "target": target,
                     "current": current,
                     "task_ids": r.get("tasks", []),
+                    **lib.kr_progress_provenance(
+                        current, r.get("tasks", []),
+                        register_updated=register_updated,
+                        status_by_id=status_by_id,
+                        events=events, events_present=events_present),
                 })
     return out
 
@@ -818,7 +841,13 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     phase_day = days_since(ph.started) if ph else None
     phase_krs = sum(len(o.krs or []) for o in (ph.objectives or [])) if ph else None
 
-    krs = kr_rows(snap)
+    # The event log answers ONE question here: has a linked task moved since
+    # the register asserted its numbers. `present` is carried separately from
+    # the events themselves because "nothing moved" and "there is no log to ask"
+    # are different facts, and a KR that reports the first when it means the
+    # second is the shape this whole row exists about.
+    events_file = events_path(project_root)
+    krs = kr_rows(snap, read_events(project_root), events_file.exists())
     if level:
         krs = [k for k in krs if k["level"] == level]
 
@@ -867,6 +896,14 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
                                and k["target"] is None],
         "duplicate_kr_ids": sorted(
             {k["id"] for k in krs if [x["id"] for x in krs].count(k["id"]) > 1}),
+        # A KR whose linked tasks moved after its `current` was asserted. The
+        # number is not wrong here — it is unverifiable, which is a different
+        # thing and the only one Perry can establish. There is deliberately NO
+        # companion entry for "current disagrees with the linked tasks": that
+        # judgement needs the metric re-run, and inferring it from the edges is
+        # the fabrication `perry/OKR.md § Operating Principles` forbids.
+        "krs_with_stale_current": [k["id"] for k in krs
+                                   if k["current_staleness"]["stale"]],
     }
 
     # Task→KR attribution is deliberately NOT here. It is a derived join over
@@ -1756,10 +1793,26 @@ def main(argv: list[str]) -> int:
         for k in result["krs"]:
             n = ("—" if k["target"] is None or k["current"] is None
                  else f"{k['current']}/{k['target']}")
-            print(f"  {k['id']:10} {k['level']:8} {n:>9}  {k['title'][:44]}")
+            # The pair is never printed bare any more. `asserted` says the
+            # number was typed by an author and not measured by anything, and
+            # the tally beside it is a count of TASKS — the two are printed
+            # apart, in different units, so neither can be read as the other.
+            t = k["linked_task_completion"]
+            note = "" if k["current_provenance"]["state"] == "unasserted" else (
+                "asserted" if not k["current_staleness"]["stale"] else "STALE")
+            edge = (f"  {t['done'] + t['dropped']}/{t['total']} tasks closed"
+                    if t["total"] else "")
+            print(f"  {k['id']:10} {k['level']:8} {n:>9} {note:<8}"
+                  f"{edge:<22}{k['title'][:44]}")
         c = result["conformance"]
         print(f"\n  {result['counts']['krs']} KR(s) · "
               f"{len(c['krs_without_numbers'])} with no target/current pair")
+        print("  no `current` here is a measurement — every one is asserted by "
+              "an author; the task counts are not progress")
+        if c["krs_with_stale_current"]:
+            print(f"  ⚠ {len(c['krs_with_stale_current'])} KR(s) whose linked "
+                  f"tasks moved since the number was asserted: "
+                  + ", ".join(c["krs_with_stale_current"]))
         if not c["linkage_present"]:
             print("  ⚠ no linkage register — no KR carries task edges or a target")
     return 0

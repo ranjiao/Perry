@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.11`**
+> Contract: **`perry-task/list/1.12`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.11",  // check this before anything else
+  "contract":     "perry-task/list/1.12",  // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
@@ -121,7 +121,8 @@ counts; without it, `closed` is a constant.
 | `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
 | `blocked_by` | array | the subset of `depends_on` that is **not known-finished** — an id whose task is still open, or an id this payload does not carry. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
 | `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
-| `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, its own `status` is not `blocked` or `review` (both mean somebody else has the ball), and `blocked_by` is empty. This is served so you never walk the graph yourself. |
+| `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, `blocked_by` is empty, and its own `status` is not `blocked` or `review` (both mean somebody else has the ball) — **unless `blocked_stale` is `true`, in which case the stored `blocked` is a contradiction of the graph and does not win.** Changed in 1.12; see `semantics`. This is served so you never walk the graph yourself. |
+| `blocked_stale` | bool | `true` when the row is `open`, its stored `status` is `blocked`, it **declares** at least one dependency, and **every one of them has closed** — the board says stopped and the graph says nothing is stopping it. Perry does not rewrite the cell, so `status` still reads `blocked` until somebody acts; this key is how you find out that it is out of date without walking the graph. It is `false` for a row with any open dependency, `false` for a `blocked` row that declares no dependency at all (that one is `conformance.blocked_without_dependency` — the edge is in prose Perry cannot read, and *"I cannot see it"* is not *"it closed"*), and `false` for `review`, which waits on a human and so can never be contradicted by a dependency edge. Added in 1.12. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
 | `timeline` | array | every event for this id, oldest first |
@@ -149,7 +150,7 @@ write time; a cycle introduced by an external store edit is reported by
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
-| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `event` | string — `add`, `route`, `start`, `stage`, `track`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
 | `field` | string — **what `from`/`to` refer to on this event** (1.7) |
@@ -166,6 +167,7 @@ Its value, per event:
 - **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`. A status value.
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
+- **`track`** — on `track`. A track declared in `.perry/config.md § Tracks`. **Not `stage`**, though a move re-stamps one: a consumer told the pair was a stage would resolve `main` → `intake` against a stage vocabulary that does not contain them. The stage and the `Arrived` the move produced ride on the stored event's own `stage` / `stage_from` / `arrived` / `arrived_from` keys.
 - **`title`** — on `retitle`. The row's title.
 - **`summary`** — on `summary`. The stable purpose/outcome explanation; `""` is an explicit clear.
 - **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
@@ -176,8 +178,8 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **seven** of the fourteen — `stage`, `retitle`, `summary`, `next`,
-`rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
+false for **eight** of the fifteen — `stage`, `track`, `retitle`, `summary`,
+`next`, `rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
 ### `conformance` — what task truth or its projection could not classify
@@ -374,6 +376,45 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+### 1.12 — 2026-08-20
+
+**A stored `blocked` no longer masks an empty `blocked_by`.** Until now
+`startable` read the row's own `status` before the dependency graph it had
+already computed, so a row whose every declared dependency had closed reported
+
+```
+status=blocked   blocked_by=[]   startable=false
+```
+
+— all three in the same object, with no key a consumer could read to see that
+the first contradicted the second. On Perry's own board two of the four blocked
+rows were in exactly that state, one of them still carrying a `Next action`
+naming a chain that had fully closed. The other half of the same problem is
+that `perry-task done` does not look at its dependents, so the ordinary close
+path *creates* this state and the old `startable` then hid it.
+
+Such a row is now `startable: true` and carries the new `blocked_stale: true`.
+
+**The stored status is deliberately left alone.** This payload reports; it does
+not rewrite a cell nobody asked it to rewrite. So a stale row still *reads*
+`blocked` on the Board and in `status` until a human or a subsequent write
+clears it — `blocked_stale` is what makes that visible in the meantime, rather
+than silently recomputing it behind the consumer's back.
+
+Three cases deliberately unchanged, because this is not "drop the check":
+
+- a row with **at least one open dependency** keeps a non-empty `blocked_by`
+  and stays unstartable;
+- a `blocked` row that **declares no dependency at all** is untouched. Its
+  blocker is prose Perry cannot read — that is
+  `conformance.blocked_without_dependency` — and *"I cannot see it"* is not
+  *"it closed"*, the same rule that makes an unknown id unsatisfied;
+- **`review` is untouched.** A row in review waits on a human, not on a row, so
+  no dependency edge can contradict it.
+
+- **added** `tasks[].blocked_stale`.
+- **changed the meaning of** `tasks[].startable`; announced in `semantics`.
+
 ### 1.11 — 2026-08-20
 
 **Added `tasks[].summary` as a string on every Task.** It is optional task
@@ -467,10 +508,10 @@ Also documented, not changed: the event enum in § A timeline entry listed 7 of
 were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
-`field` is `status` on six events, and `section` / `stage` / `title` /
+`field` is `status` on six events, and `section` / `stage` / `track` / `title` /
 `summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**seven** of the fourteen — `stage`, `retitle`, `summary`, `next`, `rung`,
+**eight** of the fifteen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
 `evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
