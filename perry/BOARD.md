@@ -24,7 +24,7 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
-| TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | review | merge PR #16; nine rows are downstream, and the .perry/config.md projection question is unanswered | evidence/2026-08/TASK-092-dispatch-2026-08-20-1654.md | V4 | TASK-090 | main |  |  |  |  |  |  |
+| TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | review | V4 review re-dispatched after the first reviewer stalled at 600s; PR #16 is merged and nine rows wait on this row closing | evidence/2026-08/TASK-092-dispatch-2026-08-20-1654.md | V4 | TASK-090 | main |  |  |  |  |  |  |
 | TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
