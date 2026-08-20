@@ -38,11 +38,12 @@
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-142-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | in_progress | still running at 72m; its dispatch marker was reaped by the 1h stale TTL — see TASK-160 | evidence/2026-08/TASK-142-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | spec written; pre-flight REFUSED on `diagnose` — needs a per-task release. The TASK-126 release does not carry over | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-159 | the viewer resolves the project root to the state root, so it renders empty when pointed where its launcher points it | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-160 | the dispatch limiter reaps a live agent slot after an hour, so the cap it enforces is not the cap | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
