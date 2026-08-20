@@ -1364,6 +1364,24 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         self.assertEqual(load["dangling"], [])
         self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
+    def test_the_check_name_mark_covers_the_paragraph_not_only_the_line(self):
+        """A review names the check in one sentence and the id it demonstrated
+        with in the next, and markdown wraps them across four lines. Scoping to
+        the line exempts half a sentence and charges the project for the rest —
+        which is what `DESIGN-900` did on the base branch.
+
+        The paragraph ENDS at the blank line, and the id after it counts.
+        """
+        load = self.load({"notes/review.md":
+                          "# Review\n\n1. **test_the_number_reconciles pins a\n"
+                          "   coincidence.** Demonstrated rather than argued:\n"
+                          "   adding one ordinary `ZZZ-404-probe.md` with an\n"
+                          "   unfilled row turns it red.\n\n"
+                          "We are still blocked on ZZZ-405.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-405"],
+                         "the paragraph mark leaked past its blank line")
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
     def test_naming_a_check_does_not_exempt_an_id_that_resolves_elsewhere(self):
         """Why the widening is safe. The rule is applied only to ids that are
         ALREADY undefined everywhere, so a real row cited beside a test name

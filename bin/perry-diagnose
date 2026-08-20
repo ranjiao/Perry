@@ -589,15 +589,39 @@ def names_a_check(line: str) -> bool:
 
 def report_lines(path: Path) -> set[int]:
     """Line numbers in one file that REPORT on a check rather than refer to a
-    code. See the block above for why each of the three shapes is one."""
+    code. See the block above for why each of the three shapes is one.
+
+    **The check-name mark is scoped to the PARAGRAPH, not the line.** A review
+    naming the check on one line and the id it demonstrated with three lines
+    later is one sentence that markdown happened to wrap; scoping to the line
+    would exempt half of it and charge the project for the other half. A run
+    of non-blank lines is the smallest unit of prose that carries one
+    statement, and it is a structural unit, not a reading of the English.
+    """
     out: set[int] = set()
     signed = False
+    para: list[int] = []
+    para_names_check = False
+
+    def flush():
+        nonlocal para, para_names_check
+        if para_names_check:
+            out.update(para)
+        para, para_names_check = [], False
+
     for n, line in enumerate(read_text(path).splitlines(), 1):
+        if not line.strip():
+            flush()
+            continue
         if line.startswith("#"):
+            flush()
             signed = bool(SIGNED_RECORD.match(line))
             continue
-        if signed or QUOTED_LINE.match(line) or names_a_check(line):
+        if signed or QUOTED_LINE.match(line):
             out.add(n)
+        para.append(n)
+        para_names_check = para_names_check or names_a_check(line)
+    flush()
     return out
 
 
