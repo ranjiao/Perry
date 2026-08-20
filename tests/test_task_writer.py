@@ -81,6 +81,65 @@ BOARD = """# Board — T
 """
 
 
+#: A board with rows on it, written here so that "the reader found rows" is a
+#: fact about this fixture and not about Perry's backlog (TASK-151). The
+#: shapes are the ones the format actually produces: full cells, an empty
+#: cell, the `—` blank marker, an escaped pipe, a path with slashes, a
+#: comma-separated dependency cell, and CJK text. Every row must come back
+#: byte-identical through `render_row(split_row(raw))`.
+ROUND_TRIP_BOARD = """# Board — round trip
+
+> A fixture. Every row below is hand-written.
+
+## Intake
+
+| Arrived | Request | Outcome |
+|---|---|---|
+| 2026-08-01 | someone asked for a thing | routed |
+
+## P0 (must finish this period)
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-001 | Every cell full | Coding Agent | open | do the next thing | evidence/2026-08/TASK-001-spec.md |
+| TASK-002 | An empty cell and a blank marker | Coding Agent | blocked |  | — |
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-003 | A cell quoting a table: \\| ID \\| Risk \\| | user | open | read the escaped pipes back as one cell | — |
+| TASK-004 | 中文标题也要原样回来 | Coding Agent | open | 保持字节一致 | — |
+
+## P2
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-005 | Dependencies, comma separated | Coding Agent | open | TASK-001, TASK-002 | — |
+| TASK-006 | A long next action that runs well past any column width anyone would align to | Coding Agent | open | keep going, and keep going, and do not wrap | — |
+| TASK-007 | Trailing punctuation and a colon: like this | Coding Agent | open | — | — |
+
+## Done this period (leaves the board at next triage)
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| TASK-008 | Closed, and carries no priority | Coding Agent | done | — | — |
+
+## Top risks
+
+- none
+"""
+
+#: The roster `Board.rows()` must find in `ROUND_TRIP_BOARD`, in order.
+#: `TASK-008` is deliberately absent: `rows()` is the WRITE path's view and
+#: reports only sections that mean a priority, so a reader that started
+#: returning the `## Done this period` rows would be a different defect than
+#: one that returned nothing, and both are caught here.
+ROUND_TRIP_ROW_IDS = ("TASK-001", "TASK-002", "TASK-003", "TASK-004",
+                      "TASK-005", "TASK-006", "TASK-007")
+ROUND_TRIP_ROW_PRIORITIES = ("P0", "P0", "P1", "P1", "P2", "P2", "P2")
+
+
 class Project:
     """A throwaway Perry project the tool can write into."""
 
@@ -146,15 +205,55 @@ class TestFormatIsMechanized(unittest.TestCase):
     def test_every_hand_written_row_in_perrys_own_board_round_trips(self):
         """The real check. Perry's board was written by hand over a whole
         session; if the tool's renderer disagrees with any of it, adopting the
-        tool would silently rewrite rows the moment they were touched."""
+        tool would silently rewrite rows the moment they were touched.
+
+        Quantified over whatever the board holds, and over nothing else.
+        `assertGreater(len(rows), 5)` used to stand at the top of it
+        (TASK-151) — a proxy for "the corpus is not empty" that was really a
+        census: a board that closed its way below six open rows would have
+        reddened a test about ROW FORMATTING. The not-empty guard is a
+        property of the reader, not of this project's backlog, so it is proved
+        below on a board this module wrote.
+        """
         board = PT.Board(PERRY_HOME / "perry" / "BOARD.md")
-        rows = board.rows()
-        self.assertGreater(len(rows), 5, "no rows to check — is the board empty?")
-        for _, raw, _ in rows:
+        for _, raw, _ in board.rows():
             self.assertEqual(
                 PT.render_row(PT.split_row(raw)), raw,
                 "the tool renders this hand-written row differently:\n"
                 f"  hand: {raw}\n  tool: {PT.render_row(PT.split_row(raw))}")
+
+    def test_the_round_trip_above_is_reading_rows_at_all(self):
+        """TASK-151's other half: the loop above is vacuous over an empty list.
+
+        `Board.rows()` walking away with nothing — a heading renamed, a
+        separator the table reader stopped recognising, a priority it no
+        longer maps — would leave that test green while checking no row at
+        all. So the reader is held to a board whose roster is written down
+        HERE, in the shapes the format actually uses: full cells, blank cells,
+        the `—` marker, a pipe-free link, and a row in every section the
+        walker is supposed to see.
+        """
+        board = PT.Board(self.write_board(ROUND_TRIP_BOARD))
+        rows = board.rows()
+        self.assertEqual([cells["id"] for _, _, cells in rows],
+                         list(ROUND_TRIP_ROW_IDS),
+                         "the reader did not find the rows this fixture "
+                         "wrote — the round-trip above may be looping over "
+                         "nothing")
+        self.assertEqual([priority for priority, _, _ in rows],
+                         list(ROUND_TRIP_ROW_PRIORITIES))
+        for _, raw, _ in rows:
+            self.assertEqual(
+                PT.render_row(PT.split_row(raw)), raw,
+                "the tool renders this row differently:\n"
+                f"  hand: {raw}\n  tool: {PT.render_row(PT.split_row(raw))}")
+
+    def write_board(self, text: str) -> Path:
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        path = Path(d.name) / "BOARD.md"
+        path.write_text(text, encoding="utf-8")
+        return path
 
     def test_the_shipped_template_round_trips_too(self):
         board = PT.Board(PERRY_HOME / "work" / "state" / "BOARD_TEMPLATE.md")

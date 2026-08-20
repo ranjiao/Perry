@@ -36,9 +36,18 @@ the file in the tree today, byte-identical to its fix commit; for
 `test_md_store` the repaired assertion is gone and three others in that module
 are not, which the baseline records with a verdict apiece.
 
-**The floor is a recorded number, not zero.** Six hits over 65 modules, three
-of them real. Asserting zero would have meant either widening three verdicts
-into silence or fixing three rows this one is explicitly not allowed to fix.
+**The floor is a recorded number, not zero.** It was six hits over 65 modules,
+three of them real, and asserting zero would have meant either widening three
+verdicts into silence or fixing three rows that pass was explicitly not
+allowed to fix. Those three rows were TASK-150, TASK-151 and TASK-152, and
+they are repaired: the floor is now the four named false positives and
+nothing else. It is still recorded rather than asserted-to-be-zero — the four
+are hits the guard is expected to keep making, and a floor of zero would be a
+claim about the sweep that is false.
+
+That the floor holds no instances is no longer evidence the guard works, so
+`test_the_floor_is_not_claimed_to_be_zero` stopped resting on it and rests on
+the three reconstructions instead. See its docstring.
 
 Run: python3 tests/parallel test_live_state_expectations
 """
@@ -406,7 +415,8 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
                                    "a verdict without a reason is a silence")
 
     def test_the_floor_is_not_claimed_to_be_zero(self):
-        """The floor is real and every entry in it is judged.
+        """The floor is real, every entry in it is judged, and **as of
+        TASK-150/151/152 every entry is a false positive.**
 
         **This assertion used to be the very defect this module reports.** It
         read `count("instance") == 3` and `count("false positive") == 3` — a
@@ -415,11 +425,38 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
         reason that had nothing to do with whether the guard works. The guard
         found its own test.
 
-        What is asserted now is the property: the recorded floor matches what
-        the sweep finds, it is not empty, and **at least one entry is a real
-        instance** — a floor of nothing but false positives would mean the
-        guard had stopped discriminating. The exact counts belong in the
-        fixture, which is versioned and re-recorded on purpose, not here.
+        It was then rewritten to demand that **at least one entry be a real
+        instance**, on the argument that a floor of nothing but false
+        positives would mean the guard had stopped discriminating. That
+        assertion carried its own instruction for the day it stopped holding:
+        *"either they were all fixed, in which case say so here, or the guard
+        stopped finding the thing it exists to find."*
+
+        **Saying so here.** The three real instances this floor recorded —
+        `test_md_store § test_okr`'s `len(krs) > 20`, `test_task_writer §
+        test_every_hand_written_row…`'s `len(rows) > 5`, and
+        `test_prioritize § test_an_id_shaped_word_in_prose_is_warned_about`'s
+        `ctx` off the live task store — were repaired by TASK-150, TASK-151
+        and TASK-152. Each kept its property and moved its guard onto a
+        fixture the test writes. What is left is the four named false
+        positives, and the floor is now expected to hold nothing else.
+
+        **Which is why the second half of this test exists**, and why the
+        first half is not the whole of it. "Every entry is a false positive"
+        and "the guard has gone blind" produce the same floor, so the floor
+        alone can no longer tell them apart and this test must not pretend
+        otherwise. The discrimination is asserted where the instances are
+        permanent instead: the three modules reconstructed out of git above,
+        which no future repair can quietly stop being instances. Duplicating
+        `test_the_unrepaired_module_is_flagged` is deliberate — the claim
+        being made here is *this floor is empty of instances AND the guard
+        still finds them*, and half a claim checked in another class is a
+        claim nothing checks.
+
+        It can still fail, three ways: the sweep and the record drifting
+        apart; an `instance` verdict being written into the floor rather than
+        repaired (which is a row owed, not a number to restate here); and the
+        sweep walking past any of the three historical instances.
         """
         verdicts = [e["verdict"]
                     for e in json.loads(L.BASELINE.read_text())["findings"]]
@@ -428,12 +465,27 @@ class TestTheFloorIsRecordedNotAssumed(unittest.TestCase):
                          "re-record with --record and judge what is new")
         self.assertGreater(len(verdicts), 0,
                            "a floor of zero would be a claim this repository "
-                           "has no instances, which was measured false")
-        self.assertGreater(
-            verdicts.count("instance"), 0,
-            "every recorded finding is a false positive — either they were all "
-            "fixed, in which case say so here, or the guard stopped finding "
-            "the thing it exists to find")
+                           "has no hits at all, which was measured false")
+        self.assertEqual(
+            sorted(set(verdicts)), ["false positive"],
+            "the floor holds a finding judged a real instance. TASK-150/151/"
+            "152 emptied it of those; a new one is a row owed, and this "
+            "docstring is what has to be rewritten once it is repaired — not "
+            "this assertion loosened to accommodate it")
+        for case in TestTheFixturesAreHistoryAndNotMyHandwriting.CASES:
+            with self.subTest(fixture=case.fixture):
+                found = L.scan_source(
+                    (FIXTURES / case.fixture).read_text(), case.path)
+                hits = [f for f in found
+                        if f.test == case.flagged_test
+                        and f.expected == case.flagged_expected]
+                self.assertEqual(
+                    len(hits), 1,
+                    f"the sweep no longer flags {case.commit[:7]}:"
+                    f"{case.path} — the floor above is all false positives "
+                    f"because the guard stopped finding instances, not "
+                    f"because there are none\n"
+                    + "\n".join(str(f) for f in found))
 
 
 if __name__ == "__main__":
