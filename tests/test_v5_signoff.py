@@ -493,19 +493,113 @@ class TestTheOfferIsBuiltNotComposed(unittest.TestCase):
                 self.assertEqual(code, 1)
 
 
+# ── reading the signatures the journal already holds ──────────────────────
+# The old test named three task ids. Three more were signed the afternoon it
+# shipped and it went red on a set-difference — the same shape `c9018ae` had
+# already fixed once that day in `test_board_render` (`rows_from_store > 20`,
+# made false by an ordinary close). **A count taken from live project state is
+# not a property; it is a snapshot with an expiry date nobody wrote down.**
+#
+# The property is what the count was standing in for: every signature already
+# in the journal still parses, and still reads with its disposition headings
+# intact. It holds over three signatures and over thirty, and a signature added
+# tomorrow satisfies it or reddens it on its own merits.
+
+#: `render_signoff` in `bin/perry-task` writes exactly this header.
+SIG_HEAD = re.compile(
+    r"^\*\*(?P<id>[A-Z][A-Z0-9]*-\d+) — V5 sign-off\. "
+    r"(?P<who>.+?), (?P<when>\d{4}-\d{2}-\d{2})\.\*\*$")
+#: A disposition heading, or the free-text heading that may follow the groups.
+SIG_HEADING = re.compile(r"^\*\*(?P<label>[^*]+)\*\*$")
+#: `- <text> *(<provenance>)*`
+SIG_ITEM = re.compile(r"^- (?P<text>.+?) \*\((?P<prov>[^)]+)\)\*$")
+
+DISPOSITIONS = ("checked", "accepted on report", "not looked at")
+PROVENANCES = ("Perry verified", "restated — Perry did not verify this")
+FREE_TEXT_HEADING = "checked, and not among what Perry offered"
+
+
+def read_signatures(text: str) -> list[dict]:
+    """Every `## V5 sign-off` block in one journal file, parsed.
+
+    Deliberately a re-implementation rather than an import of
+    `render_signoff`: a reader with the writer's own code cannot tell you the
+    markdown is still readable, only that it is self-consistent.
+    """
+    sigs: list[dict] = []
+    in_section = False
+    cur: dict | None = None
+    label: str | None = None
+    for n, line in enumerate(text.split("\n"), 1):
+        if line.startswith("## "):
+            in_section = line.strip() == "## V5 sign-off"
+            cur = None
+            continue
+        if not in_section or not line.strip():
+            continue
+        head = SIG_HEAD.match(line.strip())
+        if head:
+            cur = {**head.groupdict(), "line": n, "groups": {}, "free": None}
+            sigs.append(cur)
+            label = None
+            continue
+        if cur is None:
+            continue
+        heading = SIG_HEADING.match(line.strip())
+        if heading:
+            label = heading.group("label")
+            if label != FREE_TEXT_HEADING:
+                cur["groups"].setdefault(label, [])
+            continue
+        item = SIG_ITEM.match(line.strip())
+        if item and label is not None and label != FREE_TEXT_HEADING:
+            cur["groups"].setdefault(label, []).append(
+                (item.group("text"), item.group("prov")))
+        elif label == FREE_TEXT_HEADING:
+            cur["free"] = line.strip()
+    return sigs
+
+
+def unreadable(sig: dict) -> list[str]:
+    """Everything wrong with one parsed signature, as readable lines.
+
+    One function, used by the live check and by the mutation test that proves
+    the live check can fail. A guard nobody has watched go red is not a guard.
+    """
+    bad = []
+    if not sig["who"].strip():
+        bad.append(f"{sig['id']}: the signer's name is gone")
+    for label in sig["groups"]:
+        if label not in DISPOSITIONS:
+            bad.append(f"{sig['id']}: {label!r} is not a disposition this "
+                       f"format defines")
+    if not any(sig["groups"].get(d) for d in DISPOSITIONS):
+        if not sig["free"]:
+            bad.append(f"{sig['id']}: no disposition heading carries an item, "
+                       f"and there is no free-text statement either")
+    for label, items in sig["groups"].items():
+        if label in DISPOSITIONS and not items:
+            bad.append(f"{sig['id']}: the {label!r} heading is empty")
+        for text, prov in items:
+            if prov not in PROVENANCES:
+                bad.append(f"{sig['id']}: {text[:40]!r} carries provenance "
+                           f"{prov!r}, which is not one this format defines")
+    return bad
+
+
 class TestHistoryIsNotRewritten(unittest.TestCase):
     """V5 verification 5 — this adds a path; it does not touch what is signed.
 
-    The three V5 closes in Perry's own log predate the selection format. They
-    must keep reading exactly as they did: an evidence file carrying a name and
-    a date, and an event with no `signoff` key, because there was none.
-    """
+    Two generations of signature live in this repository and both must keep
+    reading. The closes that PREDATE the selection format carry no `signoff`
+    key, and their evidence file is the signature: a name and a date in prose.
+    The ones written by `render_signoff` carry a `signoff` in the event and a
+    block in the journal, and their dispositions must still be there.
 
-    SIGNED = {
-        "TASK-034": "evidence/2026-08/TASK-034-lifecycle.md",
-        "TASK-103": "evidence/2026-08/TASK-103-design-007-lock.md",
-        "TASK-047": "evidence/2026-08/TASK-047-dispatch-2026-08-20-1416.md",
-    }
+    **Nothing here names a task id or a total.** Every assertion is quantified
+    over whatever the log and the journal hold when it runs, so signing another
+    row tomorrow cannot redden it — only rewriting one can.
+    """
 
     def v5_events(self):
         log = PERRY_HOME / ".perry" / "events.jsonl"
@@ -522,31 +616,132 @@ class TestHistoryIsNotRewritten(unittest.TestCase):
                 out.append(event)
         return out
 
-    def test_the_three_existing_v5_closes_still_read(self):
-        events = {e["id"]: e for e in self.v5_events()}
-        self.assertEqual(set(events), set(self.SIGNED),
-                         "the set of V5 closes in the log moved")
-        for tid, rel in self.SIGNED.items():
-            with self.subTest(tid=tid):
-                self.assertEqual(events[tid]["evidence"], rel)
-                self.assertNotIn(
-                    "signoff", events[tid],
-                    "a signature was back-filled onto a close that predates "
-                    "the format — the change adds a path, it does not rewrite "
-                    "history")
+    def signatures(self):
+        sigs = []
+        for path in sorted((PERRY_HOME / "perry" / "journal").rglob("*.md")):
+            sigs += read_signatures(path.read_text())
+        return sigs
 
-    def test_each_signature_document_still_carries_a_name_and_a_date(self):
-        """What V5 asks for, checked against the files rather than asserted.
-        These are read here and written nowhere: `perry/` is the PMO's state."""
+    def test_every_v5_close_in_the_log_still_reads(self):
+        """The property the count of three was standing in for."""
+        events = self.v5_events()
+        self.assertTrue(events, "no V5 close reads out of the log at all")
+        for e in events:
+            with self.subTest(tid=e["id"]):
+                self.assertTrue(e.get("evidence"),
+                                "a V5 close lost its evidence path")
+                self.assertTrue(
+                    (PERRY_HOME / "perry" / e["evidence"]).exists(),
+                    f"{e['evidence']} is gone; a signature points at nothing")
+
+    def test_a_close_predating_the_format_was_not_back_filled(self):
+        """A signature must never appear on a close that did not have one.
+
+        Which closes those are is read from the log rather than listed: an
+        event with no `signoff` key predates the format by definition, and that
+        stays true however many closes join it.
+        """
+        old = [e for e in self.v5_events() if "signoff" not in e]
+        self.assertTrue(old, "the pre-format closes vanished from the log")
         state_root = PERRY_HOME / "perry"
-        for tid, rel in self.SIGNED.items():
-            with self.subTest(tid=tid):
-                text = (state_root / rel).read_text()
+        for e in old:
+            with self.subTest(tid=e["id"]):
+                text = (state_root / e["evidence"]).read_text()
                 self.assertRegex(text, r"\d{4}-\d{2}-\d{2}",
                                  "the signature lost its date")
                 self.assertTrue(
                     re.search(r"[Ss]igned off|sign-off|签", text),
                     "the signature block is no longer findable in the file")
+
+    def test_every_signature_in_the_journal_still_parses(self):
+        """Item 1, stated over the corpus instead of over a list of three."""
+        sigs = self.signatures()
+        self.assertTrue(sigs, "no V5 signature parses out of the journal")
+        problems = [p for s in sigs for p in unreadable(s)]
+        self.assertEqual(problems, [], "\n".join(problems))
+
+    def test_the_journal_block_and_the_event_agree_on_the_dispositions(self):
+        """The anti-rewrite check with teeth.
+
+        A signature can lose its meaning without losing its shape — move one
+        item from `checked` to `accepted on report` and the block still parses.
+        The event carries the counts the user actually chose, and it is a
+        different file, so the two disagreeing is exactly what a rewritten
+        record looks like.
+        """
+        by_id = {s["id"]: s for s in self.signatures()}
+        signed = [e for e in self.v5_events() if "signoff" in e]
+        self.assertTrue(signed, "no close carries the selection format")
+        for e in signed:
+            with self.subTest(tid=e["id"]):
+                sig = by_id.get(e["id"])
+                self.assertIsNotNone(
+                    sig, "an event carries a signature the journal does not")
+                counts = {d: len(sig["groups"].get(d, []))
+                          for d in DISPOSITIONS}
+                self.assertEqual(counts, e["signoff"]["counts"],
+                                 "the journal block and the event disagree "
+                                 "about what was checked")
+
+    def test_the_check_fails_on_a_record_whose_dispositions_were_rewritten(self):
+        """Verification 2 — the check is watched going red before it is trusted.
+
+        The mutation is done on a COPY of the journal text, in memory. `perry/`
+        is the PMO's state and this file writes none of it.
+        """
+        text = (PERRY_HOME / "perry" / "journal" / "2026-08"
+                / "2026-08-20.md").read_text()
+        self.assertEqual([p for s in read_signatures(text) for p in unreadable(s)],
+                         [], "the unmutated journal is already failing")
+        for mutation, why in (
+                (lambda t: t.replace("**accepted on report**", "**accepted**", 1),
+                 "a disposition heading renamed"),
+                (lambda t: t.replace("*(Perry verified)*", "*(verified)*", 1),
+                 "a provenance label rewritten"),
+                (lambda t: re.sub(r"(— V5 sign-off\. ).+?(, \d{4})",
+                                  r"\1 \2", t, count=1),
+                 "the signer's name blanked"),
+                (lambda t: t.replace(
+                    "- the dangling-id check reports [] — TASK-107 resolves "
+                    "and REL-00 is gone *(Perry verified)*\n", "", 1),
+                 "an item deleted out of a signed record")):
+            with self.subTest(mutation=why):
+                mutated = mutation(text)
+                self.assertNotEqual(mutated, text, "the mutation did nothing")
+                found = [p for s in read_signatures(mutated)
+                         for p in unreadable(s)]
+                counts = {s["id"]: {d: len(s["groups"].get(d, []))
+                                    for d in DISPOSITIONS}
+                          for s in read_signatures(mutated)}
+                drifted = [e["id"] for e in self.v5_events()
+                           if "signoff" in e
+                           and counts.get(e["id"]) != e["signoff"]["counts"]]
+                self.assertTrue(found or drifted, f"{why} was not caught")
+
+    def test_signing_another_row_does_not_rewrite_the_one_before_it(self):
+        """Verification 1, demonstrated rather than reasoned about.
+
+        Two V5 closes in one project, in order. The first signature's block is
+        compared byte-for-byte before and after the second is written — which
+        is the property the old fixed set of three was a proxy for, and the
+        only one of the two that survives a fourth close.
+        """
+        p = Project()
+        first = p.a_task()
+        code, _ = p.close_v5(first, "--checked", "1")
+        self.assertEqual(code, 0)
+        before = p.journal()
+        block = before[before.index(f"**{first} — V5 sign-off"):]
+
+        second = p.a_task()
+        code, _ = p.close_v5(second, "--checked", "2", "--not-looked-at", "4")
+        self.assertEqual(code, 0)
+        after = p.journal()
+        self.assertIn(block.rstrip(), after,
+                      "the earlier signature changed when a later one landed")
+        sigs = read_signatures(after)
+        self.assertEqual([s["id"] for s in sigs], [first, second])
+        self.assertEqual([p for s in sigs for p in unreadable(s)], [])
 
     def test_the_new_record_does_not_claim_to_be_the_old_one(self):
         """The old signatures are prose in an evidence file; the new one is a

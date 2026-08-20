@@ -20,10 +20,14 @@ Run: python3 tests/parallel test_one_line_break_rule
 
 from __future__ import annotations
 
+import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
+
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
@@ -95,11 +99,69 @@ class TestRefusedIsDefinedWhereItIsRaised(unittest.TestCase):
             T.splice_cell("| a | b |", 9, "x")
 
 
+BOARD = """# Board — T
+
+## P0 (must finish this period)
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+"""
+
+
 class TestTheRefusalNamesTheFlag(unittest.TestCase):
+    """The refusal names the FLAG, proven on a row this test owns.
+
+    **The fixture used to be `TASK-038` on Perry's own board.** That row was
+    closed on an ordinary afternoon and left the board, so `next TASK-038`
+    started answering `TASK-038 is not a row on the board` — and the assertion
+    about flag naming stopped running. Read the failure carefully, because that
+    is the dangerous half: the test did not report *my fixture is gone*, it
+    reported *the feature is broken*. A red that misnames its own cause is
+    worse than no red, and the same shape had already been fixed once that day
+    (`c9018ae`, a `rows_from_store > 20` that a close made false).
+
+    A fixture a future close can delete is not a fixture. This class builds its
+    own project and its own row, so the only thing that can redden it is the
+    refusal changing.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.root = pathlib.Path(self.dir.name)
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- Document language: English\n"
+            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+        (self.root / "BOARD.md").write_text(BOARD)
+        seed = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
+             "--from-board", "--root", str(self.root)],
+            capture_output=True, text=True)
+        self.assertEqual(seed.returncode, 0, seed.stdout + seed.stderr)
+
     def run_task(self, *args):
         return subprocess.run(
-            [sys.executable, str(ROOT / "bin" / "perry-task"), *args],
-            capture_output=True, text=True, cwd=ROOT)
+            [sys.executable, str(ROOT / "bin" / "perry-task"), *args,
+             "--root", str(self.root)],
+            capture_output=True, text=True)
+
+    def a_row(self) -> str:
+        r = self.run_task("add", "--title", "A row this test owns",
+                          "--deliverable", "d", "--verification", "V2 lint",
+                          "--json")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return json.loads(r.stdout)["id"]
 
     def test_two_flags_do_not_produce_the_same_message(self):
         """Both flags must be ones that actually reach a table cell.
@@ -113,14 +175,33 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
         Worth the words because the probe that found it also wrote three junk
         rows onto the live board before I noticed — the rows are dropped, and
         the event log was checked line-by-line for a raw newline (0
-        unparseable records).
+        unparseable records). Nothing here can repeat that either: every write
+        lands under `--root` in a temp directory.
         """
+        tid = self.a_row()
         a = self.run_task("add", "--title", "x\ny", "--deliverable", "d",
                           "--verification", "V2 lint").stderr
-        b = self.run_task("next", "TASK-038", "--next", "x\ny").stderr
+        b = self.run_task("next", tid, "--next", "x\ny").stderr
         self.assertIn("--title", a)
         self.assertIn("--next", b)
         self.assertNotIn("--title", b)
+
+    def test_the_fixture_row_is_reachable_before_the_refusal_is_asserted(self):
+        """The guard against the failure that started this.
+
+        `next` on a row that is not on the board also exits 1 with a message on
+        stderr, so a vanished fixture and a broken refusal are the same shape
+        from the outside — which is exactly how the old red pointed at the
+        wrong thing for hours. This asserts the row is there and writable
+        FIRST, so the two can never again be confused.
+        """
+        tid = self.a_row()
+        ok = self.run_task("next", tid, "--next", "one ordinary line")
+        self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        self.assertNotIn("is not a row on the board", ok.stderr)
+        bad = self.run_task("next", tid, "--next", "x\ny")
+        self.assertEqual(bad.returncode, 1)
+        self.assertNotIn("is not a row on the board", bad.stderr)
 
 
 if __name__ == "__main__":
