@@ -65,12 +65,12 @@
       ],
       "unparsed_sketches": []
     },
-    "perry-task/list/1.13": {
+    "perry-task/list/1.14": {
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.13",
-      "documented": 117,
+      "contract": "perry-task/list/1.14",
+      "documented": 115,
       "documented_not_emitted": [],
-      "emitted": 117,
+      "emitted": 115,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
       "not_observable": {},
@@ -81,6 +81,8 @@
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 means",
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 status",
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 threshold_hours",
+        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 id",
+        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 unknown",
         "`intake` \u2014 queue mode's inbox \u00a7 age_days",
         "`intake` \u2014 queue mode's inbox \u00a7 arrived",
         "`intake` \u2014 queue mode's inbox \u00a7 discharged",

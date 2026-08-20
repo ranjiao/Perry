@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.13`**
+> Contract: **`perry-task/list/1.14`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.13",  // check this before anything else
+  "contract":     "perry-task/list/1.14",  // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -119,11 +119,11 @@ counts; without it, `closed` is a constant.
 | `role` | string — the declared role accountable for this row, or `""`. **Required once the project declares any `.perry/roles/*.md`, absent otherwise** (1.8). A project with no role cards is never asked for one and never refused for omitting one, which is DESIGN-006's Goal 7. |
 | `group` | string | the stored projection group. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` when the project organizes its Board that way. |
 | `open` | bool | `false` exactly when typed `status` is `done` or `dropped`; `true` otherwise. Use this served field as the live/closed test. |
-| `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
-| `blocked_by` | array | the subset of `depends_on` that is **not known-finished** — an id whose task is still open, or an id this payload does not carry. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
+| `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, a **`USER-` ask** from `## User Input Queue`, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
+| `blocked_by` | array | the subset of `depends_on` that is **not known-terminal** — an id whose task is still open, an ask that is still `pending`, or an id **neither register** carries. Changed in 1.14; see `semantics`. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
 | `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
 | `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, `blocked_by` is empty, and its own `status` is not `blocked` or `review` (both mean somebody else has the ball) — **unless `blocked_stale` is `true`, in which case the stored `blocked` is a contradiction of the graph and does not win.** Changed in 1.12; see `semantics`. This is served so you never walk the graph yourself. |
-| `blocked_stale` | bool | `true` when the row is `open`, its stored `status` is `blocked`, it **declares** at least one dependency, and **every one of them has closed** — the board says stopped and the graph says nothing is stopping it. Perry does not rewrite the cell, so `status` still reads `blocked` until somebody acts; this key is how you find out that it is out of date without walking the graph. It is `false` for a row with any open dependency, `false` for a `blocked` row that declares no dependency at all (that one is `conformance.blocked_without_dependency` — the edge is in prose Perry cannot read, and *"I cannot see it"* is not *"it closed"*), and `false` for `review`, which waits on a human and so can never be contradicted by a dependency edge. Added in 1.12. |
+| `blocked_stale` | bool | `true` when the row is `open`, its stored `status` is `blocked`, it **declares** at least one dependency, and **every one of them is terminal — a task that closed, or an ask that was answered** (1.14) — the board says stopped and the graph says nothing is stopping it. Perry does not rewrite the cell, so `status` still reads `blocked` until somebody acts; this key is how you find out that it is out of date without walking the graph. It is `false` for a row with any open dependency, `false` for a `blocked` row that declares no dependency at all (that one is `conformance.blocked_without_dependency` — the edge is in prose Perry cannot read, and *"I cannot see it"* is not *"it closed"*), and `false` for `review`, which waits on a human and so can never be contradicted by a dependency edge. Added in 1.12. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
 | `timeline` | array | every event for this id, oldest first |
@@ -199,11 +199,11 @@ non-task registers could not be read.
 | `rows_with_no_status` | array | `{id, section}` — a legacy store record has no typed status. `open` is `true` because no terminal value is present. |
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. Covers open and closed rows alike, ordered by `id`. Together with `evidence_paths` this is the pair that lets you tell **"the file is gone"** from **"Perry did not look"**: a row whose cell names something reaches exactly one of the two, never neither. |
 | `next_action_cites_closed` | array | `{id, cites, status, row_status, blocked_stale, readings, means}` — an open row whose `Next action` points at a task that has since closed. **This is not a prose-style finding, and the entry says so in `means`.** The hit has two readings and this check decides between them in no case: the *prose* is stale, or the *row* is unblocked and its status has not caught up. `readings` states both, `row_status` and `blocked_stale` carry what the graph already knows about the row, and `means` is the sentence to show a reader. On 2026-08-20 this fired on exactly the two rows on Perry's own board that were stranded, was read as wording, and was silenced by rewriting the cells — which settled the disagreement by deleting the evidence of it. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
-| `blocked_by_closed_rows` | array | open ids whose stored `status` is `blocked`, which **declare** at least one dependency, and every one of which has closed — the aggregate of `tasks[].blocked_stale`, read from that field rather than recomputed, so the rule behind it stays stated exactly once in `bin/lib § resolve_startability`. **Disjoint from `blocked_without_dependency` by construction**: that one is the empty list, this one is the non-empty list nothing is left in. TASK-037 and TASK-045 were both of these on 2026-08-20 and neither was named, because the only check in the family tested `not depends_on`. A row in neither array is one whose blocker is real. |
+| `blocked_by_closed_rows` | array | open ids whose stored `status` is `blocked`, which **declare** at least one dependency, and every one of which is terminal — **from 1.14 that includes an answered `USER-` ask**, so this array now names rows whose question came back; the key keeps its name because renaming one a consumer reads is a major. The aggregate of `tasks[].blocked_stale`, read from that field rather than recomputed, so the rule behind it stays stated exactly once in `bin/lib § resolve_startability`. **Disjoint from `blocked_without_dependency` by construction**: that one is the empty list, this one is the non-empty list nothing is left in. TASK-037 and TASK-045 were both of these on 2026-08-20 and neither was named, because the only check in the family tested `not depends_on`. A row in neither array is one whose blocker is real. |
 | `in_progress_with_no_live_run` | array | `{id, status, last_event, idle_hours, threshold_hours, means}` — an open row that says `in_progress`, holds **no dispatch slot** (`~/.cache/perry/in-flight/`, read without cleaning), and whose last event is older than `thresholds.in_progress_idle_hours`. Neither half alone is a finding: a long dispatch holds a slot and writes nothing, and a row worked by hand never had a slot. Together they mean nobody is holding it and nobody has said so — two agents starved at the 600s watchdog on 2026-08-20 and their rows sat exactly here. **Empty when `has_event_log` is false**, for the reason 1.9 gives. |
 | `review_idle` | array | `{id, status, last_event, idle_hours, threshold_hours, means}` — an open row in `review` whose last event is older than `thresholds.review_idle_days`. `review` waits on a human, so no dependency edge can ever contradict it and nothing else in this payload notices such a row; TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. **Empty when `has_event_log` is false**, for the reason 1.9 gives. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
-| `depends_on_unknown` | array | `{id, unknown}` — dependency ids this payload does not carry, ordered by `id`. Not an error and not refused at write time: a dependency **must** be able to name a closed task, or every satisfied dependency would have to be deleted from the record to be written in the first place, and `DESIGN-`/`ADR-` ids are legitimate here too. This is where a typo shows up. |
+| `depends_on_unknown` | array | `{id, unknown}` — dependency ids **neither register** carries, ordered by `id`. Not an error and not refused at write time: a dependency **must** be able to name a closed task, or every satisfied dependency would have to be deleted from the record to be written in the first place, and `DESIGN-`/`ADR-` ids are legitimate here too. From 1.14 a `USER-` ask this project has issued is resolved and is **not** here; a `USER-` id the queue does not carry still is. This is where a typo shows up. |
 | `dependency_cycles` | array | arrays of ids, each a loop found in the stored edges, e.g. `[["A","B","A"]]`. Every task in one waits forever and none is `startable`. The write path refuses to create one; an externally edited store is reported rather than hidden. |
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
@@ -246,7 +246,7 @@ the day it is not.
 | Key | Type | Meaning |
 |---|---|---|
 | `id` | string | the row carrying the edge. |
-| `unknown` | array | the dependency ids this payload does not carry, sorted. A `USER-` ask lands here today: `perry-task depends --on USER-nnn` is accepted at the write and reported here at the read, which is the disagreement TASK-162 is open for. |
+| `unknown` | array | the dependency ids **no register this payload can read** carries. Until 1.14 that meant `tasks.jsonl` alone, so every `USER-` ask landed here — accepted at the write and reported at the read, one row with two answers. TASK-162 made the ask register the second resolvable one, so an ask this project issued is gone from here in either state, and a `USER-` id nobody minted is not. `DESIGN-` and `ADR-` handles stay, because no register in Perry ever reaches a terminal value for them. |
 
 #### `next_action_cites_closed[]` — the entry, key by key
 
@@ -467,6 +467,64 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.14 — 2026-08-21
+
+**A `USER-` ask is a node in the dependency graph.**
+
+Until now the graph resolved against **one** register, `tasks.jsonl`, and a row
+that waited on a question had no honest shape. On Perry's own board, TASK-114
+was blocked on USER-015 and **both available spellings tripped a check**:
+
+| what was written | what the reader said |
+|---|---|
+| `perry-task depends TASK-114 --on USER-015` — accepted at the write | `depends_on_unknown: [{"id":"TASK-114","unknown":["USER-015"]}]` |
+| `perry-task depends TASK-114 --clear` | `blocked_without_dependency: ["TASK-114"]`, whose message is *"a row nobody can unblock"* |
+
+Neither reading was a lie about the row. The writer said yes and the reader
+said no, about one row, in one payload.
+
+**Perry already writes this edge — from the other end.** `perry-task ask
+--blocks TASK-114` puts the task id in the queue row's `Blocks` cell.
+`perry-task depends TASK-114 --on USER-015` puts the ask id in the task row's
+`Depends on` cell. Two ends of one edge, written by two subcommands of one
+tool into two registers of one lane. The only thing missing was a reader that
+joined them.
+
+**What makes something a node is not being a task — it is having a state this
+tool can read that reaches a terminal value.** A task is `done`/`dropped`, or
+it is not. An ask is `answered …`, or it is `pending`; `bin/perry-state §
+answered` is the one predicate that decides which, and it was already shared by
+three callers. A `DESIGN-006` or `ADR-005` has no such state and never will —
+nothing in Perry can ever learn that a design decision is *satisfied* — so
+those stay unknown and stay unsatisfied, which is the answer `blocked_by`
+already gave and still gives.
+
+So, concretely:
+
+- a **pending** ask leaves the row in `blocked_by`, exactly as an open task
+  does. The row is not startable and no array names it.
+- an **answered** ask satisfies the edge, exactly as a closed task does. The
+  row becomes `startable: true` with `blocked_stale: true`, and
+  `blocked_by_closed_rows` names it — the same 1.12 shape, reached because a
+  question came back instead of because a task closed.
+- an id **neither register carries** is unchanged: a mistyped task number, a
+  `USER-` id the queue never minted, and every `DESIGN-`/`ADR-` handle still
+  reach `depends_on_unknown` and still count as unsatisfied. This minor resolves a second register; it does not
+  weaken a check.
+
+**The boundary this does not cross.** An ask resolves an edge; it does not
+become a row in `tasks[]`, it gets no `blocks` array there (its own `Blocks`
+cell is that direction, and it was written first), and it cannot close a
+dependency cycle — a question waits on a human and on nothing this tool can
+name. `blocked_without_dependency` is untouched: it tests the declared list
+being *empty*, and a row that names its ask has not got an empty list.
+
+- **changed the meaning of** `tasks[].blocked_by`, `tasks[].startable`,
+  `tasks[].blocked_stale`, `conformance.depends_on_unknown` and
+  `conformance.blocked_by_closed_rows`; announced in `semantics`. No key was
+  added, removed or retyped — which is exactly the case this document's own
+  rule says `semantics` exists for.
 
 **Not a version, 2026-08-21 (TASK-131).** `semantics[]`,
 `conformance.sections_read[]` and `conformance.evidence_not_found[]` gained key

@@ -79,7 +79,7 @@ triage-shaped question the old walk had no way to ask:
 | `evidence_not_found` | A path in the `Evidence` cell resolves under neither root. Usually a symbol or a note, not a broken link — check before treating it as one. |
 | `sections_skipped` | A `## ` section holding a table with no `ID`+`Title`. If it is actually work, its table needs those columns. |
 | `next_action_cites_closed` | **Not a wording finding — read `means` on the entry.** The row is waiting on work that finished, and there are two readings: the prose is stale, or the row is unblocked and its status has not caught up. The payload states both and picks neither, because it cannot. **Rewriting the cell is not the default fix.** On 2026-08-20 this fired on exactly TASK-037 and TASK-045, was read as prose hygiene, and the cells were rewritten — those two were the only stranded rows on the board and the rewrite deleted the evidence. Decide which reading holds with the user, then act on the row. Only `TASK-` ids are resolved; a cell citing a `DESIGN-` or `USER-` id is not checked and you still have to read it. |
-| `blocked_by_closed_rows` | The row says `blocked`, names its dependencies, and **every one of them has closed**. Nothing is stopping it. This is not `blocked_without_dependency` — the two are disjoint, and this one is the row whose edges are all satisfied. Move it out of `blocked` or say what else is holding it; leaving the cell is how TASK-037 and TASK-045 sat stranded. |
+| `blocked_by_closed_rows` | The row says `blocked`, names its dependencies, and **every one of them is terminal — a task that closed, or a `USER-` ask that was answered** (TASK-162). Nothing is stopping it. This is not `blocked_without_dependency` — the two are disjoint, and this one is the row whose edges are all satisfied. Move it out of `blocked` or say what else is holding it; leaving the cell is how TASK-037 and TASK-045 sat stranded. |
 | `in_progress_with_no_live_run` | The row says somebody is working on it, no executor holds a dispatch slot, and nothing has moved it past `thresholds.in_progress_idle_hours`. A run probably died without reporting. **Ask before re-dispatching** — a second agent on a row a first one still holds is what the dispatch limit exists to prevent. |
 | `review_idle` | The row has waited on a human past `thresholds.review_idle_days`. `review` is the one status no dependency edge can contradict, so nothing else in the payload notices it. Either the verdict was given and the row was never closed, or nobody has been asked for one — both are questions for the user. |
 | `rows_with_no_computable_age` | No age exists for these. Every staleness rule below is an age comparison, so they were being read as fresh forever. Ask about each rather than skipping it. |
@@ -115,6 +115,17 @@ It re-stamps `Stage since` in the same write and refuses a stage outside the tra
 `ask` mints the `USER-NNN`, stamps **`Asked`** — a date — and creates
 `## User Input Queue` after the priority tables if the board lacks it, adding
 the `Asked` column to a section that predates it.
+
+**An ask is a node in the dependency graph, so declare the edge both ways.**
+`--blocks <TASK-ID>` writes the queue side; `perry-task depends <TASK-ID> --on
+<USER-ID>` writes the task side, and from contract 1.14 the reader resolves it:
+a `pending` ask keeps the row in `blocked_by` exactly as an open task does, and
+an **answered** one satisfies the edge exactly as a closed task does — at which
+point the row turns up in `blocked_by_closed_rows` with `blocked_stale: true`,
+because its question came back and the cell has not caught up. Blocking a row
+on an ask with `--reason` prose instead puts it in
+`blocked_without_dependency`, where nothing can resolve it. A `USER-` id this
+project never minted is still `depends_on_unknown`.
 
 **It stamps a date, not an age.** The column used to be `Idle`, a number a
 human retyped, and the result was measurable: both rows on Perry's own board

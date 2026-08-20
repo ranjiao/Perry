@@ -603,8 +603,11 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
         cls.doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
 
     def test_the_minor_moved(self):
-        self.assertEqual("perry-task/list/1.13", self.payload["contract"])
-        self.assertIn("`perry-task/list/1.13`", self.doc)
+        # The pin moves with every minor. TASK-142 shipped at 1.13 and
+        # `semantics` below is what keeps this suite about 1.13; the
+        # handle here is only "the doc and the tool agree about today".
+        self.assertEqual("perry-task/list/1.14", self.payload["contract"])
+        self.assertIn("`perry-task/list/1.14`", self.doc)
 
     def test_every_new_conformance_key_is_documented(self):
         for key in ("blocked_by_closed_rows", "in_progress_with_no_live_run",

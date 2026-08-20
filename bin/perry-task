@@ -171,7 +171,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.13"
+LIST_CONTRACT = "perry-task/list/1.14"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -251,6 +251,28 @@ LIST_SEMANTICS = [
              "observation, and this array does not decide which. If you "
              "rendered these as lint, render `means` instead and route them "
              "to whoever can tell the two readings apart."},
+    {"version": "1.14",
+     "fields": ["blocked_by", "startable", "blocked_stale",
+                "conformance.depends_on_unknown",
+                "conformance.blocked_by_closed_rows"],
+     "note": "A `USER-` ask is now a NODE in the dependency graph. Before "
+             "1.14 the only register the graph resolved against was "
+             "`tasks.jsonl`, so `depends_on USER-015` was accepted by the "
+             "writer and reported by the reader as `depends_on_unknown` on "
+             "the same row — Perry writes that edge itself, from the other "
+             "end, whenever `ask --blocks` names a task. Now an ask this "
+             "project has issued resolves, a PENDING one leaves the row in "
+             "`blocked_by` exactly as an open task does, and an ANSWERED one "
+             "satisfies the edge exactly as a closed task does. Two "
+             "consequences a consumer must expect: such a row becomes "
+             "`startable: true` with `blocked_stale: true` once its ask comes "
+             "back, and `blocked_by_closed_rows` now names rows whose "
+             "dependency was answered rather than closed — 'terminal' covers "
+             "both. Nothing got weaker: an id NEITHER register carries — "
+             "a mistyped task number, a `USER-` id the queue never minted, "
+             "and every `DESIGN-`/`ADR-` handle, none of which have a state "
+             "Perry can ever read — is still unknown and still "
+             "unsatisfied."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -403,9 +425,11 @@ def find_cycle(edges: dict[str, list[str]], start: str) -> list[str]:
     """The path back to `start`, or `[]`. Depth-first, deterministic.
 
     Only ids that are themselves in `edges` are walked: an edge onto a closed
-    task, or onto a `DESIGN-`/`ADR-` id, is a leaf here rather than an unknown,
-    because a row that is not on the board declares no dependencies of its own
-    and so can close no loop.
+    task, or onto a `DESIGN-`/`ADR-`/`USER-` id, is a leaf here rather than an
+    unknown, because a row that is not on the board declares no dependencies of
+    its own and so can close no loop. An ask is a node in the dependency graph
+    (TASK-162) and still a leaf in this one: a question put to a human waits on
+    the human and on nothing this tool can name.
     """
     stack = [(start, [start])]
     seen = {start}
@@ -448,6 +472,14 @@ def check_depends(tid: str, value: str, ctx) -> list[str]:
     be able to name a `DESIGN-` or `ADR-` id, which no board table carries.
     `conformance.depends_on_unknown` names them at read time so a typo is
     visible without making a legitimate edge unwritable.
+
+    **`--on USER-nnn` is not refused either, and it is no longer reported.**
+    TASK-162: an ask this project has issued is a node, the reader resolves it
+    against `## User Input Queue`, and an *answered* one satisfies the edge the
+    way a closed task does. That is the one register besides `tasks.jsonl`
+    whose rows reach a terminal state Perry can read, so it is the one the
+    graph can join; see the TASK-162 block above `ask_register`. A `USER-` id
+    the queue does not carry is still unknown and still reported.
     """
     ids = parse_depends(value)
     if not ids:
@@ -4663,6 +4695,134 @@ def stranded_row_findings(tasks: dict, *, has_event_log: bool, thresholds: dict,
     return found
 
 
+# ── TASK-162: an ask IS a node in the dependency graph ────────────────────
+#
+# **The decision, and the argument for it.** A row waiting on a `USER-` ask had
+# no honest shape: `depends --on USER-015` was accepted by the writer and then
+# reported by the reader as `depends_on_unknown`, and `depends --clear` moved it
+# to `blocked_without_dependency`, whose own message is *"a row nobody can
+# unblock"*. The writer said yes and the reader said no about one row.
+#
+# Yes, because Perry ALREADY WRITES THIS EDGE — in the other direction.
+# `perry-task ask --blocks TASK-114` puts `TASK-114` in the queue row's
+# `Blocks` cell; `perry-task depends TASK-114 --on USER-015` puts `USER-015` in
+# the task row's `Depends on` cell. Those are two ends of one edge, written by
+# two subcommands of one tool into two registers of one lane, and the only
+# thing missing was a reader that joined them. Refusing the write would have
+# meant `ask --blocks` keeps declaring an edge the graph is forbidden to know
+# about, which is the same disagreement with the arrow reversed.
+#
+# **What makes something a node is not being a task — it is having a state
+# this tool can read that reaches a terminal value.** That is the line, and it
+# is why this admits `USER-` and still admits nothing else:
+#
+#   - a task is `done`/`dropped`, or it is not;
+#   - an ask is `answered …`, or it is `pending` — and `bin/perry-state §
+#     answered` is the ONE predicate that decides which, already shared by
+#     three callers because it has been written twice before;
+#   - `DESIGN-006` and `ADR-005` have no state Perry can ever read. Nothing in
+#     this repository will ever learn that a design decision is "satisfied", so
+#     they stay unknown and stay unsatisfied, which is the honest answer and
+#     the one `blocked_by` already gives.
+#
+# So an id this project has never issued is still unknown — a mistyped task
+# number and a `USER-` id the queue never minted both reach
+# `depends_on_unknown` — and the check did not get weaker, it got a second
+# register to resolve against.
+
+
+def ask_register(ctx) -> dict[str, bool]:
+    """Every `USER-` ask this project has put to a human → did it come back.
+
+    Read from the board **in memory**, not from disk. `board_sections` builds
+    the `asks` payload by re-parsing `BOARD.md` off disk, which mid-write is the
+    version being replaced, and it drops answered rows — this needs exactly the
+    answered ones, because an answered ask is what satisfies an edge.
+
+    `bin/perry-state § answered` decides `answered` vs `pending`, and is called
+    rather than re-spelled: that predicate's own docstring records that it had
+    already been written twice, and a row's dependency being satisfied is a
+    worse place for a third opinion than a dashboard count was.
+
+    `{}` on a project with no `## User Input Queue`, and on one with no
+    projection at all. Then every `USER-` id is unknown again and the payload
+    reads exactly as it did before this existed.
+    """
+    board = ctx.get("board")
+    if board is None:
+        return {}
+    try:
+        _, header = board.section_table("User Input Queue")
+        rows = board.section_rows("User Input Queue")
+    except Refused:
+        return {}                     # not every project asks the user anything
+    answered = perry_state().answered
+    keys = [norm(h) for h in header]
+    register: dict[str, bool] = {}
+    for _, cells in rows:
+        values = dict(zip(keys, cells))
+        aid = strip_handle(values.get("user-id", ""))
+        if not aid:
+            continue
+        register[aid] = answered(P.UserInput(
+            id=aid, needed_from_user=values.get("needed from user", ""),
+            blocks=values.get("blocks", ""), idle=values.get("idle", ""),
+            status=values.get("status", "")))
+    return register
+
+
+def dependency_satisfied(dep: str, tasks: dict, asks: dict) -> bool:
+    """Is this one declared edge resolved? The whole rule, in four lines.
+
+    A task that has closed, or an ask that has been answered. Anything else —
+    an open task, a pending ask, an id neither register carries — is NOT
+    satisfied, and that last clause is the one that matters most: *"I do not
+    know"* is not *"it is done"*, and reporting such a row startable is the one
+    error that sends somebody to work on something still blocked.
+    """
+    task = tasks.get(dep)
+    if task is not None:
+        return not task["open"]
+    return asks.get(dep, False)
+
+
+def resolve_dependency_edges(tasks: dict, asks: dict) -> list[dict]:
+    """Set `blocked_by` and `blocks` in place; return `depends_on_unknown`.
+
+    **One statement of the edge rule for both `list` paths**, for the reason
+    `bin/lib § resolve_startability` gives and TASK-148 paid for: these three
+    were written out at both call sites, ~200 lines apart, and TASK-141 had to
+    fix one rule twice. This one had to change in both places again, which is
+    the second time the same shape has asked for the same fix.
+
+    Takes the rows before `resolve_startability`, which reads the `blocked_by`
+    this fills in and decides nothing about the graph itself.
+
+    **The raw edge, not the transitive closure.** If A waits on B and B waits on
+    C, A becomes startable the moment B closes — B's own history is not A's
+    business. One hop is the whole computation.
+
+    `blocks` is the reverse edge and stays a TASK-to-TASK relation: an ask is a
+    node here, but it is not a row in `tasks[]`, and the reverse direction is
+    already on its own row in the `Blocks` cell `ask --blocks` writes.
+    """
+    for task in tasks.values():
+        task["blocked_by"] = [dep for dep in task["depends_on"]
+                              if not dependency_satisfied(dep, tasks, asks)]
+    for task in sorted(tasks.values(), key=lambda row: row["id"]):
+        for dep in task["depends_on"]:
+            other = tasks.get(dep)
+            if other is not None and task["id"] not in other["blocks"]:
+                other["blocks"].append(task["id"])
+    unknown_rows = []
+    for task in sorted(tasks.values(), key=lambda row: row["id"]):
+        unknown = [dep for dep in task["depends_on"]
+                   if dep not in tasks and dep not in asks]
+        if unknown:
+            unknown_rows.append({"id": task["id"], "unknown": unknown})
+    return unknown_rows
+
+
 def _cmd_list_from_board(args, ctx) -> dict:
     """The full task set, from one call.
 
@@ -4906,8 +5066,8 @@ def _cmd_list_from_board(args, ctx) -> dict:
     # a consumer can sort on WITHOUT walking a graph itself:
     #
     #   depends_on  the raw declared edge, verbatim, in cell order
-    #   blocked_by  the subset that is NOT known-finished — an open task, or an
-    #               id this payload does not carry at all
+    #   blocked_by  the subset that is NOT known-terminal — an open task, a
+    #               `pending` ask, or an id neither register carries at all
     #   blocks      the reverse edge, so "what does closing this free up" is a
     #               lookup instead of a scan over every other row
     #   startable   open, not itself waiting, and nothing unsatisfied under it
@@ -4923,18 +5083,15 @@ def _cmd_list_from_board(args, ctx) -> dict:
     # `blocks` list that changed with the caller's flags would be a different
     # graph per query.
     #
-    # An id nobody in this payload carries counts as UNSATISFIED. Perry cannot
-    # see a `DESIGN-006` or a typo'd `TASK-5O`, and "I do not know" is not
-    # "it is finished" — reporting such a row startable is the one error that
-    # sends somebody to work on something that is still blocked.
-    for t in tasks.values():
-        t["blocked_by"] = [d for d in t["depends_on"]
-                           if d not in tasks or tasks[d]["open"]]
-    for t in sorted(tasks.values(), key=lambda r: r["id"]):
-        for d in t["depends_on"]:
-            other = tasks.get(d)
-            if other is not None and t["id"] not in other["blocks"]:
-                other["blocks"].append(t["id"])
+    # An id NEITHER REGISTER carries counts as UNSATISFIED. Perry cannot see a
+    # `DESIGN-006` or a typo'd `TASK-5O`, and "I do not know" is not "it is
+    # finished" — reporting such a row startable is the one error that sends
+    # somebody to work on something that is still blocked. An **answered** ask
+    # is a different thing entirely and satisfies the edge; see
+    # `resolve_dependency_edges` and the TASK-162 block above it for why an ask
+    # is a node and a `DESIGN-` id is not.
+    conformance["depends_on_unknown"] = resolve_dependency_edges(
+        tasks, ask_register(ctx))
     # `blocked_stale` and `startable`, from `bin/lib § resolve_startability` —
     # the ONE statement of the rule, which `cmd_list` below calls too. It was
     # written out here and again there, ~200 lines apart, and TASK-141 had to
@@ -4952,11 +5109,6 @@ def _cmd_list_from_board(args, ctx) -> dict:
         if cycle:
             conformance["dependency_cycles"].append(cycle)
             in_cycle.update(cycle)
-    for t in sorted(tasks.values(), key=lambda r: r["id"]):
-        unknown = [d for d in t["depends_on"] if d not in tasks]
-        if unknown:
-            conformance["depends_on_unknown"].append(
-                {"id": t["id"], "unknown": unknown})
     # The migration worklist, and the honest measure of how far it has got. A
     # row whose `Status` is `blocked` and whose `Depends on` is empty is one
     # whose dependency is still in prose somewhere — `Next action`, a journal
@@ -5148,17 +5300,13 @@ def cmd_list(args, ctx) -> dict:
             conformance["evidence_not_found"].append(
                 {"id": task["id"], "paths": missing})
 
-    for task in tasks.values():
-        task["blocked_by"] = [dep for dep in task["depends_on"]
-                              if dep not in tasks or tasks[dep]["open"]]
-    for task in sorted(tasks.values(), key=lambda row: row["id"]):
-        for dep in task["depends_on"]:
-            other = tasks.get(dep)
-            if other is not None and task["id"] not in other["blocks"]:
-                other["blocks"].append(task["id"])
     # The same call the board-derived path makes, because it is the same rule
-    # and there is now one of it. This site used to restate it — same meaning,
-    # different spelling — which is why a fix to it had to be applied twice.
+    # and there is now one of it. `blocked_by`, `blocks` and
+    # `depends_on_unknown` were restated here too — same meaning, different
+    # spelling — and TASK-162 is the second fix that would have had to be
+    # applied twice.
+    conformance["depends_on_unknown"] = resolve_dependency_edges(
+        tasks, ask_register(ctx))
     lib.resolve_startability(tasks.values())
 
     edges = {tid: task["depends_on"] for tid, task in tasks.items()}
@@ -5170,11 +5318,6 @@ def cmd_list(args, ctx) -> dict:
         if cycle:
             conformance["dependency_cycles"].append(cycle)
             in_cycle.update(cycle)
-    for task in sorted(tasks.values(), key=lambda row: row["id"]):
-        unknown = [dep for dep in task["depends_on"] if dep not in tasks]
-        if unknown:
-            conformance["depends_on_unknown"].append(
-                {"id": task["id"], "unknown": unknown})
     conformance["blocked_without_dependency"] = sorted(
         task["id"] for task in tasks.values()
         if task["open"] and task["status"] == "blocked" and not task["depends_on"])
