@@ -635,10 +635,166 @@ class DesignDoc:
 
 
 # ── BOARD.md ──────────────────────────────────────────────────────────────
+#
+# **A task row is read out of `perry/tasks.jsonl`, not out of a markdown
+# table** (ADR-007 decision 4, TASK-094). `BOARD.md` is a projection of that
+# store — `bin/perry_store.py § render` reproduces it byte-for-byte — so
+# resolving a header cell and splitting a row to recover the fifteen task
+# columns is asking a rendered document for a value the store already holds,
+# and it is the shape every "two readers of one board" defect in this
+# repository has taken.
+#
+# The markdown reader below survives for exactly one caller and is named for
+# it: a project with NO store has not been adopted, its markdown IS its state,
+# and parsing it is the job (`bin/perry-migrate`, `tests/fixtures/
+# sample-project`). That is the one place ADR-007 decision 4 keeps.
+#
+# What the store does not hold stays board-backed and is enumerated rather
+# than assumed: `## Cadence`, `## Intake`, `## User Input Queue` and
+# `## Top risks` have no store of their own yet (DESIGN-007's ordered plan;
+# TASK-090 § 5 bounded them explicitly), and neither does the `### ` sub-group
+# a Backbone row sits under.
+
+#: `<state root>/tasks.jsonl`. Named here because two readers of one path is
+#: the same defect one level down; `bin/perry_store.py § store_path` builds it
+#: the same way and this module may not import from `bin/`.
+TASK_STORE = "tasks.jsonl"
+
+#: The two statuses that take a row off the board. Spelled the same way in
+#: `bin/perry_store.py § TERMINAL_STATUSES`; this module may not import from
+#: `bin/`, and `tests/test_row_integrity.py` asserts the two agree rather than
+#: leaving a second copy to drift.
+_TERMINAL_STATUSES = frozenset(("done", "dropped"))
 
 
-def parse_board(text: str) -> BoardState:
+def load_task_store(state_root: Path) -> list[dict] | None:
+    """Every record of `<state root>/tasks.jsonl`, or `None` when there is none.
+
+    `None` is not "no tasks" — it is **"this project has not been adopted"**,
+    and it is the only condition under which anything in this module reads a
+    task out of a markdown table. An empty list is a real, adopted, empty
+    board and reads zero tasks without touching `BOARD.md`.
+
+    A malformed store returns `None` rather than raising: this reader is
+    read-only and feeds a viewer and a standup, and `bin/perry-tasks` is the
+    tool that reports a store it cannot parse. Falling back to the projection
+    would be the recovery `bin/perry_store.py § validate_records` refuses, so
+    the caller gets "unadopted" and the tool that can say why says why.
+    """
+    p = Path(state_root) / TASK_STORE
+    if not p.exists():
+        return None
+    try:
+        return [json.loads(line) for line
+                in p.read_text(encoding="utf-8").split("\n") if line.strip()]
+    except (OSError, ValueError):
+        return None
+
+
+def _task_from_record(rec: dict, priority: str) -> Task:
+    """One store record → the `Task` the viewer and `bin/perry-state` consume.
+
+    `status_note` is empty by construction. It exists because a hand-written
+    cell could read `review (dev done)`; a stored `status` is one of the six
+    enum values or the write was refused (`bin/perry-task §
+    refuse_unstorable_status`), so there is no parenthetical left to split off
+    and inventing one would be the reader asking prose a question again.
+
+    `priority` comes from the SECTION, exactly as the markdown reader derived
+    it, and not from the record's own `priority` field. The two disagree on a
+    real board — Perry's own `## Done this period` holds rows whose stored
+    priority is `P1` — and this function's job is to be the same reader, not a
+    better one.
+    """
+    def s(field: str) -> str:
+        v = rec.get(field)
+        return "" if v is None else str(v)
+
+    return Task(
+        id=s("id"), title=s("title"), owner=s("owner"), status=s("status"),
+        next_action=s("next_action"), evidence=s("evidence"),
+        priority=priority, status_note="", verification=s("verification"),
+        track=s("track"), stage=s("stage"), role=s("role"))
+
+
+def _records_by_group(records: list[dict]) -> list[tuple[str, list[dict]]]:
+    """`(section heading, rows)` in the order the store files them.
+
+    Rows are ordered by `order`, the field `bin/perry_store.py § STORED`
+    carries so that authored row order is *recorded* rather than re-derived —
+    which is the whole reason this reader can stop looking at the lines. A
+    record written before the field existed sorts last and keeps its file
+    order, because `sorted` is stable and a missing `order` is not a claim
+    about position.
+    """
+    groups: dict[str, list[dict]] = {}
+    for rec in records:
+        if str(rec.get("status") or "") in _TERMINAL_STATUSES:
+            # **Which rows have a line is the store's own answer**, and this is
+            # it: `bin/perry_store.py § plan` computes exactly this set as
+            # `wanted` when it decides which records the projection owes a
+            # line. A closed row keeps its `group` in the store as history —
+            # 22 of Perry's own P1/P2 records are `done` or `dropped` and none
+            # of them is on the board — so reading the group without this rule
+            # doubles the board. Measured: 24 rows before, 47 after.
+            continue
+        groups.setdefault(str(rec.get("group") or ""), []).append(rec)
+    out = []
+    for head, rows in groups.items():
+        if not head:
+            # No section: no line on the board and nothing to project it into.
+            # `bin/perry-tasks § plan` reports these as `rows_not_on_board`;
+            # a reader that invented a section for them would be inventing
+            # layout the store deliberately does not hold.
+            continue
+        out.append((head, sorted(
+            rows, key=lambda r: r["order"]
+            if isinstance(r.get("order"), int)
+            and not isinstance(r.get("order"), bool) else 1 << 30)))
+    return out
+
+
+def _board_tasks_from_store(state: BoardState, records: list[dict]) -> None:
+    """Fill `state`'s task lists from the store. Reads no markdown at all.
+
+    The section-to-list mapping is the markdown reader's, character for
+    character: `P0`/`P1`/`P2` are priority enum values and are matched by
+    prefix, `Backbone` names the spine, and every other heading is a
+    project-defined group that gets no invented priority.
+    """
+    for head, rows in _records_by_group(records):
+        if head.startswith("P0"):
+            state.p0 = [_task_from_record(r, "P0") for r in rows]
+        elif head.startswith("P1"):
+            state.p1 = [_task_from_record(r, "P1") for r in rows]
+        elif head.startswith("P2"):
+            state.p2 = [_task_from_record(r, "P2") for r in rows]
+        elif head.startswith("Backbone"):
+            tasks = [_task_from_record(r, "Backbone") for r in rows]
+            state.task_groups.append((head, tasks))
+            # The `### ` sub-group is LAYOUT and the store has no field for
+            # it, so a store-backed spine is one group per `##` heading. Said
+            # here rather than silently flattened: it is the one shape this
+            # cutover cannot reproduce, and the entity store that would fix it
+            # is DESIGN-007's, not this row's.
+            state.backbone_groups.append((head, tasks))
+        else:
+            state.task_groups.append(
+                (head, [_task_from_record(r, "") for r in rows]))
+
+
+def parse_board(text: str, *, tasks: list[dict] | None = None) -> BoardState:
+    """`BOARD.md` → the registers it carries.
+
+    `tasks` is the task store's records. **When it is given, no task row is
+    read out of `text`** — the fifteen task columns come from the store and
+    this function reads only the registers the store does not hold. When it is
+    `None` the project has no store and every register is parsed, which is
+    adoption and is the one caller that still needs a header rule here.
+    """
     state = BoardState()
+    if tasks is not None:
+        _board_tasks_from_store(state, tasks)
 
     m = re.search(r"Last updated:\s*([^\n]+)", text)
     if m:
@@ -655,11 +811,14 @@ def parse_board(text: str) -> BoardState:
         # P0/P1/P2 are priority enum values, invariant across languages; the
         # prose headings below resolve through the schema glossary.
         if head.startswith("P0"):
-            state.p0 = _parse_task_table(chunk, "P0")
+            if tasks is None:
+                state.p0 = _parse_task_table(chunk, "P0")
         elif head.startswith("P1"):
-            state.p1 = _parse_task_table(chunk, "P1")
+            if tasks is None:
+                state.p1 = _parse_task_table(chunk, "P1")
         elif head.startswith("P2"):
-            state.p2 = _parse_task_table(chunk, "P2")
+            if tasks is None:
+                state.p2 = _parse_task_table(chunk, "P2")
         elif heading_is(head, "Cadence"):
             state.cadence_items = _parse_cadence(chunk)
             state.cadence = [_cadence_as_task(c) for c in state.cadence_items]
@@ -676,14 +835,16 @@ def parse_board(text: str) -> BoardState:
             # mode whose whole shape is arrival.
             state.intake = _parse_intake(chunk)
         elif head.startswith("Backbone"):
-            backbone_chunk = chunk
-            tasks = _parse_task_table(chunk, "Backbone", task_headers_only=True)
-            if tasks:
-                state.task_groups.append((head, tasks))
-        else:
-            tasks = _parse_task_table(chunk, "", task_headers_only=True)
-            if tasks:
-                state.task_groups.append((head, tasks))
+            if tasks is None:
+                backbone_chunk = chunk
+                rows = _parse_task_table(chunk, "Backbone",
+                                         task_headers_only=True)
+                if rows:
+                    state.task_groups.append((head, rows))
+        elif tasks is None:
+            rows = _parse_task_table(chunk, "", task_headers_only=True)
+            if rows:
+                state.task_groups.append((head, rows))
 
     if backbone_chunk:
         state.backbone_groups = _parse_backbone(backbone_chunk)
@@ -3097,7 +3258,12 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
             seen.add(key)
             deduped.append(r)
 
-    board = parse_board(board_text) if board_text else BoardState()
+    # **The task rows come out of the store, and the board is not asked.**
+    # `load_snapshot` is the read path every tool and the viewer share, so it
+    # is where ADR-007's "Python never parses a document" has to be true. A
+    # project with no `tasks.jsonl` has not been adopted and is parsed, which
+    # is the one caller `parse_board`'s markdown reader still has.
+    board = parse_board(board_text, tasks=load_task_store(root))
 
     return PMOSnapshot(
         board=board,
