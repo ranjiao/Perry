@@ -1,0 +1,576 @@
+#!/usr/bin/env python3
+"""
+perry-state-cost — what a project's Perry state costs it, measured rather than
+estimated.
+
+A retention argument is only as good as the number under it, and a number
+pasted into a document is a number nobody can check. This tool is the number:
+run it, and it prints bytes, file counts and the growth trend for every path
+Perry claims, at a named commit, so the same command re-run tomorrow says
+whether the trend it reported is still true.
+
+**Read-only, and deliberately so.** It opens `git` and the schema and writes
+nothing — not to the project, not to the state root, not to a cache. It is a
+measurement of `evidence/`, `journal/` and their siblings, never a change to
+them. Nothing here deletes, moves or rotates a file; deciding what to do about
+the numbers is a separate question with a separate answer.
+
+**Where the bytes come from: git, not the filesystem.** `du` measures whichever
+untracked scratch files happen to be lying around, so two people re-running it
+get two answers. Tracked blob sizes at a named commit are the same for
+everyone with the same clone, which is what makes the figures reproducible.
+Untracked state is invisible here by that same choice, and the report says so.
+
+**Four numbers per path, because three of them get confused for each other:**
+
+  bytes     the checkout cost — what a clone writes to disk, and roughly what
+            an agent pays to read the directory.
+  files     the count. Bytes divided by files is how you tell one huge file
+            (rotatable) from a thousand small ones (not).
+  share     that path as a percentage of everything the repository tracks.
+  history   every revision of every file under that path, summed over the
+            objects reachable from the measured commit. **This is the number a
+            deletion does not recover.** Removing a file removes it from the
+            checkout; its bytes stay in `.git` and in every clone that has
+            ever fetched. A retention rule that quotes `bytes` as its saving is
+            quoting the smaller half.
+
+`history` is UNCOMPRESSED content, and it is an upper bound rather than a disk
+figure. Git deltifies and zlibs what it packs, and an append-only log — where
+each revision is the last one plus a few lines — compresses to a fraction of
+its content size. The report prints the whole repository's packed size next to
+it so the two are never mistaken for each other. The upper bound is still the
+honest number for the retention question, because it is the ratio of `history`
+to `bytes` that says whether a path is *rewritten* (deletion recovers almost
+nothing that was ever spent) or *appended to* (deletion recovers nearly all of
+it) — and that ratio survives compression.
+
+Paths come from `schema/state-schema.json § claims` — the list Perry itself
+uses to say what it owns — so a claim added there is measured here without
+anyone remembering to. Anything tracked under the state root that no claim
+covers is reported too, marked `unclaimed`, because a directory this tool
+forgets is a directory a retention policy never governs.
+
+Usage:
+  perry-state-cost [--root <project_root>] [--at <rev>] [--samples <n>]
+                   [--breakdown <path>] [--json] [--no-history]
+
+  --root      project root; default $PERRY_PROJECT, else walk up from cwd
+  --at        the commit to measure; default HEAD. Printed in the report, so
+              "the same figures" is a claim someone else can check.
+  --samples   how many history samples the growth table shows; default 12,
+              0 for every sampled day. Samples are the last commit of each
+              day along first-parent from --at, evenly thinned, and the first
+              and last day are always kept.
+  --breakdown one directory, per file. Repeatable. A directory total says a
+              rule is worth writing; only the file list says which rule.
+  --json      the full payload: every path, every sample, nothing thinned.
+  --no-history  skip the `history` column (one extra walk over the object
+              graph; on a large repository it is the slow half).
+
+Exit 0 whenever it could measure, including on a project with no Perry state
+at all. Exit 2 if the root is not inside a git repository, since every figure
+here is defined against tracked objects.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
+
+
+class Refused(RuntimeError):
+    """This tool's own refusal, per `bin/lib` § Each tool keeps its own."""
+
+
+# ── git ───────────────────────────────────────────────────────────────────
+
+
+#: git speaks the caller's language. The data it prints is not localized, but
+#: its *errors* are, and this tool quotes those errors into its own refusals —
+#: so a refusal is only diagnosable across machines if the locale is pinned.
+ENV = {**os.environ, "LC_ALL": "C"}
+
+
+def git(repo: Path, *args: str, stdin: str | None = None) -> str:
+    proc = subprocess.run(["git", "-C", str(repo), *args], input=stdin,
+                          capture_output=True, text=True, env=ENV)
+    if proc.returncode != 0:
+        raise Refused(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
+    return proc.stdout
+
+
+def repo_root(start: Path) -> Path:
+    """The git repository `start` sits in, or a refusal.
+
+    Resolved through git rather than by walking up looking for `.git`, because
+    a worktree's `.git` is a file and a submodule's is a pointer; git already
+    knows the answer for all three shapes.
+    """
+    try:
+        out = git(start, "rev-parse", "--show-toplevel")
+    except Refused as exc:
+        raise Refused(f"{start} is not inside a git repository — every figure "
+                      f"this tool prints is defined against tracked git "
+                      f"objects, so there is nothing here to measure "
+                      f"({exc})") from exc
+    return Path(out.strip()).resolve()
+
+
+def tree_sizes(repo: Path, rev: str) -> list[tuple[str, int]]:
+    """`(path, bytes)` for every blob in `rev`'s tree.
+
+    `-z` because a Perry project is allowed non-ASCII filenames and git quotes
+    them in the default output; the NUL-delimited form needs no unquoting and
+    so cannot get one wrong.
+    """
+    out = git(repo, "ls-tree", "-r", "--long", "-z", rev)
+    rows: list[tuple[str, int]] = []
+    for rec in out.split("\0"):
+        if not rec.strip():
+            continue
+        meta, _, path = rec.partition("\t")
+        fields = meta.split()
+        # mode type sha size — a submodule (`commit`) has no size and is `-`.
+        if len(fields) < 4 or fields[1] != "blob":
+            continue
+        try:
+            rows.append((path, int(fields[3])))
+        except ValueError:
+            continue
+    return rows
+
+
+def history_sizes(repo: Path, rev: str) -> list[tuple[str, str, int]]:
+    """`(path, sha, bytes)` for every blob version reachable from `rev`.
+
+    The same blob under two paths is listed twice on purpose — it is charged to
+    both, and the caller dedupes per bucket. Charging it to one arbitrary path
+    would make a directory's cost depend on the walk order.
+    """
+    listing = git(repo, "rev-list", "--objects", rev)
+    named: dict[str, str] = {}
+    for line in listing.splitlines():
+        sha, _, path = line.partition(" ")
+        if path:
+            named[sha] = path
+    if not named:
+        return []
+    checked = git(repo, "cat-file", "--buffer",
+                  "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+                  stdin="\n".join(named) + "\n")
+    rows: list[tuple[str, str, int]] = []
+    for line in checked.splitlines():
+        fields = line.split()
+        if len(fields) != 3 or fields[1] != "blob":
+            continue
+        rows.append((named[fields[0]], fields[0], int(fields[2])))
+    return rows
+
+
+def packed_bytes(repo: Path) -> int | None:
+    """What `.git` actually occupies in THIS clone, or None.
+
+    Reported next to `history` and never mixed into it, because the two answer
+    different questions and only one of them is reproducible. This number
+    changes when git repacks — a `gc` between two runs moves it without a
+    single byte of content changing — so it is context for a reader, never a
+    figure a policy should be argued from.
+    """
+    try:
+        out = git(repo, "count-objects", "-v")
+    except Refused:
+        return None
+    total = 0
+    for line in out.splitlines():
+        key, _, value = line.partition(":")
+        if key.strip() in ("size", "size-pack"):
+            try:
+                total += int(value.strip()) * 1024  # git reports KiB
+            except ValueError:
+                return None
+    return total
+
+
+def samples(repo: Path, rev: str) -> list[tuple[str, str]]:
+    """`(date, sha)` — the last commit of each day, first-parent from `rev`.
+
+    First-parent, so a long-lived side branch merged yesterday does not appear
+    as a year of retroactive growth on the mainline. The last commit of a day
+    rather than the first, so "the day Perry state hit N bytes" is the state
+    that day ended in.
+    """
+    out = git(repo, "log", "--first-parent", "--date=short",
+              "--format=%H %ad", rev)
+    by_day: dict[str, str] = {}
+    for line in out.splitlines():
+        sha, _, day = line.partition(" ")
+        # Newest first, so the first sha seen for a day is that day's last.
+        by_day.setdefault(day.strip(), sha)
+    return [(day, by_day[day]) for day in sorted(by_day)]
+
+
+def thin(rows: list, keep: int) -> list:
+    """`keep` rows, evenly spaced, first and last always among them.
+
+    A growth table nobody can read is a growth table nobody checks. `keep <= 0`
+    means "all of them", which is what `--json` always uses.
+    """
+    if keep <= 0 or len(rows) <= keep:
+        return rows
+    if keep == 1:
+        return [rows[-1]]
+    step = (len(rows) - 1) / (keep - 1)
+    picked = sorted({round(i * step) for i in range(keep)})
+    return [rows[i] for i in picked]
+
+
+# ── which path is whose ───────────────────────────────────────────────────
+
+
+def buckets(project_root: Path, state_root: Path, repo: Path) -> list[dict]:
+    """The measured paths, from `schema/state-schema.json § claims`.
+
+    Read, never written. This tool does not decide what Perry claims — that
+    contract lives in the schema and changing it is a different task entirely.
+    Reading it here means a claim added tomorrow is measured tomorrow, which is
+    the only version of this that cannot silently omit a directory.
+    """
+    schema = lib.load_schema(Refused)
+    out: list[dict] = []
+    for claim in schema.get("claims") or []:
+        anchor = project_root if claim.get("anchor") == "project" else state_root
+        target = (anchor / claim["path"]).resolve()
+        try:
+            rel = target.relative_to(repo).as_posix()
+        except ValueError:
+            # A state root outside the repository. `resolve_state_root`
+            # already refuses to escape the project, so this is defence
+            # against a project laid out in a way we have not seen.
+            continue
+        out.append({
+            "label": rel + ("/" if claim.get("kind") == "dir" else ""),
+            "prefix": rel + "/" if claim.get("kind") == "dir" else None,
+            "exact": None if claim.get("kind") == "dir" else rel,
+            "owner": claim.get("owner", "?"),
+            "claimed": True,
+        })
+    # Deterministic, and longest prefix first so `.perry/roles/` would win over
+    # `.perry/` if the schema ever claimed both.
+    out.sort(key=lambda b: (-len(b["label"]), b["label"]))
+    return out
+
+
+def state_prefixes(project_root: Path, state_root: Path,
+                   repo: Path) -> list[str]:
+    """Repo-relative prefixes under which an unclaimed file is still Perry's.
+
+    The state root and `.perry/`. A tracked file under either that no claim
+    covers is Perry's state that the claims list does not describe —
+    `perry/tasks.jsonl` is the live example, and it is 52 KB of the thing this
+    tool exists to size. Reporting it as `unclaimed` rather than dropping it is
+    the difference between a measurement and a flattering one.
+    """
+    out = []
+    for path in (state_root, project_root / ".perry"):
+        try:
+            rel = path.resolve().relative_to(repo).as_posix()
+        except ValueError:
+            continue
+        out.append("" if rel == "." else rel + "/")
+    return sorted(set(out), key=len, reverse=True)
+
+
+def classify(path: str, bucket_list: list[dict], prefixes: list[str]) -> str | None:
+    for b in bucket_list:
+        if b["exact"] is not None and path == b["exact"]:
+            return b["label"]
+        if b["prefix"] and path.startswith(b["prefix"]):
+            return b["label"]
+    for pre in prefixes:
+        if path.startswith(pre):
+            head = path[len(pre):].split("/")[0]
+            rest = path[len(pre):]
+            suffix = head + "/" if "/" in rest else head
+            return f"{pre}{suffix} (unclaimed)"
+    return None
+
+
+# ── the measurement ───────────────────────────────────────────────────────
+
+
+def measure(repo: Path, rev: str, bucket_list: list[dict], prefixes: list[str],
+            with_history: bool) -> dict:
+    rows: dict[str, dict] = {}
+    repo_bytes = 0
+    repo_files = 0
+    for path, size in tree_sizes(repo, rev):
+        repo_bytes += size
+        repo_files += 1
+        label = classify(path, bucket_list, prefixes)
+        if label is None:
+            continue
+        row = rows.setdefault(label, {"bytes": 0, "files": 0, "history": 0})
+        row["bytes"] += size
+        row["files"] += 1
+    if with_history:
+        seen: set[tuple[str, str]] = set()
+        for path, sha, size in history_sizes(repo, rev):
+            label = classify(path, bucket_list, prefixes)
+            if label is None or (label, sha) in seen:
+                continue
+            seen.add((label, sha))
+            rows.setdefault(label, {"bytes": 0, "files": 0,
+                                    "history": 0})["history"] += size
+    state_bytes = sum(r["bytes"] for r in rows.values())
+    state_files = sum(r["files"] for r in rows.values())
+    return {
+        "rev": rev,
+        "paths": rows,
+        "state_bytes": state_bytes,
+        "state_files": state_files,
+        "repo_bytes": repo_bytes,
+        "repo_files": repo_files,
+        "share": (state_bytes / repo_bytes) if repo_bytes else 0.0,
+    }
+
+
+def breakdown(repo: Path, rev: str, prefix: str,
+              with_history: bool) -> list[dict]:
+    """Every tracked file under `prefix`, one row each.
+
+    A directory total says a rule is worth writing; it never says *which* rule.
+    `evidence/` at a megabyte could be one unbounded log or four hundred small
+    records, and the retention rule those two want is not the same rule. This
+    is the drill-down, and it is why the tool does not stop at the directory
+    line.
+    """
+    hist: dict[str, int] = {}
+    if with_history:
+        seen: set[tuple[str, str]] = set()
+        for path, sha, size in history_sizes(repo, rev):
+            if path.startswith(prefix) and (path, sha) not in seen:
+                seen.add((path, sha))
+                hist[path] = hist.get(path, 0) + size
+    rows = [{"path": path, "bytes": size, "history": hist.get(path, 0)}
+            for path, size in tree_sizes(repo, rev) if path.startswith(prefix)]
+    return sorted(rows, key=lambda r: (-r["bytes"], r["path"]))
+
+
+def payload(project_root: Path, rev: str, keep: int,
+            with_history: bool, drill: list[str] | None = None) -> dict:
+    repo = repo_root(project_root)
+    state_root = lib.resolve_state_root(project_root)
+    bucket_list = buckets(project_root, state_root, repo)
+    prefixes = state_prefixes(project_root, state_root, repo)
+    head = git(repo, "rev-parse", rev).strip()
+    day = git(repo, "log", "-1", "--date=short", "--format=%ad", head).strip()
+
+    now = measure(repo, head, bucket_list, prefixes, with_history)
+    trend = []
+    for sday, sha in samples(repo, head):
+        m = measure(repo, sha, bucket_list, prefixes, with_history=False)
+        m["date"] = sday
+        m.pop("rev")
+        trend.append(m)
+    drills = {}
+    for raw in drill or []:
+        # Accept either a repo-relative path or one the user can `ls` — a
+        # measurement you have to translate before you can run it is a
+        # measurement people re-derive by hand instead.
+        cand = Path(raw).expanduser()
+        try:
+            pre = (cand if cand.is_absolute()
+                   else (Path.cwd() / cand)).resolve().relative_to(repo).as_posix()
+        except ValueError:
+            pre = raw
+        pre = pre.rstrip("/")
+        drills[raw] = breakdown(repo, head, pre + "/" if pre else "",
+                                with_history)
+    return {
+        "installed": (project_root / ".perry").is_dir(),
+        "project_root": str(project_root),
+        "state_root": str(state_root),
+        "repo_root": str(repo),
+        "measured_at": {"rev": rev, "commit": head, "date": day},
+        "history_included": with_history,
+        "git_packed_bytes": packed_bytes(repo) if with_history else None,
+        "snapshot": now,
+        "trend": trend,
+        "trend_shown": [t["date"] for t in thin(trend, keep)],
+        "claimed_paths": [b["label"] for b in bucket_list],
+        "breakdown": drills,
+    }
+
+
+# ── rendering ─────────────────────────────────────────────────────────────
+
+
+def commas(n: int) -> str:
+    return f"{n:,}"
+
+
+def short(label: str) -> str:
+    """A column heading narrow enough to read, chopped at the front.
+
+    The first version truncated from the right and produced `rry/evidence/` —
+    a heading that names no directory anyone can look up. The tail is the part
+    that identifies the path, so the tail is the part that survives.
+    """
+    name = label.split(" ")[0].rstrip("/")
+    name = name.rsplit("/", 1)[-1] if "/" in name else name
+    return (name + "/") if label.split(" ")[0].endswith("/") else name
+
+
+def render(data: dict, keep: int) -> str:
+    snap = data["snapshot"]
+    hist = data["history_included"]
+    out: list[str] = []
+    out.append(f"perry-state-cost · {data['project_root']}")
+    out.append(f"  state root: {data['state_root']}  ·  measured at "
+               f"{data['measured_at']['commit'][:10]} "
+               f"({data['measured_at']['date']})")
+    out.append("")
+    out.append("## Snapshot — tracked bytes")
+    out.append("")
+    head = f"  {'path':<34}{'bytes':>12}{'files':>8}{'share':>8}"
+    if hist:
+        head += f"{'history':>12}"
+    out.append(head)
+    out.append("  " + "-" * (len(head) - 2))
+    rows = sorted(snap["paths"].items(), key=lambda kv: -kv[1]["bytes"])
+    for label, row in rows:
+        share = row["bytes"] / snap["repo_bytes"] if snap["repo_bytes"] else 0
+        line = (f"  {label:<34}{commas(row['bytes']):>12}"
+                f"{commas(row['files']):>8}{share * 100:>7.1f}%")
+        if hist:
+            line += f"{commas(row['history']):>12}"
+        out.append(line)
+    out.append("  " + "-" * (len(head) - 2))
+    out.append(f"  {'Perry state':<34}{commas(snap['state_bytes']):>12}"
+               f"{commas(snap['state_files']):>8}"
+               f"{snap['share'] * 100:>7.1f}%")
+    out.append(f"  {'repository (tracked)':<34}{commas(snap['repo_bytes']):>12}"
+               f"{commas(snap['repo_files']):>8}{100.0:>7.1f}%")
+    empty = [p for p in data["claimed_paths"] if p not in snap["paths"]]
+    if empty:
+        out.append("")
+        out.append("  claimed and empty (nothing tracked under them here):")
+        for chunk in (empty[i:i + 3] for i in range(0, len(empty), 3)):
+            out.append("    " + "  ".join(chunk))
+
+    out.append("")
+    out.append("## Growth — one sample per day with commits, first-parent")
+    out.append("")
+    shown = thin(data["trend"], keep)
+    top = [label for label, _ in rows[:4]]
+    head = f"  {'date':<12}{'repo':>12}{'Perry':>12}{'share':>8}"
+    for label in top:
+        head += f"{short(label):>15}"
+    out.append(head)
+    out.append("  " + "-" * (len(head) - 2))
+    for t in shown:
+        line = (f"  {t['date']:<12}{commas(t['repo_bytes']):>12}"
+                f"{commas(t['state_bytes']):>12}{t['share'] * 100:>7.1f}%")
+        for label in top:
+            line += f"{commas(t['paths'].get(label, {}).get('bytes', 0)):>15}"
+        out.append(line)
+    if len(shown) < len(data["trend"]):
+        out.append(f"  ({len(shown)} of {len(data['trend'])} sampled days "
+                   f"shown; --samples 0 for all, --json for every path)")
+    for raw, files in (data.get("breakdown") or {}).items():
+        out.append("")
+        out.append(f"## Breakdown — {raw} ({len(files)} tracked file(s))")
+        out.append("")
+        for row in files:
+            line = f"  {row['path']:<58}{commas(row['bytes']):>12}"
+            if hist:
+                line += f"{commas(row['history']):>12}"
+            out.append(line)
+        if not files:
+            out.append("  (nothing tracked under it at this commit)")
+
+    out.append("")
+    out.append("  bytes = checkout cost. Untracked files are invisible to it.")
+    if hist:
+        out.append("  history = every revision ever, UNCOMPRESSED — what a "
+                   "deletion does NOT recover.")
+    if hist and data.get("git_packed_bytes"):
+        out.append(f"  This clone's .git occupies "
+                   f"{commas(data['git_packed_bytes'])} bytes packed — the "
+                   f"same content, deltified.")
+        out.append("  It moves when git repacks, so it is context and not a "
+                   "figure to argue from.")
+    return "\n".join(out)
+
+
+# ── entry ─────────────────────────────────────────────────────────────────
+
+
+def main(argv: list[str]) -> int:
+    root_arg = None
+    rev = "HEAD"
+    keep = 12
+    as_json = False
+    with_history = True
+    drill: list[str] = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif arg == "--json":
+            as_json = True
+        elif arg == "--no-history":
+            with_history = False
+        elif arg == "--root":
+            i += 1
+            root_arg = argv[i] if i < len(argv) else None
+        elif arg == "--at":
+            i += 1
+            rev = argv[i] if i < len(argv) else "HEAD"
+        elif arg == "--breakdown":
+            i += 1
+            if i < len(argv):
+                drill.append(argv[i])
+        elif arg == "--samples":
+            i += 1
+            try:
+                keep = int(argv[i]) if i < len(argv) else 8
+            except ValueError:
+                print(f"perry-state-cost: --samples wants an integer, "
+                      f"got {argv[i]!r}", file=sys.stderr)
+                return 2
+        else:
+            print(f"perry-state-cost: unknown argument {arg!r} "
+                  f"(--help for usage)", file=sys.stderr)
+            return 2
+        i += 1
+
+    project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                    else Path(os.environ.get("PERRY_PROJECT")
+                              or Path.cwd()).resolve())
+    try:
+        data = payload(project_root, rev, keep, with_history, drill)
+    except Refused as exc:
+        print(f"perry-state-cost: {exc}", file=sys.stderr)
+        return 2
+    if as_json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+    else:
+        print(render(data, keep))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

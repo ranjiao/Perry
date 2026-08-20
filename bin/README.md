@@ -25,6 +25,7 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
 | [`perry-conform`](perry-conform) | read + writes `.perry/conformance.md` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. |
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
+| [`perry-state-cost`](perry-state-cost) | read | What a project's Perry state costs it: bytes, file count, share of tracked bytes and the growth trend, per claimed path, at a named commit. The paths come from `schema/state-schema.json § claims`, so a directory cannot fall out of the report by being forgotten. Reads `evidence/` and `journal/` to size them and writes nothing anywhere. |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P-O1.2`) to what it actually means, where it was defined, and everywhere it is referenced. |
 | [`perry-viewer`](perry-viewer) | read | Launches the opt-in read-only local web console (`viewer/`). Builds its own venv. |
 | [`perry-detect-host`](perry-detect-host) | read | Prints `claude-code` \| `codex-cli` \| `unknown`, so SKILL.md branches pick the right host capability. |
