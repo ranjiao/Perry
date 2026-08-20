@@ -29,6 +29,24 @@ Behind it:
    index-guarded (`if ci >= len(row): continue`), so a short row read as one
    whose trailing columns are empty, and empty is legal for `Evidence`.
 
+**What TASK-094 changed about this module, and what it did not.** ADR-007
+decision 4 removed the category rather than hardening it *for three files*:
+`BOARD.md`, `OKR.md` and `.perry/config.md` are stores, and no task row and no
+KR row is split out of them any more. So the last class here measures that —
+the deliverable is a count and this is the same count — and the one guard
+whose premise moved says so: `parse_board` reading what `render_row` wrote is
+now a statement about ADOPTION, a foreign project whose markdown is its state,
+not about the live read path.
+
+What did NOT change, and is therefore not deleted: `perry-lint` still reads
+`BOARD.md` as a document and `ragged-row` is still the finding that catches a
+destroyed row; `render_row` still writes `DECISIONS.md`, phase files and every
+foreign project a migration touches; and four registers of `BOARD.md`
+— `## Cadence`, `## Intake`, `## User Input Queue`, `## Top risks` — have no
+store of their own yet, so their readers are counted here as a pinned residual
+rather than quietly excused. **A test file that lost those assertions would
+look like coverage and be none.**
+
 Run: python3 -m unittest discover -s tests   (or ./tests/run)
 """
 
@@ -36,10 +54,9 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import json
 import os
 import re
-
-import viewer.tables as T
 import subprocess
 import sys
 import tempfile
@@ -219,7 +236,13 @@ class TestEveryoneReadsTheRowTheSameWay(unittest.TestCase):
                         "escapes | and not the other one", "—", "V2"])
 
     def test_the_board_parser_reads_what_the_writer_wrote(self):
-        """`viewer/parsers.py` is the read side of all three frozen contracts.
+        """**This is an ADOPTION test now** — a project with no store, whose
+        markdown is its state, which is the one place ADR-007 decision 4 keeps
+        markdown reading. `parse_board` is called without `tasks=`, exactly as
+        `bin/perry-migrate` calls it, so the property still under test is that
+        a foreign row survives the round trip between the writer and the
+        reader.
+
         Asserted against the BOARD ALONE, with no event log to merge over it —
         merging events is what hid this defect on Perry's own repo."""
         board = P.parse_board(board_with([self.ROW]))
@@ -606,3 +629,214 @@ class TestRaggedRowPointsAtTheRow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── the count TASK-094 is measured by ─────────────────────────────────────
+#
+# **The deliverable is a count, so the verification is the same count.** A
+# reader that resolves a header cell or splits a row for one of ADR-007's
+# three stores is serving a shape that no longer exists, and "we deleted it"
+# is a claim a grep can be satisfied by. This measures it instead: it wraps
+# the two primitives where `viewer/parsers.py` reaches them, runs a real read
+# of each of the three files with its store present, and counts what fired
+# and which function fired it.
+#
+# It is deliberately two-sided. Asserting only "zero for the store path" is a
+# guard that a deleted reader passes and an empty function passes equally
+# well, so every zero here is paired with the same read performed WITHOUT a
+# store — adoption — where the same call sites must fire. A number that
+# cannot be made to go up is not a measurement.
+
+
+def reader_calls(run) -> dict:
+    """`{(register, primitive): calls}` made by `run()` inside the reader.
+
+    `parsers` does `from tables import split_row, squash`, so the two names it
+    actually calls are its own module globals — patching those catches every
+    reader call and no renderer call, which is exactly the boundary TASK-094
+    is about. It asks what RAN rather than what the source says, so a call
+    site that moves into a differently-spelled helper is still counted.
+
+    **The key is the REGISTER, not the innermost frame.** `_table_rows` and
+    `_column_keys` are shared helpers: the first serves both `OKR.md`'s KR
+    table and `BOARD.md`'s risk table, and blaming a call on it would report
+    one file's residual against the other's zero. So the stack is walked up
+    through `viewer/parsers.py` and the frame just below the entry point —
+    `_parse_cadence`, `_parse_risks`, `_parse_okr_objectives` — is what the
+    count is filed under.
+
+    Every `lru_cache` in the module is cleared first. `_column_index` is
+    cached, so the first measurement in a process paid for the glossary squash
+    and every later one did not — the count was a function of test order until
+    this line existed.
+    """
+    for value in vars(P).values():
+        if hasattr(value, "cache_clear"):
+            value.cache_clear()
+    counts: dict = {}
+    saved = {name: getattr(P, name) for name in ("split_row", "squash")}
+
+    def register_of(frame) -> str:
+        chain = []
+        while frame is not None and frame.f_globals is P.__dict__:
+            chain.append(frame.f_code.co_name)
+            frame = frame.f_back
+        return chain[-2] if len(chain) > 1 else (chain[-1] if chain else "?")
+
+    def tally(orig, name):
+        def wrapped(*a, **kw):
+            key = (register_of(sys._getframe(1)), name)
+            counts[key] = counts.get(key, 0) + 1
+            return orig(*a, **kw)
+        return wrapped
+
+    for name, orig in saved.items():
+        setattr(P, name, tally(orig, name))
+    try:
+        run()
+    finally:
+        for name, orig in saved.items():
+            setattr(P, name, orig)
+    return counts
+
+
+#: One adopted project: the three files, and the two stores that hold their
+#: typed values. Written as literal records rather than produced by the
+#: writers, so this measures the READ side and cannot go green because a
+#: writer changed.
+STORED_BOARD = "\n".join([
+    "# Board", "",
+    "## P0 (must finish this period)", "",
+    "| ID | Title | Owner | Status | Next action | Evidence | Verification |",
+    "|---|---|---|---|---|---|---|",
+    "| TASK-001 | ship the thing | Coding Agent | not_started | do it | — | V2 |",
+    "", "## Cadence (recurring)", "",
+    "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |",
+    "|---|---|---|---|---|---|",
+    "| CADENCE-001 | weekly review | Coding Agent | weekly | 2026-09-01 | — |",
+    "", "## User Input Queue", "",
+    "| ID | Needed from user | Blocks | Asked | Status |",
+    "|---|---|---|---|---|",
+    "| USER-001 | pick a severity | TASK-001 | 2026-08-01 | open |",
+    "", "## Top risks", "",
+    "| ID | Risk | Opened | Status |",
+    "|---|---|---|---|",
+    "| RX-001 | the store and the board could disagree | 2026-08-01 | open |",
+    "",
+])
+
+STORED_TASK_RECORD = {
+    "id": "TASK-001", "title": "ship the thing", "summary": "",
+    "owner": "Coding Agent", "status": "not_started", "priority": "P0",
+    "track": "main", "stage": "", "stage_since": "", "arrived": "",
+    "verification": "V2", "evidence": "—", "next_action": "do it",
+    "depends_on": [], "commitment": "", "parent": "",
+    "group": "P0 (must finish this period)", "role": "",
+    "created": "2026-08-01T00:00:00", "order": 0,
+}
+
+STORED_OKR = "\n".join([
+    "# OKR", "",
+    "## Mission", "", "Prove the store is the state.", "",
+    "## v1: the first version", "",
+    "### Objective 1 — Ship it", "",
+    "| Id | KR text | Metric / Target | Linked overall KR |",
+    "|---|---|---|---|",
+    "| KR-O1.1 | the store renders the board | 1 of 1 | — |",
+    "",
+])
+
+STORED_KR_RECORD = {
+    "kind": "kr", "version": "v1: the first version",
+    "objective": "Objective 1 — Ship it", "id": "KR-O1.1",
+    "text": "the store renders the board", "metric": "1 of 1",
+    "stretch": "", "deadline": "", "linked": "—", "qualifier": "",
+    "form": "table", "order": 0,
+}
+
+#: **The residual, pinned by name.** These four registers of `BOARD.md` have
+#: no store of their own — DESIGN-007's ordered plan, and TASK-090 § 5 bounded
+#: them explicitly — so they are still read out of the markdown and this is
+#: the honest count. Pinned rather than tolerated: a fifth name appearing here
+#: is a new markdown reader for a store, and a name disappearing is the entity
+#: store that removes it, and both should be somebody's decision rather than a
+#: number nobody looked at.
+BOARD_REGISTERS_WITHOUT_A_STORE = {
+    "_parse_cadence", "_parse_user_input", "_parse_intake", "_parse_risks",
+}
+
+
+class TestNoRowIsSplitForAStore(unittest.TestCase):
+    """Verification 1, the row-split half. `tests/test_one_header_rule.py`
+    carries the header-cell half against the same fixture."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        (self.root / "BOARD.md").write_text(STORED_BOARD, encoding="utf-8")
+        (self.root / "OKR.md").write_text(STORED_OKR, encoding="utf-8")
+        (self.root / "tasks.jsonl").write_text(
+            json.dumps(STORED_TASK_RECORD, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+        (self.root / "okr.jsonl").write_text(
+            json.dumps(STORED_KR_RECORD, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+
+    def splits(self, run) -> dict:
+        return {fn: n for (fn, prim), n in reader_calls(run).items()
+                if prim == "split_row"}
+
+    def test_no_task_row_of_the_board_is_split_when_the_store_holds_it(self):
+        text = STORED_BOARD
+        records = P.load_task_store(self.root)
+        self.assertEqual(len(records), 1, "the fixture's store did not load")
+        with_store = self.splits(lambda: P.parse_board(text, tasks=records))
+        self.assertNotIn("_parse_task_table", with_store,
+                         f"a task row was split for BOARD.md: {with_store}")
+        self.assertEqual(set(with_store) - BOARD_REGISTERS_WITHOUT_A_STORE,
+                         set(), f"a register the store holds is still being "
+                                f"split out of the markdown: {with_store}")
+
+    def test_the_same_read_without_a_store_DOES_split_the_task_rows(self):
+        """The other side of the zero. Adoption — a project with no store —
+        must still reach `_parse_task_table`, or the zero above is measuring a
+        function that no longer does anything rather than one that is no longer
+        called."""
+        splits = self.splits(lambda: P.parse_board(STORED_BOARD))
+        self.assertIn("_parse_task_table", splits,
+                      "adoption stopped splitting task rows; the count above "
+                      "is then a zero about nothing")
+
+    def test_no_kr_row_of_the_okr_is_split_when_the_store_holds_it(self):
+        records = P.load_okr_store(self.root)
+        self.assertEqual(len(records), 1, "the fixture's store did not load")
+        with_store = self.splits(
+            lambda: P.parse_okr(STORED_OKR, krs=records))
+        self.assertEqual(with_store, {},
+                         f"a row was split for OKR.md: {with_store}")
+        self.assertIn("_parse_okr_objectives", self.splits(
+            lambda: P.parse_okr(STORED_OKR)),
+            "adoption stopped splitting KR rows")
+
+    def test_no_row_is_split_for_the_config(self):
+        """`.perry/config.md`'s reader here is `resolve_state_root`, which
+        reads one declared setting with a regex and has never split a row.
+        Asserted rather than assumed: it is one of the three, and the file it
+        reads is the one that decides where the other two live."""
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(
+            "# Config\n\n- State root: .\n", encoding="utf-8")
+        self.assertEqual(
+            self.splits(lambda: P.resolve_state_root(self.root)), {})
+
+    def test_the_two_terminal_status_sets_are_the_same_set(self):
+        """`viewer/parsers.py` may not import from `bin/`, so it spells the
+        two statuses that take a row off the board a second time. That is
+        exactly the shape this repository keeps paying for, so the copy is
+        asserted equal to the original rather than left to drift: they decide
+        which records get a line, and a disagreement would double a board or
+        empty one."""
+        store = load("perry_store", PERRY_HOME / "bin" / "perry_store.py")
+        self.assertEqual(set(P._TERMINAL_STATUSES),
+                         set(store.TERMINAL_STATUSES))

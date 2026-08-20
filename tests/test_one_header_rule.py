@@ -20,6 +20,15 @@ This module is the guard the previous round did not have. The previous one was
 `assertIs(P.squash, PT.squash)`, which asserts two modules share a function and
 says nothing about a third module that imported neither.
 
+**TASK-094 narrowed what this is for.** ADR-007 decision 4 removes the question
+for `BOARD.md`, `OKR.md` and `.perry/config.md`: a task row and a KR row are
+read out of a store now and nothing asks a rendered document which column a
+cell is. The last class measures that as a count. Everything above it survives
+because it is what ADOPTION needs — a foreign project's board, a project's
+`.perry/config.md § Tracks` register, `.perry/conformance.md` — and adoption
+parses by definition. A file that kept only the count would be green on a
+reader that invented a sixth rule for a project arriving from outside Perry.
+
 Run: python3 -m unittest discover -s tests
 """
 
@@ -27,14 +36,22 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 from tables import squash  # noqa: E402
+import parsers as P  # noqa: E402
+
+# The counter, not a second copy of it. `tests/parallel` puts `tests/` on the
+# path the same way `discover` does, which is how `test_risks` already reaches
+# `test_task_writer`.
+import test_row_integrity as RI  # noqa: E402
 
 #: Every file that reads a Perry state file. Not a curated list of offenders —
 #: the point is that a NEW reader is caught too, so this is "everything in
@@ -87,8 +104,15 @@ READERS = sorted(
 #: a reviewer proved by renaming it. The loop SUBJECT is now any identifier, and
 #: the comprehension is recognised by what it builds rather than by what the
 #: author happened to call the row.
+#: **(4) It required the `[` to sit immediately after the `=`.** Found by
+#: mutation while measuring TASK-094: `header = ([c.strip().lower() for c in
+#: split_row(prev)] if … else [])` — the LIVE shape in `viewer/parsers.py §
+#: _parse_task_table`, one paren away from the pattern — was planted and this
+#: guard stayed green while three other tests went red. A parenthesised
+#: comprehension is how the real call site is written, so the blind spot was
+#: aimed at exactly the line the module exists to watch.
 SECOND_RULE = re.compile(
-    r"=\s*\[[^\]]*?\.lower\(\)[^\]]*?\bfor\b\s+\w+\s+in\s+"
+    r"=\s*[(\[\s]*\[[^\]]*?\.lower\(\)[^\]]*?\bfor\b\s+\w+\s+in\s+"
     r"(?:cells|cols|columns|header|hdr|split_row\()")
 
 
@@ -226,6 +250,78 @@ class TestTheFifthCopy(unittest.TestCase):
         _, unreadable = self.probe(
             "| **File** | **Shape version** | **Declared** | **Route** |")
         self.assertEqual(unreadable, [])
+
+
+class TestNoHeaderCellIsResolvedForAStore(unittest.TestCase):
+    """Verification 1, the header-cell half. TASK-094, ADR-007 decision 4.
+
+    **The rule above is not being hardened, it is being removed** — for three
+    files. `BOARD.md`, `OKR.md` and `.perry/config.md` are stores now, and a
+    reader that asks a rendered document which column a cell is, is asking
+    about a shape that no longer exists. What survives is adoption of a
+    foreign project, which parses by definition, and the zeros below are
+    paired with the same read on an unadopted project so that a zero cannot be
+    scored by a reader that stopped doing anything at all.
+
+    The counting is `tests/test_row_integrity.py § reader_calls` — one
+    implementation, because two would be the defect this module is named for.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        (self.root / "BOARD.md").write_text(RI.STORED_BOARD, encoding="utf-8")
+        (self.root / "OKR.md").write_text(RI.STORED_OKR, encoding="utf-8")
+        (self.root / "tasks.jsonl").write_text(
+            json.dumps(RI.STORED_TASK_RECORD, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+        (self.root / "okr.jsonl").write_text(
+            json.dumps(RI.STORED_KR_RECORD, ensure_ascii=False) + "\n",
+            encoding="utf-8")
+
+    def resolutions(self, run) -> dict:
+        return {reg: n for (reg, prim), n in RI.reader_calls(run).items()
+                if prim == "squash"}
+
+    def test_no_header_cell_of_a_task_table_is_resolved_from_the_store(self):
+        with_store = self.resolutions(
+            lambda: P.parse_board(RI.STORED_BOARD,
+                                  tasks=P.load_task_store(self.root)))
+        self.assertNotIn("_parse_task_table", with_store)
+        # `heading_is` is how `## 主要风险` is recognised as `## Top risks`.
+        # A SECTION HEADING is prose and squashing it is not resolving a
+        # header cell — that is the distinction `viewer/tables.py § squash`
+        # documents and the one this module's own `SECOND_RULE` narrows on.
+        # Allowed by name, because silently excusing it is how the next real
+        # call site would hide behind it.
+        self.assertEqual(
+            set(with_store) - RI.BOARD_REGISTERS_WITHOUT_A_STORE
+            - {"heading_is"}, set(),
+            f"a header cell was resolved for a stored register: {with_store}")
+
+    def test_the_same_read_without_a_store_DOES_resolve_them(self):
+        """The zero above must be about a call site that is no longer reached,
+        not about a function that no longer resolves anything."""
+        self.assertIn("_parse_task_table",
+                      self.resolutions(lambda: P.parse_board(RI.STORED_BOARD)))
+
+    def test_no_header_cell_of_the_okr_is_resolved_from_the_store(self):
+        with_store = self.resolutions(
+            lambda: P.parse_okr(RI.STORED_OKR,
+                                krs=P.load_okr_store(self.root)))
+        self.assertEqual(
+            {k: v for k, v in with_store.items() if k != "heading_is"}, {},
+            f"a header cell was resolved for OKR.md: {with_store}")
+        self.assertIn("_parse_okr_objectives",
+                      self.resolutions(lambda: P.parse_okr(RI.STORED_OKR)))
+
+    def test_no_header_cell_of_the_config_is_resolved_here(self):
+        (self.root / ".perry").mkdir()
+        (self.root / ".perry" / "config.md").write_text(
+            "# Config\n\n- State root: .\n", encoding="utf-8")
+        self.assertEqual(
+            self.resolutions(lambda: P.resolve_state_root(self.root)), {})
 
 
 if __name__ == "__main__":
