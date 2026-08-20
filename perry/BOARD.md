@@ -23,7 +23,6 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
 |---|---|---|---|---|---|---|---|
-| TASK-047 | Flip the conformance gate to enforce | Coding Agent | review | PR #8 merged and the gate enforces on this branch; awaiting the user's V5 sign-off text (name, date, what was checked) | evidence/2026-08/TASK-047-dispatch-2026-08-20-1416.md | V4 | TASK-044 |
 | TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | blocked | Read evidence/2026-08/TASK-038-v5-signoff-request.md and provide the named V5 approval. | — | V5 | — |
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 |
 | TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | review | user verifies: merge PR #6, and decide USER-004 (refuse vs report) which this task deliberately left open | evidence/2026-08/TASK-079-dispatch-2026-08-20-1345.md | V4 | — |
@@ -34,7 +33,8 @@
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 |
 | TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — |
-| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | in_progress | dispatched 15:16 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V4 | — |
+| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — |
+| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | not_started | — | — | V5 |  |
 
 ## P2
 
