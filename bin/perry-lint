@@ -1254,8 +1254,13 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
         # overwriting a project's own design/, evidence/, …", so once this
         # check started seeing tool-closed tasks it flagged all 29 of them.
         # A latent bug that could not fire while the check rated nothing.
-        hay = f"{tid} {title}".lower()
-        hit = next((f for f in stakes if f in hay), None)
+        hay = f"{tid} {title}"
+        # `P.matching_escalations` is the one matcher, for the same reason
+        # `P.escalation_union` is the one extractor: a second copy is how a
+        # scan quietly stops scanning what it used to. The copy that stood
+        # here was `f in hay` — a bare substring — and it read `adopt` out of
+        # "keep what adoption needs". TASK-107.
+        hit = next(iter(P.matching_escalations(hay, stakes)), None)
         if hit and rung < "V5":
             findings.append(Finding(
                 "warn", where, "consequence-needs-signoff",

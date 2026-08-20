@@ -15,8 +15,17 @@
 >
 > The defaults below are deliberately conservative. Delete what genuinely does
 > not apply to this project; add anything an agent must never touch unattended.
-> Each line is matched case-insensitively as a substring against spec fields, so
-> prefer concrete path fragments and command names over prose.
+> Each backticked fragment is matched case-insensitively **at its own word
+> edges** against spec fields, so prefer concrete path fragments and command
+> names over prose. `prod` matches `prod` and not "reproduce"; `infra/` still
+> matches every path beneath it; `--force-with-lease` and `~/.ssh` match despite
+> beginning with punctuation.
+>
+> **A fragment matches the form you wrote, not its inflections.** `token` does
+> not match "tokens", and `deploy` does not match "deploying" — which is the
+> same rule that stops `adopt` matching "adopted" and `origin` matching
+> "original", the bare-substring false positives this replaced (TASK-107).
+> Where both forms matter, list both: several lines below do.
 >
 > **Only backticked spans are extracted.** A line with no backticks contributes
 > ZERO fragments and the gate is silently blind to whatever it described. The
@@ -25,12 +34,12 @@
 > email, or a cost-ceiling raise, and reported them clean. If you add a line,
 > backtick the words you want matched.
 
-- Production deploys — `deploy`, `release`, `promote`, `production`, `prod`
-- Credentials and secrets — `.env`, `secrets`, `credentials`, `token`, `apikey`, `api_key`, `id_rsa`
+- Production deploys — `deploy`, `deploys`, `deploying`, `release`, `releases`, `promote`, `production`, `prod`
+- Credentials and secrets — `.env`, `secret`, `secrets`, `credentials`, `token`, `tokens`, `apikey`, `api_key`, `id_rsa`
 - Infrastructure and cloud state — `terraform`, `helm`, `k8s`, `infra/`, `iam`
 - Money — `cost ceiling`, `paid API`, `billing`, `invoice`, `payment`, `refund`, `pricing`
-- Destructive data operations — `DROP TABLE`, `migrate --down`, `rm -rf`, bulk delete, restore-over
-- Anything sent on the user's behalf — `publish`, `published`, `send`, `sent`, `email`, `slack`, `post`, `client`, `filing`, `submit`
+- Destructive data operations — `DROP TABLE`, `migrate --down`, `rm -rf`, `rm -fr`, bulk delete, restore-over
+- Anything sent on the user's behalf — `publish`, `publishes`, `publishing`, `published`, `send`, `sends`, `sending`, `sent`, `email`, `slack`, `post`, `posts`, `posting`, `client`, `filing`, `submit`, `submits`, `submitting`
 - Git history rewrites — `push --force`, `rebase` onto a shared branch, tag deletion
 
 ## Project specifics (optional — delete what you don't use)

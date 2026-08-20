@@ -2854,16 +2854,125 @@ def escalation_union(project_root: Path) -> dict:
     }
 
 
+#: The escalation matcher's word class, **written out on purpose**. Never `\w`,
+#: never `\b`. ADR-007's fifth `CLOCK_RE` round is the reason: `\b` does not
+#: exist in Chinese, so a `\b`-guarded matcher word-bounds the English half of
+#: a hook and leaves the Chinese half matching bare — the exact asymmetry that
+#: let `下周期` write a live row while `next cycle` was refused. An explicit
+#: ASCII class has one meaning in both. A hook's match tokens are ASCII
+#: commands and paths by construction — `tests/fixtures/sample-project-zh/
+#: .perry/hook.md` states that invariant in the fixture itself — and CJK prose
+#: around such a token is not a word character here, so the token still matches.
+_ESC_WORD = "[A-Za-z0-9_]"
+
+
+@lru_cache(maxsize=512)
+def escalation_pattern(frag: str) -> re.Pattern:
+    """`frag` guarded at ITS OWN edges — not at both edges unconditionally.
+
+    The fragments are not all words, so which guards a fragment gets is decided
+    by its own first and last character. `~/.claude/skills` starts with `~` and
+    `design/` ends with `/`; a guard demanding a word boundary there would be
+    demanding a word character that is never present, and both fragments would
+    stop matching anything at all — a gate that silently matches nothing being
+    the failure this whole section exists to avoid.
+
+        origin              (?<!W)origin(?!W)         both edges are letters
+        ~/.claude/skills    escape(~/.claude/skills)(?!W)  leading `~`: none
+        design/             (?<!W)design/             trailing `/` needs none
+        --force-with-lease  --force-with-lease(?!W)   leading `-` needs none
+
+    That is what stops `origin` matching "original" and `main` matching
+    "remains", while `git push origin main`, `design/anything`,
+    `push --force` inside `push --force-with-lease`, and `~/.claude/skills` all
+    still match.
+
+    **The cost is stated rather than special-cased.** A right-edge guard cannot
+    match `ln -sf` from `ln -s`, `rm -rfv` from `rm -rf`, or `tokens` from
+    `token`: that is the same morphology that stops `adopted` matching `adopt`,
+    and no rule separates them lexically. The hook enumerates the forms it
+    means — `publish` and `published`, `prod` and `production` — and that
+    convention, not an exception in here, is what covers them.
+    """
+    if not frag:
+        return re.compile(r"(?!)")          # matches nothing, and says so
+    left = f"(?<!{_ESC_WORD})" if re.match(_ESC_WORD, frag[0]) else ""
+    right = f"(?!{_ESC_WORD})" if re.match(_ESC_WORD, frag[-1]) else ""
+    return re.compile(left + re.escape(frag) + right)
+
+
 def matching_escalations(haystack: str, fragments: list[str]) -> list[str]:
-    """Every scan fragment present in `haystack`, lowercased substring match.
+    """Every scan fragment present in `haystack` at a word edge, case-folded.
 
     The pre-flight's matcher, factored out so the union can be tested at the
     behaviour it is for — *does this text trip the scan* — and not merely at
     the shape of a list. A "one lookup" rewrite that kept the list shape but
     dropped a source would still let a project term through here.
+
+    **This used to be a bare substring test** (`f in hay`), and on 2026-08-20 it
+    read `origin` out of "its original bytes" and `adopt` out of "on an adopted
+    project", refusing two dispatches that touched no remote and ran no adoption
+    — while `main` read itself out of "remains" on two more. The cost is not the
+    adjudication: it is that a gate crying wolf on ordinary English gets waved
+    through, and that the cheapest way to pass it was to reword the spec, which
+    is the one thing a safety gate must never pay out for. TASK-107.
     """
     hay = (haystack or "").lower()
-    return [f for f in fragments if f in hay]
+    return [f for f in fragments if f and escalation_pattern(f).search(hay)]
+
+
+#: The three spec sections `work/reference/dispatch.md` pre-flight step 4 reads,
+#: split by what a hit in each one MEANS. The first two say "the task touches
+#: this"; the third says "the task has written down that it does not".
+ESCALATION_TOUCHES = ("Files in scope", "Deliverable")
+ESCALATION_DISCLAIMS = "Out of scope"
+
+
+def scan_spec_escalations(text: str, fragments: list[str]) -> dict:
+    """The dispatch pre-flight's verdict on one spec, computed rather than read.
+
+    Step 4 was prose telling an agent to scan three sections and decide. The
+    scan is deterministic and the decision has two rules, so neither belongs to
+    a model reading a paragraph — the model reads `verdict`.
+
+    `touches` is what `Files in scope` and `Deliverable` matched; `disclaims` is
+    what `Out of scope` matched. A fragment in both is **green-lit**, per step
+    4's own rule that an `Out of scope` hit is a green light for the line in
+    question: the spec has said in writing that it does not do that. What is
+    left in `refuse` is what the task touches and never disclaimed.
+
+    `verdict` is `unarmed` when the project declared no fragments at all. That
+    is deliberately not `pass`: an empty list matches nothing and would wave
+    everything through, which is the one outcome a gate must not report as
+    clean. Callers refuse or escalate on it exactly as `dispatch.md` says.
+    """
+    body = _strip_comments(text or "")
+    touches: dict[str, list[str]] = {}
+    for label in ESCALATION_TOUCHES:
+        hits = matching_escalations(_section(body, *alias("headings", label)),
+                                    fragments)
+        if hits:
+            touches[label] = hits
+    disclaims = matching_escalations(
+        _section(body, *alias("headings", ESCALATION_DISCLAIMS)), fragments)
+
+    green = set(disclaims)
+    refuse: list[str] = []
+    for hits in touches.values():
+        for f in hits:
+            if f not in green and f not in refuse:
+                refuse.append(f)
+
+    return {
+        "armed": bool(fragments),
+        "touches": touches,
+        "disclaims": disclaims,
+        "green_lit": [f for hits in touches.values() for f in hits
+                      if f in green],
+        "refuse": refuse,
+        "verdict": ("unarmed" if not fragments
+                    else "refuse" if refuse else "pass"),
+    }
 
 
 # ── Top-level snapshot ────────────────────────────────────────────────────

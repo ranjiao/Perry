@@ -239,13 +239,41 @@ def load_sibling(name: str):
     return mod
 
 
+# ── what counts as ONE open decision ──────────────────────────────────────
+# A decision can be counted once only if it has an IDENTITY. `USER-004` has
+# one, so the three files that discuss it are three mentions of ONE decision.
+# A `## User Decisions` row has one too — the document and the row. Prose has
+# none: nothing in "the read-only policy is still undecided" tells you whether
+# it is the same question as the sentence two documents away, so a number
+# taken over prose can only ever count sentences.
+#
+# It counted sentences, and every fix before this one narrowed WHICH sentences:
+# illustrative files, quoted code spans, template-declared `TBD` fields,
+# `## Implementation plan` placeholders, answered `USER-` rows. Five carve-outs
+# for one mistake, and the sixth was already queued — writing an open question
+# down made the number go up, so `perry/` scored worse for recording USER-004
+# than it would have for leaving it in somebody's head. The rule itself was
+# wrong: LOAD-03 now counts REGISTER ROWS, and prose is reported beside the
+# count without ever being added to it.
+#
+# The registers, both of which say who is waiting and for what:
+#   * `BOARD.md § User Input Queue` — a pending `USER-` row;
+#   * a design doc's `## User Decisions` — a row whose `Chosen` cell is empty.
+# The consequence to know about: a project with neither register reports zero
+# open decisions however many `TBD`s its prose carries. That is deliberate —
+# see `scan_decision_mentions`.
+
 #: An inline code span or a fenced line. Content inside one is being QUOTED.
 CODE_SPAN = re.compile(r"`[^`]*`|^\s{4,}\S.*$", re.M)
 
 OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
 
 # A `TBD` that a template DECLARES as a legal value is not a decision anybody is
-# waiting on. `state/design_TEMPLATE.md` writes `Implementation owner: <role or
+# waiting on — it is a field whose value happens to be spelled that way. Kept,
+# and now applied to the mention list rather than to the count: a reader who
+# opens `user_load.decision_mention_samples` to see what the project is still
+# arguing about should not find eleven design-doc headers.
+# `state/design_TEMPLATE.md` writes `Implementation owner: <role or
 # "TBD">` in the header of every design doc, so counting it queues three
 # imaginary decisions on the user for every three designs they write — and
 # LOAD-03 exists to measure the real queue, not to inflate it.
@@ -269,33 +297,74 @@ ANSWERED = re.compile(
     r"\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\b", re.I)
 
 
-def count_unanswered_user_asks(root: Path, entries: dict) -> int:
-    """USER- asks with no answer recorded in their own row.
+#: A design doc's `## 4. User Decisions` — the second register, and the one a
+#: project that keeps its questions in design docs rather than in the queue is
+#: measured by.
+#: `re.M` so the same pattern answers both "does this document have the
+#: section at all" (a `search` over the whole text, to skip the other 290
+#: documents cheaply) and "does this line open it" (a `match`).
+DECISION_SECTION = re.compile(
+    r"^#{1,6}\s*(?:\d+[.)]\s*)?(?:User Decisions|用户决策)\b", re.I | re.M)
+#: The column holding the answer. `\bchosen\b`, not `choice`: `## User
+#: Decisions` also carries an agent-decided table headed
+#: `| Decided | Choice | Why not asked | Revisit if |`, every row of which is
+#: an answer by construction and none of which waits on anybody.
+CHOSEN_COL = re.compile(r"\bchosen\b|选择|选定", re.I)
+#: An answer cell nobody has filled in. The empty-cell vocabulary plus the
+#: decision words, because a `Chosen` cell reading `TBD` and one reading `—`
+#: are the same unanswered row.
+UNRESOLVED_CELL = re.compile(
+    r"^(?:|-|—|–|\?|？|n/a|tbd|undecided|待定|未定)$", re.I)
+#: `|---|:--:|` — the rule under a table header, not a row of the table.
+TABLE_RULE = re.compile(r"^:?-{2,}:?$")
+#: The column carrying the question, for evidence a reader can act on.
+QUESTION_COL = re.compile(r"decision|question|决策|问题", re.I)
 
-    Falls back to the id-index count when no User Input Queue table can be
-    read, so a project that tracks asks somewhere else is not silently
-    reported as having none.
+
+def decision_label(cell: str) -> str:
+    """A table cell as one readable line of evidence."""
+    s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", cell)
+    s = s.replace("**", "").replace("`", "").strip()
+    return s[:57] + "…" if len(s) > 58 else s
+
+
+def open_user_asks(root: Path, entries: dict) -> list[tuple[str, str]]:
+    """Pending `USER-` asks, one entry per ROW: `(id, "file:line")`.
+
+    Rows, not a count, because the id is what makes a decision countable
+    exactly once — three files discussing `USER-004` are three mentions of one
+    row, and only the row carries an identity to deduplicate on.
+
+    Falls back to the id index when no User Input Queue table can be read, so
+    a project that tracks asks somewhere else is not silently reported as
+    having none.
     """
     ids = {e["id"] for e in entries.values()
            if e["id"].startswith("USER-") and e.get("in_tracking_doc")}
     if not ids:
-        return 0
+        return []
+
+    def elsewhere(open_ids: set[str]) -> list[tuple[str, str]]:
+        return sorted((i, entries[i].get("defined") or "") for i in open_ids)
+
     board = root / "BOARD.md"
     if not board.exists():
-        for alt in root.glob("*/BOARD.md"):
+        for alt in sorted(root.glob("*/BOARD.md")):
             board = alt
             break
     if not board.exists():
-        return len(ids)
-
-    answered = set()
-    seen_table = False
+        return elsewhere(ids)
     try:
         text = board.read_text(errors="replace")
     except OSError:
-        return len(ids)
+        return elsewhere(ids)
+    rel = str(board.relative_to(root))
+
+    answered: set[str] = set()
+    where: dict[str, str] = {}
+    seen_table = False
     in_section = False
-    for line in text.split("\n"):
+    for n, line in enumerate(text.split("\n"), 1):
         if line.startswith("## "):
             in_section = bool(re.match(r"##\s+(User Input Queue|用户输入队列)", line))
             continue
@@ -303,11 +372,133 @@ def count_unanswered_user_asks(root: Path, entries: dict) -> int:
             continue
         seen_table = True
         m = re.search(r"\bUSER-\d+\b", line)
-        if m and ANSWERED.search(line):
+        if not m:
+            continue
+        where.setdefault(m.group(0), f"{rel}:{n}")
+        if ANSWERED.search(line):
             answered.add(m.group(0))
     if not seen_table:
-        return len(ids)
-    return len(ids - answered)
+        return elsewhere(ids)
+    return sorted((i, where.get(i) or (entries[i].get("defined") or ""))
+                  for i in ids - answered)
+
+
+def open_design_decisions(root: Path, inventory: dict,
+                          explain) -> list[tuple[str, str]]:
+    """Rows of a `## User Decisions` table whose `Chosen` cell is still empty.
+
+    The register a design doc uses before its questions reach the queue —
+    `ALL rows must be resolved before this doc can move to Status: locked` is
+    the template's own line, so an unfilled row is exactly a decision waiting
+    on a person. It has an identity (the document and the row), so the prose
+    that argues the options out below the table adds nothing to the count
+    however long it runs.
+
+    A table is recognised by the rule line under its header, which is what
+    ends one table and starts the next inside the same section.
+    """
+    out: list[tuple[str, str]] = []
+    for rel in inventory["md"]:
+        if explain.is_illustrative(rel):
+            continue
+        text = read_text(root / rel, cap=200_000)
+        if "|" not in text or not DECISION_SECTION.search(text):
+            continue
+        in_section = False
+        fenced = False
+        chosen_at: int | None = None
+        label_at: int | None = None
+        prev: list[str] = []
+        for n, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            if line.startswith("#"):
+                in_section = bool(DECISION_SECTION.match(line))
+                chosen_at = label_at = None
+                prev = []
+                continue
+            if not in_section or not line.strip().startswith("|"):
+                continue
+            cells = split_row(line)
+            if cells and all(TABLE_RULE.match(c) for c in cells):
+                chosen_at = next(
+                    (i for i, c in enumerate(prev) if CHOSEN_COL.search(c)), None)
+                label_at = next(
+                    (i for i, c in enumerate(prev) if QUESTION_COL.search(c)), None)
+                continue
+            if chosen_at is not None and chosen_at < len(cells):
+                if UNRESOLVED_CELL.match(decision_label(cells[chosen_at])):
+                    at = label_at if (label_at is not None
+                                      and label_at < len(cells)) else 0
+                    out.append((decision_label(cells[at]), f"{rel}:{n}"))
+            prev = cells
+    return out
+
+
+def scan_decision_mentions(root: Path, inventory: dict, explain,
+                           recorded: set[str] | None = None
+                           ) -> tuple[int, list[str]]:
+    """Lines that TALK about an open decision without being a record of one.
+
+    Reported, never counted, and the boundary is deliberate. Prose carries no
+    identity, so a mention cannot be told apart from a repeat of the mention
+    next to it — which is how `perry/` reached seven open questions against a
+    queue holding two, three of the seven being one row discussed in three
+    files. A number that goes up when you write a question down is one that
+    penalises recording, and recording is the behaviour the queue exists to
+    produce.
+
+    The cost, named rather than hidden: a question raised only in prose is a
+    real unrecorded decision and it does NOT reach the count. It reaches this
+    list instead. Recording it as a `USER-` row is what makes it countable,
+    which is the same move the project asks of a human — and it keeps the
+    number reconcilable against `perry-task list --json`'s `asks.open`, which
+    is what makes it worth reading at all.
+
+    `recorded` is the set of `file:line` locations already counted as records,
+    so a `Chosen: TBD` cell is not also reported as prose talking about itself.
+    """
+    recorded = recorded or set()
+    n_mentions = 0
+    samples: list[str] = []
+    # A `TBD` inside `## Implementation plan` is not queued on the user. That
+    # section is a plan and its unknowns are resolved by doing the work — the
+    # common form is a task-id column reading `TBD at handoff`, which waits on
+    # the handoff, not on a person.
+    PLAN_SECTION = re.compile(r"^#{1,3}\s*(?:\d+\.\s*)?Implementation plan\b", re.I)
+    for rel in inventory["md"]:
+        # Same illustrative filter as the ID scan: a skill file explaining that
+        # a decision column starts life as `TBD` is documentation.
+        if explain.is_illustrative(rel):
+            continue
+        in_plan = False
+        fenced = False
+        for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            # **A marker inside a code span or a fence is a quotation.** Four
+            # review documents quote `{'', '-', 'n/a', 'tbd', '无'}` — the
+            # tool's own empty-cell set — while reporting on it. The same shape
+            # as `perry-lint`'s module-docstring false positive: a scanner that
+            # reports prose quoting the thing it looks for.
+            if fenced:
+                continue
+            if line.startswith("#"):
+                in_plan = bool(PLAN_SECTION.match(line))
+            if in_plan:
+                continue
+            if f"{rel}:{n}" in recorded:
+                continue
+            bare = CODE_SPAN.sub("", DECLARED_TBD.sub("", line))
+            if OPEN_DECISION.search(bare):
+                n_mentions += 1
+                if len(samples) < 8:
+                    samples.append(f"{rel}:{n}")
+    return n_mentions, samples
 
 
 def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> dict:
@@ -350,49 +541,16 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         (root / d / "perry-explain").is_file() for d in ("bin", "scripts", "tools")
     )
 
-    # Same illustrative filter as the ID scan: a skill file explaining that a
-    # decision column starts life as `TBD` is documentation, not a decision
-    # anyone is waiting on. Perry's own repo produced 14 of these before the
-    # filter and 0 after.
-    open_decisions = 0
-    samples: list[str] = []
-    # A `TBD` inside `## Implementation plan` is not queued on the user. That
-    # section is a plan and its unknowns are resolved by doing the work — the
-    # common form is a task-id column reading `TBD at handoff`, which waits on
-    # the handoff, not on a person. The section that DOES queue decisions on
-    # the user is `## User Decisions`, which has its own `Chosen` column.
-    #
-    # Found when a 402-line design doc written in a parallel session put six of
-    # them in one table and tripped LOAD-03 on this repo. LOAD-03 measures the
-    # real queue; a check that counts every planning placeholder trains the
-    # user to ignore it, which is the failure `reference/diagnose.md` names.
-    PLAN_SECTION = re.compile(r"^#{1,3}\s*(?:\d+\.\s*)?Implementation plan\b", re.I)
-    for rel in inventory["md"]:
-        if explain.is_illustrative(rel):
-            continue
-        in_plan = False
-        for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
-            if line.startswith("#"):
-                in_plan = bool(PLAN_SECTION.match(line))
-            if in_plan:
-                continue
-            # **A marker inside a code span is a quotation, not a decision.**
-            # Four review documents quote `{'', '-', 'n/a', 'tbd', '无'}` —
-            # the tool's own empty-cell set — while reporting on it, and each
-            # mention was counted as a decision queued on the user. Perry
-            # tripped its own `LOAD-03` on documents whose subject was that
-            # very set.
-            #
-            # The same shape as `perry-lint`'s module-docstring false positive
-            # and `field_re`'s: a scanner that reports prose quoting the thing
-            # it looks for. A guard that fires on documentation about itself is
-            # one people switch off.
-            bare = CODE_SPAN.sub("", DECLARED_TBD.sub("", line))
-            if OPEN_DECISION.search(bare):
-                open_decisions += 1
-                if len(samples) < 8:
-                    samples.append(f"{rel}:{n}")
-    open_decisions += count_unanswered_user_asks(root, entries)
+    # One entry per decision RECORD — a pending queue row or an unfilled
+    # `Chosen` cell — so the number reconciles against `perry-task list
+    # --json`'s `asks.open` and does not move when a document discusses a
+    # question it did not open. Prose is measured beside it and never into it.
+    records = (open_user_asks(root, entries)
+               + open_design_decisions(root, inventory, explain))
+    mentions, mention_samples = scan_decision_mentions(
+        root, inventory, explain, {where for _, where in records})
+    samples = [f"{where} — {label}" if where else label
+               for label, where in records]
 
     return {
         "available": True,
@@ -401,8 +559,13 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         "untitled": untitled,
         "definitions_concentrated": concentrated,
         "has_resolver": has_resolver,
-        "open_decisions": open_decisions,
-        "open_decision_samples": samples,
+        "open_decisions": len(records),
+        "open_decision_samples": samples[:8],
+        # Not part of `open_decisions`. Prose that raises a question nobody
+        # recorded — real, worth reading, and not countable. See
+        # `scan_decision_mentions`.
+        "decision_mentions": mentions,
+        "decision_mention_samples": mention_samples,
     }
 
 
