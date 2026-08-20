@@ -38,7 +38,7 @@
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | review | PR #24 — contract 2.1; four findings handed back, two worth their own rows | evidence/2026-08/TASK-120-dispatch-2026-08-21-result.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 6c01b93; spec carries a live reproduction | evidence/2026-08/TASK-122-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | review | PR #25 — item 2 proved both ways on one run; two questions handed back | evidence/2026-08/TASK-122-dispatch-2026-08-21-result.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | review | PR #22 — the suite is fully green; verify the strong anti-vacuity case survives review, then close at V3 | evidence/2026-08/TASK-126-dispatch-2026-08-21-result.md | V3 | TASK-112 | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
@@ -71,6 +71,7 @@
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
 | TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-20 |
+| TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
