@@ -42,6 +42,7 @@
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | spec written; pre-flight REFUSED on `diagnose` — needs a per-task release. The TASK-126 release does not carry over | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-159 | the viewer resolves the project root to the state root, so it renders empty when pointed where its launcher points it | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
@@ -63,7 +64,6 @@
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
-| TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-146-spec.md | V3 | — | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
