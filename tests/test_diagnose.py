@@ -1133,9 +1133,23 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
         self.assertEqual(load["decision_mentions"], 0,
                          "a declared field value was reported as a question")
 
-    def test_the_number_reconciles_with_the_queue_on_this_repository(self):
+    def test_the_queue_register_reconciles_with_the_queue_on_this_repository(self):
         """Deliverable 3, asserted where it was measured: on Perry's own repo
-        LOAD-03 reported 7 against a queue of 2 before this row."""
+        LOAD-03 reported 7 against a queue of 2 before this row.
+
+        **This test used to compare the TOTAL, and that was the same defect
+        TASK-113 was opened for.** `open_decisions` sums two registers — the
+        User Input Queue and design docs with an unfilled `Chosen` row — while
+        `perry-task`'s `asks.open` reads only the first. The equality held
+        because no design document happened to have an open row, and
+        `state/design_TEMPLATE.md` *requires* one before a doc can lock. So
+        writing a design document — done twice this week — turned this red, and
+        the test's name promised an invariant while it pinned a coincidence.
+
+        What actually reconciles is the queue register against the queue, and
+        that survives any number of design docs. The total is asserted as a
+        lower bound, which is the relationship that is always true.
+        """
         payload = scan(PERRY_HOME)
         tasks = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"),
@@ -1143,9 +1157,35 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
             capture_output=True, text=True, timeout=120, cwd=str(PERRY_HOME))
         self.assertEqual(tasks.returncode, 0, tasks.stderr)
         asks_open = json.loads(tasks.stdout)["asks"]["open"]
-        self.assertEqual(payload["user_load"]["open_decisions"], asks_open,
+        load = payload["user_load"]
+        self.assertEqual(load["open_decisions_by_register"]["queue"], asks_open,
                          "diagnose and perry-task disagree about how many "
-                         "questions are waiting on the user")
+                         "queue rows are waiting on the user")
+        self.assertGreaterEqual(load["open_decisions"], asks_open)
+        self.assertEqual(load["open_decisions"],
+                         sum(load["open_decisions_by_register"].values()),
+                         "an open decision came from neither register")
+
+    def test_a_design_doc_with_an_open_row_raises_the_total_and_not_the_queue(self):
+        """The break the reconciliation test used to have, as a fixture.
+
+        One pending queue row and one unfilled `Chosen` cell: the total is 2
+        and the queue register is 1. That is the state an ordinary design
+        document puts the project in, and nothing about it is wrong — which is
+        why the check must be per register.
+        """
+        def build(root):
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Threshold N | TASK-005 | 6d | pending |\n"))
+            write(root, "design/DESIGN-900-probe.md",
+                  "# DESIGN-900: Probe\n\n## 4. User Decisions\n\n"
+                  "| # | Decision | Options | Chosen | Date |\n"
+                  "|---|---|---|---|---|\n"
+                  "| 1 | Which store backs the probe | a / b | TBD | — |\n")
+        load = self.load(build)
+        self.assertEqual(load["open_decisions"], 2)
+        self.assertEqual(load["open_decisions_by_register"],
+                         {"queue": 1, "design": 1})
 
 
 class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
@@ -1201,6 +1241,128 @@ oldest: ZZZ-405 @ 224d
         e = self.harvest("# Notes\n\n```\nZZZ-404\n```\n\nWaiting on `TASK-902`.\n")
         self.assertTrue(e.get("TASK-902", {}).get("in_tracking_doc"),
                         "a stray fence swallowed every line after it")
+
+
+class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
+    """LOAD-02 must not read its own output as input.
+
+    A signed V5 record in this repository's journal says:
+
+        - the dangling-id check reports [] — TASK-107 resolves and REL-00 is
+          gone *(Perry verified)*
+
+    and recording that the report was empty is what put `REL-00` into it. The
+    record is append-only — `tests/test_v5_signoff.TestHistoryIsNotRewritten`
+    is there to say so — so the finding named a line nobody was permitted to
+    fix, and the check could never report zero again once anybody wrote down
+    that it had.
+
+    The three exempt shapes are structural, never a reading of the English:
+    inside a signed record, inside a blockquote, or on a line naming one of
+    this checker's own finding codes. **The anti-vacuity half is the point of
+    this class**: an ordinary dangling id still fires LOAD-02, and every test
+    that turns one off is paired with one proving the check still fires.
+    """
+
+    def load(self, files: dict) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "BOARD.md").write_text(
+                "# Board\n\n## P0\n\n"
+                "| ID | Title | Owner | Status | Next action | Evidence |\n"
+                "|---|---|---|---|---|---|\n")
+            for rel, text in files.items():
+                write(root, rel, text)
+            return scan(root)["user_load"]
+
+    # ── the check still fires: the anti-vacuity half ─────────────────────
+    def test_a_genuinely_dangling_id_still_fails_load_02(self):
+        load = self.load({"notes/plan.md":
+                          "# Plan\n\nWe are blocked on ZZZ-404 until Friday.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-404"])
+        self.assertEqual(load["dangling_in_reports"], [])
+
+    def test_one_live_reference_is_enough_to_keep_an_id_dangling(self):
+        """An id quoted in ten reports and used once is still dangling. The
+        exemption is per MENTION and the verdict is per id — otherwise burying
+        a real reference under reports would silence a true finding."""
+        load = self.load({
+            "journal/2026-08-20.md":
+                "# Journal\n\n## V5 sign-off\n\n"
+                "**TASK-001 — V5 sign-off. R, 2026-08-20.**\n\n"
+                "**checked**\n\n- ZZZ-404 is gone *(Perry verified)*\n",
+            "notes/plan.md": "# Plan\n\nWe are still blocked on ZZZ-404.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-404"])
+
+    # ── the three shapes that are reports ────────────────────────────────
+    def test_an_id_only_inside_a_signed_record_is_not_a_reference(self):
+        load = self.load({"journal/2026-08-20.md":
+                          "# Journal\n\n## Something else\n\nordinary prose.\n\n"
+                          "## V5 sign-off\n\n"
+                          "**TASK-001 — V5 sign-off. R, 2026-08-20.**\n\n"
+                          "**accepted on report**\n\n"
+                          "- the dangling-id check reports [] — ZZZ-404 is "
+                          "gone *(Perry verified)*\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+
+    def test_a_signed_record_ends_at_the_next_heading(self):
+        """The counterpart to the unclosed-fence test above: a sign-off
+        section must not exempt the whole rest of the file."""
+        load = self.load({"journal/2026-08-20.md":
+                          "# Journal\n\n## V5 sign-off\n\n"
+                          "**TASK-001 — V5 sign-off. R, 2026-08-20.**\n\n"
+                          "**checked**\n\n- ZZZ-404 is gone *(Perry verified)*\n\n"
+                          "## Today\n\nStill blocked on ZZZ-405.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-405"],
+                         "a sign-off heading swallowed the rest of the file")
+        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+
+    def test_an_id_only_inside_a_quotation_is_not_a_reference(self):
+        """The blockquote is the same statement as the fence `harvest` already
+        exempts — these are someone else's words, quoted."""
+        load = self.load({"notes/spec.md":
+                          "# Spec\n\nThe line the check tripped on was:\n\n"
+                          "> - the dangling-id check reports [] and ZZZ-404 "
+                          "is gone\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+
+    def test_an_id_beside_one_of_this_tools_own_finding_codes_is_a_report(self):
+        load = self.load({"notes/spec.md":
+                          "# Spec\n\nLOAD-02 reports ZZZ-404 dangling, and "
+                          "its only source is a signed record.\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertEqual(load["dangling_in_reports"], ["ZZZ-404"])
+
+    def test_the_finding_vocabulary_is_read_from_the_catalogue(self):
+        """Not a hand-copied list: a finding added later is covered without
+        anybody remembering to come back and widen a regex."""
+        mod = load_bin_module("perry-diagnose")
+        pattern = mod.finding_code_re()
+        for fid in mod.WHY:
+            self.assertTrue(pattern.search(f"{fid} reports ZZZ-404"), fid)
+        self.assertIsNone(pattern.search("TASK-042 is a row, not a finding"))
+
+    # ── the cost, named rather than hidden ───────────────────────────────
+    def test_bare_prose_saying_a_code_is_gone_is_still_a_reference(self):
+        """The boundary this fix deliberately does NOT cross.
+
+        A paragraph reading `ZZZ-404 is gone`, carrying none of the three
+        marks, still counts. Widening into a list of absence-words is the
+        carve-out treadmill LOAD-03 rode for five rounds before `137ffb3`
+        replaced the counting rule instead, and this does not start it.
+        """
+        load = self.load({"notes/plan.md": "# Plan\n\nZZZ-404 is gone now.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-404"])
+
+    def test_perrys_own_repository_reports_the_exemption_it_used(self):
+        """An id dropped silently is an exemption nobody can audit."""
+        load = scan(PERRY_HOME)["user_load"]
+        self.assertEqual(load["dangling"], [])
+        self.assertIn("REL-00", load["dangling_in_reports"],
+                      "the exemption that cleared LOAD-02 is not reported "
+                      "beside the count")
 
 
 # ── work modes ────────────────────────────────────────────────────────────

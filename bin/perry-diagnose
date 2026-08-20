@@ -38,6 +38,7 @@ payload under `thresholds` so the caller can show the user what it judged by.
 from __future__ import annotations
 
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -501,6 +502,115 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
     return n_mentions, samples
 
 
+# ── what counts as a REFERENCE to a code ──────────────────────────────────
+# LOAD-02 asks "can a reader look this code up?", and a REFERENCE is what makes
+# that a fair question: a line that USES an id sends the reader looking for it.
+# A line REPORTING ON A CHECK does not, and this repository proved it. Inside a
+# signed V5 record in `perry/journal/`:
+#
+#     - the dangling-id check reports [] — TASK-107 resolves and REL-00 is gone
+#
+# Recording that the dangling report was empty is what put an id back into it.
+# The check was reading its own output as input, so it could never again report
+# zero once anybody wrote down that it had; and a signed record is append-only,
+# so the line raising the finding is one nobody is permitted to fix. **An
+# instrument that reads its own report is broken, and the repair belongs in the
+# instrument, not in the record.**
+#
+# ── whether LOAD-03's fix transfers, since the shape is the same ──
+# It does not, not literally. `137ffb3` fixed LOAD-03 by counting RECORDS
+# instead of MENTIONS, because a decision has an identity only where a register
+# row gives it one. LOAD-02 already counts one entry per id — `REL-00` was
+# reported once for three mentions — so deduplicating mentions buys it nothing.
+#
+# What does transfer is the move underneath that fix: ask what the number is
+# FOR, and count only what the answer admits. LOAD-03's number is *questions
+# waiting on a person*, so only a row somebody waits on counts. LOAD-02's is
+# *codes a reader cannot look up*, so only a line that asks a reader to look one
+# up counts. Both replace a filter on WHICH PROSE with a rule about what the
+# measurement means — which is why neither adds a sixth carve-out.
+#
+# Three shapes are reports. All three are structural — where the line lives, or
+# what mark it carries — and none of them reads English:
+#
+#   * inside a SIGNED RECORD: a `## V5 sign-off` block. Append-only by
+#     contract, and `tests/test_v5_signoff.TestHistoryIsNotRewritten` is there
+#     to say so. A finding nobody may edit away is not actionable.
+#   * inside a QUOTATION: a `>` blockquote. `perry-explain.harvest` already
+#     exempts fenced blocks for exactly this reason — "a fenced block is pasted
+#     output, not a reference" — and a blockquote is that same statement in the
+#     other markdown spelling.
+#   * on a line citing one of THIS CHECKER'S OWN finding codes. The tool knows
+#     its own vocabulary, so `LOAD-02 reports REL-00 dangling` announces itself
+#     as a report without anybody guessing at the sentence.
+#
+# The cost, named rather than hidden: an ordinary paragraph reading `REL-00 is
+# gone`, carrying none of those three marks, is still a reference and still
+# counts. Widening this into a list of absence-words is the carve-out treadmill
+# LOAD-03 rode for five rounds, and this does not start it. Ids exempted here
+# are reported beside the count as `user_load.dangling_in_reports` and never
+# added to it — the same boundary `scan_decision_mentions` draws.
+
+#: The heading opening a signed record. `V5 sign-off` is the spelling
+#: `bin/perry-task.render_signoff` writes; the rest is the same heading in the
+#: other forms a project may reach for.
+SIGNED_RECORD = re.compile(
+    r"^#{1,6}\s*(?:V\d+\s+)?(?:sign[- ]?off|signature|签字|签署)\b", re.I)
+#: A markdown blockquote — someone else's words, quoted.
+QUOTED_LINE = re.compile(r"^\s{0,3}>")
+
+
+@functools.lru_cache(maxsize=1)
+def finding_code_re() -> "re.Pattern[str]":
+    """`LOAD-02|DOC-03|…` — this checker's own vocabulary, read from `WHY` so
+    a finding added later is covered without anybody remembering to come back."""
+    prefixes = sorted({fid.rsplit("-", 1)[0] for fid in WHY}, key=len, reverse=True)
+    return re.compile(r"\b(?:%s)-\d+\b" % "|".join(map(re.escape, prefixes)))
+
+
+def report_lines(path: Path) -> set[int]:
+    """Line numbers in one file that REPORT on a check rather than refer to a
+    code. See the block above for why each of the three shapes is one."""
+    out: set[int] = set()
+    signed = False
+    for n, line in enumerate(read_text(path).splitlines(), 1):
+        if line.startswith("#"):
+            signed = bool(SIGNED_RECORD.match(line))
+            continue
+        if signed or QUOTED_LINE.match(line) or finding_code_re().search(line):
+            out.add(n)
+    return out
+
+
+def split_dangling(root: Path, entries: dict, explain) -> tuple[list, list]:
+    """`(dangling, reported_only)`.
+
+    An id survives into `dangling` if ONE mention of it is a live reference —
+    a tracking document, not a report. An id every one of whose mentions is a
+    report is not dangling; it is the dangling check quoted back at itself.
+    """
+    dangling, reported_only = [], []
+    cache: dict[str, set[int]] = {}
+    for e in entries.values():
+        if e["defined"] or not e.get("in_tracking_doc"):
+            continue
+        live = False
+        for loc in e["mentions"]:
+            rel, _, n = loc.rpartition(":")
+            if not n.isdigit() or explain.is_illustrative(rel):
+                continue
+            if rel not in cache:
+                cache[rel] = report_lines(root / rel)
+            if int(n) not in cache[rel]:
+                live = True
+                break
+        # No mentions at all should be unreachable (an undefined id is known
+        # only through them), but an id nobody can point at must not be
+        # silently dropped by a rule about where its mentions live.
+        (dangling if live or not e["mentions"] else reported_only).append(e["id"])
+    return sorted(dangling), sorted(reported_only)
+
+
 def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> dict:
     """How much this project asks a *human* to hold in their head.
 
@@ -519,8 +629,9 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     # Documentation and templates are full of illustrative IDs — `tag your task
     # like TASK-007` refers to nothing and is not supposed to. Without this,
     # running against Perry's own repo produced 25 findings, 21 of them noise.
-    dangling = sorted(e["id"] for e in entries.values()
-                      if not e["defined"] and e.get("in_tracking_doc"))
+    # And only when a line REFERS to it rather than reporting on this very
+    # check: see `split_dangling` and the block above it.
+    dangling, dangling_in_reports = split_dangling(root, entries, explain)
     untitled = sorted(e["id"] for e in entries.values()
                       if e["defined"] and not e["title"]
                       and e.get("in_tracking_doc"))
@@ -542,11 +653,21 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     )
 
     # One entry per decision RECORD — a pending queue row or an unfilled
-    # `Chosen` cell — so the number reconciles against `perry-task list
-    # --json`'s `asks.open` and does not move when a document discusses a
+    # `Chosen` cell — so the number does not move when a document discusses a
     # question it did not open. Prose is measured beside it and never into it.
-    records = (open_user_asks(root, entries)
-               + open_design_decisions(root, inventory, explain))
+    #
+    # **Kept split by register, because the total is not what reconciles.**
+    # `perry-task list --json`'s `asks.open` reads the queue and only the
+    # queue, so `open_decisions == asks.open` holds only while no design doc
+    # has an open row — and `state/design_TEMPLATE.md` REQUIRES such a row
+    # before a doc can lock. A test pinned to the total therefore goes red when
+    # somebody writes a design document, which is the same class of defect as
+    # TASK-113's three: an equality that was true when it was measured, pinned
+    # as though it were an invariant. The invariant is per register, and it is
+    # `open_decisions_by_register` that carries it.
+    queue_records = open_user_asks(root, entries)
+    design_records = open_design_decisions(root, inventory, explain)
+    records = queue_records + design_records
     mentions, mention_samples = scan_decision_mentions(
         root, inventory, explain, {where for _, where in records})
     samples = [f"{where} — {label}" if where else label
@@ -556,10 +677,21 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         "available": True,
         "total_ids": len(entries),
         "dangling": dangling,
+        # Not part of `dangling`. Codes that appear only where a check was
+        # being REPORTED ON — a signed record, a quotation, a line naming one
+        # of this tool's own findings. Reported so the exemption is visible
+        # and auditable, never added to the count. See `split_dangling`.
+        "dangling_in_reports": dangling_in_reports,
         "untitled": untitled,
         "definitions_concentrated": concentrated,
         "has_resolver": has_resolver,
         "open_decisions": len(records),
+        # Which register each open decision came from. The queue half is the
+        # one `perry-task list --json`'s `asks.open` also reads, so this is
+        # what a reconciliation check must compare — the total is a sum over
+        # two registers and only one tool reads both.
+        "open_decisions_by_register": {"queue": len(queue_records),
+                                       "design": len(design_records)},
         "open_decision_samples": samples[:8],
         # Not part of `open_decisions`. Prose that raises a question nobody
         # recorded — real, worth reading, and not countable. See
