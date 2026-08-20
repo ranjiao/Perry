@@ -150,7 +150,7 @@ write time; a cycle introduced by an external store edit is reported by
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
-| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `event` | string — `add`, `route`, `start`, `stage`, `track`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
 | `field` | string — **what `from`/`to` refer to on this event** (1.7) |
@@ -167,6 +167,7 @@ Its value, per event:
 - **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`. A status value.
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
+- **`track`** — on `track`. A track declared in `.perry/config.md § Tracks`. **Not `stage`**, though a move re-stamps one: a consumer told the pair was a stage would resolve `main` → `intake` against a stage vocabulary that does not contain them. The stage and the `Arrived` the move produced ride on the stored event's own `stage` / `stage_from` / `arrived` / `arrived_from` keys.
 - **`title`** — on `retitle`. The row's title.
 - **`summary`** — on `summary`. The stable purpose/outcome explanation; `""` is an explicit clear.
 - **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
@@ -177,8 +178,8 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **seven** of the fourteen — `stage`, `retitle`, `summary`, `next`,
-`rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
+false for **eight** of the fifteen — `stage`, `track`, `retitle`, `summary`,
+`next`, `rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
 ### `conformance` — what task truth or its projection could not classify
@@ -507,10 +508,10 @@ Also documented, not changed: the event enum in § A timeline entry listed 7 of
 were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
-`field` is `status` on six events, and `section` / `stage` / `title` /
+`field` is `status` on six events, and `section` / `stage` / `track` / `title` /
 `summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**seven** of the fourteen — `stage`, `retitle`, `summary`, `next`, `rung`,
+**eight** of the fifteen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
 `evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major

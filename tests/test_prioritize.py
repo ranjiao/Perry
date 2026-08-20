@@ -478,7 +478,7 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         which name a concept rather than a cell."""
         payload_keys = set(self.mod.LIST_TASK_KEYS) if hasattr(
             self.mod, "LIST_TASK_KEYS") else None
-        allowed = {"status", "section", "stage", "title", "summary",
+        allowed = {"status", "section", "stage", "track", "title", "summary",
                    "next_action", "verification", "evidence", "depends_on"}
         self.assertLessEqual(set(self.mod.EVENT_FIELD.values()), allowed)
 
@@ -531,18 +531,32 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
                              if f != "status" and e != "prioritize")
         doc = (TOOL.parent.parent / "schema"
                / "task-list-contract.md").read_text(encoding="utf-8")
+        # The TOTAL is read out of the prose too, rather than pinned in this
+        # regex. It was `of the fourteen`, hardcoded here — so the day a
+        # fifteenth task event landed, the doc could be corrected to say
+        # `fifteen` and this test would stop matching altogether and pass by
+        # finding nothing. A number in prose that restates a data structure is
+        # the defect this test exists for; leaving one of the two numbers
+        # outside its reach reintroduced it in the guard.
         claims = re.findall(
             r"proposed `status` for everything except `prioritize`;.*?"
-            r"\*\*(\w+)\*\* of the fourteen — (.*?) — and a wrong word",
+            r"\*\*(\w+)\*\* of the (\w+) — (.*?) — and a wrong word",
             doc, re.S)
         self.assertEqual(len(claims), 2,
                          "the rebuttal is stated twice; both must be checked")
-        words = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
-        for word, listed in claims:
+        words = {"three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                 "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+                 "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+                 "sixteen": 16}
+        for word, total, listed in claims:
             self.assertEqual(
                 words.get(word), len(mislabelled),
                 f"doc says {word!r}, EVENT_FIELD says {len(mislabelled)}: "
                 f"{mislabelled}")
+            self.assertEqual(
+                words.get(total), len(self.mod.TASK_EVENTS),
+                f"doc says the writer has {total!r} task events; TASK_EVENTS "
+                f"holds {len(self.mod.TASK_EVENTS)}")
             self.assertEqual(sorted(re.findall(r"`([a-z_]+)`", listed)),
                              mislabelled,
                              "the doc names different events than the map")
