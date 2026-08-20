@@ -37,6 +37,7 @@
 | TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | review | merge PR #12; the first V5 close after it lands is the real test of the selection prompt | evidence/2026-08/TASK-109-dispatch-2026-08-20-1623.md | V5 | — | main |  |  |  |  |  |  |
 | TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | holds the execute half only; TASK-110 measures and proposes first, and nothing is deleted until the user approves that proposal | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
+| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
