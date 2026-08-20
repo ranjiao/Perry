@@ -1257,11 +1257,13 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
     fix, and the check could never report zero again once anybody wrote down
     that it had.
 
-    The three exempt shapes are structural, never a reading of the English:
-    inside a signed record, inside a blockquote, or on a line naming one of
-    this checker's own finding codes. **The anti-vacuity half is the point of
-    this class**: an ordinary dangling id still fires LOAD-02, and every test
-    that turns one off is paired with one proving the check still fires.
+    The four exempt shapes are structural, never a reading of the English:
+    inside a signed record, inside a blockquote, on a line naming one of this
+    checker's own finding codes, or — in a document that reports on a check —
+    a mention of an id the project has already reported on. **The anti-vacuity
+    half is the point of this class**: an ordinary dangling id still fires
+    LOAD-02, and every test that turns one off is paired with one proving the
+    check still fires.
     """
 
     def load(self, files: dict) -> dict:
@@ -1381,6 +1383,66 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         self.assertEqual(load["dangling"], ["ZZZ-405"],
                          "the paragraph mark leaked past its blank line")
         self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
+    # ── the fourth shape: a record narrating a check it reported ─────────
+    #
+    # Both halves of that mark are exercised below, one test each way. The
+    # record fixture is `TASK-113-dispatch-…md` in miniature, because that is
+    # the document the mark exists for: the account written to CLOSE the row
+    # that fixed LOAD-02, whose prose has to say which ids the check reported
+    # and therefore put them straight back into the count.
+    RECORD = ("# TASK-001 — dispatch record\n\n"
+              "## The suite is green\n\n"
+              "`git diff` is empty, which was the row's hard bound: the signed\n"
+              "record naming ZZZ-404 was never edited, and the fix is in the\n"
+              "checker.\n\n"
+              "## What LOAD-02 measured afterwards\n\n"
+              "Zero, in the agent's own worktree.\n")
+    REPORT = ("# Review\n\nLOAD-02 reported ZZZ-404 dangling, and its only "
+              "source was a record nobody is permitted to edit.\n")
+
+    def test_a_record_narrating_a_check_it_reported_is_not_a_reference(self):
+        """The row that could not be closed, in miniature.
+
+        Neither half of the mark reads English. The id is on the record —
+        some other mention of it carries one of the first three marks — and
+        the document doing the narrating names a check of its own. Note the
+        report and the narration are in DIFFERENT documents, which is exactly
+        `DESIGN-900`'s shape: reported in one dispatch record, narrated in the
+        next one.
+        """
+        load = self.load({"notes/review.md": self.REPORT,
+                          "evidence/TASK-001-dispatch.md": self.RECORD})
+        self.assertEqual(load["dangling"], [])
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
+    def test_a_record_about_a_check_still_reports_an_id_it_never_reported_on(self):
+        """The ID half — what keeps the fourth mark from becoming a path
+        exemption. The same record, now blocked two sections down on an id
+        nothing ever reported. Exempting the whole document because of what it
+        discusses elsewhere would silence that, and exempting `evidence/`-
+        shaped paths would silence every one of them.
+        """
+        load = self.load({
+            "notes/review.md": self.REPORT,
+            "evidence/TASK-001-dispatch.md":
+                self.RECORD + "\n## Still open\n\n"
+                              "We are blocked on ZZZ-405 until Friday.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-405"],
+                         "a document that reports on a check exempted an id "
+                         "the project never reported on")
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
+    def test_a_document_that_reports_on_nothing_is_still_a_reference(self):
+        """The DOCUMENT half. `ZZZ-404` is on the record here too, but the
+        document relying on it is an ordinary plan that names no check — so
+        the mention is an ordinary reference and still counts. Without this
+        half, one report anywhere would silence an id everywhere.
+        """
+        load = self.load({"notes/review.md": self.REPORT,
+                          "notes/plan.md": "# Plan\n\nWe are still blocked "
+                                           "on ZZZ-404 until Friday.\n"})
+        self.assertEqual(load["dangling"], ["ZZZ-404"])
 
     def test_naming_a_check_does_not_exempt_an_id_that_resolves_elsewhere(self):
         """Why the widening is safe. The rule is applied only to ids that are

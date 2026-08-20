@@ -1350,6 +1350,8 @@ class TestListContract(unittest.TestCase):
         "group", "status_text", "created", "updated", "timeline",
         # 1.6 — the dependency edge, and the one question a dashboard asks.
         "depends_on", "blocked_by", "blocks", "startable",
+        # 1.12 — the board says blocked and the graph says nothing is.
+        "blocked_stale",
     }
     TOP_KEYS = {"contract", "semantics", "project_root", "state_root",
                 "conformance",
