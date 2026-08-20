@@ -139,6 +139,13 @@
       "superseded",
       "dropped"
     ],
+    "decision_status": [
+      "proposed",
+      "active",
+      "superseded",
+      "expired",
+      "archived"
+    ],
     "linkage_status": [
       "active",
       "done",
