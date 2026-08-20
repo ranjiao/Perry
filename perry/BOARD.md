@@ -39,7 +39,7 @@
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | read TASK-141 tasks[].blocked_stale rather than recomputing the predicate — a third statement of one rule is the defect TASK-148 is open for | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-142-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | spec written; pre-flight REFUSED on `diagnose` — needs a per-task release. The TASK-126 release does not carry over | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 
@@ -63,7 +63,7 @@
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
-| TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-20 |
+| TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-146-spec.md | V3 | — | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-150 | test_md_store asserts more than twenty KRs in the live OKR | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-151 | test_task_writer asserts more than five rows on the live board | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
