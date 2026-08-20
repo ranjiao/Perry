@@ -18,7 +18,6 @@
 |---|---|---|---|---|---|---|---|
 | TASK-050 | One normalization for a header cell, not two | Coding Agent | blocked | unblocks on PR #20; re-scope to the adoption reader (parse_board/parse_okr with no store, parse_tracks, read_conformance, parse_phase/parse_decisions) — the fifth hardening round should be a mutation harness, not another regex | — | V4 | TASK-094 |
 | TASK-067 | The writer can destroy the table it writes to, and perry-lint cannot see it | Coding Agent | blocked | unblocks on PR #20 but does not become empty: perry-decide still writes DECISIONS.md, perry-goals still writes OKR.md § Commitments in place, perry-migrate still rewrites a stranger files, and ragged-row is still the only catch | evidence/2026-08/TASK-067-finding.md | V4 | TASK-094, TASK-095 |
-| TASK-128 | the Agent entity has no writer because the signature that would give it one was never taken | User | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-128-proposal.md | V5 | — |
 
 ## P1
 
@@ -39,7 +38,7 @@
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | not_started | — | — | V3 | TASK-112 | main |  |  |  |  |  |  |
 | TASK-127 | the contract docs and the payloads they describe are never diffed against each other | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to feat/work-modes | evidence/2026-08/TASK-127-spec.md | V3 | — | main |  |  |  |  |  |  |
-| TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | blocked on TASK-128; the writer cannot be chosen before the signature names the lane | — | V3 | TASK-128 | main |  |  |  |  |  |  |
+| TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 
 ## P2
 

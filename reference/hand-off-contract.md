@@ -45,3 +45,36 @@ This single rule is what keeps the set composable and lets you drop in a fifth
 lane later (e.g. `research-journal`, `risk-review`) without breakage — a new
 lane is a directory with a `SKILL.md`, a row in the table above, and an entry in
 the routing reference.
+
+## 2026-08-20 — `.perry/agents.jsonl` → `.perry/roles/` moves to `work`
+
+The third ownership change, and the second to carry its own signature.
+
+**What moved.** One row: `work`'s "Only writer of" cell gained
+`.perry/agents.jsonl` → `.perry/roles/`. `goals` and `decide` are byte-identical
+across the edit.
+
+**Why it needed a signature at all.** `.perry/roles/*.md` was `owner: user` —
+deliberately outside every lane's write contract, on the reasoning that a role
+card is a declaration the project makes about itself, like `.perry/hook.md`.
+DESIGN-007 decision #2 (signed 2026-08-19) made the store the definition and the
+card rendered output, which means something renders it, which means a lane
+writes it. `tests/test_ownership.py` refused the lane-owned path while this
+table did not list it, and it was right to; `schema/state-schema.json`'s own
+note said in advance that this was the shape the change would take.
+
+**Why `work` and not `decide`.** The dispatch pre-flight and `delegate` read a
+role card on every run, and both are `work` procedures. `work` already renders a
+store to markdown (`perry/tasks.jsonl` → `BOARD.md`), so the pattern is the one
+it has. Putting the file behind `decide` would have made a read-hot path depend
+on a lane that is not loaded when the read happens.
+
+**What it costs, recorded because it was known before the signature and not
+after.** A hand edit to a role card is now drift, the same behaviour `BOARD.md`
+has had since ADR-007 decision 2. `SKILL.md` lands at 20,457 bytes against a
+20,480 cap — 23 bytes of headroom, so the next ownership change forces a trim of
+the router before it can be written, and the account above is here rather than
+there for that reason. The paragraph under the table still reads "Two changes
+from the previous contract"; it describes the 2026-08-16 edit accurately and
+gains no mention of this one, so the table alone no longer carries its own
+history.

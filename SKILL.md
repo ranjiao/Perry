@@ -69,7 +69,7 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 | Lane | Only writer of | Proposes, never writes |
 |---|---|---|
 | **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
-| **`work`** (`work/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/` | KR attribution edges, handed to `goals` |
+| **`work`** (`work/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
 | **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/`** | implementation tasks on lock, handed to `work` |
 
 **Two changes from the previous contract** — `DECISIONS.md` + `decisions/` moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.

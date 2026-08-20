@@ -298,6 +298,12 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         "design/*.md": "design/<DESIGN-ID>-<slug>.md",
         "DECISIONS.md": "DECISIONS.md",
         "decisions/ADR-NNN-<slug>.md": "decisions/",
+        # Moved from `user` to `work` on 2026-08-20 under a fresh V5
+        # signature (TASK-128, DESIGN-007 decision #2 and step 2). The
+        # store `.perry/agents.jsonl` is the definition; the card is
+        # rendered from it, which is why the card is what the contract
+        # names.
+        ".perry/roles/*.md": ".perry/roles/",
     }
 
     # Schema-declared, lane-owned, and NOT named in the signed contract table.
