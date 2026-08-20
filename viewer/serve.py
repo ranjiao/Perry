@@ -8,7 +8,10 @@ Port defaults to 8080 (override with PERRY_VIEWER_PORT)."""
 from __future__ import annotations
 
 import html as _html
+import json
 import re
+import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -123,6 +126,90 @@ def _days(s: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+# ── the KR chain, and where its numbers are allowed to come from ──────────
+#
+# TASK-146. `phase/<NNN>-linkage.md` carries `target` and `current` per KR,
+# both hand-written, and TASK-120 established that the bare `current` is the
+# one number a reader cannot trust on its own: on this repository `P-O1.1`
+# reads as 0% while all four of its linked tasks are closed, and `P-O2.2` —
+# `current 0` against `target 0` — reads as met while none of its two are. The
+# three blocks that make it honest (asserted vs measured, staleness, and the
+# linked-task tally) are derived ONCE, in `bin/lib § kr_progress_provenance`.
+#
+# **Why this reads the payload rather than importing that function.** The
+# import is one line and would work — `bin/perry-state` and `bin/perry-goals`
+# both do it. But `kr_progress_provenance` takes its inputs rather than
+# fetching them, so calling it from here would make this file state three
+# things it does not currently know:
+#
+#   1. where `.perry/events.jsonl` sits relative to a state root that may be a
+#      SUBDIRECTORY of the project — `viewer/parsers.py` documents that there
+#      is no stored inverse of `resolve_state_root` and walks up four levels
+#      rather than solve it, and `bin/perry-state` had to say the same thing a
+#      second time in its own words;
+#   2. how to read that log (a third spelling would join `perry-state §
+#      raw_events` and `perry-goals § read_events`);
+#   3. how to index task status across the store AND the projection, since a
+#      closed row leaves `BOARD.md` entirely.
+#
+# `perry-state --json` has answered all three already, in one place, and its
+# answer is a published contract. So this view consumes the payload and
+# derives nothing — which is also the only reading that cannot drift from what
+# `/perry work standup` reports about the same KR.
+
+
+def kr_chain(root: Path) -> dict:
+    """`perry-state --json § linkage`, or the reason there is nothing to show.
+
+    Returns the payload's own section unchanged, plus `ok` / `reason`. The
+    section is passed to the template as it arrives: reshaping it here is how
+    the view would acquire an opinion about a number it is not entitled to
+    have one about.
+
+    Failure is reported, never papered over. A chain rendered from a payload
+    that did not arrive would be a chain of numbers with no provenance, which
+    is precisely the state this row exists to end — so when the tool cannot be
+    run the view says so and shows no numbers at all.
+
+    `root` is `PROJECT_ROOT`, which is `$PERRY_PROJECT` — the same value a user
+    would type at `perry-state --root`, set by `bin/perry-viewer` from its own
+    `--root` or the cwd. It is passed explicitly rather than left to the
+    subprocess's inherited environment so that the chain and the rest of the
+    page can never describe two different projects.
+
+    The tool is found beside this file rather than through `$PERRY_HOME`: an
+    install's viewer must ask its OWN `bin/`, or a stale override would let the
+    templates here render another install's derivation.
+    """
+    tool = Path(__file__).resolve().parent.parent / "bin" / "perry-state"
+    if not tool.exists():
+        return {"ok": False, "reason": f"`{tool}` is not installed"}
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(tool), "--root", str(root), "--json"],
+            capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "reason": f"`perry-state --json` could not be run ({exc})"}
+    if proc.returncode != 0:
+        tail = (proc.stderr or "").strip().splitlines()
+        return {"ok": False,
+                "reason": "`perry-state --json` exited "
+                          f"{proc.returncode}{': ' + tail[-1] if tail else ''}"}
+    try:
+        payload = json.loads(proc.stdout)
+    except ValueError:
+        return {"ok": False, "reason": "`perry-state --json` returned no readable payload"}
+    if not payload.get("installed"):
+        return {"ok": False, "reason": "Perry is not installed in this project"}
+    link = payload.get("linkage")
+    if not link:
+        err = ((payload.get("attribution") or {}).get("linkage_error") or "").strip()
+        return {"ok": False,
+                "reason": f"the phase linkage register is unreadable ({err})" if err
+                else "this phase has no linkage register, so there is no chain to draw"}
+    return {"ok": True, "reason": "", **link}
+
+
 _RE_MERMAID = re.compile(r"```mermaid[ \t]*\n(.*?)\n?```", re.S)
 
 
@@ -225,7 +312,8 @@ def architecture():
 @app.route("/phase")
 def phase():
     snap = load_snapshot()
-    return render_template("phase.html", snap=snap, active="phase")
+    return render_template("phase.html", snap=snap, active="phase",
+                           chain=kr_chain(PROJECT_ROOT))
 
 
 @app.route("/risks")

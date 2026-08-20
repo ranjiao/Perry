@@ -172,3 +172,107 @@
   {% endfor %}
 </div>
 {% endmacro %}
+
+{# ── Phase KR chain ────────────────────────────────────────────────────
+   TASK-146. `chain` is `perry-state --json § linkage`, passed through
+   unchanged by `serve.py § kr_chain`. Nothing is derived here.
+
+   THE RULE THIS MACRO EXISTS TO HOLD: a KR's `current` is hand-written into
+   the linkage register and nothing re-runs the metric behind it, so the
+   number is never shown alone. Every `current` is rendered with the three
+   blocks TASK-120 put beside it — whether it was asserted or measured,
+   whether it has gone stale, and how many of its linked tasks are closed —
+   and a KR the register gave no number is rendered as HAVING NO NUMBER.
+
+   Three things this must never draw, each of them a reading that was wrong on
+   this repository's own register the day the row was opened:
+     · a percentage or a progress bar — `P-O1.1` (`current 0` / `target 1`)
+       reads as 0% while all four of its linked tasks are closed;
+     · "met" / "achieved" — `P-O2.2` (`current 0` / `target 0`) reads as met
+       while 0 of its 2 linked tasks are;
+     · `0` or `—%` for an absent `current` — that default IS the defect
+       TASK-120 measured, and half of a real register's targets are ceilings,
+       so only the project can say which direction a KR runs. #}
+{% macro kr_chain(chain) %}
+{% if not chain or not chain.ok %}
+<div class="t-muted">No KR chain: {{ (chain.reason if chain else '') or 'the chain was not read' }}.</div>
+{% else %}
+<div class="t-tiny t-muted mono" style="margin-bottom: 12px;">
+  register {{ chain.phase or '—' }} · updated {{ chain.updated or 'undated' }}
+</div>
+{% for o in chain.objectives %}
+<div style="padding-bottom: 14px; margin-bottom: 14px; {% if not loop.last %}border-bottom: 1px solid var(--hairline);{% endif %}">
+  <div data-objective="{{ o.id }}" style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px;">
+    <span class="serif" style="font-size: 20px; color: var(--accent-ink); flex: 0 0 auto;">{{ o.id }}</span>
+    <span style="flex: 1; font-size: 13.5px; color: var(--ink);">{{ o.title }}</span>
+    <span class="mono t-tiny t-muted" style="flex: 0 0 auto;">{{ (o.krs or []) | length }} KR</span>
+  </div>
+
+  {% for kr in o.krs or [] %}
+  {% set prov = kr.current_provenance or {} %}
+  {% set stale = kr.current_staleness or {} %}
+  {% set tally = kr.linked_task_completion or {} %}
+  {% set asserted = prov.state == 'asserted' %}
+  <div data-kr="{{ kr.id }}" style="padding: 8px 0 8px 10px; border-left: 2px solid var(--hairline); margin-bottom: 8px;">
+
+    <div style="display: flex; align-items: baseline; gap: 8px;">
+      <span class="id-tag" style="flex: 0 0 auto; color: var(--accent-ink); font-weight: 500;">{{ kr.id }}</span>
+      <span class="t-small" style="flex: 1; color: var(--ink); line-height: 1.5;">{{ kr.title }}</span>
+      {% if stale.stale %}
+      <span class="chip" style="flex: 0 0 auto; color: var(--amber-ink); border-color: currentColor; border-style: solid; background: transparent;">stale assertion</span>
+      {% endif %}
+    </div>
+
+    {# The number, and it never appears without the line under it. #}
+    <div class="mono t-tiny" style="margin-top: 4px; color: var(--ink-2);">
+      current
+      {% if asserted %}<strong>{{ kr.current }}</strong>{% else %}<strong>not asserted</strong>{% endif %}
+      · target {% if kr.target is not none %}{{ kr.target }}{% else %}not asserted{% endif %}
+      {% if kr.metric %}<span class="t-muted"> · metric {{ kr.metric }}</span>{% endif %}
+    </div>
+
+    <div class="t-tiny t-muted" style="margin-top: 3px; line-height: 1.5;">
+      {% if not asserted %}
+        the register gives this KR no <code>current</code>, and nothing here supplies one
+      {% else %}
+        {% if prov.measured %}measured{% else %}asserted by the author, not measured{% endif %}
+        {%- if prov.source %} · source {{ prov.source }}{% endif %}
+        {%- if prov.asserted_at %} · dated {{ prov.asserted_at }}
+          {%- if prov.asserted_scope == 'register' %} (the register's own timestamp, not this KR's){% endif %}
+        {%- endif %}
+      {% endif %}
+    </div>
+
+    {% if stale.reason %}
+    <div class="t-tiny" style="margin-top: 3px; line-height: 1.5;
+                               color: {{ 'var(--ink-2)' if stale.stale else 'var(--ink-4)' }};">
+      {% if not stale.evaluated and asserted %}staleness not evaluated — {% endif %}{{ stale.reason }}
+    </div>
+    {% endif %}
+
+    {# A count of TASKS, in its own unit, beside the number and never inside
+       it: "the linked task is closed" does not establish that the metric
+       behind `current` is now zero. The reader may put the two side by side;
+       this view draws no conclusion for them. #}
+    <div class="mono t-tiny t-muted" style="margin-top: 3px;">
+      linked tasks {{ tally.total if tally.total is not none else 0 }}
+      · closed {{ (tally.done or 0) + (tally.dropped or 0) }}
+      · open {{ tally.open or 0 }}
+      {%- if tally.unknown %} · unknown {{ tally.unknown }}{% endif %}
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+
+{% if chain.unlinked %}
+<div class="t-tiny t-muted" style="margin-top: 4px;">
+  {{ chain.unlinked | length }} task(s) serve no KR yet: <span class="mono">{{ chain.unlinked | join(', ') }}</span>
+</div>
+{% endif %}
+<div class="t-tiny t-muted mono" style="margin-top: 10px;">
+  every number above read from <code>perry-state --json § linkage</code>, never re-derived here
+</div>
+{% endif %}
+{% endmacro %}
