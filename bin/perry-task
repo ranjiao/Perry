@@ -64,6 +64,13 @@ Usage:
                    [--arrived YYYY-MM-DD]
   perry-task start <ID> [--next "…"]
   perry-task stage <ID> --stage <name>
+  perry-task track <ID> --track T [--stage S] [--arrived YYYY-MM-DD]
+                    [--reason "…"]
+                    move an EXISTING row onto another declared track; keeps its
+                    id, its section and every other cell. A queue destination
+                    stamps `Arrived` and the track's first post-intake `Stage`,
+                    exactly as `route` does. A destination that reads neither
+                    CLEARS them and records what they were.
   perry-task intake --title "…" [--arrived YYYY-MM-DD]
   perry-task ask    --needed "…" [--blocks <ID>] [--arrived YYYY-MM-DD]
   perry-task answer <USER-ID> --answer "…"
@@ -1840,6 +1847,13 @@ def commit(project_root: Path, state_root: Path, board: Board,
             changed = {
                 "start": ("status", "next_action"),
                 "stage": ("stage", "stage_since"),
+                # Four fields, because a track move re-stamps the destination's
+                # clock in the same write. Listing only `track` would land the
+                # new track in the store and leave yesterday's `Stage` and
+                # `Arrived` beside it — the store and the board would then
+                # disagree, and the board is rendered FROM the store, so the
+                # move would appear to half-revert on the next render.
+                "track": ("track", "stage", "stage_since", "arrived"),
                 "status": ("status", "next_action", "depends_on"),
                 "depends": ("depends_on",),
                 "next": ("next_action",),
@@ -2103,13 +2117,29 @@ def check_stage(track: dict, stages: list[str], stage: str) -> None:
 
 
 def track_of(config: dict, name: str) -> dict:
+    """The declared track by that name, or the implicit `main`.
+
+    **The refusal is `check_role`'s shape, and for the same reason.** A track
+    is a declaration the project makes about itself — one row of
+    `.perry/config.md § Tracks` — so naming one that has no row is the same
+    mistake as naming a role with no card, and the answer a user needs is the
+    same: which names DO exist, and where to add the missing one. It used to
+    print a Python list repr (`declared: ['main', 'intake']`) and stop there,
+    which named the set and not the way forward. Nothing is created here: a
+    tool that invented the track would turn a typo into a second track that
+    every count then reports as real.
+    """
     for t in config.get("tracks", []):
         if t["track"] == name:
             return t
     if name and name != "main":
+        declared = [t["track"] for t in config.get("tracks", [])]
+        shown = (", ".join(declared)
+                 or "(none — this project has only the implicit `main`)")
         raise Refused(
-            f"track {name!r} is not declared in `.perry/config.md § Tracks`; "
-            f"declared: {[t['track'] for t in config.get('tracks', [])]}")
+            f"track {name!r} is not declared in `.perry/config.md § Tracks`. "
+            f"Declared: {shown}. Add a row to that table naming its mode, or "
+            f"name one of those. Nothing was written")
     return {"track": "main", "mode": "project", "default_rung": ""}
 
 
@@ -2825,6 +2855,142 @@ def cmd_stage(args, ctx) -> dict:
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
                   jline, event, args.dry_run)
     return {"id": tid, "stage": stage, "row": line, **plan}
+
+
+def widen_row_section(board: "Board", section: str, columns: list[str]) -> None:
+    """Add columns to whichever section already holds a row.
+
+    `Board.find` returns `P0`/`P1`/`P2` **or a project's own heading**, and the
+    two widenings live on different methods. `cmd_stage` widens only in the
+    first case, so on a board that files work under its own headings — the
+    shape `--group` exists for, and the only real adopted project available —
+    a `Stage since` stamp is dropped silently, because `replace_row` maps
+    values onto headers and a missing header discards the value at exit 0.
+    That is the same defect that lost `--commitment` and then `Stage since`.
+    A track move writes FOUR such cells, so it asks the question once, here,
+    for both section shapes.
+    """
+    if section in ("P0", "P1", "P2"):
+        board.ensure_columns(section, columns)
+    else:
+        board.ensure_section_columns(section, columns)
+
+
+def cmd_track(args, ctx) -> dict:
+    """Move an existing row onto another declared track.
+
+    **The second entrance a track has, and the reason it exists.** `--track`
+    was accepted by `add` (at creation) and `route` (intake row → new task) and
+    nowhere else, so a project that declared a second track started it empty
+    and could not move a single existing row onto it. A declared track with no
+    rows is not a mode running on a live track — measured on this repository,
+    which declared `intake` and left six rows that genuinely arrived stranded
+    on `main` (`perry/evidence/2026-08/TASK-133-track-experiment.md`).
+
+    **Onto a queue track, this stamps what `route` stamps.** Not bookkeeping:
+    `today − Arrived` is the number every SLA check measures, so a second
+    entrance that omitted it would make `Arrived` mean one thing per entrance
+    and silently exempt every moved row from the only clock governing it.
+    `entry_stage` is the same function `add` and `route` call, so the three
+    entrances cannot disagree about where a row begins on a track.
+
+    **An existing `Arrived` is CARRIED, never restamped.** A queue → queue move
+    that reset the clock to today would erase an in-flight breach — the same
+    exemption, arriving through the other door. `--arrived` overrides, for the
+    row whose arrival the board never recorded.
+
+    **Off a track, `Stage` / `Stage since` / `Arrived` are CLEARED, and the
+    cleared values are written into the journal line and the event.** This is
+    the decision deliverable 2 asks for, and it is `drop`'s precedent applied
+    to a cell rather than a row. The alternative — leaving them — loses nothing
+    visibly and costs the thing they are for: `Arrived` is not provenance, it
+    is *a queue's clock*, and a clock left on a row no queue governs is a
+    live-looking number the next SLA reader picks up. It is already load-bearing
+    in the negative direction too, and measured: `cmd_route` had to stop writing
+    `Arrived` onto pipeline rows precisely because a non-empty `arrived` hides
+    the row from `rows_with_no_computable_age`, which is the finding that says
+    "this row has no clock at all". So keeping it would suppress the one report
+    that could notice the move.
+
+    Dropping the CELL is not dropping the FACT. The journal is append-only and
+    the event carries `stage_from` / `arrived_from`, which is exactly where
+    `drop` puts the stage a row died in and where every other post-removal
+    question is already answered from. A move back onto a queue track re-stamps
+    a fresh clock, and the log says what the old one read.
+
+    `route` keeps a non-queue `Arrived` when it has one and this clears it;
+    they do not contradict. `route` BIRTHS a row out of an intake row whose
+    `Arrived` column is its only origin. This moves a row that already has a
+    whole history somewhere else to be read.
+    """
+    tid = args.id
+    if not args.track:
+        raise Refused(
+            f"--track is required: perry-task track {tid or '<ID>'} "
+            f"--track <name>. This subcommand exists to change that cell")
+    dest = track_of(ctx["config"], args.track)
+    section, idx, header, values = task_projection_row(ctx, tid)
+    was = (values.get("track") or "").strip() or "main"
+    now = dest["track"]
+    # A no-op that still emitted an event would put a move in the timeline that
+    # did not happen, and the timeline is what `list` reports as history.
+    if was == now:
+        raise Refused(f"{tid} is already on track {now!r} — nothing to move")
+
+    mode = dest["mode"]
+    stages = stages_of(ctx["schema"], dest)
+    check_stage(dest, stages, args.stage)
+    stage = args.stage or entry_stage(mode, stages)
+    prev_stage = (values.get("stage") or "").strip()
+    prev_arrived = (values.get("arrived") or "").strip()
+    today = f"{date.today():%Y-%m-%d}"
+    if mode == "queue":
+        arrived = args.arrived or prev_arrived or today
+    else:
+        # The destination does not read it. See the docstring: cleared here,
+        # recorded on both surfaces that survive.
+        if args.arrived:
+            raise Refused(
+                f"track {now!r} is mode `{mode or 'project'}`, which measures "
+                f"`Stage since` rather than `Arrived` — there is no clock for "
+                f"--arrived to set. Drop the flag; the move records the "
+                f"`Arrived` this row is leaving behind")
+        arrived = ""
+
+    # Only the cells this move WRITES a value into. A column that does not
+    # exist holds no stale clock to clear, so widening the board to add an
+    # empty `Arrived` would cost every row a column to record an absence.
+    wanted = {"track": now, "stage": stage,
+              "stage since": today if stage else "", "arrived": arrived}
+    widen_row_section(ctx["board"], section,
+                      [canonical_column(c) for c, v in wanted.items() if v])
+    # Re-locate: widening rewrites the header and every row in place, so the
+    # values dict has to be refilled against the header that now exists.
+    section, idx, header, values = task_projection_row(ctx, tid)
+    values.update(wanted)
+    line = ctx["board"].replace_row(idx, header, values)
+
+    jline = (f"- [{tid}] track {was} → {now} · mode {mode or 'project'} · "
+             f"stage {prev_stage or '—'} → {stage or '—'} · "
+             f"arrived {prev_arrived or '—'} → {arrived or '—'}")
+    if args.reason:
+        jline += f" · reason: {args.reason}"
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": "track", "id": tid, "title": values.get("title", ""),
+             # The track the row is NOW on, like every other event's `track`.
+             # `from`/`to` carry the move itself.
+             "track": now, "mode": mode, "actor": args.actor,
+             "field": "track", "from": was, "to": now,
+             # The four cells this write touched, each with what it replaced.
+             # A track change nothing recorded is TASK-139's shape; a CLEARED
+             # clock recorded nowhere is the same defect one field down.
+             "stage": stage, "stage_from": prev_stage,
+             "arrived": arrived, "arrived_from": prev_arrived,
+             "reason": args.reason or ""}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": tid, "from": was, "to": now, "mode": mode, "stage": stage,
+            "arrived": arrived, "row": line, **plan}
 
 
 def cmd_status(args, ctx) -> dict:
@@ -4867,9 +5033,9 @@ def perry_conform():
 #: is never gated, so it is not merely excluded here — `tests/test_conformance`
 #: asserts it still answers on an undeclared project with the gate enforcing.
 READ_ONLY_COMMANDS = {"list", "events", "signoff-offer"}
-TASK_ROW_COMMANDS = {"start", "stage", "done", "drop", "status", "depends",
-                     "next", "retitle", "summary", "rung", "evidence",
-                     "prioritize"}
+TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "status",
+                     "depends", "next", "retitle", "summary", "rung",
+                     "evidence", "prioritize"}
 GATED_FILE = "BOARD.md"
 
 
@@ -4981,9 +5147,9 @@ def parse(argv: list[str]) -> Args:
 # allowlist drops a future event from the payload, a denylist leaks one into it,
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
-TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "retitle", "summary", "rung", "evidence", "prioritize",
-                         "depends", "done", "drop"})
+TASK_EVENTS = frozenset({"add", "route", "start", "stage", "track", "status",
+                         "next", "retitle", "summary", "rung", "evidence",
+                         "prioritize", "depends", "done", "drop"})
 # **What a timeline entry's `from`/`to` pair actually refers to.** One row per
 # task event, no default — `tests/test_prioritize.py` asserts this map's keys
 # are exactly `TASK_EVENTS`, so an event cannot be added without declaring what
@@ -5005,6 +5171,12 @@ EVENT_FIELD = {
     "add": "status", "route": "status", "start": "status",
     "status": "status", "done": "status", "drop": "status",
     "stage": "stage",
+    # `track` is a cell of its own and a key of the task payload. It is NOT
+    # `stage`: a move re-stamps the stage as a consequence, and a consumer told
+    # the pair was a stage would read `main → intake` as a stage vocabulary it
+    # cannot find. The stage the move produced rides on the event's own
+    # `stage` / `stage_from` keys.
+    "track": "track",
     "prioritize": "section",
     "retitle": "title",
     "summary": "summary",
@@ -5114,6 +5286,7 @@ def cmd_events(args, ctx) -> dict:
 
 
 COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
+            "track": cmd_track,
             "ask": cmd_ask, "answer": cmd_answer, "next": cmd_next,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,

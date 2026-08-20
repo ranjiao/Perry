@@ -49,7 +49,7 @@ is the answer. It is.
 |---|---|---|
 | `seq` | int | position in the log. Stable **until rotation**, which is what `rotated` is for |
 | `ts` | string | ISO-8601, **seconds**. Ties are real and are not duplicates |
-| `event` | string | `add`, `start`, `status`, `done`, `drop`, `stage`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `route` |
+| `event` | string | `add`, `start`, `status`, `done`, `drop`, `stage`, `track`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `route` |
 | `task` | string | the id this event is about |
 | `title_then` | string | **the title as written when the event was appended.** A retitled task's earlier events still carry the old name — correct for a history view, wrong the moment you render it as the row's *current* name. `perry-task/list § title` has that one |
 | `field` | string | which cell `from`/`to` describe — `status` on six events, `section`, `stage`, `title`, `next_action`, `verification`, `evidence` or `depends_on` on the rest |
