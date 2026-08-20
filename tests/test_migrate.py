@@ -2158,6 +2158,172 @@ class TestAReadOnlyFileDoesNotCrashPlanning(unittest.TestCase):
         self.assertIn("> Id:", p.text("knowledge/research/a.md"))
 
 
+class TestTheOverriddenReadOnlyBitIsReported(unittest.TestCase):
+    """TASK-079 · V4 — the plan names a permission the run crossed.
+
+    The class above pins the *behaviour*: a file whose owner-write bit is
+    cleared is migrated like any other, because `write_atomic` renames over it
+    and a rename needs write permission on the directory. What was missing is
+    that the plan said nothing about it, while `TASK-044-spec` requires the run
+    to be "not silent — every file it touched, listed, with what changed in
+    each".
+
+    So these tests are about the *report* and deliberately not about the
+    policy. Whether migration should refuse such a file is `USER-004` and is
+    open; every assertion below would still hold under either answer except the
+    ones that pin today's behaviour, and those are here so that the day it
+    changes, it changes on purpose.
+    """
+
+    #: One file with the bit cleared and one without — both needing migration,
+    #: so that "names the first and not the second" is a statement about the
+    #: mode and not about which files were touched.
+    FILES = {"BOARD.md": LEGACY_BOARD,
+             "knowledge/research/a.md": "# A digest\n\nBody.\n"}
+
+    def project(self, mode: int = 0o444) -> "Project":
+        # Kept on `self` for the same reason as the class above: the
+        # TemporaryDirectory must outlive the test body, and chmod-ing back
+        # after it is collected raises a FileNotFoundError that looks like a
+        # test failure.
+        self._p = Project(files=dict(self.FILES))
+        (self._p.root / "BOARD.md").chmod(mode)
+        return self._p
+
+    @staticmethod
+    def notes(out: str) -> list[str]:
+        return [l.strip() for l in out.split("\n") if l.strip().startswith("! ")]
+
+    @staticmethod
+    def entry(out: str, key: str) -> list[str]:
+        """The lines the per-file list prints under one file, up to the next."""
+        lines = out.split("\n")
+        at = next(i for i, l in enumerate(lines) if l.strip().endswith(")")
+                  and f" {key}  (" in l)
+        end = next((i for i in range(at + 1, len(lines))
+                    if lines[i].startswith("   ") and not lines[i].startswith("    ")),
+                   len(lines))
+        return lines[at:end]
+
+    def test_the_dry_run_names_the_read_only_file_and_not_the_ordinary_one(self):
+        p = self.project()
+        rc, out, err = p.run(json_out=False)
+        self.assertEqual(rc, 0, err)
+        board = self.entry(out, "BOARD.md")
+        self.assertTrue(any("read-only for its owner (mode 0444)" in l
+                            for l in board),
+                        f"the dry run did not name the mode:\n{out}")
+        self.assertEqual(self.notes(out), self.notes("\n".join(board)),
+                         "the ordinary file was reported too")
+        self.assertEqual(
+            self.notes("\n".join(self.entry(out, "knowledge/research/a.md"))), [])
+
+    def test_the_note_is_the_first_thing_under_that_file_in_the_list(self):
+        """"In the same list" is the point: this is not a separate warning
+        block at the end, it is the per-file entry TASK-044 already asks for."""
+        p = self.project()
+        _, out, _ = p.run(json_out=False)
+        self.assertTrue(self.entry(out, "BOARD.md")[1].strip().startswith("! "),
+                        f"the note is not in the file's own entry:\n{out}")
+
+    def test_the_applied_run_names_it_in_the_same_place(self):
+        p = self.project()
+        rc, out, err = p.run("apply", json_out=False)
+        self.assertEqual(rc, 0, err)
+        entry = self.entry(out, "BOARD.md")
+        self.assertTrue(entry[1].strip().startswith("! "), out)
+        self.assertIn("read-only for its owner (mode 0444)", entry[1])
+        self.assertIn("replaced anyway", entry[1])
+
+    def test_the_file_it_names_was_in_fact_migrated(self):
+        """The report is a report. Behaviour is unchanged — asserted on the
+        bytes, because a note about an override that did not happen would be a
+        worse defect than the silence it replaced."""
+        p = self.project()
+        before = (p.root / "BOARD.md").read_bytes()
+        _, out, _ = p.run("apply", json_out=False)
+        after = (p.root / "BOARD.md").read_bytes()
+        self.assertNotEqual(after, before)
+        self.assertIn("## P0", after.decode())
+        self.assertIn("read-only for its owner", out)
+        self.assertEqual(os.stat(p.root / "BOARD.md").st_mode & 0o777, 0o444,
+                         "the note says the mode is left as found")
+
+    def test_the_restore_point_still_carries_its_original_bytes(self):
+        """Guarantee 3 for exactly the file this task made visible: making the
+        override reportable must not move it out of the recovery path."""
+        p = self.project()
+        before = (p.root / "BOARD.md").read_bytes()
+        p.run("apply", json_out=False)
+        points = sorted((p.root / ".perry" / "migrate").glob("*.json"))
+        self.assertTrue(points, "no restore point was written")
+        payload = json.loads(points[-1].read_text())
+        self.assertEqual(
+            M.image_bytes(payload["files"]["BOARD.md"], "BOARD.md"), before)
+
+    def test_a_project_with_no_such_file_reads_exactly_as_it_did_before(self):
+        """No new noise on the ordinary path — asserted by difference, not by
+        eyeballing. The same project is planned twice, once with the bit and
+        once without, and the only thing the first says more than the second is
+        the note itself. Byte-identical everywhere else."""
+        p = self.project(mode=0o444)
+        _, marked, _ = p.run(json_out=False)
+        (p.root / "BOARD.md").chmod(0o644)
+        _, ordinary, _ = p.run(json_out=False)
+        self.assertNotIn("read-only", ordinary)
+        without = "\n".join(l for l in marked.split("\n")
+                            if not l.strip().startswith("! "))
+        self.assertEqual(without, ordinary)
+
+    def test_the_json_plan_carries_it_and_adds_nothing_when_there_is_none(self):
+        p = self.project(mode=0o444)
+        _, marked, _ = p.run()
+        (p.root / "BOARD.md").chmod(0o644)
+        _, ordinary, _ = p.run()
+        board = next(f for f in marked["files"] if f["path"] == "BOARD.md")
+        self.assertEqual(board["read_only_override"]["mode"], "0444")
+        self.assertIn("read-only for its owner",
+                      board["read_only_override"]["observed"])
+        self.assertNotIn("read_only_override", json.dumps(ordinary),
+                         "the ordinary plan gained a key")
+        strip = lambda d: [{k: v for k, v in f.items()
+                            if k != "read_only_override"} for f in d["files"]]
+        self.assertEqual(strip(marked), strip(ordinary))
+
+    def test_a_file_left_byte_identical_is_not_reported_as_overridden(self):
+        """A read-only file the plan cannot migrate crosses no permission.
+        Naming it would report an override that never happened — the same
+        defect as the silence, pointing the other way."""
+        p = Project(files={"BOARD.md": UNRESOLVABLE_BOARD})
+        self._p = p
+        before = (p.root / "BOARD.md").read_bytes()
+        (p.root / "BOARD.md").chmod(0o444)
+        rc, out, _ = p.run("apply", json_out=False)
+        self.assertEqual(rc, 1)
+        self.assertEqual((p.root / "BOARD.md").read_bytes(), before)
+        self.assertNotIn("read-only for its owner", out)
+
+    def test_the_dry_run_and_the_applied_run_report_the_same_observation(self):
+        """§ 1: one computation, not two. The mode is read once, at plan time,
+        so the preview cannot name a mode the run then contradicts."""
+        p = self.project()
+        _, dry, _ = p.run()
+        _, real, _ = p.run("apply")
+        pick = lambda d: [(f["path"], f.get("read_only_override"))
+                          for f in d["files"]]
+        self.assertEqual(pick(dry), pick(real))
+
+    def test_the_wording_states_what_was_observed_not_what_should_happen(self):
+        """The policy is USER-004 and this task does not settle it, so the
+        sentence may not lean: no "should", no "refuse", no advice to chmod."""
+        p = self.project()
+        _, out, _ = p.run(json_out=False)
+        note = self.notes(out)[0].lower()
+        for word in ("should", "must", "refus", "chmod", "instead", "unsafe",
+                     "warning", "error"):
+            self.assertNotIn(word, note, f"the note takes a position: {note}")
+
+
 class TestEveryWriteSiteIsGuarded(unittest.TestCase):
     """**Three rounds each guarded the site it had seen, not the class.**
 
