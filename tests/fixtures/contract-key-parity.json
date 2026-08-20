@@ -66,12 +66,12 @@
       ],
       "unparsed_sketches": []
     },
-    "perry-task/list/1.11": {
+    "perry-task/list/1.12": {
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.11",
-      "documented": 87,
+      "contract": "perry-task/list/1.12",
+      "documented": 88,
       "documented_not_emitted": [],
-      "emitted": 99,
+      "emitted": 100,
       "emitted_not_documented": [
         "conformance.evidence_not_found[].id",
         "conformance.evidence_not_found[].paths",

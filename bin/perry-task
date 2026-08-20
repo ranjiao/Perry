@@ -163,7 +163,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.11"
+LIST_CONTRACT = "perry-task/list/1.12"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -215,6 +215,21 @@ LIST_SEMANTICS = [
              "groups, while `sections_skipped` and `rows_with_unrecognized_id` "
              "remain legacy keys and are empty because task reads no longer "
              "scan Board tables."},
+    {"version": "1.12",
+     "fields": ["startable", "blocked_stale"],
+     "note": "A stored `blocked` status no longer masks an empty "
+             "`blocked_by`. Before 1.12 `status` was read first, so a row "
+             "whose every declared dependency had closed reported "
+             "`blocked_by: []` and `startable: false` in the same object and "
+             "no consumer could see the contradiction — measured on two of "
+             "four blocked rows on Perry's own board. Such a row is now "
+             "`startable: true` and carries the new `blocked_stale: true`. "
+             "The stored `status` is unchanged and still reads `blocked`: "
+             "this payload reports, it does not rewrite cells. A row with an "
+             "open dependency, a `blocked` row that declares no dependency at "
+             "all, and any row in `review` are all unaffected. If you rendered "
+             "a `blocked` badge from `status`, render `blocked_stale` beside "
+             "it — the two disagree exactly when the board is out of date."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -4260,7 +4275,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
                 "verification": "", "open": False, "group": "",
                 "role": "",
                 "depends_on": [], "blocked_by": [], "blocks": [],
-                "startable": False,
+                "startable": False, "blocked_stale": False,
                 "created": None, "updated": None, "timeline": []}
 
     tasks: dict[str, dict] = {}
@@ -4501,10 +4516,43 @@ def _cmd_list_from_board(args, ctx) -> dict:
     # else has the ball. That is what makes this field answer the question the
     # user actually asked ("I saw a pile of `review` rows and thought they
     # could be advanced") on a board with not one declared edge on it.
+    #
+    # **With one exception, because the stored status was masking the graph.**
+    # A row that says `blocked`, declares dependencies, and has NONE of them
+    # left unsatisfied is not stating a fact — it is CONTRADICTING one this
+    # payload has already computed two loops above. Measured on Perry's own
+    # board: TASK-037 (waiting on TASK-092) and TASK-045 (on the closed
+    # TASK-044 → TASK-047 chain) both reported `blocked_by=[]` and
+    # `startable=False` in the same object. `status` was read first, so
+    # `startable` could never disagree with a stale cell and no consumer could
+    # see that it wanted to. `done` does not touch its dependents, so the
+    # ordinary close path CREATES that state and this line then hid it.
+    #
+    # `blocked_stale` names the disagreement rather than swallowing it, and
+    # `startable` stops deferring to the stored value on exactly those rows.
+    # The stored `Status` is left alone: this payload reads, and rewriting a
+    # cell nobody asked it to rewrite is a different decision than reporting
+    # the truth about it. So the row becomes startable and STILL reads
+    # `blocked` until a human or a subsequent write clears it.
+    #
+    # Three boundaries this deliberately does NOT cross:
+    #
+    #   - a row with at least one dependency still open keeps `blocked_by`
+    #     non-empty and stays unstartable. This is not "drop the check".
+    #   - a `blocked` row that declares NO dependency is untouched. Its
+    #     dependency is in prose Perry cannot read — that is precisely
+    #     `conformance.blocked_without_dependency` — and "I cannot see it" is
+    #     not "it closed", the same rule that makes an unknown id unsatisfied.
+    #   - `review` is untouched. A row in review waits on a HUMAN, not on a
+    #     row, so no dependency edge can ever contradict it and there is
+    #     nothing here for this computation to know.
     waiting = {"blocked", "review"}
     for t in tasks.values():
-        t["startable"] = bool(t["open"] and t["status"] not in waiting
-                              and not t["blocked_by"])
+        t["blocked_stale"] = bool(t["open"] and t["status"] == "blocked"
+                                  and t["depends_on"] and not t["blocked_by"])
+        t["startable"] = bool(t["open"] and not t["blocked_by"]
+                              and (t["blocked_stale"]
+                                   or t["status"] not in waiting))
 
     edges = {tid: t["depends_on"] for tid, t in tasks.items()}
     in_cycle: set[str] = set()
@@ -4677,6 +4725,7 @@ def cmd_list(args, ctx) -> dict:
             "role": rec.get("role") or "",
             "depends_on": list(rec.get("depends_on") or []),
             "blocked_by": [], "blocks": [], "startable": False,
+            "blocked_stale": False,
             "created": rec.get("created"), "updated": None, "timeline": [],
         }
 
@@ -4724,10 +4773,19 @@ def cmd_list(args, ctx) -> dict:
             other = tasks.get(dep)
             if other is not None and task["id"] not in other["blocks"]:
                 other["blocks"].append(task["id"])
+    # Same rule as the board-derived path above, and for the same reason: a
+    # stored `blocked` on a row whose every declared dependency has closed is a
+    # contradiction of `blocked_by`, not a fact about it. `blocked_stale` names
+    # it; `startable` stops letting it mask an empty `blocked_by`. A row with an
+    # open dependency, a `blocked` row that declares none, and anything in
+    # `review` are all unaffected — see the commentary on the other site.
     for task in tasks.values():
-        task["startable"] = bool(task["open"]
-                                 and task["status"] not in {"blocked", "review"}
-                                 and not task["blocked_by"])
+        task["blocked_stale"] = bool(task["open"] and task["status"] == "blocked"
+                                     and task["depends_on"]
+                                     and not task["blocked_by"])
+        task["startable"] = bool(task["open"] and not task["blocked_by"]
+                                 and (task["blocked_stale"]
+                                      or task["status"] not in {"blocked", "review"}))
 
     edges = {tid: task["depends_on"] for tid, task in tasks.items()}
     in_cycle: set[str] = set()
