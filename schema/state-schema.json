@@ -818,6 +818,13 @@
       "note": "the anchor. Holds the State root pointer, so it can never sit behind it."
     },
     {
+      "path": ".perry/events.jsonl",
+      "kind": "file",
+      "owner": "perry",
+      "anchor": "project",
+      "note": "the event log. Perry appends one object per mutating command, so it is territory Perry occupies and a project file of the same name collides with it. Anchored at the project root because that is where `bin/perry-task` writes it - inside the `.perry/` anchor, not behind the State root pointer."
+    },
+    {
       "path": "OKR.md",
       "kind": "file",
       "owner": "goals",
@@ -834,6 +841,13 @@
       "kind": "file",
       "owner": "work",
       "anchor": "state"
+    },
+    {
+      "path": "tasks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the task STORE (ADR-007) - the canonical Task record `BOARD.md` is projected from. Written by every mutating `perry-task` command, so it is territory Perry occupies. State-root relative like the board beside it: `perry/tasks.jsonl` when the state root is `perry/`."
     },
     {
       "path": "PROJECT_STATE.md",

@@ -575,5 +575,162 @@ class TestTheShippedFixtureBoundary(Fixture):
                          "fail --strict; only NS-01 is carved out")
 
 
+class TestTheTwoStoreFilesAreReportable(Fixture):
+    """TASK-100 — `tasks.jsonl` and `.perry/events.jsonl` are claimed.
+
+    Perry has written both on every mutating command since ADR-007, and
+    neither appeared in `claims[]`. Adding them grants no new write; it makes
+    an existing write DECLARED, which is the only thing that makes a collision
+    on those two paths reportable at all. Before this, a project owning either
+    name got no `NS-01` and no question at setup — the collision was silent.
+
+    Both halves are pinned here, and the second is what stops the first from
+    being a licence to warn on Perry's own files:
+
+      a FOREIGN file at the claimed path  → `NS-01`, `warn`, exit code unchanged
+      Perry's OWN store or event log      → nothing, on every Perry project
+
+    The second is not hypothetical. A `.jsonl` carries no heading, no
+    `files[]` name and no `Owner**:` line, so every rule in
+    `looks_like_perry_state` reads it as foreign; without
+    `looks_like_perry_record` these two claims would emit two warnings on
+    every adopted project there is, including this repository.
+    """
+
+    # Valid JSONL, and nothing Perry's record vocabulary can account for: the
+    # store's fields are `perry_store.STORED` and an event carries `ts` and
+    # `event`. Spelled out for the same reason `FOREIGN` is — a fixture that
+    # accidentally looked Perry-shaped would make every assertion below pass
+    # by reporting nothing.
+    FOREIGN_JSONL = ('{"account": "acme", "region": "eu-west", "rows": 3}\n'
+                     '{"account": "globex", "region": "us-east", "rows": 7}\n')
+
+    # What Perry itself writes, in the shape its own writers produce.
+    PERRY_STORE = ('{"id": "TASK-001", "title": "A task", "status": "done", '
+                   '"owner": "", "priority": "P1", "track": "main"}\n')
+    PERRY_EVENTS = ('{"ts": "2026-08-20T09:00:00", "event": "done", '
+                    '"id": "TASK-001", "actor": "agent"}\n')
+
+    def colliding_store(self) -> pathlib.Path:
+        """The project's own `tasks.jsonl`, at the state root."""
+        d = self.adopted_clean()
+        (d / "tasks.jsonl").write_text(self.FOREIGN_JSONL)
+        return d
+
+    def colliding_events(self) -> pathlib.Path:
+        """The project's own `.perry/events.jsonl`, at the project root."""
+        d = self.adopted_clean()
+        (d / ".perry" / "events.jsonl").write_text(self.FOREIGN_JSONL)
+        return d
+
+    # ── the store path ────────────────────────────────────────────────────
+
+    def test_a_foreign_store_file_is_ns01_at_warn(self):
+        _, payload = self.lint(self.colliding_store())
+        rows = self.ns(payload)
+        self.assertEqual([r["file"] for r in rows], ["tasks.jsonl"],
+                         payload["findings"])
+        self.assertEqual(rows[0]["severity"], "warn")
+
+    def test_the_store_path_is_the_evidence(self):
+        _, payload = self.lint(self.colliding_store())
+        self.assertIn("tasks.jsonl", self.ns(payload)[0]["message"],
+                      "the finding does not say which file collided")
+
+    def test_the_store_collision_leaves_the_exit_code_alone(self):
+        """Same commitment as every other `NS-01`: a user may live with it."""
+        rc, payload = self.lint(self.colliding_store())
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["errors"], 0)
+
+    def test_the_store_collision_is_what_explains_the_other_findings(self):
+        """Why the gap mattered, in one fixture.
+
+        A project's own `tasks.jsonl` at the state root is ALSO read as a
+        broken store: `store-badly-typed` on the file and `store-drift` on
+        every board row derived from it. Before this row those were the whole
+        report — Perry calling the user's own file malformed, with nothing
+        saying why, which is the exact outcome DESIGN-002 § P4 names. `NS-01`
+        is the sentence that makes the rest legible."""
+        _, payload = self.lint(self.colliding_store())
+        rules = {f["rule"] for f in payload["findings"]}
+        self.assertIn("store-badly-typed", rules)
+        self.assertIn("NS-01", rules)
+
+    # ── the event-log path ────────────────────────────────────────────────
+
+    def test_a_foreign_event_log_is_ns01_at_warn(self):
+        _, payload = self.lint(self.colliding_events())
+        rows = self.ns(payload)
+        self.assertEqual([r["file"] for r in rows], [".perry/events.jsonl"],
+                         payload["findings"])
+        self.assertEqual(rows[0]["severity"], "warn")
+
+    def test_the_event_log_path_is_the_evidence(self):
+        _, payload = self.lint(self.colliding_events())
+        self.assertIn(".perry/events.jsonl", self.ns(payload)[0]["message"])
+
+    def test_the_event_log_collision_leaves_the_exit_code_alone(self):
+        self.assertEqual(self.lint(self.colliding_events())[0], 0)
+        self.assertEqual(self.lint(self.colliding_events(), "--strict")[0], 0)
+
+    # ── and Perry's own two files are not a collision ─────────────────────
+
+    def test_perrys_own_store_and_event_log_are_not_reported(self):
+        d = self.adopted_clean()
+        (d / "tasks.jsonl").write_text(self.PERRY_STORE)
+        (d / ".perry" / "events.jsonl").write_text(self.PERRY_EVENTS)
+        _, payload = self.lint(d)
+        self.assertEqual(
+            self.ns(payload), [],
+            "Perry's own store and event log were reported as a collision "
+            "against Perry's own claim — every adopted project would carry "
+            "two permanent warnings for files Perry wrote itself")
+
+    def test_this_repository_gains_no_warning(self):
+        """The measurement the row was written against, run on the repo.
+
+        Perry keeps a real store and a real event log, so it is the sharpest
+        available case of the false positive above. Only the three known
+        `evidence/` `handoff/` `knowledge/` findings may appear — a fourth
+        means the two new claims are firing on Perry's own files."""
+        _, payload = self.lint(ROOT)
+        paths = sorted(f["file"] for f in self.ns(payload))
+        self.assertNotIn("perry/tasks.jsonl", paths)
+        self.assertNotIn(".perry/events.jsonl", paths)
+
+    def test_the_recognition_is_by_record_not_by_name(self):
+        """`looks_like_perry_record` must not excuse a file for being called
+        `tasks.jsonl`. Matching on the name would make the claim self-defeating:
+        every file at the claimed path would be Perry's by definition, and the
+        collision could never be reported."""
+        live, _ = self.drive("live", "--root", str(self.colliding_store()))
+        self.assertIn("[NS-01]", live)
+
+    # ── and `--claims` lists them, under the right roots ──────────────────
+
+    def test_claims_lists_both_paths(self):
+        """The payload, not the text render: `render_claims` prints only the
+        rows that are taken, and on a clean folder both of these are free —
+        which is the answer setup needs and the reason the JSON is the
+        contract."""
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--root", str(self.adopted_clean()),
+             "--claims", "--json"], capture_output=True, text=True, cwd=ROOT)
+        listed = {r["path"] for r in json.loads(proc.stdout)["paths"]}
+        self.assertIn("tasks.jsonl", listed)
+        self.assertIn(".perry/events.jsonl", listed)
+
+    def test_each_path_resolves_under_its_declared_root(self):
+        """The store is state-root relative and the event log is project-root
+        relative. On this repository those are different directories, which is
+        what makes the distinction checkable rather than cosmetic."""
+        out, _ = self.drive("rows", str(ROOT))
+        rows = {r["path"]: r for r in json.loads(out)["rows"]}
+        self.assertEqual(rows["tasks.jsonl"]["rel"], "perry/tasks.jsonl")
+        self.assertEqual(rows[".perry/events.jsonl"]["rel"],
+                         ".perry/events.jsonl")
+
+
 if __name__ == "__main__":
     unittest.main()

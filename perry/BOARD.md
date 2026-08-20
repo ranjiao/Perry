@@ -48,14 +48,15 @@
 | TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-140 | every mode contract slot is assigned to an axis, and the spine-to-unit map is written down | Coding Agent | not_started | CLEARED by the user 2026-08-20 for the `design/` escalation hit; ready to dispatch, spec at evidence/2026-08/TASK-140-spec.md | evidence/2026-08/TASK-140-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 
 ## P2
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Arrived |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TASK-037 | perry-goals writer | Coding Agent | blocked | After TASK-092 lands, rescope to flag naming and the module-scope handler defect only | — | V4 | TASK-092 | main |  |  |
+| TASK-037 | perry-goals writer | Coding Agent | not_started | unblocked: TASK-092 closed 2026-08-20. Re-scope per its own note — flag naming and the module-scope handler defect only; the rest was overtaken by TASK-092 and TASK-123 | — | V4 | TASK-092 | main |  |  |
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 | main |  |  |
-| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 | main |  |  |
+| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | unblocked: the whole chain closed — TASK-044 and TASK-047 are both done. The conformance marker enforces on this branch, which is the precondition this row was waiting for | — | V4 | TASK-044, TASK-047 | main |  |  |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | PR merged; ready to close once origin is merged down and the suite re-run locally | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |

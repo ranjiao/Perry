@@ -4217,7 +4217,11 @@ def board_sections(ctx) -> dict:
                   "cleared": len(snap.top_risks) - len(open_risks),
                   "source": snap.risks_source or ""},
         "asks": {"items": asks, "open": len(asks)},
-        "drift": ps.reconcile_drift(ctx["project_root"], snap.board,
+        # **`board_as_authored`, not `board`.** Every other number here is
+        # store-backed now (TASK-094); drift is the one question that has to
+        # be asked of the rendered document, because the document is what it
+        # is checking. See `viewer/parsers.py § PMOSnapshot.board_as_authored`.
+        "drift": ps.reconcile_drift(ctx["project_root"], snap.board_as_authored,
                                     ps.read_event_log(ctx["project_root"])),
     }
 
