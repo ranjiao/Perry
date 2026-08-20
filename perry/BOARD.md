@@ -29,7 +29,7 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | in_progress | dispatched 18:58 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
+| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | review | PR #19 review: the corpus is IN_REPO-only and CI-covered; merge after origin is reconciled | evidence/2026-08/TASK-111-dispatch-2026-08-20-1930.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
@@ -50,6 +50,8 @@
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  |
 | TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  |
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  |
+| TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  |
+| TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
