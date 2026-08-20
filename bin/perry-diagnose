@@ -540,9 +540,19 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
 #     exempts fenced blocks for exactly this reason — "a fenced block is pasted
 #     output, not a reference" — and a blockquote is that same statement in the
 #     other markdown spelling.
-#   * on a line citing one of THIS CHECKER'S OWN finding codes. The tool knows
-#     its own vocabulary, so `LOAD-02 reports REL-00 dangling` announces itself
-#     as a report without anybody guessing at the sentence.
+#   * on a line NAMING A CHECK: one of this checker's own finding codes, or a
+#     `test_…` identifier. Both are identifiers the repository owns, so
+#     `LOAD-02 reports REL-00 dangling` and `adding one DESIGN-900-probe.md
+#     turns test_the_number_reconciles red` announce themselves as reports
+#     without anybody guessing at the sentence.
+#
+# **Why naming a check is safe to exempt, given it sounds broad.** The rule is
+# only ever applied to an id that is ALREADY undefined everywhere, and only
+# when EVERY one of its mentions is a report. `TASK-042 is covered by
+# test_foo` loses nothing, because TASK-042 is defined on the board and was
+# never a candidate. What is left after those two filters is the demonstration
+# id — the `DESIGN-900-probe.md` a review invents to show a check going red —
+# which is exactly what this must not charge the project for.
 #
 # The cost, named rather than hidden: an ordinary paragraph reading `REL-00 is
 # gone`, carrying none of those three marks, is still a reference and still
@@ -560,12 +570,21 @@ SIGNED_RECORD = re.compile(
 QUOTED_LINE = re.compile(r"^\s{0,3}>")
 
 
+#: A check named the way this repository names its checks. `{3,}` so the token
+#: is a function name and not the English word "test" followed by an underscore.
+TEST_NAME = re.compile(r"\btest_[a-z][a-z0-9_]{3,}\b")
+
+
 @functools.lru_cache(maxsize=1)
 def finding_code_re() -> "re.Pattern[str]":
     """`LOAD-02|DOC-03|…` — this checker's own vocabulary, read from `WHY` so
     a finding added later is covered without anybody remembering to come back."""
     prefixes = sorted({fid.rsplit("-", 1)[0] for fid in WHY}, key=len, reverse=True)
     return re.compile(r"\b(?:%s)-\d+\b" % "|".join(map(re.escape, prefixes)))
+
+
+def names_a_check(line: str) -> bool:
+    return bool(finding_code_re().search(line) or TEST_NAME.search(line))
 
 
 def report_lines(path: Path) -> set[int]:
@@ -577,7 +596,7 @@ def report_lines(path: Path) -> set[int]:
         if line.startswith("#"):
             signed = bool(SIGNED_RECORD.match(line))
             continue
-        if signed or QUOTED_LINE.match(line) or finding_code_re().search(line):
+        if signed or QUOTED_LINE.match(line) or names_a_check(line):
             out.add(n)
     return out
 

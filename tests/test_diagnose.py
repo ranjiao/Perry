@@ -1351,6 +1351,35 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         # more assertion about incidental state.
         self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
+    def test_a_line_naming_a_test_is_a_report_too(self):
+        """A review that demonstrates a check going red invents an id to
+        demonstrate it with. `perry/evidence/…/TASK-108-dispatch…md` does
+        exactly that — "adding one ordinary `DESIGN-900-probe.md` … turns the
+        test red" — and charging the project for `DESIGN-900` is the same
+        defect as `REL-00`, one document over."""
+        load = self.load({"notes/review.md":
+                          "# Review\n\nDemonstrated rather than argued: "
+                          "adding one ordinary `ZZZ-404-probe.md` turns "
+                          "test_the_number_reconciles_with_the_queue red.\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
+    def test_naming_a_check_does_not_exempt_an_id_that_resolves_elsewhere(self):
+        """Why the widening is safe. The rule is applied only to ids that are
+        ALREADY undefined everywhere, so a real row cited beside a test name
+        was never a candidate for it."""
+        load = self.load({
+            "BOARD.md": "# Board\n\n## P0\n\n"
+                        "| ID | Title | Owner | Status | Next action | Evidence |\n"
+                        "|---|---|---|---|---|---|\n"
+                        "| ZZZ-404 | A real row | R | not_started | — | — |\n",
+            "notes/review.md": "# Review\n\nZZZ-404 is covered by "
+                               "test_the_row_still_closes_at_v5.\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertEqual(load["dangling_in_reports"], [],
+                         "a defined row was routed through the exemption "
+                         "instead of simply resolving")
+
     def test_the_finding_vocabulary_is_read_from_the_catalogue(self):
         """Not a hand-copied list: a finding added later is covered without
         anybody remembering to come back and widen a regex."""
@@ -1359,6 +1388,8 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         for fid in mod.WHY:
             self.assertTrue(pattern.search(f"{fid} reports ZZZ-404"), fid)
         self.assertIsNone(pattern.search("TASK-042 is a row, not a finding"))
+        self.assertFalse(mod.names_a_check("a test_ is not a check name"))
+        self.assertTrue(mod.names_a_check("test_two_flags_do_not_agree"))
 
     # ── the cost, named rather than hidden ───────────────────────────────
     def test_bare_prose_saying_a_code_is_gone_is_still_a_reference(self):
@@ -1375,7 +1406,11 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
     def test_perrys_own_repository_reports_the_exemption_it_used(self):
         """An id dropped silently is an exemption nobody can audit."""
         load = scan(PERRY_HOME)["user_load"]
-        self.assertEqual(load["dangling"], [])
+        # Not `dangling == []`: that would be this row's own defect, an
+        # assertion over whatever the repository happens to hold today.
+        # `test_perry_itself_passes_its_own_id_checks` owns the empty-list
+        # gate; this one owns the id the fix was written for.
+        self.assertNotIn("REL-00", load["dangling"])
         self.assertIn("REL-00", load["dangling_in_reports"],
                       "the exemption that cleared LOAD-02 is not reported "
                       "beside the count")
