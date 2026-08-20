@@ -182,6 +182,23 @@ TARGETS = {
     "OKR.md § Commitments": dict(
         pattern=r"##\s*Commitments|OKR\.md\s*§\s*Commitments",
         tool="perry-goals", kind="projection"),
+    # TASK-119. Declared the day `bin/perry-goals link` existed and not before:
+    # until then `phase/<NNN>-linkage.md` had no writer, so every procedure
+    # that appends an edge was an unavoidable hand edit rather than an
+    # instruction that had gone stale (exemption 1 below). The pattern is the
+    # file and the three lists that ARE the graph — a bare mention of
+    # "linkage" is how these pages name the concept in passing.
+    "phase/<NNN>-linkage.md": dict(
+        pattern=r"-linkage\.md|linkage graph|linkage registry|`tasks\[\]`"
+                r"|`unlinked\[\]`|`aliases\[\]`|`projects\[\]`",
+        # Exemption 6 applies for the same reason it applies to `BOARD.md`:
+        # `perry-goals link` REFUSES on a missing register ("no linkage
+        # register at <path>"), so instantiating it from
+        # `state/linkage_TEMPLATE.md` at `plan-phase` is the only way the file
+        # comes to exist. Every write afterwards is the tool's.
+        tool="perry-goals", kind="projection", creates_file=False,
+        template=r"\b(?:from|copy(?:ing)?|instantiate[sd]?)\b"
+                 r"[^.]{0,80}\blinkage_TEMPLATE\.md\b"),
     "knowledge/INDEX.md": dict(
         # `perry-knowledge` owns only the card catalog. Digest registration and
         # archive metadata share this file but remain authored by the digest
@@ -822,6 +839,11 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "1. Update `## Cards by topic` in `knowledge/INDEX.md` by hand.\n",
                 "1. `perry-knowledge promote` writes `## Cards by topic` in "
                 "`knowledge/INDEX.md`.\n"),
+            "phase/<NNN>-linkage.md": (
+                "1. Append the task id to its KR's `tasks[]` in "
+                "`phase/<NNN>-linkage.md`.\n",
+                "1. `perry-goals link` appends the task id to its KR's "
+                "`tasks[]`.\n"),
             ".perry/conformance.md": (
                 "1. Append a declaration to `.perry/conformance.md`.\n",
                 "1. `perry-conform declare` writes `.perry/conformance.md`.\n"),

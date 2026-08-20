@@ -60,6 +60,17 @@ Usage:
   perry-goals commit --miss <Id> --reason <text>
   perry-goals commit --migrate       split a pre-TASK-091 `By when` column
 
+  perry-goals link <TASK-ID> <KR-ID>
+  perry-goals link --alias <PROJECT-ID> "<the other name>"
+  perry-goals link --unlinked <TASK-ID>
+  perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"
+
+  `link` writes `phase/<NNN>-linkage.md` for the CURRENT phase, in place.
+  <KR-ID> may also be a Project id or a registered alias, resolved in that
+  order; anything that does not resolve to exactly ONE KR is REFUSED with its
+  candidates named. Nothing here is fuzzy-matched, and nothing here writes a
+  `target` or a `current` — see `goals/reference/linkage.md`.
+
   --due <when>    TYPED: an ISO date (2026-09-30) or an SLA token (3d, 2w).
                   Anything else is refused, in every language.
   --by-when-note <prose>
@@ -88,7 +99,7 @@ import os
 import sys
 import re
 from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -960,6 +971,910 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
 # an agent procedure. Every refusal below quotes the sentence it implements.
 
 #: The two column sets, read from the schema rather than restated here.
+# ── phase/<NNN>-linkage.md, edited in place ───────────────────────────────
+#
+# TASK-119. `goals/SKILL.md § State files` has called this file "machine-
+# written" since the lane shipped, and until now nothing wrote it: this
+# project's own `perry/phase/002-linkage.md` was typed by hand on 2026-08-20,
+# every edge and every number. What follows is that missing writer, and it
+# carries two rules from the surrounding documents rather than inventing its
+# own.
+#
+# **Never guess an attribution.** `reference/okr-linkage.md`'s one rule:
+# resolve by declared edge, then exact Project id, then registered alias, and
+# if that does not yield exactly ONE KR, refuse and name the candidates. There
+# is no fourth step. A writer that guesses is worse than no writer, because a
+# guessed edge is indistinguishable from a declared one the moment it is
+# written — and `bin/perry-state § resolve_kr` will then resolve every future
+# progress report through it, with no inference of its own to blame.
+#
+# **`current` is an assertion, so it is never invented.** `target` / `current`
+# are numbers or ABSENT. TASK-120 measured what a default costs: six of eight
+# phase KRs in this project carry `target: 0`, so an unasserted `current`
+# defaulting to `0` makes every drive-to-zero KR read as met on the day the
+# register is written. Nothing here writes either field.
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _unquote(tok: str) -> str:
+    """A scalar the way `parsers.parse_yaml_subset § scalar` reads one.
+
+    Quotes are stripped when they match at both ends and nothing else happens
+    — that reader does no escape processing and strips no inline comment, so
+    neither does this. Anything it would have coerced (a number, `true`) is
+    left as text here, because the values this editor moves are ids and names
+    and the semantic comparison is made against the parsed model, not here.
+    """
+    tok = tok.strip()
+    if len(tok) > 1 and tok[0] in "\"'" and tok[-1] == tok[0]:
+        return tok[1:-1]
+    return tok
+
+
+def _segments(inner: str) -> list[tuple[int, int]]:
+    """Top-level comma-separated spans of an inline flow body, with offsets.
+
+    The same quote-aware scan `parsers._split_flow` makes, keeping the offsets
+    it discards. An editor that disagreed with the reader about where an item
+    ends would splice inside one.
+    """
+    out, start, quote = [], 0, ""
+    for i, ch in enumerate(inner):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+        elif ch == ",":
+            out.append((start, i))
+            start = i + 1
+    out.append((start, len(inner)))
+    return out
+
+
+def flow_items(inner: str) -> list[tuple[int, int]]:
+    """(start, end) of each non-empty item in an inline flow body."""
+    spans = []
+    for a, b in _segments(inner):
+        seg = inner[a:b]
+        lead = len(seg) - len(seg.lstrip())
+        trail = len(seg) - len(seg.rstrip())
+        if b - trail > a + lead:
+            spans.append((a + lead, b - trail))
+    return spans
+
+
+def flow_span(line: str, after: int) -> tuple[int, int] | None:
+    """(open, close) offsets of the `[...]` starting after `after`, or None."""
+    depth, start, quote = 0, None, ""
+    for i in range(after, len(line)):
+        ch = line[i]
+        if quote:
+            if ch == quote:
+                quote = ""
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch == "[":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0 and start is not None:
+                return start, i
+    return None
+
+
+#: A value that can be written into a flow list without quotes. Deliberately
+#: narrow: anything the reader would coerce (`12`, `true`, `~`) or that its
+#: splitter would cut in half (`,`, `]`) is quoted instead.
+BARE_SAFE = re.compile(r"^[A-Za-z][A-Za-z0-9_./+-]*$")
+
+
+def render_scalar(value: str, like: str = "") -> str:
+    """One scalar, quoted the way its neighbours are.
+
+    `like` is an existing item from the same list — the register's own style,
+    which is the only style this writer has an opinion about. Perry's files
+    quote task ids (`["TASK-038", "TASK-088"]`); `reference/okr-linkage.md`'s
+    example does not (`tasks: [REL-001]`). Both are read identically, and a
+    writer that normalised one into the other would rewrite a line it was not
+    asked to touch.
+    """
+    quote = '"'
+    if like:
+        like = like.strip()
+        if like[:1] in "\"'" and like[-1:] == like[:1] and len(like) > 1:
+            quote = like[0]
+        elif BARE_SAFE.match(like) and BARE_SAFE.match(value):
+            return value
+    return f"{quote}{value}{quote}"
+
+
+def check_writable(value: str, what: str) -> str:
+    """Refuse a value this file cannot carry, rather than write a broken one.
+
+    The reader strips matching outer quotes and does nothing else — it has no
+    escape processing at all — so a value containing the quote character it
+    would be written with cannot be read back as itself. That is a refusal and
+    not a best effort: a half-written name in the attribution registry is the
+    one place this project has said, three documents deep, that a wrong answer
+    is worse than no answer.
+    """
+    value = (value or "").strip()
+    if not value:
+        raise Refused(f"{what} is empty. Nothing was written")
+    if "\n" in value or "\r" in value:
+        raise Refused(
+            f"{what} contains a line break. A register value is one line of "
+            f"YAML. Nothing was written")
+    if '"' in value or "'" in value:
+        raise Refused(
+            f"{what} contains a quote character, and this register's reader "
+            f"(`parsers.parse_yaml_subset`) does no escape processing — the "
+            f"value could not be read back as itself. Nothing was written")
+    return value
+
+
+class Register:
+    """`phase/<NNN>-linkage.md` as a list of lines, edited in place.
+
+    The same rule `Okr` above states, for the same reason and with one
+    difference that makes it stricter rather than looser. `OKR.md` is prose a
+    human argued with; this file is YAML a machine reads on both sides — so
+    the cost of re-rendering it is not lost wording, it is a **semantic** slip
+    nobody can see: a re-serialiser that dropped a key, reordered a list or
+    coerced `target: 0` back onto a KR whose author never asserted one would
+    produce a file that still parses, still lints, and no longer says what it
+    said. So: no round trip. Lines are located, one line (or one span inside
+    one line) is spliced, and every other byte is the byte that was read.
+
+    Two checks stand behind that, and both run before anything is written:
+
+    - **the locator and the reader must agree.** Every entry the parsed model
+      carries must be found on a line, and vice versa; a mismatch is refused
+      rather than guessed at.
+    - **the write must produce exactly the intended model.** `verify` re-reads
+      the edited text with `parsers.parse_linkage` — the same reader Perry and
+      `perry-lint` use — and compares it against the before-model with the one
+      intended mutation applied. Anything else, including a change this writer
+      made by accident, is refused with nothing written.
+    """
+
+    KINDS = {"objectives": "objective", "krs": "kr",
+             "projects": "project", "agents": "agent"}
+
+    def __init__(self, path: Path):
+        self.path = path
+        if not path.exists():
+            raise Refused(
+                f"no linkage register at {path}. `plan-phase` writes it from "
+                f"`goals/state/linkage_TEMPLATE.md` when the phase opens "
+                f"(goals/reference/linkage.md § The four moments it changes). "
+                f"Nothing was written")
+        # **Bytes, not `read_text()`.** Text mode is universal-newlines: it
+        # would hand this editor a CRLF file with every `\r` already stripped,
+        # the guard below would never fire, and the write would silently
+        # convert the whole register to LF — a diff on every line of a file
+        # this tool was asked to append one item to.
+        self.text = path.read_bytes().decode("utf-8")
+        if "\r" in self.text:
+            raise Refused(
+                f"{path.name} has CRLF line endings; this writer splices LF "
+                f"lines and would leave the file mixed. Nothing was written")
+        self.lines = self.text.split("\n")
+        self.model = P.parse_linkage(self.text)
+        if not self.model.ok:
+            raise Refused(
+                f"{path.name} cannot be read ({self.model.error or 'no spec'}) "
+                f"— and a register Perry cannot read is one this tool must not "
+                f"append to, because the append would be judged against a graph "
+                f"nobody can see. Fix it, or run `perry-lint --root .` for the "
+                f"line. Nothing was written")
+        self.lo, self.hi = self._fence()
+        self.entries = self._locate()
+        self.edits: list[tuple[int, str, str]] = []
+
+    # -- reading
+
+    def render(self) -> str:
+        """Exactly what `__init__` read, unless a line was edited.
+
+        `split("\n")` / `join("\n")` round-trips a file with no trailing
+        newline and one with several; `splitlines()` does not. Same reason as
+        `Okr.render`, and the same test.
+        """
+        return "\n".join(self.lines)
+
+    def unchanged(self) -> bool:
+        return self.render() == self.text
+
+    def _fence(self) -> tuple[int, int]:
+        """(first, last) line indexes of the frontmatter BODY, exclusive end."""
+        if not re.match(r"\A\ufeff?---[ \t]*$", self.lines[0] if self.lines else ""):
+            raise Refused(
+                f"{self.path.name} does not open with a `---` fence, so it "
+                f"carries no frontmatter to write. Nothing was written")
+        for i in range(1, len(self.lines)):
+            if re.match(r"^---[ \t]*$", self.lines[i]):
+                return 1, i
+        raise Refused(
+            f"{self.path.name}'s frontmatter fence is never closed. "
+            f"Nothing was written")
+
+    def _live(self, i: int) -> bool:
+        """A line the reader looks at — not blank, not a whole-line comment."""
+        s = self.lines[i].strip()
+        return bool(s) and not s.startswith("#")
+
+    def _container(self, i: int, indent: int) -> str:
+        """The key whose list this `- ` item at `indent` belongs to."""
+        for j in range(i - 1, self.lo - 1, -1):
+            if not self._live(j):
+                continue
+            if _indent(self.lines[j]) < indent:
+                m = re.match(r"^\s*([A-Za-z_][\w.-]*)\s*:\s*$", self.lines[j])
+                return m.group(1) if m else ""
+        return ""
+
+    def _item_end(self, start: int, indent: int) -> int:
+        """First line after `start` that is outside this list item."""
+        for j in range(start + 1, self.hi):
+            if not self._live(j):
+                continue
+            if _indent(self.lines[j]) <= indent:
+                return j
+        return self.hi
+
+    def _locate(self) -> dict[str, list[dict]]:
+        """Every entry the model carries, found on a line.
+
+        The model comes from the reader; the LINE comes from here, and the two
+        are reconciled before any edit. This is the one place a second opinion
+        about the file's shape could enter, so it is also the one place that
+        refuses instead of proceeding when the opinions differ.
+        """
+        found: dict[str, list[dict]] = {k: [] for k in self.KINDS.values()}
+        for i in range(self.lo, self.hi):
+            m = re.match(r"^(\s*)-\s+id\s*:\s*(.+?)\s*$", self.lines[i])
+            if not m:
+                continue
+            indent = len(m.group(1))
+            kind = self.KINDS.get(self._container(i, indent))
+            if not kind:
+                continue
+            found[kind].append({
+                "id": _unquote(m.group(2)), "start": i, "indent": indent,
+                "end": self._item_end(i, indent)})
+        expected = {
+            "objective": [o.id for o in self.model.objectives],
+            "kr": [k.id for o in self.model.objectives for k in o.krs],
+            "project": [p.project_id for p in self.model.projects],
+            "agent": [a.id for a in self.model.agents]}
+        for kind, ids in expected.items():
+            got = [e["id"] for e in found[kind]]
+            if got != ids:
+                raise Refused(
+                    f"this writer could not find every {kind} entry of "
+                    f"{self.path.name} on a line — the reader sees {ids} and "
+                    f"the line scan sees {got}. That disagreement is this "
+                    f"tool's bug or a shape it was never taught, and either "
+                    f"way it must not edit by line number here. "
+                    f"Nothing was written")
+        return found
+
+    def entry(self, kind: str, ident: str) -> dict | None:
+        for e in self.entries[kind]:
+            if e["id"] == ident:
+                return e
+        return None
+
+    def child_indent(self, entry: dict) -> int:
+        for j in range(entry["start"] + 1, entry["end"]):
+            if self._live(j):
+                return _indent(self.lines[j])
+        return entry["indent"] + 2
+
+    def last_content_line(self, entry: dict) -> int:
+        """The last line the reader looks at inside this entry.
+
+        Where a key the entry does not carry yet is inserted. Not `end - 1`:
+        an entry may be followed by a blank line or a comment, and putting
+        `tasks:` after one of those would move it out of the entry.
+        """
+        last = entry["start"]
+        for j in range(entry["start"] + 1, entry["end"]):
+            if self._live(j):
+                last = j
+        return last
+
+    def key_line(self, name: str, lo: int, hi: int, indent: int) -> int | None:
+        """The line carrying `<name>:` at exactly `indent`, in [lo, hi)."""
+        for j in range(lo, hi):
+            if not self._live(j) or _indent(self.lines[j]) != indent:
+                continue
+            if re.match(rf"^\s*{re.escape(name)}\s*:(\s|$)", self.lines[j]):
+                return j
+        return None
+
+    def top_key_line(self, name: str) -> int | None:
+        return self.key_line(name, self.lo, self.hi, 0)
+
+    # -- editing
+    #
+    # Every mutation below goes through `_set` or `_insert`, so the record of
+    # what this write touched is kept by construction rather than recovered by
+    # diffing afterwards. `--dry-run` prints it.
+
+    def set_line(self, i: int, line: str) -> None:
+        self.edits.append((i, self.lines[i], line))
+        self.lines[i] = line
+
+    def insert_line(self, i: int, line: str) -> None:
+        """Insert, and move every index this object holds that sits after it.
+
+        The fence and the located entries are line numbers, and a writer that
+        inserted a line without moving them would make its *second* edit at an
+        offset that was correct before its first. `verify` would catch it; the
+        bookkeeping is here so it never has to."""
+        self.edits.append((i, None, line))
+        self.lines[i:i] = [line]
+        if i <= self.hi:
+            self.hi += 1
+        for entries in self.entries.values():
+            for e in entries:
+                e["start"] += (e["start"] >= i)
+                e["end"] += (e["end"] >= i)
+
+    def delete_line(self, i: int) -> None:
+        self.edits.append((i, self.lines[i], None))
+        del self.lines[i]
+        if i < self.hi:
+            self.hi -= 1
+        for entries in self.entries.values():
+            for e in entries:
+                e["start"] -= (e["start"] > i)
+                e["end"] -= (e["end"] > i)
+
+    def block_items(self, i: int, indent: int) -> list[int]:
+        """Line indexes of a block list written beneath the key on line `i`."""
+        out = []
+        for j in range(i + 1, self.hi):
+            if not self._live(j):
+                continue
+            ind = _indent(self.lines[j])
+            if ind <= indent:
+                break
+            if self.lines[j].lstrip().startswith("- "):
+                out.append(j)
+        return out
+
+    def append_to_list(self, i: int, indent: int, value: str) -> None:
+        """Append one scalar to the list on line `i` — flow or block.
+
+        Three shapes, because all three are legal and Perry's own files carry
+        two of them: `tasks: []`, `tasks: ["A"]`, and a block list of `- `
+        lines. In every case the bytes that survive are every byte that is not
+        the one item being added.
+        """
+        line = self.lines[i]
+        colon = line.index(":", _indent(line))
+        span = flow_span(line, colon)
+        if span:
+            open_at, close_at = span
+            inner = line[open_at + 1:close_at]
+            items = flow_items(inner)
+            if not items:
+                new_inner = render_scalar(value)
+            else:
+                last = inner[items[-1][0]:items[-1][1]]
+                sep = ", " if re.search(r",\s", inner) else ("," if "," in inner else ", ")
+                tail = len(inner) - len(inner.rstrip())
+                new_inner = (inner[:len(inner) - tail] + sep
+                             + render_scalar(value, last) + inner[len(inner) - tail:])
+            self.set_line(i, line[:open_at + 1] + new_inner + line[close_at:])
+            return
+        rows = self.block_items(i, indent)
+        if rows:
+            at = rows[-1]
+            like = self.lines[at].lstrip()[2:]
+            self.insert_line(at + 1, " " * _indent(self.lines[at]) + "- "
+                         + render_scalar(value, like))
+            return
+        if line[colon + 1:].strip():
+            raise Refused(
+                f"`{line.strip()}` is not a list this writer can append to — "
+                f"it carries a scalar. Nothing was written")
+        self.set_line(i, line.rstrip() + " [" + render_scalar(value) + "]")
+
+    def remove_from_list(self, i: int, indent: int, value: str) -> None:
+        """Remove one scalar from the list on line `i`. The inverse, same rules."""
+        line = self.lines[i]
+        colon = line.index(":", _indent(line))
+        span = flow_span(line, colon)
+        if span:
+            open_at, close_at = span
+            inner = line[open_at + 1:close_at]
+            items = flow_items(inner)
+            for n, (a, b) in enumerate(items):
+                if _unquote(inner[a:b]) != value:
+                    continue
+                if n + 1 < len(items):        # take the separator after it
+                    cut_a, cut_b = a, items[n + 1][0]
+                elif n:                        # or the one before it
+                    cut_a, cut_b = items[n - 1][1], b
+                else:                          # the only item
+                    cut_a, cut_b = a, b
+                self.set_line(i, line[:open_at + 1] + inner[:cut_a] + inner[cut_b:]
+                          + line[close_at:])
+                return
+            return
+        for j in self.block_items(i, indent):
+            if _unquote(self.lines[j].lstrip()[2:]) == value:
+                self.delete_line(j)
+                return
+
+    def insert_top_key(self, line: str) -> int:
+        """A top-level key the register does not carry yet, before the fence.
+
+        Placed last rather than in schema order on purpose: every existing key
+        keeps its line, so a register whose author grouped or commented the
+        frontmatter reads afterwards the way it read before, with one line
+        added at the end of the block.
+        """
+        at = self.hi
+        while at > self.lo and not self._live(at - 1):
+            at -= 1
+        self.insert_line(at, line)
+        return at
+
+    def set_updated(self, stamp: str) -> None:
+        """`updated` to a full ISO datetime, in whatever style it is written in.
+
+        Every write bumps it (`goals/reference/linkage.md § The four moments`),
+        and a day-only value is dropped by both readers rather than guessed at
+        — so this always writes the time as well.
+        """
+        i = self.top_key_line("updated")
+        if i is None:
+            self.insert_top_key(f'updated: "{stamp}"')
+            return
+        head, _, rest = self.lines[i].partition(":")
+        lead = len(rest) - len(rest.lstrip(" "))
+        self.set_line(i, f"{head}:{rest[:lead]}"
+                  + render_scalar(stamp, rest.strip() or '""'))
+
+    # -- the gate
+
+    def verify(self, expect: dict) -> None:
+        """Re-read what this write produced, and refuse anything unintended.
+
+        The counterpart of `write_okr_and_store`'s byte comparison, one layer
+        up: there, the store must reproduce the file; here, the file must
+        reproduce the model. Both run **before** anything lands, and both
+        exist because the failure they catch is invisible in the artefact — a
+        register that parses and says something slightly different is not
+        something a reviewer can see by reading the diff.
+        """
+        after = P.parse_linkage(self.render())
+        if not after.ok:
+            raise Refused(
+                f"the write would produce a register Perry could not read "
+                f"({after.error}). That is this writer's bug, not the file's. "
+                f"Nothing was written")
+        got = asdict(after)
+        if got != expect:
+            where = next((k for k in expect if got.get(k) != expect.get(k)), "?")
+            raise Refused(
+                f"the write would change more of the register than it was "
+                f"asked to — the re-read disagrees with the intended graph at "
+                f"`{where}`. That is this writer's bug, not the file's. "
+                f"Nothing was written")
+
+    def diff(self) -> list[str]:
+        """The edits, as `-`/`+` lines. What `--dry-run` prints."""
+        out = []
+        for i, before, after in self.edits:
+            if before is not None:
+                out.append(f"-{i + 1:>4}  {before}")
+            if after is not None:
+                out.append(f"+{i + 1:>4}  {after}")
+        return out
+
+
+# ── link — accepting PMO's attribution hand-off ───────────────────────────
+
+
+def register_path(state_root: Path) -> Path:
+    """`phase/<NNN>-linkage.md` for the CURRENT phase.
+
+    The same three lines `parsers.load_snapshot` uses to find the register it
+    parses — deliberately the same rule, because a writer that picked a
+    different file from the one Perry reads would append edges nothing
+    resolves. It is restated rather than imported because `load_snapshot`
+    computes it inside a 90-line function and returns the parsed graph, not
+    the path; a third caller is the moment to extract it into `parsers`, not
+    the moment to copy it again.
+    """
+    pointer = state_root / "phase" / "CURRENT"
+    slug = pointer.read_text().strip() if pointer.exists() else ""
+    if not slug or slug in {"(none)", "none", "—"}:
+        raise Refused(
+            "there is no current phase (`phase/CURRENT` is empty or missing), "
+            "so there is no linkage register to write. `/perry goals "
+            "plan-phase <slug>` opens one. Nothing was written")
+    number = slug.split("-")[0]
+    return state_root / "phase" / f"{number}-linkage.md"
+
+
+def kr_ids(model) -> list[str]:
+    return [k.id for o in model.objectives for k in o.krs]
+
+
+def objective_of(model, kr_id: str) -> str:
+    for o in model.objectives:
+        for k in o.krs:
+            if k.id == kr_id:
+                return o.id
+    return ""
+
+
+def resolve_target(model, token: str, where: str) -> str:
+    """One KR id, or a refusal naming the candidates. Never a near match.
+
+    `reference/okr-linkage.md § Resolution order`, which `perry-state §
+    resolve_kr` already applies on the read side: a declared KR id, then an
+    exact Project id, then an exact registered alias — stopping at the first
+    step that yields exactly ONE KR. There is no fourth step, and the reason
+    is worth keeping next to the code: the whole registry exists so that a
+    name which drifted resolves through a recorded alias instead of through a
+    resemblance. A writer that fell back to "closest match" would put a
+    guessed edge into the one file both Perry and the frontend treat as
+    declared truth, where nothing downstream can tell it from a real one.
+    """
+    ids = kr_ids(model)
+    if token in ids:
+        return token
+
+    def candidates(match) -> list[tuple[str, str]]:
+        out = []
+        for p in model.projects:
+            if not match(p) or not p.serves_kr:
+                continue
+            out.append((p.serves_kr, f'{p.serves_kr} (project {p.project_id} '
+                                     f'"{p.name}", {p.status})'))
+        return out
+
+    live = {id(p) for p in model.projects
+            if p.status not in {"dropped", "unlinked"}}
+    for label, match in (
+            ("Project id", lambda p: p.project_id == token),
+            ("name or alias", lambda p: token.strip().lower() in
+                [n.lower() for n in [p.name, *p.aliases] if n])):
+        hits = candidates(lambda p: match(p) and id(p) in live)
+        distinct = sorted({kr for kr, _ in hits})
+        if len(distinct) == 1:
+            return distinct[0]
+        if len(distinct) > 1:
+            raise Refused(
+                f"{token!r} does not resolve to exactly one KR — it matches "
+                f"{len(distinct)} by {label}: "
+                + "; ".join(text for _, text in hits) +
+                f". Attribution resolves by declared edge, then exact Project "
+                f"id, then registered alias, and never by resemblance "
+                f"(reference/okr-linkage.md § The one rule). Ask the user "
+                f"which KR {where} serves and re-run with that KR id. "
+                f"Nothing was written")
+        retired = candidates(lambda p: match(p) and id(p) not in live)
+        if retired:
+            raise Refused(
+                f"{token!r} matches only a retired Project by {label}: "
+                + "; ".join(text for _, text in retired) +
+                f". A dropped Project's KR edge is history, not an "
+                f"attribution for new work. Ask the user which KR {where} "
+                f"serves. Nothing was written")
+    raise Refused(
+        f"{token!r} is not a KR id, a Project id or a registered alias in "
+        f"this phase's graph. Its KR ids are: {', '.join(ids) or '(none)'}. A "
+        f"near-match is not a match — attribution is never guessed from a "
+        f"name (reference/okr-linkage.md § The one rule). Ask the user which "
+        f"KR {where} serves, or declare it unlinked with "
+        f"`link --unlinked {where}`. Nothing was written")
+
+
+def claimed_by(model, label: str) -> str:
+    """Which Project already answers to this name or alias, if any.
+
+    Case-insensitively, because `perry-lint § linkage-names-unique` folds case
+    before comparing and a writer that did not would create the exact file the
+    linter rejects.
+    """
+    key = label.strip().lower()
+    for p in model.projects:
+        if key in [n.strip().lower() for n in [p.name, *p.aliases] if n]:
+            return p.project_id
+    return ""
+
+
+def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
+    """1 — resolved → append the edge (`goals/reference/linkage.md § link`)."""
+    kr = resolve_target(reg.model, token, task)
+    if kr not in kr_ids(reg.model):
+        raise Refused(
+            f"{token!r} resolves to {kr}, which this phase's graph does not "
+            f"carry as a KR — the Project registry and the objectives "
+            f"disagree. Fix the graph first (`perry-lint --root .`). "
+            f"Nothing was written")
+    holder = reg.model.kr_for_task(task)
+    if holder == kr:
+        return {"already": f"{task} is already linked to {kr}"}
+    if holder:
+        raise Refused(
+            f"{task} is already listed under {holder}; linking it to {kr} as "
+            f"well would make its attribution ambiguous, and `perry-lint` "
+            f"rejects that file (`linkage-task-single-kr`). Move it, don't "
+            f"duplicate it — remove the edge under {holder} first, on the "
+            f"user's confirmation. Nothing was written")
+    entry = reg.entry("kr", kr)
+    indent = reg.child_indent(entry)
+    line = reg.key_line("tasks", entry["start"], entry["end"], indent)
+    if line is None:
+        line = reg.last_content_line(entry) + 1
+        reg.insert_line(line, " " * indent + "tasks: []")
+    reg.append_to_list(line, indent, task)
+    for o in expect["objectives"]:
+        for k in o["krs"]:
+            if k["id"] == kr:
+                k["tasks"] = list(k["tasks"]) + [task]
+    out = {"kr": kr, "task": task}
+    # "If the task is currently in `unlinked[]`, remove it there in the same
+    # edit — otherwise it renders as both attributed and drifting."
+    if task in reg.model.unlinked:
+        at = reg.top_key_line("unlinked")
+        if at is not None:
+            reg.remove_from_list(at, 0, task)
+        expect["unlinked"] = [t for t in expect["unlinked"] if t != task]
+        out["undeclared_unlinked"] = True
+    return out
+
+
+def link_unlinked(reg: Register, expect: dict, task: str) -> dict:
+    """3 — unresolved → declare it unlinked. A DECLARATION, never inferred."""
+    holder = reg.model.kr_for_task(task)
+    if holder:
+        raise Refused(
+            f"{task} is linked to {holder}. Declaring it unlinked as well "
+            f"would render it as both attributed and drifting, and the two "
+            f"lists would disagree about the same task. Remove the edge under "
+            f"{holder} first, on the user's confirmation. Nothing was written")
+    if task in reg.model.unlinked:
+        return {"already": f"{task} is already declared unlinked"}
+    at = reg.top_key_line("unlinked")
+    if at is None:
+        at = reg.insert_top_key("unlinked: []")
+    reg.append_to_list(at, 0, task)
+    expect["unlinked"] = list(expect["unlinked"]) + [task]
+    return {"task": task, "unlinked": True}
+
+
+def link_alias(reg: Register, expect: dict, pid: str, name: str) -> dict:
+    """2 — a name was confirmed as an existing Project → append the alias.
+
+    Only on the user's confirmation, which this tool cannot check and does not
+    pretend to: what it can check is that the name is not already somebody
+    else's, which is the ambiguity the registry exists to prevent.
+    """
+    project = next((p for p in reg.model.projects if p.project_id == pid), None)
+    if project is None:
+        raise Refused(
+            f"no Project {pid} in this phase's graph. Its Project ids are: "
+            f"{', '.join(p.project_id for p in reg.model.projects) or '(none)'}"
+            f". A new one is registered with `link --project <PROJECT-ID> "
+            f"<KR-ID> \"<name>\"`. Nothing was written")
+    owner = claimed_by(reg.model, name)
+    if owner == pid:
+        return {"already": f"{pid} already answers to {name!r}"}
+    if owner:
+        raise Refused(
+            f"{name!r} is already claimed by {owner}. Two Projects answering "
+            f"to one name is the duplicate-name trap the registry exists to "
+            f"prevent — attribution could not resolve it to one KR, and "
+            f"`perry-lint` rejects it (`linkage-names-unique`). Nothing was "
+            f"written")
+    entry = reg.entry("project", pid)
+    indent = reg.child_indent(entry)
+    line = reg.key_line("aliases", entry["start"], entry["end"], indent)
+    if line is None:
+        line = reg.last_content_line(entry) + 1
+        reg.insert_line(line, " " * indent + "aliases: []")
+    reg.append_to_list(line, indent, name)
+    for p in expect["projects"]:
+        if p["project_id"] == pid:
+            p["aliases"] = list(p["aliases"]) + [name]
+    return {"project": pid, "alias": name}
+
+
+def link_project(reg: Register, expect: dict, pid: str, kr: str,
+                 name: str) -> dict:
+    """4 — a new Project appeared mid-phase → append it to the registry."""
+    if any(p.project_id == pid for p in reg.model.projects):
+        raise Refused(
+            f"Project {pid} is already in this phase's graph. A Project "
+            f"serves exactly one KR; if this is a second one, it needs its "
+            f"own id. Nothing was written")
+    if kr not in kr_ids(reg.model):
+        raise Refused(
+            f"{kr} is not a KR id in this phase's graph. Its KR ids are: "
+            f"{', '.join(kr_ids(reg.model)) or '(none)'}. A Project is "
+            f"registered against a declared KR, never against a new one. "
+            f"Nothing was written")
+    owner = claimed_by(reg.model, name)
+    if owner:
+        raise Refused(
+            f"{name!r} is already claimed by {owner}. Two Projects answering "
+            f"to one name is the duplicate-name trap the registry exists to "
+            f"prevent (`perry-lint § linkage-names-unique`). If this is the "
+            f"same Project under a new name, that is an alias: `link --alias "
+            f"{owner} \"{name}\"`. Nothing was written")
+    # `objective` is DERIVED from the KR id — `P-O1.2` → `O1` — and then
+    # checked against the objective the KR actually sits under. The linter
+    # checks the first agreement (`linkage-objective-agrees`); the second is
+    # this writer refusing to add a row to a graph whose own nesting already
+    # disagrees with its ids, rather than picking a side.
+    m = re.match(r"^P-(O\d+)\.", kr)
+    nests_under = objective_of(reg.model, kr)
+    objective = m.group(1) if m else nests_under
+    if m and nests_under and objective != nests_under:
+        raise Refused(
+            f"{kr} encodes objective {objective} but sits under "
+            f"{nests_under} in this graph. Whichever is wrong, this writer "
+            f"cannot tell, and a Project entry would have to agree with one "
+            f"of them. Fix the graph first (`perry-lint --root .`). "
+            f"Nothing was written")
+    at = reg.top_key_line("projects")
+    if at is None:
+        at = reg.insert_top_key("projects:")
+    else:
+        span = flow_span(reg.lines[at], reg.lines[at].index(":"))
+        if span:
+            if flow_items(reg.lines[at][span[0] + 1:span[1]]):
+                raise Refused(
+                    "`projects:` is written as an inline list of maps, which "
+                    "this register's reader does not support (nested flow "
+                    "maps are outside `parse_yaml_subset`). Nothing was "
+                    "written")
+            reg.set_line(at, reg.lines[at][:span[0]].rstrip())
+    rows = reg.block_items(at, 0)
+    indent = _indent(reg.lines[rows[-1]]) if rows else 2
+    tail = reg.entries["project"][-1]["end"] if reg.entries["project"] \
+        else at + 1
+    block = [f'{" " * indent}- id: {render_scalar(pid)}',
+             f'{" " * (indent + 2)}serves: {kr}']
+    if objective:
+        block.append(f'{" " * (indent + 2)}objective: {objective}')
+    block += [f'{" " * (indent + 2)}name: {render_scalar(name)}',
+              f'{" " * (indent + 2)}aliases: []',
+              f'{" " * (indent + 2)}status: active']
+    for n, line in enumerate(block):
+        reg.insert_line(tail + n, line)
+    expect["projects"] = list(expect["projects"]) + [{
+        "project_id": pid, "serves_kr": kr, "objective": objective,
+        "name": name, "aliases": [], "status": "active"}]
+    return {"project": pid, "serves": kr, "objective": objective,
+            "name": name}
+
+
+LINK_MODES = ("alias", "unlinked", "project")
+
+
+def cmd_link(args, ctx) -> dict:
+    """`link` — the four moments `goals/reference/linkage.md` documents.
+
+    One command, four shapes, and the argument grammar is that page's own:
+
+        link <TASK-ID> <KR-ID>                     the edge
+        link --alias <PROJECT-ID> "<name>"         a confirmed second name
+        link --unlinked <TASK-ID>                  a declaration of drift
+        link --project <PROJECT-ID> <KR-ID> "<name>"   a new Project
+    """
+    reg: Register = ctx["register"]
+    rest = list(args.rest)
+    modes = [m for m in LINK_MODES if getattr(args, m)]
+    if len(modes) > 1:
+        raise Refused(
+            f"--{' and --'.join(modes)} are four different writes; run them "
+            f"one at a time. Nothing was written")
+    mode = modes[0] if modes else "edge"
+    need = {"edge": 2, "alias": 2, "unlinked": 1, "project": 3}[mode]
+    usage = {
+        "edge": "link <TASK-ID> <KR-ID>",
+        "alias": 'link --alias <PROJECT-ID> "<the other name>"',
+        "unlinked": "link --unlinked <TASK-ID>",
+        "project": 'link --project <PROJECT-ID> <KR-ID> "<name>"'}[mode]
+    if len(rest) != need:
+        why = ("no KR was named, and attribution is never inferred from a "
+               "task id alone (reference/okr-linkage.md § The one rule) — "
+               "`link --unlinked <TASK-ID>` is how an unresolved task is "
+               "recorded. " if mode == "edge" and len(rest) < 2 else "")
+        raise Refused(
+            f"{why}{usage} takes {need} argument(s); {len(rest)} given. "
+            f"Nothing was written")
+    values = [check_writable(v, f"argument {n + 1}")
+              for n, v in enumerate(rest)]
+
+    expect = asdict(reg.model)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if mode == "edge":
+        result = link_edge(reg, expect, values[0], values[1])
+    elif mode == "unlinked":
+        result = link_unlinked(reg, expect, values[0])
+    elif mode == "alias":
+        result = link_alias(reg, expect, values[0], values[1])
+    else:
+        result = link_project(reg, expect, values[0], values[1], values[2])
+
+    result["mode"] = mode
+    result["file"] = str(reg.path)
+    if result.get("already"):
+        # Nothing to write, and saying so is the whole answer. A no-op that
+        # bumped `updated` would report the graph as freshly asserted on a run
+        # that changed nothing — the same lie `current: 0` tells one field over.
+        result["written"] = False
+        result["diff"] = []
+        return result
+    # **Bumping `updated` also re-dates every `current` in the register**, and
+    # that is reported rather than absorbed. `goals/reference/linkage.md` says
+    # every write bumps it, and both readers need it — but TASK-120's
+    # `asserted_at` is read FROM it, at `asserted_scope: "register"`, because
+    # there is no per-KR assertion date. So an edge appended to one KR moves
+    # the staleness reference of numbers asserted weeks ago under every other
+    # KR: a `current` whose linked task moved yesterday reported STALE before
+    # this write and reads fresh after it, with nothing about the number
+    # changed. One field is carrying two facts — when the graph last changed,
+    # and when a number was arrived at — which is the same shape as the `By
+    # when` column TASK-091 had to split into `due` + `by_when_note`.
+    #
+    # It is NOT fixed here: a per-KR assertion date is a new field in
+    # `schema/state-schema.json`, which is behind this project's safety gate
+    # (TASK-119 § verification 5). Naming it on every write is what keeps it
+    # from being discovered as a silent number months later.
+    redated = [k.id for o in reg.model.objectives for k in o.krs
+               if k.current is not None]
+    if redated:
+        result["current_assertions_redated"] = redated
+        if not args.as_json:
+            print(f"perry-goals: ⚠ this write bumps `updated`, which is also "
+                  f"where `current`'s assertion date is read from "
+                  f"(`asserted_scope: register` — there is no per-KR date). "
+                  f"{len(redated)} KR(s) with an asserted `current` will read "
+                  f"as freshly asserted and lose any staleness signal: "
+                  f"{', '.join(redated)}. Nothing about those numbers "
+                  f"changed.", file=sys.stderr)
+    reg.set_updated(stamp)
+    expect["updated"] = stamp
+    reg.verify(expect)
+    result["updated"] = stamp
+    result["diff"] = reg.diff()
+    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+             "event": f"link-{mode}", "actor": args.actor,
+             "file": reg.path.name,
+             **{k: v for k, v in result.items()
+                if k in ("task", "kr", "project", "alias", "serves", "name")}}
+    result["event"] = event
+    if args.dry_run:
+        result["dry_run"] = True
+        result["written"] = False
+        return result
+    write_atomic(ctx["state_root"], reg.path, reg.render())
+    result["written"] = True
+    result["event_written"] = append_event(ctx["project_root"], event)
+    return result
+
+
 def commitment_columns() -> tuple[list[str], list[str]]:
     spec = okr_table_spec(COMMITMENTS_UNDER)
     return list(spec.get("columns") or []), list(spec.get("optional_columns") or {})
@@ -1616,7 +2531,7 @@ def canonical_of(header_cell: str, names: list[str]) -> str:
     return squash(header_cell)
 
 
-COMMANDS = {"list": None, "commit": cmd_commit}
+COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link}
 
 
 class Args:
@@ -1630,6 +2545,14 @@ def parse(argv: list[str]) -> Args:
     a.close = a.miss = a.reason = a.discharged_by = None
     a.actor = "agent"
     a.as_json = a.dry_run = a.accept_hand_edit = a.migrate = False
+    #: `link`'s three alternative shapes, and its positional arguments. They
+    #: are collected rather than consumed by name because
+    #: `goals/reference/linkage.md` writes the grammar that way — `--alias
+    #: <PROJECT-ID> "<name>"` is two values after a mode flag — and a page
+    #: documenting a command that takes its arguments differently is the stale
+    #: instruction `tests/test_procedures_call_the_tool.py` exists to end.
+    a.alias = a.unlinked = a.project = False
+    a.rest = []
     flags = {"--root": "root", "--level": "level", "--id": "id",
              "--track": "track", "--promise": "promise", "--to": "to",
              "--due": "due", "--by-when-note": "by_when_note",
@@ -1648,6 +2571,8 @@ def parse(argv: list[str]) -> Args:
             a.dry_run = True
         elif t == "--migrate":
             a.migrate = True
+        elif t in ("--alias", "--unlinked", "--project"):
+            setattr(a, t[2:], True)
         elif t == "--accept-hand-edit":
             a.accept_hand_edit = True
         elif t == "--by":
@@ -1667,6 +2592,12 @@ def parse(argv: list[str]) -> Args:
             setattr(a, flags[t], argv[i] if i < len(argv) else None)
         elif a.cmd is None:
             a.cmd = t
+        else:
+            # Before `link` there was nowhere for these to go and they were
+            # dropped in silence — `commit --track ops extra` ignored `extra`.
+            # They are collected now, and every subcommand that takes none
+            # refuses when the list is not empty.
+            a.rest.append(t)
         i += 1
     return a
 
@@ -1713,7 +2644,18 @@ def main(argv: list[str]) -> int:
             # ADR-004, before the lock and before the command runs: a refusal
             # must mean nothing was written, and a dry run must preview the
             # refusal rather than the write it would not be allowed to perform.
-            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
+            # **The gate is about the file this command writes**, which is
+            # not always `OKR.md` any more: `link` writes the phase's linkage
+            # register. ADR-004 § 5 is one key, one file — passing the gated
+            # name of a file the command does not touch would refuse a write
+            # for the shape of something unrelated, and pass one for a file
+            # nobody checked.
+            gate_file = GATED_FILE
+            register_file = None
+            if args.cmd == "link":
+                register_file = register_path(state_root)
+                gate_file = register_file.relative_to(state_root).as_posix()
+            gate = perry_conform().gate(project_root, state_root, gate_file,
                                         tool="perry-goals", root_arg=args.root)
             # **`--migrate` is exempt, and the exemption is the whole point of
             # the gate rather than a hole in it.** The gate stops writers
@@ -1740,10 +2682,17 @@ def main(argv: list[str]) -> int:
                 print(f"perry-goals: ⚠ conformance ({gate.mode}) — "
                       f"{gate.message}", file=sys.stderr)
             with project_lock(state_root):
-                ctx = {"project_root": project_root, "state_root": state_root,
-                       "okr": Okr(state_root / "OKR.md"),
-                       "tracks": tracks_of(project_root),
-                       "events": read_events(project_root)}
+                ctx = {"project_root": project_root, "state_root": state_root}
+                if register_file is not None:
+                    # `link` needs no `OKR.md` and no track register: it writes
+                    # one file and reads one file, and requiring the other two
+                    # would refuse an attribution on a project whose OKR is
+                    # mid-interview.
+                    ctx["register"] = Register(register_file)
+                else:
+                    ctx.update({"okr": Okr(state_root / "OKR.md"),
+                                "tracks": tracks_of(project_root),
+                                "events": read_events(project_root)})
                 result = COMMANDS[args.cmd](args, ctx)
             # `list` is a published contract and gets nothing added to it.
             # Every other payload is Perry-internal, so the verdict rides along
@@ -1773,6 +2722,26 @@ def main(argv: list[str]) -> int:
         print(f"  · {m['kept_as_due'] + m['moved_to_note']} non-empty clock "
               f"cell(s) before, {m['kept_as_due'] + m['moved_to_note']} after "
               f"— nothing was dropped")
+    elif args.cmd == "link":
+        if result.get("already"):
+            print(f"perry-goals: nothing to write — {result['already']}")
+        else:
+            verb = "would write" if args.dry_run else "wrote"
+            what = {
+                "edge": lambda r: f"{r.get('task')} → {r.get('kr')}",
+                "unlinked": lambda r: f"{r.get('task')} declared unlinked",
+                "alias": lambda r: f"{r.get('project')} also answers to "
+                                   f"{r.get('alias')!r}",
+                "project": lambda r: f"{r.get('project')} serves "
+                                     f"{r.get('serves')} ({r.get('name')!r})",
+            }[result["mode"]](result)
+            print(f"perry-goals: {verb} {Path(result['file']).name} — {what}")
+            if result.get("undeclared_unlinked"):
+                print("  · removed from `unlinked[]` in the same edit — it "
+                      "would otherwise render as attributed and drifting")
+            for line in result["diff"]:
+                print(f"  {line}")
+            print(f"  ↪ validate: \"$PERRY_HOME/bin/perry-lint\" --root .")
     elif args.cmd == "commit":
         verb = "would write" if args.dry_run else "wrote"
         print(f"perry-goals: {verb} OKR.md § Commitments — {result['id']}"
