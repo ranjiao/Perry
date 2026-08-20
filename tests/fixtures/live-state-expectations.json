@@ -1,0 +1,75 @@
+{
+  "note": "Every hit of tests/live_state_expectations.py over this repository. A finding with no verdict has not been looked at; `instance` means a row is owed for it.",
+  "findings": [
+    {
+      "module": "tests/test_contract_invariance.py",
+      "lineno": 208,
+      "test": "TestAnAdditionIsAllowedAndAnnounced.test_typed_status_alias_change_is_announced",
+      "assertion": "assertEqual",
+      "actual": "set(entry['fields'])",
+      "expected": "{'status_text', 'conformance.sections_read', 'conformance.sections_skipped', 'conformance.rows_…",
+      "verdict": "false positive",
+      "why": "`semantics` is a changelog `bin/perry-task` carries in its own source. The payload reaches it through a `cwd=ROOT` run, and half one cannot tell a subtree the tool built out of its own constants from one it built out of the project. Editing the changelog SHOULD redden this test."
+    },
+    {
+      "module": "tests/test_md_store.py",
+      "lineno": 128,
+      "test": "TestThisRepositoryIsReproducedByteForByte.test_okr",
+      "assertion": "assertGreater",
+      "actual": "len(krs)",
+      "expected": "20",
+      "verdict": "instance",
+      "why": "`assertGreater(len(krs), 20)` over `perry/OKR.md` — c9018ae's shape exactly, on the file rather than the board. Retiring five KRs would redden a test whose subject is byte-identical round-tripping. The independent count on the line above it (`len(krs) == kr_lines(text)`) is the property; the 20 is a snapshot standing beside it."
+    },
+    {
+      "module": "tests/test_md_store.py",
+      "lineno": 301,
+      "test": "TestAMutatedStoreMovesTheFile.test_an_okr_kr_field",
+      "assertion": "assertEqual",
+      "actual": "drift[0]['store']",
+      "expected": "'2099-01-01'",
+      "verdict": "false positive",
+      "why": "`2099-01-01` is the value this test wrote into the store four lines earlier. It is the test's own input coming back, not a fact about the project, and it moves when the test moves."
+    },
+    {
+      "module": "tests/test_md_store.py",
+      "lineno": 315,
+      "test": "TestAMutatedStoreMovesTheFile.test_a_config_setting",
+      "assertion": "assertEqual",
+      "actual": "[d['key'] for d in drift]",
+      "expected": "['setting/state_root']",
+      "verdict": "false positive",
+      "why": "`state_root` is the record this test selected and mutated, so the assertion moves with the test. The `setting/` half of the key IS read out of `.perry/config.md` — the coupling instance 6 died of — but it names a record the test chose rather than the whole register."
+    },
+    {
+      "module": "tests/test_md_store.py",
+      "lineno": 396,
+      "test": "TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave.test_a_config_setting_slot_ends_without_a_trailing_space",
+      "assertion": "assertEqual",
+      "actual": "line",
+      "expected": "'- State root: docs'",
+      "verdict": "false positive",
+      "why": "the literal is the value the test itself wrote four lines earlier — it sets state_root to 'docs' and then asserts the rendered line reads '- State root: docs'. Its only live dependency is that the real config HAS a `- State root:` bullet, which is the shape under test rather than a census of what the project holds. Same class as the two other test_md_store false positives above. Arrived 2026-08-21 with TASK-122, after this floor was first recorded."
+    },
+    {
+      "module": "tests/test_prioritize.py",
+      "lineno": 507,
+      "test": "TestEveryEventSaysWhatItsPairMeans.test_an_id_shaped_word_in_prose_is_warned_about",
+      "assertion": "assertEqual",
+      "actual": "fn('the ROUND-2 defect', ctx)",
+      "expected": "['ROUND-2']",
+      "verdict": "instance",
+      "why": "`ctx` is built from `load_task_records(perry/)`, this repository's live task store. The neighbouring line is the more fragile half and is NOT flagged, because `[]` is not a closed literal: `fn('see ADR-006 and USER-014', ctx) == []` requires both of those ids to still resolve on this board, and either one leaving reddens a test about prose parsing."
+    },
+    {
+      "module": "tests/test_task_writer.py",
+      "lineno": 152,
+      "test": "TestFormatIsMechanized.test_every_hand_written_row_in_perrys_own_board_round_trips",
+      "assertion": "assertGreater",
+      "actual": "len(rows)",
+      "expected": "5",
+      "verdict": "instance",
+      "why": "`assertGreater(len(rows), 5)` over Perry's own `BOARD.md`. Same shape as c9018ae; a board that closes its way below six rows reddens a test whose subject is row formatting."
+    }
+  ]
+}
