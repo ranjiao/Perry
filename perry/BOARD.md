@@ -34,7 +34,6 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | review | PR merged; ready to close once origin is merged down and the suite re-run locally | evidence/2026-08/TASK-111-dispatch-2026-08-20-1930.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
@@ -42,14 +41,13 @@
 | TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | not_started | CLEARED by the user 2026-08-20 for the `diagnose` escalation hit; ready to dispatch, spec at evidence/2026-08/TASK-126-spec.md | evidence/2026-08/TASK-126-spec.md | V3 | TASK-112 | main |  |  |  |  |  |  |
-| TASK-127 | the contract docs and the payloads they describe are never diffed against each other | Coding Agent | review | PR merged; ready to close once origin is merged down and the suite re-run locally | evidence/2026-08/TASK-127-dispatch-2026-08-20-2045.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
-| TASK-133 | declare the first non-project track on Perry itself, and measure what a mixed spine costs | User + Agent | review | PR merged; ready to close once origin is merged down and the suite re-run locally | evidence/2026-08/TASK-133-track-experiment.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-140 | every mode contract slot is assigned to an axis, and the spine-to-unit map is written down | Coding Agent | not_started | CLEARED by the user 2026-08-20 for the `design/` escalation hit; ready to dispatch, spec at evidence/2026-08/TASK-140-spec.md | evidence/2026-08/TASK-140-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | design question answered 2026-08-20: it belongs in conformance, which triage already reads at step 0.5 — not as a new triage feature | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-143 | two PRs each green on their own base merged into a red tree, and nothing checked the pair | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 
 ## P2
 
@@ -59,7 +57,6 @@
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 | main |  |  |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | unblocked: the whole chain closed — TASK-044 and TASK-047 are both done. The conformance marker enforces on this branch, which is the precondition this row was waiting for | — | V4 | TASK-044, TASK-047 | main |  |  |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
-| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | PR merged; ready to close once origin is merged down and the suite re-run locally | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  | main |  |  |
