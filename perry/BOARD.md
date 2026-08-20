@@ -35,6 +35,8 @@
 | TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-113 | three checks read the project living around them, so ordinary progress turns them red | Coding Agent | in_progress | dispatched 17:09 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
+| TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -46,7 +48,6 @@
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | merge PR #14; the shape predicate added to bin/perry-lint is outside the declared scope and was flagged for a reviewer | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  |
-| TASK-115 | two guards on the read-only report have a hole beside them, found by mutation not by review | Coding Agent | in_progress | dispatched 17:27 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  |
 | TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  |
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  |
