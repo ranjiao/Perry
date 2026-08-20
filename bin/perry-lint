@@ -22,8 +22,15 @@ Usage:
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
-  --strict      warnings count as failures
+  --strict      warnings count as failures (except NS-01 — see below)
   --quiet       print nothing; use the exit code
+
+The default mode also runs the namespace check, on an adopted project only, and
+reports drift as `NS-01` (DESIGN-002 decision #4). The state root is chosen once
+at setup; a project adopted at `.` that later grows its own `design/proposal.md`
+would otherwise have that file reported as MALFORMED PERRY STATE — the user's own
+document called broken, which is exactly what `State root:` exists to prevent,
+arriving by a route it does not reach.
 
 Exit codes:
   0  clean (or warnings only, without --strict)
@@ -641,9 +648,16 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
 
     A directory already holding genuine Perry state is a RE-ADOPTION, not a
     collision. Only a parse can tell the two apart, so this reuses the same
-    heading check the default mode runs rather than a second heuristic."""
+    heading check the default mode runs rather than a second heuristic.
+
+    The returned summary carries `detail` — one entry per colliding claim, with
+    every offending path. `--claims` renders rows and counts and never reads it;
+    it is there so the default mode's `NS-01` can name its evidence from THIS
+    computation rather than a second copy of it. Rows and counts are unchanged
+    on purpose: `--claims` output, text and `--json` alike, is a contract."""
     claims = schema.get("claims") or []
     rows, collisions = [], 0
+    detail: list[dict] = []
     for c in claims:
         base = project_root if c["anchor"] == "project" else state_root
         target = base / c["path"].rstrip("/")
@@ -665,10 +679,22 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
             rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
                          "detail": f"{len(foreign)} file(s) Perry did not write, "
                                    f"e.g. {foreign[0].relative_to(project_root)}"})
+            detail.append({
+                "path": c["path"], "owner": c["owner"], "kind": c["kind"],
+                "anchor": c["anchor"],
+                "foreign": [_rel(f, project_root) for f in foreign],
+            })
         else:
             rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
                          "detail": f"{len(present)} existing Perry file(s)"})
-    return rows, {"claimed": len(claims), "collisions": collisions}
+    return rows, {"claimed": len(claims), "collisions": collisions, "detail": detail}
+
+
+def _rel(path: Path, base: Path) -> str:
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
@@ -710,6 +736,55 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
     if suggested:
         print(f"\n   Suggested state root: {suggested}   (0 collisions)")
     print()
+
+
+def check_namespace(project_root: Path, schema: dict, state_root: Path) -> list[Finding]:
+    """`NS-01` — a path Perry claims now holds files Perry did not write.
+
+    DESIGN-002 decision #4, and the half of it that was never wired up: the
+    document names TWO places this runs, `bin/perry-diagnose` and `perry-lint`
+    default mode, and only the first emitted it. Lint is the one that catches it
+    early, because lint is what runs after every change.
+
+    The check itself is `check_claims` — the same computation `--claims`
+    performs, against the state root this project actually declared. Reusing it
+    rather than writing a second walk is the point: two collision checks that
+    can disagree is the defect DESIGN-002 exists to close, one level up.
+
+    Scope is directories behind the state root:
+
+      * files (`OKR.md`, `BOARD.md`) are validated by `files[]` already, and a
+        malformed one is a parse finding with a line number, not a namespace
+        one;
+      * `.perry/` is anchored at the project root because it HOLDS the state
+        root pointer, so neither remedy NS-01 offers can apply to it.
+
+    Matches `bin/perry-diagnose`'s emitter in wording and in severity; the
+    catalog entry both render from is `reference/diagnose.md § Finding catalog`.
+    """
+    _, summary = check_claims(project_root, schema, state_root)
+    findings: list[Finding] = []
+    for c in summary.get("detail") or []:
+        if c["kind"] != "dir" or c["anchor"] != "state":
+            continue
+        foreign = c["foreign"]
+        # Same cap diagnose uses. A folder with 200 foreign files needs the
+        # finding, not the inventory.
+        shown = ", ".join(foreign[:10])
+        if len(foreign) > 10:
+            shown += f", … (+{len(foreign) - 10} more)"
+        findings.append(Finding(
+            "warn", c["path"], "NS-01",
+            f"`{c['path']}` holds {len(foreign)} file(s) Perry did not write. "
+            f"Why it bites: Perry claimed this folder, and now it holds files "
+            f"Perry did not write. It will read them as its own state and report "
+            f"them as broken — so the next check will tell you your own file is "
+            f"malformed. It isn't; it is just standing in a folder Perry took. "
+            f"What to do: either move Perry's state to its own root — "
+            f"`/perry relocate perry` — or move these files out of "
+            f"`{c['path']}`. Both are reversible; the first is one command. "
+            f"Evidence: {shown}"))
+    return findings
 
 
 def main(argv: list[str]) -> int:
@@ -850,6 +925,12 @@ def main(argv: list[str]) -> int:
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
+            # Adopted only. Before adoption the collision check is
+            # `--claims`, which answers a different question — "where should
+            # the state root go?" rather than "has my state root been encroached
+            # on?" — and a project that has never heard of Perry must not be
+            # told its own `design/` folder is a Perry problem.
+            findings.extend(check_namespace(project_root, schema, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -876,7 +957,13 @@ def main(argv: list[str]) -> int:
 
     if errors:
         return 1
-    return 1 if (strict and warns) else 0
+    # `--strict` promotes warnings to failures — but not NS-01. DESIGN-002
+    # decision #2 was taken strictly: there is no per-path opt-out, so a project
+    # that knowingly keeps one file in a claimed folder has no way to accept the
+    # finding, and permanently red CI for a deliberate choice is how a check
+    # trains its user to skip it. "A collision never sets a non-zero exit"
+    # (DESIGN-002 § Changes, 2026-08-16). Branch on the finding, not the code.
+    return 1 if (strict and [f for f in warns if f.rule != "NS-01"]) else 0
 
 
 if __name__ == "__main__":
