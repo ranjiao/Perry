@@ -40,8 +40,7 @@
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | CLEARED for the `diagnose` fragment is still pending. Note its scope grew: test_diagnose now has TWO failures — the fixture USER-014 count, and a quoted fixture id (TASK-165) | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-162 | a row cannot say it is blocked on an ask without tripping a conformance check | Coding Agent | in_progress | dispatched to claude-subagent; merges locally, no PR | evidence/2026-08/TASK-162-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-165 | quoting what a checker printed turns the ids inside the quote into references | Coding Agent | not_started | — | — | V4 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-165 | an id must dangle once before the report exemption can cover it | Coding Agent | not_started | RE-SCOPED 2026-08-21: the quoted-output case resolved itself once TASK-162 landed, because TASK-126 report rule needs BOTH halves — the document names a check AND the id has been reported on. The residual cost is that an id must go red once before it can be exempted | — | V4 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
