@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import card_open, card_close, id_tag, phase_track %}
+{% from "_macros.html" import card_open, card_close, id_tag, phase_track, kr_chain %}
 {% block title %}Phase · {{ snap.project_name }}{% endblock %}
 
 {% block content %}
@@ -45,6 +45,16 @@
       </div>
     </div>
     {% endif %}
+  </div>
+
+  {# ── Phase KR chain ──────────────────────────────────────────────────
+     The register's O→KR→task graph, with each KR's `current` carrying the
+     provenance that makes it readable. See `_macros.html § kr_chain`. #}
+  <div style="margin-bottom: 16px;">
+  {{ card_open('Phase KR chain', link='linkage register',
+               link_href='/file/phase/' ~ (snap.phase.number ~ '-linkage.md' if snap.phase else '')) }}
+  {{ kr_chain(chain) }}
+  {{ card_close() }}
   </div>
 
   <div class="grid" style="grid-template-columns: 1.4fr 1fr;">

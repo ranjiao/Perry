@@ -49,9 +49,11 @@ Flags:
   Queue + Cadence + Backbone. "See the whole board" (vs Atlas's "find a task").
 - **`/okr`** — overall OKR: mission, objectives + KRs, Operating Principles,
   Anti-Goals, version history.
-- **`/phase`** — current phase OKR, trip-wires, cost ceiling, plus cross-phase
-  state folded in from PROJECT_STATE.md (carry-forwards, external deps,
-  cross-session work).
+- **`/phase`** — the phase KR chain (Objective → KR → linked tasks, with each
+  KR's `current` shown together with whether it was asserted or measured,
+  whether it has gone stale, and how many of its linked tasks are closed),
+  current phase OKR, trip-wires, cost ceiling, plus cross-phase state folded in
+  from PROJECT_STATE.md (carry-forwards, external deps, cross-session work).
 - **`/risks`** — top-risk callout, value-meter gauges, armed trip-wires,
   resolved list.
 - **`/atlas`** — unified search/browse across tasks / evidence / decisions /
@@ -68,7 +70,18 @@ Flags:
 Read-only by deliberate choice — every mutation goes through `/perry work`,
 `/perry goals` and `/perry decide` in chat. Each HTTP request re-parses the source markdown (no cache,
 no DB), so the view is always live; parsing is sub-millisecond on typical
-projects. Theme (light/dark) is applied pre-paint and persists via
+projects.
+
+One exception, and it is a deliberate one: `/phase`'s KR chain runs
+`bin/perry-state --json` and renders what the payload says, rather than reading
+`phase/<NNN>-linkage.md` here. A KR's `current` is hand-written and nothing
+re-runs the metric behind it, so the number is only honest beside the
+provenance TASK-120 derived for it — and that derivation has one home
+(`bin/lib`), reached through the tool that already assembles its inputs. The
+subprocess costs ~0.1s on a project this size and only `/phase` pays it —
+measured at 0.109s against 0.008s for a page that renders no chain.
+
+Theme (light/dark) is applied pre-paint and persists via
 localStorage. The brand name shown in the nav is derived from the BOARD.md
 title (`# Board — <name>`), falling back to the project directory name.
 
