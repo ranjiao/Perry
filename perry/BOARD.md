@@ -36,7 +36,7 @@
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 7c0bb99; state-schema.json scoped out so the gate passes without a release | evidence/2026-08/TASK-120-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | review | PR #24 — contract 2.1; four findings handed back, two worth their own rows | evidence/2026-08/TASK-120-dispatch-2026-08-21-result.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 6c01b93; spec carries a live reproduction | evidence/2026-08/TASK-122-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
@@ -48,6 +48,7 @@
 | TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to f42e84b | evidence/2026-08/TASK-141-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | design question answered 2026-08-20: it belongs in conformance, which triage already reads at step 0.5 — not as a new triage feature | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-143 | two PRs each green on their own base merged into a red tree, and nothing checked the pair | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 
 ## P2
 
@@ -68,6 +69,8 @@
 | TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
+| TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
+| TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-20 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
