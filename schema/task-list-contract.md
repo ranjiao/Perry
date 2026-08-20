@@ -208,6 +208,21 @@ non-task registers could not be read.
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
 | `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records and event history remain readable, while Board-backed risks, asks and intake keep their empty contract shapes. |
 
+#### `depends_on_unknown[]` — the entry, key by key
+
+Tabulated at 1.13. It was prose until 2026-08-21, when a row on Perry's own
+board was blocked on a `USER-` ask and the collection became non-empty for the
+first time — at which point `tests/contract_key_parity.py` could compare it and
+found both keys undocumented. **That is the collection-empty limitation this
+contract names under `review_idle[]`, seen from the other side**: a page cannot
+be checked against a collection nothing populates, so the check is silent until
+the day it is not.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the row carrying the edge. |
+| `unknown` | array | the dependency ids this payload does not carry, sorted. A `USER-` ask lands here today: `perry-task depends --on USER-nnn` is accepted at the write and reported here at the read, which is the disagreement TASK-162 is open for. |
+
 #### `next_action_cites_closed[]` — the entry, key by key
 
 Its first three keys have been here since 1.3 and are unchanged. The other four

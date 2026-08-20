@@ -1479,6 +1479,11 @@ class TestListContract(unittest.TestCase):
     # and the clock is in hours on both, so a consumer needs one code path.
     IDLE_ROW_KEYS = {"id", "status", "last_event", "idle_hours",
                      "threshold_hours", "means"}
+    #: `conformance.depends_on_unknown[]`. Tabulated 2026-08-21, when a row on
+    #: Perry's own board was blocked on a `USER-` ask and the collection became
+    #: non-empty for the first time — until then `tests/contract_key_parity.py`
+    #: could not compare it and its two keys sat undocumented, unseen.
+    UNKNOWN_DEP_KEYS = {"id", "unknown"}
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
@@ -1689,7 +1694,8 @@ class TestListContract(unittest.TestCase):
                  | self.INTAKE_KEYS | self.INTAKE_ROW_KEYS
                  | self.RISKS_KEYS | self.RISK_KEYS
                  | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS
-                 | self.CITATION_KEYS | self.IDLE_ROW_KEYS)
+                 | self.CITATION_KEYS | self.IDLE_ROW_KEYS
+                 | self.UNKNOWN_DEP_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "

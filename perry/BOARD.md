@@ -34,7 +34,7 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | blocked | waiting on USER-015 — the delegation prompt goes to an aiMark agent and its result comes back by paste. Found by TASK-142 in_progress_with_no_live_run after 9h with no dispatch slot | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | USER-015 | main |  |  |  |  |  |  |
+| TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | blocked | waiting on USER-015 — hand the delegation prompt to an aiMark agent, paste the result back. Found by TASK-142 after 9h in_progress with no dispatch slot. The edge reports as depends_on_unknown: the ask register and the dependency graph do not connect (TASK-162) | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | USER-015 | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to efa0d73; merges locally | evidence/2026-08/TASK-136-spec.md | V3 | — | main |  |  |  |  |  |  |
@@ -43,6 +43,7 @@
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-159 | the viewer resolves the project root to the state root, so it renders empty when pointed where its launcher points it | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to efa0d73; merges locally | evidence/2026-08/TASK-159-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-160 | the dispatch limiter reaps a live agent slot after an hour, so the cap it enforces is not the cap | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-162 | a row cannot say it is blocked on an ask without tripping a conformance check | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
