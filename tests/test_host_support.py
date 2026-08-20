@@ -248,6 +248,109 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
             self.assertEqual(len(self.markers(home)), 1)
 
 
+class TestMtimeIsPortable(unittest.TestCase):
+    """`stat -f` means two different things, and only one of them is a format.
+
+    On BSD (`stat -f %m`) it is the format flag. On GNU coreutils `-f` is
+    `--file-system`: it **succeeds**, exit 0, and prints four lines about the
+    filesystem. So `stat -f %m || stat -c %Y || echo 0` never reaches either
+    fallback on Linux, `mtime` returns a paragraph, and `$((now - last))` dies
+    with *"syntax error in expression"*.
+
+    This was green on every mac and red on every CI run — the same
+    machine-dependence class as `test_goals_writer`'s corpus. It is reproduced
+    here with a fake `stat` on `PATH` so the defect is catchable **without a
+    Linux box**, which is the only reason it stayed alive.
+    """
+
+    GNU_STAT = (
+        '#!/bin/sh\n'
+        'case "$1" in\n'
+        '  -f) shift; [ "$1" = "%m" ] && shift\n'
+        '      echo "  File: \\"$1\\""\n'
+        '      echo "    ID: 542238b4501be5b9 Namelen: 255     Type: ext2/ext3"\n'
+        '      echo "Block size: 4096       Fundamental block size: 4096"\n'
+        '      exit 0 ;;\n'
+        '  -c) shift; [ "$1" = "%Y" ] && shift\n'
+        '      for c in /usr/bin/stat /bin/stat; do\n'
+        '        [ -x "$c" ] && { "$c" -f %m "$1"; exit $?; }\n'
+        '      done; exit 1 ;;\n'
+        'esac\n'
+        'exit 1\n'
+    )
+
+    def register_under_gnu_stat(self, home: Path):
+        """Register one slot with a marker already on disk, so `clean_stale`
+        has something to compute an age for. That arithmetic is the crash."""
+        fake = home / "fakebin"
+        fake.mkdir(parents=True, exist_ok=True)
+        (fake / "stat").write_text(self.GNU_STAT)
+        (fake / "stat").chmod(0o755)
+        flight = home / ".cache/perry/in-flight"
+        flight.mkdir(parents=True, exist_ok=True)
+        (flight / "TASK-A-codex.json").write_text("{}")
+        env = clean_host_env(HOME=str(home))
+        env["PATH"] = f"{fake}:{env.get('PATH', '')}"
+        return subprocess.run(
+            [str(LIMIT), "register", "TASK-B", "codex"],
+            capture_output=True, text=True, env=env, cwd=ROOT,
+        )
+
+    def test_a_gnu_stat_does_not_break_the_age_arithmetic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.register_under_gnu_stat(Path(tmp))
+        self.assertNotIn("syntax error in expression", r.stderr)
+        self.assertNotIn("Fundamental block size", r.stderr)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Slot reserved", r.stdout)
+
+    def test_the_marker_already_present_is_still_counted(self):
+        """The crash was in `clean_stale`, so a fix that made the error go away
+        by never reading the directory would pass the test above and be wrong."""
+        with tempfile.TemporaryDirectory() as tmp:
+            r = self.register_under_gnu_stat(Path(tmp))
+        self.assertIn("2 / 2 for codex", r.stdout)
+
+    def test_no_script_carries_the_broken_chain(self):
+        """Three scripts had it, and `perry-update-check` runs on **every**
+        Perry invocation — so on Linux the throttle was reading a filesystem
+        block as a timestamp on every single call, silently. A grep guard,
+        because the other two have no test harness of their own and the defect
+        is a one-line shape."""
+        offenders = []
+        for script in sorted((ROOT / "bin").iterdir()):
+            if not script.is_file() or script.suffix == ".py":
+                continue
+            try:
+                src = script.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for n, line in enumerate(src.split("\n"), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if "stat -f" in line and "stat -c" in line and "||" in line:
+                    offenders.append(f"{script.name}:{n}: {line.strip()}")
+        self.assertEqual(
+            offenders, [],
+            "a `stat -f … || stat -c …` chain is unreachable past its first "
+            "arm on GNU coreutils, where `-f` is `--file-system` and exits 0:\n"
+            + "\n".join(offenders))
+
+    def test_the_mac_form_still_works(self):
+        """The fix tries the GNU form first. BSD `stat` rejects `-c` outright,
+        which is why that order is safe — but only if it really is rejected."""
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            r = self.run_limit(home, "register", "TASK-C", "codex")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("1 / 2 for codex", r.stdout)
+
+    def run_limit(self, home: Path, *args: str, **extra: str):
+        env = clean_host_env(HOME=str(home), **extra)
+        return subprocess.run([str(LIMIT), *args], capture_output=True,
+                              text=True, env=env, cwd=ROOT)
+
+
 class TestOpenCodeSetup(unittest.TestCase):
     def run_setup(self, home: Path, cwd: Path, *args: str,
                   path: str | None = None):

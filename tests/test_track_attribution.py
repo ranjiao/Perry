@@ -162,14 +162,37 @@ class TestCommitmentsAlsoBelongToATrack(TrackCase):
         self.assertEqual(tracks["ops"]["mode"], "pipeline")
 
 
-class TestPerrysOwnProjectIsUnmoved(unittest.TestCase):
-    def test_it_still_reads_one_project_track(self):
+class TestAProjectWithNoRegisterIsUnmoved(TrackCase):
+    """The no-op property `modes/project.md` is built on: a project that never
+    declares a register behaves exactly as it did before work modes existed.
+
+    **This used to assert it against Perry's own repository**, which held while
+    Perry had declared nothing and reddened the moment it declared its first
+    track (TASK-133) — a check reading live project state as its expected
+    value, the class TASK-113 and TASK-121 are about. The property is about
+    *absence of a register*, so it is proved on a project that has none. What
+    is asserted about this repository is only what its own file says.
+    """
+
+    def test_a_project_with_no_register_reads_one_implicit_main_track(self):
+        tracks, w = self.modes("# Config\n\nState root: perry\n")
+        self.assertFalse(w["register_declared"])
+        self.assertEqual([t["track"] for t in w["tracks"]], ["main"])
+        self.assertEqual(tracks["main"]["mode"], "project")
+
+    def test_this_repository_reads_back_the_register_its_file_declares(self):
+        declared = [
+            line.split("|")[1].strip()
+            for line in (ROOT / ".perry" / "config.md").read_text().splitlines()
+            if line.startswith("|") and "---" not in line
+            and line.split("|")[1].strip() not in ("", "Track")
+        ]
         proc = subprocess.run(
             [sys.executable, str(TOOL), "--json"],
             capture_output=True, text=True, cwd=ROOT)
         w = json.loads(proc.stdout)["work_modes"]
-        self.assertFalse(w["register_declared"])
-        self.assertEqual([t["track"] for t in w["tracks"]], ["main"])
+        self.assertEqual(w["register_declared"], bool(declared))
+        self.assertEqual([t["track"] for t in w["tracks"]], declared or ["main"])
 
 
 if __name__ == "__main__":

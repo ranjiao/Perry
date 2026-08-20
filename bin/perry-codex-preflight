@@ -48,6 +48,21 @@ USAGE
   esac
 done
 
+mtime_of() {
+  # See `bin/perry-dispatch-limit § mtime` (TASK-138). GNU `stat -f` is
+  # `--file-system` and SUCCEEDS, so the `-f || -c` chain never falls through
+  # on Linux. Try GNU first (BSD rejects `-c` outright) and accept digits only.
+  local v
+  v=$(stat -c %Y "$1" 2>/dev/null) && case "$v" in
+    ""|*[!0-9]*) : ;;
+    *) printf '%s\n' "$v"; return 0 ;;
+  esac
+  v=$(stat -f %m "$1" 2>/dev/null) && case "$v" in
+    ""|*[!0-9]*) : ;;
+    *) printf '%s\n' "$v"; return 0 ;;
+  esac
+  echo 0
+}
 log()  { [ "$QUIET" -eq 1 ] || echo "$@"; }
 warn() { echo "$@" >&2; }
 fail() { echo "$@" >&2; exit 1; }
@@ -81,7 +96,7 @@ mkdir -p "$CACHE_DIR"
 NOW=$(date +%s)
 
 if [ "$FORCE" -eq 0 ] && [ -f "$SMOKE_FILE" ]; then
-  LAST=$(stat -f %m "$SMOKE_FILE" 2>/dev/null || stat -c %Y "$SMOKE_FILE" 2>/dev/null || echo 0)
+  LAST=$(mtime_of "$SMOKE_FILE")
   ELAPSED=$((NOW - LAST))
   if [ "$ELAPSED" -lt "$SMOKE_TTL" ]; then
     log "🟢 codex smoke test cached ($((ELAPSED / 60))m ago, TTL $((SMOKE_TTL / 60))m)"

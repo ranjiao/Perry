@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "002-fields-are-typed"
-updated: "2026-08-20T09:57:31Z"
+updated: "2026-08-20T20:32:00Z"
 objectives:
   - id: O1
     title: "The three stores are stores"

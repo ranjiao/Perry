@@ -561,6 +561,18 @@ against the mode table in §5.1), G at V5.
 - 2026-08-19 — decision 8 superseded by ADR-008 after its own revisit trigger
   fired in a real OpenCode session. Added the explicit `opencode` host and
   `opencode-subagent` executor; generic untested host support remains rejected.
+- 2026-08-20 — **§ 5.1's `mode` is revisited by `DESIGN-008`**, locked the same
+  day. Raised by the user: `Mode` answers three questions at once — what the
+  work is accountable to, how a row advances, and how much verification the
+  consequence needs — and a project whose shape is not one of the four
+  diagonals must pick the nearest and mis-handle the rest, which is the defect
+  § 5.1 rejected *"mode as a property of the whole project"* for, reproduced one
+  level down. Measured first (`evidence/2026-08/TASK-133-track-experiment.md`):
+  the coupling is **prose**, not mechanism — a `queue`-track row carried a `kr:`
+  edge to a `project`-mode KR with no refusal, no warning and no gate anywhere
+  in the code. DESIGN-008 splits `Mode` into a `Spine` and a `Flow` leg with the
+  four names surviving as presets; nothing in this document's own semantics
+  changes, and a project that wrote `Mode: project` is untouched.
 
 ## 10. References
 

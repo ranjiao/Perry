@@ -206,12 +206,27 @@ class TestNoDirectoryIsSilentlyOmitted(Repo):
                               "table nor the empty list")
 
     def test_an_unclaimed_file_under_the_state_root_is_still_reported(self):
+        """A file no claim covers still has to appear, or the total understates
+        what the project actually carries.
+
+        **This used to prove the property with `perry/tasks.jsonl`**, which was
+        unclaimed when this module was written. TASK-100 then put both store
+        files into `claims[]` (`e3f8621`), so the example became a claimed path
+        and the assertion failed while the behaviour it names was still
+        correct. Both PRs were green on their own base and red once merged —
+        which is why the fixture now writes a file that nothing will ever claim
+        rather than borrowing one that happened to be unclaimed that week.
+        """
+        self.write("perry/scratch-notes.md", "n" * 700)
+        self.commit(DAY3)   # the tool reads git; an uncommitted file has no history
         paths = self.payload()["snapshot"]["paths"]
         unclaimed = [p for p in paths if "unclaimed" in p]
-        self.assertIn("perry/tasks.jsonl (unclaimed)", unclaimed,
-                      f"the store is 52 KB in the live project and no claim "
-                      f"covers it; dropping it would understate Perry's cost. "
-                      f"got: {sorted(paths)}")
+        self.assertIn("perry/scratch-notes.md (unclaimed)", unclaimed,
+                      f"a file under the state root that no claim covers was "
+                      f"dropped from the snapshot, which understates the "
+                      f"project's cost. got: {sorted(paths)}")
+        self.assertEqual(paths["perry/scratch-notes.md (unclaimed)"]["bytes"],
+                         700, "it is listed but its bytes are not counted")
 
     def test_the_claim_list_is_read_from_the_schema_and_not_hardcoded(self):
         """Anti-vacuity. If the labels were a literal in the tool, a claim
@@ -280,7 +295,12 @@ class TestHistoryIsNotBytes(Repo):
         Asserted as that number rather than as a ratio: the excess IS the
         superseded revision, and saying so is what licenses the claim that
         rotating the file recovers checkout bytes and no repository bytes."""
-        row = self.payload()["snapshot"]["paths"][".perry/"]
+        # Read the file's OWN row. It used to roll up under `.perry/`; TASK-100
+        # gave `.perry/events.jsonl` a claim of its own (`e3f8621`), so the
+        # directory row no longer carries it and `.perry/` now reports only
+        # `config.md`. The number asserted below is unchanged, because the
+        # behaviour never was — only which row states it.
+        row = self.payload()["snapshot"]["paths"][".perry/events.jsonl"]
         superseded = len('{"ev": 1}\n') * 100
         self.assertEqual(row["history"] - row["bytes"], superseded)
         self.assertGreater(row["history"], row["bytes"])
