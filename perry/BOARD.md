@@ -33,10 +33,10 @@
 | TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | decide the retention proposal in TASK-110's evidence; nothing is deleted until then | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | review | the user decides the retention policy; the measurement says the whole proposal recovers 1.4 days of growth | evidence/2026-08/TASK-110-dispatch-2026-08-20-1725.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
-| TASK-113 | three checks read the project living around them, so ordinary progress turns them red | Coding Agent | in_progress | dispatched 17:09 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
