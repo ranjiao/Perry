@@ -1,0 +1,112 @@
+{
+  "contract_files_discovered": 5,
+  "contracts": {
+    "perry-decide/list/1.0": {
+      "command": "perry-decide list --json",
+      "contract": "perry-decide/list/1.0",
+      "documented": 27,
+      "documented_not_emitted": [],
+      "emitted": 24,
+      "emitted_not_documented": [],
+      "file": "schema/decide-list-contract.md",
+      "not_observable": {
+        "expired_sunsets[].id": "inside `expired_sunsets`, which is empty in this run",
+        "expired_sunsets[].sunset": "inside `expired_sunsets`, which is empty in this run",
+        "expired_sunsets[].title": "inside `expired_sunsets`, which is empty in this run"
+      },
+      "unassigned": [],
+      "unparsed_sketches": []
+    },
+    "perry-events/list/1.0": {
+      "command": "perry-task events --json",
+      "contract": "perry-events/list/1.0",
+      "documented": 23,
+      "documented_not_emitted": [],
+      "emitted": 23,
+      "emitted_not_documented": [],
+      "file": "schema/events-list-contract.md",
+      "not_observable": {},
+      "unassigned": [],
+      "unparsed_sketches": []
+    },
+    "perry-goals/list/2.0": {
+      "command": "perry-goals list --json",
+      "contract": "perry-goals/list/2.0",
+      "documented": 54,
+      "documented_not_emitted": [],
+      "emitted": 59,
+      "emitted_not_documented": [
+        "okr.objectives[].id",
+        "phase.objectives",
+        "phase.objectives[].id",
+        "phase.objectives[].krs",
+        "phase.objectives[].title"
+      ],
+      "file": "schema/goals-list-contract.md",
+      "not_observable": {},
+      "unassigned": [],
+      "unparsed_sketches": []
+    },
+    "perry-roles/list/1.0": {
+      "command": "perry-state --json \u00a7 roles",
+      "contract": "perry-roles/list/1.0",
+      "documented": 4,
+      "documented_not_emitted": [],
+      "emitted": 4,
+      "emitted_not_documented": [],
+      "file": "schema/roles-list-contract.md",
+      "not_observable": {},
+      "unassigned": [
+        "A card \u2014 the six frozen fields \u00a7 accepted_by",
+        "A card \u2014 the six frozen fields \u00a7 default_rung",
+        "A card \u2014 the six frozen fields \u00a7 must_escalate.fragments",
+        "A card \u2014 the six frozen fields \u00a7 must_escalate.unextractable",
+        "A card \u2014 the six frozen fields \u00a7 name",
+        "A card \u2014 the six frozen fields \u00a7 path"
+      ],
+      "unparsed_sketches": []
+    },
+    "perry-task/list/1.11": {
+      "command": "perry-task list --json",
+      "contract": "perry-task/list/1.11",
+      "documented": 87,
+      "documented_not_emitted": [],
+      "emitted": 99,
+      "emitted_not_documented": [
+        "conformance.evidence_not_found[].id",
+        "conformance.evidence_not_found[].paths",
+        "conformance.next_action_cites_closed[].cites",
+        "conformance.next_action_cites_closed[].id",
+        "conformance.next_action_cites_closed[].status",
+        "conformance.sections_read[].heading",
+        "conformance.sections_read[].priority",
+        "conformance.sections_read[].rows",
+        "semantics",
+        "semantics[].fields",
+        "semantics[].note",
+        "semantics[].version"
+      ],
+      "file": "schema/task-list-contract.md",
+      "not_observable": {},
+      "unassigned": [
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 asked",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 blocks",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 id",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 idle",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 idle_days",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 needed",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 priority",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 status",
+        "`intake` \u2014 queue mode's inbox \u00a7 age_days",
+        "`intake` \u2014 queue mode's inbox \u00a7 arrived",
+        "`intake` \u2014 queue mode's inbox \u00a7 discharged",
+        "`intake` \u2014 queue mode's inbox \u00a7 n",
+        "`intake` \u2014 queue mode's inbox \u00a7 outcome",
+        "`intake` \u2014 queue mode's inbox \u00a7 request"
+      ],
+      "unparsed_sketches": []
+    }
+  },
+  "glob": "schema/*-contract.md",
+  "root": "."
+}

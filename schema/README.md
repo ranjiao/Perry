@@ -103,6 +103,24 @@ project:
 `perry-state --json` remains the agent-facing combined read. It is **not** a
 frozen contract — treat anything taken from it as best-effort.
 
+### Where the parity number lives
+
+Each page above declares keys and each tool emits them, and until TASK-127
+**nothing diffed the two against each other.** `tests/contract_key_parity.py`
+does, in both directions — `documented_not_emitted` and
+`emitted_not_documented` — and records the per-contract result in
+**`tests/fixtures/contract-key-parity.json`**, which is the file to read when
+someone asks what the number is.
+
+    python3 tests/contract_key_parity.py             # per-contract counts
+    python3 tests/contract_key_parity.py --record    # after a reviewed change
+
+Two things about it are deliberate. **Discovery is a glob** —
+`schema/*-contract.md`, and the run prints how many files it matched — so a
+page added later is measured without anyone remembering to add it to a list.
+And **neither count is asserted to be zero**: the baseline is what makes a
+change to either one visible, not a claim that the gap is closed.
+
 ## Consumers
 
 The schema is a **cross-repo contract**, not a Perry-internal detail. Four
