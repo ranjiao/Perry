@@ -1484,6 +1484,18 @@ class TestListContract(unittest.TestCase):
     #: non-empty for the first time — until then `tests/contract_key_parity.py`
     #: could not compare it and its two keys sat undocumented, unseen.
     UNKNOWN_DEP_KEYS = {"id", "unknown"}
+    #: `semantics[]`. Shipped at 1.7 and described only in prose until
+    #: 2026-08-21 (TASK-131) — rule 3 of the contract hands a consumer a loop
+    #: over `version`/`fields`/`note` and no row said what any of the three
+    #: holds, so the payload's own compatibility signal was the least
+    #: documented thing in it.
+    SEMANTICS_KEYS = {"version", "fields", "note"}
+    #: `conformance.sections_read[]`. Its shape was stated inside the
+    #: `conformance` table's Meaning cell, which is prose to both checkers.
+    SECTIONS_READ_KEYS = {"heading", "priority", "rows"}
+    #: `conformance.evidence_not_found[]`. Same: `{id, paths}` in a Meaning
+    #: cell documented the pair to a human and to neither check.
+    EVIDENCE_NOT_FOUND_KEYS = {"id", "paths"}
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
@@ -1695,7 +1707,8 @@ class TestListContract(unittest.TestCase):
                  | self.RISKS_KEYS | self.RISK_KEYS
                  | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS
                  | self.CITATION_KEYS | self.IDLE_ROW_KEYS
-                 | self.UNKNOWN_DEP_KEYS)
+                 | self.UNKNOWN_DEP_KEYS | self.SEMANTICS_KEYS
+                 | self.SECTIONS_READ_KEYS | self.EVIDENCE_NOT_FOUND_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "
