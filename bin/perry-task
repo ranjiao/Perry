@@ -95,6 +95,18 @@ Usage:
                     id and every cell. --group "<heading>" on a board that
                     files work under its own headings instead of P0/P1/P2.
   perry-task done  <ID> --evidence <path> [--rung V1..V6]
+                   at V5, the sign-off is SELECTED rather than composed:
+                   [--measured "<a fact Perry measured>"]      repeatable
+                   [--restated "<a claim Perry only passes on>"] repeatable
+                   [--checked 1,3 | all | none]        what you checked too
+                   [--not-looked-at 2]                 what you did not examine
+                   [--also "<what you checked that Perry did not offer>"]
+                   [--signer "<full name>"] [--signed-on YYYY-MM-DD]
+                   Name and date are filled in; unselected items are recorded
+                   as `accepted on report`, never dropped.
+  perry-task signoff-offer <ID> --measured "…" [--restated "…"] [--json]
+                   read-only. The one selection prompt a V5 close offers,
+                   numbered the way `done --checked` reads it.
   perry-task list  [--all] [--track T] [--json]
   perry-task events [--limit N] [--since <cursor>] [--json]
                   the event log's TAIL, in log order, with a cursor.
@@ -126,6 +138,7 @@ import json
 import hashlib
 import os
 import re
+import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -1762,7 +1775,7 @@ def replace_canonical_pair(state_root: Path,
 
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
-           definition: str = "") -> dict:
+           definition: str = "", signoff_block: str = "") -> dict:
     """Write the store and the journal together, render the board, log the event.
 
     **The three-way write is `store + journal + event` now, not `board +
@@ -1929,6 +1942,13 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # BEFORE the tool existed and 0 times after, so every tool-created task
         # was one title and nothing else.
         jtext = append_block(jtext, "New tasks added", definition)
+    if signoff_block:
+        # The signature, in the canonical half of the write rather than beside
+        # it. A V5 close whose journal line says "signed off" and whose record
+        # of WHAT was signed lives only in the disposable event log would be
+        # the same defect in a new place: the rung's entire content is what was
+        # checked, so it belongs where the transaction guarantees reach.
+        jtext = append_block(jtext, "V5 sign-off", signoff_block)
 
     replace_canonical_pair(
         state_root,
@@ -2314,6 +2334,383 @@ def cmd_start(args, ctx) -> dict:
     return {"id": tid, "row": line, **plan}
 
 
+# ── the V5 sign-off: selected from measured facts, never authored from memory ──
+#
+# V5 is "human sign-off — name, date, and what they checked". Until TASK-109 the
+# tool took none of that: `done --rung V5` wrote a rung and the *signature* was
+# a paragraph the user composed by hand into an evidence file. Measured on this
+# project: 3 of 80 closed rows carry V5, so the cost is not frequency — it is
+# what the paragraph asks for when it does fire.
+#
+# TASK-047 is the case that named both defects. Perry ran three checks, printed
+# their output and showed the user; the user then wrote, from memory, a sentence
+# describing those same three checks (`perry/evidence/2026-08/
+# TASK-047-dispatch-2026-08-20-1416.md § V5 sign-off`). So:
+#
+#   1. the user re-derived by hand a record the tool already held, and
+#   2. free text cannot distinguish *I re-ran this* from *Perry ran this and I
+#      read the output*. The second collapses into the first the more Perry
+#      does, which is the rung's failure mode wearing its own label.
+#
+# **The line that keeps this from becoming a rubber stamp.** If Perry drafts the
+# signature and the user presses return, Perry has certified its own work — the
+# exact failure V5 exists to prevent. So:
+#
+#     Perry may draft only facts it MEASURED. It may never draft a claim about
+#     what the USER did.
+#
+# `claims[] has zero lines in the diff` is drafted — Perry ran the diff.
+# `the user reviewed the diff` is refused — Perry cannot know that.
+#
+# `check_no_user_claim` enforces that mechanically at the option builder, which
+# is the only place a drafted string is minted. The user's contribution is which
+# of Perry's facts they personally re-checked, plus `--also` for anything Perry
+# does not know about.
+
+#: The two provenance labels an offered item can carry, stored **verbatim** in
+#: the record because the label is the product. `checked` against a
+#: Perry-verified fact means *I checked this too*; against a restated one it
+#: means *I checked a claim Perry only passed along*. Collapse the labels and
+#: those two become the same sentence, which is today's defect exactly.
+PROVENANCE_VERIFIED = "Perry verified"
+PROVENANCE_RESTATED = "restated — Perry did not verify this"
+
+#: The three dispositions an offered item ends in.
+#:
+#: **Why three and not two.** The obvious design has `checked` and one bucket
+#: for everything else. It loses the distinction the rung exists for. Perry's
+#: own corpus already writes all three by hand: TASK-034's signature carries a
+#: `**Not checked, and recorded because V5's whole value is saying so:**`
+#: section beside what it did check, and TASK-047's carries "fixture opt-out 的
+#: 理由已读并接受" (read, then accepted) beside two costs taken on the strength of
+#: Perry's printed output. A format that cannot hold what the three existing
+#: signatures already say is a regression against the corpus it must stay
+#: compatible with.
+#:
+#: The second reason is the rule above. Defaulting every unselected item to
+#: `accepted on report` is already the outer edge of what Perry may assert: it
+#: is a statement about the SCOPE OF THE SIGNATURE — signing the close accepts
+#: these on the strength of the report — and not a claim that the user
+#: performed the act of reading. `not looked at` is therefore never a default.
+#: It is only ever reached by the user naming the item, which is what keeps it
+#: a user statement rather than a Perry one.
+SIGNED_CHECKED = "checked"
+SIGNED_ON_REPORT = "accepted on report"
+SIGNED_UNSEEN = "not looked at"
+SIGNED_DISPOSITIONS = (SIGNED_CHECKED, SIGNED_ON_REPORT, SIGNED_UNSEEN)
+
+#: A subject that makes a sentence a claim about a person rather than about the
+#: world. `(?![\w-])` after the match is the escape hatch that keeps
+#: "the user-facing message" — a perfectly good measured fact — from tripping
+#: the guard, because the hyphen is part of the following token.
+#:
+#: CJK terms sit OUTSIDE the boundary assertions on purpose: `\w` matches CJK,
+#: so `用户已阅` has no boundary after `用户` and the guarded form silently never
+#: fires. A guard that reports clean on the language half of this project's own
+#: signatures would be worse than no guard.
+_USER_SUBJECT = re.compile(
+    r"(?<![\w-])(?:the (?:user|human|signer|approver|reviewer|owner)s?"
+    r"|you|your|yours)(?![\w-])"
+    r"|用户|你", re.I)
+
+#: A verb that names an act of human judgement rather than an observation. A
+#: measured fact is phrased as something that IS true ("the diff shows zero
+#: lines"), never as something someone DID ("reviewed the diff"). Dropping the
+#: subject does not make the claim Perry's to draft.
+_ACT_OF_JUDGEMENT = re.compile(
+    r"(?<![\w-])(?:reviewed|approved|acknowledged|agreed|accepted|"
+    r"signed[- ]off|sign-off)(?![\w-])"
+    r"|已阅|已确认|已接受|同意|认可", re.I)
+
+
+def check_no_user_claim(text: str, flag: str) -> str:
+    """Refuse a drafted option that asserts what a person did. Deliverable 6.
+
+    This is a *mechanical* guard rather than a review note on purpose: the
+    difference between a fact Perry measured and a claim about the user is the
+    single thing standing between this feature and a rubber stamp, and a rule
+    enforced by remembering it is a rule that holds until the first hurried
+    close.
+
+    A false positive is cheap and is meant to be: the refusal names the phrase
+    and the fix is to restate the option as the observation it came from.
+    """
+    hit = _USER_SUBJECT.search(text)
+    if hit:
+        raise Refused(
+            f"{flag} {text!r} names {hit.group(0)!r}. A sign-off option may "
+            f"only state a fact Perry measured — never a claim about what a "
+            f"person did, which Perry cannot know and must not draft on their "
+            f"behalf. State the observation instead: not \"the user reviewed "
+            f"the diff\" but \"the diff carries zero changed lines\".")
+    hit = _ACT_OF_JUDGEMENT.search(text)
+    if hit:
+        raise Refused(
+            f"{flag} {text!r} says {hit.group(0)!r}, which names an act of "
+            f"judgement rather than an observation. Whether it was reviewed, "
+            f"approved or accepted is what the signer decides by selecting "
+            f"this item; drafting it here would have Perry certify its own "
+            f"work. Restate it as what was measured.")
+    return text
+
+
+def signoff_options(measured, restated) -> list[dict]:
+    """The one place a sign-off option is minted, numbered from 1.
+
+    Order is `--measured` first, then `--restated`, and the numbering handed to
+    the user by `signoff-offer` is the numbering `done --checked` reads. They
+    are the same function so they cannot drift: a prompt whose option 3 is the
+    tool's option 4 records the wrong item under a signature, which is the one
+    failure this whole path exists to make impossible.
+    """
+    options: list[dict] = []
+    for raw, provenance, flag in (
+            [(t, PROVENANCE_VERIFIED, "--measured") for t in (measured or [])]
+            + [(t, PROVENANCE_RESTATED, "--restated") for t in (restated or [])]):
+        text = " ".join((raw or "").split())
+        if not text:
+            raise Refused(
+                f"{flag} was given an empty item. An unnamed thing cannot be "
+                f"checked, accepted or declined; drop the flag instead.")
+        check_no_user_claim(text, flag)
+        options.append({"n": len(options) + 1, "text": text,
+                        "provenance": provenance})
+    return options
+
+
+def parse_item_selection(values, count: int, flag: str) -> set[int]:
+    """`--checked 1,3`, `--checked all`, `--checked none`, or repeated flags.
+
+    All four spellings exist because the host that has no selection UI gets the
+    numbered free-text fallback (`reference/host-capabilities.md § Prompt
+    rendering`), and what comes back from a person typing into that is
+    `1,3` or `all` or `none`. Rendering differs per host; the record does not.
+    """
+    picked: set[int] = set()
+    for value in values or []:
+        for token in str(value or "").replace("，", ",").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            low = token.lower()
+            if low == "none":
+                continue
+            if low == "all":
+                picked |= set(range(1, count + 1))
+                continue
+            try:
+                n = int(token)
+            except ValueError:
+                raise Refused(
+                    f"{flag} takes the numbers shown by `perry-task "
+                    f"signoff-offer`, `all` or `none`; got {token!r}") from None
+            if not 1 <= n <= count:
+                raise Refused(
+                    f"{flag} {n} is not one of the {count} offered item(s). "
+                    f"Selecting an item nobody was offered would record a "
+                    f"signature against something the record does not hold.")
+            picked.add(n)
+    return picked
+
+
+def resolve_signer(project_root: Path, explicit: str | None) -> str:
+    """The name, filled in rather than typed. Deliverable 3.
+
+    Name and date are the two fields a human should never be retyping: they are
+    the parts of a signature the machine knows for certain and the human can
+    only get wrong. `git config user.name` is the same source the three existing
+    signatures in this repository were written from.
+
+    Refused rather than defaulted to a placeholder if nothing resolves — an
+    anonymous signature is not a weaker signature, it is not one.
+    """
+    if explicit and explicit.strip():
+        return explicit.strip()
+    from_env = (os.environ.get("PERRY_SIGNER") or "").strip()
+    if from_env:
+        return from_env
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(project_root), "config", "user.name"],
+            capture_output=True, text=True, timeout=5)
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        import getpass
+        who = (getpass.getuser() or "").strip()
+        if who:
+            return who
+    except Exception:                                   # noqa: BLE001
+        pass
+    raise Refused(
+        "no name to sign with. Perry fills the signer in rather than asking a "
+        "human to type it, and found nothing: set `git config user.name`, or "
+        "pass --signer \"<full name>\".")
+
+
+def build_signoff(options, checked, unseen, also, signer, signed_on) -> dict:
+    """The record. Designed before the prompt, and identical on every host.
+
+    Every offered item lands in the record with its provenance and its
+    disposition. **Nothing is dropped**: an item the user did not select is
+    written as `accepted on report`, which is strictly more than the free-text
+    paragraph could say, since that form could not distinguish the two at all.
+    """
+    both = checked & unseen
+    if both:
+        raise Refused(
+            f"item(s) {', '.join(str(n) for n in sorted(both))} were named "
+            f"both `{SIGNED_CHECKED}` and `{SIGNED_UNSEEN}`. One item, one "
+            f"disposition — a record that says both says neither.")
+    items = [{
+        "n": option["n"],
+        "text": option["text"],
+        "provenance": option["provenance"],
+        "disposition": (SIGNED_CHECKED if option["n"] in checked
+                        else SIGNED_UNSEEN if option["n"] in unseen
+                        else SIGNED_ON_REPORT),
+    } for option in options]
+    also = (also or "").strip()
+    if not any(i["disposition"] == SIGNED_CHECKED for i in items) and not also:
+        # Deliverable 7. An empty signature is the failure the rung exists to
+        # prevent, and the way it gets written is by pressing return at the
+        # prompt. Refusing here is what makes that keystroke cost something.
+        raise Refused(
+            "a V5 sign-off with nothing checked and no free text is not a "
+            "sign-off. Either name what you checked yourself (--checked), or "
+            "write it in --also. If you checked nothing, the rung is not V5 — "
+            "close at the rung the work actually reached.")
+    return {
+        "signed_by": signer,
+        "signed_on": signed_on,
+        "items": items,
+        "also_checked": also,
+        "counts": {label: sum(1 for i in items if i["disposition"] == label)
+                   for label in SIGNED_DISPOSITIONS},
+    }
+
+
+def render_signoff(tid: str, record: dict) -> str:
+    """The record as the block that lands in the journal.
+
+    Headings are the disposition labels **verbatim**, so a reader of the
+    markdown and a reader of the event see the same three words. The three
+    signatures already in `perry/evidence/2026-08/` keep their own shape and
+    are not touched: this adds a path, it does not rewrite history.
+    """
+    out = [f"**{tid} — V5 sign-off. {record['signed_by']}, "
+           f"{record['signed_on']}.**", ""]
+    for label in SIGNED_DISPOSITIONS:
+        group = [i for i in record["items"] if i["disposition"] == label]
+        if not group:
+            continue
+        out += [f"**{label}**", ""]
+        out += [f"- {i['text']} *({i['provenance']})*" for i in group]
+        out += [""]
+    if record["also_checked"]:
+        out += ["**checked, and not among what Perry offered**", "",
+                record["also_checked"], ""]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def signoff_from_args(args, ctx, rung: str) -> tuple[dict | None, str]:
+    """Assemble the signature `done` was given, or `(None, "")` for no attempt.
+
+    **When an empty signature is refused, stated exactly.** The refusal fires
+    whenever the sign-off path was ENGAGED — any of the flags below was passed
+    — and produced nothing. A bare `done --rung V5` with no sign-off flags at
+    all is left alone and writes no signature rather than a blank one: rungs
+    are advisory this release by DESIGN-003 § 4 decision 4, and hardening the
+    rung itself is out of this row's scope. What is closed here is the hole
+    deliverable 7 names — a signature that reads as one and says nothing.
+    """
+    engaged = any([args.measured, args.restated, args.checked,
+                   args.not_looked_at, args.also, args.signer, args.signed_on])
+    if not engaged:
+        return None, ""
+    if rung != "V5":
+        raise Refused(
+            f"a sign-off belongs to V5 and this close is {rung}. V5 is the "
+            f"rung whose whole content is a name, a date and what was checked "
+            f"(`schema/state-schema.json § verification`); attaching one to "
+            f"{rung} would record a human gate that was never asked for.")
+    options = signoff_options(args.measured, args.restated)
+    checked = parse_item_selection(args.checked, len(options), "--checked")
+    unseen = parse_item_selection(args.not_looked_at, len(options),
+                                  "--not-looked-at")
+    on = (args.signed_on or "").strip() or f"{date.today():%Y-%m-%d}"
+    try:
+        date.fromisoformat(on)
+    except ValueError:
+        raise Refused(f"--signed-on takes YYYY-MM-DD; got {on!r}") from None
+    record = build_signoff(
+        options, checked, unseen, args.also,
+        resolve_signer(ctx["project_root"], args.signer), on)
+    return record, render_signoff(args.id, record)
+
+
+def cmd_signoff_offer(args, ctx) -> dict:
+    """Read-only. Build the one selection prompt a V5 close offers.
+
+    Separate from `done` because the numbering the human sees has to be the
+    numbering `done --checked` reads, and the only way to guarantee that is for
+    one function to mint both. It writes nothing: an offer is a question.
+
+    The payload carries the host-native shape (`options`, `multi_select`) and
+    the rendered numbered fallback together, because Perry runs on three hosts
+    and only one of them has a selection UI. `SKILL.md § User-prompt
+    convention` picks `AskUserQuestion` on Claude Code and `question` on
+    OpenCode; Codex prints `prompt` and reads free text back. **The record is
+    identical whichever produced it** — the host chooses the rendering, never
+    the content.
+    """
+    tid = args.id
+    if not tid:
+        raise Refused(
+            "perry-task signoff-offer <TASK-ID> --measured \"…\" "
+            "[--restated \"…\"] — the id is the prompt's header.")
+    if tid not in ctx["tasks_by_id"]:
+        raise Refused(f"{tid} is not a task in this project's record, so there "
+                      f"is nothing to sign off.")
+    options = signoff_options(args.measured, args.restated)
+    if not options:
+        raise Refused(
+            "nothing to offer. Pass what Perry measured during this task as "
+            "--measured (the objective-verification commands it ran, the scope "
+            "cross-check) and anything it is only restating as --restated. An "
+            "offer built from nothing is a prompt that teaches the reader to "
+            "press return.")
+    header = f"{tid} — V5 sign-off"
+    question = "Which of these did you check yourself?"
+    lines = [f"[{header}]", f"  {question}"]
+    lines += [f"  {o['n']}) {o['text']}  [{o['provenance']}]" for o in options]
+    lines += [
+        f"Reply with the numbers you checked yourself (e.g. `1,3`), `all`, or "
+        f"`none`.",
+        f"Anything you leave out is recorded as `{SIGNED_ON_REPORT}`; say "
+        f"`unseen: <n>` for an item",
+        f"you did not look at. Then add anything you checked that is not "
+        f"listed here.",
+    ]
+    return {
+        "id": tid,
+        "rung": "V5",
+        "header": header,
+        "question": question,
+        "multi_select": True,
+        "options": options,
+        "dispositions": list(SIGNED_DISPOSITIONS),
+        "default_disposition": SIGNED_ON_REPORT,
+        "prompt": "\n".join(lines),
+        "free_text": {
+            "flag": "--also",
+            "invitation": "Anything you checked that Perry did not offer?",
+        },
+    }
+
+
 def cmd_done(args, ctx) -> dict:
     tid = args.id
     if not args.evidence:
@@ -2328,9 +2725,18 @@ def cmd_done(args, ctx) -> dict:
         track = track_of(ctx["config"], values.get("track", "main"))
         rung = (track.get("default_rung")
                 or ctx["schema"]["work_modes"]["modes"][track["mode"]]["default_rung"])
+    signoff, signoff_block = signoff_from_args(args, ctx, rung)
     line = ctx["board"].remove_row(idx)
     jline = (f"- [{tid}] {prev or '—'} → done · closed · "
              f"evidence: `{args.evidence}` · verification: {rung}")
+    if signoff:
+        counts = signoff["counts"]
+        jline += (f" · signed off: {signoff['signed_by']} "
+                  f"{signoff['signed_on']} — "
+                  + ", ".join(f"{counts[label]} {label}"
+                              for label in SIGNED_DISPOSITIONS
+                              if counts[label])
+                  + (", plus free text" if signoff["also_checked"] else ""))
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
@@ -2349,8 +2755,10 @@ def cmd_done(args, ctx) -> dict:
              "role": values.get("role", ""),
              "actor": args.actor, "from": prev, "to": "done",
              "evidence": args.evidence, "rung": rung}
+    if signoff:
+        event["signoff"] = signoff
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
-                  jline, event, args.dry_run)
+                  jline, event, args.dry_run, signoff_block=signoff_block)
     # **A row that closed without ever being started is reported, not refused.**
     #
     # `DESIGN-004 § 1.3`'s second question is "what is being worked on right
@@ -2374,7 +2782,8 @@ def cmd_done(args, ctx) -> dict:
               f"is what makes `list` answer \"what is being worked on now\".",
               file=sys.stderr)
     return {"id": tid, "rung": rung, "removed": line,
-            "was_started": started, **plan}
+            "was_started": started, "signoff": signoff,
+            "signoff_block": signoff_block, **plan}
 
 
 def cmd_stage(args, ctx) -> dict:
@@ -4452,7 +4861,7 @@ def perry_conform():
 #: `list` is a published contract (`schema/task-list-contract.md`) and reading
 #: is never gated, so it is not merely excluded here — `tests/test_conformance`
 #: asserts it still answers on an undeclared project with the gate enforcing.
-READ_ONLY_COMMANDS = {"list", "events"}
+READ_ONLY_COMMANDS = {"list", "events", "signoff-offer"}
 TASK_ROW_COMMANDS = {"start", "stage", "done", "drop", "status", "depends",
                      "next", "retitle", "summary", "rung", "evidence",
                      "prioritize"}
@@ -4496,6 +4905,11 @@ def parse(argv: list[str]) -> Args:
     a.frequency = a.on = None
     a.needed = a.blocks = a.answer = a.opened = None
     a.deliverable = a.verification = a.depends = a.out_of_scope = a.kr = None
+    # The V5 sign-off. Four of these are LISTS: one offered item is one flag,
+    # so an item containing a comma is still one item. `--checked` accepts both
+    # spellings because the host without a selection UI hands back `1,3`.
+    a.measured, a.restated, a.checked, a.not_looked_at = [], [], [], []
+    a.also = a.signer = a.signed_on = None
     a.group = a.prefix = a.role = None
     a.limit = a.since = None
     a.dry_run = a.as_json = a.all = a.clear = False
@@ -4514,7 +4928,11 @@ def parse(argv: list[str]) -> Args:
              "--opened": "opened", "--deliverable": "deliverable",
              "--verification": "verification", "--depends": "depends",
              "--out-of-scope": "out_of_scope", "--kr": "kr",
-             "--group": "group", "--prefix": "prefix", "--role": "role"}
+             "--group": "group", "--prefix": "prefix", "--role": "role",
+             "--also": "also", "--signer": "signer",
+             "--signed-on": "signed_on"}
+    repeated = {"--measured": "measured", "--restated": "restated",
+                "--checked": "checked", "--not-looked-at": "not_looked_at"}
     while i < len(argv):
         t = argv[i]
         if t in ("-h", "--help"):
@@ -4528,6 +4946,9 @@ def parse(argv: list[str]) -> Args:
             a.all = True
         elif t == "--clear":
             a.clear = True
+        elif t in repeated:
+            i += 1
+            getattr(a, repeated[t]).append(argv[i] if i < len(argv) else "")
         elif t in flags:
             i += 1
             setattr(a, flags[t], argv[i] if i < len(argv) else None)
@@ -4698,7 +5119,8 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "depends": cmd_depends,
-            "list": cmd_list, "events": cmd_events}
+            "list": cmd_list, "events": cmd_events,
+            "signoff-offer": cmd_signoff_offer}
 
 
 def project_lock(state_root: Path, timeout: float = 10.0):
@@ -4872,6 +5294,11 @@ def main(argv: list[str]) -> int:
         if untitled:
             print(f"  ⚠ {len(untitled)} id(s) have no title in the record: "
                   f"{', '.join(untitled)}")
+    elif args.cmd == "signoff-offer":
+        # The numbered fallback, printed as-is. A host WITH a selection UI
+        # reads `--json` and renders `options`; this is what Codex shows and
+        # what a human reads at a terminal, and both produce the same record.
+        print(result["prompt"])
     else:
         verb = "would write" if args.dry_run else "wrote"
         # `commit()` reports a lost event honestly; this line used to say
