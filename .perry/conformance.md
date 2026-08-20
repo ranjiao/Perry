@@ -12,16 +12,19 @@
 
 | File | Shape version | Declared | Route |
 |---|---|---|---|
-| .perry/config.md | 2 | 2026-08-17 | declare |
-| .perry/hook.md | 2 | 2026-08-17 | declare |
-| BOARD.md | 2 | 2026-08-17 | declare |
-| DECISIONS.md | 2 | 2026-08-17 | declare |
-| OKR.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-001-resumable-pipelines.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-002-namespace-collision.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-003-work-modes.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-004-deterministic-writes.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-005-state-and-contracts.md | 2 | 2026-08-17 | declare |
-| design/DESIGN-006-roles-and-knowledge.md | 2 | 2026-08-17 | declare |
-| phase/001-linkage.md | 2 | 2026-08-17 | declare |
-| phase/001-work-modes-live.md | 2 | 2026-08-17 | declare |
+| .perry/config.md | 2 | 2026-08-20 | declare |
+| .perry/hook.md | 2 | 2026-08-20 | declare |
+| BOARD.md | 2 | 2026-08-20 | declare |
+| DECISIONS.md | 2 | 2026-08-20 | declare |
+| OKR.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-001-resumable-pipelines.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-002-namespace-collision.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-003-work-modes.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-004-deterministic-writes.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-005-state-and-contracts.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-006-roles-and-knowledge.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-007-the-entity-model.md | 2 | 2026-08-20 | declare |
+| knowledge/toolchain/pycache-staleness.md | 2 | 2026-08-20 | declare |
+| phase/001-linkage.md | 2 | 2026-08-20 | declare |
+| phase/001-work-modes-live.md | 2 | 2026-08-20 | declare |
+| phase/002-fields-are-typed.md | 2 | 2026-08-20 | declare |

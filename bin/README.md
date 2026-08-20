@@ -236,10 +236,45 @@ discovered in the field.
 | | What it costs | What removes the cost |
 |---|---|---|
 | **1 · migration does not always reach zero on a real board** | On a `~/proj/gimegime-pmo` copy, `perry-migrate` takes `BOARD.md` from 3 errors to **1**, and the residue is a row reading `Status: 半解`. That file stays refused until a human edits it and runs `perry-conform declare BOARD.md`. The refusal names both commands, so it is a door that needs a hand — not a wall. | A path for the residue that is not a hand edit. The three classes seen were: a `Status` cell in the user's own words, a tier-1 file over its size cap, and a KR table whose columns are the project's. **Not** widening the enums — `半解` is a real distinction the user drew, and coercing it to `in_progress` is the confidently-wrong-value class. |
-| **2 · a brand-new project asks for one declaration before its first write** | A project with **zero** lint errors is still `undeclared`, and undeclared is refused. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*), so the first `perry-task add` on a project Perry itself just wrote asks the user for one command. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. That is a better first run than a refusal, but it is a convenience, not a road: the road already exists and the refusal names it. |
+| **2 · every new file is born undeclared, in a new project and an old one alike** | A file with **zero** lint errors is still `undeclared`, and undeclared is refused. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*), so the first `perry-task add` on a project Perry itself just wrote asks the user for one command. **This is not confined to first runs** — see the measurement below. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. That is a better first run than a refusal, but it is a convenience, not a road: the road already exists and the refusal names it. |
 
 Both are checked by `tests/test_conformance.py § TestTheGateEnforces`, so the day
 either becomes false a test says so rather than the paragraph going stale.
+
+**Cost 2 was first written at the wrong scope, and the correction is the part
+worth keeping.** It read *a brand-new project asks for one declaration*, which
+is true and too narrow: the same thing happens to **every file Perry creates
+after the last declaration, in a project that has been declared for weeks**.
+Measured 2026-08-20 on a declared scratch project with the gate enforcing:
+
+```
+perry-decide bootstrap        →  wrote ['decisions/', 'DECISIONS.md']
+perry-conform status          →  · DECISIONS.md   undeclared
+perry-decide new <slug> …     →  refused — DECISIONS.md already matches Perry's
+                                 shape at version 2, but no one has declared it
+```
+
+Two facts hold that together, and only both make it survivable:
+
+- **Creation is not gated.** The file is written. A gate that refused creation
+  would leave a project unable to open a phase, a decision or a knowledge card
+  at all, which is not a door needing a hand — it is the wall this checklist
+  exists to avoid.
+- **The next write to it is.** The refusal names `perry-conform declare` with
+  the exact path, so the road is one command, exactly as in row 1.
+
+Concretely, in Perry's own repository on the day of the flip: `phase/002`,
+`DESIGN-007` and one knowledge card were undeclared, because the last
+declaration ran 2026-08-17 and all three were created on the 18th and 19th. None
+of them was malformed. They were simply younger than the last time a human said
+*yes, this is Perry's shape*.
+
+This is a **consequence of the design, not a gap in it.** A writer that declared
+its own output would be certifying its own work, which is the thing ADR-004's
+*adoption proposes; the user declares* exists to prevent. Naming the real scope
+does not argue for changing it — it argues that "one declaration at setup" is
+the wrong mental model, and "a declaration each time the shape of your state
+grows" is the right one.
 
 **Going back is per project, not per release.** A project that wants the old
 behaviour sets `- Conformance gate: advisory` in `.perry/config.md`; a single
