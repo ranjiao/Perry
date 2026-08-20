@@ -43,6 +43,7 @@
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-148-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-149 | a markdown heading that names an id silently becomes that id definition | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-149-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
