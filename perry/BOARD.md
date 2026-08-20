@@ -65,12 +65,10 @@
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
 | TASK-146 | the viewer renders a KR current with no provenance because it does not go through the shared derivation | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-146-spec.md | V3 | — | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
-| TASK-150 | test_md_store asserts more than twenty KRs in the live OKR | Coding Agent | in_progress | dispatched to claude-subagent as one branch covering all three; worktree pinned to 6ffe809 | evidence/2026-08/TASK-150-spec.md | V3 | — | intake | triaged | 2026-08-21 |
-| TASK-151 | test_task_writer asserts more than five rows on the live board | Coding Agent | in_progress | dispatched to claude-subagent as one branch covering all three; worktree pinned to 6ffe809 | evidence/2026-08/TASK-150-spec.md | V3 | — | intake | triaged | 2026-08-21 |
-| TASK-152 | test_prioritize builds its context from the live task records, and its fragile half is invisible | Coding Agent | in_progress | dispatched to claude-subagent as one branch covering all three; worktree pinned to 6ffe809 | evidence/2026-08/TASK-150-spec.md | V3 | — | intake | triaged | 2026-08-21 |
 | TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
+| TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
