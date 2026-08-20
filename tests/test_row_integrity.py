@@ -627,8 +627,6 @@ class TestRaggedRowPointsAtTheRow(unittest.TestCase):
         self.assertIn("tables_with_lines", called)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 # ── the count TASK-094 is measured by ─────────────────────────────────────
@@ -840,3 +838,7 @@ class TestNoRowIsSplitForAStore(unittest.TestCase):
         store = load("perry_store", PERRY_HOME / "bin" / "perry_store.py")
         self.assertEqual(set(P._TERMINAL_STATUSES),
                          set(store.TERMINAL_STATUSES))
+
+
+if __name__ == "__main__":
+    unittest.main()
