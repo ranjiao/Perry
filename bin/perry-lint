@@ -19,6 +19,13 @@ exists, a rendered file whose fields disagree with what the store would produce
 `warn`, on the `NS-01` precedent, and SILENT when there is no store, because
 "no store" and "clean" are different answers.
 
+On an adopted project the default pass also emits `NS-01` (DESIGN-002 decision
+4) when a directory Perry claims holds files Perry did not write — the same
+computation `--claims` performs, so the two can never disagree. It is `warn`,
+and it is the one warning `--strict` does not promote: DESIGN-002 § 9 says a
+collision never sets a non-zero exit, and with no per-path opt-out there would
+otherwise be no way to accept one.
+
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
                 schema is what silently breaks the viewer and the standup.
@@ -2470,15 +2477,26 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
 
     A directory already holding genuine Perry state is a RE-ADOPTION, not a
     collision. Only a parse can tell the two apart, so this reuses the same
-    heading check the default mode runs rather than a second heuristic."""
+    heading check the default mode runs rather than a second heuristic.
+
+    **Two callers, one computation.** `--claims` renders these rows, and the
+    default pass turns the `collision` ones into `NS-01`. DESIGN-002 exists to
+    close a defect that was two lists disagreeing; shipping a second collision
+    check next to this one would reintroduce it one level down. So each row also
+    carries `rel` (the claimed path as the project sees it) and `foreign` (the
+    offending files, which `NS-01` cites as evidence) — machine fields that
+    `--claims` projects away, since its payload is a contract with the setup and
+    adopt flows.
+    """
     claims = schema.get("claims") or []
     rows, collisions = [], 0
     for c in claims:
         base = project_root if c["anchor"] == "project" else state_root
         target = base / c["path"].rstrip("/")
+        rel = _rel(target, project_root)
         if not target.exists():
             rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": None})
+                         "detail": None, "rel": rel, "foreign": []})
             continue
         # Perry-shaped? Anything we would have written is not a collision.
         if c["kind"] == "dir":
@@ -2488,16 +2506,75 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
         foreign = [f for f in present if not looks_like_perry_state(f, schema, c)]
         if not present:
             rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": "exists but empty"})
+                         "detail": "exists but empty", "rel": rel, "foreign": []})
         elif foreign:
             collisions += 1
             rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
                          "detail": f"{len(foreign)} file(s) Perry did not write, "
-                                   f"e.g. {foreign[0].relative_to(project_root)}"})
+                                   f"e.g. {foreign[0].relative_to(project_root)}",
+                         "rel": rel,
+                         "foreign": [_rel(f, project_root) for f in foreign]})
         else:
             rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
-                         "detail": f"{len(present)} existing Perry file(s)"})
+                         "detail": f"{len(present)} existing Perry file(s)",
+                         "rel": rel, "foreign": []})
     return rows, {"claimed": len(claims), "collisions": collisions}
+
+
+# The keys `--claims` has always published, in the order it published them.
+# `check_claims` rows carry two more for the default pass's `NS-01` evidence;
+# they are projected out at the `--json` boundary so `--claims` stays
+# byte-identical (TASK-086 deliverable 5). Named here rather than spelled inline
+# so the projection is a declaration a reader can check, not a literal to skim.
+CLAIM_ROW_KEYS = ("path", "state", "owner", "detail")
+
+
+def check_ns_collisions(project_root: Path, state_root: Path,
+                        schema: dict) -> list["Finding"]:
+    """`NS-01` — a path Perry claims now holds files Perry did not write.
+
+    DESIGN-002 decision #4, locked 2026-08-16: *lint warns, and names it a
+    collision*. The state root is chosen once, at setup; this is the **after**.
+    A project adopted at `.` that later grows its own `design/proposal.md` used
+    to get that file reported as MALFORMED PERRY STATE — the user's own document
+    called broken, which is exactly what `State root:` exists to prevent,
+    arriving by a route it does not reach. Reporting it as a collision instead
+    is the whole of the fix; nothing here moves a file or changes a verdict on
+    one.
+
+    **`warn`, never `error`.** Decision #2 was taken strictly — there is no
+    per-path opt-out — so a user may knowingly keep one file in a claimed folder
+    and has no way to silence this. A permanent red for a deliberate choice is
+    how a check trains its user to skip it. See `main()` for the matching
+    `--strict` carve-out, which is the same commitment at the exit code.
+
+    **Gated on adoption, unlike `--claims`.** `--claims` answers *where should
+    the state root go* and must run before adoption; this answers *what has
+    encroached on the one I already have*, which is not a question a folder Perry
+    has never touched can be asked. `main()` calls it inside the `adopted`
+    branch for that reason.
+    """
+    rows, _ = check_claims(project_root, schema, state_root)
+    findings: list[Finding] = []
+    for r in rows:
+        if r["state"] != "collision":
+            continue
+        # Evidence is capped the way `bin/perry-diagnose` caps it: a directory
+        # someone else owns can hold hundreds of files, and a finding that
+        # prints all of them is a finding nobody reads.
+        shown = r["foreign"][:10]
+        more = len(r["foreign"]) - len(shown)
+        evidence = ", ".join(shown) + (f", +{more} more" if more else "")
+        findings.append(Finding(
+            "warn", r["rel"], "NS-01",
+            f"`{r['path']}` holds {len(r['foreign'])} file(s) Perry did not "
+            f"write. Perry will read them as its own state and report them as "
+            f"broken, and the next lint run will say your file is malformed. It "
+            f"is not — it is in a folder Perry claimed. Either move Perry's "
+            f"state to its own root — `/perry relocate perry` — or move these "
+            f"files out of `{r['path']}`. Both are reversible; the first is one "
+            f"command. Evidence: {evidence}"))
+    return findings
 
 
 def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
@@ -2625,7 +2702,7 @@ def main(argv: list[str]) -> int:
                 "claimed": summary["claimed"],
                 "collisions": summary["collisions"],
                 "suggested_state_root": suggested,
-                "paths": rows,
+                "paths": [{k: r[k] for k in CLAIM_ROW_KEYS} for r in rows],
             }, ensure_ascii=False, indent=2))
         elif not quiet:
             render_claims(project_root, state_root, rows, summary, suggested)
@@ -2860,6 +2937,11 @@ def main(argv: list[str]) -> int:
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
+            # DESIGN-002 decision #4: the collision the state root cannot cover
+            # is the one that appears AFTER setup, so the check has to run on
+            # every ordinary lint rather than only behind `--claims`. Same
+            # computation as `--claims`, not a second one.
+            findings.extend(check_ns_collisions(project_root, root, schema))
             # Costs nothing on a project with no store — it returns before
             # deriving anything — and that is every project today, which is
             # why it runs in the default pass rather than behind a flag.
@@ -2929,7 +3011,24 @@ def main(argv: list[str]) -> int:
 
     if errors:
         return 1
-    return 1 if (strict and warns) else 0
+    # **`NS-01` is the one warning `--strict` does not promote.** DESIGN-002 § 9,
+    # appended at lock on 2026-08-16: *"A collision never sets a non-zero exit."*
+    # That sentence was written about `--claims`, and the same argument reaches
+    # here unchanged, because it is an argument about the finding and not about
+    # the mode: decision #2 was taken strictly, so there is no per-path opt-out,
+    # and a user who has deliberately chosen to keep one file in a claimed folder
+    # would otherwise have permanently red CI with no way to accept it. That is
+    # the outcome DESIGN-002 rejects by name, in the same breath that it keeps
+    # `NS-01` at `warn` — a severity that cannot be escaped by a flag is not
+    # really `warn`.
+    #
+    # It does narrow what `--strict` means, from "every warning fails" to "every
+    # warning except this one", so it is stated here rather than left to be
+    # inferred, and `tests/test_ns_collision.py` pins BOTH directions: `NS-01`
+    # alone exits 0 under `--strict`, and any other warning alongside it still
+    # exits 1. The carve-out is one rule wide and stays that way.
+    promotable = [f for f in warns if f.rule != "NS-01"]
+    return 1 if (strict and promotable) else 0
 
 
 if __name__ == "__main__":

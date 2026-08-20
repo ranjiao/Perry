@@ -85,6 +85,21 @@ read-only; `apply` and `restore` are the only writers.
   · a file over its size cap: splitting it is a content decision
   · a required section whose *content* the schema constrains
 
+── A file whose mode says read-only ───────────────────────────────────────
+
+Migration replaces it, and now says so. `write_atomic` stages a temp file and
+calls `os.replace`, and a rename needs write permission on the *directory*,
+not on the target — so a file its author `chmod -w`'d was migrated like any
+other and nothing in the plan mentioned the bit. It is named in the per-file
+list in both modes, with the mode it was found in, because `TASK-044-spec`
+asks that list for "every file it touched, with what changed in each" and a
+permission the run crossed belongs to that answer.
+
+That is a report, not a decision. Whether migration should refuse such a file
+instead is `USER-004` and is open; nothing here answers it, and the behaviour
+is unchanged — the file is migrated, its mode is left as found, and the
+restore point carries its original bytes.
+
 ── Dirty tree or restore point ────────────────────────────────────────────
 
 TASK-044 § 3 asks for one of the two, and says why the choice needs stating.
@@ -236,6 +251,30 @@ def field_spelling(schema: dict, name: str, lang: str) -> str:
 
 # ── the change record ─────────────────────────────────────────────────────
 
+#: Why a cleared owner-write bit does not stop a migration. One sentence, one
+#: definition, used by both the rendered plan and the `--json` one, so the two
+#: cannot say different things about the same observation.
+READ_ONLY_MECHANISM = (
+    "the write is a rename over this path, and a rename needs write permission "
+    "on the directory, not on the file. The mode itself is left as found.")
+
+
+def owner_read_only(path: Path) -> int | None:
+    """The file's permission bits when they deny its **owner** write, else None.
+
+    Deliberately the owner bit and not `os.access(path, os.W_OK)`: what this
+    reports is the signal a `chmod -w` leaves, which is a property of the file
+    the project's author set. Effective writability is a different question —
+    it varies by uid and by mount, and root passes it on a 0444 file — and
+    answering it here would report something other than what was observed."""
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError:
+        # Planning never fails on account of the report. A file whose mode
+        # cannot be read is one this run has nothing to say about.
+        return None
+    return None if mode & stat.S_IWUSR else mode
+
 
 @dataclass
 class Change:
@@ -268,6 +307,14 @@ class Edit:
     violations: list[str] = field(default_factory=list)
     minted: list[str] = field(default_factory=list)
     existed: bool = True
+    #: The file's permission bits as planning found them, when those bits deny
+    #: its **owner** write — `None` otherwise. Observed, never acted on:
+    #: `write_atomic` stages a temp file and renames over the target, and a
+    #: rename needs write permission on the *directory*, not on the file, so
+    #: the bit never stopped a migration and nothing in the plan said it was
+    #: there. Whether it *should* stop one is USER-004 and is not decided by
+    #: recording it here.
+    read_only_mode: int | None = None
 
     @property
     def touched(self) -> bool:
@@ -291,8 +338,27 @@ class Edit:
         as its author left it or conformant — never in between."""
         return self.touched and not self.residual and not self.violations
 
+    @property
+    def overrode_read_only(self) -> bool:
+        """The file denies its owner write, and this plan replaces it anyway.
+
+        The two halves have to be asked together. A read-only file the plan
+        leaves byte-identical overrides nothing, and reporting it would name a
+        permission no write ever crossed."""
+        return self.read_only_mode is not None and self.writable
+
+    def read_only_note(self, applied: bool) -> str:
+        """What was observed about the mode. Not what to do about it.
+
+        The refuse-versus-report question is USER-004, and this sentence has to
+        read the same whichever way that lands — so it says what the run did
+        and why the bit did not stop it, and stops there."""
+        return (f"read-only for its owner (mode {self.read_only_mode:04o}) — "
+                f"{'replaced' if applied else 'would be replaced'} anyway: "
+                f"{READ_ONLY_MECHANISM}")
+
     def as_dict(self) -> dict:
-        return {
+        record = {
             "path": self.key,
             "before_sha256": sha(self.image_before),
             "after_sha256": sha(self.image_after),
@@ -304,6 +370,15 @@ class Edit:
             "minted_ids": self.minted,
             "writable": self.writable,
         }
+        # Added only when there is something to say. A `"read_only": false` on
+        # every ordinary file would be new noise on the path where nothing was
+        # observed, and this task's whole content is what was observed.
+        if self.overrode_read_only:
+            record["read_only_override"] = {
+                "mode": f"{self.read_only_mode:04o}",
+                "observed": f"read-only for its owner; {READ_ONLY_MECHANISM}",
+            }
+        return record
 
 
 def sha(value: str | bytes) -> str:
@@ -1534,6 +1609,10 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
         edit.path = path
         edit.key_rel = path.relative_to(project_root).as_posix()
         edit.before_bytes = image
+        # Observed here rather than at the write path: the dry run and `apply`
+        # then report the same mode from the same read, which is § 1 — one
+        # computation, not two.
+        edit.read_only_mode = owner_read_only(path)
         edit.after_bytes = encode_image(edit.after, newline)
         if edit.touched or edit.residual:
             plan.edits.append(edit)
@@ -1608,7 +1687,8 @@ def _plan_task_store(plan: Plan) -> None:
         key_rel=store_path.relative_to(plan.project_root).as_posix(),
         changes=[Change("synchronize task store",
                         "derive tasks.jsonl from the migrated BOARD.md")],
-        existed=store_path.exists()))
+        existed=store_path.exists(),
+        read_only_mode=owner_read_only(store_path)))
 
 
 # ── applying ──────────────────────────────────────────────────────────────
@@ -1966,6 +2046,12 @@ def render(plan: Plan, applied: dict | None, root_arg: str | None) -> None:
         mark = "✓" if e.writable else "·"
         print(f"   {mark} {e.key}  ({e.before_errors} error(s) → "
               f"{len(e.residual)})")
+        if e.overrode_read_only:
+            # In the per-file list, because TASK-044-spec asks that list for
+            # "every file it touched, with what changed in each", and a
+            # permission this run crossed belongs to that answer. Marked `!`
+            # rather than `+`: nothing here was edited into the file.
+            print(f"       ! {e.read_only_note(applied=bool(applied))}")
         for c in e.changes:
             print(f"       + {c.kind}: {c.detail}")
         body = diff(e)

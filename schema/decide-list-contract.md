@@ -15,7 +15,10 @@ gained a field.
 "$PERRY_HOME/bin/perry-decide" list --json --root /path/to/project
 ```
 
-`--status active|superseded|expired|archived` restricts the set. Read-only.
+`--status proposed|active|superseded|expired|archived` restricts the set.
+Read-only. Those five values are **not** defined here: they are
+`schema/state-schema.json § enums.decision_status`, which `bin/perry-decide`
+reads, and which `tests/test_decide_status_enum.py` holds this page to.
 
 ## What it fixed
 
@@ -46,7 +49,7 @@ listable at all.**
 | `id` | string | `ADR-NNN`, zero-padded to three |
 | `title` | string | the `# ` heading with the id prefix stripped |
 | `type` | string | free text — `Process`, `Architecture`, `Operations`, `Risk`, `Cost`, `Design`, `Tooling`, or whatever the project uses. **Not an enum.** |
-| `status` | string | `active` \| `superseded` \| `expired` \| `archived`, or whatever the file says — see `conformance.off_enum_status` |
+| `status` | string | `proposed` \| `active` \| `superseded` \| `expired` \| `archived`, or whatever the file says — see `conformance.off_enum_status` |
 | `date` | string | `YYYY-MM-DD` |
 | `deciders` | string | free text; `""` when the file predates the field |
 | `supersedes` | string | an `ADR-NNN`, or `""` |
@@ -62,7 +65,7 @@ listable at all.**
 | `index_present` | bool | `false` on a project that never ran `perry-decide bootstrap` |
 | `indexed_without_file` | array | ids the index lists with no file behind them |
 | `filed_without_index_row` | array | ADR files the index never mentions |
-| `off_enum_status` | array | `{id, status}` for a status outside the four |
+| `off_enum_status` | array | `{id, status}` for a status the enum does not declare |
 | `missing_type` | array | ids with no `Type:` |
 
 `indexed_without_file` and `filed_without_index_row` are **both legitimate** and
@@ -96,6 +99,20 @@ A reader that only accepted the template would report a project's own history as
 malformed. Writing goes the other way: `new` refuses without `--title` and
 `--type`, refuses a `--supersedes` that names no existing ADR, and `status`
 refuses `superseded` by name because that transition must say what replaced it.
+
+`status` also refuses any value outside `enums.decision_status` — that is the
+strict half. The tolerant half is that a `DECISIONS.md` **already** carrying an
+off-enum value is still read, listed and counted; the value is reported through
+`conformance.off_enum_status` rather than refused, corrected or hidden.
+
+## Adding a status is not a break
+
+`enums.decision_status` gaining a value does **not** move this contract off
+`perry-decide/list/1.0`. No payload key changes, no key's type changes, and a
+consumer that reads `status` as a string keeps working — it simply may now see
+a string it has not seen before, which the `off_enum_status` field already told
+it to expect. Renaming or removing a key, or narrowing a documented field,
+would be the break. `proposed` was added this way.
 
 ## What this lane does not write
 

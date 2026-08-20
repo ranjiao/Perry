@@ -23,12 +23,15 @@ write already disagree: the template says `Sunset criteria`, real files say
 order differs. A reader that only accepts the template would report a project's
 own history as malformed, which is the opposite of useful. Writing stays strict.
 
+The set it is strict about is `schema/state-schema.json § enums.decision_status`
+and not a literal in this file — see `statuses()`.
+
 Usage:
   perry-decide bootstrap                      create DECISIONS.md + decisions/
   perry-decide new <slug> --title "…" --type <T>
                   [--sunset "…"] [--supersedes ADR-NNN] [--deciders "…"]
   perry-decide supersede <OLD> <NEW>          flip OLD, point it at NEW
-  perry-decide status <ADR> --status active|superseded|expired|archived
+  perry-decide status <ADR> --status <s>      any `enums.decision_status`
   perry-decide list [--json] [--status <s>]
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
@@ -76,7 +79,6 @@ class Refused(Exception):
 # for a change in a domain it does not read.
 LIST_CONTRACT = "perry-decide/list/1.0"
 
-STATUSES = ("active", "superseded", "expired", "archived")
 ADR_RE = re.compile(r"\bADR-(\d+)\b")
 
 #: `list` only reads, and reading is never gated (ADR-004). Everything else
@@ -111,6 +113,38 @@ def perry_conform():
 
 def load_schema() -> dict:
     return lib.load_schema(Refused)
+
+
+_STATUSES = None
+
+
+def statuses() -> tuple[str, ...]:
+    """The decision statuses — `schema/state-schema.json § enums`, not a tuple.
+
+    **This used to be a literal here, and that was the bug.** The same four
+    values were spelled out in three independent places — this module, the
+    `perry-decide/list` contract, and `decide/reference/decisions.md` — with
+    nothing binding them to each other, while every sibling status in Perry
+    (`task_status`, `design_status`, `phase_status`, `prescription_status`, …)
+    was declared in the schema and read from it. Three spellings of one list is
+    how a value gets added to two of them, which is a divergence rather than a
+    typo: the writer and the document that describes the writer disagree, and
+    only one of them refuses.
+
+    Read once and cached. The schema does not change under a running command,
+    and `render_index` asks for this per write.
+    """
+    global _STATUSES
+    if _STATUSES is None:
+        values = (load_schema().get("enums") or {}).get("decision_status")
+        if not values:
+            raise Refused(
+                f"{SCHEMA_PATH} § enums has no `decision_status`. That list is "
+                f"the one binding for the statuses this lane writes; a writer "
+                f"that fell back to its own copy would be the divergence this "
+                f"enum exists to remove")
+        _STATUSES = tuple(values)
+    return _STATUSES
 
 
 # ── reading ───────────────────────────────────────────────────────────────
@@ -179,7 +213,10 @@ def read_adrs(state_root: Path) -> list[dict]:
             "id": f"ADR-{int(m.group(1)):03d}" if m else p.stem,
             "title": title,
             "type": h.get("type", ""),
-            "status": status if status in STATUSES else status,
+            # Reported as the file spells it, in or out of the enum — reading
+            # is tolerant and `conformance.off_enum_status` is where an
+            # unknown value is named rather than corrected.
+            "status": status,
             "date": h.get("date", ""),
             "deciders": h.get("deciders", ""),
             "supersedes": h.get("supersedes", "").strip("—- ") or "",
@@ -223,8 +260,17 @@ def render_index(state_root: Path, project: str) -> str:
     """
     adrs = read_adrs(state_root)
     active = [a for a in adrs if a["status"] == "active"]
-    hist = [a for a in adrs if a["status"] != "active"]
-    counts = {s: sum(1 for a in adrs if a["status"] == s) for s in STATUSES}
+    # A proposal is neither in force nor historical, and the second table's
+    # heading says "historical" — so it gets its own section rather than a
+    # false label. Rendered only when the project has one: a project that
+    # never writes a `proposed` ADR renders exactly the file it rendered
+    # before, which is the "available, not mandatory" half of this value.
+    proposed = [a for a in adrs if a["status"] == "proposed"]
+    # By exclusion rather than by naming the remaining statuses: this is the
+    # catch-all table, so a status the schema gains and this file has never
+    # heard of lands here and stays visible.
+    hist = [a for a in adrs if a not in active and a not in proposed]
+    counts = {s: sum(1 for a in adrs if a["status"] == s) for s in statuses()}
 
     def link(a):
         return f"[{a['id']}]({a['path']})"
@@ -234,8 +280,11 @@ def render_index(state_root: Path, project: str) -> str:
            "> Those files are the record; this file is a view of them. Edit an "
            "ADR, then re-run `perry-decide list` to refresh — do not hand-edit "
            "rows here, they are overwritten.",
-           f"> Active: {counts['active']} · Superseded: {counts['superseded']} "
-           f"· Expired: {counts['expired']} · Archived: {counts['archived']}",
+           # One field per declared status, in the schema's order. Named after
+           # the enum rather than typed out, so a status added there appears
+           # here with no edit — the same reason `counts` is built from it.
+           "> " + " · ".join(f"{s.capitalize()}: {counts[s]}"
+                             for s in statuses()),
            f"> Last updated: {date.today():%Y-%m-%d}", "",
            "## Active", "",
            "| ADR | Title | Type | Date | Sunset / Notes |",
@@ -250,6 +299,12 @@ def render_index(state_root: Path, project: str) -> str:
                             a['sunset'] or '—']) for a in active]
     else:
         out.append("| (none yet) | | | | |")
+    if proposed:
+        out += ["", "## Proposed (awaiting the user)", "",
+                "| ADR | Title | Type | Date | Sunset / Notes |",
+                "|---|---|---|---|---|"]
+        out += [render_row([link(a), a['title'], a['type'], a['date'],
+                            a['sunset'] or '—']) for a in proposed]
     out += ["", "## Superseded / Expired / Archived (historical)", "",
             "| ADR | Title | Status | Status date | Replaced by |",
             "|---|---|---|---|---|"]
@@ -415,10 +470,11 @@ def cmd_supersede(args, ctx) -> dict:
 
 
 def cmd_status(args, ctx) -> dict:
+    allowed = statuses()
     if not args.status:
-        raise Refused(f"--status is required, one of {list(STATUSES)}")
-    if args.status not in STATUSES:
-        raise Refused(f"status {args.status!r} is not one of {list(STATUSES)}")
+        raise Refused(f"--status is required, one of {list(allowed)}")
+    if args.status not in allowed:
+        raise Refused(f"status {args.status!r} is not one of {list(allowed)}")
     if args.status == "superseded":
         raise Refused(
             "use `perry-decide supersede <OLD> <NEW>` — a superseded decision "
@@ -451,7 +507,7 @@ def cmd_list(args, ctx) -> dict:
         "indexed_without_file": sorted(indexed - filed),
         "filed_without_index_row": sorted(filed - indexed),
         "off_enum_status": [{"id": a["id"], "status": a["status"]}
-                            for a in adrs if a["status"] not in STATUSES],
+                            for a in adrs if a["status"] not in statuses()],
         "missing_type": [a["id"] for a in adrs if not a["type"]],
     }
     expired = [{"id": a["id"], "title": a["title"], "sunset": a["sunset"]}

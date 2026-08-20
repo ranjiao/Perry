@@ -654,7 +654,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         self.assertEqual(
             (str(item.page.relative_to(PERRY_HOME)), item.line, item.section,
              item.target),
-            ("decide/reference/decisions.md", 286,
+            ("decide/reference/decisions.md", 313,
              "## Migration: old monolithic `DECISIONS.md`",
              "an ADR's typed header"),
             "the signed-off set is the suppressions scan actually performed")
