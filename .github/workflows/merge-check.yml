@@ -51,19 +51,29 @@ jobs:
           echo "ref=${{ github.event.pull_request.base.ref || github.ref_name }}" \
             >> "$GITHUB_OUTPUT"
 
-      # The base branch itself, not a merge ref — tests/merge-check does its
-      # own merging so it can vary which candidates are in the tree.
+      # The DEFAULT ref, deliberately — which on a pull_request is that PR's
+      # merge result. Two reasons. It is the only tree guaranteed to contain
+      # tests/merge-check (checking out the base cannot run a checker the base
+      # does not have yet, which is how this workflow failed on the very PR
+      # that added it). And it matches what GitHub already does with the
+      # workflow file itself on a pull_request event, so the script and the
+      # yaml driving it come from the same place.
+      #
+      # This checkout is only the source of the SCRIPT. Every tree the suite
+      # actually runs on is built by tests/merge-check in its own clone, from
+      # the base sha and the PR heads fetched below.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.base.outputs.ref }}
           fetch-depth: 0
 
-      # One authenticated fetch of every PR head. tests/merge-check clones this
-      # checkout with --shared, so it reaches these commits by sha without
-      # needing credentials of its own.
-      - name: Fetch every pull request head
+      # One authenticated fetch of every PR head and of the base branch.
+      # tests/merge-check clones this checkout with --shared, so it reaches
+      # these commits without credentials of its own.
+      - name: Fetch every pull request head and the base branch
         run: |
-          git fetch --no-tags --force origin '+refs/pull/*/head:refs/remotes/pull/*'
+          git fetch --no-tags --force origin \
+            '+refs/pull/*/head:refs/remotes/pull/*' \
+            "+refs/heads/${{ steps.base.outputs.ref }}:refs/remotes/origin/${{ steps.base.outputs.ref }}"
 
       - uses: actions/setup-python@v5
         with:

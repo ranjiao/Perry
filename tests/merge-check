@@ -215,12 +215,30 @@ class Scratch:
         return sh(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
                   cwd=self.dir, check=False).returncode == 0
 
-    def try_fetch(self, source, refspec, number):
-        """Best-effort fetch of one PR head. Returns the sha or None."""
-        local = f"refs/merge-check/pr/{number}"
+    def try_fetch(self, source, refspec, local):
+        """Best-effort fetch of one ref. Returns the sha or None."""
         p = sh(["git", "fetch", "--quiet", "--no-tags", source,
                 f"+{refspec}:{local}"], cwd=self.dir, check=False)
         return self.resolve(local) if p.returncode == 0 else None
+
+    def find(self, ref, sources, local):
+        """Resolve `ref` in the clone, else fetch it from `sources` in order.
+
+        `git clone` maps the source's refs/heads/* and nothing else, so a base
+        branch the caller only holds as a remote-tracking ref, or a PR head it
+        holds under refs/remotes/pull/*, is reachable by sha but has no name
+        here. Both spellings are tried before the network is."""
+        for spelling in (ref, f"origin/{ref}"):
+            sha = self.resolve(spelling)
+            if sha:
+                return sha
+        for source, refspec in sources:
+            if not source:
+                continue
+            sha = self.try_fetch(source, refspec, local)
+            if sha:
+                return sha
+        return None
 
     def resolve(self, ref):
         p = sh(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
@@ -352,7 +370,11 @@ def main() -> int:
              check=False).stdout.strip()
 
     with Scratch(repo, args.work_dir, args.keep) as scr:
-        base_sha = scr.resolve(base_ref) or scr.resolve(f"origin/{base_ref}")
+        base_sha = scr.find(base_ref, [
+            (str(repo), f"refs/remotes/origin/{base_ref}"),
+            (str(repo), f"refs/heads/{base_ref}"),
+            (url, f"refs/heads/{base_ref}"),
+        ], "refs/merge-check/base")
         if not base_sha:
             print(f"cannot resolve base {base_ref!r}", file=sys.stderr)
             return 2
@@ -365,16 +387,13 @@ def main() -> int:
         for c in cands:
             sha = c.sha if c.sha and scr.have(c.sha) else None
             if not sha:
-                sha = scr.resolve(c.ref) or scr.resolve(f"origin/{c.ref}")
-            if not sha and c.pr:
-                for source, refspec in ((str(repo), f"refs/remotes/pull/{c.pr}"),
-                                        (str(repo), f"refs/pull/{c.pr}/head"),
-                                        (url, f"refs/pull/{c.pr}/head")):
-                    if not source:
-                        continue
-                    sha = scr.try_fetch(source, refspec, c.pr)
-                    if sha:
-                        break
+                sources = []
+                if c.pr:
+                    sources = [(str(repo), f"refs/remotes/pull/{c.pr}"),
+                               (str(repo), f"refs/pull/{c.pr}/head"),
+                               (url, f"refs/pull/{c.pr}/head")]
+                sha = scr.find(c.ref, sources,
+                               f"refs/merge-check/cand/{len(cands)}-{c.name}")
             if not sha:
                 print(f"cannot resolve candidate {c.name} ({c.ref}) — if it is "
                       f"a PR, fetch refs/pull/*/head first", file=sys.stderr)
