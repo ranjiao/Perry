@@ -49,6 +49,7 @@
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-140 | every mode contract slot is assigned to an axis, and the spine-to-unit map is written down | Coding Agent | not_started | CLEARED by the user 2026-08-20 for the `design/` escalation hit; ready to dispatch, spec at evidence/2026-08/TASK-140-spec.md | evidence/2026-08/TASK-140-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | design question answered 2026-08-20: it belongs in conformance, which triage already reads at step 0.5 — not as a new triage feature | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 
 ## P2
 
