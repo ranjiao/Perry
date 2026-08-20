@@ -1,5 +1,10 @@
 name: tests
 
+# This job already tests the MERGE RESULT: `actions/checkout` resolves
+# `refs/pull/N/merge` on a `pull_request` event, not the branch head. What it
+# cannot see is a base that moves after the run, or a second PR open at the
+# same time — that is `merge-check.yml`, which explains both in full.
+
 on:
   push:
     branches: [main]

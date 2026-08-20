@@ -53,6 +53,7 @@ the live project state is rooted at `perry/` through `.perry/config.md`.
   convenience.
 - Follow `work/reference/git-boundaries.md` for commit, push, PR, and merge
   authority. Never merge your own implementation.
+- Green on your own base is not green merged — `tests/merge-check --help`.
 
 Keep this file under roughly 60 lines. It is the always-loaded startup protocol,
 not a second copy of `SKILL.md`, the dashboard, or the architecture record.
