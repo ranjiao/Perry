@@ -34,7 +34,6 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — |  | TASK-090, TASK-092 |
-| TASK-105 | perry-explain resolves TASK ids from the typed Task store | Coding Agent | in_progress | Implement typed Task lookup and focused behavioral tests from TASK-105-spec.md. | evidence/2026-08/TASK-105-spec.md | V3 | — |
 | TASK-106 | Task summary is optional, explicit and preserved end to end | Coding Agent | not_started | After TASK-044 and TASK-105 land, implement perry/evidence/2026-08/TASK-106-spec.md. | evidence/2026-08/TASK-106-spec.md | V4 | TASK-105, TASK-044 |
 
 ## P2
