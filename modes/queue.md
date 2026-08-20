@@ -269,6 +269,40 @@ Ordered:
 2. **SLA breaches** — rows whose `today − Arrived` exceeds the track's `SLA`,
    oldest first, each named with its age and the `Commitment` it breaches.
    Both inputs are columns: this is arithmetic, not judgment.
+
+   **Read it out of `perry-state --json`, not off the board.** Both inputs were
+   columns and neither was computed: the SLA sat in the track register with no
+   reader outside `bin/lib § classify_due` (which governs a Commitments `Due`
+   cell), and `today − Arrived` was computed nowhere at all — so this step,
+   like pipeline's WIP step before it, was doable only by eyeballing a board
+   the triage procedure forbids eyeballing. Three fields per track carry it:
+
+   - `project.config.tracks[].sla_breaches` — oldest first, each row with
+     `arrived`, `age_days`, `over_by_days`, the `sla` measured against, and the
+     `commitment` it breaches.
+   - `…[].sla_no_clock` — open rows on this track with **no readable
+     `Arrived`**. A row with no clock is a *different finding* from a row
+     inside its SLA, and it is never in `sla_breaches`. Folding the two
+     together is why `perry-task route` stopped writing `Arrived` onto pipeline
+     rows in the first place — so that `perry-task list --json §
+     conformance.rows_with_no_computable_age` could still see such a row.
+   - `…[].sla_check` — whether the step **ran**. `runnable: false` with a
+     `reason` of `no-sla`, `sla-not-a-duration` or `not-a-queue-track`, and a
+     `note` naming the track in a sentence. This is the field that keeps the
+     rule above honest: a track without an SLA reports that it cannot run the
+     step, and **zero breaches is never how a missing promise is reported**.
+     A track that *is* declared and simply has no rows reports `runnable: true`
+     with `rows: 0` — the promise exists and nothing was guessed, which is a
+     different answer and reads as one.
+
+   **Exactly the SLA old is not a breach.** *Exceeds* is the word above, and it
+   is the boundary: a row that has used exactly its five days is on its last
+   day, not late. `over_by_days` is therefore `1` on the first breaching day.
+   The `<n><unit>` token is read by `lib § parse_sla`, off the same pattern
+   `classify_due` matches `Due` cells with — one spelling of the format, not
+   two. `5d` means five calendar days, and a month is a calendar month because
+   the deadline is computed by the same `advance` that stamps a Cadence row's
+   `Next due`.
 3. **Queue depth and trend.** Depth is the count of **active** rows in this
    track — `Status` neither `done` nor `dropped`, the same definition
    `modes/pipeline.md` counts WIP with. A row `perry-task drop` retired has

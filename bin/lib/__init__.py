@@ -263,11 +263,60 @@ def is_blank_cell(value: str) -> bool:
 #: with it and `bin/perry-lint` now checks the column against it, and a typed
 #: column whose writer and reader disagree about the value space is the defect
 #: this pair was split to remove.
-SLA_TOKEN_RE = re.compile(r"^\d+\s*[dwhmy]$", re.I)
+SLA_TOKEN_RE = re.compile(r"^(\d+)\s*([dwhmy])$", re.I)
 
 
 def is_sla_token(value: str) -> bool:
     return bool(SLA_TOKEN_RE.fullmatch(normalize_typed_cell(value)))
+
+
+def parse_sla(value: str) -> tuple[int, str] | None:
+    """`5d` → `(5, "d")`, `2w` → `(2, "w")`. `None` if it is not the token.
+
+    **The groups on `SLA_TOKEN_RE` are the whole point.** The breach step in
+    `modes/queue.md § Triage in this mode` measures `today − Arrived` against
+    `.perry/config.md § Tracks` → `SLA`, and the only thing that had ever read
+    an SLA cell was `classify_due` above — which asks whether the cell *is* a
+    duration and never what duration it is. A second reader would have needed a
+    second spelling of `<n><unit>`, and this repository has now paid three
+    times for a writer and a reader with separate copies of one format (column
+    order, the period table, the stage separators). So the pattern gains two
+    groups and stays one pattern; `is_sla_token` is unchanged by it, and the
+    anchors `tests/test_goals_writer.py` asserts on are still the first and
+    last characters.
+    """
+    m = SLA_TOKEN_RE.fullmatch(normalize_typed_cell(value))
+    if not m:
+        return None
+    return int(m.group(1)), m.group(2).lower()
+
+
+def sla_deadline(arrived: _date, value: str) -> _date | None:
+    """The last day an arrival is still inside `value`. `None` if unreadable.
+
+    Calendar arithmetic is `viewer/parsers.py § advance` — the same function
+    `perry-task cadence-done` stamps `Next due` with — so a month is a calendar
+    month here for the reason it is one there: `modes/queue.md` says outright
+    that **`5d` means five calendar days**, and a 30-day month would move a
+    month-end promise off month-end.
+
+    Two unit conversions, both stated rather than assumed:
+
+    - `y` is 12 months, which is what `parse_frequency` already does with it.
+    - `h` is rounded **up** to whole days. `Arrived` is a date, so a clock with
+      no time of day cannot resolve `4h`; rounding up is the direction that
+      refuses to report a breach the recorded data cannot prove, and it is the
+      only direction that keeps `24h` meaning one day.
+    """
+    parsed = parse_sla(value)
+    if parsed is None:
+        return None
+    n, unit = parsed
+    if unit == "h":
+        n, unit = -(-n // 24), "d"
+    elif unit == "y":
+        n, unit = n * 12, "m"
+    return _parsers().advance(arrived, n, unit)
 
 
 def is_iso_date(value: str) -> bool:

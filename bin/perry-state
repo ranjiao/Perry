@@ -243,6 +243,12 @@ DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
                  "wip": "", "sla": "", "cycle": "", "default_rung": "",
                  "missing_defaults": [],
                  "declared": False}
+#: `stage_counts`, `wip_breaches`, `sla_breaches`, `sla_no_clock` and
+#: `sla_check` are deliberately NOT in the dict above: `wip_report` and
+#: `sla_report` fill them in on every track they are handed, and the implicit
+#: track is one of those — `parse_tracks` returns `[dict(DEFAULT_TRACK)]` and
+#: the same two functions walk it. A static copy here would be a second place
+#: for the shape to live, which is the defect the comment above records.
 
 
 # Column name → payload key, with the Chinese aliases from
@@ -350,6 +356,139 @@ def wip_report(tracks: list[dict], tasks) -> None:
             {"stage": st, "count": counts.get(st, 0), "limit": lim}
             for st, lim in sorted(limits.items())
             if counts.get(st, 0) >= lim]
+
+
+#: Why a queue track's breach step could not run. `""` means it ran.
+#:
+#: **Three answers, not two.** `modes/queue.md` says a track without an SLA
+#: "cannot run the breach step, and triage reports that rather than skipping
+#: it" — so *cannot compute* has to be a value the payload carries, distinct
+#: from a computed zero. A track that ran the step and found nothing reports
+#: `runnable: true` with an empty list; a track that could not reports which of
+#: these it was.
+SLA_NOT_A_QUEUE = "not-a-queue-track"
+SLA_MISSING = "no-sla"
+SLA_UNREADABLE = "sla-not-a-duration"
+
+
+def sla_report(tracks: list[dict], tasks) -> None:
+    """`today − Arrived` per row against its track's SLA. Queue mode's step 2.
+
+    **The number this project maintains and never read.** `modes/queue.md`
+    triage step 2 is *"rows whose `today − Arrived` exceeds the track's `SLA`,
+    oldest first, each named with its age and the `Commitment` it breaches"* —
+    both inputs columns, arithmetic rather than judgment. TASK-135 made
+    `Arrived` trustworthy (carried on a queue→queue move, cleared on the way
+    off, on the argument that it "is not provenance, it is a queue's clock")
+    and the clock still had no consumer: the only reader of a track SLA
+    anywhere was `lib § classify_due`, which governs a Commitments `Due` cell.
+
+    Three decisions this inherits rather than makes:
+
+    - **Strictly `>`, so a row exactly its SLA old is NOT breached.** The mode
+      file's own word is *exceeds*, and five calendar days of allowance are not
+      exceeded by a row that has used exactly five. `over_by` on the first
+      breaching day is therefore 1, which is the honest reading of "one day
+      late" and not an off-by-one.
+    - **A row with no `Arrived` is a different finding, and it is never a
+      pass.** It goes in `sla_no_clock` and never in `sla_breaches`. Folding it
+      into "not breached" would silently merge two findings and undo the
+      decision `cmd_route` was changed for — it stopped writing `Arrived` onto
+      pipeline rows *precisely* so `rows_with_no_computable_age` could still see
+      such rows.
+    - **No default SLA.** `schema § work_modes.modes.queue.no_default` says so
+      and `modes/queue.md` argues it at length: a number Perry invented is a
+      promise nobody made, and every triage run afterwards would measure real
+      work against it. So an undeclared SLA is `runnable: false`, never zero
+      breaches.
+
+    A queue track that is **declared and empty** runs the step and reports zero.
+    That is not the same answer as `runnable: false`: the promise exists, the
+    row set is empty, and nothing was guessed to say so.
+    """
+    live = [t for t in tasks if t.status not in {"done", "dropped"}]
+    today = date.today()
+    for tr in tracks:
+        name = tr.get("track", "") or "main"
+        sla = tr.get("sla", "")
+        mode = (tr.get("mode") or "project").strip().lower()
+
+        rows = [t for t in live if (t.track or "main") == name]
+        breaches: list[dict] = []
+        no_clock: list[str] = []
+        reason = ""
+
+        if mode != "queue":
+            # The breach step is queue mode's. A pipeline row does not carry
+            # `Arrived` by design — `cmd_route` clears it on the way off a
+            # queue — so running this there would report every row as clockless.
+            reason = SLA_NOT_A_QUEUE
+        elif lib.is_blank_cell(str(sla or "")):
+            reason = SLA_MISSING
+        elif lib.parse_sla(sla) is None:
+            reason = SLA_UNREADABLE
+        else:
+            for t in sorted(rows, key=lambda r: r.id):
+                arrived = parse_iso(t.arrived)
+                if arrived is None:
+                    no_clock.append(t.id)
+                    continue
+                deadline = lib.sla_deadline(arrived, sla)
+                if deadline is None or today <= deadline:
+                    continue
+                breaches.append({
+                    "id": t.id, "title": t.title,
+                    "arrived": arrived.isoformat(),
+                    "age_days": (today - arrived).days,
+                    "sla": lib.normalize_typed_cell(sla),
+                    "over_by_days": (today - deadline).days,
+                    "commitment": (t.commitment or "").strip(),
+                })
+            # Oldest first, which is the order the mode file asks for and the
+            # order the work should be picked up in. `id` breaks the tie so the
+            # list is stable between two runs on the same board.
+            breaches.sort(key=lambda b: (b["arrived"], b["id"]))
+
+        tr["sla_breaches"] = breaches
+        tr["sla_no_clock"] = no_clock
+        tr["sla_check"] = {
+            "runnable": not reason,
+            "reason": reason,
+            "sla": lib.normalize_typed_cell(str(sla or "")),
+            "rows": len(rows),
+            "measured": len(rows) - len(no_clock) if not reason else 0,
+            "note": sla_note(name, reason, sla),
+        }
+
+
+def sla_note(track: str, reason: str, sla: str) -> str:
+    """One sentence naming the track, for a reader that prints rather than
+    branches. Empty when the step ran — there is nothing to explain."""
+    if reason == SLA_NOT_A_QUEUE:
+        return (f"track '{track}' is not a queue track — the SLA breach step "
+                "is queue mode's and did not run")
+    if reason == SLA_MISSING:
+        return (f"track '{track}' declares no SLA — the breach step cannot "
+                "run, and this is not zero breaches. Declare `SLA` in "
+                "`.perry/config.md § Tracks`, or write `no SLA — best effort` "
+                "there if that is the truth")
+    if reason == SLA_UNREADABLE:
+        return (f"track '{track}' has SLA "
+                f"'{lib.normalize_typed_cell(str(sla or ''))}', which is not a "
+                "duration this build can measure against — the breach step "
+                "cannot run. `5d` and `2w` are the shorthand")
+    return ""
+
+
+def parse_iso(value: str):
+    """One ISO date out of a cell, or `None`. `lib § is_iso_date` is the gate,
+    so a cell this reader accepts is one `perry-lint` and `perry-goals` accept
+    — the shape-only reader that took `2026-02-30` is the defect that pair was
+    split to remove."""
+    text = lib.normalize_typed_cell(value or "")
+    if not lib.is_iso_date(text):
+        return None
+    return date.fromisoformat(text)
 
 
 def default_stages_for(mode: str) -> list[str]:
@@ -1303,6 +1442,12 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # by eyeballing a board the procedure forbids eyeballing.
     _cfg_for_wip = parse_config(perry_root)
     wip_report(_cfg_for_wip.get("tracks") or [], all_tasks)
+    # Queue mode's triage step 2, on the same two inputs and at the same point,
+    # for the same reason: this is the first place that has both the track
+    # register (which holds the SLA) and the board's rows (which hold
+    # `Arrived`). Until this line the clock TASK-135 made trustworthy had no
+    # consumer at all.
+    sla_report(_cfg_for_wip.get("tracks") or [], all_tasks)
 
     # KR attribution — exact resolution only; the rest are surfaced, not guessed.
     link = snap.linkage

@@ -272,6 +272,22 @@ class Task:
     # eyeballing a board the procedure forbids eyeballing.
     track: str = ""
     stage: str = ""
+    # **The queue's clock.** `modes/queue.md § The mode contract` calls
+    # `Arrived` the arrival date "carried from intake and never lost", and its
+    # triage step 2 is `today − Arrived` against the track's SLA. The column was
+    # absent here for the same reason `track` and `stage` were: `perry-task`
+    # parses it with its own row reader, `bin/perry-state` reads the board
+    # through this class, and so the one payload triage reads could not see the
+    # number the mode is measured by. TASK-135 made the cell trustworthy —
+    # carried on a queue→queue move, cleared on the way off — and left it with
+    # no reader.
+    arrived: str = ""
+    # The `Id` from `OKR.md § Commitments` this row discharges. Read for one
+    # reason: the queue breach step names each late row "with its age and the
+    # `Commitment` it breaches" (`modes/queue.md § Triage in this mode`), and a
+    # breach list that cannot say what promise is being broken is half the
+    # finding.
+    commitment: str = ""
     # `Role` (DESIGN-006 phase E). Present so the roster can answer "what does
     # each role hold" by JOINING two files it already reads, rather than by a
     # third registry storing a fact both of them carry.
@@ -714,7 +730,8 @@ def _task_from_record(rec: dict, priority: str) -> Task:
         id=s("id"), title=s("title"), owner=s("owner"), status=s("status"),
         next_action=s("next_action"), evidence=s("evidence"),
         priority=priority, status_note="", verification=s("verification"),
-        track=s("track"), stage=s("stage"), role=s("role"))
+        track=s("track"), stage=s("stage"), arrived=s("arrived"),
+        commitment=s("commitment"), role=s("role"))
 
 
 def _records_by_group(records: list[dict]) -> list[tuple[str, list[dict]]]:
@@ -934,7 +951,7 @@ def _parse_task_table(section: str, priority: str,
             # run off this payload as a result.
             for name in ("ID", "Title", "Owner", "Status", "Next action",
                          "Evidence", "Verification", "Track", "Stage",
-                         "Role"):
+                         "Arrived", "Commitment", "Role"):
                 keys = _column_keys(name)
                 pos = next((i for i, h in enumerate(header) if h in keys), -1)
                 if pos >= 0:
@@ -982,6 +999,8 @@ def _parse_task_table(section: str, priority: str,
                 verification=cell("Verification", -1).replace("*", "").strip(),
                 track=cell("Track", -1),
                 stage=cell("Stage", -1),
+                arrived=cell("Arrived", -1),
+                commitment=cell("Commitment", -1),
                 role=cell("Role", -1),
             )
         )
