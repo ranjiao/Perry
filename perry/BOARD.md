@@ -33,7 +33,6 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — |  | TASK-090, TASK-092 |
-| TASK-106 | Task summary is optional, explicit and preserved end to end | Coding Agent | in_progress | Implement the optional explicit summary field end to end from TASK-106-spec.md, including store validation, writer/list contract, migration preservation and perry-explain output; infer nothing for legacy tasks. | evidence/2026-08/TASK-106-spec.md | V4 | TASK-105, TASK-044 |
 
 ## P2
 
