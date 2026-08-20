@@ -2181,6 +2181,15 @@ class TestTheOverriddenReadOnlyBitIsReported(unittest.TestCase):
     FILES = {"BOARD.md": LEGACY_BOARD,
              "knowledge/research/a.md": "# A digest\n\nBody.\n"}
 
+    #: The words the observation may not use, in ONE place, because the plan
+    #: has two surfaces that say the same thing — the rendered note and the
+    #: `--json` `read_only_override` — and a second copy of this list is a
+    #: second thing to forget. That is the drift `READ_ONLY_MECHANISM` already
+    #: exists to prevent for the sentence itself; the guard over the sentence
+    #: has to be single-sourced for the same reason.
+    POLICY_WORDS = ("should", "must", "refus", "chmod", "instead", "unsafe",
+                    "warning", "error")
+
     def project(self, mode: int = 0o444) -> "Project":
         # Kept on `self` for the same reason as the class above: the
         # TemporaryDirectory must outlive the test body, and chmod-ing back
@@ -2189,6 +2198,45 @@ class TestTheOverriddenReadOnlyBitIsReported(unittest.TestCase):
         self._p = Project(files=dict(self.FILES))
         (self._p.root / "BOARD.md").chmod(mode)
         return self._p
+
+    def legacy_store_project(self) -> "Project":
+        """A project where the file with the bit cleared is `tasks.jsonl`.
+
+        The store has to have a rewrite waiting for it, or there is no override
+        to report: a file the plan leaves byte-identical crosses no permission,
+        which is what `test_a_file_left_byte_identical_is_not_reported_as_...`
+        pins. So the store is written by the shipped writer and then aged back
+        to how a pre-TASK-106 Perry left it — no `summary` key. That record is
+        still valid, projects identically to the board, and acquires the
+        explicit empty summary at the validation boundary, so migration plans
+        the canonical rewrite and nothing is refused.
+
+        BOARD.md keeps its ordinary mode here. The store is then the only file
+        in the run whose bit is cleared, so "names it" is a statement about the
+        store and not about whichever file happened to be first.
+        """
+        self._p = Project(files=dict(self.FILES))
+        made = subprocess.run(
+            [sys.executable, str(TASKS), "write", "--from-board",
+             "--root", str(self._p.root)], capture_output=True, text=True)
+        self.assertEqual(made.returncode, 0, made.stderr)
+        store = self._p.root / "tasks.jsonl"
+        records = [json.loads(line) for line in
+                   store.read_text(encoding="utf-8").splitlines() if line.strip()]
+        self.assertTrue(records, "the fixture wrote an empty store")
+        store.write_text(
+            "".join(json.dumps({k: v for k, v in record.items() if k != "summary"},
+                               ensure_ascii=False) + "\n" for record in records),
+            encoding="utf-8")
+        # No chmod-back, for the reason `project` gives above.
+        store.chmod(0o444)
+        return self._p
+
+    def assert_takes_no_position(self, text: str, where: str) -> None:
+        """`text` reports an observation and does not answer USER-004."""
+        lowered = text.lower()
+        for word in self.POLICY_WORDS:
+            self.assertNotIn(word, lowered, f"{where} takes a position: {text}")
 
     @staticmethod
     def notes(out: str) -> list[str]:
@@ -2318,10 +2366,70 @@ class TestTheOverriddenReadOnlyBitIsReported(unittest.TestCase):
         sentence may not lean: no "should", no "refuse", no advice to chmod."""
         p = self.project()
         _, out, _ = p.run(json_out=False)
-        note = self.notes(out)[0].lower()
-        for word in ("should", "must", "refus", "chmod", "instead", "unsafe",
-                     "warning", "error"):
-            self.assertNotIn(word, note, f"the note takes a position: {note}")
+        self.assert_takes_no_position(self.notes(out)[0], "the note")
+
+    def test_the_json_wording_states_what_was_observed_too(self):
+        """TASK-115 — the same guard over the OTHER surface.
+
+        The test above reads the rendered note only. A V4 reviewer mutated the
+        `--json` plan's `read_only_override.observed` to "…you should chmod
+        it…" and all ten tests here stayed green: a policy word could enter
+        through the machine-readable plan and nothing said so, which is the
+        deliverable this task's wording guard most depends on.
+
+        Every override in the plan is checked, not just BOARD.md's — the words
+        are banned from the observation, wherever it is made — and against the
+        one `POLICY_WORDS` above rather than a copy, so the two surfaces cannot
+        end up guarded against different lists.
+        """
+        p = self.project()
+        _, plan, _ = p.run()
+        overrides = [(f["path"], f["read_only_override"]) for f in plan["files"]
+                     if "read_only_override" in f]
+        self.assertTrue(overrides, f"the plan reported no override: {plan}")
+        for path, override in overrides:
+            self.assert_takes_no_position(
+                json.dumps(override, ensure_ascii=False),
+                f"the JSON override for {path}")
+
+    def test_the_read_only_task_store_is_reported_in_both_surfaces(self):
+        """TASK-115 — the store is a reported file and was the untested one.
+
+        `tasks.jsonl` is written by migration like any other file in the
+        per-file list, so deliverable 1 covers it. It was the only file in that
+        list with nothing behind it: deleting `read_only_mode=owner_read_only(
+        store_path)` from `_plan_task_store` left all ten tests green, and a
+        read-only store would have lost its report in silence.
+        """
+        p = self.legacy_store_project()
+        rc, out, err = p.run(json_out=False)
+        self.assertEqual(rc, 0, err)
+        entry = self.entry(out, "tasks.jsonl")
+        self.assertTrue(entry[1].strip().startswith("! "),
+                        f"the store's entry carries no note:\n{out}")
+        self.assertIn("read-only for its owner (mode 0444)", entry[1])
+        self.assertEqual(self.notes(out), self.notes("\n".join(entry)),
+                         "a file whose bit was not cleared was reported too")
+        _, plan, _ = p.run()
+        store = next(f for f in plan["files"] if f["path"] == "tasks.jsonl")
+        self.assertEqual(store["read_only_override"]["mode"], "0444")
+        self.assertIn("read-only for its owner",
+                      store["read_only_override"]["observed"])
+
+    def test_the_task_store_it_names_was_in_fact_rewritten(self):
+        """The store's counterpart to `test_the_file_it_names_was_in_fact_
+        migrated`: asserted on the bytes, because a note about an override that
+        did not happen would be a worse defect than the silence it replaced."""
+        p = self.legacy_store_project()
+        store = p.root / "tasks.jsonl"
+        before = store.read_bytes()
+        rc, out, err = p.run("apply", json_out=False)
+        self.assertEqual(rc, 0, err)
+        self.assertNotEqual(store.read_bytes(), before)
+        self.assertIn('"summary"', store.read_text(encoding="utf-8"))
+        self.assertIn("read-only for its owner", out)
+        self.assertEqual(os.stat(store).st_mode & 0o777, 0o444,
+                         "the note says the mode is left as found")
 
 
 class TestEveryWriteSiteIsGuarded(unittest.TestCase):
