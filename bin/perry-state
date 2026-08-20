@@ -18,11 +18,20 @@ project has no Perry state at all — `installed: false` says so in the payload.
 
 Usage:
   perry-state [--root <project_root>] [--json | --dashboard] [--section <name>]
+  perry-state [--root <project_root>] --escalation-scan <spec-path>
 
   --json        full state payload (default)
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
+
+  --escalation-scan  the dispatch pre-flight gate on ONE spec, computed.
+                Scans `Files in scope` / `Deliverable` / `Out of scope` against
+                `escalation.union` and prints the verdict as a typed field.
+                This mode is a GATE, so it answers in its exit code as well:
+                0 = pass, 3 = refuse, 4 = unarmed (nothing declared to match,
+                which is never a pass — see `work/reference/dispatch.md` step
+                4). The read-only modes above keep exiting 0 regardless.
 
 Attribution rule (reference/okr-linkage.md): a task resolves to a KR only by
 exact Project ID, exact current name, or registered alias. Anything else is
@@ -1656,10 +1665,49 @@ def resolve_root(explicit: str | None) -> Path:
     return cur
 
 
+#: `--escalation-scan`'s exit codes. `unarmed` is NOT folded into `pass`:
+#: `dispatch.md` step 4 requires an explicit go-ahead in chat when nothing is
+#: declared, and `autopilot.md` refuses outright, so the two outcomes have to
+#: be distinguishable without reading the JSON.
+SCAN_EXIT = {"pass": 0, "refuse": 3, "unarmed": 4}
+
+
+def escalation_scan(project_root: Path, spec_arg: str | None) -> int:
+    """The dispatch pre-flight gate on one spec — computed, not eyeballed.
+
+    Step 4 of `work/reference/dispatch.md` used to hand an agent a fragment
+    list and a paragraph of rules and ask it to perform the match. It did, as
+    a substring match, because that is what the hook's own sentence described:
+    on 2026-08-20 `origin` matched "original bytes" and `adopt` matched
+    "adopted project", and two dispatches that touched no remote and ran no
+    adoption stopped for a human. Correcting `matching_escalations` alone would
+    not have changed that, because no code path was performing the match.
+    TASK-107.
+    """
+    if not spec_arg:
+        print("perry-state: --escalation-scan needs a spec path", file=sys.stderr)
+        return 2
+    spec = Path(spec_arg)
+    if not spec.is_file():
+        print(f"perry-state: no spec at {spec_arg!r}", file=sys.stderr)
+        return 2
+
+    union = P.escalation_union(project_root)
+    out = P.scan_spec_escalations(spec.read_text(errors="replace"),
+                                  union["union"])
+    out["spec"] = spec.as_posix()
+    out["fragments_scanned"] = len(union["union"])
+    out["origins"] = {f: union["origins"].get(f, [])
+                      for f in out["refuse"] + out["green_lit"]}
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return SCAN_EXIT[out["verdict"]]
+
+
 def main(argv: list[str]) -> int:
     mode = "json"
     root_arg = None
     section = None
+    spec_arg = None
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -1676,6 +1724,10 @@ def main(argv: list[str]) -> int:
         elif arg == "--section":
             i += 1
             section = argv[i] if i < len(argv) else None
+        elif arg == "--escalation-scan":
+            mode = "escalation-scan"
+            i += 1
+            spec_arg = argv[i] if i < len(argv) else None
         else:
             print(f"perry-state: unknown argument {arg!r} (try --help)", file=sys.stderr)
             return 2
@@ -1689,6 +1741,19 @@ def main(argv: list[str]) -> int:
     # parsers.py resolves PROJECT_ROOT at import time from cwd; override it so
     # --root works regardless of where the script was invoked from.
     P.PROJECT_ROOT = root
+
+    # Ahead of `build()` on purpose: the gate needs the hook and the role
+    # cards, not the board, the OKR or the journal. A safety check that cannot
+    # answer until every other reader has succeeded is a safety check that
+    # fails open on an unrelated parse error.
+    if mode == "escalation-scan":
+        # `project_root`, NOT `root`: `.perry/` is anchored at the project root
+        # even when state lives in a subdirectory, exactly as `build()` says
+        # two lines into itself. Handing this the state root silently returned
+        # zero fragments and a clean `unarmed` — a gate reporting that it has
+        # nothing to check, from a project whose hook lists thirty things.
+        return escalation_scan(project_root, spec_arg)
+
     payload = build(root, project_root)
 
     if mode == "dashboard":

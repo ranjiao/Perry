@@ -130,7 +130,7 @@ First-run protection:
 3. Read the BOARD top-to-bottom. For each open row, classify:
    - **Eligible**: status ∈ {`not_started`, `blocked` with all blockers resolved}, has `evidence/<YYYY-MM>/<TASK-ID>-spec.md` with `Dispatch mode: auto` + non-`manual` Executor, hook safety scan passes, all listed dependencies resolved.
    - **Skipped — manual**: `Dispatch mode: manual` (intended) — these are listed in the skip section but never auto-dispatched.
-   - **Skipped — high-stakes**: hook safety scan flags a match → never auto-dispatched even if `Dispatch mode: auto` (safety > flag).
+   - **Skipped — high-stakes**: hook safety scan flags a match → never auto-dispatched even if `Dispatch mode: auto` (safety > flag). The scan is `"$PERRY_HOME/bin/perry-state" --escalation-scan <spec>` and its exit code is the verdict (`dispatch.md` pre-flight step 4) — autopilot runs unattended, so this is the one place the match must never be performed by reading a fragment list and judging by eye.
    - **Skipped — no spec**: P0/P1 missing `<TASK-ID>-spec.md` → never auto-dispatched (spec is the safety contract).
    - **Skipped — blocked**: open dependency.
    - **Skipped — already in flight**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` shows it as currently running.
