@@ -1890,7 +1890,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
         "projection": {
             **{k: projection[k] for k in
                ("rows_from_store", "rows_verbatim", "rows_not_on_board",
-                "cells_verbatim", "sections_out_of_stored_order",
+                "cells_verbatim", "cells_wearing_decoration",
+                "sections_out_of_stored_order",
                 "cells_the_store_and_board_disagree_on")},
             # Not the same list as `cells_verbatim`, and both belong here. That
             # counts every cell the LAYOUT had to keep — including columns the

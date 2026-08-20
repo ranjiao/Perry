@@ -251,22 +251,31 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
 # not "equivalent".
 
 
-def cell_text(field: str, rec: dict) -> str:
+def cell_text(field: str, rec: dict, escape: bool = True) -> str:
     """One stored field → the text of its cell, escaped the way a row carries it.
 
     `depends_on` is a list in the store and a cell on the board, so the join is
     here and the split is `bin/perry-task § parse_depends`. The separator that
     round-trips is the one `add --depends` writes; a board that spells its list
     with `、` renders as a verbatim cell and is counted as one, rather than
-    being quietly rewritten into English punctuation.
+    being quietly rewritten into English punctuation. The join is keyed on the
+    VALUE being a list rather than on the field being named `depends_on`, so a
+    second store's list field gets the one implementation instead of a copy.
+
+    `escape` is False for a slot that is not inside a markdown table — a
+    `- PMO repo path: …` bullet in `.perry/config.md` carries no cell
+    boundaries, and escaping a pipe there would write a backslash the file
+    never had. It is the ONE thing that differs between a table cell and a
+    bullet slot, so it is one flag rather than a second function.
     """
     v = rec.get(field, "")
-    if field == "depends_on":
+    if isinstance(v, list) or field == "depends_on":
         v = ", ".join(v or [])
-    return str("" if v is None else v).strip().replace("|", "\\|")
+    text = str("" if v is None else v).strip()
+    return text.replace("|", "\\|") if escape else text
 
 
-def describe_cell(raw: str, field: str, rec: dict) -> dict:
+def describe_cell(raw: str, field: str, rec: dict, escape: bool = True) -> dict:
     """How one raw cell is rebuilt from one stored value — or that it cannot be.
 
     Four cases, and **the third is the one the first version of this got
@@ -301,7 +310,7 @@ def describe_cell(raw: str, field: str, rec: dict) -> dict:
     carry a column the store has no field for at all (`By when`, `Notes`), and
     that is layout, not a lost value.
     """
-    want = cell_text(field, rec)
+    want = cell_text(field, rec, escape)
     body = raw.strip()
     lead = raw[:len(raw) - len(raw.lstrip())]
     trail = raw[len(raw.rstrip()):]
@@ -339,21 +348,109 @@ def describe_cell(raw: str, field: str, rec: dict) -> dict:
 def render_line(desc: dict, rec: dict) -> str:
     """One row descriptor + one store record → the row's line.
 
-    The separators are `|` because `cell_spans` splits on exactly that and
-    leaves the escaped ones inside the span, so a cell whose value contains a
-    pipe rebuilds through `cell_text` and lands back where it started.
+    The separator defaults to `|` because `cell_spans` splits on exactly that
+    and leaves the escaped ones inside the span, so a cell whose value contains
+    a pipe rebuilds through `cell_text` and lands back where it started. A
+    descriptor built by `slot_descriptor` carries `""` instead: a bullet line
+    has no cell boundaries, its literal spans already hold every character
+    between the slots, and joining those on `|` would invent one.
     """
     out = []
+    escape = desc.get("escape", True)
     for c in desc["cells"]:
         if "lit" in c:
             out.append(c["lit"])
             continue
-        v = cell_text(c["f"], rec)
+        v = cell_text(c["f"], rec, escape)
         if not v and "blank" in c:
             out.append(c["blank"])
             continue
         out.append(c["lead"] + c.get("p", "") + v + c.get("s", "") + c["trail"])
-    return desc["pre"] + "|".join(out) + desc["post"]
+    return desc["pre"] + desc.get("sep", "|").join(out) + desc["post"]
+
+
+def row_descriptor(line: str, cells: list[str], header: list[str],
+                   keys: list[str], field_by_column: dict, rec: dict) -> tuple:
+    """One markdown-table row line → `(descriptor, findings)`, or `(None, …)`.
+
+    Extracted from `plan` so `BOARD.md` and the two documents TASK-092 adds
+    reach the same code. It is the whole of "how is a table row rebuilt from a
+    record", and a second copy of it is the defect ADR-007 exists to remove:
+    the store would then have two renderers that agree on Perry's own files and
+    disagree on somebody's.
+
+    `None` when `cell_spans` and the caller's split disagree about the line —
+    one of the two is wrong about it, and rendering from the wrong one moves a
+    cell where leaving the line alone does not.
+    """
+    spans = cell_spans(line)
+    if len(spans) != len(cells):
+        return None, [{"why": "cell spans and split disagree"}]
+    desc = {"pre": line[:spans[0][0]], "post": line[spans[-1][1]:],
+            "sep": "|", "escape": True, "cells": []}
+    findings: list[dict] = []
+    for n, (a, b) in enumerate(spans):
+        col = header[n] if n < len(header) else f"#{n}"
+        field = field_by_column.get(keys[n]) if n < len(keys) else None
+        c = ({"lit": line[a:b]} if field is None
+             else describe_cell(line[a:b], field, rec))
+        if "lit" in c:
+            findings.append({"verbatim": col})
+        elif "disagrees" in c:
+            findings.append({"column": col, "file": c["disagrees"][:120],
+                             "store": cell_text(field, rec)[:120]})
+        elif c.get("p") or c.get("s"):
+            findings.append({"decorated": col})
+        desc["cells"].append(c)
+    return desc, findings
+
+
+def slot_descriptor(line: str, slots: list[tuple], rec: dict) -> tuple:
+    """One NON-table line → `(descriptor, findings)`, rebuilt from named slots.
+
+    `slots` is `(start, end, field)` triples in order, and everything they do
+    not cover is literal. `- Code repo path: —` in `.perry/config.md` is one
+    slot over the seventeenth column onwards, so the declared blank marker gets
+    the same treatment there that `describe_cell` gives it in a board cell: it
+    stays while the stored value is empty and is replaced when that value
+    arrives. Writing a second blank rule for bullets is how `—` would come to
+    mean one thing in a table and another in a list.
+
+    A bullet is not a table, so nothing here escapes a pipe (`escape: False`).
+    """
+    desc = {"pre": "", "post": "", "sep": "", "escape": False, "cells": []}
+    findings: list[dict] = []
+    at = 0
+    for start, end, field in slots:
+        if start > at:
+            desc["cells"].append({"lit": line[at:start]})
+        c = describe_cell(line[start:end], field, rec, escape=False)
+        if "lit" in c:
+            findings.append({"verbatim": field})
+        elif "disagrees" in c:
+            findings.append({"column": field, "file": c["disagrees"][:120],
+                             "store": cell_text(field, rec, False)[:120]})
+        elif c.get("p") or c.get("s"):
+            findings.append({"decorated": field})
+        desc["cells"].append(c)
+        at = end
+    if at < len(line):
+        desc["cells"].append({"lit": line[at:]})
+    return desc, findings
+
+
+def render_lines(lines: list[str], rows: dict, records: dict) -> str:
+    """`lines`, with every line a descriptor claims rebuilt from its record.
+
+    `rows` is `line index → descriptor`, and each descriptor names the record
+    it renders from under `key`. Every line the store does not claim comes out
+    of the list untouched — which is the entire reason a renderer can be held
+    to `cmp` on a file that is mostly prose somebody argued with.
+    """
+    out = list(lines)
+    for i, desc in rows.items():
+        out[i] = render_line(desc, records[desc["key"]])
+    return "\n".join(out)
 
 
 def plan(board, records: list[dict], ops) -> dict:
@@ -388,6 +485,19 @@ def plan(board, records: list[dict], ops) -> dict:
     rows: dict[int, dict] = {}
     report = {"rows_from_store": 0, "rows_verbatim": [],
               "rows_not_on_board": [], "cells_verbatim": {},
+              # **The decoration branch, COUNTED.** `describe_cell` keeps a
+              # cell's prefix and suffix around the stored value — `~~**` and
+              # `**~~` on a struck-through id — and that is presentation, so it
+              # is right. But it is also a fallback, and this docstring's own
+              # rule is that an uncounted fallback is how a renderer passes
+              # `cmp` while reproducing nothing: a cell reading `<stored value>,
+              # and one more thing` keeps the trailing prose as a suffix and
+              # comes back byte-identical, so `identical: true` alone cannot
+              # tell it apart from a cell the store fully holds. Measured 0 on
+              # every file in this repository at the time it was added, which
+              # is the number that makes it worth watching rather than
+              # tolerating.
+              "cells_wearing_decoration": {},
               "cells_the_store_and_board_disagree_on": [],
               "sections_out_of_stored_order": [], "sections": []}
     task_tables = board.task_tables()
@@ -415,33 +525,31 @@ def plan(board, records: list[dict], ops) -> dict:
                 continue
             seen.add(tid)
             in_line_order.append(tid)
-            spans = cell_spans(lines[i])
-            if len(spans) != len(cells):
+            desc, findings = row_descriptor(lines[i], cells, header, keys,
+                                            FIELD_BY_COLUMN, rec)
+            if desc is None:
                 # The two scans disagree about this line, which means one of
                 # them is wrong about it. Rendering from the one that is wrong
                 # would move a cell; leaving the line alone does not.
                 report["rows_verbatim"].append(
                     {"section": heading, "cell": cells[0][:60],
-                     "why": "cell spans and split disagree"})
+                     "why": findings[0]["why"]})
                 in_line_order.pop()
                 seen.discard(tid)
                 continue
-            desc = {"id": tid, "pre": lines[i][:spans[0][0]],
-                    "post": lines[i][spans[-1][1]:], "cells": []}
-            for n, (a, b) in enumerate(spans):
-                col = header[n] if n < len(header) else f"#{n}"
-                field = FIELD_BY_COLUMN.get(keys[n]) if n < len(keys) else None
-                c = ({"lit": lines[i][a:b]} if field is None
-                     else describe_cell(lines[i][a:b], field, rec))
-                if "lit" in c:
-                    report["cells_verbatim"][col] = \
-                        report["cells_verbatim"].get(col, 0) + 1
-                elif "disagrees" in c:
+            desc["id"] = desc["key"] = tid
+            for f in findings:
+                if "verbatim" in f:
+                    report["cells_verbatim"][f["verbatim"]] = \
+                        report["cells_verbatim"].get(f["verbatim"], 0) + 1
+                elif "decorated" in f:
+                    report["cells_wearing_decoration"][f["decorated"]] = \
+                        report["cells_wearing_decoration"].get(
+                            f["decorated"], 0) + 1
+                else:
                     report["cells_the_store_and_board_disagree_on"].append(
-                        {"id": tid, "column": col,
-                         "board": c["disagrees"][:120],
-                         "store": cell_text(field, rec)[:120]})
-                desc["cells"].append(c)
+                        {"id": tid, "column": f["column"],
+                         "board": f["file"], "store": f["store"]})
             rows[i] = desc
             report["rows_from_store"] += 1
         # A section may contain several task tables. Missing rows can only be
@@ -476,13 +584,10 @@ def plan(board, records: list[dict], ops) -> dict:
 def render(board, records: list[dict], ops) -> tuple[str, dict]:
     """`perry/tasks.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
     p = plan(board, records, ops)
-    out = list(p["lines"])
-    for i, desc in p["rows"].items():
-        out[i] = render_line(desc, p["records"][desc["id"]])
-    return "\n".join(out), p["report"]
+    return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
-           "render_line", "store_path", "store_text", "markdown_tables",
-           "validate_records"]
+           "render_line", "render_lines", "row_descriptor", "slot_descriptor",
+           "store_path", "store_text", "markdown_tables", "validate_records"]

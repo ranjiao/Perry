@@ -19,7 +19,9 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-state`](perry-state) | read | The single full read of a project's state — board, phase, OKR, design, attribution. Every standup number comes from here. |
 | [`perry-task`](perry-task) | **write** | The one deterministic way board state changes: add / start / stage / status / done / drop, plus the intake queue, the user-input queue and the recurrence register. |
 | [`perry-tasks`](perry-tasks) | **write** + read | The task STORE (`perry/tasks.jsonl`) and the projection of it: `build` / `verify` derive and check it, `write` migrates a project onto it, `render` / `diff` regenerate `BOARD.md` from it and byte-compare. ADR-007's first slice; `perry-task` is what writes the store on every ordinary command. |
-| [`perry-goals`](perry-goals) | read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. |
+| [`perry-goals`](perry-goals) | **write** + read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. `commit` is the write path: it edits `OKR.md § Commitments` in place and writes the OKR store the file is now a projection of. |
+| [`perry-okr`](perry-okr) | **write** + read | The OKR STORE (`okr.jsonl`, beside `OKR.md` in the state root) and the projection of it, in `perry-tasks`' shape: `build` / `verify` derive and check it, `write --from-file` migrates a project onto it, `render` / `diff` regenerate `OKR.md` and byte-compare. ADR-007's second slice (TASK-092). |
+| [`perry-config`](perry-config) | **write** + read | The same five commands over `.perry/config.md` and `.perry/config.jsonl` — the preamble's settings and the `## Tracks` register. Every prose section of that file is layout and is reproduced byte for byte. |
 | [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `DECISIONS.md`, mint ADRs, supersede, set status, list. |
 | [`perry-knowledge`](perry-knowledge) | **write** + read | The knowledge-card write path (DESIGN-006 phase B). `propose` is read-only and answers whether a capture point should fire; `promote` writes `knowledge/<topic>/<slug>.md` and **refuses a card that cannot say where its claim came from**. |
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
@@ -32,9 +34,13 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
 | [`perry-dispatch-limit`](perry-dispatch-limit) | cache only | Reserves and frees concurrency slots so a session can't fan out unbounded dispatches. |
 
-**Only four tools write project files: `perry-task`, `perry-tasks`,
-`perry-decide` and `perry-knowledge`.** Everything else in the read column never
-touches the project — including on failure. `perry-knowledge` is the narrowest:
+**Seven tools write project files: `perry-task`, `perry-tasks`,
+`perry-goals`, `perry-okr`, `perry-config`, `perry-decide` and
+`perry-knowledge`.** Everything else in the read column never touches the
+project — including on failure. The list is longer than it was because the
+markdown files are becoming projections of stores (ADR-007), and a projection
+needs a tool that can regenerate it; each of the three new entries writes
+exactly one document and the store beside it, and refuses every other path. `perry-knowledge` is the narrowest:
 it writes inside `knowledge/` and nowhere else, and it exists because a
 knowledge card is the one state file whose *absence* is safer than a wrong
 version of it, which is a rule only a write path can enforce.
