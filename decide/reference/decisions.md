@@ -31,14 +31,33 @@ Superseding or expiring an ADR does **not** translate it. An ADR is a record of 
 
 ## Status model
 
-Every ADR carries a `Status:` field. Four values:
+Every ADR carries a `Status:` field. The values are declared **once**, in
+`$PERRY_HOME/schema/state-schema.json § enums.decision_status`, and
+`bin/perry-decide` reads them from there — this list and the one in
+`schema/decide-list-contract.md` describe that enum, they do not define it.
+`tests/test_decide_status_enum.py` fails if the three ever disagree. Five values:
 
+- **proposed** — drafted and awaiting the user. The decision is written down but
+  **not adopted**: it governs nothing yet. Before this value existed a draft ADR
+  had to be filed as `active`, so a proposal was indistinguishable from a
+  decision in force. An agent may write a `proposed` ADR unasked; only the user
+  moves it to `active`. It renders in its own `## Proposed (awaiting the user)`
+  section of the index, never under Active and never under "historical".
 - **active** (default at creation) — currently in effect, governs ongoing work
 - **superseded** — replaced by a newer ADR. Header has `Superseded by: ADR-NNN`. The superseding ADR has `Supersedes: ADR-NNN` (bidirectional link).
 - **expired** — time-boxed acceptance whose sunset criterion fired (e.g., a temporary error-budget acceptance reaching its sunset date). The decision is no longer in effect; the user must take a new action. Header records the trigger reason + date.
 - **archived** — historical record only; no longer governing, no superseding ADR, no active sunset. Used for decisions whose context has passed (e.g., a 5月 project decision that's irrelevant from 9月 onward).
 
 Files **never move** on status change — only the `Status:` header field flips. This avoids breaking inbound links from journal entries / specs / other ADRs.
+
+Every flip goes through the tool, which re-renders the index in the same call
+and refuses a value the enum does not declare — including the two that move an
+ADR in and out of `proposed`:
+
+```bash
+"$PERRY_HOME/bin/perry-decide" status ADR-NNN --status proposed   # draft it, unadopted
+"$PERRY_HOME/bin/perry-decide" status ADR-NNN --status active     # the user adopts it
+```
 
 ## ADR file schema (template at `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`)
 
@@ -94,7 +113,7 @@ Files **never move** on status change — only the `Status:` header field flips.
 # Decisions index — <project name>
 
 > Rendered by `bin/perry-decide` from `decisions/ADR-*.md` on every write.
-> Active: <count> · Superseded: <count> · Expired: <count> · Archived: <count>
+> Proposed: <count> · Active: <count> · Superseded: <count> · Expired: <count> · Archived: <count>
 > Last updated: <YYYY-MM-DD>
 
 ## Active
@@ -104,6 +123,14 @@ Files **never move** on status change — only the `Status:` header field flips.
 | [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Adopt Perry skill for PMO/OKR/design workflow | Process | 2026-05-06 | — |
 | [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Temporarily accept 8.18% error-budget overrun in deploy-service | Operations | 2026-05-06 | 2026-06-30 mandatory action |
 | ... |
+
+## Proposed (awaiting the user)
+
+<!-- rendered only when the project has a `proposed` ADR; omitted otherwise -->
+
+| ADR | Title | Type | Date | Sunset / Notes |
+|---|---|---|---|---|
+| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Move the queue off cron | Architecture | 2026-08-20 | — |
 
 ## Superseded / Expired / Archived (historical)
 
