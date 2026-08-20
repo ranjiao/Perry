@@ -21,20 +21,22 @@
 
 ## P1
 
-| ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
-|---|---|---|---|---|---|---|---|
-| TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | blocked | Read evidence/2026-08/TASK-038-v5-signoff-request.md and provide the named V5 approval. | — | V5 | — |
-| TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 |
-| TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | review | user verifies: merge PR #6, and decide USER-004 (refuse vs report) which this task deliberately left open | evidence/2026-08/TASK-079-dispatch-2026-08-20-1345.md | V4 | — |
-| TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | in_progress | dispatched 16:12 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V4 | TASK-090 |
-| TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 |
-| TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 |
-| TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 |
-| TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
-| TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 |
-| TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — |
-| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — |
-| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | in_progress | dispatched 15:57 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V5 | — |
+| ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | review | V5 sign-off pending; PR #12 lands the selection-based signature and TASK-038 is its first real use | — | V5 | — | main |  |  |  |  |  |  |
+| TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
+| TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | review | user verifies: merge PR #6, and decide USER-004 (refuse vs report) which this task deliberately left open | evidence/2026-08/TASK-079-dispatch-2026-08-20-1345.md | V4 | — | main |  |  |  |  |  |  |
+| TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | in_progress | dispatched 16:12 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V4 | TASK-090 | main |  |  |  |  |  |  |
+| TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
+| TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
+| TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
+| TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
+| TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
+| TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — | main |  |  |  |  |  |  |
+| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — | main |  |  |  |  |  |  |
+| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | review | merge PR #12; the first V5 close after it lands is the real test of the selection prompt | evidence/2026-08/TASK-109-dispatch-2026-08-20-1623.md | V5 | — | main |  |  |  |  |  |  |
+| TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | holds the execute half only; TASK-110 measures and proposes first, and nothing is deleted until the user approves that proposal | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -44,10 +46,9 @@
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
-| TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | Start with journal/ and evidence/ retention, which do not depend on the store; log rotation follows it. | evidence/2026-08/TASK-070-context.md | V3 | — |
 | TASK-085 | Decision status has no word for a proposal, and lives in three places | Coding Agent | review | merge PR #11; the index gains a Proposed section only when a project has one | evidence/2026-08/TASK-085-dispatch-2026-08-20-1607.md | V2 | — |
 | TASK-086 | DESIGN-002 decision 4 says lint warns on a collision; lint does not emit NS-01 | Coding Agent | review | user confirms the strict-flag contract change (the namespace warning is no longer promoted to a failure), then merge PR #9; PR #7 is superseded | evidence/2026-08/TASK-086-dispatch-2026-08-20-1429.md | V2 | — |
-| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | not_started | — | — | V3 |  |
+| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -61,7 +62,7 @@
 |---|---|---|---|---|---|
 | USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |  |
 | USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |  |
-| USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | pending | 2026-08-19 |
+| USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | answered 2026-08-20: Already decided in ADR-007 decision 2 on 2026-08-19 (Deciders: Ran Jiao): BOARD.md becomes rendered output and a hand edit becomes drift. This row was minted the same day and duplicates that decision; recorded here so the queue matches the record. TASK-038 is unblocked, and still needs its V5 signature, which is a different act from this permission. | 2026-08-19 |
 | USER-004 | When migration encounters a file the user has chmod-ed read-only, should it refuse to touch that file, or migrate it and name the overridden permission in the plan? Today it migrates silently: write_atomic renames over the target, and a rename needs write permission on the directory, not on the file. | TASK-079 |  | pending | 2026-08-20 |
 
 ## Done this period (leaves the board at next triage)
