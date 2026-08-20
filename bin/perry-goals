@@ -102,6 +102,11 @@ import parsers as P  # noqa: E402
 from tables import (UnrenderableCell, append_cell, cell_spans,  # noqa: E402
                     render_row, splice_cell, split_row, squash)
 import lib  # noqa: E402
+# TASK-092. The store `OKR.md` is now a projection of, and its renderer. This
+# tool does not carry a second copy of either, for the same reason it parses
+# nothing itself: a fourth reader of `OKR.md` would be a fourth chance at the
+# defect that made `perry-task` and `viewer/parsers.py` disagree in silence.
+import perry_md_store as md_store  # noqa: E402
 
 
 class Refused(Exception):
@@ -524,6 +529,92 @@ def write_atomic(state_root: Path, path: Path, text: str) -> None:
     only this tool has. The atomic write underneath is everyone's."""
     assert_owned(state_root, path)
     lib.write_atomic(path, text)
+
+
+def write_okr_and_store(state_root: Path, project_root: Path, okr,
+                        touched, quiet: bool = False) -> dict:
+    """Write `OKR.md` **and** the store it is a projection of — or neither.
+
+    TASK-092. `OKR.md` is still edited in place, cell by cell, because
+    DESIGN-005 § 5.5 rates a re-rendered prose file worse than no writer at
+    all — that has not changed and must not. What changes is that the typed
+    half of the file now also lives in `okr.jsonl` beside it in the state
+    root, and this is the one place the two are written together.
+
+    **The byte comparison is the gate, and it is the check that made this row
+    dispatchable at all.** `TASK-037-spec` is marked manual on DESIGN-005 §
+    5.5's verdict that "the risk is not one a test catches: the failure mode is
+    a file that still parses and no longer reads the way its author wrote it".
+    So before either file lands, the store is derived from the text this write
+    produced, rendered back, and compared byte for byte with it. A file that no
+    longer reads the way its author wrote it fails that comparison by
+    definition. It is a refusal rather than a warning, and it happens while
+    nothing has been written.
+
+    **A hand edit is REPORTED, never refused.** That is one of Perry's own
+    Operating Principles, and this function obeys it rather than inventing a
+    second policy beside `check_hand_edit`: a store value the file no longer
+    agrees with, on a row this command did not touch, comes back in
+    `store_drift` and is printed. It is not silently absorbed — that is the
+    measured defect `bin/perry-tasks § write` records, a canonical value
+    replaced by the projection and reported as a success — and it is not
+    refused either. `perry-okr diff` is where the same drift is asked about on
+    its own, and `perry-okr render --write` is the way back.
+
+    `touched` names the record-key prefixes this write is allowed to move.
+    """
+    text = okr.render()
+    store = md_store.OKR.store_path(project_root, state_root)
+    derived = md_store.derive(md_store.OKR, text)
+    _valid, malformed_now = md_store.validate_records(derived)
+    if malformed_now:
+        raise Refused(
+            f"the write would produce an OKR store this tool could not read "
+            f"back ({malformed_now[0]['message']}). Two lines of `OKR.md` "
+            f"carrying one key is the usual cause. Nothing was written")
+    rendered, report = md_store.render(md_store.OKR, text, derived)
+    if rendered != text:
+        where = report.get("first_difference") or {}
+        raise Refused(
+            f"the OKR store cannot reproduce the file this write would "
+            f"produce, so writing either would lose the difference between "
+            f"them (first at line {where.get('line', '?')}). That is this "
+            f"renderer's bug, not the file's. Nothing was written")
+    out = {"store": str(store), "store_records": len(derived),
+           "store_drift": []}
+    if store.exists():
+        try:
+            prior, malformed = md_store.validate_records(
+                md_store.load_store(store))
+        except (OSError, ValueError) as exc:
+            raise Refused(
+                f"{store} exists but is not readable JSONL "
+                f"({type(exc).__name__}: {exc}). Refusing to overwrite a store "
+                f"this tool cannot compare against; move it aside and re-run. "
+                f"Nothing was written") from None
+        if malformed:
+            raise Refused(
+                f"{store} is malformed at line {malformed[0]['line']} "
+                f"({malformed[0]['message']}); refusing to overwrite a store "
+                f"that cannot be safely compared. Nothing was written")
+        out["store_drift"] = [
+            line for line in md_store.would_discard(prior, derived)
+            if not md_store.touches(line, touched)]
+    if out["store_drift"] and not quiet:
+        print(f"perry-goals: ⚠ `OKR.md` was edited by hand since the store was "
+              f"last written — {len(out['store_drift'])} value(s) on row(s) "
+              f"this command does not touch. The file's values are taken as "
+              f"the new truth, which is what a hand edit means; "
+              f"`perry-okr diff` asks about it on its own.", file=sys.stderr)
+        for line in out["store_drift"][:5]:
+            print(f"    {line}", file=sys.stderr)
+    write_atomic(state_root, okr.path, text)
+    # The store is written second and unconditionally, under the same project
+    # lock as the file above, so a reader cannot catch the pair half-written.
+    # If the process dies between the two, the next command reports the
+    # difference as drift rather than absorbing it in silence.
+    lib.write_atomic(store, md_store.store_text(derived))
+    return out
 
 
 def project_lock(state_root: Path, timeout: float = 10.0):
@@ -1222,7 +1313,11 @@ def cmd_commit(args, ctx) -> dict:
             result["dry_run"] = True
             result["would_write"] = okr.render() != okr.text
             return result
-        write_atomic(sr, okr.path, okr.render())
+        # `--migrate` rewrites the clock cell of EVERY commitment row, so every
+        # commitment key is touched. Nothing else in the file is.
+        result.update(write_okr_and_store(
+            sr, ctx["project_root"], okr, touched=("commitment/",),
+            quiet=args.as_json))
         result["event_written"] = append_event(ctx["project_root"], result["event"])
         return result
 
@@ -1458,7 +1553,14 @@ def cmd_commit(args, ctx) -> dict:
         result["dry_run"] = True
         result["would_write"] = okr.render() != okr.text
         return result
-    write_atomic(sr, okr.path, okr.render())
+    # The one row this command wrote. A widened table pads every OTHER row of
+    # the register too, so `widened` opens the whole kind — a padding change is
+    # this write's doing, not a hand edit somebody made.
+    touched = ("commitment/",) if widened or created_section \
+        else (f"commitment/{result['id']}",)
+    result.update(write_okr_and_store(
+        sr, ctx["project_root"], okr, touched=touched,
+        quiet=args.as_json))
     result["event_written"] = append_event(ctx["project_root"], event)
     return result
 

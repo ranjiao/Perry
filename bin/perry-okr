@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""`OKR.md` as a store, and the projection of it — ADR-007's second slice.
+
+    perry-okr build   [--root <p>]              derive the store; write nothing
+    perry-okr verify  [--root <p>]              field-compare the store to the file
+    perry-okr render  [--root <p>] [--write]    the store → OKR.md
+    perry-okr write   [--root <p>] --from-file  OKR.md → the store
+    perry-okr diff    [--root <p>]              render and byte-compare
+
+The store is `okr.jsonl`, beside `OKR.md` in the state root. It holds what is
+WRITTEN — every KR (from a KR table or from the legacy `- KR1: …` bullet form),
+every `## Commitments` row, every `## Versioning log` row — and nothing else.
+The mission, the operating principles and every rationale paragraph are
+LAYOUT: never parsed, never re-rendered, and reproduced byte for byte.
+
+The record shape, the scanner and the renderer live in `bin/perry_md_store.py`,
+and the CELL MODEL under them lives in `bin/perry_store.py` — the same one
+`BOARD.md` is rendered through. Three tools, one model: a second cell model is
+the defect ADR-007 exists to remove, and it would first show up on a rule like
+"a declared blank marker is layout, not data" coming to mean two different
+things in two files.
+
+`bin/perry-goals` is the LANE tool and owns every write to this file's content.
+This one is the store's migration and inspection surface, the way
+`bin/perry-tasks` is for `bin/perry-task`.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import perry_md_store as store  # noqa: E402
+
+if __name__ == "__main__":
+    if sys.argv[1:2] and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
+    try:
+        sys.exit(store.main(store.OKR, sys.argv[1:]))
+    except store.Refused as exc:
+        print(f"perry-okr: refused — {exc}", file=sys.stderr)
+        sys.exit(1)
