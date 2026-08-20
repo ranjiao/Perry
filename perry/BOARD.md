@@ -35,14 +35,14 @@
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
-| TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-119-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | read TASK-141 tasks[].blocked_stale rather than recomputing the predicate — a third statement of one rule is the defect TASK-148 is open for | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
-| TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-149 | a markdown heading that names an id silently becomes that id definition | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-148-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-149 | a markdown heading that names an id silently becomes that id definition | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-149-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
