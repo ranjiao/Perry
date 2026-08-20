@@ -505,10 +505,18 @@ class TestUserLoadFindings(unittest.TestCase):
         self.assertNotIn("LOAD-01", ids(p))
 
     def test_decision_backlog_surfaces(self):
+        """Six decisions RECORDED as waiting on a person, in the register that
+        records them. This fixture used to be six documents each carrying the
+        word `TBD`; it now uses six rows, because the count is over rows —
+        `DecisionsAreCountedPerRecordNotPerMention` pins the difference."""
+        rows = "\n".join(
+            f"| {i} | Question {i} | a / b | TBD | — |" for i in range(1, 7))
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            for i in range(6):
-                write(root, f"docs/d{i}.md", f"# Doc {i}\nBackend: TBD\n")
+            write(root, "design/DESIGN-001-backlog.md",
+                  "# DESIGN-001: Backlog\n\n## 4. User Decisions\n\n"
+                  "| # | Decision | Options | Chosen | Date |\n"
+                  "|---|---|---|---|---|\n" + rows + "\n")
             p = scan(root)
         self.assertIn("LOAD-03", ids(p))
 
@@ -967,6 +975,177 @@ class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
             "a planning placeholder was counted as a decision queued on the user")
         self.assertLess(d["open_decisions"], 3,
                         "the two `TBD at handoff` cells were counted")
+
+
+#: The opt-out for the conformance gate. Written as a literal here because
+#: `tests/gate.py` — which will own this string — lands on `feat/work-modes`
+#: after this branch was cut; the line is inert on a tree whose gate is still
+#: advisory by default, so it is correct both before and after that merge.
+GATE_OFF = "- Conformance gate: advisory\n"
+
+
+def board_with_queue(rows: str) -> str:
+    """A BOARD.md whose only populated section is the User Input Queue."""
+    empty = ("| ID | Title | Owner | Status | Next action | Evidence |\n"
+             "|---|---|---|---|---|---|\n")
+    return ("# Board\n\n"
+            f"## P0\n\n{empty}\n## P1\n\n{empty}\n## P2\n\n{empty}\n"
+            "## Cadence\n\n"
+            "| ID | Recurring task | Owner | Frequency | Next due | Last evidence |\n"
+            "|---|---|---|---|---|---|\n\n"
+            "## User Input Queue\n\n"
+            "| USER-id | Needed from user | Blocks | Idle | Status |\n"
+            "|---|---|---|---|---|\n" + rows +
+            "\n## Top risks\n\n- none\n")
+
+
+class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
+    """LOAD-03 counts DECISIONS. It used to count decision-words in prose.
+
+    Measured on this repo: seven "open questions waiting on you" against a User
+    Input Queue holding two. Three of the seven were `USER-004` — its own
+    context file, the dispatch that quoted the context file, and the journal
+    entry that recorded minting it. Writing an open question down was what made
+    the number go up, so a project that documents its decisions well scored
+    worse than one that leaves them in somebody's head.
+
+    The rule now: a decision is countable when it has an identity, and the two
+    registers that give it one are `BOARD.md § User Input Queue` and a design
+    doc's `## User Decisions`. Prose has no identity — nothing in a sentence
+    tells you whether it is the same question as the sentence two files away —
+    so prose is reported next to the count and never inside it.
+    """
+
+    def project(self, root: Path, board: str | None = None) -> Path:
+        (root / ".perry").mkdir(parents=True, exist_ok=True)
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+        if board is not None:
+            (root / "BOARD.md").write_text(board)
+        return root
+
+    def load(self, build) -> dict:
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            build(root)
+            return scan(root)["user_load"]
+
+    # ── the bug, as a fixture ────────────────────────────────────────────
+    def test_one_row_discussed_in_three_files_is_one_decision(self):
+        def build(root):
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-004 | Read-only files during migration | TASK-079 | 1d | pending |\n"))
+            write(root, "evidence/TASK-079-context.md",
+                  "# Context\n\n## What is still undecided — USER-004\n\n"
+                  "The policy half of this row is undecided.\n")
+            write(root, "evidence/TASK-079-dispatch.md",
+                  "# Dispatch\n\nUSER-004 is still awaiting your decision.\n")
+            write(root, "journal/2026-08-20.md",
+                  "# Journal\n\nUSER-004 was minted because the question was "
+                  "deliberately left undecided.\n")
+        load = self.load(build)
+        self.assertEqual(load["open_decisions"], 1,
+                         "one queue row, discussed three times, counted more "
+                         "than once")
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-004"])
+
+    def test_two_rows_and_no_prose_count_two(self):
+        load = self.load(lambda root: (root / "BOARD.md").write_text(
+            board_with_queue(
+                "| USER-001 | Threshold N | TASK-005 | 6d | pending |\n"
+                "| USER-002 | Where the store lives | TASK-006 | 2d | pending |\n")))
+        self.assertEqual(load["open_decisions"], 2)
+
+    def test_an_answered_row_plus_prose_about_it_counts_zero(self):
+        def build(root):
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Threshold N | — | — | **answered 2026-08-16: 30 days** |\n"))
+            write(root, "journal/2026-08-16.md",
+                  "# Journal\n\nUSER-001 was undecided for six days before it "
+                  "was answered.\n")
+        self.assertEqual(self.load(build)["open_decisions"], 0)
+
+    # ── the boundary, decided deliberately ───────────────────────────────
+    def test_a_question_raised_only_in_prose_is_reported_not_counted(self):
+        """**The decision this row had to make, made explicitly.**
+
+        A question raised in prose and never recorded IS a real open decision.
+        It is still not counted, because counting it costs the property that
+        makes the number worth reading: `open_decisions` equals the pending
+        rows a person can go and look at, and reconciles against
+        `perry-task list --json`'s `asks.open`. Prose cannot be deduplicated —
+        that is the whole bug — so admitting it would put the number back to
+        measuring how much the project writes.
+
+        It is not discarded either: it lands in `decision_mentions`, which is
+        where a reader looks for questions that ought to be recorded and are
+        not. Recording one as a `USER-` row is what makes it countable, which
+        is the same move Perry asks of a human.
+
+        The other reading — count unrecorded prose questions too — would put
+        this assertion at 1 and break `test_the_number_reconciles_with_the_queue`
+        below. If a future row prefers it, this test is the one to change, and
+        it should be changed knowingly.
+        """
+        def build(root):
+            (root / "BOARD.md").write_text(board_with_queue(""))
+            write(root, "notes/policy.md",
+                  "# Policy\n\nWhether migration refuses read-only files is "
+                  "still undecided.\n")
+        load = self.load(build)
+        self.assertEqual(load["open_decisions"], 0,
+                         "an unrecorded question was counted, and the number "
+                         "no longer reconciles against the queue")
+        self.assertEqual(load["decision_mentions"], 1,
+                         "an unrecorded question was dropped instead of "
+                         "reported")
+        self.assertEqual(load["decision_mention_samples"],
+                         ["notes/policy.md:3"])
+
+    def test_prose_about_a_recorded_row_is_not_reported_as_unrecorded(self):
+        """The mention list is for questions nobody wrote down. A file that
+        cites the row it is discussing is doing the right thing."""
+        def build(root):
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Threshold N | TASK-005 | 6d | pending |\n"))
+            write(root, "notes/a.md", "# A\n\nUSER-001 is still undecided.\n")
+        load = self.load(build)
+        self.assertEqual(load["open_decisions"], 1)
+
+    # ── the exemptions this row must not regress ─────────────────────────
+    def test_a_template_declared_tbd_field_is_not_a_decision(self):
+        """`Implementation owner: TBD` is a field whose legal value is spelled
+        that way — three designs written would otherwise queue three imaginary
+        decisions on the user."""
+        def build(root):
+            write(root, "design/DESIGN-001-thing.md",
+                  "# DESIGN-001: Thing\n\n"
+                  "> Author: Ran   · Implementation owner: TBD\n"
+                  "> Status: draft · Locked: TBD\n\n"
+                  "## 4. User Decisions\n\n"
+                  "| # | Decision | Options | Chosen | Date |\n"
+                  "|---|---|---|---|---|\n"
+                  "| 1 | Which store | a / b | **JSONL** | 2026-08-17 |\n")
+        load = self.load(build)
+        self.assertEqual(load["open_decisions"], 0)
+        self.assertEqual(load["decision_mentions"], 0,
+                         "a declared field value was reported as a question")
+
+    def test_the_number_reconciles_with_the_queue_on_this_repository(self):
+        """Deliverable 3, asserted where it was measured: on Perry's own repo
+        LOAD-03 reported 7 against a queue of 2 before this row."""
+        payload = scan(PERRY_HOME)
+        tasks = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-task"),
+             "list", "--all", "--json"],
+            capture_output=True, text=True, timeout=120, cwd=str(PERRY_HOME))
+        self.assertEqual(tasks.returncode, 0, tasks.stderr)
+        asks_open = json.loads(tasks.stdout)["asks"]["open"]
+        self.assertEqual(payload["user_load"]["open_decisions"], asks_open,
+                         "diagnose and perry-task disagree about how many "
+                         "questions are waiting on the user")
 
 
 class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
