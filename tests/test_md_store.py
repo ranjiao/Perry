@@ -133,8 +133,24 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
         # The section V4 step 2 names. It is PROSE: the store must hold no
         # record for it and the renderer must not touch a byte of it.
         self.assertIn("## Why the state root is not `.`", path.read_text())
-        self.assertEqual(report["kinds"], {"setting": len(records)})
-        keys = {r["key"] for r in records}
+        # Every record is accounted for by kind, and no kind is invented.
+        # This used to read `{"setting": len(records)}` — true only while this
+        # repository had declared no tracks, so declaring one reddened it
+        # (TASK-133). The invariant is that the KINDS PARTITION the records and
+        # that the prose section contributes none; "which kinds" is a fact
+        # about the file, so it is derived from the file rather than restated.
+        self.assertEqual(sum(report["kinds"].values()), len(records))
+        self.assertEqual(set(report["kinds"]),
+                         {r["kind"] for r in records})
+        has_register = "## Tracks" in path.read_text()
+        self.assertEqual("track" in report["kinds"], has_register,
+                         "the store holds track records exactly when the file "
+                         "declares a `## Tracks` register")
+        # Only a `setting` record has a `key`; a `track` record is keyed by
+        # its track name. The old line iterated every record, which worked
+        # only while every record was a setting — the same assumption the
+        # assertion above used to carry, one line further down.
+        keys = {r["key"] for r in records if r["kind"] == "setting"}
         for expected in ("document_language", "state_root", "code_repo_path"):
             self.assertIn(expected, keys)
 
