@@ -2591,6 +2591,14 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     # one name, one definition.
     if path.name == Path(P.CONFORMANCE_FILE).name:
         return True
+    # Perry's two JSONL artifacts — the store and the event log. Every rule
+    # below reads a markdown document: a heading, a `files[]` name, an
+    # `Owner**:` line. A `.jsonl` file has none of them, so without this the
+    # file Perry rewrites on EVERY mutating command is reported as foreign
+    # against Perry's own claim, on every Perry project there is. What
+    # identifies it is the record, not the name.
+    if path.suffix == ".jsonl":
+        return looks_like_perry_record(path)
     stem = path.stem
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
     if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
@@ -2605,6 +2613,48 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     except OSError:
         return False
     return "Owner**: `perry`" in head or "$PERRY_HOME" in head
+
+
+#: An event as `bin/perry-task § log_event` appends it. `ts` and `event` are on
+#: every line it has ever written; `id` is not, since a lane event carries none.
+_EVENT_FIELDS = ("ts", "event")
+
+
+def looks_like_perry_record(path: Path) -> bool:
+    """Is this JSONL the store or the event log Perry itself wrote?
+
+    Read from the first record rather than the filename. A project that happens
+    to own a `tasks.jsonl` is exactly the collision the claim exists to report,
+    so matching on the name would make the claim self-defeating: every file
+    sitting at the claimed path would be excused, including the user's.
+
+    The store's vocabulary is `perry_store.STORED` — the same tuple
+    `check_store_drift` reads, not a second copy — and a store record is a JSON
+    object with an `id` and no field outside it. An event is `{ts, event, …}`.
+    A project's own JSONL is neither, and is reported.
+
+    Generous in the same direction as the rules above: an unreadable or
+    unparseable file is not claimed as Perry's, because a file Perry wrote
+    parses.
+    """
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                break
+            else:
+                return False        # an empty file tells us nothing
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(rec, dict):
+        return False
+    keys = set(rec)
+    if "id" in keys and keys <= set(_STORED_FIELDS):
+        return True                 # the store
+    return keys.issuperset(_EVENT_FIELDS)
 
 
 def render_claims(project_root: Path, state_root: Path, rows: list, summary: dict,
