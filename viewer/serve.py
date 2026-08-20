@@ -2,8 +2,11 @@
 
 Don't run this directly; use the launcher which sets up the venv + deps:
     bash "$PERRY_HOME/bin/perry-viewer"        # from inside your project dir
-The launcher resolves the project root (where BOARD.md lives) and starts this.
-Port defaults to 8080 (override with PERRY_VIEWER_PORT)."""
+The launcher resolves the PROJECT root (where `.perry/` is anchored) and
+exports it as $PERRY_PROJECT. State files are read from `parsers.STATE_ROOT`,
+which is that root unless `.perry/config.md § State root` moved them into a
+subdirectory; `bin/` tools are handed `PROJECT_ROOT`, which is what their
+`--root` takes. Port defaults to 8080 (override with PERRY_VIEWER_PORT)."""
 
 from __future__ import annotations
 
@@ -19,7 +22,7 @@ from flask import Flask, abort, redirect, render_template, request, url_for
 
 import markdown as md_lib
 
-from parsers import PROJECT_ROOT, load_snapshot
+from parsers import PROJECT_ROOT, STATE_ROOT, load_snapshot
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -143,10 +146,9 @@ def _days(s: str) -> int:
 # things it does not currently know:
 #
 #   1. where `.perry/events.jsonl` sits relative to a state root that may be a
-#      SUBDIRECTORY of the project — `viewer/parsers.py` documents that there
-#      is no stored inverse of `resolve_state_root` and walks up four levels
-#      rather than solve it, and `bin/perry-state` had to say the same thing a
-#      second time in its own words;
+#      SUBDIRECTORY of the project — TASK-159 has since written that inverse
+#      (`viewer/parsers.py § resolve_project_root`), but the other two below
+#      are unchanged and each remains a second spelling of a published one;
 #   2. how to read that log (a third spelling would join `perry-state §
 #      raw_events` and `perry-goals § read_events`);
 #   3. how to index task status across the store AND the projection, since a
@@ -295,7 +297,7 @@ def board():
 @app.route("/architecture")
 def architecture():
     snap = load_snapshot()
-    arch_path = PROJECT_ROOT / "ARCHITECTURE.md"
+    arch_path = STATE_ROOT / "ARCHITECTURE.md"
     body, toc = ("", [])
     if arch_path.exists():
         body, toc = render_md(arch_path.read_text())
@@ -459,9 +461,15 @@ def pulse():
 
 @app.route("/file/<path:rel>")
 def view_file(rel: str):
-    target = (PROJECT_ROOT / rel).resolve()
+    # `rel` is a state-root-relative path: every `/file/` link in the
+    # templates comes from `EvidenceFile.rel`, `DesignDoc.rel`, a journal
+    # entry's `rel` or a literal `BOARD.md` / `OKR.md` / `phase/…`, and all of
+    # those are `relative_to` the state root. Resolving them against the
+    # PROJECT root 404'd every one of them on a project whose state is a
+    # subdirectory (TASK-159).
+    target = (STATE_ROOT / rel).resolve()
     # Guard against directory traversal
-    if not str(target).startswith(str(PROJECT_ROOT)):
+    if not str(target).startswith(str(STATE_ROOT)):
         abort(403)
     if not target.exists() or not target.is_file():
         abort(404)
@@ -543,6 +551,8 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PERRY_VIEWER_PORT", "8080"))
     print(f"Perry viewer · project root: {PROJECT_ROOT}")
+    if STATE_ROOT != PROJECT_ROOT:
+        print(f"                · state root:   {STATE_ROOT}")
     print(f"Open http://127.0.0.1:{port}")
     # debug=False by default: the Werkzeug interactive debugger is a remote-code
     # console, and this process reads the whole project's private state. Opt in
