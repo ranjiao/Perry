@@ -67,12 +67,23 @@ class TestClaimsShape(unittest.TestCase):
             self.assertNotIn(c["path"], seen, f"{c['path']} claimed twice")
             seen.add(c["path"])
 
-    def test_perry_dir_is_the_only_project_anchored_claim(self):
+    def test_perry_dir_is_the_only_project_anchored_territory(self):
         """`.perry/` holds the State root pointer, so it cannot sit behind it.
         Anything else anchored at the project root would be unmovable too, which
-        would make the escape hatch useless for it."""
+        would make the escape hatch useless for it.
+
+        Read as *one* territory, not one entry. `.perry/events.jsonl` is
+        anchored at the project root because that is where `bin/perry-task`
+        writes it, and it sits INSIDE `.perry/` — it adds no second immovable
+        place, it names a file in the immovable one. A project-anchored claim
+        outside `.perry/` is what this forbids, and that is what is asserted."""
         project = [c["path"] for c in CLAIMS if c["anchor"] == "project"]
-        self.assertEqual(project, [".perry/"])
+        self.assertIn(".perry/", project, "the anchor itself is unclaimed")
+        outside = [p for p in project if not p.startswith(".perry/")]
+        self.assertEqual(
+            outside, [],
+            "a project-anchored claim outside `.perry/` is unmovable, so the "
+            "State root escape hatch cannot reach it")
 
     def test_no_claim_escapes_the_project(self):
         for c in CLAIMS:
@@ -156,6 +167,59 @@ class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):
         self.assertEqual(misses, [],
                          "paths in a skill's State files table with no claim: "
                          + ", ".join(misses))
+
+
+class TestTheStoreFilesAreClaimed(unittest.TestCase):
+    """TASK-100 — the two files Perry writes on every mutating command.
+
+    `perry/tasks.jsonl` has been the canonical Task record since ADR-007 and
+    `.perry/events.jsonl` is the event log. Both were written into someone
+    else's project and neither was declared, so a project owning either name
+    collided in silence: `--claims` did not list it at setup and the default
+    pass emitted no `NS-01`.
+
+    Neither entry grants a new write — that is the whole argument for adding
+    them. `claims[]` reaches other projects on the next pull, so an entry
+    naming a path Perry does NOT write would be a real widening; these two name
+    paths Perry has always written.
+
+    Named explicitly rather than scraped, on the same reasoning as
+    `UNDECLARED_BEFORE` above: removing one from `claims[]` must fail here
+    loudly instead of silently narrowing the check.
+    """
+
+    # (path, anchor, kind) — the anchor is the load-bearing half. The store is
+    # state-root relative, so `/perry relocate` moves it with `BOARD.md`; the
+    # event log is project-root relative because `bin/perry-task § events_path`
+    # writes it at `<project>/.perry/events.jsonl` and it must not move.
+    STORE_FILES = [
+        ("tasks.jsonl", "state", "file"),
+        (".perry/events.jsonl", "project", "file"),
+    ]
+
+    def test_both_store_files_are_claimed_under_the_right_root(self):
+        by_path = {c["path"]: c for c in CLAIMS}
+        for path, anchor, kind in self.STORE_FILES:
+            with self.subTest(path=path):
+                self.assertIn(path, by_path,
+                              f"{path} is written on every mutating command "
+                              f"but claimed by nobody, so a project that owns "
+                              f"the name gets no NS-01")
+                self.assertEqual(by_path[path]["anchor"], anchor)
+                self.assertEqual(by_path[path]["kind"], kind)
+
+    def test_the_declared_path_is_the_path_the_writer_uses(self):
+        """A claim naming a path Perry does not write is the widening the
+        claim surface is guarded against, so the entries are checked against
+        the writers rather than against prose about them."""
+        store = (PERRY_HOME / "bin" / "perry_store.py").read_text()
+        self.assertIn('Path(state_root) / "tasks.jsonl"', store,
+                      "the store no longer lives at <state root>/tasks.jsonl; "
+                      "the claim now names a path Perry does not write")
+        task = (PERRY_HOME / "bin" / "perry-task").read_text()
+        self.assertIn('project_root / ".perry" / "events.jsonl"', task,
+                      "the event log moved; the claim now names a path Perry "
+                      "does not write")
 
 
 class TestTheCheckIsWiredIn(unittest.TestCase):
