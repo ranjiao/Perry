@@ -41,6 +41,10 @@ concurrency:
 jobs:
   pairs:
     runs-on: ubuntu-latest
+    # Pair search is quadratic in the number of open PRs and only pays when the
+    # combined tree is red. This is the ceiling on that, so a bad day costs an
+    # hour and not a runner until somebody notices.
+    timeout-minutes: 60
     permissions:
       contents: read
       pull-requests: read
