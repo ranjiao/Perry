@@ -23,7 +23,6 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
 |---|---|---|---|---|---|---|---|
-| TASK-047 | Flip the conformance gate to enforce | Coding Agent | review | user decides the subjective line: enforce by default while both 2026-08-18 blockers are still live, or revert to advisory (one line). Then merge PR #8 | evidence/2026-08/TASK-047-dispatch-2026-08-20-1416.md | V4 | TASK-044 |
 | TASK-038 | tasks: the task store becomes canonical, BOARD.md becomes a projection | Coding Agent | blocked | Read evidence/2026-08/TASK-038-v5-signoff-request.md and provide the named V5 approval. | — | V5 | — |
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 |
 | TASK-079 | Migration writes a file the user marked read-only, via rename | Coding Agent | review | user verifies: merge PR #6, and decide USER-004 (refuse vs report) which this task deliberately left open | evidence/2026-08/TASK-079-dispatch-2026-08-20-1345.md | V4 | — |
@@ -34,7 +33,8 @@
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 |
 | TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — |
-| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | in_progress | dispatched 15:16 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V4 | — |
+| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — |
+| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | not_started | — | — | V5 |  |
 
 ## P2
 
@@ -45,7 +45,7 @@
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
 | TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | Start with journal/ and evidence/ retention, which do not depend on the store; log rotation follows it. | evidence/2026-08/TASK-070-context.md | V3 | — |
-| TASK-085 | Decision status has no word for a proposal, and lives in three places | Coding Agent | not_started | — | — | V2 |  |
+| TASK-085 | Decision status has no word for a proposal, and lives in three places | Coding Agent | in_progress | dispatched 15:26 via claude-subagent; worktree pinned to feat/work-modes post-PR-#8; awaiting completion | — | V2 | — |
 | TASK-086 | DESIGN-002 decision 4 says lint warns on a collision; lint does not emit NS-01 | Coding Agent | review | user confirms the strict-flag contract change (the namespace warning is no longer promoted to a failure), then merge PR #9; PR #7 is superseded | evidence/2026-08/TASK-086-dispatch-2026-08-20-1429.md | V2 | — |
 | TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | not_started | — | — | V3 |  |
 

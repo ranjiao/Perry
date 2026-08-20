@@ -1,6 +1,6 @@
 # TASK-047 — Flip the conformance gate to enforce
 
-> Source: `perry/decisions/ADR-004-conformance-marker.md`; unblocked by TASK-044 (migration) landing 2026-08-19
+> Source: `perry/decisions/ADR-004-mandatory-migration.md`; unblocked by TASK-044 (migration) landing 2026-08-19
 > Dispatch mode: auto
 > Executor: claude-subagent (repository-local behaviour change across a writer gate, its schema default and its tests; needs codebase familiarity)
 > Estimated cycle: medium
@@ -80,4 +80,12 @@
 - 2026-08-20 — Dispatched via `claude-subagent` in an isolated git worktree,
   with `PERRY_MAX_DISPATCH_SUBAGENT` raised from 2 to 3 by the user to make the
   third concurrent slot available.
+- 2026-08-20 — Corrected the `Source:` path. It read
+  `perry/decisions/ADR-004-conformance-marker.md`, which does not exist and
+  never did; ADR-004 is `ADR-004-mandatory-migration.md`. The id was right and
+  the decision was the right one — the filename was invented from the subject
+  matter instead of read off the filesystem. Caught by the user, not by any
+  check: `ADR-004` resolves as an id, so the dangling-id check passes, and
+  nothing validates that a `> Source:` path exists. The dispatch prompt happened
+  to carry the correct path, so the agent read the real file.
 

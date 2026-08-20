@@ -625,9 +625,46 @@ Before flipping status, capture **how** this was verified, not just that evidenc
 Two rules override the default, and neither is optional:
 
 - **Consequence beats mode.** If the task matches `.perry/hook.md § High-stakes operations` — outward-facing, irreversible, or carrying money, legal or safety exposure — the rung is **V5 minimum** whatever the mode default says. `perry-lint --verification` reports the mismatch as `consequence-needs-signoff`, so a close below V5 on a high-stakes row will surface at the next standup regardless.
-- **V4 needs a rubric, V5 needs a signature.** A `V4` close must cite the acceptance-criteria file the reviewer scored against, and that reviewer must not have seen the reasoning that produced the artifact. A `V5` close must record **name, date, and what was checked** — "reviewed" is not what was checked.
+- **V4 needs a rubric, V5 needs a signature.** A `V4` close must cite the acceptance-criteria file the reviewer scored against, and that reviewer must not have seen the reasoning that produced the artifact. A `V5` close must record **name, date, and what was checked** — "reviewed" is not what was checked. At V5 the signature is *selected* rather than composed; the procedure is the next block.
 
 **Choose** the rung here and hand it to `perry-task done --rung`. Do not write it into the row or the journal yourself — the tool writes both, and doing it here as well produces a duplicate journal line and an edit to a row the next command removes. **Advisory this release** by DESIGN-003 § 4 decision 4: a missing or unsatisfiable rung is reported, never refused, because a hard gate on day one would retroactively invalidate every `done` row written before rungs existed. The number to watch is `unrated` in `perry-state`'s `board.verification` — it is what should shrink before the gate hardens.
+
+**Pre-close gate 3, second half — at V5 the signature is SELECTED from what Perry measured, never composed from memory** (TASK-109). Rungs V1–V4 stop at the paragraph above; only a V5 close continues here.
+
+The first half of a V5 close is a read-only offer. It writes nothing:
+
+```bash
+"$PERRY_HOME/bin/perry-task" signoff-offer <TASK-ID> --json \
+    --measured "<a fact Perry measured during this task>" \
+    --restated "<a claim Perry is only passing along>"
+```
+
+Both flags repeat. `signoff-offer` numbers the items, labels each with its provenance, and the numbering it prints is the numbering `done --checked` reads back — one function mints both, so a prompt whose option 3 is the tool's option 4 cannot happen.
+
+**`--measured` is what Perry ran**: the objective-verification commands and their output, the scope cross-check, the diffs it took. **`--restated` is what Perry is only repeating** — a dispatch RESULT line, a claim from the spec, a subjective-verification item the spec declared. That distinction is the product. Selecting a `--measured` item means *I checked this too*; selecting a `--restated` one means *I checked a claim Perry only passed along*. Flatten them and the rung records acceptance where it promised verification.
+
+**Perry may draft only facts it measured. It may never draft a claim about what the user did.** `claims[] carries zero changed lines in the diff` is yours to draft — you ran the diff. `the user reviewed the diff` is not, and the tool refuses it by pattern rather than by review note: drafting the signature and collecting a keystroke is Perry certifying its own work, which is the failure V5 exists to prevent.
+
+Render the payload's `options` with **`AskUserQuestion`** (`multiSelect: true`, header = TASK-ID). On a host with no selection UI, print the payload's `prompt` — the numbered free-text fallback of `reference/host-capabilities.md § Prompt rendering`. Then ask the free-text half once: *anything you checked that Perry did not offer?* Rendering differs per host; the record does not.
+
+Hand the answer to the same call that closes the row — this is one tool call, not a close plus a write:
+
+```bash
+"$PERRY_HOME/bin/perry-task" done <TASK-ID> --evidence "<path>" --rung V5 \
+    --measured "…" --restated "…" \
+    --checked "1,3" \
+    [--not-looked-at "4"] \
+    [--also "<what they checked that was not offered>"]
+```
+
+Pass the same `--measured` / `--restated` items back unchanged: the record holds every offered item, not only the selected ones. `--checked` also accepts `all`, `none`, or one flag per number, because that is what the free-text host hands back.
+
+- **Name and date are filled in** from `git config user.name` and today. They are the two fields a human should never be retyping, and `--signer` exists only for the case where git has no name.
+- **Unselected items are recorded, not dropped**, as `accepted on report` — strictly more than the free-text paragraph could say, which could not distinguish the two at all.
+- **`not looked at` is never a default.** It is reached only by the user naming the item, which is what keeps it the user's statement rather than Perry's.
+- **A V5 close with nothing checked and no free text is refused, not written blank.** An empty signature is the failure the rung exists to prevent, and it must not be reachable by pressing return.
+
+The tool writes the signature block into today's journal under `## V5 sign-off` and the structured record into the close event, in the same transaction as the row. **Do not also write the signature into the evidence file by hand** — a second copy is a second answer to the question the rung asks, and the two rot apart. The signatures already recorded in `evidence/2026-08/` keep their own shape; this adds a path, it does not rewrite them.
 
 **Pre-close gate 4 — inquiry mode** (`modes/inquiry.md`). On an inquiry-mode track:
 1. `evidence/<YYYY-MM>/<ID>-answer.md` must exist — the question restated, the answer, the claims with their `[SRC-n]` citations, and what would change the answer. The mode's signature failure is re-deriving the same synthesis every session, and its one cause is the answer living in chat.
