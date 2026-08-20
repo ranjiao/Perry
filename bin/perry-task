@@ -4677,48 +4677,13 @@ def _cmd_list_from_board(args, ctx) -> dict:
             other = tasks.get(d)
             if other is not None and t["id"] not in other["blocks"]:
                 other["blocks"].append(t["id"])
-    # A row whose own `Status` says it is waiting is not startable however
-    # empty its dependency list is — `blocked` and `review` both mean somebody
-    # else has the ball. That is what makes this field answer the question the
-    # user actually asked ("I saw a pile of `review` rows and thought they
-    # could be advanced") on a board with not one declared edge on it.
-    #
-    # **With one exception, because the stored status was masking the graph.**
-    # A row that says `blocked`, declares dependencies, and has NONE of them
-    # left unsatisfied is not stating a fact — it is CONTRADICTING one this
-    # payload has already computed two loops above. Measured on Perry's own
-    # board: TASK-037 (waiting on TASK-092) and TASK-045 (on the closed
-    # TASK-044 → TASK-047 chain) both reported `blocked_by=[]` and
-    # `startable=False` in the same object. `status` was read first, so
-    # `startable` could never disagree with a stale cell and no consumer could
-    # see that it wanted to. `done` does not touch its dependents, so the
-    # ordinary close path CREATES that state and this line then hid it.
-    #
-    # `blocked_stale` names the disagreement rather than swallowing it, and
-    # `startable` stops deferring to the stored value on exactly those rows.
-    # The stored `Status` is left alone: this payload reads, and rewriting a
-    # cell nobody asked it to rewrite is a different decision than reporting
-    # the truth about it. So the row becomes startable and STILL reads
-    # `blocked` until a human or a subsequent write clears it.
-    #
-    # Three boundaries this deliberately does NOT cross:
-    #
-    #   - a row with at least one dependency still open keeps `blocked_by`
-    #     non-empty and stays unstartable. This is not "drop the check".
-    #   - a `blocked` row that declares NO dependency is untouched. Its
-    #     dependency is in prose Perry cannot read — that is precisely
-    #     `conformance.blocked_without_dependency` — and "I cannot see it" is
-    #     not "it closed", the same rule that makes an unknown id unsatisfied.
-    #   - `review` is untouched. A row in review waits on a HUMAN, not on a
-    #     row, so no dependency edge can ever contradict it and there is
-    #     nothing here for this computation to know.
-    waiting = {"blocked", "review"}
-    for t in tasks.values():
-        t["blocked_stale"] = bool(t["open"] and t["status"] == "blocked"
-                                  and t["depends_on"] and not t["blocked_by"])
-        t["startable"] = bool(t["open"] and not t["blocked_by"]
-                              and (t["blocked_stale"]
-                                   or t["status"] not in waiting))
+    # `blocked_stale` and `startable`, from `bin/lib § resolve_startability` —
+    # the ONE statement of the rule, which `cmd_list` below calls too. It was
+    # written out here and again there, ~200 lines apart, and TASK-141 had to
+    # fix it in both places (TASK-148). The whole rule, its exception and the
+    # three boundaries it deliberately does not cross are documented on that
+    # function; nothing about them is decided here.
+    lib.resolve_startability(tasks.values())
 
     edges = {tid: t["depends_on"] for tid, t in tasks.items()}
     in_cycle: set[str] = set()
@@ -4939,19 +4904,10 @@ def cmd_list(args, ctx) -> dict:
             other = tasks.get(dep)
             if other is not None and task["id"] not in other["blocks"]:
                 other["blocks"].append(task["id"])
-    # Same rule as the board-derived path above, and for the same reason: a
-    # stored `blocked` on a row whose every declared dependency has closed is a
-    # contradiction of `blocked_by`, not a fact about it. `blocked_stale` names
-    # it; `startable` stops letting it mask an empty `blocked_by`. A row with an
-    # open dependency, a `blocked` row that declares none, and anything in
-    # `review` are all unaffected — see the commentary on the other site.
-    for task in tasks.values():
-        task["blocked_stale"] = bool(task["open"] and task["status"] == "blocked"
-                                     and task["depends_on"]
-                                     and not task["blocked_by"])
-        task["startable"] = bool(task["open"] and not task["blocked_by"]
-                                 and (task["blocked_stale"]
-                                      or task["status"] not in {"blocked", "review"}))
+    # The same call the board-derived path makes, because it is the same rule
+    # and there is now one of it. This site used to restate it — same meaning,
+    # different spelling — which is why a fix to it had to be applied twice.
+    lib.resolve_startability(tasks.values())
 
     edges = {tid: task["depends_on"] for tid, task in tasks.items()}
     in_cycle: set[str] = set()

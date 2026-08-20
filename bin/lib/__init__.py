@@ -603,3 +603,75 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
     return {"current_provenance": provenance,
             "current_staleness": staleness,
             "linked_task_completion": tally}
+
+
+# ── the one question a dashboard asks ─────────────────────────────────────
+#
+# TASK-148. `bin/perry-task` stated this rule **twice**, ~200 lines apart, once
+# in `_cmd_list_from_board` and once in `cmd_list`, and both are reachable.
+# TASK-141 had to fix the rule and discovered it had to fix it twice — which is
+# the two-readers-of-one-rule failure `schema/task-list-contract.md` warns about
+# in its own prose, inside the tool that contract describes.
+#
+# **This is a move, not an edit.** The rule below is TASK-141's, unchanged; its
+# evidence records three days of argument about the exception, and a behaviour
+# change smuggled into a de-duplication is the hardest kind to review. Both
+# payloads were diffed before and after the move and differ in nothing.
+
+#: A row in one of these waits on somebody ELSE, so its own dependency list
+#: being empty does not make it startable.
+#:
+#: `review` waits on a HUMAN — no dependency edge can ever contradict it, which
+#: is why the `blocked_stale` exception below reaches `blocked` and not this.
+WAITING_ON_SOMEBODY_ELSE = frozenset(("blocked", "review"))
+
+
+def resolve_startability(tasks) -> None:
+    """Set `blocked_stale` and `startable` on every task, in place.
+
+    Takes the rows AFTER `blocked_by` has been computed — this decides nothing
+    about the graph, it reads the graph against the stored `status`. Called by
+    both of `bin/perry-task`'s list paths, which is the whole point of it
+    living here rather than in either one of them.
+
+    A row whose own `Status` says it is waiting is not startable however empty
+    its dependency list is; `blocked` and `review` both mean somebody else has
+    the ball. That is what makes this field answer the question a user actually
+    asks ("I saw a pile of `review` rows and thought they could be advanced")
+    on a board with not one declared edge on it.
+
+    **With one exception, because the stored status was masking the graph.** A
+    row that says `blocked`, declares dependencies, and has NONE of them left
+    unsatisfied is not stating a fact — it is CONTRADICTING one already
+    computed. Measured on Perry's own board: TASK-037 (waiting on TASK-092) and
+    TASK-045 (on the closed TASK-044 → TASK-047 chain) both reported
+    `blocked_by=[]` and `startable=False` in the same object, because `status`
+    was read first and `startable` could never disagree with a stale cell.
+    `done` does not touch its dependents, so the ordinary close path CREATES
+    that state and the old ordering then hid it.
+
+    `blocked_stale` names the disagreement rather than swallowing it, and
+    `startable` stops deferring to the stored value on exactly those rows. The
+    stored `Status` is left alone: `list` reads, and rewriting a cell nobody
+    asked it to rewrite is a different decision than reporting the truth about
+    it. So the row becomes startable and STILL reads `blocked` until a human or
+    a subsequent write clears it.
+
+    Three boundaries this deliberately does NOT cross:
+
+    - a row with at least one dependency still open keeps `blocked_by`
+      non-empty and stays unstartable. This is not "drop the check".
+    - a `blocked` row that declares NO dependency is untouched. Its dependency
+      is in prose Perry cannot read — that is precisely
+      `conformance.blocked_without_dependency` — and "I cannot see it" is not
+      "it closed", the same rule that makes an unknown id unsatisfied.
+    - `review` is untouched, for the reason `WAITING_ON_SOMEBODY_ELSE` gives.
+    """
+    for task in tasks:
+        task["blocked_stale"] = bool(
+            task["open"] and task["status"] == "blocked"
+            and task["depends_on"] and not task["blocked_by"])
+        task["startable"] = bool(
+            task["open"] and not task["blocked_by"]
+            and (task["blocked_stale"]
+                 or task["status"] not in WAITING_ON_SOMEBODY_ELSE))
