@@ -37,7 +37,7 @@
 | TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | not_started | — | — | V3 | TASK-112 | main |  |  |  |  |  |  |
-| TASK-127 | the contract docs and the payloads they describe are never diffed against each other | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to feat/work-modes | evidence/2026-08/TASK-127-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-127 | the contract docs and the payloads they describe are never diffed against each other | Coding Agent | review | PR #21: KR-O2.4 measures 17, not 0; the contract count is five, not three | evidence/2026-08/TASK-127-dispatch-2026-08-20-2045.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 
 ## P2
@@ -55,6 +55,9 @@
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  |
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  |
+| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | — | — | V2 |  |
+| TASK-131 | seventeen emitted contract keys are documented nowhere, and now there is a number for it | Coding Agent | not_started | — | — | V2 |  |
+| TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
