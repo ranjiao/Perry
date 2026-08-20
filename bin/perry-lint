@@ -2348,8 +2348,12 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
                          + (f"; and {len(differing) - 3} more field(s)"
                             if len(differing) > 3 else ""), line))
     for tid in sorted(set(stored) - set(live)):
-        if stored[tid].get("status") in ("done", "dropped"):
-            continue
+        # Terminal status does not by itself prove that a record legitimately
+        # left the projection. Historical `done`/`drop` events are already in
+        # `live` through `build()`, so they were handled by the loop above and
+        # remain excluded. Reaching this set means neither BOARD.md nor the
+        # event log can derive the record; silently excusing it would make a
+        # store-only terminal insertion indistinguishable from real history.
         rows.append((tid, "the store holds this row and nothing in the file or "
                           "the event log still derives it", None))
 

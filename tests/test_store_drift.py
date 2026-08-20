@@ -267,10 +267,12 @@ class TestTheComparisonStateIsObservable(Fixture):
 
 
 class TestBothRowSetDirectionsAreReported(Fixture):
-    def _extra_record(self, d: pathlib.Path, tid: str) -> dict:
+    def _extra_record(self, d: pathlib.Path, tid: str,
+                      status: str = "not_started") -> dict:
         record = dict(self.records(d)[0])
         record.update({"id": tid, "title": f"store only {tid}",
-                       "status": "not_started", "order": 999})
+                       "status": status,
+                       "order": None if status in ("done", "dropped") else 999})
         return record
 
     def test_a_store_only_open_record_is_reported(self):
@@ -285,6 +287,42 @@ class TestBothRowSetDirectionsAreReported(Fixture):
         rows = self.drift(payload)
         self.assertTrue(any("TASK-9901" in row["message"] for row in rows), rows)
         self.assertEqual(payload["store_drift"]["drifted"], 1)
+
+    def test_store_only_terminal_records_are_reported(self):
+        """Terminal is not a substitute for derivation from real history."""
+        d = self.project()
+        self.store(d)
+        records = self.records(d)
+        records.extend([
+            self._extra_record(d, "TASK-9997", "done"),
+            self._extra_record(d, "TASK-9998", "dropped"),
+        ])
+        self.put_records(d, records)
+
+        _, payload = self.lint(d)
+        rows = self.drift(payload)
+        messages = [row["message"] for row in rows]
+        self.assertEqual([message.split(" ", 1)[0] for message in messages],
+                         ["TASK-9997", "TASK-9998"], messages)
+        self.assertTrue(all("nothing in the file or the event log" in message
+                            for message in messages), messages)
+        self.assertEqual(payload["store_drift"]["drifted"], 2)
+
+    def test_terminal_records_derived_from_history_remain_clean(self):
+        """Real done/drop events explain why terminal rows are off the Board."""
+        d = self.project()
+        self.store(d)
+        terminal = {record["status"]: record["id"]
+                    for record in self.records(d)
+                    if record.get("status") in ("done", "dropped")}
+        self.assertEqual(set(terminal), {"done", "dropped"},
+                         "fixture must carry both historical terminal states")
+
+        _, payload = self.lint(d)
+        messages = [row["message"] for row in self.drift(payload)]
+        self.assertFalse(any(message.split(" ", 1)[0] in terminal.values()
+                             for message in messages), messages)
+        self.assertEqual(payload["store_drift"]["drifted"], 0)
 
     def test_the_cap_is_ten_named_rows_then_one_summary(self):
         """M4: the boundary, plus the uncapped typed count."""
