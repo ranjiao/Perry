@@ -5,9 +5,9 @@
 #   ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
 #
 # `register` reserves a slot (refuses if at limit). `release` frees it.
-# Stale markers (older than PERRY_DISPATCH_STALE_TTL, default 1h) are
-# auto-cleaned before counting — covers the case where a previous `work`
-# session crashed without releasing.
+# Stale markers (older than PERRY_DISPATCH_STALE_TTL) are auto-cleaned before
+# counting — covers the case where a previous `work` session crashed without
+# releasing. **Every reap says so on stderr** (TASK-160); see `clean_stale`.
 set -e
 
 # ─── Defaults (override via env) ─────────────────────────────
@@ -15,7 +15,39 @@ MAX_CODEX="${PERRY_MAX_DISPATCH_CODEX:-2}"
 MAX_SUBAGENT="${PERRY_MAX_DISPATCH_SUBAGENT:-2}"
 MAX_OPENCODE_SUBAGENT="${PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT:-2}"
 MAX_TOTAL="${PERRY_MAX_DISPATCH_TOTAL:-3}"
-STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-3600}"  # 1 hour
+# ─── Marker lifetime — measured, not chosen (TASK-160) ───────
+#
+# 2026-08-21: this sweep deleted TASK-142's marker 72 minutes into a live run,
+# and `list` then reported 2 of 3 while three agents were working. Real cycles
+# measured the same night: TASK-148 2h15m, TASK-146 55m, TASK-159 55m,
+# TASK-136 55m, TASK-119 45m. The longest real cycle is 8100s — more than
+# double the 3600s TTL this file shipped with — so the cap had not been the cap
+# for a while, and nothing said so.
+#
+# The window the default may sit in is closed at BOTH ends:
+#
+#   lower  8100s   the longest cycle actually measured. At or below it the
+#                  sweep reaps live agents, which is the defect above.
+#   upper 14400s   `thresholds.in_progress_idle_hours` (4h) in
+#                  `schema/state-schema.json`, which is calibrated against
+#                  this number and says so. `conformance`'s
+#                  `in_progress_with_no_live_run` names a row only once
+#                  nothing holds its slot, so the moment this sweep stops
+#                  counting a marker should be the moment that check is free
+#                  to speak. A TTL above the threshold opens a window in which
+#                  a slot is already reaped and the row still cannot be named.
+#
+# Take the top of the window. The two errors are not symmetric any more: too
+# high now costs one loud line below plus a marker `list` prints with its age
+# and a warning, while too low costs the silent over-count this task exists to
+# remove. Equality with the idle threshold is the intended relationship, not a
+# near miss — it leaves no gap in either direction.
+#
+# Moving this number means moving three things together, and
+# `tests/test_stranded_rows.py § TestThresholdsAgree` fails if they drift:
+# here, `bin/perry-task § live_dispatch_ids`, and the schema threshold above.
+LONGEST_MEASURED_CYCLE=8100                     # TASK-148, 2h15m, 2026-08-21
+STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-14400}"  # 4 hours
 
 CACHE_DIR="$HOME/.cache/perry/in-flight"
 LOCK_DIR="$CACHE_DIR/.lock"
@@ -51,7 +83,8 @@ Env overrides (defaults shown):
   PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT=2
                                     Max concurrent opencode-subagent dispatches
   PERRY_MAX_DISPATCH_TOTAL=3       Cap across all executors (whichever hits first wins)
-  PERRY_DISPATCH_STALE_TTL=3600    Stale-marker TTL in seconds (default 1h)
+  PERRY_DISPATCH_STALE_TTL=14400   Stale-marker TTL in seconds (default 4h).
+                                    Every reap is announced on stderr.
 
 Cache: ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
 USAGE
@@ -161,15 +194,25 @@ validate_task_id() {
   esac
 }
 
+# A reap is never silent (TASK-160). The defect above ran for hours precisely
+# because this function could delete a live agent's slot and say nothing: the
+# next `list` simply printed a smaller number, and the next `register` was
+# waved through under a cap that was no longer the cap. The sweep still runs —
+# a crashed agent would otherwise hold a slot forever, and this project has had
+# agents die at a 600s watchdog — but it now reports every slot it takes, so
+# the failure is loud instead of invisible. stderr, not stdout: `check` and
+# `list` have parseable stdout and a warning is not part of their answer.
 clean_stale() {
-  local now last age
+  local now last age name
   now=$(date +%s)
   for f in "$CACHE_DIR"/*.json; do
     [ -e "$f" ] || continue
     last=$(mtime "$f")
     age=$((now - last))
     if [ "$age" -gt "$STALE_TTL" ]; then
+      name=$(basename "$f" .json)
       rm -f "$f"
+      echo "⚠️  Reaped dispatch slot: $name — its marker was $((age / 60))m old, past the $((STALE_TTL / 60))m stale TTL (PERRY_DISPATCH_STALE_TTL=${STALE_TTL}s). If that agent is still running it no longer holds a slot, and the cap is now short by one." >&2
     fi
   done
 }
@@ -202,7 +245,15 @@ list_markers() {
     now=$(date +%s)
     last=$(mtime "$f")
     age=$((now - last))
-    echo "  • $name  (started $((age / 60))m ago)"
+    # The other half of "never silent". Raising the TTL means a crashed agent
+    # holds its slot four times longer than it used to, and this listing is the
+    # only place a human can see that before the reap line prints. A marker
+    # that has outlived every cycle ever measured on this project says so here.
+    if [ "$age" -gt "$LONGEST_MEASURED_CYCLE" ]; then
+      echo "  • $name  (started $((age / 60))m ago — longer than any cycle measured on this project; reaped at $((STALE_TTL / 60))m)"
+    else
+      echo "  • $name  (started $((age / 60))m ago)"
+    fi
   done
 }
 

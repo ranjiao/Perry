@@ -478,6 +478,10 @@ restates the flag once per row has named no finding.
   `thresholds.review_idle_days` to `schema/state-schema.json`. The first is
   calibrated against `PERRY_DISPATCH_STALE_TTL` rather than chosen freely: at
   or below the marker TTL the two signals would contradict each other.
+  *(Superseded by TASK-160, which raised the marker TTL from 3600s to 14400s
+  and left the two exactly equal. The relationship that holds now is stated on
+  the threshold's own `note`; this bullet records what was true at 1.13 and is
+  not the number to check against.)*
 
 ### 1.12 — 2026-08-20
 
