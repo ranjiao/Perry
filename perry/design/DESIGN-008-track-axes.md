@@ -1,7 +1,7 @@
 # DESIGN-008: `Mode` is two axes wearing one name
 
-> Status: draft
-> Date: 2026-08-20 · Locked: —
+> Status: locked
+> Date: 2026-08-20 · Locked: 2026-08-20
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O1.1, KR-O1.2, KR-O1.3 (`perry/OKR.md` v2, Objective 1)
 > Supersedes: —   · Superseded by: —
@@ -222,6 +222,24 @@ whoever writes the code.
 demand. The linkage graph is untouched: § 1.2 measured that it never consulted
 the mode.
 
+### 5.4 Blast radius
+
+Every surface that reads a track's shape, and what this does to it. Added at
+lock pre-flight (`reference/input-quality.md § 3.6`), the same step at which
+DESIGN-003 gained its § 5.9.
+
+| Surface | Reads | Effect |
+|---|---|---|
+| `bin/perry-state § parse_tracks` | the register's columns | **Changes.** Two optional columns, each defaulting from the preset. A row with neither parses exactly as today |
+| `$PERRY_HOME/SKILL.md` step 3b | one mode file per distinct `mode` | **Unchanged** by #5 — still one file per track, still keyed on the preset name |
+| `work` triage | the track's mode | **Changes** at step 4: the question is rendered from (spine, flow) instead of from the mode name. A track with no override renders the same question it does today |
+| `bin/perry-config` | the register as a store | **Changes** only in that two more columns round-trip. `## Tracks` is already a `track` record kind — measured 2026-08-20, `{'setting': 7, 'track': 2}` |
+| `BOARD.md` | `Track`, `Stage`, `Stage since`, `Arrived`, `Parent`, `Commitment`, `Role` | **Unchanged.** Every column already exists and is already created on demand |
+| `phase/<NNN>-linkage.md` | nothing about tracks | **Unchanged.** § 1.2 measured that it never consulted the mode |
+| `schema/task-list-contract.md` | `tasks[].track` | **Unchanged.** The track name is what a row carries; its shape is not on the row |
+| aiMark and any other consumer | `perry-state --json § project.config.tracks[]` | **Additive.** Two keys appear; none is removed or retyped, so it is a `1.x` change under `tests/test_contract_invariance.py` |
+| A project that never declares a register | — | **Nothing.** `modes/project.md`'s no-op property is goal 2 and is what step 5 exercises |
+
 ## 6. Implementation plan
 
 | # | Step | Depends on | Note |
@@ -235,23 +253,31 @@ the mode.
 ## 7. Risks & mitigations
 
 - **The matrix becomes the interface.** If presets erode, every user meets a
-  4×4 grid. *Mitigation:* goal 2 and decision #3 — the preset name stays the
-  documented way in, and the axes are an override, not the front door.
+  4×4 grid. *Detect:* count declared tracks that override a leg; if most do,
+  the presets no longer describe real work. *Mitigate:* goal 2 and decision #3 —
+  the preset name stays the documented way in, and the axes are an override,
+  not the front door.
 - **A combination that cannot work.** `inquiry` spine with `pipeline` flow may
-  be incoherent. *Mitigation:* step 1 must name illegal pairs, and the parser
-  refuses them by name rather than producing a half-configured track.
+  be incoherent. *Detect:* the parser refuses the pair by name, so it surfaces
+  at declaration rather than as a track that half-works. *Mitigate:* step 1
+  must enumerate the illegal pairs; an unenumerated pair is allowed, so the
+  list being wrong shows up as a bad track rather than as a silent refusal.
 - **The unit is derived, so a spine with no obvious unit has none.** #2 removed
   the field on the ground that each spine value implies exactly one unit. A
   spine added later that does not is then unrepresentable rather than merely
-  awkward. *Mitigation:* step 1 records the spine→unit map explicitly, so a new
-  spine value has a table row it must fill rather than a convention to infer.
+  awkward. *Detect:* adding a spine value means adding a row to the spine→unit
+  map, and an empty cell there is the signal. *Mitigate:* step 1 records that
+  map explicitly, so a new spine has a row it must fill rather than a
+  convention to infer.
 - **A preset that is half-overridden reads as the preset.** #4 makes a blank
   leg inherit, so `Mode: pipeline · Flow: queue` still says "pipeline" at a
-  glance. *Mitigation:* the snapshot renders the resolved pair, not the preset
-  name, wherever a track's shape is reported.
-- **This document becomes a second account of work modes.** *Mitigation:* it
-  revisits DESIGN-003 rather than superseding it; on lock, DESIGN-003 § 9 gains
-  a `## Changes` entry pointing here.
+  glance. *Detect:* the snapshot renders the resolved pair, not the preset
+  name, wherever a track's shape is reported — so a half-overridden track reads
+  as one on sight. *Mitigate:* same line; the rendering is the mitigation.
+- **This document becomes a second account of work modes.** *Detect:* a rule
+  stated here that is not also in a `modes/` file or a test. *Mitigate:* it
+  revisits DESIGN-003 rather than superseding it, and #5 keeps the rules in the
+  mode files; on lock, DESIGN-003 § 9 gains a `## Changes` entry pointing here.
 
 ## 8. Open questions
 
@@ -272,6 +298,15 @@ the mode.
 - 2026-08-20 — created. Raised by the user against DESIGN-003 § 5.1; § 1.2's
   measurement run first, as `TASK-133`, so the document opens with what is true
   rather than with what is argued.
+- 2026-08-20 — § 5.4 blast radius added and every § 7 risk given a detection
+  signal, at `lock` pre-flight (`reference/input-quality.md` § 3.6, § 3.7) —
+  the same step at which DESIGN-003 gained its § 5.9. One advisory point was
+  **overridden rather than fixed**: decision #5 (how `modes/` is organised) is
+  arguably a choice an agent could have made alone rather than a user-only
+  one (§ 3.5). It was asked anyway, because #3 had just made the preset the
+  front door and the documentation shape follows from that — the two answers
+  had to be given by the same person.
+- 2026-08-20 — locked.
 - 2026-08-20 — all 6 User Decisions resolved. **#1 was chosen against this
   document's own draft**, which had bolded three axes; the argument that beat it
   is in § 4's notes and it is a measurement, not a preference. § 5.1's example,
