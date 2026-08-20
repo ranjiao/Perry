@@ -807,6 +807,20 @@
         "knowledge-card"
       ],
       "note": "A knowledge card whose `Last verified` is older than this is reported stale by `perry-lint --knowledge`. Calibrated, not a law: long enough that a stable claim is not re-checked every sprint, short enough that a quarter-old claim about someone else's system is looked at before an agent acts on it. `Invalidated by` is the sharper signal — this is the backstop for a tripwire that never fired because nobody was watching the system it names."
+    },
+    "in_progress_idle_hours": {
+      "value": 4,
+      "applies_to": [
+        "task"
+      ],
+      "note": "An open task whose status is `in_progress`, which holds no dispatch slot, and whose last event is older than this is reported by `conformance.in_progress_with_no_live_run`. Calibrated against the number beside it rather than chosen freely: `perry-dispatch-limit` treats a marker as stale after PERRY_DISPATCH_STALE_TTL (default 1h), so anything at or below that would name a row whose slot is still valid and the two signals would contradict each other. Four hours leaves room for a long run that writes no event, and is short enough to catch the case this exists for — two agents starved at the 600s watchdog on 2026-08-20 and their rows sat `in_progress` with nothing holding them."
+    },
+    "review_idle_days": {
+      "value": 3,
+      "applies_to": [
+        "task"
+      ],
+      "note": "An open task in `review` whose last event is older than this is reported by `conformance.review_idle`. `review` waits on a human and no dependency edge can ever contradict it, so nothing else in the payload notices such a row: TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. Calibrated, not a law — long enough that a verdict asked for on Friday is not nagged on Monday, short enough that a merged PR is not still waiting a week later."
     }
   },
   "claims": [

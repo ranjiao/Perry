@@ -71,18 +71,15 @@
       ],
       "unparsed_sketches": []
     },
-    "perry-task/list/1.12": {
+    "perry-task/list/1.13": {
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.12",
-      "documented": 88,
+      "contract": "perry-task/list/1.13",
+      "documented": 104,
       "documented_not_emitted": [],
-      "emitted": 100,
+      "emitted": 113,
       "emitted_not_documented": [
         "conformance.evidence_not_found[].id",
         "conformance.evidence_not_found[].paths",
-        "conformance.next_action_cites_closed[].cites",
-        "conformance.next_action_cites_closed[].id",
-        "conformance.next_action_cites_closed[].status",
         "conformance.sections_read[].heading",
         "conformance.sections_read[].priority",
         "conformance.sections_read[].rows",
