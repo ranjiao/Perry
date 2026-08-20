@@ -41,8 +41,6 @@
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | read TASK-141 tasks[].blocked_stale rather than recomputing the predicate — a third statement of one rule is the defect TASK-148 is open for | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
-| TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-148-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-149 | a markdown heading that names an id silently becomes that id definition | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-149-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
@@ -70,6 +68,7 @@
 | TASK-150 | test_md_store asserts more than twenty KRs in the live OKR | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-151 | test_task_writer asserts more than five rows on the live board | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-152 | test_prioritize builds its context from the live task records, and its fragile half is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
+| TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
