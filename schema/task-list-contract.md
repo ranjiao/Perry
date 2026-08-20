@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.11`**
+> Contract: **`perry-task/list/1.12`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.11",  // check this before anything else
+  "contract":     "perry-task/list/1.12",  // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
@@ -121,7 +121,8 @@ counts; without it, `closed` is a constant.
 | `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
 | `blocked_by` | array | the subset of `depends_on` that is **not known-finished** — an id whose task is still open, or an id this payload does not carry. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
 | `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
-| `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, its own `status` is not `blocked` or `review` (both mean somebody else has the ball), and `blocked_by` is empty. This is served so you never walk the graph yourself. |
+| `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, `blocked_by` is empty, and its own `status` is not `blocked` or `review` (both mean somebody else has the ball) — **unless `blocked_stale` is `true`, in which case the stored `blocked` is a contradiction of the graph and does not win.** Changed in 1.12; see `semantics`. This is served so you never walk the graph yourself. |
+| `blocked_stale` | bool | `true` when the row is `open`, its stored `status` is `blocked`, it **declares** at least one dependency, and **every one of them has closed** — the board says stopped and the graph says nothing is stopping it. Perry does not rewrite the cell, so `status` still reads `blocked` until somebody acts; this key is how you find out that it is out of date without walking the graph. It is `false` for a row with any open dependency, `false` for a `blocked` row that declares no dependency at all (that one is `conformance.blocked_without_dependency` — the edge is in prose Perry cannot read, and *"I cannot see it"* is not *"it closed"*), and `false` for `review`, which waits on a human and so can never be contradicted by a dependency edge. Added in 1.12. |
 | `created` | string \| null | ISO-8601 of the `add`/`route` event; `null` if the row predates the event log |
 | `updated` | string \| null | ISO-8601 of the most recent event; `null` as above |
 | `timeline` | array | every event for this id, oldest first |
@@ -373,6 +374,45 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.12 — 2026-08-20
+
+**A stored `blocked` no longer masks an empty `blocked_by`.** Until now
+`startable` read the row's own `status` before the dependency graph it had
+already computed, so a row whose every declared dependency had closed reported
+
+```
+status=blocked   blocked_by=[]   startable=false
+```
+
+— all three in the same object, with no key a consumer could read to see that
+the first contradicted the second. On Perry's own board two of the four blocked
+rows were in exactly that state, one of them still carrying a `Next action`
+naming a chain that had fully closed. The other half of the same problem is
+that `perry-task done` does not look at its dependents, so the ordinary close
+path *creates* this state and the old `startable` then hid it.
+
+Such a row is now `startable: true` and carries the new `blocked_stale: true`.
+
+**The stored status is deliberately left alone.** This payload reports; it does
+not rewrite a cell nobody asked it to rewrite. So a stale row still *reads*
+`blocked` on the Board and in `status` until a human or a subsequent write
+clears it — `blocked_stale` is what makes that visible in the meantime, rather
+than silently recomputing it behind the consumer's back.
+
+Three cases deliberately unchanged, because this is not "drop the check":
+
+- a row with **at least one open dependency** keeps a non-empty `blocked_by`
+  and stays unstartable;
+- a `blocked` row that **declares no dependency at all** is untouched. Its
+  blocker is prose Perry cannot read — that is
+  `conformance.blocked_without_dependency` — and *"I cannot see it"* is not
+  *"it closed"*, the same rule that makes an unknown id unsatisfied;
+- **`review` is untouched.** A row in review waits on a human, not on a row, so
+  no dependency edge can contradict it.
+
+- **added** `tasks[].blocked_stale`.
+- **changed the meaning of** `tasks[].startable`; announced in `semantics`.
 
 ### 1.11 — 2026-08-20
 
