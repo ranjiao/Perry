@@ -45,10 +45,11 @@
 | TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-140 | every mode contract slot is assigned to an axis, and the spine-to-unit map is written down | Coding Agent | review | PR #23 — three open questions for the user, incl. whether an empty illegal-pair list discharges § 7 risk 2 | evidence/2026-08/TASK-140-dispatch-2026-08-21-result.md | V3 | — | main |  |  |  |  |  |  |
-| TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to f42e84b | evidence/2026-08/TASK-141-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
-| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | design question answered 2026-08-20: it belongs in conformance, which triage already reads at step 0.5 — not as a new triage feature | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-141 | a row stays blocked after its blockers close, because the stored status masks the computed one | Coding Agent | review | PR #26 — contract 1.12; its REL-00 diagnosis was wrong and is corrected in the record | evidence/2026-08/TASK-141-dispatch-2026-08-21-result.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | not_started | read TASK-141 tasks[].blocked_stale rather than recomputing the predicate — a third statement of one rule is the defect TASK-148 is open for | — | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-143 | two PRs each green on their own base merged into a red tree, and nothing checked the pair | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to a10f897 | evidence/2026-08/TASK-143-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
+| TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
