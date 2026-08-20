@@ -35,13 +35,13 @@
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
-| TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to ce89cde; merges locally, no PR | evidence/2026-08/TASK-119-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 8645f12; merges locally | evidence/2026-08/TASK-142-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | spec written; pre-flight REFUSED on `diagnose` — needs a per-task release. The TASK-126 release does not carry over | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 
@@ -69,6 +69,8 @@
 | TASK-151 | test_task_writer asserts more than five rows on the live board | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-152 | test_prioritize builds its context from the live task records, and its fragile half is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
+| TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
+| TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
