@@ -141,6 +141,64 @@ def strip_md(s: str) -> str:
     return s.replace("**", "").replace("`", "").strip()
 
 
+# Leading decoration a heading may carry before its subject: the `#` marks the
+# HEADING regex already ate, emphasis `strip_md` does not remove, and the
+# separators a numbered or dashed heading opens with.
+HEADING_LEAD = " \t#*_~>—–-:·"
+
+
+def heading_subject(text: str) -> str | None:
+    """The ID a heading DEFINES — the one it opens with — or None.
+
+    A heading does two jobs with one syntax. `## ADR-001 — PMO bootstrap` is
+    where ADR-001 *lives*: it names its subject and then says what that
+    subject is, and the `kind: section` this produces is the whole reason
+    `perry-explain ADR-001` can answer. But a heading is also how a document
+    announces what a passage is *about*, and on 2026-08-21 the PMO wrote one
+    of those into an evidence record in order to **correct** a claim:
+
+        ## Its diagnosis of `REL-00` is wrong, and this is recorded because …
+
+    That made the evidence file `REL-00`'s definition point. `split_dangling`
+    skips defined ids, so `REL-00` left `dangling` and `dangling_in_reports`
+    together — an id dropped silently, which is an exemption nobody can audit,
+    and which `test_perrys_own_repository_reports_the_exemption_it_used` exists
+    to forbid. The heading was reworded and the red cleared, and that fixed
+    nothing: the next person writing an honest section about a finding does it
+    again.
+
+    **The line is grammatical, not editorial: an id that OPENS a heading is
+    being named; an id inside the sentence is being mentioned.** A document
+    that discusses an id is not thereby the place that id lives. Every genuine
+    definition in this repository already has the naming shape —
+    `## ADR-001 — PMO bootstrap`, `### TASK-107 — the dispatch safety gate …`,
+    `# DESIGN-002: Flake scoring` — because a definition has to say what the
+    thing is before it can say anything else about it.
+
+    Two neighbouring lines this deliberately does NOT draw:
+
+    * *Headings never define.* That takes `perry-explain ADR-001` with it, and
+      with it every closed row whose only written record is a journal heading.
+      The rule is right for the documents it was written for; it was only
+      never told where they end.
+    * *Only certain documents may define.* A file-kind allowlist has to be
+      kept in step with each project's own layout, and this script is supposed
+      to work on projects that never heard of Perry. An evidence record may
+      perfectly well define an id — what it must not do is define one by
+      arguing about it.
+
+    Measured on this repository before it was applied: five headings claimed a
+    definition they had no business claiming, and all five are the defect
+    rather than a cost of the fix. `## What does NOT hold, and belongs to
+    TASK-089` was TASK-089's definition point, with the title *"What does NOT
+    hold, and belongs to"* — the hole in that sentence is where the id was cut
+    out. Each of the five has a real id-first definition that now wins.
+    """
+    lead = strip_md(text).lstrip(HEADING_LEAD)
+    m = ID_RE.match(lead)
+    return m.group(1) if m and is_real_id(m.group(1)) else None
+
+
 def walk_md(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
         # A directory carrying its own `.git` is a different project — a
@@ -270,11 +328,17 @@ def harvest(root: Path) -> dict:
                 header_cells = []
 
             # ── headings: ## ADR-001 — PMO bootstrap
+            #
+            # Only the id the heading OPENS with, and see `heading_subject`
+            # for why: a heading that argues about an id is not that id's
+            # home. An id mentioned inside the sentence falls through to the
+            # mention loop below, which is where a reference belongs.
             h = HEADING.match(raw)
             if h:
                 proposing = bool(PROPOSAL_SECTION.search(strip_md(h.group(1))))
-            if h and found:
-                e = ent(found[0])
+            subject = heading_subject(h.group(1)) if h else None
+            if subject:
+                e = ent(subject)
                 e["defined"] = e["defined"] or f"{rel}:{n}"
                 e["kind"] = e["kind"] or "section"
                 if not e["title"]:
