@@ -44,7 +44,7 @@
 | TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
-| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | in_progress | dispatched 16:25 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — |
+| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | merge PR #14; the shape predicate added to bin/perry-lint is outside the declared scope and was flagged for a reviewer | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  |
 | TASK-115 | two guards on the read-only report have a hole beside them, found by mutation not by review | Coding Agent | in_progress | dispatched 17:27 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  |
