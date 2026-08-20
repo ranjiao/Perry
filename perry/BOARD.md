@@ -34,11 +34,10 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
+| TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | blocked | waiting on USER-015 — the delegation prompt goes to an aiMark agent and its result comes back by paste. Found by TASK-142 in_progress_with_no_live_run after 9h with no dispatch slot | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | USER-015 | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to efa0d73; merges locally | evidence/2026-08/TASK-136-spec.md | V3 | — | main |  |  |  |  |  |  |
-| TASK-142 | triage has no check for a row stranded by a process bug, and the one signal that fired was read as prose hygiene | Coding Agent | in_progress | still running at 72m; its dispatch marker was reaped by the 1h stale TTL — see TASK-160 | evidence/2026-08/TASK-142-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | spec written; pre-flight REFUSED on `diagnose` — needs a per-task release. The TASK-126 release does not carry over | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
@@ -70,6 +69,7 @@
 | TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
+| TASK-161 | a contract page cannot tabulate a collection this project state leaves empty | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
@@ -85,6 +85,7 @@
 | USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |  |
 | USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | answered 2026-08-20: Already decided in ADR-007 decision 2 on 2026-08-19 (Deciders: Ran Jiao): BOARD.md becomes rendered output and a hand edit becomes drift. This row was minted the same day and duplicates that decision; recorded here so the queue matches the record. TASK-038 is unblocked, and still needs its V5 signature, which is a different act from this permission. | 2026-08-19 |
 | USER-004 | When migration encounters a file the user has chmod-ed read-only, should it refuse to touch that file, or migrate it and name the overridden permission in the plan? Today it migrates silently: write_atomic renames over the target, and a rename needs write permission on the directory, not on the file. | TASK-079 |  | answered 2026-08-20: Migrate and name the override; do not refuse. Reasoning recorded because the row was minted for it: refusing would block a whole migration for a reason unrelated to shape, and migration is the one road ADR-004 gives an undeclared project — a refusal there is the wall with no door that this project rejects everywhere else. The override is also reversible: the restore point carries the file's original bytes, verified under TASK-079. The 'at least name it' half of the ADR-004 posture is already satisfied by what shipped in PR #6, and TASK-115 added the guard that keeps that wording an observation rather than advice. The read-only bit stays a signal Perry reports and does not act on. | 2026-08-20 |
+| USER-015 | hand perry/evidence/2026-08/TASK-114-delegation-prompt.md to an aiMark coding agent and paste its result back | TASK-114 |  | pending | 2026-08-21 |
 
 ## Done this period (leaves the board at next triage)
 
