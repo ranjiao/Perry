@@ -1556,6 +1556,12 @@ def _task_records(project_root: Path, state_root: Path,
     return records
 
 
+def _board_projected_task_records(records: list[dict]) -> list[dict]:
+    """Return the fields that BOARD.md can represent for drift comparison."""
+    return [{key: value for key, value in record.items() if key != "summary"}
+            for record in records]
+
+
 def _plan_task_store(plan: Plan) -> None:
     """Keep a migrated board and its canonical store in one restore set."""
     board_path = plan.state_root / "BOARD.md"
@@ -1565,6 +1571,7 @@ def _plan_task_store(plan: Plan) -> None:
     preflight_file_object(plan.project_root, store_path, "tasks.jsonl")
     baseline = _task_records(plan.project_root, plan.state_root,
                              board_path.read_text(errors="replace"))
+    summaries: dict[str, str] = {}
     if store_path.exists():
         try:
             current = perry_store.load_store(plan.state_root)
@@ -1575,19 +1582,24 @@ def _plan_task_store(plan: Plan) -> None:
         if findings:
             raise Refused(f"{store_path} is malformed ({findings[0]['message']}); "
                           f"migration refuses before changing BOARD.md")
-        if valid != baseline:
+        if (_board_projected_task_records(valid) !=
+                _board_projected_task_records(baseline)):
             raise Refused(
                 f"{store_path} differs from the current BOARD.md-derived "
                 f"baseline. Migration will not choose a winner: run "
                 f"`perry-tasks render --write` if the store is authoritative, "
                 f"or explicitly import the board with `perry-tasks write "
                 f"--from-board`, then retry.")
+        summaries = {record["id"]: record["summary"] for record in valid}
 
     board_edit = next((e for e in plan.writable if e.path == board_path), None)
     board_after = (board_edit.after if board_edit is not None
                    else board_path.read_text(errors="replace"))
-    after = perry_store.store_text(_task_records(
-        plan.project_root, plan.state_root, board_after))
+    after_records = _task_records(plan.project_root, plan.state_root, board_after)
+    for record in after_records:
+        if record["id"] in summaries:
+            record["summary"] = summaries[record["id"]]
+    after = perry_store.store_text(after_records)
     before = store_path.read_text(encoding="utf-8") if store_path.exists() else ""
     if before == after:
         return

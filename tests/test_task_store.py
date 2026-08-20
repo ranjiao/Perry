@@ -21,7 +21,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOL = ROOT / "bin" / "perry-tasks"
 
-#: Computable from the stored eighteen plus the event log. Storing any of them
+#: Computable from the stored twenty plus the event log. Storing any of them
 #: is the "a stored value that is derived" defect, and keeping them computed is
 #: why `perry-task/list` does not change shape — phase 002's `P-O3.2`.
 DERIVED = {"blocked_by", "blocks", "startable", "evidence_paths", "mode",

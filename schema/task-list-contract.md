@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.10`**
+> Contract: **`perry-task/list/1.11`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.10",  // check this before anything else
+  "contract":     "perry-task/list/1.11",  // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
@@ -99,6 +99,7 @@ counts; without it, `closed` is a constant.
 |---|---|---|
 | `id` | string | **An opaque stable string.** Conventionally `TASK-NNN`, but a real board carries ids under several project-declared prefixes, some with no number at all — a board's own `## ID prefixes` section is where a project states them. Never reused, including after close, which is the part you may depend on. **Do not parse a number out of it** or sort by a numeric suffix. |
 | `title` | string | |
+| `summary` | string | Optional stable explanation of why the task exists and the intended outcome. `""` means unset. It is stored explicitly and is never inferred from `title`, `next_action`, specifications, evidence or journal prose. Added in 1.11. |
 | `owner` | string | free text; the project's own owner model |
 | `priority` | string | `P0` \| `P1` \| `P2`. May be `""` for a closed task whose creating event predates the field. |
 | `status` | string | the typed current status from `tasks.jsonl`: one of `schema § enums.task_status` — `not_started`, `blocked`, `in_progress`, `review`, `done`, `dropped` — or `""` for a legacy record that predates a known value. `BOARD.md` is a projection and cannot change this value. |
@@ -148,7 +149,7 @@ write time; a cycle introduced by an external store edit is reported by
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
-| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `event` | string — `add`, `route`, `start`, `stage`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
 | `field` | string — **what `from`/`to` refer to on this event** (1.7) |
@@ -166,6 +167,7 @@ Its value, per event:
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
 - **`title`** — on `retitle`. The row's title.
+- **`summary`** — on `summary`. The stable purpose/outcome explanation; `""` is an explicit clear.
 - **`next_action`** — on `next`. The next-action cell, often several hundred characters of prose.
 - **`verification`** — on `rung`. A rung, `V0`–`V6`.
 - **`evidence`** — on `evidence`. The evidence cell.
@@ -174,8 +176,8 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **six** of the thirteen — `stage`, `retitle`, `next`, `rung`,
-`evidence` and `depends` — and a wrong word in the field whose job is to stop
+false for **seven** of the fourteen — `stage`, `retitle`, `summary`, `next`,
+`rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
 ### `conformance` — what task truth or its projection could not classify
@@ -372,6 +374,19 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
+### 1.11 — 2026-08-20
+
+**Added `tasks[].summary` as a string on every Task.** It is optional task
+truth, so legacy records and tasks created without it return `""`; consumers
+never need a missing-key branch. `perry-task add --summary` creates it and
+`perry-task summary` updates or explicitly clears it. The Board remains a
+compact projection with no required Summary column.
+
+This minor is additive: no existing key changed type or meaning. Perry does
+not synthesize the value from a title, next action, specification, evidence or
+journal text. A consumer that wants an explanation may display `summary` when
+non-empty and otherwise show only the canonical title.
+
 ### 1.10 — 2026-08-19
 
 **`status_text` is now a legacy display alias of typed `status`.** The key and
@@ -453,10 +468,10 @@ were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
 `field` is `status` on six events, and `section` / `stage` / `title` /
-`next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
+`summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**six** of the thirteen — `stage`, `retitle`, `next`, `rung`, `evidence` and
-`depends` — and a wrong word in the field whose job is to stop you guessing is
+**seven** of the fourteen — `stage`, `retitle`, `summary`, `next`, `rung`,
+`evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
 bump. Semantic corrections — a field that was computed wrongly — are called out

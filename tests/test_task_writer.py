@@ -1340,7 +1340,7 @@ class TestListContract(unittest.TestCase):
 
     TASK_KEYS = {
         "role",
-        "id", "title", "owner", "priority", "status", "track", "mode",
+        "id", "title", "summary", "owner", "priority", "status", "track", "mode",
         "stage", "stage_since", "arrived", "parent", "commitment",
         "next_action", "evidence", "evidence_paths", "verification", "open",
         "group", "status_text", "created", "updated", "timeline",

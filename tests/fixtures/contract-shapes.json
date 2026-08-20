@@ -93,7 +93,7 @@
     }
   },
   "perry-task/list": {
-    "contract": "perry-task/list/1.10",
+    "contract": "perry-task/list/1.11",
     "shape": {
       "asks": "dict",
       "asks.items": "list",
@@ -181,6 +181,7 @@
       "tasks[].startable": "bool",
       "tasks[].status": "str",
       "tasks[].status_text": "str",
+      "tasks[].summary": "str",
       "tasks[].timeline": "list",
       "tasks[].timeline[].actor": "str",
       "tasks[].timeline[].event": "str",

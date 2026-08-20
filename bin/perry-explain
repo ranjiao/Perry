@@ -319,6 +319,8 @@ def render_one(e: dict) -> str:
         L.append(f'  kind       {e["kind"]}')
     if e.get("status"):
         L.append(f'  status     {e["status"]}')
+    if e.get("summary"):
+        L.append(f'  summary    {e["summary"]}')
     L.append(f'  defined    {e["defined"] or "NOWHERE — this ID is referenced but never defined"}')
     if e["mentions"]:
         L.append(f'  mentioned  {e["mentions"][0]}')
@@ -363,7 +365,7 @@ def typed_task_lookup(root: Path, token: str) -> dict | None:
     for line, record in enumerate(valid, 1):
         if record["id"].upper() != wanted:
             continue
-        return {"state": "found", "store": rel, "entry": {
+        entry = {
             "id": record["id"],
             "title": record.get("title") or None,
             "kind": "Task",
@@ -371,7 +373,10 @@ def typed_task_lookup(root: Path, token: str) -> dict | None:
             "defined": f"{rel}:{line}",
             "mentions": [],
             "in_tracking_doc": False,
-        }}
+        }
+        if record.get("summary"):
+            entry["summary"] = record["summary"]
+        return {"state": "found", "store": rel, "entry": entry}
     return {"state": "missing", "store": rel, "findings": []}
 
 

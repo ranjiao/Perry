@@ -2191,7 +2191,7 @@ def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
 def _stored_fields() -> tuple:
     """`perry_store.STORED` — the field list, not a second copy of it.
 
-    Loaded once at import. Writing the nineteen names here would be the "N
+    Loaded once at import. Writing the twenty names here would be the "N
     implementations of one rule" defect with N=2, and the copy would go stale
     the first time a field is added.
     """
@@ -2384,7 +2384,7 @@ def _order_drift(stored: dict, live: dict, rel_board: str,
     """`order` compared ONCE PER SECTION, and never per row.
 
     **`order` is a fact about a sequence, not about a row**, and comparing it
-    like the other eighteen fields amplified one hand edit into a finding for
+    like the other nineteen fields amplified one hand edit into a finding for
     every row beneath it: a line typed into `## P1` shifts the index of all
     four rows under it, and this check reported five drifted rows for one
     inserted one. That is the whole-table-diff-burying-the-change objection

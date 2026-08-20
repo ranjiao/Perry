@@ -476,8 +476,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         which name a concept rather than a cell."""
         payload_keys = set(self.mod.LIST_TASK_KEYS) if hasattr(
             self.mod, "LIST_TASK_KEYS") else None
-        allowed = {"status", "section", "stage", "title", "next_action",
-                   "verification", "evidence", "depends_on"}
+        allowed = {"status", "section", "stage", "title", "summary",
+                   "next_action", "verification", "evidence", "depends_on"}
         self.assertLessEqual(set(self.mod.EVENT_FIELD.values()), allowed)
 
     def test_a_section_move_is_not_reported_as_a_status_move(self):
@@ -512,8 +512,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         aiMark's round-2 report proposed `field: "status"` on every event
         except `prioritize`. Two paragraphs of `schema/task-list-contract.md`
         rebut that, and both said it would be false for three events —
-        `retitle`, `next`, `rung`. It is false for **six**: those three plus
-        `stage`, `evidence` and `depends`.
+        `retitle`, `next`, `rung`. It is now false for **seven**: those three
+        plus `stage`, `summary`, `evidence` and `depends`.
 
         The `1.7` paragraph enumerates all seven non-`status` fields two
         sentences before claiming three would be wrong, so the doc contradicted
@@ -531,7 +531,7 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
                / "task-list-contract.md").read_text(encoding="utf-8")
         claims = re.findall(
             r"proposed `status` for everything except `prioritize`;.*?"
-            r"\*\*(\w+)\*\* of the thirteen — (.*?) — and a wrong word",
+            r"\*\*(\w+)\*\* of the fourteen — (.*?) — and a wrong word",
             doc, re.S)
         self.assertEqual(len(claims), 2,
                          "the rebuttal is stated twice; both must be checked")

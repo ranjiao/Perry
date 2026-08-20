@@ -554,6 +554,8 @@ class TestRecoverable(unittest.TestCase):
                 self.assertEqual(rc, 1, (out, err))
                 self.assertEqual(p.text("BOARD.md"), before)
                 self.assertIn("tasks.jsonl", out.get("refused", ""))
+
+
     def test_apply_plans_and_writes_while_the_project_lock_is_held(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         active = {"value": False}
@@ -2237,6 +2239,61 @@ class TestEveryWriteSiteIsGuarded(unittest.TestCase):
         self.assertGreaterEqual(len(found), 4,
                                 f"the scan sees almost no writes: {found}")
         self.assertIn("write_atomic", found)
+
+
+class TestTaskSummaryMigration(unittest.TestCase):
+    """TASK-106: migration neither invents nor erases non-projected summaries."""
+
+    def test_legacy_board_records_get_an_explicit_empty_summary(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, (out, err))
+        records = [json.loads(line) for line in
+                   (p.root / "tasks.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(records)
+        self.assertTrue(all(record.get("summary") == "" for record in records))
+
+    def test_existing_store_summary_survives_board_migration(self):
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        made = subprocess.run(
+            [sys.executable, str(TASKS), "write", "--from-board",
+             "--root", str(p.root)], capture_output=True, text=True)
+        self.assertEqual(made.returncode, 0, made.stderr)
+        path = p.root / "tasks.jsonl"
+        records = [json.loads(line) for line in path.read_text().splitlines()]
+        task_id = records[0]["id"]
+        summarized = subprocess.run(
+            [sys.executable, str(TASK), "summary", task_id, "--summary",
+             "SUMMARY-SURVIVES-MIGRATION", "--root", str(p.root), "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(summarized.returncode, 0, summarized.stderr)
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 0, (out, err))
+        migrated = [json.loads(line) for line in path.read_text().splitlines()]
+        record = next(item for item in migrated if item["id"] == task_id)
+        self.assertEqual(record["summary"], "SUMMARY-SURVIVES-MIGRATION")
+
+    def test_non_projected_summary_is_the_only_allowed_store_difference(self):
+        for field in ("owner", "title"):
+            with self.subTest(field=field):
+                p = Project({"BOARD.md": LEGACY_BOARD})
+                made = subprocess.run(
+                    [sys.executable, str(TASKS), "write", "--from-board",
+                     "--root", str(p.root)], capture_output=True, text=True)
+                self.assertEqual(made.returncode, 0, made.stderr)
+                path = p.root / "tasks.jsonl"
+                records = [json.loads(line) for line in path.read_text().splitlines()]
+                records[0][field] = f"STORE-ONLY-{field.upper()}"
+                path.write_text("".join(json.dumps(record) + "\n"
+                                        for record in records))
+
+                rc, out, err = p.run("apply")
+
+                self.assertEqual(rc, 1, (out, err))
+                self.assertIn("differs from the current BOARD.md-derived baseline",
+                              out.get("refused", ""))
 
 
 if __name__ == "__main__":

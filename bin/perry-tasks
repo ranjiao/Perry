@@ -11,10 +11,10 @@ ordinary command (TASK-089); this one is the migration and inspection surface.
     perry-tasks write   [--root <p>] --from-board  the board → the store
     perry-tasks diff    [--root <p>]        render and byte-compare with the file
 
-**Nineteen fields are STORED and nine are DERIVED.** That split is the design,
+**Twenty fields are STORED and nine are DERIVED.** That split is the design,
 not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
 `evidence_paths`, `status_text`, `timeline` and `updated` are all computable
-from the nineteen plus the event log, and storing any of them would be the
+from the twenty plus the event log, and storing any of them would be the
 "a stored value that is derived" defect this repository keeps finding.
 
 The derived nine keep the same payload shape. `status_text` changed meaning at

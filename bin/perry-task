@@ -50,6 +50,7 @@ same class — the file is allowed to make Perry *slower to explain itself*, nev
 
 Usage:
   perry-task add   --title "…" --deliverable "…" --verification "…"
+                   [--summary "…"]
                    [--rung V1..V6]  fills the Verification COLUMN; --verification
                                     is the spec's prose and does not
                    [--role <name>]  required once the project declares any
@@ -85,6 +86,8 @@ Usage:
   perry-task depends <ID> --on "TASK-050, TASK-051" | --clear
   perry-task next   <ID> --next "…"        rewrite Next action, nothing else
   perry-task retitle <ID> --title "…"      rewrite Title, nothing else
+  perry-task summary <ID> --summary "…" | --clear
+                                             rewrite or clear Summary only
   perry-task rung   <ID> --rung V1..V6     rewrite Verification, nothing else
   perry-task evidence <ID> --evidence "…"  rewrite Evidence, nothing else
   perry-task prioritize <ID> --priority P0|P1|P2 [--reason "…"]
@@ -147,7 +150,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.10"
+LIST_CONTRACT = "perry-task/list/1.11"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -1511,17 +1514,26 @@ def store_records(project_root: Path, state_root: Path, board: Board,
     order = perry_store.board_order(board, _ops())
     records = [perry_store.record(t, order.get(t["id"]))
                for t in payload["tasks"]]
+    # `summary` deliberately has no Board column. Preserve it only from the
+    # canonical store; deriving it from title, actions, evidence or journal
+    # prose would violate ADR-009. This also makes migration and store rebuilds
+    # carry the non-projected value without teaching each caller a second rule.
+    try:
+        current = perry_store.load_store(state_root)
+        current, current_findings = perry_store.validate_records(current)
+    except (OSError, ValueError):
+        current, current_findings = [], [{"message": "unreadable store"}]
+    if not current_findings:
+        summaries = {r["id"]: r.get("summary") or "" for r in current}
+        for rec in records:
+            rec["summary"] = summaries.get(rec["id"], "")
     if preserve_terminal:
         # The event log is derived and disposable. If it is deleted, completed
         # rows are no longer derivable from the open-only board, but they remain
         # canonical store records and must not disappear on the next write.
         # A same-id record is always replaced by the freshly derived state.
         known = {r["id"] for r in records}
-        try:
-            current = perry_store.load_store(state_root)
-            valid, findings = perry_store.validate_records(current)
-        except (OSError, ValueError):
-            valid, findings = [], [{"message": "unreadable store"}]
+        valid, findings = current, current_findings
         if not findings:
             current_by_id = {r["id"]: r for r in valid}
             for rec in records:
@@ -1795,15 +1807,21 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # mutate no task at all.
     if event.get("event") in TASK_EVENTS and subject:
         projected = derived_by_id.get(subject)
+        old = current_by_id.get(subject)
+        event_name = event.get("event")
+        if projected is None and event_name == "summary" and old is not None:
+            # A terminal Task remains editable even if its disposable event log
+            # is gone and therefore cannot reconstruct a Board row.
+            projected = dict(old)
         if projected is None:
             raise Refused(
                 f"{subject} could not be rendered into the task projection. "
                 "Nothing was written; repair the projection layout or run "
                 "`perry-tasks render --write` before retrying.")
-        old = current_by_id.get(subject)
-        event_name = event.get("event")
         if old is None:
             target = dict(projected)
+            if event_name == "add":
+                target["summary"] = event.get("summary") or ""
         else:
             target = dict(old)
             changed = {
@@ -1813,6 +1831,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 "depends": ("depends_on",),
                 "next": ("next_action",),
                 "retitle": ("title",),
+                "summary": ("summary",),
                 "rung": ("verification",),
                 "evidence": ("evidence",),
                 "done": ("status", "evidence", "verification"),
@@ -1820,9 +1839,18 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 "prioritize": ("priority", "group"),
             }.get(event_name, ())
             for field in changed:
-                target[field] = projected.get(field)
+                target[field] = (event.get("to") or "" if field == "summary"
+                                 else projected.get(field))
 
-        records = [dict(record) for record in current if record["id"] != subject]
+        if old is not None and event_name == "summary":
+            # Summary is store-only metadata. Updating it must not turn one
+            # field edit into a whole-store reorder by moving the record to the
+            # final JSONL line.
+            records = [target if record["id"] == subject else dict(record)
+                       for record in current]
+        else:
+            records = [dict(record) for record in current
+                       if record["id"] != subject]
         if old is not None and event_name in {"done", "drop", "prioritize"}:
             old_group, old_order = old.get("group"), old.get("order")
             if old_order is not None:
@@ -1838,7 +1866,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
                      if record.get("group") == target.get("group")
                      and record.get("order") is not None]
             target["order"] = max(peers, default=-1) + 1
-        records.append(target)
+        if not (old is not None and event_name == "summary"):
+            records.append(target)
     else:
         records = [dict(record) for record in current]
     unstorable = unstorable_status_rows(conformance)
@@ -2248,6 +2277,7 @@ def cmd_add(args, ctx) -> dict:
     event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
+             "summary": args.summary or "",
              "depends_on": depends,
              "from": None, "to": "not_started"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
@@ -2579,6 +2609,32 @@ cmd_retitle = cell_writer(
     "title", "title", "retitle", "retitled",
     required_msg="--title is required: this subcommand exists to write that "
                  "cell, and a row with no title is one nobody can find")
+
+
+def cmd_summary(args, ctx) -> dict:
+    """Rewrite the non-projected Task summary and no other Task field."""
+    if args.clear and args.summary is not None:
+        raise Refused("pass either --summary or --clear, not both")
+    if not args.clear and args.summary is None:
+        raise Refused("--summary is required, or pass --clear to remove it")
+    record = task_record(ctx, args.id)
+    previous = record.get("summary") or ""
+    value = "" if args.clear else args.summary
+    if previous == value:
+        raise Refused(f"{args.id}'s summary is already that")
+    shown = value or "—"
+    jline = f"- [{args.id}] summary · {previous or '—'} → {shown}"
+    event = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "event": "summary", "id": args.id,
+        "title": record.get("title") or "",
+        "track": record.get("track") or "main", "actor": args.actor,
+        "field": "summary", "from": previous, "to": value,
+    }
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run)
+    return {"id": args.id, "summary": value, **plan}
+
 
 #: `rung` — `--rung` lived only on `done`, which is after the argument matters.
 #: `ADR-005` is what makes the cell load-bearing: it is a claim about who is
@@ -3782,7 +3838,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
     """
     def blank(tid: str) -> dict:
         # One template, so a key can never exist on some tasks and not others.
-        return {"id": tid, "title": "", "owner": "", "priority": "",
+        return {"id": tid, "title": "", "summary": "", "owner": "", "priority": "",
                 "status": "", "status_text": "", "track": "main", "mode": "",
                 "stage": "", "evidence_paths": [],
                 "stage_since": "", "arrived": "", "parent": "",
@@ -3898,7 +3954,14 @@ def _cmd_list_from_board(args, ctx) -> dict:
         # A row that has left the board is closed; one still on it stays open,
         # and its live cells win over anything the event stream remembers.
         if not t["open"]:
-            t["status"] = e.get("to") or t["status"]
+            # `from`/`to` is not always a status transition. In particular a
+            # post-close summary edit carries prose there; treating it as status
+            # would make migration reconstruct a Task whose status is its own
+            # explanation.
+            if EVENT_FIELD.get(e.get("event") or "") == "status":
+                t["status"] = e.get("to") or t["status"]
+            if e.get("event") == "summary":
+                t["summary"] = e.get("to") or ""
             t["title"] = e.get("title") or t["title"]
             t["track"] = e.get("track") or t["track"]
             t["priority"] = e.get("priority") or t["priority"]
@@ -4186,6 +4249,7 @@ def cmd_list(args, ctx) -> dict:
             conformance["off_enum_status"].append({"id": tid, "status": status})
         return {
             "id": tid, "title": rec.get("title") or "",
+            "summary": rec.get("summary") or "",
             "owner": rec.get("owner") or "", "priority": rec.get("priority") or "",
             "status": status, "status_text": status,
             "track": rec.get("track") or "main", "mode": "",
@@ -4390,7 +4454,8 @@ def perry_conform():
 #: asserts it still answers on an undeclared project with the gate enforcing.
 READ_ONLY_COMMANDS = {"list", "events"}
 TASK_ROW_COMMANDS = {"start", "stage", "done", "drop", "status", "depends",
-                     "next", "retitle", "rung", "evidence", "prioritize"}
+                     "next", "retitle", "summary", "rung", "evidence",
+                     "prioritize"}
 GATED_FILE = "BOARD.md"
 
 
@@ -4422,7 +4487,7 @@ class Args:
 def parse(argv: list[str]) -> Args:
     a = Args()
     a.cmd = None
-    a.id = a.title = a.track = a.owner = a.priority = None
+    a.id = a.title = a.summary = a.track = a.owner = a.priority = None
     a.next = a.parent = a.commitment = a.stage = a.evidence = a.rung = None
     a.root = None
     a.actor = "agent"
@@ -4435,7 +4500,8 @@ def parse(argv: list[str]) -> Args:
     a.limit = a.since = None
     a.dry_run = a.as_json = a.all = a.clear = False
     i = 0
-    flags = {"--title": "title", "--track": "track", "--owner": "owner",
+    flags = {"--title": "title", "--summary": "summary",
+             "--track": "track", "--owner": "owner",
              "--priority": "priority", "--next": "next", "--parent": "parent",
              "--commitment": "commitment", "--stage": "stage",
              "--evidence": "evidence", "--rung": "rung", "--root": "root",
@@ -4490,7 +4556,7 @@ def parse(argv: list[str]) -> Args:
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "status", "next",
-                         "retitle", "rung", "evidence", "prioritize",
+                         "retitle", "summary", "rung", "evidence", "prioritize",
                          "depends", "done", "drop"})
 # **What a timeline entry's `from`/`to` pair actually refers to.** One row per
 # task event, no default — `tests/test_prioritize.py` asserts this map's keys
@@ -4515,6 +4581,7 @@ EVENT_FIELD = {
     "stage": "stage",
     "prioritize": "section",
     "retitle": "title",
+    "summary": "summary",
     "next": "next_action",
     "rung": "verification",
     "evidence": "evidence",
@@ -4627,7 +4694,7 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "risk-migrate": cmd_risk_migrate,
             "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
-            "retitle": cmd_retitle, "rung": cmd_rung,
+            "retitle": cmd_retitle, "summary": cmd_summary, "rung": cmd_rung,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
             "intake-sweep": cmd_intake_sweep,
             "status": cmd_status, "depends": cmd_depends,
@@ -4699,7 +4766,8 @@ def main(argv: list[str]) -> int:
                     ctx["board"], records)
             if args.cmd in TASK_ROW_COMMANDS:
                 task_record(ctx, args.id)
-            for _f in ("next", "title", "reason", "note", "deliverable"):
+            for _f in ("next", "title", "reason", "note",
+                       "deliverable"):
                 _v = getattr(args, _f, None)
                 if not isinstance(_v, str):
                     continue

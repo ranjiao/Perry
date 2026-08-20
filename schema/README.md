@@ -83,7 +83,7 @@ another moves.
 
 | Contract | Command | Spec | Covers |
 |---|---|---|---|
-| `perry-task/list/1.1` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
+| `perry-task/list/1.11` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
 | `perry-decide/list/1.0` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
 | `perry-goals/list/1.0` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
 

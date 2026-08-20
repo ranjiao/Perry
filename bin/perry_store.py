@@ -16,7 +16,7 @@ resolved by `squash` and its glossary aliases, here as everywhere.
 
 Two things go into a rendered board and they are different things:
 
-  the STORE      the typed values — the nineteen fields of `STORED`. Every one
+  the STORE      the typed values — the twenty fields of `STORED`. Every one
                  of them is read out of `perry/tasks.jsonl` and out of nothing
                  else.
   the LAYOUT     the projection's shape — the preamble, the section order and
@@ -40,7 +40,7 @@ from tables import cell_spans, split_row  # noqa: E402
 
 #: Written to the store. Everything else in `perry-task/list` is computed.
 #:
-#: `order` is the nineteenth and it is the answer to TASK-088's third finding.
+#: `order` records authored row order and answers TASK-088's third finding.
 #: **Authored row order is recorded, not re-derived.** `perry-task/list` sorts
 #: by id and Perry's own `## P1` runs `TASK-047` before `TASK-038`, so a store
 #: that did not carry order would move two rows of the first board it rendered
@@ -50,7 +50,7 @@ from tables import cell_spans, split_row  # noqa: E402
 #: change nobody can then review") and what ADR-004 means by a migration being
 #: reviewable. It is not a derived value: nothing else in the record determines
 #: where triage decided a row should sit.
-STORED = ("id", "title", "owner", "status", "priority", "track", "stage",
+STORED = ("id", "title", "summary", "owner", "status", "priority", "track", "stage",
           "stage_since", "arrived", "verification", "evidence", "next_action",
           "depends_on", "commitment", "parent", "group", "role", "created",
           "order")
@@ -199,7 +199,13 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                              "message": "expected one JSON object per line"})
             continue
         bad = []
-        for field, value in rec.items():
+        normalized = dict(rec)
+        # TASK-106 is additive: legacy records remain valid and acquire the
+        # explicit empty value at the shared validation boundary. No caller is
+        # allowed to recover prose from another field to fill it.
+        if normalized.get("summary") is None:
+            normalized["summary"] = ""
+        for field, value in normalized.items():
             if field not in STORED:
                 continue
             if field == "order":
@@ -233,7 +239,7 @@ def validate_records(records: list) -> tuple[list[dict], list[dict]]:
                                  for b in bad)})
             continue
         seen.add(tid)
-        good.append(rec)
+        good.append(normalized)
     return good, findings
 
 
