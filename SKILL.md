@@ -194,7 +194,7 @@ Moves every path Perry claims under a new state root and rewrites `State root:` 
 
 `.perry/config.md` is where a project's preferences live; every lane and script reads it. First-time setup creates it. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
-The field list and the four subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), **tracks**, and the **conformance gate** (advisory today — never run `perry-conform declare` for the user; adoption proposes, the user declares).
+The field list and the four subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), **tracks**, and the **conformance gate** (enforces — never run `perry-conform declare` for the user; adoption proposes, the user declares).
 
 ## Style rules
 

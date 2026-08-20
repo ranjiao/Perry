@@ -37,6 +37,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 LINT = PERRY_HOME / "bin" / "perry-lint"
@@ -1185,7 +1187,7 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n")
+            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
         if hook:
             (root / ".perry" / "hook.md").write_text(
                 f"# hook\n\n## High-stakes operations\n\n- {hook}\n")

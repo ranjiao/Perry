@@ -8,9 +8,11 @@ about to write, while every reader asks neither.
 Two things this suite is deliberately built to catch, because they are the
 failure modes the task's own rubric names:
 
-- a gate that cannot fire. Advisory is the shipped default, so the enforcing
-  branch is exercised explicitly by every refusal test here. A guard that only
-  ever runs in the mode that never refuses is not a guard.
+- a gate that cannot fire — and, since TASK-047 flipped the shipped default to
+  `enforce`, a gate that cannot be turned off. Both branches are exercised
+  explicitly: § 7 asserts the refusal under the shipped default AND the write
+  proceeding under `advisory`, reached both by `PERRY_CONFORMANCE` and by
+  `.perry/config.md`. A guard that only ever runs in one mode is not a guard.
 - a second definition of Perry's shape. `TestOneDefinitionOfTheShape` compares
   `perry-conform`'s per-file error counts against `perry-lint`'s own findings,
   file by file, on a real project. They agree because there is one
@@ -39,6 +41,7 @@ GOALS = PERRY_HOME / "bin" / "perry-goals"
 STATE = PERRY_HOME / "bin" / "perry-state"
 LINT = PERRY_HOME / "bin" / "perry-lint"
 CONFORM = PERRY_HOME / "bin" / "perry-conform"
+MIGRATE = PERRY_HOME / "bin" / "perry-migrate"
 
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
@@ -496,19 +499,24 @@ class TestOneDefinitionOfTheShape(unittest.TestCase):
 
 
 class TestMigrationDoesNotReachTheWholeBoard(unittest.TestCase):
-    """TASK-047, blocker 1 — measured on a real project rather than argued.
+    """TASK-047, cost 1 — measured on a real project rather than argued.
 
-    ADR-004 says flip the gate to `enforce` once the migration exists. It
-    exists. But `enforce` is only honest if the command the refusal names can
-    actually get the file there, and on `~/proj/gimegime-pmo` it cannot: one
-    row reads `Status: 半解`, which is a distinction the user drew in their own
-    words and which `perry-migrate` correctly refuses to coerce into
-    `in_progress`. A file that a complete migration leaves non-conformant is a
-    file that `enforce` turns read-only with nowhere left to go.
+    ADR-004 says flip the gate to `enforce` once the migration exists, and
+    TASK-047 flipped it. What this pins is the residue the flip therefore
+    ships with: on `~/proj/gimegime-pmo`, `perry-migrate` takes `BOARD.md` from
+    3 errors to 1, and the survivor is a row reading `Status: 半解` — a
+    distinction the user drew in their own words, which `perry-migrate`
+    correctly refuses to coerce into `in_progress`.
+
+    So a file a complete migration leaves non-conformant stays refused until a
+    human edits it and declares it. That is a door needing a hand rather than a
+    wall — the refusal names `perry-lint` and `perry-conform declare` as well
+    as `perry-migrate` — but it is a real cost and it is stated, not
+    discovered.
 
     Read-only: a dry run, on a copy, and it asserts nothing about WHICH
     residual finding remains — only that one does. This goes RED the day the
-    residue is solved, which is the day the flip becomes arguable."""
+    residue is solved, which is the day the row in `bin/README.md` can go."""
 
     @classmethod
     def setUpClass(cls):
@@ -539,9 +547,10 @@ class TestMigrationDoesNotReachTheWholeBoard(unittest.TestCase):
                            "no longer measures anything")
         self.assertGreater(
             board["after_errors"], 0,
-            "perry-migrate now takes a real board to zero errors: blocker 1 in "
-            "bin/README.md § The switch-over checklist is closed. Re-run the "
-            "end-to-end measurement and reconsider perry-conform.DEFAULT_MODE.")
+            "perry-migrate now takes a real board to zero errors: cost 1 in "
+            "bin/README.md § The switch-over checklist is gone. Delete this "
+            "test and the row it pins — the flip itself already happened "
+            "(TASK-047), so nothing about DEFAULT_MODE needs revisiting.")
         self.assertFalse(board["writable"],
                          "a plan with residual errors must not be applied — "
                          "ADR-004 guarantee 5, partial migration is per file")
@@ -638,78 +647,209 @@ class TestTheGateSpeaksEveryDocumentLanguage(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
 
 
-# ── 7 · advisory today, enforcing on a stated condition ───────────────────
+# ── 7 · enforcing, and what enforcing costs ───────────────────────────────
+
+#: A commitments register with the pre-TASK-091 single clock column — out of
+#: Perry's shape by exactly the defect `perry-goals commit --migrate` exists to
+#: repair, which is what makes it the fixture for the exemption. Kept here
+#: rather than imported from `test_goals_writer` so that a change to that
+#: suite's fixture cannot silently stop this one from testing the gate.
+PRE_SPLIT_OKR = """# OKR — fixture
+
+## Mission
+
+Ship it.
+
+## Commitments
+
+| Id    | Track | Promise             | To whom | By when              | Status |
+|-------|-------|---------------------|---------|----------------------|--------|
+| rel/1 | rel   | Release 2.0         | Users   | 2027-01-01           | active |
+| ops/7 | ops   | Invoices reconciled | Finance | within the track SLA | active |
+
+## Anti-Goals
+
+- not this
+"""
 
 
-class TestTheGateShipsAdvisory(unittest.TestCase):
+class TestTheGateEnforces(unittest.TestCase):
+    """TASK-047. `advisory` shipped for one release on an argument that named
+    its own expiry condition — *enforcement flips when TASK-044 gives the
+    non-conformant half of the population a road* — and TASK-044 landed
+    2026-08-19. These assert the flip, both escape hatches, and both
+    exemptions."""
 
-    def test_the_shipped_default_is_advisory(self):
+    def test_the_shipped_default_is_enforce(self):
         p = Project()
-        self.assertEqual(C.DEFAULT_MODE, C.ADVISORY)
-        self.assertEqual(C.gate_mode(p.root), C.ADVISORY)
+        self.assertEqual(C.DEFAULT_MODE, C.ENFORCE)
+        self.assertEqual(C.gate_mode(p.root), C.ENFORCE)
 
-    def test_an_undeclared_project_can_still_be_written_to(self):
-        """The trap: every Perry project in existence is undeclared, this repo
-        included. An enforcing default would turn `perry-task add` off for all
-        of them at upgrade."""
+    def test_an_undeclared_project_is_refused_and_nothing_is_written(self):
+        """V4.1. A refusal must mean the file was not touched — the gate is
+        taken before the lock and before the command runs for this reason."""
+        p = Project()
+        before = (p.root / "BOARD.md").read_text()
+        rc, out, _ = p.run(TASK, *ADD, enforce=None)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("BOARD.md", out["refused"])
+        self.assertEqual(before, (p.root / "BOARD.md").read_text(),
+                         "a refused write left a mark on the file")
+        self.assertFalse(p.marker().exists(),
+                         "the refusal declared the file on the user's behalf")
+
+    def test_the_refusal_names_the_file_the_version_and_a_declare_command(self):
+        """V4.1, clause by clause. Three facts, because a refusal missing any
+        one of them cannot be acted on without a second command."""
         p = Project()
         rc, out, _ = p.run(TASK, *ADD, enforce=None)
-        self.assertEqual(rc, 0, out)
-        self.assertIn(out["id"], p.root.joinpath("BOARD.md").read_text())
+        msg = out["refused"]
+        self.assertIn("BOARD.md", msg)
+        self.assertIn(f"version {C.shape_version(SCHEMA)}", msg)
+        self.assertIn("perry-conform declare BOARD.md", msg)
 
-    def test_advisory_is_not_silent(self):
+    def test_the_declare_command_the_refusal_names_is_runnable_verbatim(self):
+        """The difference between naming a command and naming a road. The
+        exact string is lifted out of the refusal and executed — if the
+        message ever names a command that does not parse, this goes red."""
         p = Project()
-        rc, out, err = p.run(TASK, *ADD, enforce=None)
+        _, out, _ = p.run(TASK, *ADD, enforce=None)
+        line = next(l.strip() for l in out["refused"].split("\n")
+                    if l.strip().startswith("perry-conform declare"))
+        argv = line.split()[1:] + ["--root", str(p.root)]
+        r = subprocess.run(["python3", str(CONFORM), *argv],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(p.verdict("BOARD.md").state, C.CONFORMANT)
+        rc, out, _ = p.run(TASK, *ADD, enforce=None)
+        self.assertEqual(rc, 0, out)
+
+    def test_advisory_lets_the_write_through_and_says_so(self):
+        """V4.2. The escape hatch, and the reason `advisory` is not `off`: the
+        gate computed the same verdict and printed the same message."""
+        p = Project()
+        rc, out, _ = p.run(TASK, *ADD, enforce=False)
+        self.assertEqual(rc, 0, out)
+        self.assertIn(out["id"], (p.root / "BOARD.md").read_text())
         self.assertEqual(out["conformance"]["state"], C.UNDECLARED)
         self.assertEqual(out["conformance"]["gate"], C.ADVISORY)
         self.assertTrue(out["conformance"]["allowed"])
-        rc, text, err = p.run(TASK, *ADD, enforce=None, json_out=False)
+        rc, _, err = p.run(TASK, *ADD, enforce=False, json_out=False)
+        self.assertEqual(rc, 0, err)
         self.assertIn("conformance (advisory)", err)
         self.assertIn("perry-conform declare BOARD.md", err)
 
-    def test_a_project_can_opt_into_enforcement_without_the_environment(self):
-        """The enforcing branch is live code today, reachable by a user who
-        wants it — not a flag that only the test suite can set."""
-        p = Project(config_extra="- Conformance gate: enforce\n")
-        self.assertEqual(C.gate_mode(p.root), C.ENFORCE)
+    def test_a_project_can_opt_out_of_enforcement_without_the_environment(self):
+        """The other escape hatch. Going back is per project, not per release,
+        and not a flag only the test suite can set."""
+        p = Project(config_extra="- Conformance gate: advisory\n")
+        self.assertEqual(C.gate_mode(p.root), C.ADVISORY)
         rc, out, _ = p.run(TASK, *ADD, enforce=None)
+        self.assertEqual(rc, 0, out)
+
+    def test_the_environment_overrides_the_project_setting(self):
+        """Precedence, in the direction the flip makes load-bearing: a project
+        that opted out can still be checked by a single enforcing run."""
+        p = Project(config_extra="- Conformance gate: advisory\n")
+        rc, out, _ = p.run(TASK, *ADD, enforce=True)
         self.assertEqual(rc, 1)
         self.assertIn("perry-conform declare", out["refused"])
 
-    def test_the_environment_overrides_the_project_setting(self):
-        p = Project(config_extra="- Conformance gate: enforce\n")
-        rc, out, _ = p.run(TASK, *ADD, enforce=False)
-        self.assertEqual(rc, 0, out)
-
-    def test_declaring_the_file_turns_the_advisory_off(self):
+    def test_declaring_the_file_turns_the_refusal_off(self):
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
         rc, out, err = p.run(TASK, *ADD, enforce=None, json_out=False)
         self.assertEqual(rc, 0, err)
-        self.assertNotIn("conformance (advisory)", err)
+        self.assertNotIn("conformance", err)
 
-    # ── TASK-047 · the two conditions the flip is actually waiting on ──────
+    def test_the_refusal_on_a_malformed_file_names_perry_migrate(self):
+        """Deliverable 4, and the whole reason the flip is defensible. The
+        advisory release existed because this branch could only name
+        `perry-lint`, which reports the problem and fixes nothing."""
+        p = Project(board=BOARD_WRONG_SHAPE)
+        rc, out, _ = p.run(TASK, *ADD, enforce=None)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("perry-migrate", out["refused"])
+        self.assertIn("perry-migrate apply", out["refused"])
+        self.assertIn(f"shape version {C.shape_version(SCHEMA)}",
+                      out["refused"])
+
+    # ── the two documented exemptions ─────────────────────────────────────
     #
-    # ADR-004's decision was "flip once the migration exists". `perry-migrate`
-    # now exists, so the flip was attempted and MEASURED rather than argued,
-    # and it does not hold yet. The reasons are pinned here as executable
-    # facts, so that the day either becomes false a test says so instead of a
-    # paragraph in `bin/README.md` quietly going stale. Neither test asserts
-    # "advisory is better"; each asserts the one observation that blocks the
-    # flip, and each is written to go RED when the blocker is fixed.
+    # A gate that refuses the migration is a wall with no door: the migration
+    # is how an undeclared project becomes declarable. Both exemptions are
+    # asserted here, under the SHIPPED default rather than a forced `enforce`,
+    # because after TASK-047 the shipped default is the mode users meet.
+
+    def test_goals_commit_migrate_writes_an_undeclared_file_without_refusal(self):
+        """V4.3. `perry-goals commit --migrate` splits the register's clock
+        column — the file it repairs is out of shape by exactly that defect,
+        so gating it would make the file permanently unmigratable."""
+        p = Project()
+        (p.root / "OKR.md").write_text(PRE_SPLIT_OKR)
+        self.assertEqual(p.verdict("OKR.md").state, C.UNDECLARED)
+
+        blocked, out, _ = p.run(GOALS, "commit", "--track", "ops",
+                                "--promise", "a", "--to", "x", "--due", "3d",
+                                enforce=None)
+        self.assertEqual(blocked, 1,
+                         "the fixture is not gated, so the exemption proves "
+                         "nothing")
+
+        rc, out, err = p.run(GOALS, "commit", "--migrate", enforce=None)
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertIn("Due", (p.root / "OKR.md").read_text())
+        self.assertIn("By when note", (p.root / "OKR.md").read_text())
+        self.assertFalse(p.marker().exists(),
+                         "the exempt write declared the file on the user's "
+                         "behalf")
+
+    def test_the_exempt_goals_run_announces_the_exemption_exactly_once(self):
+        """The exemption is loud, and it is not also advisory. Three
+        independent `if`s printed both lines under `enforce`; unreachable
+        while the default was advisory, wrong the day it flipped."""
+        p = Project()
+        (p.root / "OKR.md").write_text(PRE_SPLIT_OKR)
+        rc, _, err = p.run(GOALS, "commit", "--migrate", enforce=None,
+                           json_out=False)
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(1, err.count("that is what a migration is"))
+        self.assertNotIn("conformance (advisory)", err)
+        self.assertNotIn("conformance (enforce)", err)
+
+    def test_perry_migrate_runs_to_completion_against_an_undeclared_project(self):
+        """V4.4. `perry-migrate` is exempt from its own gate — it is how an
+        undeclared project becomes declarable, and it is the command the
+        refusal names. Run to completion means `apply`, not just a plan."""
+        p = Project(board=BOARD_WRONG_SHAPE)
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+        rc, out, err = p.run(MIGRATE, "apply", enforce=None)
+        self.assertEqual(rc, 0, f"{out} {err}")
+        board = next(f for f in out["files"] if f["path"] == "BOARD.md")
+        self.assertEqual(board["after_errors"], 0, board)
+        self.assertEqual(p.verdict("BOARD.md").state, C.CONFORMANT,
+                         "apply did not record the user's declaration")
+        rc, out, _ = p.run(TASK, *ADD, enforce=None)
+        self.assertEqual(rc, 0,
+                         "the road the refusal names does not lead anywhere")
+
+    # ── TASK-047 · what the flip costs ────────────────────────────────────
+    #
+    # Two costs came out of the measurement that preceded the flip. Neither is
+    # a missing road — both are places a user meets the gate on day one, and
+    # they are pinned here so that the day either stops being true a test says
+    # so instead of `bin/README.md` quietly going stale. Each is written to go
+    # RED when the cost is removed.
 
     def test_a_project_with_a_perfect_shape_is_still_refused_before_declaring(self):
-        """Blocker 2, and the reason `enforce` cannot even be the default for
-        NEW projects. Conformance is two facts, and Perry can only produce one
-        of them: a project Perry itself just wrote carries zero shape errors
-        and is still `undeclared`, because `SKILL.md § Conformance gate`
-        forbids an agent from declaring on the user's behalf (`perry/OKR.md` —
-        *adoption proposes; the user declares*). So `enforce` shipped as the
-        new-project default refuses the first `perry-task add` on a project
-        that has nothing wrong with it.
+        """Cost 2. Conformance is two facts and Perry can only produce one of
+        them: a project Perry itself just wrote carries zero shape errors and
+        is still `undeclared`, because `SKILL.md § Conformance gate` forbids an
+        agent from declaring on the user's behalf (`perry/OKR.md` — *adoption
+        proposes; the user declares*). So the first `perry-task add` on a
+        spotless project asks the user for one command.
 
-        This goes red when setup/adopt ends in the user's own declaration —
-        which is exactly when the new-project half of the flip becomes safe."""
+        Goes red when setup/adopt ends in the user's own declaration."""
         p = Project()
         lint = json.loads(subprocess.run(
             ["python3", str(LINT), "--root", str(p.root), "--json"],
@@ -719,12 +859,12 @@ class TestTheGateShipsAdvisory(unittest.TestCase):
         self.assertEqual(board_errors, [],
                          "the fixture is no longer a perfectly shaped board, "
                          "so this test would prove nothing")
-        rc, out, _ = p.run(TASK, *ADD, enforce=True)
+        rc, out, _ = p.run(TASK, *ADD, enforce=None)
         self.assertEqual(
             rc, 1,
-            "a zero-error project is now writable under enforce — blocker 2 in "
-            "bin/README.md § The switch-over checklist is closed; re-run the "
-            "migration measurement and reconsider DEFAULT_MODE")
+            "a zero-error project is now writable under the shipped default — "
+            "cost 2 in bin/README.md § The switch-over checklist is gone; "
+            "delete this test and the row it pins")
         self.assertIn("no one has declared it", out["refused"])
 
     def test_reading_is_not_gated_for_the_commands_a_refusal_names(self):
@@ -746,17 +886,20 @@ class TestTheGateShipsAdvisory(unittest.TestCase):
                 self.assertTrue(r.stdout.strip(),
                                 f"{tool.name} produced no output under enforce")
 
-    def test_the_switch_over_checklist_names_both_blockers(self):
-        """The checklist is the deliverable a reader acts on. A checklist that
-        lost a condition would read as though the flip were one step away."""
+    def test_the_switch_over_checklist_names_both_costs_and_the_way_back(self):
+        """The checklist is the deliverable a reader acts on. It must name
+        both costs the flip carries AND the way back — a document that
+        announces an enforcing default without naming `advisory` is the wall
+        this whole gate is built not to be."""
         doc = (PERRY_HOME / "bin" / "README.md").read_text()
         self.assertIn("switch-over checklist", doc.lower())
         body = doc.split("switch-over checklist", 1)[1].split("\n### ", 1)[0]
-        self.assertIn("perry-migrate", body)
-        self.assertIn("declare", body)
-        for claim in ("BOARD.md", "undeclared"):
+        for claim in ("perry-migrate", "declare", "BOARD.md", "undeclared",
+                      "advisory", "PERRY_CONFORMANCE"):
             self.assertIn(claim, body,
                           f"the checklist no longer names {claim}")
+        self.assertNotIn("not the default yet", doc,
+                         "the checklist still describes a state that passed")
 
 
 # ── 8 · a file that does not exist yet is not a stranger's file ───────────

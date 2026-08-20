@@ -214,33 +214,45 @@ neither looks at the other.
 `perry-decide list` and the viewer answer on an unmarked project, whatever the
 gate is set to.
 
-The gate ships **advisory**: the writer proceeds and says what it found, on
-stderr and in the `conformance` block of its (non-contract) `--json` result. Set
-`- Conformance gate: enforce` in `.perry/config.md`, or `PERRY_CONFORMANCE=enforce`
-in the environment, to make it refuse instead.
+The gate ships **enforce**: a writer refuses a state file that is not declared
+conformant, naming the file, the shape version it was checked against, and the
+command that fixes it. Set `- Conformance gate: advisory` in `.perry/config.md`,
+or `PERRY_CONFORMANCE=advisory` in the environment, to make it proceed and say
+what it found instead — on stderr and in the `conformance` block of its
+(non-contract) `--json` result.
 
-#### The switch-over checklist — why `enforce` is not the default yet
+#### The switch-over checklist — what the flip to `enforce` costs
 
 ADR-004's decision was to flip once the migration existed. `bin/perry-migrate`
-now exists, so the flip was attempted and **measured on a copy of a real
-project** rather than argued. Two conditions are still open, each with the
-observation that opened it and the exit criterion that closes it. Neither is a
-preference; both were reproduced end to end with `PERRY_CONFORMANCE=enforce`.
+landed with TASK-044 on 2026-08-19, so TASK-047 flipped `DEFAULT_MODE`. Every
+refusal now names a road: `perry-conform declare` for a file that already
+matches Perry's shape, `perry-migrate` for one that does not.
 
-| | What was observed | What closes it |
+The flip was **measured on a copy of a real project** rather than argued, and
+two costs came out of that measurement. Neither is a missing road; both are
+places a user meets the gate on day one, so both are stated here rather than
+discovered in the field.
+
+| | What it costs | What removes the cost |
 |---|---|---|
-| **1 · migration cannot finish the job on a real board** | `perry-migrate apply` on a `~/proj/gimegime-pmo` copy migrated and declared 30 files and took the project from 59 lint errors to 15 — and left `BOARD.md` byte-identical, because one row reads `Status: 半解`. `perry-task add` is then still refused, with the refusal naming `perry-migrate`, which has already been run to completion. | A path for the residue that is not a hand edit. The three classes seen were: a `Status` cell in the user's own words, a tier-1 file over its size cap, and a KR table whose columns are the project's. **Not** widening the enums — `半解` is a real distinction the user drew, and coercing it to `in_progress` is the confidently-wrong-value class. |
-| **2 · a brand-new project would refuse its own first write** | A project with **zero** lint errors is `undeclared`, and undeclared is refused under `enforce`. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*). So `enforce` shipped as a default for new projects refuses the first `perry-task add` on a project Perry itself just wrote. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. Until that exists, `enforce` for new projects is strictly worse than `advisory` for them. |
+| **1 · migration does not always reach zero on a real board** | On a `~/proj/gimegime-pmo` copy, `perry-migrate` takes `BOARD.md` from 3 errors to **1**, and the residue is a row reading `Status: 半解`. That file stays refused until a human edits it and runs `perry-conform declare BOARD.md`. The refusal names both commands, so it is a door that needs a hand — not a wall. | A path for the residue that is not a hand edit. The three classes seen were: a `Status` cell in the user's own words, a tier-1 file over its size cap, and a KR table whose columns are the project's. **Not** widening the enums — `半解` is a real distinction the user drew, and coercing it to `in_progress` is the confidently-wrong-value class. |
+| **2 · a brand-new project asks for one declaration before its first write** | A project with **zero** lint errors is still `undeclared`, and undeclared is refused. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*), so the first `perry-task add` on a project Perry itself just wrote asks the user for one command. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. That is a better first run than a refusal, but it is a convenience, not a road: the road already exists and the refusal names it. |
 
-Both are checked by `tests/test_conformance.py § TestTheGateShipsAdvisory`, so
-the day either becomes false a test says so rather than the paragraph going
-stale. Flipping `DEFAULT_MODE` before then does not need a new argument — it
-needs those two runs to come out differently.
+Both are checked by `tests/test_conformance.py § TestTheGateEnforces`, so the day
+either becomes false a test says so rather than the paragraph going stale.
 
-What is **not** open: reading. `perry-state`, `perry-task list`, `perry-goals
+**Going back is per project, not per release.** A project that wants the old
+behaviour sets `- Conformance gate: advisory` in `.perry/config.md`; a single
+command gets `PERRY_CONFORMANCE=advisory`. Both branches stay live and both stay
+exercised by the suite — a guard that cannot be made to fire is not a guard, and
+neither is one that cannot be turned off.
+
+What is **not** affected: reading. `perry-state`, `perry-task list`, `perry-goals
 list` and `perry-decide list` were re-run at every step of that migration with
 the gate enforcing, on an undeclared project, on a half-migrated one and on a
-declared one, and answered `rc=0` with all 41 rows every time.
+declared one, and answered `rc=0` with all 41 rows every time. `perry-lint` and
+`perry-migrate` are ungated for the same reason — they are the commands a
+refusal names, and a gated one would close the loop.
 
 ### Lint after every tier‑1 write
 

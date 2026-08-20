@@ -19,6 +19,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import tables as T  # noqa: E402
@@ -57,7 +59,8 @@ class Base(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\nState root: perry/\n", encoding="utf-8")
+            "# Perry configuration\n\nState root: perry/\n" + GATE_OFF,
+            encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text("\n".join([
             "# Board", "",
             "## P1", "", T.render_row(HEADER), "|" + "---|" * len(HEADER), "",

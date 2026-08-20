@@ -1584,15 +1584,22 @@ def main(argv: list[str]) -> int:
             # permanently unmigratable — refuse to write, refuse to fix, no
             # third command. `perry-migrate` is exempt from its own gate for
             # the same reason, and this is the transform it hands over.
-            if not gate.ok and not args.migrate:
-                raise Refused(gate.message)
-            if not gate.ok and not args.as_json:
-                print(f"perry-goals: ⚠ migrating a file the conformance gate "
-                      f"refuses — that is what a migration is. {gate.message}",
-                      file=sys.stderr)
-            if gate.message and not args.as_json:
-                print(f"perry-goals: ⚠ conformance (advisory) — {gate.message}",
-                      file=sys.stderr)
+            # Three outcomes, and they are mutually exclusive — the first
+            # version wrote them as three independent `if`s, which was
+            # unreachable while the gate shipped advisory (`gate.ok` was always
+            # true) and started double-printing the moment TASK-047 flipped the
+            # default: an exempt `--migrate` run announced the exemption and
+            # then announced itself as advisory, under `enforce`.
+            if not gate.ok:
+                if not args.migrate:
+                    raise Refused(gate.message)
+                if not args.as_json:
+                    print(f"perry-goals: ⚠ migrating a file the conformance "
+                          f"gate refuses — that is what a migration is. "
+                          f"{gate.message}", file=sys.stderr)
+            elif gate.message and not args.as_json:
+                print(f"perry-goals: ⚠ conformance ({gate.mode}) — "
+                      f"{gate.message}", file=sys.stderr)
             with project_lock(state_root):
                 ctx = {"project_root": project_root, "state_root": state_root,
                        "okr": Okr(state_root / "OKR.md"),

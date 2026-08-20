@@ -27,6 +27,8 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-knowledge"
 LINT = PERRY_HOME / "bin" / "perry-lint"
@@ -59,7 +61,8 @@ class Base(unittest.TestCase):
         root = Path(tmp.name)
         (root / ".perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n", encoding="utf-8")
+            "# Perry configuration\n\n- State root: .\n" + GATE_OFF,
+            encoding="utf-8")
         (root / "evidence" / "2026-08").mkdir(parents=True)
         (root / "evidence" / "2026-08" / "TASK-001-export-fix.md").write_text(
             EVIDENCE, encoding="utf-8")

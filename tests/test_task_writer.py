@@ -31,6 +31,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-task"
 TASKS = PERRY_HOME / "bin" / "perry-tasks"
@@ -88,7 +90,7 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + tracks)
+            "- Repo layout: single\n- State root: .\n" + GATE_OFF + tracks)
         (self.root / "BOARD.md").write_text(board)
         self.import_board()
 
@@ -339,9 +341,11 @@ class TestALocalizedBoard(unittest.TestCase):
 
     def zh(self) -> "Project":
         p = Project(board=ZH_BOARD)
+        # Overwrites the config `Project` wrote, so it has to carry `GATE_OFF`
+        # forward itself — `ZH_BOARD` is deliberately not Perry's shape.
         (p.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: 中文\n"
-            "- Repo layout: single\n- State root: .\n")
+            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
         return p
 
     def row(self, p: "Project") -> list[str]:

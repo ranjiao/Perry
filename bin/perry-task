@@ -4744,8 +4744,13 @@ def main(argv: list[str]) -> int:
             if not gate.ok:
                 raise Refused(gate.message)
             if gate.message and not args.as_json:
-                print(f"perry-task: ⚠ conformance (advisory) — {gate.message}",
-                      file=sys.stderr)
+                # `gate.mode`, not the literal "advisory": reaching this line
+                # means the gate found something AND let the write through, so
+                # the mode is the reason it was let through and is the one word
+                # the reader needs. Hardcoding it survived only because the
+                # shipped default made it true by construction (TASK-047).
+                print(f"perry-task: ⚠ conformance ({gate.mode}) — "
+                      f"{gate.message}", file=sys.stderr)
         with project_lock(state_root):
             recovered = recover_transaction(state_root)
             records = load_task_records(state_root)
