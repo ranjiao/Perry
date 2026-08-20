@@ -40,7 +40,6 @@
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | not_started | CLEARED for the `diagnose` fragment is still pending. Note its scope grew: test_diagnose now has TWO failures — the fixture USER-014 count, and a quoted fixture id (TASK-165) | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-160 | the dispatch limiter reaps a live agent slot after an hour, so the cap it enforces is not the cap | Coding Agent | in_progress | dispatched to claude-subagent; merges locally, no PR | evidence/2026-08/TASK-160-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-162 | a row cannot say it is blocked on an ask without tripping a conformance check | Coding Agent | in_progress | dispatched to claude-subagent; merges locally, no PR | evidence/2026-08/TASK-162-spec.md | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-165 | quoting what a checker printed turns the ids inside the quote into references | Coding Agent | not_started | — | — | V4 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
@@ -59,7 +58,6 @@
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | — | — | V2 |  | main |  |  |
-| TASK-131 | seventeen emitted contract keys are documented nowhere, and now there is a number for it | Coding Agent | in_progress | dispatched to claude-subagent; merges locally, no PR | evidence/2026-08/TASK-131-spec.md | V2 | — | main |  |  |
 | TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
