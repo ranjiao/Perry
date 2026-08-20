@@ -55,9 +55,16 @@ the write says yes and the read says no.
    reported by neither `depends_on_unknown` nor `blocked_without_dependency` —
    or, if you took *no*, the write is refused with a message naming the right
    shape and the row is recorded that way instead.
-2. **An edge to a genuinely unknown id is still reported.** `--on TASK-9999`
-   must still reach `depends_on_unknown`. This is what a fix that simply stops
-   checking would break.
+2. **An edge to a genuinely unknown id is still reported.** An edge naming an
+   id in the placeholder form `TASK-NNN` — one no board carries — must still
+   reach `depends_on_unknown`. This is what a fix that simply stops checking
+   would break.
+
+   *(The concrete id this paragraph originally used turned the suite red the
+   moment the spec was committed, which is `SKILL.md § Style rules`' own
+   sentence: "Never mint an example ID that resolves to nothing … a concrete one
+   is a dangling reference `LOAD-02` reports." Written down here because the
+   rule was broken by the person who quotes it.)*
 3. **If asks become nodes**: an *answered* ask satisfies the edge, an open one
    does not, and `blocked_stale` agrees with `blocked_by_closed_rows` about the
    row in both states. Assert the pair, not one at a time.
