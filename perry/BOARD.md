@@ -34,6 +34,7 @@
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 |
 | TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — |
+| TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | in_progress | dispatched 15:16 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V4 | — |
 
 ## P2
 
