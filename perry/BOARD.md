@@ -47,6 +47,7 @@
 | TASK-133 | declare the first non-project track on Perry itself, and measure what a mixed spine costs | User + Agent | review | the RFC decision: does Mode become a preset over (spine, flow, rung), or stay four fixed shapes | evidence/2026-08/TASK-133-track-experiment.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-140 | every mode contract slot is assigned to an axis, and the spine-to-unit map is written down | Coding Agent | not_started | spec written; dispatch pre-flight REFUSED on `design/` — a real hit, the row does write a locked design doc | evidence/2026-08/TASK-140-spec.md | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
