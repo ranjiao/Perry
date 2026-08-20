@@ -530,8 +530,8 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
 # up counts. Both replace a filter on WHICH PROSE with a rule about what the
 # measurement means — which is why neither adds a sixth carve-out.
 #
-# Three shapes are reports. All three are structural — where the line lives, or
-# what mark it carries — and none of them reads English:
+# Four shapes are reports. All four are structural — where the line lives, what
+# mark it carries, or what the document around it is — and none reads English:
 #
 #   * inside a SIGNED RECORD: a `## V5 sign-off` block. Append-only by
 #     contract, and `tests/test_v5_signoff.TestHistoryIsNotRewritten` is there
@@ -545,6 +545,45 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
 #     `LOAD-02 reports REL-00 dangling` and `adding one DESIGN-900-probe.md
 #     turns test_the_number_reconciles red` announce themselves as reports
 #     without anybody guessing at the sentence.
+#   * in a document that REPORTS ON A CHECK, a mention of an id the project has
+#     ALREADY reported on. The first three ask whether THIS LINE is a report;
+#     the fourth asks whether THIS ID has one. See below — it is the only one
+#     of the four that needs a reason longer than a sentence.
+#
+# **Why the fourth mark exists: a row about this check cannot be closed.**
+# TASK-113 fixed LOAD-02 and measured `dangling: []`. Then it wrote the record
+# that closes a row — and the record has to narrate what the check said, which
+# put `REL-00` and `DESIGN-900` straight back into the count. Every live
+# mention of both is in that one record. So the row could not be closed without
+# writing a record, and writing the record reopened it. That is a defect in the
+# rule, not in the two ids, and no wording of the record fixes it: rewriting a
+# true account until a checker goes quiet is the failure being ended here.
+#
+# The narration is the point. `dangling: []   dangling_in_reports: [...]` in a
+# dispatch record is the check quoted back at itself, and quoting a measurement
+# is not asking a reader to look an id up — which is the only thing LOAD-02's
+# number is for.
+#
+# **Both halves are load-bearing, and each is what keeps the other honest.**
+# The document must name one of this checker's findings or one of its tests
+# somewhere in it, AND the id must be carried by at least one line the first
+# three marks already exempt. Neither half exempts anything alone:
+#
+#   * drop the DOCUMENT half and any id ever named beside a check goes silent
+#     everywhere, so burying one live reference under one report would silence
+#     a true finding — `test_one_live_reference_is_enough_to_keep_an_id_dangling`
+#     is there to say so.
+#   * drop the ID half and every document that discusses a check exempts every
+#     id in it, including a genuine `Blocked on ZZZ-404 until Friday` four
+#     sections down. For this repository that is `perry/evidence/**` under
+#     another name, and a path exemption is what this must not become —
+#     `test_a_record_about_a_check_still_reports_an_id_it_never_reported_on`
+#     holds that line.
+#
+# Scope, stated because it is wider than the other three: the first three marks
+# are scoped to the line, the paragraph and the section; the fourth is scoped
+# to the DOCUMENT, and only for one id at a time. A document is the unit that
+# has a subject, and "the check" is the subject the fourth mark is about.
 #
 # **Why naming a check is safe to exempt, given it sounds broad.** The rule is
 # only ever applied to an id that is ALREADY undefined everywhere, and only
@@ -555,8 +594,13 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
 # which is exactly what this must not charge the project for.
 #
 # The cost, named rather than hidden: an ordinary paragraph reading `REL-00 is
-# gone`, carrying none of those three marks, is still a reference and still
-# counts. Widening this into a list of absence-words is the carve-out treadmill
+# gone`, carrying none of those marks, is still a reference and still counts —
+# and the fourth mark's own cost is that a document reporting on a check stops
+# charging the project for an id the project already reported on, even where
+# that document's prose is an ordinary reference. That is one id per report, it
+# is bounded by an id the project itself put on the record, and it is visible:
+# it lands in `dangling_in_reports`. Widening either of these into a list of
+# absence-words — or into a path — is the carve-out treadmill
 # LOAD-03 rode for five rounds, and this does not start it. Ids exempted here
 # are reported beside the count as `user_load.dangling_in_reports` and never
 # added to it — the same boundary `scan_decision_mentions` draws.
@@ -587,9 +631,25 @@ def names_a_check(line: str) -> bool:
     return bool(finding_code_re().search(line) or TEST_NAME.search(line))
 
 
+def document_reports_on_a_check(path: Path) -> bool:
+    """The fourth mark's DOCUMENT half: this file names one of this checker's
+    findings or one of its tests somewhere in it, so what it is doing with a
+    code is reporting on a check rather than tracking work.
+
+    Deliberately the same predicate as the third mark, read over the whole
+    file instead of one paragraph — a document is the unit that has a subject,
+    and no second vocabulary is introduced to describe it. On its own this
+    exempts nothing: `split_dangling` also requires the id to be one the
+    project has already reported on.
+    """
+    return any(names_a_check(line) for line in read_text(path).splitlines())
+
+
 def report_lines(path: Path) -> set[int]:
     """Line numbers in one file that REPORT on a check rather than refer to a
-    code. See the block above for why each of the three shapes is one.
+    code. The first three marks only — they are the three a single file can
+    decide. The fourth needs every mention of an id, so `split_dangling` owns
+    it. See the block above for why each of these three shapes is a report.
 
     **The check-name mark is scoped to the PARAGRAPH, not the line.** A review
     naming the check on one line and the id it demonstrated with three lines
@@ -631,22 +691,41 @@ def split_dangling(root: Path, entries: dict, explain) -> tuple[list, list]:
     An id survives into `dangling` if ONE mention of it is a live reference —
     a tracking document, not a report. An id every one of whose mentions is a
     report is not dangling; it is the dangling check quoted back at itself.
+
+    **Two passes, because the fourth mark is about the id and not the line.**
+    The first three marks can be decided from the file a mention sits in, so
+    `report_lines` decides them. The fourth cannot: whether a mention is the
+    narration of a report depends on whether the id HAS a report, which is
+    known only once every mention has been read. So this reads them all, then
+    judges — and the second pass exempts a mention only when both halves hold,
+    the id already reported on somewhere and this document reporting on a
+    check. See the block above the marks for why neither half stands alone.
     """
     dangling, reported_only = [], []
-    cache: dict[str, set[int]] = {}
+    cache: dict[str, tuple[set[int], bool]] = {}
+
+    def marks(rel: str) -> tuple[set[int], bool]:
+        if rel not in cache:
+            path = root / rel
+            cache[rel] = (report_lines(path), document_reports_on_a_check(path))
+        return cache[rel]
+
     for e in entries.values():
         if e["defined"] or not e.get("in_tracking_doc"):
             continue
-        live = False
+        # Pass 1 — `(this document reports on a check, this line is a report)`
+        # for every mention the rule is allowed to read.
+        read: list[tuple[bool, bool]] = []
         for loc in e["mentions"]:
             rel, _, n = loc.rpartition(":")
             if not n.isdigit() or explain.is_illustrative(rel):
                 continue
-            if rel not in cache:
-                cache[rel] = report_lines(root / rel)
-            if int(n) not in cache[rel]:
-                live = True
-                break
+            lines, about_a_check = marks(rel)
+            read.append((about_a_check, int(n) in lines))
+        # Pass 2 — the id half of the fourth mark, then the verdict.
+        on_the_record = any(is_report for _, is_report in read)
+        live = any(not is_report and not (on_the_record and about_a_check)
+                   for about_a_check, is_report in read)
         # No mentions at all should be unreachable (an undefined id is known
         # only through them), but an id nobody can point at must not be
         # silently dropped by a rule about where its mentions live.
@@ -722,8 +801,10 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         "dangling": dangling,
         # Not part of `dangling`. Codes that appear only where a check was
         # being REPORTED ON — a signed record, a quotation, a line naming one
-        # of this tool's own findings. Reported so the exemption is visible
-        # and auditable, never added to the count. See `split_dangling`.
+        # of this tool's own findings, or a document reporting on a check that
+        # narrates an id the project already reported on. Reported so the
+        # exemption is visible and auditable, never added to the count. See
+        # `split_dangling`.
         "dangling_in_reports": dangling_in_reports,
         "untitled": untitled,
         "definitions_concentrated": concentrated,
