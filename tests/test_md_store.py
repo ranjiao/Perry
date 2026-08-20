@@ -125,8 +125,13 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
             len(krs), kr_lines(text),
             "the store holds a different number of KRs than the file has KR "
             "lines — a byte-identical render that dropped rows")
-        self.assertGreater(len(krs), 20, "a file this size holding <20 KRs "
-                                         "means the scanner stopped early")
+        # `assertGreater(len(krs), 20)` used to close this test (TASK-150). It
+        # was a proxy for "the scanner read the whole file", written as a
+        # census of what `perry/OKR.md` happens to hold: retiring five KRs
+        # would have reddened a test whose subject is byte-identical
+        # round-tripping. The property is unchanged and now lives on a
+        # document this module writes, where the number is a fact about the
+        # fixture — `TestTheScannerReadsAnOkrToItsLastLine`.
 
     def test_config_including_its_prose_section(self):
         path = ROOT / ".perry" / "config.md"
@@ -171,6 +176,105 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
         self.assertEqual(rec["value"], "",
                          "a declared blank marker was stored as data")
         self.assertEqual(M.render(M.CONFIG, text, records)[0], text)
+
+
+class TestTheScannerReadsAnOkrToItsLastLine(unittest.TestCase, RoundTrip):
+    """TASK-150 — the guard `test_okr` used to carry, on a document this
+    module writes.
+
+    `assertGreater(len(krs), 20)` over `perry/OKR.md` said "the scanner did
+    not stop early" by counting this project's goals. It was true only while
+    Perry held more than twenty KRs, so a period that retired five of them
+    would have reddened a test about byte-identical round-tripping for a
+    reason that had nothing to do with the store.
+
+    Said exactly instead: a document whose KR roster is written down HERE, and
+    the assertion is the roster — in order, table form and bullet form, every
+    version block, down to the last KR line in the file. A scanner that stops
+    anywhere before the end returns a short prefix of `KR_IDS` and names the
+    id it stopped at.
+    """
+
+    #: Enough versions and objectives that a scanner that gives up part-way
+    #: through the file has somewhere to give up. Deliberately larger than the
+    #: twenty the old proxy asked for, and deliberately not a fact about Perry.
+    VERSIONS = 3
+    OBJECTIVES = 3
+    TABLE_KRS = 3
+    #: The legacy bullet form, which `scan_okr` reaches on a second pass after
+    #: the tables — so a scan that stopped early inside the table walk and one
+    #: that never reached the bullets are different reds.
+    BULLET_KRS = 4
+
+    def document(self) -> tuple[str, list[str]]:
+        """The fixture, and the KR ids it contains in file order."""
+        out = ["# OKR — a fixture this test wrote", "",
+               "> **Status**: Active", "",
+               "## Mission", "",
+               "Prove the scanner reaches the end of a long document.", ""]
+        ids: list[str] = []
+        for v in range(1, self.VERSIONS + 1):
+            out += ["---", "", f"## v{v}: 2026-0{v}-01", ""]
+            for o in range(1, self.OBJECTIVES + 1):
+                out += [f"### Objective {o} — objective {o} of v{v}", "",
+                        "| Id | KR | Metric / Target | Stretch? | Deadline |",
+                        "|----|----|------------------|----------|----------|"]
+                for k in range(1, self.TABLE_KRS + 1):
+                    kid = f"KR-V{v}O{o}.{k}"
+                    ids.append(kid)
+                    out.append(f"| {kid} | do the thing | 1 of 1 | no "
+                               f"| 2026-12-31 |")
+                out.append("")
+            out += [f"### Objective {self.OBJECTIVES + 1} — the bullet form",
+                    ""]
+            for k in range(1, self.BULLET_KRS + 1):
+                kid = f"KR-V{v}B.{k}"
+                ids.append(kid)
+                out.append(f"- **{kid}**: a bullet KR, target 1 of 1")
+            out.append("")
+        # The last KR line in the file has nothing after it but a newline, so
+        # "stopped early" and "stopped one line early" are the same red.
+        return "\n".join(out).rstrip("\n") + "\n", ids
+
+    def write(self) -> tuple[pathlib.Path, str, list[str]]:
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-okr-depth-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        text, ids = self.document()
+        path = d / "OKR.md"
+        path.write_text(text, encoding="utf-8")
+        return path, text, ids
+
+    def test_every_kr_in_the_document_is_scanned_in_file_order(self):
+        path, text, ids = self.write()
+        records, _ = self.assert_round_trips(M.OKR, path)
+        krs = [r for r in records if r["kind"] == "kr"]
+        self.assertEqual(
+            [r["id"] for r in krs], ids,
+            "the scanner did not return the KR roster this fixture wrote — a "
+            "prefix of it means it stopped early")
+        # The independent regex agrees about the same document, so a fixture
+        # that stopped saying what it means would be caught rather than
+        # quietly agreeing with a broken scanner.
+        self.assertEqual(len(krs), kr_lines(text))
+        self.assertEqual(
+            krs[-1]["id"], ids[-1],
+            "the last KR line in the file was never reached")
+
+    def test_both_kr_forms_survive_to_the_end_of_the_last_version(self):
+        """Not just the count: the final version block must contribute both
+        shapes. A scanner that read every table and no bullet would still
+        return a long list."""
+        path, _, _ = self.write()
+        records, _ = self.assert_round_trips(M.OKR, path)
+        last = f"v{self.VERSIONS}: 2026-0{self.VERSIONS}-01"
+        tail = [r for r in records
+                if r["kind"] == "kr" and last in r["version"]]
+        self.assertEqual(
+            sorted({r["form"] for r in tail}), ["bullet", "table"],
+            "the last version block lost one of the two KR forms")
+        self.assertEqual(
+            len(tail),
+            self.OBJECTIVES * self.TABLE_KRS + self.BULLET_KRS)
 
 
 class TestTheSecondProjectFixture(unittest.TestCase, RoundTrip):

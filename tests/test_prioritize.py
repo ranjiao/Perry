@@ -486,6 +486,33 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         self.assertEqual(self.mod.EVENT_FIELD["prioritize"], "section")
         self.assertEqual(self.mod.EVENT_FIELD["status"], "status")
 
+    #: The task store the two prose tests below resolve against. It used to be
+    #: `load_task_records(PERRY_HOME / "perry")` — this repository's live store
+    #: (TASK-152) — which made a test about PROSE PARSING depend on which id
+    #: families Perry's own board happens to carry. `OPS-007` is here so the
+    #: record half of `known` is exercised by something the hard-coded
+    #: citation set does not already cover.
+    FIXTURE_TASKS = (
+        {"id": "TASK-001", "title": "a row this store carries",
+         "status": "open"},
+        {"id": "OPS-007", "title": "a second id family, declared here",
+         "status": "open"},
+    )
+
+    def prose_ctx(self) -> dict:
+        """`ctx` for the prose warning, over a store this test wrote.
+
+        Loaded through the real `load_task_records`, so the reader under test
+        is the shipped one; only the records are the test's own.
+        """
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        root = Path(d.name)
+        (root / "tasks.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in self.FIXTURE_TASKS),
+            encoding="utf-8")
+        return {"task_records": self.mod.load_task_records(root)}
+
     def test_an_id_shaped_word_in_prose_is_warned_about(self):
         """`ROUND-2` is English with a hyphen and an identifier to every id
         reader here.
@@ -496,17 +523,43 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         repo's own gate goes red on a board the tool itself wrote.
 
         The guard is at the WRITE site because that is where the person who
-        knows what they meant still is. Advisory, never a refusal — `USER-014`
-        and `ADR-006` are legitimate citations of ids this board does not
-        carry, and refusing them would make the tool unable to cite a
-        decision.
+        knows what they meant still is.
+
+        The half that must not be lost is in its neighbour below: the warning
+        is **advisory**, and a legitimate citation must come back clean.
         """
         fn = self.mod.idish_tokens_that_resolve_nowhere
-        state_root = TOOL.parent.parent / "perry"
-        ctx = {"task_records": self.mod.load_task_records(state_root)}
-        self.assertEqual(fn("the ROUND-2 defect", ctx), ["ROUND-2"])
-        self.assertEqual(fn("see ADR-006 and USER-014", ctx), [])
-        self.assertEqual(fn("round 2, plainly", ctx), [])
+        ctx = self.prose_ctx()
+        self.assertEqual(fn("the ROUND-2 defect", ctx), ["ROUND-2"],
+                         "an id-shaped word naming no declared family stopped "
+                         "being warned about")
+        self.assertEqual(fn("ALL FIVE ROUND-3 FINDINGS", ctx), ["ROUND-3"])
+        self.assertEqual(fn("round 2, plainly", ctx), [],
+                         "English without an id shape is not a citation")
+
+    def test_a_citation_of_a_family_that_resolves_is_not_warned_about(self):
+        """The other half, and the fragile one — a *silent* expectation.
+
+        `[]` pins nothing about the project, which is why the sweep in
+        `tests/live_state_expectations.py` never flagged this line while it
+        sat inside the test above reading the live store: it was one id family
+        leaving Perry's board away from failing, and nothing said so.
+        Advisory, never a refusal — `ADR-006` and `USER-014` are legitimate
+        citations of ids this board does not carry, and refusing them would
+        make the tool unable to cite a decision.
+
+        Both routes into `known` are exercised: the citation families
+        `perry-task` declares in its own source, and the prefixes read out of
+        whatever task store it was handed — here, the one above.
+        """
+        fn = self.mod.idish_tokens_that_resolve_nowhere
+        ctx = self.prose_ctx()
+        self.assertEqual(fn("see ADR-006 and USER-014", ctx), [],
+                         "a declared citation family was warned about — the "
+                         "advisory has started refusing legitimate prose")
+        self.assertEqual(fn("blocked on OPS-3, per TASK-001", ctx), [],
+                         "a prefix the handed-in store carries was warned "
+                         "about")
 
     def test_the_docs_rebuttal_counts_what_the_map_holds(self):
         """The contract doc states a COUNT, and nothing checked it.
