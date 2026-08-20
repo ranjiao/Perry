@@ -179,7 +179,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 
 ## On completion (notification arrives)
 
-0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — default 1h — covering the case where PMO crashed mid-completion.)
+0. **Release the concurrency slot first thing**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`. Do this BEFORE any verification work, so a slow verification step doesn't keep blocking other dispatches. (Stale markers auto-clean after `PERRY_DISPATCH_STALE_TTL` seconds — **default 4h**, raised from 1h by TASK-160 because the sweep was reaping markers 72 minutes into live runs and the cap silently stopped being the cap — covering the case where PMO crashed mid-completion. **Every reap now prints `⚠️  Reaped dispatch slot: <marker>` on stderr.** If you see that line while the agent it names is still running, the cap is short by one for the rest of that run: treat it as a real event, not noise, and raise `PERRY_DISPATCH_STALE_TTL` for the session rather than dispatching into the gap.)
 1. Read the agent's RESULT block. Required fields:
    - `PR URL:` (or "n/a — direct push" with explicit reason)
    - `Files changed: <count>` + bullet list
@@ -213,7 +213,7 @@ After the primary executor's RESULT is parsed AND objective verification (§ "On
 - Executor crashed / non-zero exit / timeout → release the slot (`bash "$PERRY_HOME/bin/perry-dispatch-limit" release <task-id>`), write evidence with raw output, status `review`, surface failure summary, ask user retry / fix manually / drop.
 - ff-only PR push failed → same, with manual-resolution hint.
 - Agent declared `done` but tests failed → same.
-- The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires.
+- The release call MUST run on every failure path, not just success — otherwise a failed dispatch leaks a slot until stale-TTL expires, which since TASK-160 is 4h rather than 1h. The sweep is the backstop for a crashed agent, not a substitute for releasing: it is deliberately slower than the longest cycle this project has measured (2h15m), so a leaked slot is a slot lost for the rest of the afternoon.
 
 ## Cost / quota awareness
 

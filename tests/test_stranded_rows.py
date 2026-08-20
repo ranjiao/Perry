@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -55,6 +56,25 @@ from test_task_writer import PT, PERRY_HOME, TOOL, Project
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 IN_PROGRESS_HOURS = SCHEMA["thresholds"]["in_progress_idle_hours"]["value"]
 REVIEW_DAYS = SCHEMA["thresholds"]["review_idle_days"]["value"]
+
+
+def _one_int(pattern: str, path: Path) -> int:
+    """The single integer `pattern` captures in `path`, or a failed test.
+
+    Read rather than restated: TASK-160 moved the marker TTL and found the
+    number written out in four places, one of which was an assertion that
+    therefore could not notice.
+    """
+    found = re.findall(pattern, path.read_text(), re.M)
+    assert len(found) == 1, f"{pattern} matched {len(found)}x in {path.name}"
+    return int(found[0])
+
+
+LIMITER = PERRY_HOME / "bin" / "perry-dispatch-limit"
+LIMITER_TTL_DEFAULT = _one_int(
+    r"STALE_TTL=\"\$\{PERRY_DISPATCH_STALE_TTL:-(\d+)\}\"", LIMITER)
+LONGEST_MEASURED_CYCLE = _one_int(
+    r"^LONGEST_MEASURED_CYCLE=(\d+)", LIMITER)
 
 
 class Sandbox:
@@ -620,12 +640,18 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
             self.assertIn("calibrated", thresholds[name]["note"].lower())
 
     def test_the_in_progress_threshold_cannot_undercut_the_marker_ttl(self):
-        """The two signals would contradict each other: a row could be named
-        starved while `perry-dispatch-limit` still counts its slot as live."""
+        """The threshold must be at least the marker TTL, so this check can
+        never name a row that a run of ordinary length is still inside.
+
+        The literal `3600` this assertion used to carry was a third copy of a
+        number that has since moved once (TASK-160 raised the TTL to 14400s),
+        and a copy that does not move is a test that stops testing. It reads
+        the script's own default now — see `TestThresholdsAgree`.
+        """
         self.assertGreaterEqual(
-            IN_PROGRESS_HOURS * 3600, 3600,
-            "PERRY_DISPATCH_STALE_TTL defaults to 3600s; an idle threshold "
-            "below it names rows whose marker is still valid")
+            IN_PROGRESS_HOURS * 3600, LIMITER_TTL_DEFAULT,
+            f"PERRY_DISPATCH_STALE_TTL defaults to {LIMITER_TTL_DEFAULT}s; an "
+            f"idle threshold below it names rows whose marker is still valid")
 
     def test_triage_step_zero_point_five_lists_all_three(self):
         """`conformance` is only read because the procedure says to read it,
@@ -638,6 +664,63 @@ class TestTheContractAnnouncedAllOfIt(unittest.TestCase):
         self.assertIn("Rewriting the cell is not the default fix", procedure,
                       "the procedure told triage this was the cheapest stale "
                       "row to fix, and that is what produced the rewrite")
+
+
+class TestThresholdsAgree(unittest.TestCase):
+    """TASK-160 — the marker TTL is one number with two readers and a
+    calibrated neighbour, and none of the three may drift.
+
+    `bin/perry-dispatch-limit` writes and reaps the markers;
+    `bin/perry-task § live_dispatch_ids` reads them and deliberately never
+    calls the script, *"because a `list --json` that could delete another
+    session's slot is a read command with a side effect on shared state"*. That
+    refusal is right, and it is exactly what makes drift possible: the reader
+    carries its own copy of the default, so nothing but this class notices if
+    the two stop matching.
+
+    **The asymmetry is what makes it dangerous.** A reader with the SHORTER TTL
+    calls a marker dead while the writer still counts the slot live — so
+    `in_progress_with_no_live_run` names a row an agent is actively holding,
+    and the entry's own `means` text then invites the PMO to re-dispatch it.
+    A second agent on a row a first one still holds is the failure the dispatch
+    limit exists to prevent, arriving through the check built to catch it.
+    """
+
+    def reader_default(self) -> int:
+        """The fallback `live_dispatch_ids` uses when the env var is unset."""
+        return _one_int(
+            r'os\.environ\.get\("PERRY_DISPATCH_STALE_TTL"\) or (\d+)\)',
+            PERRY_HOME / "bin" / "perry-task")
+
+    def test_the_reader_and_the_writer_state_the_same_default(self):
+        self.assertEqual(
+            LIMITER_TTL_DEFAULT, self.reader_default(),
+            "bin/perry-task § live_dispatch_ids and bin/perry-dispatch-limit "
+            "disagree about how old a marker may be. Whichever is lower now "
+            "decides, and if that is the reader it will name live runs "
+            "starved.")
+
+    def test_the_ttl_outlasts_the_longest_cycle_this_project_has_measured(self):
+        """The defect itself. A TTL at or below a real cycle length reaps the
+        marker of an agent that is still working, and the cap silently stops
+        being the cap — 3600s did, against a measured 8100s cycle."""
+        self.assertGreater(
+            LIMITER_TTL_DEFAULT, LONGEST_MEASURED_CYCLE,
+            "a marker may not expire while a run of a length this project has "
+            "actually seen is still going")
+
+    def test_the_idle_threshold_is_the_ceiling_the_ttl_was_chosen_under(self):
+        """Both bounds at once, so the derivation is checked and not just
+        recorded in a comment: the TTL sits strictly above the longest measured
+        cycle and at or below the idle threshold it is calibrated against."""
+        self.assertLessEqual(LIMITER_TTL_DEFAULT, IN_PROGRESS_HOURS * 3600)
+
+    def test_the_schema_note_states_the_default_it_was_calibrated_against(self):
+        """A note naming the wrong number is worse than no note: it is the
+        only place a reader is told the two are linked at all."""
+        note = SCHEMA["thresholds"]["in_progress_idle_hours"]["note"]
+        self.assertIn("PERRY_DISPATCH_STALE_TTL", note)
+        self.assertIn(f"{LIMITER_TTL_DEFAULT // 3600}h", note)
 
 
 class TestOneStatementOfEachCheck(unittest.TestCase):

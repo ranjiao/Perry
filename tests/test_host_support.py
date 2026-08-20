@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -247,6 +248,185 @@ class TestOpenCodeDispatchLimit(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertEqual(len(self.markers(home)), 1)
 
+
+class TestTheMarkerOutlivesARealCycle(unittest.TestCase):
+    """TASK-160 — the sweep was reaping the slots of agents that were working.
+
+    Measured 2026-08-21: `PERRY_DISPATCH_STALE_TTL` defaulted to 3600s, this
+    sweep deleted TASK-142's marker **72 minutes** into a live run, and
+    `list` then reported 2 of 3 while three agents were going. Real cycles the
+    same night — TASK-148 **2h15m**, TASK-146 55m, TASK-159 55m, TASK-136 55m,
+    TASK-119 45m — put the longest at 8100s, more than double the TTL. So for
+    an unknown stretch the cap had not been the cap, and nothing said so.
+
+    The sweep is not the thing to delete: a crashed agent would otherwise hold
+    a slot forever, and this project has had agents die at a 600s watchdog.
+    Deleting it would trade a silent over-count for a silent under-count, which
+    is the same defect pointing the other way — and the other way eventually
+    wedges the machine. So the TTL moved past the measurements and the reap
+    learned to speak. Both halves are asserted here, and `test_a_crashed_agent`
+    below is the one that must never be allowed to go green by accident.
+
+    These tests use the **shipped default** and never set the env var: the
+    number under test is the default, and a test that passes its own TTL in
+    would have passed against the broken one too.
+    """
+
+    def run_limit(self, home: Path, *args: str, **extra: str):
+        env = clean_host_env(HOME=str(home), **extra)
+        return subprocess.run(
+            [str(LIMIT), *args], capture_output=True, text=True,
+            env=env, cwd=ROOT,
+        )
+
+    @staticmethod
+    def markers(home: Path) -> list[Path]:
+        return sorted((home / ".cache/perry/in-flight").glob("*.json"))
+
+    def age(self, home: Path, name: str, minutes: float) -> None:
+        """Backdate one marker's mtime — the clock the sweep actually reads."""
+        marker = home / ".cache/perry/in-flight" / f"{name}.json"
+        when = marker.stat().st_mtime - minutes * 60
+        os.utime(marker, (when, when))
+
+    def three_live_agents(self, home: Path) -> None:
+        """The scene from the incident, rebuilt: one slot per executor, the
+        global cap of 3 exactly full."""
+        for task_id, executor in (("TASK-142", "claude-subagent"),
+                                  ("TASK-148", "codex"),
+                                  ("TASK-146", "opencode-subagent")):
+            proc = self.run_limit(home, "register", task_id, executor)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_a_live_dispatch_keeps_its_slot_for_its_whole_run(self):
+        """Item 1. The two ages are the two measurements: 72m is where
+        TASK-142 lost its slot, 2h15m is the longest cycle on record."""
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            self.three_live_agents(home)
+            self.age(home, "TASK-142-claude-subagent", 72)
+            self.age(home, "TASK-148-codex", 135)
+
+            listed = self.run_limit(home, "list")
+            self.assertEqual(listed.returncode, 0, listed.stderr)
+            self.assertIn("3 active dispatch(es)", listed.stdout)
+            self.assertEqual(len(self.markers(home)), 3)
+            self.assertNotIn("Reaped", listed.stderr)
+
+            # The count is the point, not the files: the incident was the
+            # limiter reporting 2 of 3 and letting a fourth agent through.
+            check = self.run_limit(home, "check", "claude-subagent")
+            self.assertIn("total 3 / 3", check.stdout)
+            self.assertEqual(check.returncode, 1, "the cap must still hold")
+            fourth = self.run_limit(home, "register", "TASK-165",
+                                    "claude-subagent")
+            self.assertEqual(fourth.returncode, 1, fourth.stdout)
+            self.assertIn("Global dispatch limit hit", fourth.stderr)
+
+    def test_the_old_one_hour_ttl_is_what_reaped_it(self):
+        """The failure itself, pinned to the number rather than to the code, so
+        this file records what was wrong and not merely that it is fixed. The
+        same fixture under the old default loses the live slot."""
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            self.three_live_agents(home)
+            self.age(home, "TASK-142-claude-subagent", 72)
+            listed = self.run_limit(home, "list",
+                                    PERRY_DISPATCH_STALE_TTL="3600")
+            self.assertIn("2 active dispatch(es)", listed.stdout)
+            self.assertEqual(len(self.markers(home)), 2)
+
+    def test_a_crashed_agent_still_frees_its_slot(self):
+        """Item 2, and the half that must not regress. A fix that keeps every
+        marker forever passes item 1 and wedges the machine instead."""
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            self.three_live_agents(home)
+            self.age(home, "TASK-142-claude-subagent", 4 * 60 + 1)
+
+            listed = self.run_limit(home, "list")
+            self.assertIn("2 active dispatch(es)", listed.stdout)
+            self.assertEqual(len(self.markers(home)), 2)
+            # Freed, not merely uncounted: the slot is usable again.
+            reused = self.run_limit(home, "register", "TASK-165",
+                                    "claude-subagent")
+            self.assertEqual(reused.returncode, 0, reused.stderr)
+
+    def test_a_reap_is_announced_and_names_the_slot_it_took(self):
+        """Item 3. The defect ran for hours because nothing said anything, so
+        the message is the fix as much as the number is."""
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            self.three_live_agents(home)
+            self.age(home, "TASK-142-claude-subagent", 4 * 60 + 1)
+            listed = self.run_limit(home, "list")
+
+            self.assertIn("Reaped dispatch slot: TASK-142-claude-subagent",
+                          listed.stderr)
+            self.assertIn("241m old", listed.stderr)
+            self.assertIn("240m stale TTL", listed.stderr)
+            self.assertIn("cap is now short by one", listed.stderr)
+            # stdout is the answer to the question that was asked; a warning
+            # is not part of it, and `check`'s stdout is read by a procedure.
+            self.assertNotIn("Reaped", listed.stdout)
+
+    def test_every_counting_path_announces_a_reap_not_just_list(self):
+        """`register` and `check` clean before counting too, and `register` is
+        the path where a silent reap does damage: it is the call that decides
+        whether one more agent starts."""
+        for argv in (("check", "codex"),
+                     ("register", "TASK-165", "claude-subagent")):
+            with self.subTest(cmd=argv[0]):
+                with tempfile.TemporaryDirectory() as td:
+                    home = Path(td)
+                    self.three_live_agents(home)
+                    self.age(home, "TASK-142-claude-subagent", 4 * 60 + 1)
+                    proc = self.run_limit(home, *argv)
+                    self.assertIn(
+                        "Reaped dispatch slot: TASK-142-claude-subagent",
+                        proc.stderr)
+
+    def test_a_marker_older_than_any_measured_cycle_is_flagged_before_reaping(self):
+        """The cost of the higher TTL, made visible. A crashed agent now holds
+        its slot four times longer than it used to, and this listing is the
+        only place a human can see that before the reap line prints."""
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            self.three_live_agents(home)
+            self.age(home, "TASK-148-codex", 200)
+            listed = self.run_limit(home, "list")
+            self.assertIn("3 active dispatch(es)", listed.stdout)
+            for line in listed.stdout.splitlines():
+                if "TASK-148-codex" in line:
+                    self.assertIn("longer than any cycle measured", line)
+                    self.assertIn("reaped at 240m", line)
+                elif "TASK-146" in line:
+                    self.assertNotIn("longer than any cycle", line)
+
+    def test_the_default_is_the_top_of_the_window_the_measurements_left(self):
+        """The number is derived, not chosen, and the derivation is checked
+        here rather than only asserted in a comment. Lower bound: 8100s, the
+        longest cycle measured. Upper bound: `in_progress_idle_hours`, which
+        `schema/state-schema.json` says is calibrated against this very
+        number. `tests/test_stranded_rows.py § TestThresholdsAgree` holds the
+        other end of the same invariant, against the reader in `perry-task`."""
+        source = LIMIT.read_text()
+        ttl = int(re.search(
+            r'STALE_TTL="\$\{PERRY_DISPATCH_STALE_TTL:-(\d+)\}"',
+            source).group(1))
+        longest = int(re.search(
+            r"^LONGEST_MEASURED_CYCLE=(\d+)", source, re.M).group(1))
+        idle_hours = json.loads(
+            (ROOT / "schema" / "state-schema.json").read_text()
+        )["thresholds"]["in_progress_idle_hours"]["value"]
+
+        self.assertEqual(longest, 8100, "TASK-148's cycle, 2h15m")
+        self.assertGreater(ttl, longest)
+        self.assertLessEqual(ttl, idle_hours * 3600)
+        self.assertEqual(ttl, idle_hours * 3600,
+                         "the top of the window, so the moment the sweep "
+                         "stops counting a marker is the moment "
+                         "in_progress_with_no_live_run may name the row")
 
 class TestMtimeIsPortable(unittest.TestCase):
     """`stat -f` means two different things, and only one of them is a format.

@@ -4437,9 +4437,20 @@ def live_dispatch_ids() -> set[str]:
     `bin/perry-dispatch-limit` reserves a slot by writing
     `~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json` and frees it by
     removing the file. A marker older than `PERRY_DISPATCH_STALE_TTL`
-    (default 3600s) is one that script will delete on its next run — a crashed
+    (default 14400s) is one that script will delete on its next run — a crashed
     session's leftover — so it is NOT evidence that anything is running, and
     this applies the same TTL rather than a second one.
+
+    **The default is 14400 because that script's is** (TASK-160, which raised
+    it from 3600 after the sweep reaped a marker 72 minutes into a live run).
+    The two numbers are one number with two readers, and they may not drift: a
+    reader with the SHORTER TTL calls a marker dead while the writer still
+    counts the slot as live, which makes `in_progress_with_no_live_run` name a
+    row an agent is actively holding — and the entry's own text then tells the
+    PMO to consider re-dispatching it. That is the exact failure the dispatch
+    limit exists to prevent, arriving through the check that was built to catch
+    it. `tests/test_stranded_rows.py § TestThresholdsAgree` reads both files
+    and fails if they stop matching.
 
     **This reads the directory and writes nothing to it.** `perry-dispatch-limit
     list` would answer the same question, but it cleans stale markers first and
@@ -4453,9 +4464,9 @@ def live_dispatch_ids() -> set[str]:
     is why a row is named only when BOTH say so.
     """
     try:
-        ttl = int(os.environ.get("PERRY_DISPATCH_STALE_TTL") or 3600)
+        ttl = int(os.environ.get("PERRY_DISPATCH_STALE_TTL") or 14400)
     except ValueError:
-        ttl = 3600
+        ttl = 14400
     # `Path.home()` at call time, not at import: the marker directory is keyed
     # on `$HOME` and a test that sets it has to be able to.
     markers = Path.home() / ".cache" / "perry" / "in-flight"
