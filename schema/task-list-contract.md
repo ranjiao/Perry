@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.12`**
+> Contract: **`perry-task/list/1.13`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.12",  // check this before anything else
+  "contract":     "perry-task/list/1.13",  // check this before anything else
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
@@ -197,13 +197,47 @@ non-task registers could not be read.
 | `off_enum_status` | array | `{id, status}` — a legacy or externally edited store record carries a status string outside the six typed values. The board projection is never consulted to populate this finding. |
 | `rows_with_no_status` | array | `{id, section}` — a legacy store record has no typed status. `open` is `true` because no terminal value is present. |
 | `evidence_not_found` | array | `{id, paths}` — spans in the `Evidence` cell that resolve under neither root. Usually symbols or prose, not broken links. Covers open and closed rows alike, ordered by `id`. Together with `evidence_paths` this is the pair that lets you tell **"the file is gone"** from **"Perry did not look"**: a row whose cell names something reaches exactly one of the two, never neither. |
-| `next_action_cites_closed` | array | `{id, cites, status}` — an open row whose `Next action` points at a task that has since closed. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
+| `next_action_cites_closed` | array | `{id, cites, status, row_status, blocked_stale, readings, means}` — an open row whose `Next action` points at a task that has since closed. **This is not a prose-style finding, and the entry says so in `means`.** The hit has two readings and this check decides between them in no case: the *prose* is stale, or the *row* is unblocked and its status has not caught up. `readings` states both, `row_status` and `blocked_stale` carry what the graph already knows about the row, and `means` is the sentence to show a reader. On 2026-08-20 this fired on exactly the two rows on Perry's own board that were stranded, was read as wording, and was silenced by rewriting the cells — which settled the disagreement by deleting the evidence of it. **Only ids in this payload are resolved**: `DESIGN-`, `ADR-` and `USER-` ids appear in these cells constantly and are not checked, because reporting "cites nothing closed" while skipping three id families would claim more than the data supports. |
+| `blocked_by_closed_rows` | array | open ids whose stored `status` is `blocked`, which **declare** at least one dependency, and every one of which has closed — the aggregate of `tasks[].blocked_stale`, read from that field rather than recomputed, so the rule behind it stays stated exactly once in `bin/lib § resolve_startability`. **Disjoint from `blocked_without_dependency` by construction**: that one is the empty list, this one is the non-empty list nothing is left in. TASK-037 and TASK-045 were both of these on 2026-08-20 and neither was named, because the only check in the family tested `not depends_on`. A row in neither array is one whose blocker is real. |
+| `in_progress_with_no_live_run` | array | `{id, status, last_event, idle_hours, threshold_hours, means}` — an open row that says `in_progress`, holds **no dispatch slot** (`~/.cache/perry/in-flight/`, read without cleaning), and whose last event is older than `thresholds.in_progress_idle_hours`. Neither half alone is a finding: a long dispatch holds a slot and writes nothing, and a row worked by hand never had a slot. Together they mean nobody is holding it and nobody has said so — two agents starved at the 600s watchdog on 2026-08-20 and their rows sat exactly here. **Empty when `has_event_log` is false**, for the reason 1.9 gives. |
+| `review_idle` | array | `{id, status, last_event, idle_hours, threshold_hours, means}` — an open row in `review` whose last event is older than `thresholds.review_idle_days`. `review` waits on a human, so no dependency edge can ever contradict it and nothing else in this payload notices such a row; TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. **Empty when `has_event_log` is false**, for the reason 1.9 gives. |
 | `rows_with_no_computable_age` | array | open ids with **no event and no date cell**, so `today − anything` is undefined for them. Every staleness rule is "idle ≥ N days", so these read as fresh forever. On Perry's own board this was **6 of 9 open rows** — the ones written before the tool existed. |
 | `depends_on_unknown` | array | `{id, unknown}` — dependency ids this payload does not carry, ordered by `id`. Not an error and not refused at write time: a dependency **must** be able to name a closed task, or every satisfied dependency would have to be deleted from the record to be written in the first place, and `DESIGN-`/`ADR-` ids are legitimate here too. This is where a typo shows up. |
 | `dependency_cycles` | array | arrays of ids, each a loop found in the stored edges, e.g. `[["A","B","A"]]`. Every task in one waits forever and none is `startable`. The write path refuses to create one; an externally edited store is reported rather than hidden. |
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
 | `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records and event history remain readable, while Board-backed risks, asks and intake keep their empty contract shapes. |
+
+#### `next_action_cites_closed[]` — the entry, key by key
+
+Its first three keys have been here since 1.3 and are unchanged. The other four
+arrived at 1.13 because the triple alone was read as a wording complaint and
+silenced as one.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the open row whose `Next action` cites finished work. |
+| `cites` | string | the closed task it names. |
+| `status` | string | that task's status — `done` or `dropped`. |
+| `row_status` | string | the citing row's own stored `status`. A `blocked` row here is a different situation from a `not_started` one and the reader needs both. |
+| `blocked_stale` | bool | the citing row's `tasks[].blocked_stale`. When it is `true` the dependency graph has already reached the second reading on its own, and `blocked_by_closed_rows` names the row too. |
+| `readings` | array | the two things this hit can mean, as strings, in no particular order of likelihood: the prose is stale, or the row is unblocked. This array is the check declining to guess. |
+| `means` | string | one sentence naming both rows, both readings, and what the graph does or does not already say. Show this, not the triple. |
+
+#### The idle entry — `in_progress_with_no_live_run[]` and `review_idle[]`
+
+**One shape for both**, so a consumer needs one code path. They differ in which
+status they watch and which threshold they read, not in what an entry looks
+like.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the row nothing has moved. |
+| `status` | string | `in_progress` or `review` — which of the two checks produced the entry, without keying on the array it came out of. |
+| `last_event` | string | its most recent event timestamp. This is the clock both checks measure; a row with none is skipped and is already in `rows_with_no_computable_age`. |
+| `idle_hours` | number | hours since `last_event`. **Hours for both**, including `review_idle`, whose threshold is declared in days: the unit a person reads belongs in `means`, and a shared shape is worth more to a program than a friendlier number. |
+| `threshold_hours` | number | what it was judged by — `thresholds.in_progress_idle_hours`, or `thresholds.review_idle_days × 24`. Carried rather than left to be inferred, because a reader who cannot see the threshold cannot tell a finding from a setting. |
+| `means` | string | the sentence to show a reader. For `in_progress_with_no_live_run` it names the one thing that is unsafe to do on reading it — re-dispatch without asking. For `review_idle` it names both readings: the verdict was given and the row was never closed, or nobody has been asked for one. |
 
 Two consequences worth designing for rather than discovering:
 
@@ -375,6 +409,60 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.13 — 2026-08-21
+
+**Three checks for a row that a process bug stranded, and one existing check
+told what it is for.**
+
+`conformance` already carried this family — `blocked_without_dependency`,
+`depends_on_unknown`, `dependency_cycles`, `next_action_cites_closed` — and
+triage already reads it before judging any row. These are predicates added to
+that block, each traced to an incident on Perry's own board rather than
+invented.
+
+**`blocked_by_closed_rows` is one predicate away from a check that already
+existed, and that is why it was missed.** `blocked_without_dependency` tests
+`not depends_on` — the list being **empty**. TASK-037 and TASK-045 had a
+non-empty list whose every entry had closed, so the board said stopped, the
+graph said nothing was stopping them, and no array named either row. The new
+key is the **aggregate of `tasks[].blocked_stale`**, read from that field: the
+rule is stated once, in `bin/lib § resolve_startability`, under an AST guard
+that fails on a second statement of it.
+
+**`in_progress_with_no_live_run` needs both halves.** A dispatch slot under
+`~/.cache/perry/in-flight/` and a fresh event each rule the row out on their
+own; the check names a row only when neither says anything. The marker
+directory is read, never cleaned — a `list` that could delete another session's
+slot would be a read command with a side effect on shared state.
+
+**`review_idle` covers the status nothing else can.** `review` waits on a human
+and no dependency edge can contradict it, so it is invisible to every other
+check here.
+
+**`next_action_cites_closed` now reports what a hit might MEAN.** Its keys are
+unchanged and four are added. The array's job was always to catch a row waiting
+on finished work, but a bare `{id, cites, status}` triple reads as a wording
+complaint — and on 2026-08-20 it fired on exactly the two stranded rows, was
+read as prose hygiene, and was silenced by rewriting the cells. The hits were
+two rows raising their hands. A check that reports a pattern without its
+meaning is suppressed by whoever reads it, so each entry now states both
+readings and picks neither.
+
+Both new idle checks are **empty when `has_event_log` is false**, for the
+reason 1.9 gives about `rows_with_no_computable_age`: on a project that
+predates the writer every open row qualifies by construction, and an array that
+restates the flag once per row has named no finding.
+
+- **added** `conformance.blocked_by_closed_rows`,
+  `conformance.in_progress_with_no_live_run`, `conformance.review_idle`.
+- **added** `row_status`, `blocked_stale`, `readings` and `means` to each
+  `conformance.next_action_cites_closed` entry; announced in `semantics`,
+  because what changed is what a consumer should do with the array.
+- **added** `thresholds.in_progress_idle_hours` and
+  `thresholds.review_idle_days` to `schema/state-schema.json`. The first is
+  calibrated against `PERRY_DISPATCH_STALE_TTL` rather than chosen freely: at
+  or below the marker TTL the two signals would contradict each other.
 
 ### 1.12 — 2026-08-20
 

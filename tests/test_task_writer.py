@@ -1370,13 +1370,31 @@ class TestListContract(unittest.TestCase):
     INTAKE_KEYS = {"rows", "undischarged", "oldest_undischarged"}
     INTAKE_ROW_KEYS = {"n", "arrived", "request", "outcome", "discharged",
                        "age_days"}
+    # 1.13 — the two `conformance` entry shapes that carry a `means` sentence
+    # beside the pattern they matched (TASK-142). A bare `{id, cites, status}`
+    # triple reads as a wording complaint, and on 2026-08-20 it was read as one
+    # on the only two stranded rows on Perry's own board.
+    CITATION_KEYS = {"id", "cites", "status", "row_status", "blocked_stale",
+                     "readings", "means"}
+    # ONE shape for both idle checks: `status` says which produced the entry
+    # and the clock is in hours on both, so a consumer needs one code path.
+    IDLE_ROW_KEYS = {"id", "status", "last_event", "idle_hours",
+                     "threshold_hours", "means"}
     CONFORMANCE_KEYS = {"sections_read", "sections_skipped",
                         "rows_with_unrecognized_id", "off_enum_status",
                         "rows_with_no_status", "evidence_not_found",
                         "rows_with_no_computable_age",
                         "next_action_cites_closed",
                         "depends_on_unknown", "dependency_cycles",
-                        "blocked_without_dependency", "has_event_log",
+                        "blocked_without_dependency",
+                        # TASK-142. The stranded-row family: a `blocked` row
+                        # every one of whose declared dependencies has closed,
+                        # an `in_progress` row with no dispatch slot and a
+                        # stopped clock, and a `review` row nobody is coming
+                        # back to. All three added at 1.13.
+                        "blocked_by_closed_rows",
+                        "in_progress_with_no_live_run", "review_idle",
+                        "has_event_log",
                         "missing_projection"}
     # `field` (1.7) says what `from`/`to` refer to on this event, so a
     # consumer needs no hardcoded set of events that overload the pair.
@@ -1571,7 +1589,8 @@ class TestListContract(unittest.TestCase):
         known = (self.TASK_KEYS | self.EVENT_KEYS | self.CONFORMANCE_KEYS
                  | self.INTAKE_KEYS | self.INTAKE_ROW_KEYS
                  | self.RISKS_KEYS | self.RISK_KEYS
-                 | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS)
+                 | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS
+                 | self.CITATION_KEYS | self.IDLE_ROW_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,
                          f"payload keys with no row in the contract doc: "
@@ -2309,11 +2328,20 @@ class TestNextActionPointingAtFinishedWork(unittest.TestCase):
         return p, a["id"]
 
     def test_a_row_citing_a_closed_task_is_reported(self):
+        """The original triple, asserted as a subset since 1.13.
+
+        The entry gained `row_status`, `blocked_stale`, `readings` and `means`
+        — TASK-142, because a bare triple reads as a wording complaint and was
+        silenced as one on 2026-08-20. `tests/test_stranded_rows.py` holds what
+        those four have to say; this stays the check that the three original
+        keys never moved.
+        """
         p, blocker = self.blocked_by_a_closed_task()
         _, d = p.run("list", "--all")
-        self.assertEqual(
-            d["conformance"]["next_action_cites_closed"],
-            [{"id": "TASK-900", "cites": blocker, "status": "done"}])
+        found = d["conformance"]["next_action_cites_closed"]
+        self.assertEqual(1, len(found))
+        self.assertEqual({"id": "TASK-900", "cites": blocker, "status": "done"},
+                         {k: found[0][k] for k in ("id", "cites", "status")})
 
     def test_a_row_citing_an_open_task_is_not_reported(self):
         p = self.board_citing("nothing yet")

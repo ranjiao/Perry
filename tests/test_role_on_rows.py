@@ -177,7 +177,15 @@ class TestAProjectThatHasDeclaredRoles(Base):
 class TestTheContractDeclaresIt(unittest.TestCase):
     def test_the_version_moved_and_the_doc_says_why(self):
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
-        self.assertIn("perry-task/list/1.12", doc)
+        # The version the TOOL emits, not a literal. This assertion is about
+        # the doc and the payload naming one version; pinning the number here
+        # made every later minor edit this file for a reason unrelated to
+        # roles, which is how a check stops meaning what its name says.
+        contract = next(
+            line.split('"')[1] for line in
+            (PERRY_HOME / "bin" / "perry-task").read_text().split("\n")
+            if line.startswith("LIST_CONTRACT = "))
+        self.assertIn(contract, doc)
         self.assertIn("### 1.8", doc)
         self.assertIn("### 1.9", doc)
         self.assertIn("### 1.10", doc)

@@ -147,6 +147,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -170,7 +171,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.12"
+LIST_CONTRACT = "perry-task/list/1.13"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -237,6 +238,19 @@ LIST_SEMANTICS = [
              "all, and any row in `review` are all unaffected. If you rendered "
              "a `blocked` badge from `status`, render `blocked_stale` beside "
              "it — the two disagree exactly when the board is out of date."},
+    {"version": "1.13",
+     "fields": ["conformance.next_action_cites_closed"],
+     "note": "Each entry now carries `means`, `readings`, `row_status` and "
+             "`blocked_stale`. The existing `id`/`cites`/`status` are "
+             "unchanged — what changed is what the array is FOR. A bare "
+             "`{id, cites, status}` triple reads as a wording complaint, and "
+             "on 2026-08-20 it was fired on exactly the two rows on this "
+             "board that were stranded, read as prose hygiene, and silenced "
+             "by rewriting the cells. It is not a style check: the row citing "
+             "closed work and the row being unblocked are the same "
+             "observation, and this array does not decide which. If you "
+             "rendered these as lint, render `means` instead and route them "
+             "to whoever can tell the two readings apart."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -4407,6 +4421,237 @@ def board_sections(ctx) -> dict:
     }
 
 
+# ── TASK-142: the rows a process bug stranded ─────────────────────────────
+#
+# Three checks, each traced to an incident on this project rather than
+# invented, and all three stated ONCE for the two `list` paths that report
+# them. `blocked_without_dependency` and `next_action_cites_closed` were
+# written out at both sites and drifted apart in nothing only because nobody
+# had needed to change them yet; TASK-148 is what that costs when somebody
+# does.
+
+
+def live_dispatch_ids() -> set[str]:
+    """Task ids that currently hold a dispatch slot, read and never written.
+
+    `bin/perry-dispatch-limit` reserves a slot by writing
+    `~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json` and frees it by
+    removing the file. A marker older than `PERRY_DISPATCH_STALE_TTL`
+    (default 3600s) is one that script will delete on its next run — a crashed
+    session's leftover — so it is NOT evidence that anything is running, and
+    this applies the same TTL rather than a second one.
+
+    **This reads the directory and writes nothing to it.** `perry-dispatch-limit
+    list` would answer the same question, but it cleans stale markers first and
+    takes the lock to do it; a `list --json` that could delete another
+    session's slot is a read command with a side effect on shared state, which
+    is worse than the fork it saves.
+
+    Honest about what it cannot see: an executor that never registered leaves
+    nothing here at all, so an empty answer is only half of
+    `in_progress_with_no_live_run` and the idle clock is the other half. That
+    is why a row is named only when BOTH say so.
+    """
+    try:
+        ttl = int(os.environ.get("PERRY_DISPATCH_STALE_TTL") or 3600)
+    except ValueError:
+        ttl = 3600
+    # `Path.home()` at call time, not at import: the marker directory is keyed
+    # on `$HOME` and a test that sets it has to be able to.
+    markers = Path.home() / ".cache" / "perry" / "in-flight"
+    live: set[str] = set()
+    now = time.time()
+    try:
+        entries = list(markers.glob("*.json"))
+    except OSError:                                       # pragma: no cover
+        return live
+    for path in entries:
+        try:
+            if now - path.stat().st_mtime > ttl:
+                continue
+        except OSError:                                   # pragma: no cover
+            continue
+        # The filename is `<TASK-ID>-<EXECUTOR>`, and BOTH halves carry
+        # hyphens — `TASK-142`, `claude-subagent` — so no split on `-` reads
+        # it. The marker's own JSON carries `task_id`, which is the answer;
+        # stripping a known executor suffix is the fallback for a marker an
+        # older script wrote without one.
+        tid = ""
+        try:
+            tid = str(json.loads(path.read_text()).get("task_id") or "")
+        except (OSError, ValueError):
+            tid = ""
+        if not tid:
+            for executor in ("codex", "claude-subagent", "opencode-subagent"):
+                if path.stem.endswith(f"-{executor}"):
+                    tid = path.stem[: -len(executor) - 1]
+                    break
+        if tid:
+            live.add(tid)
+    return live
+
+
+def stranded_row_findings(tasks: dict, *, has_event_log: bool, thresholds: dict,
+                          live: set, now: datetime) -> dict:
+    """The four `conformance` entries about a row nothing is moving.
+
+    Takes the rows AFTER `resolve_startability` and after the event merge, so
+    `blocked_stale` and `updated` are both filled in. Returns the entries; it
+    mutates neither the tasks nor the caller's `conformance`, because the two
+    `list` paths assemble that dict differently and only one of them should be
+    deciding what goes in it.
+
+    **`blocked_by_closed_rows` READS `tasks[].blocked_stale`.** It is the
+    aggregate of that field and nothing else. The rule behind it — a row that
+    says `blocked`, declares dependencies, and has none of them left open — is
+    stated exactly once, in `bin/lib § resolve_startability`, under an AST
+    guard (`tests/one_startable_rule.py`) that counts homes by enclosing
+    function and fails on a second one. Recomputing the predicate here would be
+    a third statement of one rule; the guard exists because two copies once
+    lived in a single file and a per-file count called that one home.
+
+    Why this is not `blocked_without_dependency`, which already exists and is
+    computed at each call site: that one tests `not depends_on` — the list
+    being **empty**, the row's blocker still in prose Perry cannot read.
+    TASK-037 and TASK-045 had a NON-EMPTY list every entry of which had closed.
+    The two arrays are disjoint by construction and a row in neither is one
+    whose blocker is real.
+
+    **Both idle checks are empty when there is no event log**, for the reason
+    the 1.9 `semantics` entry gives about `rows_with_no_computable_age`: on a
+    project that predates the writer every open row lands in them by
+    construction, and an array that restates `has_event_log: false` once per
+    row has named no finding. A row inside the log but with no timestamp of its
+    own is skipped for the same reason and is already reported by
+    `rows_with_no_computable_age`.
+    """
+    def idle_hours(task: dict) -> float | None:
+        try:
+            seen = datetime.fromisoformat(str(task["updated"] or ""))
+        except (TypeError, ValueError):
+            return None
+        return (now - seen).total_seconds() / 3600.0
+
+    def threshold(name: str, fallback: float) -> float:
+        entry = (thresholds or {}).get(name) or {}
+        value = entry.get("value")
+        return float(value) if isinstance(value, (int, float)) else fallback
+
+    # **One clock unit for both idle checks**, so a consumer needs one code
+    # path and not two. `thresholds.review_idle_days` is declared in days
+    # because that is the unit the judgement was calibrated in; the payload
+    # carries hours because the entry shape is shared, and the human-readable
+    # unit belongs in `means` where a person reads it.
+    in_progress_limit = threshold("in_progress_idle_hours", 4)
+    review_limit = threshold("review_idle_days", 3) * 24
+
+    rows = sorted(tasks.values(), key=lambda task: task["id"])
+    found: dict = {
+        # The aggregate of the field, not a second computation of its rule.
+        "blocked_by_closed_rows": sorted(
+            task["id"] for task in rows if task["blocked_stale"]),
+        "in_progress_with_no_live_run": [],
+        "review_idle": [],
+        "next_action_cites_closed": [],
+    }
+
+    # Two agents starved at the 600s watchdog on 2026-08-20 and their rows
+    # stayed `in_progress` with no dispatch slot and no new event. Neither
+    # signal alone is a finding: a long dispatch holds a slot and writes
+    # nothing for an hour, and a row worked by hand never had a slot. Both
+    # together mean nobody is holding this and nobody has said so.
+    for task in rows:
+        if not (has_event_log and task["open"]):
+            continue
+        idle = idle_hours(task)
+        if idle is None:
+            continue
+        if task["status"] == "in_progress" and task["id"] not in live \
+                and idle >= in_progress_limit:
+            found["in_progress_with_no_live_run"].append({
+                "id": task["id"], "status": task["status"],
+                "last_event": task["updated"] or "",
+                "idle_hours": round(idle, 1),
+                "threshold_hours": round(in_progress_limit, 1),
+                "means": (
+                    f"{task['id']} says somebody is working on it. No "
+                    f"executor holds a dispatch slot for it and nothing has "
+                    f"moved it for {round(idle, 1)}h. Either a run died "
+                    f"without reporting — two did, at the 600s watchdog on "
+                    f"2026-08-20 — or the work is happening somewhere Perry "
+                    f"cannot see. Ask before re-dispatching: a second agent "
+                    f"on a row a first one is still holding is the failure "
+                    f"the dispatch limit exists to prevent."),
+            })
+        elif task["status"] == "review" and idle >= review_limit:
+            found["review_idle"].append({
+                "id": task["id"], "status": task["status"],
+                "last_event": task["updated"] or "",
+                "idle_hours": round(idle, 1),
+                "threshold_hours": round(review_limit, 1),
+                "means": (
+                    f"{task['id']} is waiting on a human and has been for "
+                    f"{round(idle / 24, 1)} days. `review` is the one status "
+                    f"no dependency edge can contradict, so nothing else in "
+                    f"this payload will ever notice it — TASK-100, TASK-111, "
+                    f"TASK-127 and TASK-133 all sat here after their PRs had "
+                    f"already merged. Either the verdict was given and the "
+                    f"row was not closed, or nobody has been asked for one."),
+            })
+
+    # An open row whose `Next action` points at a task that has since closed.
+    #
+    # **The entries say what the hit might MEAN.** On 2026-08-20 this check was
+    # firing on exactly TASK-037 and TASK-045 — the only two rows on the board
+    # that turned out to be stranded — and it was read as prose hygiene,
+    # because a `{id, cites, status}` triple looks like a wording complaint.
+    # The cells were rewritten to silence it, which settled the disagreement by
+    # deleting the evidence of it. A check that reports a pattern without its
+    # meaning gets suppressed by whoever reads it, so this one states both
+    # readings and decides between them itself in no case.
+    #
+    # **Only ids in this payload are resolved.** `DESIGN-`, `ADR-` and `USER-`
+    # ids appear in these cells constantly and are NOT checked here — saying
+    # "cites nothing closed" while silently skipping three id families would be
+    # a stronger claim than the data supports.
+    for task in rows:
+        if not task["open"]:
+            continue
+        for cited in sorted(set(ID_RE.findall(task["next_action"]))):
+            cid = f"TASK-{int(cited):03d}"
+            other = tasks.get(cid)
+            if other is None or other["open"]:
+                continue
+            found["next_action_cites_closed"].append({
+                "id": task["id"], "cites": cid, "status": other["status"],
+                "row_status": task["status"],
+                "blocked_stale": task["blocked_stale"],
+                "readings": [
+                    f"the `Next action` is stale prose and {task['id']} is "
+                    f"still waiting on something else",
+                    f"{task['id']} is unblocked and its own `Status` has not "
+                    f"caught up",
+                ],
+                "means": (
+                    f"{task['id']} is open and its `Next action` points at "
+                    f"{cid}, which is {other['status']}. This check cannot "
+                    f"tell the two readings apart and does not try: the prose "
+                    f"is stale, or the row is unblocked. "
+                    + (f"`blocked_stale` is true on {task['id']}, so the "
+                       f"dependency graph already agrees with the second "
+                       f"reading — treat that as the finding, not this."
+                       if task["blocked_stale"] else
+                       f"{task['id']} reads `{task['status']}` and its "
+                       f"dependency graph contradicts neither reading, so "
+                       f"somebody has to read the cell.")
+                    + " Rewriting the cell is not the default fix — on "
+                    "2026-08-20 that is what was done to the only two "
+                    "stranded rows on this board, and it removed the "
+                    "evidence rather than the problem."),
+            })
+    return found
+
+
 def _cmd_list_from_board(args, ctx) -> dict:
     """The full task set, from one call.
 
@@ -4452,6 +4697,8 @@ def _cmd_list_from_board(args, ctx) -> dict:
                    "next_action_cites_closed": [],
                    "depends_on_unknown": [], "dependency_cycles": [],
                    "blocked_without_dependency": [],
+                   "blocked_by_closed_rows": [],
+                   "in_progress_with_no_live_run": [], "review_idle": [],
                    "has_event_log": bool(ctx["events"])}
     statuses = set(ctx["schema"]["enums"]["task_status"])
     terminal = {"done", "dropped"}
@@ -4735,23 +4982,15 @@ def _cmd_list_from_board(args, ctx) -> dict:
         if t["open"] and not t["updated"]
         and not t["stage_since"] and not t["arrived"])
 
-    # An open row whose `Next action` points at a task that has since closed.
-    # Orthogonal to the age check and catches a different case: a row can be
-    # touched yesterday and still be waiting on something that finished.
-    #
-    # **Only ids in this payload are resolved.** `DESIGN-`, `ADR-` and `USER-`
-    # ids appear in these cells constantly and are NOT checked here — saying
-    # "cites nothing closed" while silently skipping three id families would
-    # be a stronger claim than the data supports.
-    for t in tasks.values():
-        if not t["open"]:
-            continue
-        for cited in sorted(set(ID_RE.findall(t["next_action"]))):
-            cid = f"TASK-{int(cited):03d}"
-            other = tasks.get(cid)
-            if other is not None and not other["open"]:
-                conformance["next_action_cites_closed"].append(
-                    {"id": t["id"], "cites": cid, "status": other["status"]})
+    # The stranded-row family, from `stranded_row_findings` above — the ONE
+    # statement of these four, which `cmd_list` below calls too. It carries
+    # `next_action_cites_closed`, which used to be written out here and again
+    # there; it is the check whose MEANING this row changed, and changing a
+    # meaning in two places is the failure TASK-148 already paid for once.
+    conformance.update(stranded_row_findings(
+        tasks, has_event_log=conformance["has_event_log"],
+        thresholds=ctx["schema"].get("thresholds") or {},
+        live=live_dispatch_ids(), now=datetime.now()))
 
     rows = sorted(tasks.values(), key=lambda t: t["id"])
     if args.track:
@@ -4828,6 +5067,8 @@ def cmd_list(args, ctx) -> dict:
                    "next_action_cites_closed": [],
                    "depends_on_unknown": [], "dependency_cycles": [],
                    "blocked_without_dependency": [],
+                   "blocked_by_closed_rows": [],
+                   "in_progress_with_no_live_run": [], "review_idle": [],
                    "has_event_log": bool(ctx["events"]),
                    "missing_projection": ("" if ctx.get("board") is not None
                                           else str(ctx["state_root"] / "BOARD.md"))}
@@ -4931,15 +5172,11 @@ def cmd_list(args, ctx) -> dict:
         task["id"] for task in tasks.values()
         if task["open"] and not task["updated"]
         and not task["stage_since"] and not task["arrived"])
-    for task in tasks.values():
-        if not task["open"]:
-            continue
-        for cited in sorted(set(ID_RE.findall(task["next_action"]))):
-            cid = f"TASK-{int(cited):03d}"
-            other = tasks.get(cid)
-            if other is not None and not other["open"]:
-                conformance["next_action_cites_closed"].append(
-                    {"id": task["id"], "cites": cid, "status": other["status"]})
+    # The same call the board-derived path makes, for the same reason.
+    conformance.update(stranded_row_findings(
+        tasks, has_event_log=conformance["has_event_log"],
+        thresholds=ctx["schema"].get("thresholds") or {},
+        live=live_dispatch_ids(), now=datetime.now()))
 
     intake_rows = []
     board = ctx.get("board")
