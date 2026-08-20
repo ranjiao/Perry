@@ -1431,7 +1431,13 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "verification": verification_distribution(all_tasks,
                                                       raw_events(project_root)),
             "events": read_event_log(project_root),
-            "drift": reconcile_drift(project_root, board,
+            # **`board_as_authored`, not `board`.** Every other number on
+            # this payload is store-backed now (TASK-094); drift is the one
+            # question that must be asked of the rendered document, because
+            # the document is what it is checking. Handing it `snap.board`
+            # reported `drift: 0` for a row deleted from `BOARD.md` by hand.
+            # See `viewer/parsers.py § PMOSnapshot.board_as_authored`.
+            "drift": reconcile_drift(project_root, snap.board_as_authored,
                                      read_event_log(project_root)),
             "tasks": [encode(t) for t in all_tasks],
         },

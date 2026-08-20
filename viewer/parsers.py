@@ -1554,9 +1554,77 @@ def _bullets(section: str) -> list[str]:
     return out
 
 
-def parse_okr(text: str) -> OKR:
+#: `<state root>/okr.jsonl`. The second of ADR-007's three stores (TASK-092).
+OKR_STORE = "okr.jsonl"
+
+
+def load_okr_store(state_root: Path) -> list[dict] | None:
+    """Every record of `<state root>/okr.jsonl`, or `None` when there is none.
+
+    The same contract `load_task_store` documents, for the same reason: `None`
+    means the project has not been adopted and its markdown is its state.
+    """
+    p = Path(state_root) / OKR_STORE
+    if not p.exists():
+        return None
+    try:
+        return [json.loads(line) for line
+                in p.read_text(encoding="utf-8").split("\n") if line.strip()]
+    except (OSError, ValueError):
+        return None
+
+
+def _heading_key(head: str) -> str:
+    """A heading as a lookup key: collapsed whitespace, nothing else.
+
+    The store files a KR under the `##` version heading and the `###`
+    objective heading it was written beneath (`bin/perry_md_store.py §
+    scan_okr`), because `KR-O1.1` is unique inside one objective of one
+    version and nowhere else — Perry's own `OKR.md` carries that id twice and
+    both are live. Matching those two headings back is therefore the whole
+    join, and the ONE thing normalized is the run of spaces a `## v3:  label`
+    would differ by. No decoration is stripped: a heading is prose, and
+    `squash` is the rule for a table's header cell, which this is not.
+    """
+    return " ".join(str(head or "").split())
+
+
+def _krs_from_store(records: list[dict]) -> dict[tuple[str, str], list[KR]]:
+    """Store records → `{(version heading, objective heading): [KR, …]}`.
+
+    Both authored forms come back the same way, because the store holds both:
+    a KR written as a table row and a KR written as `- KR1: …` differ only in
+    the record's `form` field, which is layout and is not read here.
+    """
+    out: dict[tuple[str, str], list[KR]] = {}
+    for rec in sorted(records, key=lambda r: r.get("order")
+                      if isinstance(r.get("order"), int)
+                      and not isinstance(r.get("order"), bool) else 1 << 30):
+        if rec.get("kind") != "kr":
+            continue
+        stretch = str(rec.get("stretch") or "").strip().lower()
+        out.setdefault((_heading_key(rec.get("version")),
+                        _heading_key(rec.get("objective"))), []).append(
+            KR(id=str(rec.get("id") or ""), text=str(rec.get("text") or ""),
+               qualifier=str(rec.get("qualifier") or ""),
+               metric=str(rec.get("metric") or ""),
+               linked=str(rec.get("linked") or ""),
+               stretch=stretch.startswith("y") or stretch == "stretch"))
+    return out
+
+
+def parse_okr(text: str, *, krs: list[dict] | None = None) -> OKR:
+    """`OKR.md` → the goals it carries.
+
+    `krs` is the OKR store's records. **When it is given, no KR is read out of
+    a table or a bullet in `text`** — every key result comes from the store,
+    and the markdown is asked only for the prose the store does not hold: the
+    mission, the operating principles, the anti-goals and the version log.
+    `None` is a project with no store, which is adoption.
+    """
     okr = OKR()
     text = _strip_comments(text)
+    stored_krs = None if krs is None else _krs_from_store(krs)
 
     # Mission: the `## Mission` section (template shape). Older hand-written
     # files put the mission as prose between the H1 and the first ## — fall
@@ -1580,7 +1648,7 @@ def parse_okr(text: str) -> OKR:
         versions.sort(key=lambda v: int(v[0]), reverse=True)
         n, label, body = versions[0]
         okr.version = f"v{n}: {label.strip()}"
-        okr.objectives = _parse_okr_objectives(body)
+        okr.objectives = _parse_okr_objectives(body, stored_krs, okr.version)
         if not anti:
             anti = _section(body, *alias("headings", "Anti-Goals"), level="### ")
     okr.anti_goals = _bullets(anti)
@@ -1594,7 +1662,9 @@ def parse_okr(text: str) -> OKR:
     return okr
 
 
-def _parse_okr_objectives(body: str) -> list[Objective]:
+def _parse_okr_objectives(body: str,
+                          stored_krs: dict[tuple[str, str], list[KR]] | None = None,
+                          version: str = "") -> list[Objective]:
     objs: list[Objective] = []
     chunks = re.split(r"\n(?=### (?:Objective|目标) \d+)", body)
     for chunk in chunks:
@@ -1602,7 +1672,15 @@ def _parse_okr_objectives(body: str) -> list[Objective]:
         if not m:
             continue
         title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
-        krs = _parse_krs(chunk)
+        if stored_krs is None:
+            krs = _parse_krs(chunk)
+        else:
+            # The `###` heading AS AUTHORED is the join key, not the cleaned
+            # title: `_clean_heading_title` drops the `— ` a heading opens
+            # with, and the store filed the row under what the file says.
+            krs = stored_krs.get(
+                (_heading_key(version),
+                 _heading_key(chunk.split("\n", 1)[0].lstrip("# "))), [])
         intro_lines = [
             line.strip()
             for line in chunk.split("\n")[1:]
@@ -3158,6 +3236,33 @@ class PMOSnapshot:
     linkage: Linkage = field(default_factory=Linkage)
     ops: OpsCounts = field(default_factory=OpsCounts)
     weekly: list[JournalEntry] = field(default_factory=list)
+    #: `BOARD.md` exactly as it is on disk. Kept so `board_as_authored` can be
+    #: computed on demand instead of on every snapshot; nothing else reads it.
+    board_text: str = ""
+
+    @property
+    def board_as_authored(self) -> BoardState:
+        """The board PARSED FROM ITS MARKDOWN, for the one question that needs it.
+
+        `board` is store-backed on an adopted project (TASK-094): its task
+        rows come out of `perry/tasks.jsonl` and nothing asks a rendered
+        document what a value is. **Drift asks the opposite question** — does
+        the projection still agree with the record of how it got that way —
+        and it cannot ask that of the store, because the store is the thing it
+        is checking against. Handing it `board` reported `drift: 0` for a row
+        deleted from `BOARD.md` by hand and `unrecorded: 0` for a row typed
+        into it, which is the detector saying "no drift" about the two edits
+        it exists to catch.
+
+        So the parse survives, HERE, named for its one caller, rather than
+        twice inside `bin/perry-task` and `bin/perry-state`. On a project with
+        no store this is the same object `board` is.
+
+        TASK-091 is where it goes: a byte comparison against what the store
+        would render (`bin/perry-tasks diff` already performs it) answers the
+        same question without parsing anything.
+        """
+        return parse_board(self.board_text)
 
     @property
     def open_top_risks(self) -> list[TopRisk]:
@@ -3267,7 +3372,7 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
 
     return PMOSnapshot(
         board=board,
-        okr=parse_okr(okr_text) if okr_text else OKR(),
+        okr=parse_okr(okr_text, krs=load_okr_store(root)) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
         adrs=parse_decisions(decisions_text) if decisions_text else [],
@@ -3283,6 +3388,7 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         linkage=linkage,
         ops=_load_ops_counts(root),
         weekly=walk_weekly(root),
+        board_text=board_text,
     )
 
 
