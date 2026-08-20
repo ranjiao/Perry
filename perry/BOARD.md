@@ -24,19 +24,18 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
-| TASK-092 | OKR.md and .perry/config.md become stores with renderers | Coding Agent | review | V4 review re-dispatched after the first reviewer stalled at 600s; PR #16 is merged and nine rows wait on this row closing | evidence/2026-08/TASK-092-dispatch-2026-08-20-1654.md | V4 | TASK-090 | main |  |  |  |  |  |  |
 | TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-070 | Perry's own state is 19.5% of the tracked repo and grows unbounded | Coding Agent | not_started | decide the retention proposal in TASK-110's evidence; nothing is deleted until then | evidence/2026-08/TASK-070-context.md | V3 | — | main |  |  |  |  |  |  |
-| TASK-110 | measure what Perry state costs and propose a retention policy, deleting nothing | Coding Agent | review | the user decides the retention policy; the measurement says the whole proposal recovers 1.4 days of growth | evidence/2026-08/TASK-110-dispatch-2026-08-20-1725.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -65,7 +64,7 @@
 | USER-001 | Staleness threshold N | TASK-005 | — | **answered 2026-08-16: 30 days** |  |
 | USER-002 | `--claims` vs `--strict` | — | — | **answered 2026-08-16: exempt** |  |
 | USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | answered 2026-08-20: Already decided in ADR-007 decision 2 on 2026-08-19 (Deciders: Ran Jiao): BOARD.md becomes rendered output and a hand edit becomes drift. This row was minted the same day and duplicates that decision; recorded here so the queue matches the record. TASK-038 is unblocked, and still needs its V5 signature, which is a different act from this permission. | 2026-08-19 |
-| USER-004 | When migration encounters a file the user has chmod-ed read-only, should it refuse to touch that file, or migrate it and name the overridden permission in the plan? Today it migrates silently: write_atomic renames over the target, and a rename needs write permission on the directory, not on the file. | TASK-079 |  | pending | 2026-08-20 |
+| USER-004 | When migration encounters a file the user has chmod-ed read-only, should it refuse to touch that file, or migrate it and name the overridden permission in the plan? Today it migrates silently: write_atomic renames over the target, and a rename needs write permission on the directory, not on the file. | TASK-079 |  | answered 2026-08-20: Migrate and name the override; do not refuse. Reasoning recorded because the row was minted for it: refusing would block a whole migration for a reason unrelated to shape, and migration is the one road ADR-004 gives an undeclared project — a refusal there is the wall with no door that this project rejects everywhere else. The override is also reversible: the restore point carries the file's original bytes, verified under TASK-079. The 'at least name it' half of the ADR-004 posture is already satisfied by what shipped in PR #6, and TASK-115 added the guard that keeps that wording an observation rather than advice. The read-only bit stays a signal Perry reports and does not act on. | 2026-08-20 |
 
 ## Done this period (leaves the board at next triage)
 
