@@ -381,7 +381,7 @@ class TestReadingIsNotGated(unittest.TestCase):
         # freeze still freezes: every other key in the set is unchanged, the
         # version string had to move in the same edit, and a fourth key added
         # without touching this line still fails here.
-        "perry-task/list/1.13": (
+        "perry-task/list/1.14": (
             TASK, ("list", "--all"),
             {"project_root", "state_root", "contract", "semantics", "tasks",
              "open", "closed", "events", "untitled", "conformance", "intake",
