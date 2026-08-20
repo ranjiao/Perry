@@ -9,8 +9,9 @@ ADR-004 needs a different fact, and it is two facts wearing one name:
 
   1. **the declaration** — the user said this file is Perry's, at shape
      version N. Recorded in `.perry/conformance.md`. Only ever written by
-     `perry-conform declare` (and, when TASK-044 lands, by the migration the
-     user asked for). *Adoption proposes; the user declares.*
+     `perry-conform declare` (and by `bin/perry-migrate`, the migration the
+     user asked for, which records `route: migrate`). *Adoption proposes; the
+     user declares.*
   2. **the shape** — does the file still match `schema/state-schema.json`
      right now. Computed live, on every call, by `bin/perry-lint`'s own
      `check_file`. Never cached, never stored.
@@ -243,29 +244,53 @@ def verdict(project_root: Path, state_root: Path, key: str,
 ADVISORY = "advisory"
 ENFORCE = "enforce"
 
-#: Shipped **advisory** for one release. The reasoning, because a reviewer
-#: should be able to disagree with it:
+#: Shipped **enforce** (TASK-047). This shipped `advisory` for one release, on
+#: an argument that named its own expiry condition, and the condition has now
+#: fired. The old text is not preserved here — a comment that explains why the
+#: default is `advisory` is wrong the moment the default is `enforce` — but the
+#: argument it made is, because a reviewer should be able to disagree with the
+#: flip on the same terms it was promised:
 #:
-#: Every Perry project in existence predates this marker, Perry's own repo
-#: included, so an enforcing default turns `perry-task add` off for every user
-#: at upgrade. That alone would be survivable — the way back is one
-#: `perry-conform declare --all` — but it is not survivable for the projects
-#: that are NOT already conformant. For those the way forward is the migration,
-#: and the migration is TASK-044 and does not exist yet. A refusal that names a
-#: command nobody can run is the wall § 4 of the spec forbids.
+#: The advisory release was NOT the DESIGN-003 decision-4 argument (a hard gate
+#: would retroactively invalidate work done before the rule existed). That one
+#: does not carry: a missing declaration on a conformant file can be produced in
+#: one second, retroactively, by one command. The argument that carried was
+#: narrower — for the projects that are NOT already Perry-shaped the way forward
+#: is the migration, the migration did not exist, and a refusal that names a
+#: command nobody can run is the wall ADR-004 § 4 forbids. Enforcement was to
+#: flip when TASK-044 gave the non-conformant half of the population a road.
 #:
-#: So this is NOT the DESIGN-003 decision-4 argument (a hard gate would
-#: retroactively invalidate work done before the rule existed). That argument
-#: does not carry: a missing declaration on a conformant file can be produced
-#: in one second, retroactively, by one command. The argument that does carry
-#: is narrower and expires on a known date — enforcement flips when TASK-044
-#: gives the non-conformant half of the population a road.
+#: TASK-044 landed 2026-08-19. `bin/perry-migrate` exists, is dry-runnable,
+#: declares what it migrates with `route: migrate`, and names a restore point.
+#: Both halves of the population now have a road, and `message_for` below names
+#: it in every branch: `perry-conform declare` for a file that already matches,
+#: `perry-migrate` for one that does not.
 #:
-#: Advisory is not "off": the gate computes the same verdict, prints the same
-#: message, and the enforcing branch is live today behind `PERRY_CONFORMANCE`
-#: and behind `.perry/config.md § Conformance gate`. A guard that cannot be
-#: made to fire is not a guard, so both branches are exercised by the suite.
-DEFAULT_MODE = ADVISORY
+#: **What the flip costs, stated rather than discovered.** Neither of these is a
+#: reason the road is missing; both are reasons a user meets the gate on day one:
+#:
+#:  1. a complete migration does not always reach zero on a real board. Measured
+#:     on a copy of `~/proj/gimegime-pmo`: `BOARD.md` goes 3 errors → 1, and the
+#:     residue is a `Status` cell reading `半解` — a distinction its author drew,
+#:     which migration deliberately will not coerce into `in_progress`. That file
+#:     stays refused until a human edits it and declares it. The refusal says so
+#:     and names both commands; it is a door that needs a hand, not a wall.
+#:  2. a brand-new project has zero shape errors and is still `undeclared`,
+#:     because `SKILL.md § Conformance gate` forbids an agent from declaring on
+#:     the user's behalf — *adoption proposes; the user declares*. So the first
+#:     write on a spotless project asks for one `perry-conform declare BOARD.md`.
+#:
+#: Both are pinned as executable tests in `tests/test_conformance.py § 7`, so
+#: the day either stops being true a test says so instead of this paragraph
+#: quietly going stale.
+#:
+#: The escape hatches are unchanged and are the reason this is reversible per
+#: project rather than per release: `PERRY_CONFORMANCE=advisory` in the
+#: environment, or `- Conformance gate: advisory` in `.perry/config.md`.
+#: Advisory is not "off" and never was — the gate computes the same verdict and
+#: prints the same message, it simply writes anyway. A guard that cannot be made
+#: to fire is not a guard, so both branches stay exercised by the suite.
+DEFAULT_MODE = ENFORCE
 
 
 def gate_mode(project_root: Path) -> str:
@@ -320,14 +345,16 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"either way.{tail}")
     if v.state == UNDECLARED:
         # `risk-add`'s refusal is the shape: name the count, name the command,
-        # point at the dry run. Until TASK-044 landed the only command this
-        # could name was `perry-lint`, which reports the problem and fixes
-        # nothing — a wall with a diagnosis nailed to it.
+        # point at the dry run. Before TASK-044 the only command this could name
+        # was `perry-lint`, which reports the problem and fixes nothing — a wall
+        # with a diagnosis nailed to it. Naming `perry-migrate` is what made the
+        # enforcing default defensible, so this branch and `DEFAULT_MODE` above
+        # are one decision, not two.
         return (
             f"{v.path} is not Perry's shape: {len(v.errors)} error(s) against "
-            f"schema/state-schema.json. A project migrates once (ADR-004); until "
-            f"then this file is read-only. See the complete diff, with nothing "
-            f"written:\n"
+            f"schema/state-schema.json at shape version {v.shape_version}. A "
+            f"project migrates once (ADR-004); until then this file is "
+            f"read-only. See the complete diff, with nothing written:\n"
             f"    perry-migrate{r}\n"
             f"then, when it is the diff you want:\n"
             f"    perry-migrate apply{r}\n"

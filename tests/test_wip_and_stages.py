@@ -27,6 +27,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
@@ -35,7 +37,8 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 TASK = PERRY_HOME / "bin" / "perry-task"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n\n## Tracks\n\n"
+CONFIG = ("# Perry configuration\n\n- State root: perry\n" + GATE_OFF
+          + "\n## Tracks\n\n"
           "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
           "|---|---|---|---|---|---|---|---|\n{rows}")
 HEAD = ("| ID | Title | Owner | Status | Next action | Evidence | "

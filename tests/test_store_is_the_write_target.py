@@ -34,6 +34,8 @@ import sys
 import tempfile
 import unittest
 
+from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TASK = ROOT / "bin" / "perry-task"
 TASKS = ROOT / "bin" / "perry-tasks"
@@ -79,7 +81,8 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n", encoding="utf-8")
+            "- Repo layout: single\n- State root: .\n" + GATE_OFF,
+            encoding="utf-8")
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
         if seed_store:
             proc = subprocess.run(

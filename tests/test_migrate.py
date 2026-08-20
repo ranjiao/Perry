@@ -2262,10 +2262,18 @@ class TestTaskSummaryMigration(unittest.TestCase):
         path = p.root / "tasks.jsonl"
         records = [json.loads(line) for line in path.read_text().splitlines()]
         task_id = records[0]["id"]
+        # This is SETUP, not the thing under test: it puts a summary in the
+        # store so the assertion below can prove migration preserved it. The
+        # board is deliberately legacy, so after TASK-047 the shipped
+        # `enforce` default refuses this write — correctly, and that refusal is
+        # asserted in `tests/test_conformance.py`, not here. Scoped to this one
+        # call rather than the fixture, because the rest of this module is
+        # about `perry-migrate`, which is exempt from the gate anyway.
         summarized = subprocess.run(
             [sys.executable, str(TASK), "summary", task_id, "--summary",
              "SUMMARY-SURVIVES-MIGRATION", "--root", str(p.root), "--json"],
-            capture_output=True, text=True)
+            capture_output=True, text=True,
+            env=dict(os.environ, PERRY_CONFORMANCE="advisory"))
         self.assertEqual(summarized.returncode, 0, summarized.stderr)
 
         rc, out, err = p.run("apply")
