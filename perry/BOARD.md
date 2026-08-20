@@ -40,7 +40,7 @@
 | TASK-121 | the sweep that found four more live-state assertions runs once and then is thrown away | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-122 | the repair path the tools advertise leaves the file needing a whitespace fix | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
-| TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to 13cfe2f; escalation on `diagnose` released by the user 2026-08-20 | evidence/2026-08/TASK-126-dispatch-2026-08-21.md | V3 | TASK-112 | main |  |  |  |  |  |  |
+| TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | review | PR #22 — the suite is fully green; verify the strong anti-vacuity case survives review, then close at V3 | evidence/2026-08/TASK-126-dispatch-2026-08-21-result.md | V3 | TASK-112 | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
