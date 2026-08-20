@@ -16,7 +16,6 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
 |---|---|---|---|---|---|---|---|
-| TASK-044 | Migration must be dry-runnable, lossless, recoverable and user-declared | Coding Agent | in_progress | V4 r4 FAIL exposed four bounded repair families. After TASK-091, implement C selection boundary -> A file-image fidelity -> B restore transaction protocol -> D I/O failure boundary, each with mutation-sensitive checkpoint tests, then dispatch fresh V4. | evidence/2026-08/TASK-044-v4-review-r4.md | V4 | — |
 | TASK-050 | One normalization for a header cell, not two | Coding Agent | blocked | After TASK-094 lands, rescope this task to header handling still required by adoption | — | V4 | TASK-094 |
 | TASK-067 | The writer can destroy the table it writes to, and perry-lint cannot see it | Coding Agent | blocked | After TASK-094 and TASK-095 land, retain only foreign-project adoption coverage and the escaped-pipe behavioural corpus | evidence/2026-08/TASK-067-finding.md | V4 | TASK-094, TASK-095 |
 
