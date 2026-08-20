@@ -67,6 +67,7 @@
 | TASK-131 | seventeen emitted contract keys are documented nowhere, and now there is a number for it | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
+| TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
