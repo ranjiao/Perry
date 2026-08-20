@@ -68,13 +68,28 @@ SCHEMA = json.loads((ROOT / "schema" / "state-schema.json").read_text())
 LINT_MODULE.load_glossary(SCHEMA)
 OKR_SPEC = next(f for f in SCHEMA["files"] if f["id"] == "okr")
 
-#: In-repo files, always present. `CORPUS` adds the ones that only exist on a
-#: machine where those projects are checked out.
+#: The corpus, in the repository, on every machine. Every shape the gate is
+#: about is carried by a file in this list — see
+#: `test_the_corpus_actually_disagrees`, which reads THIS list and nothing
+#: else, so the gate cannot get weaker by being run somewhere the author's
+#: home directory does not exist. TASK-111: it used to fold `ELSEWHERE` in
+#: behind `if p.exists()`, which made it green here and red on CI forever.
 IN_REPO = [
     ROOT / "perry" / "OKR.md",
     ROOT / "tests" / "fixtures" / "sample-project" / "OKR.md",
     ROOT / "goals" / "state" / "OKR_TEMPLATE.md",
+    # A trimmed snapshot of gimegime-pmo: `### Objective N:` headings and an
+    # `### Anti-Goals` nested INSIDE `## v2`. It is why the objective-heading
+    # shape survives on a machine with no `~/proj`.
+    ROOT / "tests" / "fixtures" / "second-project" / "OKR.md",
+    # One version, where every other file in the corpus has two — the
+    # multi-version shape is the DISAGREEMENT, so it needs a file that
+    # counts differently, not another two-version file.
+    ROOT / "tests" / "fixtures" / "sample-project-zh" / "OKR.md",
 ]
+#: Real projects, on the author's machine only. Never load-bearing: they widen
+#: the round-trip on the one machine that has them, and every test that reads
+#: them skips out loud with the reason named when they are absent.
 ELSEWHERE = [
     pathlib.Path.home() / "proj" / "gimegime-pmo" / "OKR.md",
     pathlib.Path.home() / "proj" / "aimark" / "perry" / "OKR.md",
@@ -119,11 +134,32 @@ class TestByteIdentity(unittest.TestCase):
             with self.subTest(path=str(path)):
                 self.assertEqual(path.read_text(), G.Okr(path).render())
 
+    def test_the_corpus_is_entirely_inside_the_repository(self):
+        """The corpus the assertion below reads must be the same corpus
+        everywhere. A path outside `ROOT` is a path some machine does not
+        have, and a corpus that shrinks on that machine is a gate that got
+        weaker without anyone editing it."""
+        for path in IN_REPO:
+            with self.subTest(path=str(path)):
+                self.assertTrue(
+                    path.is_relative_to(ROOT),
+                    f"{path} is outside the repository; it cannot be part of "
+                    f"the corpus this gate reads unconditionally")
+                self.assertTrue(path.exists(), f"{path} is gone; fix this list")
+
     def test_the_corpus_actually_disagrees(self):
-        """A round-trip test over three files written by the same template
-        proves nothing. This asserts the corpus contains the shapes the gate
-        is about, so it cannot quietly become uniform."""
-        texts = [p.read_text() for p in IN_REPO + ELSEWHERE if p.exists()]
+        """A round-trip test over files written by the same template proves
+        nothing. This asserts the corpus contains the shapes the gate is
+        about, so it cannot quietly become uniform.
+
+        It reads `IN_REPO` and only `IN_REPO`, with no `exists()` guard: every
+        one of those files is committed, so a missing one is an error and not
+        a smaller corpus. `ELSEWHERE` is deliberately excluded even when it is
+        present — if the real projects could satisfy these assertions, the
+        gate would pass here and fail on every checkout without them, which is
+        exactly the defect TASK-111 closed.
+        """
+        texts = [p.read_text() for p in IN_REPO]
         joined = "\n".join(texts)
         self.assertRegex(joined, r"(?m)^### Objective \d+[:—-]",
                          "no objective heading in the corpus at all")
