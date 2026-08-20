@@ -1,0 +1,80 @@
+name: merge-check
+
+# Why this is a second workflow rather than another job in ci.yml.
+#
+# ci.yml answers "is this pull request green?" and it already checks out the
+# MERGE RESULT — `actions/checkout` resolves `refs/pull/N/merge` on a
+# `pull_request` event, which the run for PR #16 on 2026-08-20 shows verbatim:
+#
+#     git fetch ... +9e18354...:refs/remotes/pull/16/merge
+#     HEAD is now at 9e18354 Merge 96822a4e... into e9d8c4dc...
+#
+# So "check out the merge result" is not the missing piece; it is what already
+# happens. What ci.yml cannot answer is "is the tree we are about to HAVE
+# green?", for two reasons this workflow exists to cover:
+#
+#   1. That merge result is computed against the base as it stood when the
+#      event fired, and GitHub never re-fires `pull_request` when the base
+#      branch moves underneath an open PR. PR #14 and PR #15 were both
+#      computed against e9d8c4dc; #14 landed on 02e61fd and #15 landed on top
+#      of #14, so no run ever saw the tree that shipped.
+#   2. Nothing ever tests two OPEN changes together. #14 added both store
+#      files to `claims[]`; #15 shipped tests asserting the world before that
+#      claim. Each was fine alone. Merged, two tests were red that neither
+#      change could have seen.
+#
+# Hence the trigger list below. `push` to an integration branch is exactly the
+# moment a base moves under the PRs still queued against it, and that is when
+# every one of them is re-checked.
+
+on:
+  pull_request:
+    branches: [main, feat/work-modes]
+  push:
+    branches: [main, feat/work-modes]
+  workflow_dispatch:
+
+concurrency:
+  group: merge-check-${{ github.event.pull_request.base.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  pairs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Which branch are the open PRs queued against
+        id: base
+        run: |
+          echo "ref=${{ github.event.pull_request.base.ref || github.ref_name }}" \
+            >> "$GITHUB_OUTPUT"
+
+      # The base branch itself, not a merge ref — tests/merge-check does its
+      # own merging so it can vary which candidates are in the tree.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.base.outputs.ref }}
+          fetch-depth: 0
+
+      # One authenticated fetch of every PR head. tests/merge-check clones this
+      # checkout with --shared, so it reaches these commits by sha without
+      # needing credentials of its own.
+      - name: Fetch every pull request head
+        run: |
+          git fetch --no-tags --force origin '+refs/pull/*/head:refs/remotes/pull/*'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stdlib only, like the rest of Perry. `gh` is preinstalled on the runner
+      # and only used to list open PRs.
+      - name: Every open PR merged together, against the current base tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tests/merge-check \
+            --base "${{ steps.base.outputs.ref }}" \
+            --all-open -j 4
