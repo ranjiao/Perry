@@ -12,6 +12,11 @@
 > locked the same day. Every row cites its design phase. Perry has no `OKR.md`, so
 > every row is **declared unlinked** — not guessed into a KR.
 
+## Intake
+
+| Arrived | Request | Outcome |
+|---|---|---|
+
 ## P0 (must finish this period)
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
@@ -39,25 +44,29 @@
 | TASK-126 | closing the dangling-id row requires writing the record that re-dangles it | Coding Agent | not_started | — | — | V3 | TASK-112 | main |  |  |  |  |  |  |
 | TASK-127 | the contract docs and the payloads they describe are never diffed against each other | Coding Agent | review | PR #21: KR-O2.4 measures 17, not 0; the contract count is five, not three | evidence/2026-08/TASK-127-dispatch-2026-08-20-2045.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
+| TASK-133 | declare the first non-project track on Perry itself, and measure what a mixed spine costs | User + Agent | review | the RFC decision: does Mode become a preset over (spine, flow, rung), or stay four fixed shapes | evidence/2026-08/TASK-133-track-experiment.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-135 | a track can be declared but no existing row can be moved onto it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-136 | a queue track SLA is parsed, stored and never measured against anything | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
-| ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on |
-|---|---|---|---|---|---|---|---|
-| TASK-037 | perry-goals writer | Coding Agent | blocked | After TASK-092 lands, rescope to flag naming and the module-scope handler defect only | — | V4 | TASK-092 |
-| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 |
-| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 |
-| TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 |
-| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | merge PR #14; the shape predicate added to bin/perry-lint is outside the declared scope and was flagged for a reviewer | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — |
-| TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  |
-| TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  |
-| TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  |
-| TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  |
-| TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  |
-| TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  |
-| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | — | — | V2 |  |
-| TASK-131 | seventeen emitted contract keys are documented nowhere, and now there is a number for it | Coding Agent | not_started | — | — | V2 |  |
-| TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  |
+| ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Arrived |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TASK-037 | perry-goals writer | Coding Agent | blocked | After TASK-092 lands, rescope to flag naming and the module-scope handler defect only | — | V4 | TASK-092 | main |  |  |
+| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 | main |  |  |
+| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | blocked | blocked on chain 044 → 047 → 045; switching to the head of it | — | V4 | TASK-044, TASK-047 | main |  |  |
+| TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
+| TASK-100 | tasks.jsonl is in no claims[] entry, so a namespace collision on it cannot be reported | Coding Agent | review | merge PR #14; the shape predicate added to bin/perry-lint is outside the declared scope and was flagged for a reviewer | evidence/2026-08/TASK-100-dispatch-2026-08-20-1730.md | V3 | — | main |  |  |
+| TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | — | — | V2 |  | main |  |  |
+| TASK-131 | seventeen emitted contract keys are documented nowhere, and now there is a number for it | Coding Agent | not_started | — | — | V2 |  | main |  |  |
+| TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
