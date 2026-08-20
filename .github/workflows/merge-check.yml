@@ -69,10 +69,15 @@ jobs:
       # One authenticated fetch of every PR head and of the base branch.
       # tests/merge-check clones this checkout with --shared, so it reaches
       # these commits without credentials of its own.
+      #
+      # The destination is refs/remotes/pull/*/head, NOT refs/remotes/pull/*:
+      # actions/checkout has already written refs/remotes/pull/<n>/merge for
+      # this PR, so refs/remotes/pull/<n> is a directory and cannot also be a
+      # ref. --force does not help with a D/F collision; a sibling name does.
       - name: Fetch every pull request head and the base branch
         run: |
           git fetch --no-tags --force origin \
-            '+refs/pull/*/head:refs/remotes/pull/*' \
+            '+refs/pull/*/head:refs/remotes/pull/*/head' \
             "+refs/heads/${{ steps.base.outputs.ref }}:refs/remotes/origin/${{ steps.base.outputs.ref }}"
 
       - uses: actions/setup-python@v5

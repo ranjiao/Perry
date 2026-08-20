@@ -389,7 +389,8 @@ def main() -> int:
             if not sha:
                 sources = []
                 if c.pr:
-                    sources = [(str(repo), f"refs/remotes/pull/{c.pr}"),
+                    sources = [(str(repo), f"refs/remotes/pull/{c.pr}/head"),
+                               (str(repo), f"refs/remotes/pull/{c.pr}"),
                                (str(repo), f"refs/pull/{c.pr}/head"),
                                (url, f"refs/pull/{c.pr}/head")]
                 sha = scr.find(c.ref, sources,
