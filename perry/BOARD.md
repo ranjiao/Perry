@@ -24,12 +24,12 @@
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
-| TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | not_started | — | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
+| TASK-094 | Delete the header rule and the row splitter for the three stores | Coding Agent | in_progress | dispatched 18:58 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | not_started | CI red on every run since the corpus silently shrinks; see tests/test_goals_writer.py ELSEWHERE | — | V3 | — | main |  |  |  |  |  |  |
+| TASK-111 | a test reads two files outside the repository, so it is green here and red on CI forever | Coding Agent | in_progress | dispatched 18:58 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-114 | aiMark reads Perry through the current contracts instead of a pin nine versions old | Coding Agent | in_progress | delegated to an aiMark coding agent; awaiting paste-back | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | — | main |  |  |  |  |  |  |
 | TASK-119 | the linkage graph is documented as machine-written and no tool writes it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-120 | the linkage edges are read but never folded into KR progress | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
