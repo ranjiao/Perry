@@ -265,8 +265,10 @@ def cell_text(field: str, rec: dict, escape: bool = True) -> str:
     `escape` is False for a slot that is not inside a markdown table — a
     `- PMO repo path: …` bullet in `.perry/config.md` carries no cell
     boundaries, and escaping a pipe there would write a backslash the file
-    never had. It is the ONE thing that differs between a table cell and a
-    bullet slot, so it is one flag rather than a second function.
+    never had. "Is this inside a table?" is the ONE question a table cell and
+    a bullet slot answer differently, so it is one flag rather than a second
+    function — and it is the same flag `describe_cell` reads to decide whether
+    a value may be handed padding it did not come with, for the same reason.
     """
     v = rec.get(field, "")
     if isinstance(v, list) or field == "depends_on":
@@ -314,11 +316,28 @@ def describe_cell(raw: str, field: str, rec: dict, escape: bool = True) -> dict:
     body = raw.strip()
     lead = raw[:len(raw) - len(raw.lstrip())]
     trail = raw[len(raw.rstrip()):]
+    # **A table cell has boundaries; a bullet slot has neighbours** — so only
+    # the cell may be given padding it did not come with. `render_line` joins
+    # cells on `|`, a character that carries no whitespace of its own, so a
+    # cell whose own padding is missing has to be handed some or `|split|` is
+    # what gets written. A bullet slot is joined on `""` between literal spans
+    # that already hold every character around it: the span before the slot in
+    # `- Repo layout: single` is `'- Repo layout: '`, separator space included.
+    # A space invented there is written TWICE — two after the colon, and a
+    # trailing one `git diff --check` reports — on a line the tool's own
+    # refusal message told the reader to run `render --write` to repair.
+    # `escape` is the same flag that tells a cell from a slot in `cell_text`,
+    # for the same reason: a slot is not inside a table.
+    pad = " " if escape else ""
     if not body:
         # A whitespace-only cell is ALL padding, and splitting it into a
         # leading half and a trailing half counts it twice — `|  |` came back
-        # `|    |` on every empty `Depends on` cell of Perry's own board.
-        c = {"f": field, "lead": " ", "trail": " ", "blank": raw}
+        # `|    |` on every empty `Depends on` cell of Perry's own board. A
+        # bullet slot has only one side to pad against, so its whitespace is
+        # kept whole and on the left, where the separator it follows is: an
+        # empty `- Code repo path: ` gains a value without gaining a second
+        # space and without losing the one it had.
+        c = {"f": field, "lead": pad or raw, "trail": pad, "blank": raw}
         if want:
             c["disagrees"] = body
         return c
@@ -341,7 +360,7 @@ def describe_cell(raw: str, field: str, rec: dict, escape: bool = True) -> dict:
         at = body.index(want)
         return {"f": field, "lead": lead, "trail": trail,
                 "p": body[:at], "s": body[at + len(want):]}
-    return {"f": field, "lead": lead or " ", "trail": trail or " ",
+    return {"f": field, "lead": lead or pad, "trail": trail or pad,
             "disagrees": body}
 
 

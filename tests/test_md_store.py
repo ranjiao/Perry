@@ -46,6 +46,7 @@ sys.path.insert(0, str(ROOT / "bin"))
 sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P                                            # noqa: E402
 import perry_md_store as M                                     # noqa: E402
+import perry_store as S                                        # noqa: E402
 
 from gate import GATE_OFF                                      # noqa: E402
 
@@ -343,6 +344,110 @@ class TestAMutatedStoreMovesTheFile(unittest.TestCase):
         rendered, _ = M.render(M.CONFIG, text, records)
         self.assertIn("- Code repo path: /tmp/elsewhere", rendered)
         self.assertNotIn("- Code repo path: —", rendered)
+
+
+class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
+        unittest.TestCase):
+    """TASK-122 — the repair `bin/perry_md_store.py` advertises, byte for byte.
+
+    The refusal message tells the reader to run `render --write` "to bring the
+    file back in line". It has to be safe to obey: a repaired bullet came back
+    with two spaces after the colon and a trailing one, so the advice the tool
+    gave produced a file the reader's next `git diff --check` complained about.
+
+    Both halves are asserted on the same run, because the value of these cases
+    is the CONTRAST. A table cell is joined on `|` and must be handed padding
+    it lost; a bullet slot sits between literal spans that already carry it.
+    Reverting `describe_cell`'s rule must redden the bullet cases here and
+    leave `test_a_table_cell_that_lost_its_padding_is_still_given_it_back`
+    green — one change reddening both would mean the two paths were never
+    separated at all.
+    """
+
+    def test_a_bullet_slot_the_store_disagrees_with_renders_byte_exact(self):
+        """The reproduction from the spec, unchanged.
+
+        The literal span is `'- Repo layout: '` — the space after the colon is
+        already in it — so the slot must contribute the value and nothing else.
+        """
+        line = "- Repo layout: single"
+        start = line.index("single")
+        rec = {"repo_layout": "split"}
+        desc, findings = S.slot_descriptor(
+            line, [(start, len(line), "repo_layout")], rec)
+        self.assertEqual(S.render_line(desc, rec), "- Repo layout: split")
+        # Still a disagreement — this is about how the repaired line reads,
+        # not about whether the drift is reported.
+        self.assertEqual([f["column"] for f in findings], ["repo_layout"])
+
+    def test_a_config_setting_slot_ends_without_a_trailing_space(self):
+        """`scan_config` opens the slot at the colon, so the slot owns the
+        separator's space and the render must not add a second one at the end.
+
+        Asserted on the real `.perry/config.md`, because that is the file the
+        refusal message names.
+        """
+        text = (ROOT / ".perry" / "config.md").read_text()
+        records = M.derive(M.CONFIG, text)
+        next(r for r in records if r["key"] == "state_root")["value"] = "docs"
+        rendered, _ = M.render(M.CONFIG, text, records)
+        line = next(ln for ln in rendered.split("\n")
+                    if ln.startswith("- State root:"))
+        self.assertEqual(line, "- State root: docs")
+        self.assertEqual(
+            [ln for ln in rendered.split("\n") if ln != ln.rstrip()], [],
+            "render --write introduced trailing whitespace into the file it "
+            "was advertised as the repair for")
+
+    def test_a_table_cell_that_lost_its_padding_is_still_given_it_back(self):
+        """The other side of the seam, on the same run.
+
+        `render_line` joins on `|`, which carries no whitespace of its own, so
+        a cell arriving as `single` has to leave as `| split |`. This case is
+        what makes the bullet cases above a RULE rather than a blanket ban on
+        padding.
+        """
+        rec = {"repo_layout": "split"}
+        cell = S.describe_cell("single", "repo_layout", rec)
+        self.assertEqual((cell["lead"], cell["trail"]), (" ", " "))
+        desc = {"pre": "|", "post": "|", "sep": "|", "escape": True,
+                "cells": [cell]}
+        self.assertEqual(S.render_line(desc, rec), "| split |")
+
+    def test_the_advertised_repair_survives_git_diff_check(self):
+        """V3 item 4, run rather than asserted.
+
+        A real `.perry/config.md` in a real repository, drifted, repaired by
+        the exact command the refusal message prints, and handed to the exact
+        check a commit hook would run.
+        """
+        p = Project(self)
+        self.assertEqual(p.config("write", "--from-file").returncode, 0)
+
+        def git(*args):
+            return subprocess.run(["git", *args], cwd=str(p.root),
+                                  capture_output=True, text=True)
+
+        git("init", "-q")
+        git("config", "user.email", "t@example.invalid")
+        git("config", "user.name", "t")
+        git("add", "-A")
+        commit = git("commit", "-qm", "baseline")
+        self.assertEqual(commit.returncode, 0, commit.stderr)
+
+        cfg = p.root / ".perry" / "config.md"
+        cfg.write_text(cfg.read_text().replace("- State root: perry",
+                                               "- State root: elsewhere"))
+        self.assertEqual(p.config("diff").returncode, 1,
+                         "the planted drift was not reported at all")
+        self.assertEqual(p.config("render", "--write").returncode, 0)
+
+        check = git("diff", "--check")
+        self.assertEqual((check.returncode, check.stdout, check.stderr),
+                         (0, "", ""))
+        # And the repair actually restored the stored value, so the clean
+        # `--check` is not the cleanliness of a file nothing happened to.
+        self.assertIn("- State root: perry", cfg.read_text())
 
 
 class Project:
