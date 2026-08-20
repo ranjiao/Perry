@@ -27,10 +27,16 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
 
 6. Update the current week's row in `phase/<NNN>-<slug>.md` with the chosen TASK-IDs.
 
-7. **Append each task id to its KR's `tasks[]`** in `phase/<NNN>-linkage.md`, and bump `updated`. This is what makes the edge *declared* rather than inferred — it is resolution step 1, ahead of any name matching. A task the user approved but whose KR is genuinely undecided goes in `unlinked[]` instead; never park it under a plausible-looking KR.
+7. **Append each task id to its KR's `tasks[]`** in `phase/<NNN>-linkage.md` — one call per task, which also bumps `updated`:
+
+   ```
+   "$PERRY_HOME/bin/perry-goals" link --root . <TASK-ID> <KR-ID>
+   ```
+
+   This is what makes the edge *declared* rather than inferred — it is resolution step 1, ahead of any name matching. A task the user approved but whose KR is genuinely undecided goes in `unlinked[]` instead; never park it under a plausible-looking KR.
 
 ## Why the registry, not the name
 
 A Project's human-readable name drifts; its ID doesn't. `"$PERRY_HOME/bin/perry-state" --section attribution` reports which open tasks currently resolve to exactly one KR and which are `unlinked`. Anything `unlinked` is a question for the user, never a guess — see `$PERRY_HOME/reference/okr-linkage.md § The one rule`.
 
-If the user confirms a new name is the same Project, append it to that project's `aliases[]` (OKR owns `phase/`; PMO hands aliases over rather than writing them). `bin/perry-lint` refuses two projects claiming the same name or alias, and refuses a task listed under two KRs — those ambiguities are precisely what the graph exists to prevent.
+If the user confirms a new name is the same Project, `bin/perry-goals link --alias <PROJECT-ID> "<name>"` appends it to that project's `aliases[]` (OKR owns `phase/`; PMO hands aliases over rather than writing them, and the tool refuses a name another Project already claims). `bin/perry-lint` refuses two projects claiming the same name or alias, and refuses a task listed under two KRs — those ambiguities are precisely what the graph exists to prevent.

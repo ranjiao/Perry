@@ -184,10 +184,10 @@ Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_T
 
 After write:
 1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now), one `projects[]` entry per Project defined above (`serves`, `objective`, `name`, `aliases: []`, `status: active`). Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at.
+2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now). Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at. Every `projects[]` entry is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above, which derives `objective` from the KR id and sets `status: active`; every task edge afterwards is `bin/perry-goals link`, and nothing in this file is edited by hand once it exists (`reference/linkage.md`).
 
    Two things to get right, because a reader can't recover from either:
-   - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved.
+   - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved. **`current` is an author's assertion: leave it out until someone asserts one.** The template no longer carries `current: 0`, because most KRs drive a count down and a defaulted zero reads as met on the day the register is written.
    - **`unlinked` starts empty and is only ever appended deliberately.** It means "this work serves no KR", not "we haven't got round to it".
 
    This graph is the stable-ID source of truth that keeps attribution from being guessed later, and it is what the frontend draws the O→KR→task chain from. See `$PERRY_HOME/reference/okr-linkage.md`.
