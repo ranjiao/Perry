@@ -34,7 +34,7 @@
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 |
 | TASK-107 | the dispatch safety gate matches its fragments as bare substrings, so ordinary English trips it | Coding Agent | review | V5 sign-off: a human names the date and what they checked | evidence/2026-08/TASK-107-spec.md | V5 | — |
 | TASK-108 | LOAD-03 counts prose about a decision, so documenting an open question makes the count go up | Coding Agent | review | merge PR #10, then swap the literal GATE_OFF constant in tests/test_diagnose.py for the shared import | evidence/2026-08/TASK-108-dispatch-2026-08-20-1547.md | V4 | — |
-| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | not_started | — | — | V5 |  |
+| TASK-109 | a V5 sign-off is composed by selection from measured facts, not authored from memory | Coding Agent | in_progress | dispatched 15:57 via claude-subagent; worktree pinned to feat/work-modes; awaiting completion | — | V5 | — |
 
 ## P2
 
