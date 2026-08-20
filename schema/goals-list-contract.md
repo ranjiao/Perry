@@ -39,8 +39,10 @@ Perry's tests cannot reach.
   "conformance":  { /* below */ },
   "okr":          { "present": true, "version": "v3: 2026-01-01", "mission": "…",
                     "operating_principles": [], "anti_goals": [],
-                    "objectives": [ {"title": "…", "krs": ["KR1"]} ] },
-  "phase":        { /* below, or null */ },
+                    "objectives": [ {"id": "", "title": "…", "krs": ["KR1"]} ] },
+  "phase":        { /* every key in the table below, and: */
+                    "objectives": [ {"id": "O1", "title": "…",
+                                     "krs": ["P-O1.1"]} ] },   // or null
   "krs":          [ { /* every key below; the three provenance blocks in full */
       "id": "KR1", "level": "phase", "objective": "…", "title": "…",
       "metric": "…", "qualifier": "", "linked_to": "", "stretch": false,
@@ -153,9 +155,37 @@ is fine* costs the number.
 | `day` | int \| null | computed from `started`, not stored |
 | `kr_total` | int \| null | counted from the phase's objectives |
 | `cost_ceiling` | string | raw, as written |
+| `objectives` | array | the phase's own objectives, nested, each `{id, title, krs}` — see below. This is the **nested** shape; `krs` at the top level is the flat one, and the two are different views of the same rows, not two sets of rows |
 
 `phase` is `null` on a project running goals with no current phase. That is a
 normal state, not an error.
+
+### An objective — and why it is sketched rather than tabulated
+
+The same three-key entry appears twice: under `okr.objectives[]` and under
+`phase.objectives[]`.
+
+- **`id`** — string. `O1` in a phase file, which writes `### O1 — <title>`.
+  **`""` under `okr.objectives[]`**, because `OKR.md` writes
+  `### Objective 1 — <title>` and that "1" is ordinal prose rather than a
+  handle — see *Not here* below. Never invented from position, in either place.
+- **`title`** — string. The objective's title, as written.
+- **`krs`** — array of strings. The ids of the KRs filed under it, in document
+  order. **Ids only**: the KRs themselves are in the flat top-level `krs`
+  array and are not duplicated here.
+
+**Why this is a list and not a key table, deliberately.**
+`tests/contract_key_parity.py` places a key table by matching its key set
+against the payload's containers and breaks ties on precision.
+`okr.objectives[]` and `phase.objectives[]` carry *exactly* the same three
+children, so a table of `id`, `title`, `krs` scores 1.00 coverage and 1.00
+precision against **both**, ties, and is placed on neither — it would be
+reported as unassigned and all four paths would stay uncounted. Writing the
+table would therefore make the page look documented and leave the count where
+it was. The four paths are declared in the payload sketch above instead, which
+carries real nested paths and has no ambiguity to resolve, and the checker
+reads the sketch and the tables alike. Nothing here is exempt from the check;
+it is declared in the half of the page that can express the nesting.
 
 ### `conformance`
 
@@ -245,6 +275,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `2.0` | 2026-08-17 | **breaking**: `progress` removed. Perry cannot tell which direction a KR runs, and half of a real OKR's targets are ceilings; a max-drawdown limit rendered two-thirds achieved is the worst thing a dashboard can say. Live for one day, no consumer had adopted it. |
 | `2.0` | 2026-08-18 | **unchanged by TASK-037.** The writer shipped and this payload gained no key. |
 | `2.1` | 2026-08-21 | **additive, TASK-120.** Four keys added, none removed or retyped: `krs[].current_provenance`, `krs[].current_staleness`, `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. `current` itself is unchanged in type and in value; what changed is that the payload now says it is an author's assertion rather than a measurement, and says when a linked task has moved since. |
+| `2.1` | 2026-08-21 | **unchanged by TASK-131.** The payload sketch now carries `okr.objectives[].id` and the whole of `phase.objectives[]`, and *The phase* gained an `objectives` row. All five paths have shipped since `1.0`; only the page moved, so the version does not. Why the objective entry is a list rather than a key table is stated where it is written. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a

@@ -66,6 +66,7 @@ from task rows in Markdown.
 ```jsonc
 {
   "contract":     "perry-task/list/1.13",  // check this before anything else
+  "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
   "conformance":  { /* see below */ },     // store findings and projection availability
@@ -207,6 +208,30 @@ non-task registers could not be read.
 | `blocked_without_dependency` | array | open ids whose `status` is `blocked` and whose `depends_on` is empty — the row says it is stopped and does not say on what. **The migration worklist**: their dependency is still in prose somewhere no program can read. On Perry's own board this is every blocked row today. |
 | `has_event_log` | bool | `false` on any project that predates the writer. Then `created`, `updated` and `timeline` may be empty, and that is not an error: current fields remain canonical in the store while history is unavailable. |
 | `missing_projection` | string | `""` when `BOARD.md` exists; otherwise its expected path. Task records and event history remain readable, while Board-backed risks, asks and intake keep their empty contract shapes. |
+
+#### `sections_read[]` — the entry, key by key
+
+One entry per stored task group, in the order the store yields them. This is
+how a consumer checks that the group it renders was actually seen, rather than
+inferring it from the rows that came back.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `heading` | string | the group's heading exactly as stored, including any parenthetical — `"P0 (must finish this period)"` is one heading and not the `P0` beside it. Two groups may normalize to the same priority and they stay two entries. |
+| `priority` | string \| null | `P0`, `P1` or `P2` when the heading **is** one of those three, and `null` otherwise. `null` is the common case on a workstream-organized project and is not a finding; it is the same fact `tasks[].priority` states as `""`, and the two spellings differ because this key distinguishes *no priority* from *a priority that is the empty string*. |
+| `rows` | int | how many rows the group holds. Counted from the store, so it may exceed what a filtered call returns — compare it against `open + closed` only on an unfiltered `--all`. |
+
+#### `evidence_not_found[]` — the entry, key by key
+
+Ordered by `id`, and **covering closed rows as well as open ones since 1.5**.
+Together with `tasks[].evidence_paths` this is the pair that separates *the file
+is gone* from *Perry did not look*: a row whose `Evidence` cell names anything
+reaches exactly one of the two arrays, never neither.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the row whose `Evidence` cell carried the span. |
+| `paths` | array | the spans that resolved under neither root, as written, in cell order. **Usually not broken links** — the cell is prose and a project writes test ids, symbols and command lines into it, so `["tests/…::TestRungDistribution"]` and `["git diff"]` are both ordinary entries here. Nothing is guessed at: a span is reported unresolved, never repaired. |
 
 #### `depends_on_unknown[]` — the entry, key by key
 
@@ -403,6 +428,24 @@ event history explains the rows visible in that projection.
    it exactly could not see 1.5 — the version whose whole reason for existing
    was that two fields changed meaning under it.
 
+### `semantics[]` — the entry, key by key
+
+The array rule 3 above walks. **Ordered oldest minor first**, which is what
+makes "everything newer than the minor I tested against" a slice rather than a
+search; `tests/test_task_writer § test_the_semantics_list_is_ordered_oldest_first`
+holds that order, because the list shipped once as 1.5, 1.9, 1.7.
+
+It is not the Changelog. The Changelog records every shipped minor including
+the ones that only added keys; this array carries **only the minors under which
+an existing value changed meaning**, which is the strictly smaller set a
+working consumer has to act on.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | the minor the change shipped in, `"1.12"`. A string, not a number: `1.10` sorts below `1.9` numerically and above it correctly. Compare it as the pair of ints rule 3's snippet builds, or as the string against the same-shaped string — never as a float. |
+| `fields` | array | the payload paths whose meaning moved, as strings, in this payload's own dotted notation — `"conformance.sections_read"`, `"timeline[].from"`. These are paths to read against, not keys to look up at the top level. |
+| `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Written for a reader, and long — this is the one field here meant to be shown rather than branched on. |
+
 ## Polling
 
 `updated` is the cheapest change signal per task; for the project as a whole,
@@ -424,6 +467,14 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+**Not a version, 2026-08-21 (TASK-131).** `semantics[]`,
+`conformance.sections_read[]` and `conformance.evidence_not_found[]` gained key
+tables. **No key was added, removed or retyped** — all three shapes have shipped
+since 1.10 or earlier and were described in prose, which
+`tests/contract_key_parity.py` does not read; nine emitted paths were therefore
+documented nowhere it could see. Documenting what already ships is not a bump,
+so the version does not move.
 
 ### 1.13 — 2026-08-21
 
