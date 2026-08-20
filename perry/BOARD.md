@@ -50,6 +50,7 @@
 | TASK-143 | two PRs each green on their own base merged into a red tree, and nothing checked the pair | Coding Agent | in_progress | dispatched to claude-subagent; worktree pinned to a10f897 | evidence/2026-08/TASK-143-spec.md | V3 | — | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
 | TASK-148 | two byte-identical copies of the startable rule live 200 lines apart in one file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-149 | a markdown heading that names an id silently becomes that id definition | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 
 ## P2
 

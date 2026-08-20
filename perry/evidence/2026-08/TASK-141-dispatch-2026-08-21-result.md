@@ -73,7 +73,13 @@ TASK-050 and TASK-067 still report `startable=False`, `blocked_stale=False`.
 TASK-037/045 were unblocked by hand in `4c7e841`, so the live board carries no
 stale row and this change is a **read no-op** on it. `git diff -- perry/` empty.
 
-## Its diagnosis of `REL-00` is wrong, and this is recorded because it matters
+## Its diagnosis of the leftover id is wrong, and this is recorded because it matters
+
+<!-- The id is deliberately absent from this heading. A heading naming an id is
+     how `perry-explain` decides that id is DEFINED there, so an earlier draft of
+     this section silently made this file the definition of an id it only
+     discusses — and `test_diagnose` went red because the id then appeared in
+     neither the dangling list nor the exemption list. Opened as TASK-149. -->
 
 The agent reported the baseline `test_diagnose` red as *"`REL-00` is a truncated
 match against `REL-002` in README.md/SKILL.md prose"*. **It is not.** Tested
