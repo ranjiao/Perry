@@ -1,9 +1,14 @@
 """Markdown parsers for a Perry project's state files. Read-only — never writes.
 
 The viewer ships inside the Perry skill but renders the *project* it's pointed
-at (where BOARD.md / OKR.md live), NOT the skill directory. Project root is
-resolved from $PERRY_PROJECT, else by walking up from the current working dir
-to the nearest ancestor containing BOARD.md or OKR.md."""
+at, NOT the skill directory.
+
+Two roots, and they are not always the same directory. `PROJECT_ROOT` is where
+`.perry/` is anchored — what $PERRY_PROJECT holds and what `bin/perry-state
+--root` takes. `STATE_ROOT` is where the state files live, which
+`.perry/config.md § State root` may move into a subdirectory (Perry's own
+project does). `resolve_state_root` goes one way and `resolve_project_root`
+goes back; every reader here takes whichever of the two it actually needs."""
 
 from __future__ import annotations
 
@@ -121,20 +126,6 @@ def _column_keys(canonical: str) -> tuple[str, ...]:
     return _column_index().get(key, (key,))
 
 
-def _resolve_project_root() -> Path:
-    env = os.environ.get("PERRY_PROJECT")
-    if env:
-        return Path(env).expanduser().resolve()
-    cur = Path.cwd().resolve()
-    for d in [cur, *cur.parents]:
-        if (d / "BOARD.md").exists() or (d / "OKR.md").exists():
-            return d
-    return cur  # fall back to CWD; load_snapshot will just find nothing
-
-
-PROJECT_ROOT = _resolve_project_root()
-
-
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -163,6 +154,87 @@ def resolve_state_root(project_root: Path) -> Path:
     if project_root not in root.parents and root != project_root:
         return project_root
     return root
+
+
+def resolve_project_root(state_root: Path) -> Path:
+    """The inverse of `resolve_state_root`: the project root a state root sits in.
+
+    **THE ANCHOR IS THE INVERSE, AND IT IS ALREADY STORED.** `resolve_state_root`
+    above records the rule that makes an inverse computable at all: `.perry/`
+    never moves, because it holds the pointer and so cannot sit behind it. The
+    project root is therefore the nearest ancestor of the state root whose
+    `.perry/` pointer resolves BACK to this state root — an exact answer, not a
+    bounded guess, and one that needs no new field anywhere.
+
+    The round trip is the whole point. `.perry/` alone is not enough: a project
+    whose state IS its root, checked out underneath an unrelated Perry project,
+    would otherwise report the outer project's root and send every `.perry/`
+    read outside itself. A directory that holds the anchor is a project root by
+    definition and answers for itself before any walk starts.
+
+    TASK-159. Three readers each held a different answer to "what is a project
+    root": `_resolve_project_root` below returned the directory holding
+    `BOARD.md` — the STATE root — while `bin/perry-viewer` exports
+    `$PERRY_PROJECT` as the project root and `bin/perry-state --root` expects
+    the project root. On Perry's own layout (`.perry/config.md § State root:
+    perry`) those are different directories, so **the viewer rendered an empty
+    snapshot when pointed where its own launcher points it.** Both directions
+    now come out of this one pair of functions, so there is one answer rather
+    than three, and `walk_design`'s bounded walk up four levels — written
+    because "there is no stored inverse of `resolve_state_root`" — is handed the
+    exact root instead.
+
+    A directory with no `.perry/` above it was never adopted: its state root is
+    its project root, and it comes back unchanged. That is every fixture, and
+    every project whose state sits at its root."""
+    root = Path(state_root).expanduser().resolve()
+    if (root / ".perry").is_dir():
+        return root
+    for d in root.parents:
+        if (d / ".perry").is_dir() and Path(resolve_state_root(d)).resolve() == root:
+            return d
+    return root
+
+
+def _resolve_project_root() -> Path:
+    """The PROJECT root — where `.perry/` is anchored — never the state root.
+
+    `STATE_ROOT` below is the state root, and on a project with `State root:
+    <subdir>` the two are different directories. Everything this module reads
+    state out of takes `STATE_ROOT`; everything that reads `.perry/`, or hands a
+    root to a `bin/` tool, takes `PROJECT_ROOT`.
+
+    `$PERRY_PROJECT` is taken verbatim, exactly as `bin/perry-state §
+    resolve_root` takes it — a launcher's `--root` and the env var must mean the
+    same directory to both readers or they are back to disagreeing, which is the
+    defect this function used to be half of.
+
+    The walk is `perry-state § resolve_root`'s walk, predicate for predicate:
+    `.perry/config.md` OR `BOARD.md` OR `OKR.md`, first ancestor wins. It reads
+    `.perry/config.md` as well as the state files so that standing in a project
+    root whose state is a subdirectory resolves to that project root rather than
+    falling through to the CWD — the second half of the same defect.
+    `tests/test_project_root.py` asserts the two walks against each other rather
+    than trusting this comment."""
+    env = os.environ.get("PERRY_PROJECT")
+    if env:
+        return Path(env).expanduser().resolve()
+    cur = Path.cwd().resolve()
+    for d in [cur, *cur.parents]:
+        if ((d / ".perry" / "config.md").exists()
+                or (d / "BOARD.md").exists() or (d / "OKR.md").exists()):
+            return d
+    return cur  # fall back to CWD; load_snapshot will just find nothing
+
+
+#: Where `.perry/` is anchored. What `bin/perry-viewer` exports as
+#: `$PERRY_PROJECT` and what `bin/perry-state --root` takes.
+PROJECT_ROOT = _resolve_project_root()
+
+#: Where the state files live — `BOARD.md`, `OKR.md`, `phase/`, `evidence/`,
+#: `design/`. The same directory as `PROJECT_ROOT` on every project that has
+#: not moved its state, which is every project but Perry's own.
+STATE_ROOT = resolve_state_root(PROJECT_ROOT)
 
 
 # ── the conformance declaration (ADR-004) ─────────────────────────────────
@@ -2385,10 +2457,11 @@ def walk_design(root: Path, board: BoardState | None = None,
     # rather than in the caller so every consumer of `walk_design` gets the
     # corrected number.
     # `.perry/` is anchored to the PROJECT root and this function receives the
-    # STATE root, which may be a subdirectory of it (`perry/` here). There is no
-    # stored inverse of `resolve_state_root`, so walk up a bounded number of
-    # levels rather than thread a second path through `load_snapshot` and every
-    # caller of it.
+    # STATE root, which may be a subdirectory of it (`perry/` here).
+    # `load_snapshot` now hands over the exact project root — `resolve_project_root`
+    # is the stored inverse this comment used to say nobody had written (TASK-159)
+    # — so the first probe below lands. The bounded walk stays for the callers
+    # that pass no `project_root` at all, where a guess still beats no log.
     log = None
     probe = project_root or root
     for _ in range(4):
@@ -3230,7 +3303,12 @@ class PMOSnapshot:
     design: list[DesignDoc]
     project_state: ProjectState
     arch_meta: ArchMeta
+    #: Where `.perry/` is anchored — what a `bin/` tool's `--root` takes.
+    #: `state_root` is where everything in this snapshot was read from. They
+    #: are the same directory unless `.perry/config.md` moved the state, and
+    #: reporting one under the other's name is what TASK-159 came from.
     project_root: Path
+    state_root: Path
     project_name: str
     fetched_at: datetime
     linkage: Linkage = field(default_factory=Linkage)
@@ -3295,7 +3373,22 @@ def _resolve_project_name(root: Path, board_text: str) -> str:
     return root.name or "Perry"
 
 
-def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
+def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
+    """The whole project state, read from `root` — which is the STATE root.
+
+    Every caller already passed a state root: `bin/perry-state` resolves one
+    before calling, and every test hands one in. What was wrong was the
+    DEFAULT, which was `PROJECT_ROOT` — so a viewer launched by
+    `bin/perry-viewer` against a project whose state is a subdirectory read
+    `BOARD.md` from a directory that has none and rendered an empty snapshot.
+    The two names now mean two things and the default is the right one of them
+    (TASK-159).
+
+    `.perry/` is still anchored at the project root, so the inverse is taken
+    once here and handed down rather than re-walked by each reader that needs
+    it."""
+    project_root = resolve_project_root(root)
+
     def read(p: Path) -> str:
         return p.read_text() if p.exists() else ""
 
@@ -3379,10 +3472,11 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),
-        design=walk_design(root, board, project_root=root),
+        design=walk_design(root, board, project_root=project_root),
         project_state=parse_project_state(project_state_text),
         arch_meta=parse_arch_meta(architecture_text),
-        project_root=root,
+        project_root=project_root,
+        state_root=root,
         project_name=_resolve_project_name(root, board_text),
         fetched_at=datetime.now(),
         linkage=linkage,
@@ -3395,6 +3489,7 @@ def load_snapshot(root: Path = PROJECT_ROOT) -> PMOSnapshot:
 if __name__ == "__main__":
     s = load_snapshot()
     print(f"Project root: {s.project_root}")
+    print(f"State root:   {s.state_root}")
     print(f"P0={len(s.board.p0)} P1={len(s.board.p1)} P2={len(s.board.p2)}")
     print(f"Backbone groups: {len(s.board.backbone_groups)}")
     print(f"User Input Q: {len(s.board.user_input_queue)}")

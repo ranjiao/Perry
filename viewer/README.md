@@ -23,7 +23,8 @@ with `/perry work viewer stop`. This is the recommended path for non-technical u
 see `../work/reference/viewer.md`.
 
 Or run it yourself, from inside your project directory (the one containing
-`BOARD.md`):
+`.perry/` — the same directory as `BOARD.md` unless `.perry/config.md § State
+root` moved the state into a subdirectory):
 
 ```bash
 bash "$PERRY_HOME/bin/perry-viewer"
@@ -36,9 +37,11 @@ not started.
 
 Flags:
 - `--port 9000` — serve on a different port (or set `PERRY_VIEWER_PORT`).
-- `--root /path/to/project` — render a specific project (default: walk up
-  from the current dir to the nearest `BOARD.md`/`OKR.md`; or set
-  `PERRY_PROJECT`).
+- `--root /path/to/project` — render a specific project (default: the current
+  dir; or set `PERRY_PROJECT`). This is the **project** root — the same value
+  `perry-state --root` takes. The state files are read from
+  `.perry/config.md § State root` under it, which is that same directory on
+  every project that has not moved its state.
 - `--reinstall` — rebuild the venv from scratch.
 
 ## Pages
