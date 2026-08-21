@@ -541,6 +541,56 @@ class TestUpdated(Case):
         self.assertNotIn("staleness signal", r.stderr)
 
 
+# ── 5b. a refusal says which of the values it means ───────────────────────
+
+
+class TestARefusedValueIsLocated(Case):
+    """TASK-037's rule, on the one `perry-goals` command with no flags.
+
+    `bin/perry-goals § check_due` states it — *"the refusal says so and names
+    the flag, so a user is never guessing where their words go"* — and every
+    flag-carried value in `commit` now obeys it. `link` takes its values
+    positionally (`goals/reference/linkage.md` writes the grammar that way),
+    so there is no flag to name and `argument 1` was the whole of the answer:
+    on `--project <PROJECT-ID> <KR-ID> "<name>"` that is a position to count
+    out against a grammar the user has to go and find. The SLOT is named
+    instead, read out of the same `usage` line the arity refusal prints.
+    """
+
+    def test_the_refusal_names_the_slot_not_just_a_position(self):
+        p = self.project(SYNTHETIC)
+        r = p.link("AAA-001\nsecond line", "P-O1.1", expect=1)
+        self.assertIn("<TASK-ID> (argument 1) contains a line break",
+                      r.stderr)
+        self.assertNotIn("was written", p.text())
+
+    def test_each_shape_names_its_own_slots(self):
+        """One list, four grammars. The slot names come from `usage`, so a
+        grammar that changes cannot leave the refusal quoting the old one."""
+        for argv, bad_at, slot in (
+                (("{v}", "P-O1.1"), 0, "<TASK-ID>"),
+                (("AAA-009", "{v}"), 1, "<KR-ID>"),
+                (("--unlinked", "{v}"), 1, "<TASK-ID>"),
+                (("--alias", "PROJ-001", "{v}"), 2, "<the other name>"),
+                (("--project", "{v}", "P-O1.1", "n"), 1, "<PROJECT-ID>"),
+                (("--project", "PROJ-009", "P-O1.1", "{v}"), 3, "<name>")):
+            with self.subTest(argv=argv):
+                p = self.project(SYNTHETIC)
+                r = p.link(*[a.format(v="a\nb") for a in argv], expect=1)
+                position = bad_at - sum(1 for a in argv[:bad_at]
+                                        if a.startswith("--"))
+                self.assertIn(f"{slot} (argument {position + 1}) contains a "
+                              f"line break", r.stderr)
+
+    def test_a_quote_and_an_empty_value_are_located_the_same_way(self):
+        """Three refusals share `check_writable`; all three carry the slot."""
+        p = self.project(SYNTHETIC)
+        self.assertIn("<KR-ID> (argument 2) contains a quote character",
+                      p.link("AAA-009", 'P-"O1.1', expect=1).stderr)
+        self.assertIn("<KR-ID> (argument 2) is empty",
+                      p.link("AAA-009", "   ", expect=1).stderr)
+
+
 # ── 6. what it refuses to edit at all ─────────────────────────────────────
 
 

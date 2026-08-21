@@ -98,6 +98,7 @@ import json
 import os
 import sys
 import re
+from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -122,6 +123,52 @@ import perry_md_store as md_store  # noqa: E402
 
 class Refused(Exception):
     """A refusal is a first-class outcome, not a crash. Nothing was written."""
+
+
+@contextmanager
+def naming_the_flag(flag: "str | list[str]"):
+    """Attach the flag a value arrived on to any `UnrenderableCell` inside.
+
+    **`UnrenderableCell` carries `index`, which is a COLUMN POSITION**, and a
+    column position means nothing to the person who typed the command:
+    `--promise` and `--to` produced byte-identical refusals and neither said
+    what to fix. The rule this restores is written over `SLA_TOKEN_RE` —
+    *"the refusal says so and names the flag, so a user is never guessing
+    where their words go"* — and `cmd_commit`'s whitespace refusal obeyed it
+    (`--promise was given only whitespace…`) while its line-break sibling,
+    on the same tool and the same value, did not.
+
+    The flag is known only at the write site, which is why it is attached
+    here rather than guessed later from the value: `bin/perry-task` matches
+    `exc.value` back against `args` at its boundary, and that match is exact
+    or nothing, so two flags carrying the same string name whichever comes
+    first in a hand-kept list. A write site knows without matching.
+
+    `flag` is one flag when the write is one cell, or a list parallel to the
+    row's cells when the write is a whole row.
+    """
+    try:
+        yield
+    except UnrenderableCell as exc:
+        if isinstance(flag, str):
+            exc.naming(flag)
+        elif 0 <= exc.index < len(flag):
+            exc.naming(flag[exc.index])
+        raise
+
+
+def unrenderable_refusal(exc: UnrenderableCell) -> str:
+    """`UnrenderableCell` as the one sentence the refusal channel prints.
+
+    One spelling, used by `main` (which knows `--json`) and by the
+    module-level last resort (which does not). Two spellings of one rule is
+    the defect `tests/test_one_line_break_rule.py` was opened for —
+    `render_row` and `check_cell` each carried their own line-break test and
+    disagreed on six of the eleven boundaries `str.splitlines()` breaks on.
+    """
+    where = f"{exc.field} " if exc.field else ""
+    return (f"{where}was given {exc.value[:60]!r}, which {exc.why}. "
+            f"A register cell is one line of a markdown table.")
 
 
 _SCHEMA = None
@@ -1803,7 +1850,17 @@ def cmd_link(args, ctx) -> dict:
         raise Refused(
             f"{why}{usage} takes {need} argument(s); {len(rest)} given. "
             f"Nothing was written")
-    values = [check_writable(v, f"argument {n + 1}")
+    # **`link` takes its values positionally, so there is no flag to name** —
+    # `goals/reference/linkage.md` writes the grammar that way and
+    # `tests/test_procedures_call_the_tool.py` exists to keep the page and the
+    # command in step. The slot is named instead, and it is read out of
+    # `usage` rather than re-listed here, so the refusal cannot name a
+    # placeholder the usage line above it does not show. `argument N` alone
+    # was what the user got, and on a three-argument `--project` that is a
+    # position to count out against a grammar they have to go and find.
+    slots = re.findall(r"<[^>]+>", usage)
+    values = [check_writable(v, f"{slots[n] if n < len(slots) else ''} "
+                                f"(argument {n + 1})".strip())
               for n, v in enumerate(rest)]
 
     expect = asdict(reg.model)
@@ -1880,6 +1937,20 @@ def commitment_columns() -> tuple[list[str], list[str]]:
     return list(spec.get("columns") or []), list(spec.get("optional_columns") or {})
 
 
+#: Which flag a `## Commitments` cell's text arrived on. The register's own
+#: column names are what both write paths already key on — `changes` on the
+#: amend side, `values` on the create side — so this is the whole translation
+#: from "the cell that could not be written" to "the words you typed".
+#:
+#: `Id` and `Status` are absent on purpose: neither is ever typed. `Id` is
+#: minted here and `Status` is one of two literals, so a refusal naming a flag
+#: for either would name a flag the caller does not have.
+FLAG_FOR_COLUMN = {"Track": "--track", "Promise": "--promise",
+                   "To whom": "--to", "Due": "--due",
+                   "By when note": "--by-when-note",
+                   "Discharged by": "--discharged-by"}
+
+
 #: The typed half of the promise's clock, and the whole of what `Due` accepts.
 #:
 #: **The clock regex lived here and is gone** (ADR-007 decision 3, TASK-091).
@@ -1928,13 +1999,23 @@ def tracks_of(project_root: Path) -> list[dict]:
     return perry_state().parse_tracks(cfg.read_text(errors="replace"))
 
 
-def track_named(tracks: list[dict], name: str) -> dict:
+def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:
+    """The declared track `name`, or a refusal.
+
+    `flag` is passed **only** where the name was typed by the caller. Three of
+    the four call sites read it out of a `Track` cell the file already held —
+    `--migrate` walking rows, and the amend path checking `--due` against the
+    row's own track — and naming `--track` there would send the user to fix a
+    flag they never passed.
+    """
     for t in tracks:
         if t.get("track") == name:
             return t
     declared = [t.get("track") for t in tracks if t.get("declared")]
+    subject = f"{flag} was given {name!r}, which is" if flag else \
+        f"track {name!r} is"
     raise Refused(
-        f"track {name!r} is not declared in `.perry/config.md § Tracks`; "
+        f"{subject} not declared in `.perry/config.md § Tracks`; "
         f"declared: {declared or '(none)'}. A commitment is filed against a "
         f"track, and an undeclared one has no mode and no SLA. Nothing was written")
 
@@ -1953,6 +2034,9 @@ def check_due(track: dict, value: str) -> None:
     date or an SLA token*, which has one answer in every language — and the
     prose that column also carried now has a field nothing asks anything.
     """
+    # Both value refusals below name `--due` outright. They can, because
+    # `value` is `args.due` at every call site — `--migrate` classifies the
+    # file's own cells through `lib.classify_due` and never comes here.
     classification = lib.classify_due(track, value)
     if classification == lib.DUE_UNFILLED:
         raise Refused(
@@ -1969,17 +2053,17 @@ def check_due(track: dict, value: str) -> None:
     if ((track.get("mode") or "project").lower() == "pipeline"
             and classification != lib.DUE_DATE):
         raise Refused(
-            f"track {track.get('track')!r} is `pipeline` mode, so `Due` "
-            f"must be an ISO date (2026-09-30) — triage compares this cell "
-            f"against today, and an SLA token has no day in it. Got "
-            f"{value!r}. Nothing was written")
+            f"--due was given {value!r}, and track {track.get('track')!r} is "
+            f"`pipeline` mode, so `Due` must be an ISO date (2026-09-30) — "
+            f"triage compares this cell against today, and an SLA token has "
+            f"no day in it. Nothing was written")
     if classification == lib.DUE_INVALID:
         raise Refused(
-            f"`Due` is typed: an ISO date (2026-09-30) or an SLA token "
-            f"(3d, 2w, 24h). Got {value!r}. If that is how the deadline was "
-            f"WORDED to the party — \"within the track SLA\", \"same business "
-            f"day\" — it belongs in `--by-when-note`, which is prose and is "
-            f"never validated. Nothing was written")
+            f"--due was given {value!r}, and `Due` is typed: an ISO date "
+            f"(2026-09-30) or an SLA token (3d, 2w, 24h). If that is how the "
+            f"deadline was WORDED to the party — \"within the track SLA\", "
+            f"\"same business day\" — it belongs in `--by-when-note`, which "
+            f"is prose and is never validated. Nothing was written")
 
 
 def commitments_table(okr: Okr) -> tuple[int, int, list[str]]:
@@ -2175,13 +2259,23 @@ def mint_commitment_id(track: str, rows: list[dict], events: list[dict]) -> str:
     return f"{track}/{highest + 1}"
 
 
-def find_commitment(rows: list[dict], cid: str) -> dict:
+def find_commitment(rows: list[dict], cid: str, flag: str = "") -> dict:
+    """The row `cid` names, or a refusal **naming the flag `cid` arrived on**.
+
+    Three flags reach here — `--id`, `--close`, `--miss` — and all three take
+    a value, so a mistyped command puts the NEXT flag in the id's place:
+    `commit --id main/1 --close --discharged-by x` refused with
+    `'--discharged-by' is not a row`, a sentence that names neither the flag
+    that swallowed it nor the one that lost its value.
+    """
     for r in rows:
         if r.get("Id", "").strip().strip("*` ") == cid:
             return r
     known = [r.get("Id", "") for r in rows]
-    raise Refused(f"{cid!r} is not a row in `OKR.md § Commitments`; "
-                  f"present: {known or '(none)'}. Nothing was written")
+    where = f"{flag} " if flag else ""
+    raise Refused(f"{where}was given {cid!r}, which is not a row in "
+                  f"`OKR.md § Commitments`; present: {known or '(none)'}. "
+                  f"Nothing was written")
 
 
 def check_hand_edit(events: list[dict], row: dict, accept: bool) -> str:
@@ -2349,7 +2443,7 @@ def cmd_commit(args, ctx) -> dict:
 
     if ending:
         cid = args.close or args.miss
-        row = find_commitment(rows, cid)
+        row = find_commitment(rows, cid, "--close" if args.close else "--miss")
         was = check_hand_edit(events, row, args.accept_hand_edit)
         to = "closed" if args.close else "missed"
         if squash(was) == to:
@@ -2372,8 +2466,14 @@ def cmd_commit(args, ctx) -> dict:
             at = ensure("Discharged by")
             row = find_commitment(read_commitments(okr), cid)
             existing = (row.get("Discharged by") or "").strip()
-            okr.set_cell(row["_line"], at,
-                         f"{existing} · {note.strip()}" if existing else note.strip())
+            # `Discharged by` is the one cell two different flags write, so
+            # the column is not enough to name it — `--miss` fills it from
+            # `--reason` and `--close` from `--discharged-by`.
+            flag = "--reason" if args.miss else "--discharged-by"
+            with naming_the_flag(flag):
+                okr.set_cell(row["_line"], at,
+                             f"{existing} · {note.strip()}" if existing
+                             else note.strip())
         result = {"id": cid, "from": was, "to": to}
         event = {"ts": datetime.now().isoformat(timespec="seconds"),
                  "event": "commit-close" if args.close else "commit-miss",
@@ -2383,7 +2483,7 @@ def cmd_commit(args, ctx) -> dict:
                  "from": was, "to": to}
 
     elif args.id:
-        row = find_commitment(rows, args.id)
+        row = find_commitment(rows, args.id, "--id")
         was = check_hand_edit(events, row, args.accept_hand_edit)
         changes = {}
         if args.due is not None:
@@ -2442,7 +2542,8 @@ def cmd_commit(args, ctx) -> dict:
         for column, value in changes.items():
             at = ensure(column)
             line = find_commitment(read_commitments(okr), args.id)["_line"]
-            okr.set_cell(line, at, value)
+            with naming_the_flag(FLAG_FOR_COLUMN.get(column, "")):
+                okr.set_cell(line, at, value)
         result = {"id": args.id, "changed": sorted(changes)}
         event = {"ts": datetime.now().isoformat(timespec="seconds"),
                  "event": "commit-update", "id": args.id,
@@ -2463,7 +2564,7 @@ def cmd_commit(args, ctx) -> dict:
                 "--to is required and has no default. A promise with no named "
                 "party is a KR, and belongs under an Objective in this file "
                 "rather than in the commitments register. Nothing was written")
-        track = track_named(ctx["tracks"], args.track)
+        track = track_named(ctx["tracks"], args.track, "--track")
         check_due(track, args.due or "")
         cid = mint_commitment_id(args.track, rows, events)
         values = {"Id": cid, "Track": args.track, "Promise": args.promise,
@@ -2486,9 +2587,13 @@ def cmd_commit(args, ctx) -> dict:
             ensure("Discharged by")
         if values["By when note"]:
             ensure("By when note")
-        _, line = okr.append_table_row(
-            lo, hi, [values.get(c, "") for c in
-                     [canonical_of(h, required + optional) for h in header]])
+        order = [canonical_of(h, required + optional) for h in header]
+        # A row is written in one call, so which flag is named depends on
+        # which CELL `render_row` refused — `exc.index` is a position in this
+        # list, and this list is the only place that position has a meaning.
+        with naming_the_flag([FLAG_FOR_COLUMN.get(c, "") for c in order]):
+            _, line = okr.append_table_row(
+                lo, hi, [values.get(c, "") for c in order])
         result = {"id": cid, "row": line, "track": args.track}
         event = {"ts": datetime.now().isoformat(timespec="seconds"),
                  "event": "commit", "id": cid, "track": args.track,
@@ -2699,6 +2804,21 @@ def main(argv: list[str]) -> int:
             # there rather than making an agent shell out to a second tool to
             # learn its write was allowed under protest.
             result["conformance"] = gate.as_dict()
+    # A value a markdown table row cannot carry, translated into the ordinary
+    # refusal channel **here, where `args` is in scope** — the twin in
+    # `bin/perry-task § main` is in the same place for the same reason. The
+    # previous version of this handler sat at module level, which is a scope
+    # with no `args` and therefore no way to answer `--json`: every line-break
+    # refusal exited 1 with an empty stdout for a caller reading the payload.
+    # `render_row` raises before the write, so a refusal still means nothing
+    # was written.
+    except UnrenderableCell as exc:
+        msg = unrenderable_refusal(exc)
+        if args.as_json:
+            print(json.dumps({"refused": msg}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-goals: refused — {msg}", file=sys.stderr)
+        return 1
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
@@ -2795,25 +2915,23 @@ if __name__ == "__main__":
     # the bug happened to surface is the mistake `render_row`'s own docstring
     # is about.
     except UnrenderableCell as exc:
-        # **This handler is MODULE-LEVEL and has no `args`.** A previous fix
-        # copied `bin/perry-task`'s flag-naming block here verbatim, and
-        # `perry-task` runs its version inside `main()` where `args` is a
-        # local. Every line-break refusal on all eight write paths then ended
-        # in `NameError: name 'args' is not defined` — 88 of 88 measured — and
-        # `--json` got empty stdout.
-        #
-        # A test asserted `"line break" in stderr` and passed **on the
-        # traceback**, because the traceback's own last line contains the
+        # **The last resort, not the handler.** `main` catches this where
+        # `args` is in scope; what is left for module level is whatever could
+        # be raised outside that `try` — today, nothing. It stays because the
+        # alternative to a refusal here is a traceback, which is what this
+        # file printed for 88 of 88 measured line-break refusals when the
+        # ONLY handler lived here: it was a verbatim copy of `perry-task`'s
+        # block, which runs inside `main()` where `args` is a local, so every
+        # one of them ended in `NameError: name 'args' is not defined` and
+        # `--json` got empty stdout. A test asserted `"line break" in stderr`
+        # and passed **on the traceback**, whose own last line carries the
         # phrase. That is why nothing caught it.
         #
-        # The flag is carried on the exception instead, set by whoever raises
-        # it, which is the only layer that both knows the flag and is in
-        # scope. `UnrenderableCell.naming()` exists for exactly this and was
-        # never called.
-        where = f"{exc.field} " if exc.field else ""
-        print(f"perry-goals: refused — {where}was given "
-              f"{exc.value[:60]!r}, which {exc.why}. A register cell is one "
-              f"line of a markdown table.", file=sys.stderr)
+        # The flag is carried on the exception, set by whoever raises it —
+        # the only layer that both knows the flag and is in scope. See
+        # `naming_the_flag`.
+        print(f"perry-goals: refused — {unrenderable_refusal(exc)}",
+              file=sys.stderr)
         sys.exit(1)
     except Refused as exc:
         print(f"perry-goals: refused — {exc}", file=sys.stderr)
