@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "002-fields-are-typed"
-updated: "2026-08-20T20:32:00Z"
+updated: "2026-08-21T03:25:37Z"
 objectives:
   - id: O1
     title: "The three stores are stores"
@@ -10,14 +10,14 @@ objectives:
         title: "`BOARD.md` is rendered from `perry/tasks.jsonl`, which is the only thing writers write"
         metric: "1 of 1 (baseline: the markdown is canonical)"
         target: 1
-        current: 0
+        current: 1
         stretch: false
         tasks: ["TASK-038", "TASK-088", "TASK-089", "TASK-090"]
       - id: P-O1.2
         title: "`OKR.md` and `.perry/config.md` likewise"
         metric: "2 of 2 (baseline 0 of 2)"
         target: 2
-        current: 0
+        current: 1
         stretch: false
         tasks: ["TASK-092"]
       - id: P-O1.3
