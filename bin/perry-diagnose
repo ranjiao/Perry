@@ -329,7 +329,7 @@ def decision_label(cell: str) -> str:
     return s[:57] + "…" if len(s) > 58 else s
 
 
-def open_user_asks(root: Path, entries: dict) -> list[tuple[str, str]]:
+def open_user_asks(root: Path, entries: dict, explain) -> list[tuple[str, str]]:
     """Pending `USER-` asks, one entry per ROW: `(id, "file:line")`.
 
     Rows, not a count, because the id is what makes a decision countable
@@ -339,18 +339,47 @@ def open_user_asks(root: Path, entries: dict) -> list[tuple[str, str]]:
     Falls back to the id index when no User Input Queue table can be read, so
     a project that tracks asks somewhere else is not silently reported as
     having none.
+
+    **A row this project only shows as an example is not a row it is waiting
+    on.** `tests/fixtures/sample-project/BOARD.md` carries a pending
+    `USER-014` because a test needs a board with a pending row on it. That
+    id then reaches `in_tracking_doc` through Perry's own journal and
+    evidence — which discuss the fixture, correctly, in prose — and got
+    counted as one of Perry's own open decisions, against a queue where every
+    `USER-` row is answered. `perry-task` reads `perry/BOARD.md` and reported
+    0; this reported 1; the two registers stopped reconciling.
+
+    The rule is the one `perry-explain § is_illustrative` already carries, and
+    it is called rather than restated: *is this file's job to explain, or to
+    track?* A file that explains is not this project's state, which is the
+    same question asked from the other side. Hard-coding `tests/fixtures/`
+    would have been a guess about the layout of every project this tool runs
+    on; `is_illustrative` decides by directory NAME, relative to the root
+    being diagnosed, so a project that itself lives under `tests/fixtures/`
+    is still counted in full.
     """
     ids = {e["id"] for e in entries.values()
            if e["id"].startswith("USER-") and e.get("in_tracking_doc")}
     if not ids:
         return []
 
+    def only_an_example(i: str) -> bool:
+        """The row itself lives in a file whose job is to explain, not track."""
+        loc = entries[i].get("defined") or ""
+        return bool(loc) and explain.is_illustrative(loc.rsplit(":", 1)[0])
+
     def elsewhere(open_ids: set[str]) -> list[tuple[str, str]]:
-        return sorted((i, entries[i].get("defined") or "") for i in open_ids)
+        return sorted((i, entries[i].get("defined") or "")
+                      for i in open_ids if not only_an_example(i))
 
     board = root / "BOARD.md"
     if not board.exists():
+        # Same question again: a `fixtures/BOARD.md` sorting ahead of the real
+        # one is a fixture's board, and reading it would hand this project
+        # somebody else's queue.
         for alt in sorted(root.glob("*/BOARD.md")):
+            if explain.is_illustrative(str(alt.relative_to(root))):
+                continue
             board = alt
             break
     if not board.exists():
@@ -380,8 +409,13 @@ def open_user_asks(root: Path, entries: dict) -> list[tuple[str, str]]:
             answered.add(m.group(0))
     if not seen_table:
         return elsewhere(ids)
+    # An id that IS a row of this board's queue is this project's row, whatever
+    # `harvest` picked as its definition point — `defined` is first-seen in a
+    # sorted walk, so a fixture that sorts ahead of the real board owns it, and
+    # dropping on that alone would trade one silent miscount for another.
+    own = {i for i in ids if i in where or not only_an_example(i)}
     return sorted((i, where.get(i) or (entries[i].get("defined") or ""))
-                  for i in ids - answered)
+                  for i in own - answered)
 
 
 def open_design_decisions(root: Path, inventory: dict,
@@ -787,7 +821,7 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     # TASK-113's three: an equality that was true when it was measured, pinned
     # as though it were an invariant. The invariant is per register, and it is
     # `open_decisions_by_register` that carries it.
-    queue_records = open_user_asks(root, entries)
+    queue_records = open_user_asks(root, entries, explain)
     design_records = open_design_decisions(root, inventory, explain)
     records = queue_records + design_records
     mentions, mention_samples = scan_decision_mentions(
