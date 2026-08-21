@@ -25,6 +25,9 @@
 | 2026-08-21 | the v2 delegation prompt carried v1's out-of-scope prose forward unchecked, and it described deleted code | — |
 | 2026-08-21 | conformance.missing_projection ships and is documented but no version ever announced it, and key-parity cannot see that | — |
 | 2026-08-21 | no test pins the drift severity at warn, so the decision recorded 2026-08-21 has no mechanical guard | — |
+| 2026-08-21 | risk-add and risk-clear write the board and the event log but not risks.jsonl, so any imported project drifts on the next risk | — |
+| 2026-08-21 | _would_discard's loss refusal in perry-tasks write is unreachable past the --from-board guard above it | — |
+| 2026-08-21 | perry-state's hook_profile comment says the schema does not declare the High-stakes prefix and it does | — |
 
 ## P0 (must finish this period)
 
@@ -55,8 +58,6 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Arrived |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TASK-040 | risks are still read from a markdown table and are not records in the store | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-040-risks-write per evidence/2026-08/TASK-040-spec-v3.md — building cmd_risks_write | evidence/2026-08/TASK-040-result.md | V3 | USER-016 | main |  |  |
-| TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-045-retire-tolerance per evidence/2026-08/TASK-045-spec.md — precondition verified: gate is enforce | — | V4 | TASK-044, TASK-047 | main |  |  |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
