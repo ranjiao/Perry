@@ -29,6 +29,7 @@
 | 2026-08-21 | _would_discard's loss refusal in perry-tasks write is unreachable past the --from-board guard above it | — |
 | 2026-08-21 | perry-state's hook_profile comment says the schema does not declare the High-stakes prefix and it does | — |
 | 2026-08-21 | the dispatch cap leaks a slot under contention: 20 concurrent registers let a third through a cap of 2 | — |
+| 2026-08-21 | DESIGN-007 names the goal store perry/goals.jsonl and the file on disk is perry/okr.jsonl | — |
 
 ## P0 (must finish this period)
 
@@ -53,6 +54,10 @@
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-165 | an id must dangle once before the report exemption can cover it | Coding Agent | not_started | RE-SCOPED 2026-08-21: the quoted-output case resolved itself once TASK-162 landed, because TASK-126 report rule needs BOTH halves — the document names a check AND the id has been reported on. The residual cost is that an id must go red once before it can be exempted | — | V4 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
+| TASK-168 | perry-task events returns the log's head while three places promise its tail | Coding Agent | not_started | aiMark reads 437 KB on every project to work around it (aimark/doc/perry-contract-gaps-4.md § 5.1). Reproduced here: --limit 6 returns seq 0-5 dated 2026-08-16, five days stale, with nothing in the payload saying so | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-169 | perry-knowledge/list/1.0 ships every field aiMark asked for and has no contract page | Coding Agent | not_started | aiMark's round-4 TOP priority was 'build a read surface for cards' on the grounds that perry-knowledge is propose/promote only. It is not: list --json already emits topic, slug, claim, kind, owner_role, source, last_verified, invalidated_by, path, stale plus total/stale aggregates. The gap is that schema/ has no page for it, which is where a consumer looks. Same class as conformance.missing_projection | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-170 | an answered USER- ask is in no register a consumer can query | Coding Agent | not_started | live on this board today: asks.items is [] and asks.open is 0 after USER-015 and USER-016 were answered, while TASK-040 still names USER-016 in depends_on. aimark/doc/perry-contract-gaps-4.md § 5.3 | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | NEEDS AN RFC: DESIGN-007 § 5.3 already plans a Goal store and this is the row it is missing. Measured: all five objectives return id ''; okr.jsonl holds {kr 34, version 2} and zero objective rows. aiMark accepts the reasoning against minting O1/O2 from position and asks for a minted id or a blessed stable key instead — it will not invent one itself | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -79,6 +84,8 @@
 | TASK-163 | two readers disagree about whether a dash is a clock | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-164 | perry-state assigns the state root to a global that means the project root | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
+| TASK-171 | the events key table is missing three event kinds the live log carries | Coding Agent | not_started | measured: live-not-doc = ask, answer, intake. aiMark named two of the three | — | V3 |  | main |  |  |
+| TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | NEEDS A DECISION FIRST: whether documents are a lane's business at all, and whether DESIGN-NNN belongs here or in perry-decide. aiMark suspects not the latter, because design docs are written and versioned differently. § 2 is latent: 0 of 164 tasks declare a DESIGN-/ADR- dependency today | — | V4 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
