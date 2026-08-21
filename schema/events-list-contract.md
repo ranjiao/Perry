@@ -100,7 +100,7 @@ of the task cells `field` names.
 | `start` · `perry-task start` | `TASK-` id | the row was picked up — `not_started → in_progress` |
 | `status` · `perry-task status` | `TASK-` id | the status cell moved |
 | `stage` · `perry-task stage` | `TASK-` id | the stage cell moved |
-| `track` · `perry-task track` | `TASK-` id | the row changed track. The stage the move re-stamped rides on the event's own `stage` keys, not on `from`/`to` |
+| `track` · `perry-task track` | `TASK-` id | the row changed track. `from`/`to` are tracks, **not stages** — a move re-stamps the stage as a consequence, and that is why `field` here is `track` |
 | `prioritize` · `perry-task prioritize` | `TASK-` id | the row moved between `## P0` / `## P1` / `## P2` |
 | `retitle` · `perry-task retitle` | `TASK-` id | the title was rewritten. `title_then` on **earlier** events keeps the old one |
 | `summary` · `perry-task summary` | `TASK-` id | the summary cell was written or cleared |
@@ -109,7 +109,7 @@ of the task cells `field` names.
 | `evidence` · `perry-task evidence` | `TASK-` id | the evidence cell was written |
 | `depends` · `perry-task depends` | `TASK-` id | `depends_on` was rewritten |
 | `done` · `perry-task done` | `TASK-` id | the row closed. `rung`, `evidence`, `owner` and `role` ride along |
-| `drop` · `perry-task drop` | `TASK-` id | the row closed unfinished. Same extra keys as `done` |
+| `drop` · `perry-task drop` | `TASK-` id | the row closed unfinished. `owner`, `role` and `reason` ride along. `rung` and `evidence` are **`""`** — the writer does not carry them on a drop, and rule 1 supplies the key |
 
 ### The kinds that describe something else
 
@@ -117,14 +117,21 @@ of the task cells `field` names.
 |---|---|---|
 | `intake` · `perry-task intake` | **`""`** — written against the queue, not a row | an unrouted external request arrived in `## Intake` |
 | `resolve-intake` · `perry-task resolve-intake` | **`""`** | an intake request was discharged `dropped` or `deferred` without becoming a task. Routing one instead emits `route` |
-| `intake-sweep` · `perry-task intake-sweep` | **`""`** | discharged intake rows left the board for the journal. `count` says how many |
+| `intake-sweep` · `perry-task intake-sweep` | **`""`** | discharged intake rows left the board for the journal, in one event however many rows moved |
 | `ask` · `perry-task ask` | a **`USER-`** id | a question for the user was queued in `## User Input Queue` |
 | `answer` · `perry-task answer` | a **`USER-`** id | the user answered it |
 | `cadence-add` · `perry-task cadence-add` | a **`CAD-`** id | a recurring item was registered in `## Cadence` |
 | `cadence-done` · `perry-task cadence-done` | a **`CAD-`** id | an occurrence of it ran |
 | `risk-add` · `perry-task risk-add` | an **`RX-`** id | a risk was opened in `## Top risks` |
 | `risk-clear` · `perry-task risk-clear` | an **`RX-`** id | it was cleared |
-| `risk-migrate` · `perry-task risk-migrate` | **`""`** | the legacy `## Top risks` bullets became table rows. `migrated` carries the ids |
+| `risk-migrate` · `perry-task risk-migrate` | **`""`** | the legacy `## Top risks` bullets became table rows. One event for the whole migration, so `from`/`to` are `bullets`/`table` |
+
+**The keys above are the ones this feed projects, and they are the same
+fifteen for every kind.** The log line a writer appends often carries more —
+`arrived` on an `intake`, `frequency` and `next_due` on a `cadence-add`,
+`signoff` on some closes — and none of it reaches this payload. Rule 2 is how
+that changes: a `1.x` may add a key, and until it does, what is not in § An
+event is not on this surface.
 
 **A kind not in these two tables is a kind this feed cannot emit** — and the
 test above is what makes that true tomorrow rather than only today.
@@ -193,10 +200,13 @@ Same shape as `perry-task/list § semantics[]`, on purpose.
 of those kinds has been emittable since long before 1.0; three of them (`ask`,
 `answer`, `intake`) are in this project's own log today. Documenting what
 already ships is not a bump, so the version does not move — the same reading
-`schema/task-list-contract.md`'s two *"Not a version"* notes took. `stage`,
-`track` and eight others are documented and not yet exercised here, which is
-also not a defect: this page describes what the tool can emit, not what one
-project happened to do.
+`schema/task-list-contract.md`'s two *"Not a version"* notes took.
+
+Eleven of the twenty-five — `stage`, `track`, `route`, `summary` and the seven
+register-writing kinds — are documented and **not yet exercised on this
+project's log**, which is also not a defect: this page describes what the tool
+can emit, not what one project happened to do. The fourteen that are live carry
+749 events between them.
 
 **The list is no longer hand-kept, and that is the actual change.** It went
 stale by eleven names because nothing compared it to the writer;
