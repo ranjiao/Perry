@@ -948,13 +948,41 @@ class Board:
         is the same defect class as a column resolved by position anywhere
         else — the row is there, and the tool cannot see it.
 
-        Position stays as the fallback for a section whose header names no id
-        column at all: those tables predate the glossary and their first cell
-        is the handle by convention.
+        **There is no positional fallback.** Position used to stand in for a
+        section whose header named no id column at all — "those tables predate
+        the glossary and their first cell is the handle by convention" — and
+        that is a per-shape tolerance branch of exactly the kind ADR-004 §
+        *Where tolerance lives now* retires: it accepts a shape the declared
+        schema does not describe and reads it anyway, silently.
+
+        It is unreachable for a declared file. All three sections this serves
+        declare an id column that `perry-lint` reports as a `table-columns`
+        **error** when it is missing — `## Top risks` and `## Cadence` name
+        `ID`, `## User Input Queue` names `USER-id` — so a board without one
+        cannot be declared conformant and, under the `enforce` gate, cannot be
+        written to at all. `norm()` resolves the localized spellings through
+        the glossary, so `编号` lands on the same key; the fallback was not
+        carrying the i18n case either.
+
+        What it was carrying is a *guess*: on a header this tool cannot read,
+        column 0 might be the handle or might be `Status`, and clearing the
+        wrong row is a silent write into somebody's file. The refusal below
+        names the column and the road instead, which is the shape ADR-004 § 4
+        asks every gate refusal to have.
         """
         _, header = self.section_table(heading)
         keys = [norm(h) for h in header]
-        at = next((i for i, k in enumerate(keys) if k in id_column_keys()), 0)
+        at = next((i for i, k in enumerate(keys) if k in id_column_keys()), -1)
+        if at < 0:
+            raise Refused(
+                f"`## {heading}` has no id column: its header is {header} and "
+                f"no cell of it resolves to `ID` or `USER-id` (or a spelling "
+                f"`schema/state-schema.json § i18n.columns` declares). Perry "
+                f"resolves every column by name, so there is no row this can "
+                f"be about, and guessing the first cell would clear whichever "
+                f"row happened to sit under it. Nothing was written. Add the "
+                f"column, or run `perry-migrate` and then "
+                f"`perry-conform declare` for this file")
         for i, cells in self.section_rows(heading):
             cell = cells[at] if at < len(cells) else ""
             if cell.replace("*", "").replace("~", "").strip() == row_id:
