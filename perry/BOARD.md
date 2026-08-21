@@ -16,6 +16,9 @@
 
 | Arrived | Request | Outcome |
 |---|---|---|
+| 2026-08-21 | two test modules import `from tests.X`, and `tests` is a name another project on this machine owns | — |
+| 2026-08-21 | the opencode dispatch-cap test reads machine-wide state, so a second suite on the same box turns it red | — |
+| 2026-08-21 | the suite's red set changes with the interpreter, so "all green" has never been a portable claim | — |
 
 ## P0 (must finish this period)
 
