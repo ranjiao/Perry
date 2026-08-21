@@ -19,6 +19,8 @@
 | 2026-08-21 | two test modules import `from tests.X`, and `tests` is a name another project on this machine owns | — |
 | 2026-08-21 | the opencode dispatch-cap test reads machine-wide state, so a second suite on the same box turns it red | — |
 | 2026-08-21 | the suite's red set changes with the interpreter, so "all green" has never been a portable claim | — |
+| 2026-08-21 | the contract-invariance gate records one branch of a union type and calls it the shape | — |
+| 2026-08-21 | `status --status blocked` still requires a TASK- dependency, so a row waiting on a USER- ask must use --reason instead | — |
 
 ## P0 (must finish this period)
 
@@ -50,8 +52,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Arrived |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TASK-037 | one perry-goals refusal names the flag the user typed and its sibling does not | Coding Agent | in_progress | dispatched to claude-subagent after re-scoping; merges locally | evidence/2026-08/TASK-037-spec-v2.md | V3 | TASK-092 | main |  |  |
-| TASK-040 | risks are still read from a markdown table and are not records in the store | Coding Agent | in_progress | dispatched to claude-subagent after re-scoping; merges locally | evidence/2026-08/TASK-040-spec-v2.md | V3 | TASK-089 | main |  |  |
+| TASK-040 | risks are still read from a markdown table and are not records in the store | Coding Agent | blocked | blocked on USER-016 — the claims[] declaration for risks.jsonl | evidence/2026-08/TASK-040-result.md | V3 | USER-016 | main |  |  |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | QUEUED behind TASK-037 and TASK-040: its 2026-08-18 note scopes it to five tools — perry-state, perry-task, perry-goals, perry-decide, perry-lint — so it collides with both and runs alone after they merge. Its precondition is met: the conformance marker enforces on this branch | — | V4 | TASK-044, TASK-047 | main |  |  |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
@@ -90,6 +91,7 @@
 | USER-003 | Please confirm whether Perry may make tasks.jsonl the authoritative Task record, with BOARD.md becoming a generated view whose direct edits are reported instead of accepted. | TASK-038 |  | answered 2026-08-20: Already decided in ADR-007 decision 2 on 2026-08-19 (Deciders: Ran Jiao): BOARD.md becomes rendered output and a hand edit becomes drift. This row was minted the same day and duplicates that decision; recorded here so the queue matches the record. TASK-038 is unblocked, and still needs its V5 signature, which is a different act from this permission. | 2026-08-19 |
 | USER-004 | When migration encounters a file the user has chmod-ed read-only, should it refuse to touch that file, or migrate it and name the overridden permission in the plan? Today it migrates silently: write_atomic renames over the target, and a rename needs write permission on the directory, not on the file. | TASK-079 |  | answered 2026-08-20: Migrate and name the override; do not refuse. Reasoning recorded because the row was minted for it: refusing would block a whole migration for a reason unrelated to shape, and migration is the one road ADR-004 gives an undeclared project — a refusal there is the wall with no door that this project rejects everywhere else. The override is also reversible: the restore point carries the file's original bytes, verified under TASK-079. The 'at least name it' half of the ADR-004 posture is already satisfied by what shipped in PR #6, and TASK-115 added the guard that keeps that wording an observation rather than advice. The read-only bit stays a signal Perry reports and does not act on. | 2026-08-20 |
 | USER-015 | hand perry/evidence/2026-08/TASK-114-delegation-prompt.md to an aiMark coding agent and paste its result back | TASK-114 |  | pending | 2026-08-21 |
+| USER-016 | declare risks.jsonl in schema/state-schema.json § claims — {"path": "risks.jsonl", "kind": "file", "owner": "work", "anchor": "state"} — so perry-tasks risks-write --from-board can be enabled | TASK-040 |  | pending | 2026-08-21 |
 
 ## Done this period (leaves the board at next triage)
 
