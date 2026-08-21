@@ -58,16 +58,76 @@ has to know which way the cursor walked.
 |---|---|---|
 | `seq` | int | position in the log. Stable **until rotation**, which is what `rotated` is for |
 | `ts` | string | ISO-8601, **seconds**. Ties are real and are not duplicates |
-| `event` | string | `add`, `start`, `status`, `done`, `drop`, `stage`, `track`, `prioritize`, `retitle`, `next`, `rung`, `evidence`, `depends`, `route` |
-| `task` | string | the id this event is about |
+| `event` | string | which kind of event this is. **The twenty-five kinds are § The event kinds**, below — ten of them do not describe a task at all |
+| `task` | string | the id this event is about — **not always a `TASK-` id, and on four kinds `""`.** § The event kinds says which, and what a consumer indexing on this key has to do about it |
 | `title_then` | string | **the title as written when the event was appended.** A retitled task's earlier events still carry the old name — correct for a history view, wrong the moment you render it as the row's *current* name. `perry-task/list § title` has that one |
-| `field` | string | which cell `from`/`to` describe — `status` on six events, `section`, `stage`, `title`, `next_action`, `verification`, `evidence` or `depends_on` on the rest |
+| `field` | string | which cell `from`/`to` describe — `status` on six events, `section`, `stage`, `track`, `title`, `summary`, `next_action`, `verification`, `evidence` or `depends_on` on the rest of the task kinds, and **`""` on the ten kinds that are not about a task** |
 | `from`, `to` | string | the movement, in the `field`'s terms |
 | `actor` | string | who wrote it |
 | `reason` | string | populated on 16 events in this project's own log and **exposed by no contract surface until 1.0** |
 | `rung`, `evidence` | string | on a close |
 | `owner`, `role` | string | **on `done` and `drop` since 2026-08-18.** Events written before that carry `""`; the log is history and is not rewritten, so a role's track record starts there |
 | `track` | string | the row's track |
+
+## The event kinds
+
+**Every kind the writer can emit.** This list is no longer kept by hand: it is
+derived from `bin/perry-task` — its `TASK_EVENTS` / `SECTION_EVENTS` registers
+plus every literal `"event"` written at a commit site — and compared against
+this page by `tests/test_events_feed.py § TestTheDocumentedKindsAreTheWriters`.
+It was a hand-kept list until 2026-08-21, by which time it had drifted by
+**eleven** names, three of which this project's own log already carried.
+
+**Ten of them are not about a task.** `## Intake`, `## User Input Queue`,
+`## Cadence` and `## Top risks` are written through the same three-way commit
+into the same log, so their events arrive on this feed too. `perry-task list`
+folds only the task half; this surface is the log, and the log is all of it.
+
+**So `task` is not always a `TASK-` id, and is sometimes empty.** A consumer
+that indexes this feed by `task` has to handle both: grouping by `task` and
+dropping the empty key silently discards every `intake`, `resolve-intake`,
+`intake-sweep` and `risk-migrate` row, and grouping without reading the prefix
+files a `USER-` ask under a task id that does not exist. `field` is `""` on all
+ten — `from`/`to` there describe the section row's own status, which is not one
+of the task cells `field` names.
+
+### The fifteen that describe a task row
+
+| Kind · the subcommand that writes it | `task` | What it records |
+|---|---|---|
+| `add` · `perry-task add` | the new `TASK-` id | a row was created |
+| `route` · `perry-task route` | the minted `TASK-` id | an `## Intake` request became a task row |
+| `start` · `perry-task start` | `TASK-` id | the row was picked up — `not_started → in_progress` |
+| `status` · `perry-task status` | `TASK-` id | the status cell moved |
+| `stage` · `perry-task stage` | `TASK-` id | the stage cell moved |
+| `track` · `perry-task track` | `TASK-` id | the row changed track. The stage the move re-stamped rides on the event's own `stage` keys, not on `from`/`to` |
+| `prioritize` · `perry-task prioritize` | `TASK-` id | the row moved between `## P0` / `## P1` / `## P2` |
+| `retitle` · `perry-task retitle` | `TASK-` id | the title was rewritten. `title_then` on **earlier** events keeps the old one |
+| `summary` · `perry-task summary` | `TASK-` id | the summary cell was written or cleared |
+| `next` · `perry-task next` | `TASK-` id | the next action was rewritten |
+| `rung` · `perry-task rung` | `TASK-` id | the verification rung was set |
+| `evidence` · `perry-task evidence` | `TASK-` id | the evidence cell was written |
+| `depends` · `perry-task depends` | `TASK-` id | `depends_on` was rewritten |
+| `done` · `perry-task done` | `TASK-` id | the row closed. `rung`, `evidence`, `owner` and `role` ride along |
+| `drop` · `perry-task drop` | `TASK-` id | the row closed unfinished. Same extra keys as `done` |
+
+### The ten that describe something else
+
+| Kind · the subcommand that writes it | `task` | What it records |
+|---|---|---|
+| `intake` · `perry-task intake` | **`""`** — written against the queue, not a row | an unrouted external request arrived in `## Intake` |
+| `resolve-intake` · `perry-task resolve-intake` | **`""`** | an intake request was discharged `dropped` or `deferred` without becoming a task. Routing one instead emits `route` |
+| `intake-sweep` · `perry-task intake-sweep` | **`""`** | discharged intake rows left the board for the journal. `count` says how many |
+| `ask` · `perry-task ask` | a **`USER-`** id | a question for the user was queued in `## User Input Queue` |
+| `answer` · `perry-task answer` | a **`USER-`** id | the user answered it |
+| `cadence-add` · `perry-task cadence-add` | a **`CAD-`** id | a recurring item was registered in `## Cadence` |
+| `cadence-done` · `perry-task cadence-done` | a **`CAD-`** id | an occurrence of it ran |
+| `risk-add` · `perry-task risk-add` | an **`RX-`** id | a risk was opened in `## Top risks` |
+| `risk-clear` · `perry-task risk-clear` | an **`RX-`** id | it was cleared |
+| `risk-migrate` · `perry-task risk-migrate` | **`""`** | the legacy `## Top risks` bullets became table rows. `migrated` carries the ids |
+
+**A kind not in these two tables is a kind this feed cannot emit** — and the
+test above is what makes that true tomorrow rather than only today.
 
 ## Paging, and the one thing that can go wrong
 
@@ -124,6 +184,39 @@ Same shape as `perry-task/list § semantics[]`, on purpose.
 | `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Meant to be shown, not branched on |
 
 ## Changelog
+
+**Not a version, 2026-08-21 (TASK-171).** § The event kinds documents the
+**eleven** emittable values of `event` this page never listed — `summary`,
+`intake`, `resolve-intake`, `intake-sweep`, `ask`, `answer`, `cadence-add`,
+`cadence-done`, `risk-add`, `risk-clear`, `risk-migrate` — and states what
+`task` carries on each. **No key was added, removed or retyped**, and every one
+of those kinds has been emittable since long before 1.0; three of them (`ask`,
+`answer`, `intake`) are in this project's own log today. Documenting what
+already ships is not a bump, so the version does not move — the same reading
+`schema/task-list-contract.md`'s two *"Not a version"* notes took. `stage`,
+`track` and eight others are documented and not yet exercised here, which is
+also not a defect: this page describes what the tool can emit, not what one
+project happened to do.
+
+**The list is no longer hand-kept, and that is the actual change.** It went
+stale by eleven names because nothing compared it to the writer;
+`tests/test_events_feed.py § TestTheDocumentedKindsAreTheWriters` now derives
+the emittable set from `bin/perry-task` — the `TASK_EVENTS` / `SECTION_EVENTS`
+registers **and** every literal `"event"` at a commit site — and fails if the
+two sets differ in either direction. A twenty-sixth kind added to the writer
+reddens it on the commit that adds it.
+
+**`tests/contract_key_parity.py` cannot see this class of drift.** KR-O2.4 was
+0 before this change and is 0 after: that check compares documented *paths*
+against emitted *paths*, and the kinds above are a field's **values**. An enum
+can therefore go stale where a key cannot, which is why the pin above had to be
+written rather than delegated to the instrument that already existed. The two
+tables are also deliberately shaped so that check does **not** read them —
+their first cell is `` `kind` · `perry-task <subcommand>` ``, not a bare
+backticked identifier, because a first cell of nothing but backticked
+identifiers is how that parser recognises a key table, and twenty-five event
+names declared as payload keys would be twenty-five paths the payload does not
+carry.
 
 ### 1.1 — 2026-08-21 (TASK-168)
 
