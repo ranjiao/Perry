@@ -17,12 +17,12 @@
       "unassigned": [],
       "unparsed_sketches": []
     },
-    "perry-events/list/1.0": {
+    "perry-events/list/1.1": {
       "command": "perry-task events --json",
-      "contract": "perry-events/list/1.0",
-      "documented": 23,
+      "contract": "perry-events/list/1.1",
+      "documented": 27,
       "documented_not_emitted": [],
-      "emitted": 23,
+      "emitted": 27,
       "emitted_not_documented": [],
       "file": "schema/events-list-contract.md",
       "not_observable": {},
