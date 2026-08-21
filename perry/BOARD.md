@@ -31,6 +31,9 @@
 | 2026-08-21 | the dispatch cap leaks a slot under contention: 20 concurrent registers let a third through a cap of 2 | — |
 | 2026-08-21 | DESIGN-007 names the goal store perry/goals.jsonl and the file on disk is perry/okr.jsonl | — |
 | 2026-08-21 | a wait-loop whose own command line matches the pattern it waits on never exits and poisons every agent's is-a-suite-running check | — |
+| 2026-08-21 | the recorded parity baseline drifts with the board: 115/115 fixture against 113/113 live, and nothing catches it | — |
+| 2026-08-21 | perry-knowledge/list emits stale without the threshold that produced it, so a consumer must read state-schema.json to name the number | — |
+| 2026-08-21 | contract_key_parity's docstring says five contracts and there are six | — |
 
 ## P0 (must finish this period)
 
@@ -55,7 +58,6 @@
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-165 | an id must dangle once before the report exemption can cover it | Coding Agent | not_started | RE-SCOPED 2026-08-21: the quoted-output case resolved itself once TASK-162 landed, because TASK-126 report rule needs BOTH halves — the document names a check AND the id has been reported on. The residual cost is that an id must go red once before it can be exempted | — | V4 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-169 | perry-knowledge/list/1.0 ships every field aiMark asked for and has no contract page | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-169-knowledge-contract-page | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-170 | an answered USER- ask is in no register a consumer can query | Coding Agent | not_started | QUEUED behind TASK-168: both touch bin/perry-task. Carries a small design call — answered asks stay in asks.items with their status, or the edge declares its own kind — which the spec will require the agent to argue rather than pick silently | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | DECIDED 2026-08-21 by the user: option A — an objective record in okr.jsonl with a minted stable id, not a computed key and not a declaration that objectives are unaddressable. Needs the RFC first: minting an id for an entity that has never had one is the change ADR-007 and DESIGN-008 each took an RFC to make, and DESIGN-007 section 5.3 already plans the Goal store this row is the missing piece of | — | V4 | — | main |  |  |  |  |  |  |
 
@@ -70,7 +72,7 @@
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
-| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | — | — | V2 |  | main |  |  |
+| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | SCOPE GREW: the README has TWO stale pins, not the goals one this row's title names — line 86 says perry-task/list/1.11 against a live 1.14, line 88 says perry-goals/list/1.0 against 2.1. TASK-169 left both and added a line saying the version column is a convenience nothing checks | — | V2 | — | main |  |  |
 | TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
