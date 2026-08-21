@@ -402,6 +402,7 @@ cannot drift into two renderers.
 ```bash
 "$PERRY_HOME/bin/perry-tasks" risks-build   # derive the records; write nothing
 "$PERRY_HOME/bin/perry-tasks" risks-diff    # render them back and byte-compare
+"$PERRY_HOME/bin/perry-tasks" risks-write --from-board   # the ONE-WAY import
 ```
 
 `cleared` is the field the four columns could not hold: the day a risk stopped
@@ -419,11 +420,29 @@ reason: the store is authoritative, so drift never changes what a risk is, and
 and says so when there is no `risks.jsonl`: *no store* and *clean* are
 different answers.
 
-**`risks-write` refuses today**, and names why: a canonical record file in the
-state root is declared in `schema/state-schema.json § claims` with an owner and
-an anchor, the way `tasks.jsonl` is, and that declaration is the user's to
-give. Until it lands, the register is still written by `risk-add` / `risk-clear`
-into the markdown, and the store surface is derive-and-check only.
+**`risks-write --from-board` is the one-way import**, the same act
+`perry-tasks write --from-board` performs for tasks and `perry-okr write
+--from-file` for `OKR.md`: it mints `risks.jsonl` for a project that has none,
+is run once at adoption, and is never the direction a drifted section wants —
+that is `risks-render --write`. `--from-board` is required, because the flag
+is the consent and there is no other behaviour.
+
+It refuses, writing nothing, on four conditions, and each one names itself:
+`risks.jsonl` is not declared in `schema/state-schema.json § claims` (the
+declaration is the user's to give, and the command reads the schema at every
+call rather than assuming it); `## Top risks` is absent, a bullet list, or a
+table this tool must not treat as the register; the records it derived do not
+render the section back **byte for byte**, in which case the refusal names the
+row and the column rather than a line number; or the store it would write is
+one `validate_risk_records` could not read back. **The import appends no
+event** — it raises no risk and retires none, and an event stamped today for a
+row that may be nine months old is the same falsehood `opened: ""` refuses.
+
+`cleared` is carried across from the store on disk, because it is the one
+stored field the four columns cannot express: the board has nothing to say
+about it, so `--from-board` cannot be read as saying `""`. Every field the
+section *can* express comes from the section, and anything that replaces is
+printed rather than swallowed.
 
 **`perry-state` counts open risks only**, with `age_days` computed from
 `Opened` at read time — the same rule as `Asked`/`Idle` on the User Input

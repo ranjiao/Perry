@@ -239,14 +239,20 @@ def load_risk_store(root: Path) -> tuple[list[dict], Path]:
             .split("\n") if l.strip()], path
 
 
-#: What `risks-write` cannot do yet, and why — reported rather than worked
-#: around. `perry/risks.jsonl` would be a canonical record file sitting in the
-#: user's state root, and every such file is declared in
+#: What `risks-write` refuses when the claim is not there, and why — reported
+#: rather than worked around. `perry/risks.jsonl` is a canonical record file
+#: sitting in the user's state root, and every such file is declared in
 #: `schema/state-schema.json § claims` with an owner and an anchor. That
 #: declaration is part of this project's claim surface and is released by the
-#: user, not minted by the change that wants it. Until it exists this command
-#: names the gap instead of writing an undeclared file into somebody's project
-#: — which is the exact failure ADR-004 and the claim surface exist to prevent.
+#: user, not minted by the change that wants it. Without it this command names
+#: the gap instead of writing an undeclared file into somebody's project —
+#: which is the exact failure ADR-004 and the claim surface exist to prevent.
+#:
+#: **It is a live guard, not a historical note.** The declaration landed on
+#: 2026-08-21 for THIS repository; a project running Perry off a schema that
+#: does not carry the entry — an old install, a fork, a hand-edited schema —
+#: reaches this refusal, and reverting the `claims[]` entry must switch the
+#: command off rather than leave it writing.
 RISK_STORE_UNDECLARED = (
     "perry-tasks: refusing to write `risks.jsonl`.\n\n"
     "  The risks register's record shape, its renderer and its drift report "
@@ -259,26 +265,6 @@ RISK_STORE_UNDECLARED = (
     "  That declaration is the user's to give. Until it lands, "
     "`perry-tasks risks-build` derives the records and `risks-diff` checks the "
     "projection, both without writing anything.")
-
-
-#: The same refusal once the declaration HAS landed. Two messages, because
-#: after 2026-08-21 the first one is a lie: `claims[]` now carries
-#: `risks.jsonl`, and a tool that keeps naming the declaration as the gap sends
-#: whoever reads it to add an entry that is already there. The gap moved one
-#: step: `cmd_risks_write` was never written. The agent that stopped here
-#: stopped BEFORE the write path on purpose and left this constant standing in
-#: for a command that does not exist, which was true on the day and is not now.
-RISK_STORE_NO_WRITE_PATH = (
-    "perry-tasks: refusing to write `risks.jsonl`.\n\n"
-    "  The DECLARATION has landed — `schema/state-schema.json § claims` "
-    "carries `risks.jsonl`, owner `work`, anchor `state` — so this is no "
-    "longer the gap. What is missing is the write path itself: TASK-040 "
-    "shipped the record shape, the renderer, the byte-identity gate and the "
-    "drift report, and deliberately stopped before building "
-    "`risks-write --from-board`, because writing an undeclared file was the "
-    "thing to refuse and the declaration was not its to give.\n\n"
-    "  Until it is built, `perry-tasks risks-build` derives the records and "
-    "`risks-diff` checks the projection, both without writing anything.")
 
 
 def risk_store_is_declared() -> bool:
@@ -295,12 +281,6 @@ def risk_store_is_declared() -> bool:
         return False
     return any(isinstance(c, dict) and c.get("path") == "risks.jsonl"
                for c in claims)
-
-
-def risk_store_refusal() -> str:
-    """Which of the two gaps is actually open today."""
-    return (RISK_STORE_NO_WRITE_PATH if risk_store_is_declared()
-            else RISK_STORE_UNDECLARED)
 
 
 def cmd_risks_render(root: Path, byte_compare: bool,
@@ -329,7 +309,17 @@ def cmd_risks_render(root: Path, byte_compare: bool,
                          ensure_ascii=False, indent=2),
               file=sys.stdout if byte_compare else sys.stderr)
         return 2
-    source = "store"
+    # **An EMPTY store is a store.** `load_risk_store` returns `[]` for a file
+    # that is not there AND for a file that holds no records, and this branch
+    # read the second as the first — so a register whose table has a header
+    # and no rows, imported by `risks-write --from-board`, came back reporting
+    # `source: "board"` about a store that exists. That is the conflation
+    # `risk_table` refuses one layer down ("a register with no rows in it" is
+    # never the same answer as "there is nothing here this store can hold"),
+    # and `perry-lint § check_risk_store_drift` already gets it right by
+    # asking the path. The FILE decides which source this is; the record count
+    # decides what there is to render.
+    source = "store" if store_path.exists() else "board"
     if records:
         records, findings = perry_store.validate_risk_records(records)
         if findings:
@@ -338,8 +328,7 @@ def cmd_risks_render(root: Path, byte_compare: bool,
                              ensure_ascii=False, indent=2),
                   file=sys.stdout if byte_compare else sys.stderr)
             return 2
-    else:
-        source = "board"
+    elif source == "board":
         if write_board:
             # **`--write` needs a store.** Rendering the section from records
             # derived out of that same section writes the file back over
@@ -414,6 +403,193 @@ def _would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
     return out
 
 
+#: Why `## Top risks` cannot be imported, per shape `risk_section_shape`
+#: reports. **Refuse rather than guess**: each of these three is a section this
+#: tool can read and must not write a store from, and each has a different
+#: answer, so each says its own.
+#:
+#: `bullets` is the one that would otherwise pass the byte gate and be wrong.
+#: `risk_records` returns `[]` for a bullet list, rendering it changes nothing,
+#: and `cmp` is therefore clean — so a gate that only compared bytes would
+#: write an empty store over a section holding real risks and report success.
+RISK_SECTION_UNIMPORTABLE = {
+    "absent": (
+        "there is no `## Top risks` section on this board, so there is no "
+        "register to import. `perry-task risk-add` creates the section and "
+        "its table."),
+    "bullets": (
+        "`## Top risks` is still a bullet list. A bullet has no id, no "
+        "`Opened` cell and no `Status` cell, so the records this would write "
+        "are not a projection of it — they are `[]`, and writing them would "
+        "report success over a section holding real risks. "
+        "`perry-task risk-migrate` converts the section (every bullet crosses "
+        "verbatim), after which the rows have ids and this import has "
+        "something to read — or, if the only bullet is the "
+        "`(no active risks)` placeholder `BOARD_TEMPLATE.md` ships, "
+        "`perry-task risk-add` writes the table on its own and there is "
+        "nothing here to migrate."),
+    "foreign": (
+        "`## Top risks` holds a table this tool must not treat as the "
+        "register — either it has no `Risk` column (a legend, a severity key) "
+        "or the section holds more than one table. Which one is the register "
+        "is a question about somebody's document, and guessing it writes one "
+        "table's cells into another table's store."),
+}
+
+
+def cmd_risks_write(root: Path, argv: list[str]) -> int:
+    """`BOARD.md § Top risks` → `perry/risks.jsonl`. The ONE-WAY IMPORT.
+
+    The model is `perry-tasks write --from-board` one register over and
+    `perry-okr write --from-file` one document over: it exists to mint a store
+    for a project that has none. ADR-007 decision 2 made the store canonical
+    and the section rendered output, so this direction is the backwards one and
+    is run once per project, at adoption, never in reverse. `perry-tasks
+    risks-render --write` is the forward direction and the one a drifted
+    section wants.
+
+    **`--from-board` is the consent, and it is required.** The flag is not a
+    modifier on a default behaviour; there is no other behaviour. A user who
+    types `risks-write` alone is told which direction they asked for and which
+    command runs the other one.
+
+    **Four things are checked before a byte is written, and each one is a
+    refusal that writes nothing (ADR-004).**
+
+    1. The CLAIM. `risks.jsonl` is declared in `schema/state-schema.json §
+       claims` or this does not run — see `RISK_STORE_UNDECLARED`.
+    2. The SHAPE. `absent`, `bullets` and `foreign` are sections this tool can
+       read and must not derive a store from — see
+       `RISK_SECTION_UNIMPORTABLE`. Only `table` is importable.
+    3. The BYTES. The derived records are rendered back over the section and
+       byte-compared BEFORE the store is written. A migration that cannot
+       reproduce what it replaces has not understood it, and the refusal names
+       the row and the column rather than the line number alone.
+    4. The STORE IS READABLE BACK. `validate_risk_records` is run on what is
+       about to be written, so a section that mints a record this tool's own
+       loader would reject is a finding about the section rather than an
+       unreadable file reported as a success. This is the check
+       `bin/perry_md_store.py § main` added for the same reason one document
+       over.
+
+    **`cleared` is carried across from the store on disk, and that is not the
+    board losing an argument.** It is the one stored field the register has no
+    column for — the day a risk stopped being live rides inside `Status` prose
+    — so the board has nothing to say about it and `risk_records(…, current)`
+    reads it from the store, exactly as `bin/perry-lint § check_risk_store_
+    drift` does. Every field the section CAN express is taken from the section,
+    which is what `--from-board` means. What that replaces is disclosed rather
+    than swallowed: `_would_discard` prints it.
+
+    **THE EVENT LOG: this command appends NOTHING, and that is the decision.**
+
+    `perry-task risk-add` / `risk-clear` append `risk-add` / `risk-clear`
+    events because a risk was raised or retired on that day, by that actor.
+    An import raises nothing and retires nothing — it reads rows that already
+    exist. Every event it could append would carry today's timestamp for a
+    risk that may be nine months old, which is the same falsehood
+    `risk_record` refuses when it stores `""` rather than today's date for an
+    unrecorded `opened`; the event log would then be a history the project
+    never had, and `perry-state` reads that log. The two importers this one is
+    modelled on append nothing for the same reason. The store is the record
+    that a store now exists; the file appearing on disk is the whole event.
+    Asserted in `tests/test_risks_store.py`.
+    """
+    dest = perry_store.risk_store_path(P.resolve_state_root(root))
+
+    if "--from-board" not in argv:
+        print("perry-tasks: refusing section-to-store import without "
+              "`--from-board`. `risks.jsonl` is authoritative once it exists; "
+              "use `perry-tasks risks-render --write` for store-to-section "
+              "recovery, or explicitly run `perry-tasks risks-write "
+              "--from-board` to derive the store from `BOARD.md § Top risks`.",
+              file=sys.stderr)
+        return 1
+
+    if not risk_store_is_declared():
+        print(RISK_STORE_UNDECLARED, file=sys.stderr)
+        return 1
+
+    board, ops = risk_board(root)
+    shape, _tables = perry_store.risk_section_shape(board, ops)
+    if shape != "table":
+        print(f"perry-tasks: refusing to write {dest} — "
+              f"{RISK_SECTION_UNIMPORTABLE[shape]}\n\n"
+              f"  Nothing was written.", file=sys.stderr)
+        return 1
+
+    try:
+        on_disk, _path = load_risk_store(root)
+    except (OSError, ValueError) as exc:
+        print(f"perry-tasks: {dest} exists but cannot be read "
+              f"({type(exc).__name__}: {exc}). Refusing to overwrite a store "
+              f"this tool cannot compare against; move it aside and re-run.",
+              file=sys.stderr)
+        return 2
+    _valid, malformed = perry_store.validate_risk_records(on_disk)
+    if malformed:
+        print(json.dumps({"refused": f"{dest} is malformed; refusing to "
+                          f"overwrite a store that cannot be safely compared",
+                          "store_findings": malformed},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+
+    records = perry_store.risk_records(board, ops, on_disk)
+
+    # The byte gate, run BEFORE the write rather than reported after it.
+    # `risks-diff` answers the same question about a store that exists; this is
+    # the one moment where the answer can still prevent the file.
+    text, report = perry_store.risk_render(board, records, ops)
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    if text != live:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        print(f"perry-tasks: refusing to write {dest}.\n\n"
+              f"  The records derived from `## Top risks` do not render that "
+              f"section back byte for byte, so the store would not be a "
+              f"projection of it — it would be a different register wearing "
+              f"its name. A migration that cannot reproduce what it replaces "
+              f"has not understood it.\n", file=sys.stderr)
+        for d in report["cells_the_store_and_board_disagree_on"][:10]:
+            print(f"    {d['id']} · column {d['column']}: "
+                  f"board={d['board']!r} → would render {d['store']!r}",
+                  file=sys.stderr)
+        for r in report["rows_verbatim"][:10]:
+            print(f"    row {r['cell']!r}: the store holds no record for it"
+                  + (f" ({r['why']})" if r.get("why") else ""),
+                  file=sys.stderr)
+        print(f"\n  First differing line is {n + 1}:\n"
+              f"    board:    {(a[n] if n < len(a) else '<past end of file>')[:200]}\n"
+              f"    rendered: {(b[n] if n < len(b) else '<past end of render>')[:200]}\n"
+              f"\n  Nothing was written.", file=sys.stderr)
+        return 1
+
+    _valid, bad = perry_store.validate_risk_records(records)
+    if bad:
+        print(json.dumps({"refused": "`## Top risks` produces a store this "
+                          "tool could not read back; nothing was written",
+                          "store_findings": bad},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+    losses = _would_discard(on_disk, records)
+    if losses:
+        print(f"perry-tasks: {len(losses)} stored value(s) replaced by what "
+              f"`## Top risks` says — `--from-board` is that instruction:",
+              file=sys.stderr)
+        for line in losses[:10]:
+            print(f"    {line}", file=sys.stderr)
+        if len(losses) > 10:
+            print(f"    … and {len(losses) - 10} more", file=sys.stderr)
+
+    # Staged and renamed under the project lock, like every other write to a
+    # canonical file.
+    lib.write_atomic(dest, perry_store.store_text(records))
+    print(f"perry-tasks: wrote {dest} ({len(records)} risk record(s))")
+    return 0
+
+
 def main(argv: list[str], _locked: bool = False) -> int:
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -459,8 +635,7 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return 0
 
     if cmd == "risks-write":
-        print(risk_store_refusal(), file=sys.stderr)
-        return 1
+        return cmd_risks_write(root, argv)
 
     if cmd in ("render", "diff"):
         # **Not `build(root)`.** These two read the store from disk for the
