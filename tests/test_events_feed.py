@@ -21,13 +21,25 @@ and tail are the same window, and the one that did page asserted `[0,1,2,3]`
 because that is what it saw. `TestTheFirstPageIsTheTail` is the pin that makes
 the next drift a failure rather than a document.
 
+**WHICH KINDS, and why the answer is no longer a hand-kept list (TASK-171).**
+The same page's `event` key table listed fourteen values; the writer could emit
+twenty-five, and `ask`, `answer` and `intake` had been in this project's own log
+for days. `TestTheDocumentedKindsAreTheWriters` at the bottom of this file
+derives the emittable set from `bin/perry-task` and compares it both ways, so a
+kind added to the writer reddens the suite on the commit that adds it. That is
+the direction the table rotted in — nobody deleted a row, somebody added a kind.
+
 Run: python3 tests/parallel test_events_feed
 """
 
 from __future__ import annotations
 
+import ast
+import importlib.machinery
+import importlib.util
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -302,6 +314,174 @@ class TestItIsReadOnly(FeedCase):
         self.assertEqual(self.feed()["count"], 0)
         self.assertEqual(self.feed()["total"], 0)
 
+
+# ── the documented kinds vs the kinds the writer can emit ─────────────────────
+#
+# **The table this pins went stale by eleven names.** `schema/events-list-
+# contract.md` listed fourteen values of `event`; `bin/perry-task` could emit
+# twenty-five, and three of the missing eleven (`ask`, `answer`, `intake`) were
+# already in this project's own log when the gap was found — by a reader, not by
+# the suite. Re-writing the list by hand would have fixed 2026-08-21 and nothing
+# after it, because a hand-kept list is exactly what drifted.
+#
+# So the set is DERIVED FROM THE WRITER, from two sources unioned:
+#
+#   1. `TASK_EVENTS | SECTION_EVENTS` — the registers `bin/perry-task` keeps as
+#      a partition of its own writing subcommands, checked to BE that partition
+#      by `tests/test_cadence.py`. A new subcommand that emits an event cannot
+#      reach `COMMANDS` without landing in one of these two.
+#   2. Every `"event": "<literal>"` written at a commit site, read out of the
+#      source's AST, plus the event-name argument of every `cell_writer(...)`
+#      call — the helper four subcommands (`next`, `retitle`, `rung`,
+#      `evidence`) get their whole write path from, where no literal appears in
+#      a dict at all.
+#
+# Neither source alone is enough, and that is the point of taking both. Source 1
+# misses a kind written at a raw commit site by something that is not a
+# subcommand; source 2 misses a kind whose write path is a helper this file has
+# not been taught about. A new kind has to evade BOTH to reach the log
+# undocumented, and the direction that matters is the one that let this table
+# rot: ADDING a kind and not documenting it.
+
+CONTRACT = ROOT / "schema" / "events-list-contract.md"
+
+#: A row of § The event kinds. The first cell is the kind AND the subcommand
+#: that writes it, `` `add` · `perry-task add` ``, for two reasons: naming the
+#: writer is half of what makes the row checkable, and a first cell of nothing
+#: but backticked identifiers is how `tests/contract_key_parity.py § key_tables`
+#: recognises a KEY table. Twenty-five event names read as payload keys would be
+#: twenty-five documented paths the payload does not carry.
+KIND_ROW = re.compile(
+    r"^\|\s*`([a-z][a-z-]*)`\s*·\s*`perry-task ([a-z][a-z-]*)`\s*\|")
+
+#: The two subheadings § The event kinds hangs its tables under. Named so the
+#: parity guard below can ask about those tables and no others — the page's
+#: `An event` table declares `rung`, `evidence` and `track`, which really are
+#: payload keys and really should be read as such.
+KIND_TABLE_HEADINGS = ("The kinds that describe a task row",
+                       "The kinds that describe something else")
+
+
+def documented_kinds() -> dict[str, str]:
+    """`{kind: subcommand}`, from § The event kinds, fences excluded."""
+    out, fenced = {}, False
+    for line in CONTRACT.read_text().splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        m = KIND_ROW.match(line)
+        if m:
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+def written_literals() -> set[str]:
+    """Every event name spelled at a write site in `bin/perry-task`."""
+    tree = ast.parse(TOOL.read_text())
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        # `{"ts": ..., "event": "done", ...}` — the shape every commit site has.
+        if isinstance(node, ast.Dict):
+            for key, value in zip(node.keys, node.values):
+                if (isinstance(key, ast.Constant) and key.value == "event"
+                        and isinstance(value, ast.Constant)
+                        and isinstance(value.value, str)):
+                    found.add(value.value)
+        # `cell_writer(field, flag, event, why, ...)` — third positional, or the
+        # keyword. Four subcommands write through it and spell no dict here.
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "cell_writer"):
+            if len(node.args) > 2 and isinstance(node.args[2], ast.Constant):
+                found.add(node.args[2].value)
+            for kw in node.keywords:
+                if kw.arg == "event" and isinstance(kw.value, ast.Constant):
+                    found.add(kw.value.value)
+    return found
+
+
+def emittable_kinds(mod) -> set[str]:
+    return set(mod.TASK_EVENTS) | set(mod.SECTION_EVENTS) | written_literals()
+
+
+class TestTheDocumentedKindsAreTheWriters(unittest.TestCase):
+    """§ The event kinds equals what `bin/perry-task` can put in the log."""
+
+    @classmethod
+    def setUpClass(cls):
+        loader = importlib.machinery.SourceFileLoader("perry_task_kinds",
+                                                      str(TOOL))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        cls.mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(cls.mod)
+
+    def test_the_document_lists_every_kind_the_writer_can_emit(self):
+        """The direction that let the table rot: a NEW kind, undocumented.
+
+        Verified by adding a kind to `bin/perry-task` — both as a bare
+        `"event": "..."` at a commit site and as a name in `SECTION_EVENTS` —
+        and confirming this goes red before the document is touched.
+        """
+        missing = emittable_kinds(self.mod) - set(documented_kinds())
+        self.assertEqual(
+            missing, set(),
+            f"`bin/perry-task` can emit {sorted(missing)} and "
+            f"`schema/events-list-contract.md § The event kinds` does not list "
+            f"them. A consumer branching on `event` has no way to learn they "
+            f"exist. Add a row; do not delete the kind to make this pass")
+
+    def test_the_document_lists_no_kind_the_writer_cannot_emit(self):
+        extra = set(documented_kinds()) - emittable_kinds(self.mod)
+        self.assertEqual(
+            extra, set(),
+            f"documented event kinds {sorted(extra)} that no write site and "
+            f"neither register can produce — a promise about something that "
+            f"cannot happen")
+
+    def test_every_documented_kind_names_a_real_subcommand(self):
+        """The second cell half of the row. A kind whose writer is misspelled
+        is a row a reader cannot act on, and the misspelling is invisible to
+        the set comparison above."""
+        unknown = {kind: sub for kind, sub in documented_kinds().items()
+                   if sub not in self.mod.COMMANDS}
+        self.assertEqual(unknown, {},
+                         "documented as written by a subcommand that does not "
+                         "exist")
+
+    def test_the_task_field_is_documented_as_sometimes_not_a_task(self):
+        """`intake` and its three siblings write an EMPTY `task`: they are
+        written against a section, not against a row. A consumer that groups
+        this feed by `task` and drops the empty key loses them silently, so the
+        page has to say so rather than leave `task` reading "the id this event
+        is about"."""
+        text = CONTRACT.read_text()
+        self.assertIn("not always a `TASK-` id", text)
+        for kind in ("intake", "resolve-intake", "intake-sweep",
+                     "risk-migrate"):
+            self.assertIn(kind, text)
+
+    def test_the_kind_tables_are_not_read_as_key_tables(self):
+        """The pin on the shape of the rows above.
+
+        `tests/contract_key_parity.py` treats a table row whose first cell is
+        nothing but backticked identifiers as a declaration of payload KEYS.
+        Reformatting these rows to a bare `` `add` `` first cell would hand
+        that check twenty-five event names as documented paths this payload
+        does not emit — KR-O2.4 would move for a reason that has nothing to do
+        with the payload. Kept honest here rather than discovered there.
+        """
+        text = CONTRACT.read_text()
+        for heading in KIND_TABLE_HEADINGS:
+            self.assertIn(f"### {heading}", text,
+                          "the guard below is anchored on this heading")
+        sys.path.insert(0, str(ROOT / "tests"))
+        import contract_key_parity as parity   # noqa: PLC0415
+        leaked = {k for heading, keys in parity.key_tables(text)
+                  if heading in KIND_TABLE_HEADINGS for k in keys}
+        self.assertEqual(
+            leaked, set(),
+            f"§ The event kinds is being read as a key table: {sorted(leaked)}")
 
 if __name__ == "__main__":
     unittest.main()
