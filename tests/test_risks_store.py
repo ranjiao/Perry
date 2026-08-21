@@ -24,6 +24,8 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -509,75 +511,338 @@ class TestTheMigrationSurface(unittest.TestCase):
         self.assertEqual(report["register"], "bullets")
         self.assertEqual(report["records"], 0)
 
-    def test_risks_write_refuses_and_names_the_missing_declaration(self):
-        """**The stop this row hit.** A canonical record file in the state
-        root is declared in `schema/state-schema.json § claims` with an owner
-        and an anchor, the way `tasks.jsonl` is. That surface is behind the
-        project's safety gate, so the store is implemented and unwritten, and
-        the refusal says which of the two it is."""
+    def test_risks_write_refuses_without_the_explicit_direction(self):
+        """`--from-board` is the consent, not a modifier on a default.
+
+        The import runs the direction ADR-007 decision 2 made backwards, so
+        the flag is required and the refusal names the command that runs the
+        other one."""
         p = Project(board=board_with(REGISTER))
-        out = self._tasks(p.root, "risks-write", "--from-board")
+        out = self._tasks(p.root, "risks-write")
         self.assertEqual(out.returncode, 1)
-        self.assertIn("claims", out.stderr)
+        self.assertIn("--from-board", out.stderr)
+        self.assertIn("risks-render --write", out.stderr)
         self.assertFalse((p.root / "risks.jsonl").exists())
 
-    def test_the_refusal_names_the_gap_that_is_actually_open(self):
-        """Two gaps, one at a time, and the message must not outlive its own
-        condition.
 
-        The declaration landed on 2026-08-21. A refusal that keeps naming it
-        sends whoever reads it to add a `claims[]` entry that is already
-        there — the same wasted trip TASK-114's v1 delegation prompt sent an
-        agent on, for the same reason: a message measured against a world that
-        moved. So the branch is read off the schema, and BOTH branches are
-        asserted here rather than only whichever one is live today."""
+class TestTheOneWayImport(unittest.TestCase):
+    """`perry-tasks risks-write --from-board` — `## Top risks` → the store.
+
+    The half TASK-040 stopped before. It is the same one-way import
+    `perry-tasks write --from-board` performs for tasks and `perry-okr write
+    --from-file` for `OKR.md`: run once, at adoption, never in reverse.
+    """
+
+    def _tasks(self, root: Path, *argv):
+        return subprocess.run([sys.executable, str(TASKS), *argv,
+                               "--root", str(root)],
+                              capture_output=True, text=True)
+
+    def _imported(self, section: str = REGISTER) -> Project:
+        """A project whose risks store was written by the command under test.
+
+        **Held on `self`** — `Project` owns a `TemporaryDirectory` and deletes
+        the tree when it is collected, the trap `TestAHandEditIsReported`
+        records one class up.
+        """
+        self._held = p = Project(board=board_with(section))
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return p
+
+    def _store(self, p: Project) -> list[dict]:
+        return [json.loads(l) for l in
+                (p.root / "risks.jsonl").read_text().split("\n") if l.strip()]
+
+    def _lint(self, root: Path) -> dict:
+        out = subprocess.run(
+            [sys.executable, str(LINT), "--root", str(root), "--json"],
+            capture_output=True, text=True)
+        return json.loads(out.stdout)
+
+    # ── it produces a store the register is a projection of ────────────
+
+    def test_the_import_writes_a_record_per_register_row(self):
+        p = self._imported()
+        self.assertEqual([r["id"] for r in self._store(p)],
+                         ["RX-001", "RX-002", "RX-003"])
+
+    def test_risks_diff_compares_against_a_real_store_and_is_green(self):
+        """**The comparison that means something.** Storeless, `risks-diff`
+        renders records derived out of the very section it compares them
+        against and says so (`source: "board"`). With a store on disk the
+        source is the store, and `cells_verbatim: {}` is what makes the bytes
+        mean something — a cell that survives as a literal is a cell the
+        renderer did not rebuild from a typed field."""
+        p = self._imported()
+        out = self._tasks(p.root, "risks-diff")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        report = json.loads(out.stdout)
+        self.assertTrue(report["identical"])
+        self.assertEqual(report["source"], "store")
+        self.assertEqual(report["cells_verbatim"], {})
+        self.assertEqual(report["cells_wearing_decoration"], {})
+        self.assertEqual(report["cells_the_store_and_board_disagree_on"], [])
+        self.assertEqual(report["rows_verbatim"], [])
+        self.assertEqual(report["rows_not_on_board"], [])
+
+    def test_the_import_is_idempotent(self):
+        """Two runs, the same bytes. `RISK_STORED` fixes the key order for
+        exactly this reason: a store whose lines reshuffle turns every write
+        into a whole-file diff."""
+        p = self._imported()
+        first = (p.root / "risks.jsonl").read_bytes()
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual((p.root / "risks.jsonl").read_bytes(), first)
+
+    def test_a_register_with_no_rows_imports_and_reads_back_as_a_store(self):
+        """**An empty store is a store, and this is the flow that reaches
+        one.** `BOARD_TEMPLATE.md` ships `- (no active risks)`;
+        `perry-task risk-migrate` turns that section into a table with a
+        header and no rows, and importing it is the honest thing — the
+        register exists and holds nothing.
+
+        `load_risk_store` returns `[]` for a file that is absent and for one
+        that is empty, and `cmd_risks_render` read the second as the first, so
+        this project's `risks-diff` reported `source: "board"` about a store
+        sitting on disk. `risk_table` refuses that same conflation one layer
+        down and `perry-lint` asks the path; this now does too.
+        """
+        p = self._imported("| ID | Risk | Opened | Status |\n|---|---|---|---|\n")
+        self.assertEqual((p.root / "risks.jsonl").read_text(), "")
+        report = json.loads(self._tasks(p.root, "risks-diff").stdout)
+        self.assertEqual(report["source"], "store")
+        self.assertTrue(report["identical"])
+        self.assertEqual(report["register"], "table")
+        self.assertEqual(report["rows_from_store"], 0)
+
+    def test_a_project_with_no_store_still_reports_the_board_as_the_source(self):
+        """The other half of the line above: absent is not empty either."""
+        self._held = p = Project(board=board_with(REGISTER))
+        report = json.loads(self._tasks(p.root, "risks-diff").stdout)
+        self.assertEqual(report["source"], "board")
+        self.assertEqual(report["rows_from_store"], 3)
+
+    def test_a_risk_with_no_date_is_imported_as_empty_not_as_today(self):
+        """The `current: 0` defect, at the one moment it would be easiest to
+        commit: an import stamping today's date on a nine-month-old risk."""
+        by_id = {r["id"]: r for r in self._store(self._imported())}
+        self.assertEqual(by_id["RX-001"]["opened"], "")
+        self.assertEqual(by_id["RX-001"]["cleared"], "")
+        self.assertEqual(by_id["RX-002"]["cleared"], "2026-08-16")
+        self.assertEqual(by_id["RX-003"]["opened"], "2026-08-18")
+
+    def test_the_field_with_no_column_survives_a_re_import(self):
+        """`cleared` is the one stored field the four columns cannot express,
+        so `--from-board` has nothing to read for it and the store keeps it.
+        Taking the board's silence as "no date" would delete a value on the
+        second run of a command whose first run wrote it."""
+        p = self._imported()
+        records = self._store(p)
+        records[0]["cleared"] = "2026-09-09"
+        (p.root / "risks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self._store(p)[0]["cleared"], "2026-09-09")
+
+    # ── the event log: the decision, asserted ──────────────────────────
+
+    def test_the_import_appends_no_event(self):
+        """**Stated in `cmd_risks_write` and tested here.** `risk-add` /
+        `risk-clear` append events because a risk was raised or retired that
+        day. An import raises nothing: every event it could append would carry
+        today's timestamp for a row that may be nine months old — the same
+        falsehood `opened: ""` refuses one assertion up — and `perry-state`
+        reads that log."""
+        p = self._imported()
+        self.assertEqual(p.events(), [])
+
+    # ── refuse rather than guess ───────────────────────────────────────
+
+    def _refused(self, section: str, *argv):
+        """Run a refused import and prove ADR-004: nothing was written.
+
+        The board AND the store are byte-compared across the call, because
+        "nothing was written" is a claim about every file the command can
+        touch, not only about the one it was refusing to create.
+        """
+        self._held = p = Project(board=board_with(section))
+        store = p.root / "risks.jsonl"
+        before_board = (p.root / "BOARD.md").read_bytes()
+        before_store = store.read_bytes() if store.exists() else None
+        out = self._tasks(p.root, "risks-write", "--from-board", *argv)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertEqual((p.root / "BOARD.md").read_bytes(), before_board)
+        self.assertEqual(store.read_bytes() if store.exists() else None,
+                         before_store)
+        return p, out
+
+    def test_a_bullet_list_is_refused_rather_than_imported_as_nothing(self):
+        """The shape that would otherwise pass the byte gate and be wrong.
+        `risk_records` returns `[]` for bullets, rendering `[]` changes no
+        line, so `cmp` is clean — and an empty store would be written over a
+        section holding real risks, reported as a success."""
+        _p, out = self._refused("- H · the vendor contract lapses\n")
+        self.assertIn("bullet list", out.stderr)
+        self.assertIn("risk-migrate", out.stderr)
+
+    def test_a_table_that_is_not_the_register_is_refused(self):
+        _p, out = self._refused("| Severity | Meaning |\n|---|---|\n"
+                                "| H | drop everything |\n")
+        self.assertIn("must not treat as the register", out.stderr)
+
+    def test_a_board_with_no_such_section_is_refused(self):
+        h = "| ID | Title | Owner | Status | Next action | Evidence |"
+        sep = "|" + "|".join(["---"] * 6) + "|"
+        self._held = p = Project(board=(
+            f"# Board — T\n\n## P0 (must finish this period)\n\n{h}\n{sep}\n\n"
+            f"## P1\n\n{h}\n{sep}\n\n## P2\n\n{h}\n{sep}\n"))
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("no `## Top risks` section", out.stderr)
+        self.assertFalse((p.root / "risks.jsonl").exists())
+
+    DUPLICATED = ("| ID | Risk | Opened | Status |\n"
+                  "|---|---|---|---|\n"
+                  "| RX-001 | first | | open |\n"
+                  "| RX-001 | a duplicate somebody pasted | | open |\n"
+                  "| RX-002 | second | | open |\n")
+
+    def test_a_section_the_records_cannot_reproduce_is_refused_by_row_and_cell(self):
+        """**A migration that cannot reproduce what it replaces has not
+        understood it**, and this is a section where that really happens.
+
+        A repeated id is ONE record — `order` counts records, not lines — but
+        `risk_plan` renders both lines from it, so the second row would come
+        back carrying the first row's `Risk`. The bytes catch it; the refusal
+        has to name the row and the column, because "line 23 differs" does not
+        tell anyone which of their rows the store misread.
+        """
+        _p, out = self._refused(self.DUPLICATED)
+        self.assertIn("RX-001", out.stderr)
+        self.assertIn("column Risk", out.stderr)
+        self.assertIn("a duplicate somebody pasted", out.stderr)
+        self.assertIn("Nothing was written", out.stderr)
+
+    def test_a_refused_import_leaves_an_existing_store_byte_identical(self):
+        """ADR-004 over a store that already exists, not only over one that
+        does not: a refusal must not half-write, truncate or reorder it."""
+        p = self._imported()
+        before = (p.root / "risks.jsonl").read_bytes()
+        board = p.root / "BOARD.md"
+        board.write_text(board.read_text().replace(
+            "| RX-003 | DESIGN-003", "| RX-001 | DESIGN-003"))
+        before_board = board.read_bytes()
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual((p.root / "risks.jsonl").read_bytes(), before)
+        self.assertEqual(board.read_bytes(), before_board)
+
+    def test_an_unreadable_store_is_not_overwritten(self):
+        p = self._imported()
+        (p.root / "risks.jsonl").write_text("{not json\n")
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("cannot be read", out.stderr)
+        self.assertEqual((p.root / "risks.jsonl").read_text(), "{not json\n")
+
+    def test_a_malformed_store_is_not_overwritten(self):
+        p = self._imported()
+        (p.root / "risks.jsonl").write_text(
+            json.dumps({"id": "RX-001", "order": "0"}) + "\n")
+        out = self._tasks(p.root, "risks-write", "--from-board")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("malformed", out.stderr)
+        self.assertIn("`order` is str", out.stderr)
+
+    # ── the two checks that already existed, over a REAL store ─────────
+
+    def test_a_corrupted_stored_value_diverges_at_the_right_column(self):
+        """`test_a_wrong_stored_value_reddens_the_gate` proves this over a
+        store built in-process. It has to hold over the file the import
+        actually wrote, or the renderer is only known to be honest about
+        records a test made up."""
+        p = self._imported()
+        records = self._store(p)
+        records[0]["status"] = "cleared 2020-01-01"
+        (p.root / "risks.jsonl").write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records))
+        out = self._tasks(p.root, "risks-diff")
+        self.assertEqual(out.returncode, 1)
+        report = json.loads(out.stdout)
+        self.assertEqual(report["source"], "store")
+        self.assertEqual(
+            [d["column"] for d in
+             report["cells_the_store_and_board_disagree_on"]], ["Status"])
+
+    def test_a_hand_edited_cell_still_raises_exactly_one_drift_warning(self):
+        p = self._imported()
+        board = p.root / "BOARD.md"
+        board.write_text(board.read_text().replace(
+            "DESIGN-003 phase G", "somebody typed this in by hand"))
+        payload = self._lint(p.root)
+        drifted = [f for f in payload["findings"]
+                   if f["rule"] == "risk-store-drift"]
+        self.assertEqual(len(drifted), 1, drifted)
+        self.assertEqual(drifted[0]["severity"], "warn")
+        self.assertIn("RX-003", drifted[0]["message"])
+        self.assertEqual(payload["risk_store_drift"],
+                         {"store_present": True, "comparison_performed": True,
+                          "records": 3, "drifted": 1})
+
+    # ── the claim is a live guard, not a historical note ───────────────
+
+    def _uut(self, name: str):
         import importlib.machinery
         import importlib.util
-        loader = importlib.machinery.SourceFileLoader("perry_tasks_uut",
-                                                      str(TASKS))
+        loader = importlib.machinery.SourceFileLoader(name, str(TASKS))
         spec = importlib.util.spec_from_loader(loader.name, loader)
         mod = importlib.util.module_from_spec(spec)
         loader.exec_module(mod)
+        return mod
 
-        # The live schema declares it, so this is the branch shipping today.
+    def test_the_claim_is_declared_and_withdrawing_it_stops_the_write(self):
+        """The declaration landed on 2026-08-21 and this command exists
+        because of it. It reads the schema at every call rather than assuming
+        the entry, so a project on a schema that does not carry it — an old
+        install, a fork, a hand-edited file — still gets the refusal instead of
+        an undeclared file in its state root.
+        """
+        mod = self._uut("perry_tasks_uut")
         self.assertTrue(mod.risk_store_is_declared(),
                         "schema/state-schema.json no longer claims "
                         "risks.jsonl — the declaration was reverted")
-        self.assertIn("DECLARATION has landed", mod.risk_store_refusal())
-        self.assertIn("claims", mod.risk_store_refusal())
 
-        # And the other branch, reached by making the reader say no. Without
-        # this the two-message split is a constant nothing selects between.
+        self._held = p = Project(board=board_with(REGISTER))
         real = mod.risk_store_is_declared
         mod.risk_store_is_declared = lambda: False
+        noise = io.StringIO()
         try:
-            self.assertIn("What is missing is the DECLARATION",
-                          mod.risk_store_refusal())
+            with contextlib.redirect_stderr(noise):
+                rc = mod.cmd_risks_write(p.root, ["--from-board"])
         finally:
             mod.risk_store_is_declared = real
+        self.assertIn("What is missing is the DECLARATION", noise.getvalue())
+        self.assertEqual(rc, 1)
+        self.assertFalse((p.root / "risks.jsonl").exists())
 
     def test_an_unreadable_schema_does_not_claim_the_file_is_declared(self):
         """"I cannot see it" is not "it is there" — the same rule that makes an
         unknown dependency id unsatisfied. A schema that will not load must
-        fall to the undeclared branch, or a broken install silently reports
-        the safer of the two gaps as closed."""
-        import importlib.machinery
-        import importlib.util
-        loader = importlib.machinery.SourceFileLoader("perry_tasks_uut2",
-                                                      str(TASKS))
-        spec = importlib.util.spec_from_loader(loader.name, loader)
-        mod = importlib.util.module_from_spec(spec)
-        loader.exec_module(mod)
-
+        read as undeclared, or a broken install writes a file nothing claims.
+        """
+        mod = self._uut("perry_tasks_uut2")
         real = mod.lib.load_schema
         mod.lib.load_schema = lambda *a, **k: (_ for _ in ()).throw(
             OSError("no schema here"))
         try:
             self.assertFalse(mod.risk_store_is_declared())
-            self.assertIn("What is missing is the DECLARATION",
-                          mod.risk_store_refusal())
         finally:
             mod.lib.load_schema = real
+        self.assertIn("What is missing is the DECLARATION",
+                      mod.RISK_STORE_UNDECLARED)
 
 
 if __name__ == "__main__":
