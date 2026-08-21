@@ -346,7 +346,7 @@ A risk:
 | `opened` | string | `YYYY-MM-DD` on a table row; `""` on a bullet |
 | `age_days` | int \| null | `today − opened`. `null` on a bullet, which carries no date — the honest answer rather than a zero you would read as "raised today". |
 | `status` | string | the `Status` cell verbatim; `""` on a bullet |
-| `cleared_on` | string | `YYYY-MM-DD` parsed out of a cleared status |
+| `cleared_on` | string | `YYYY-MM-DD`, the day this risk stopped being live. It is the register record's `cleared` field (`bin/perry_store.py § RISK_STORED`) under the name this payload has carried since 1.6. **`""` on an open risk AND on a cleared risk whose row names no date** — a risk retired without a day recorded has no cleared date, and today's would be a fact about the project's history that nothing in its files supports. |
 | `meta` | string | the source line, whole |
 
 ### `asks` — `## User Input Queue`, the **needs-you** list
@@ -467,6 +467,22 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+**Not a version, 2026-08-21 (TASK-040).** `risks[].cleared_on` gained a
+definition rather than a description: it is the risks register record's
+`cleared` field (`bin/perry_store.py § RISK_STORED`) under the name this
+payload has carried since 1.6, and it is `""` on a cleared risk whose row names
+no date. **No key was added, removed or retyped**, so the version does not
+move.
+
+`bin/perry-state --json § risks` gained a `cleared_items[]` array in the same
+change and **this payload deliberately did not**. `tests/contract_key_parity.py
+§ place` assigns a key table to the container it best describes and refuses one
+that two containers fit equally well; `items[]` and `cleared_items[]` are the
+same eleven keys, so adding the second here left this page's one risk table
+matching both and matching neither — KR-O2.4 went from 0 to 22 in a measured
+run. The instrument is right, and teaching it about tied containers is a change
+to the KR's own measurement rather than to this contract.
 
 ### 1.14 — 2026-08-21
 

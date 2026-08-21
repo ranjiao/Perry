@@ -11,6 +11,19 @@ ordinary command (TASK-089); this one is the migration and inspection surface.
     perry-tasks write   [--root <p>] --from-board  the board → the store
     perry-tasks diff    [--root <p>]        render and byte-compare with the file
 
+Four of the same verbs reach the **risks register** — ADR-007 again,
+`perry/risks.jsonl` against `BOARD.md § Top risks` (TASK-040):
+
+    perry-tasks risks-build  [--root <p>]   derive the risks store; write nothing
+    perry-tasks risks-render [--root <p>] [--write]   the store → `## Top risks`
+    perry-tasks risks-write  [--root <p>] --from-board  the section → the store
+    perry-tasks risks-diff   [--root <p>]   render and byte-compare with the file
+
+`risks-diff` is the gate the migration has to pass **before** a field the
+register could not express is added to it: rendering the derived records back
+over the section reproduces it byte for byte, or the store has already lost
+something. A migration that cannot reproduce what it replaces has not read it.
+
 **Twenty fields are STORED and nine are DERIVED.** That split is the design,
 not an optimisation: `blocked_by`, `blocks`, `startable`, `mode`, `open`,
 `evidence_paths`, `status_text`, `timeline` and `updated` are all computable
@@ -198,6 +211,136 @@ def cmd_render(root: Path, byte_compare: bool,
     return 0 if report["identical"] else 1
 
 
+# ── the risks register ────────────────────────────────────────────────────
+#
+# `bin/perry_store.py` holds the record shape and the renderer, exactly as it
+# does for tasks. These four verbs are the migration and inspection surface;
+# `bin/perry-task risk-add` / `risk-clear` are what write it in the ordinary
+# course.
+
+
+def risk_board(root: Path):
+    """The board, and `bin/perry-task` as `ops`."""
+    mod = _task_module()
+    return mod.Board(P.resolve_state_root(root) / "BOARD.md"), mod
+
+
+def load_risk_store(root: Path) -> tuple[list[dict], Path]:
+    """The risks store as it is ON DISK — never the one just derived.
+
+    Same rule as `load_store` for the same reason: a renderer fed a store built
+    from the section it is being compared against proves that `split_row` and
+    `render_row` are inverses and proves nothing at all about the store.
+    """
+    path = perry_store.risk_store_path(P.resolve_state_root(root))
+    if not path.exists():
+        return [], path
+    return [json.loads(l) for l in path.read_text(encoding="utf-8")
+            .split("\n") if l.strip()], path
+
+
+#: What `risks-write` cannot do yet, and why — reported rather than worked
+#: around. `perry/risks.jsonl` would be a canonical record file sitting in the
+#: user's state root, and every such file is declared in
+#: `schema/state-schema.json § claims` with an owner and an anchor. That
+#: declaration is part of this project's claim surface and is released by the
+#: user, not minted by the change that wants it. Until it exists this command
+#: names the gap instead of writing an undeclared file into somebody's project
+#: — which is the exact failure ADR-004 and the claim surface exist to prevent.
+RISK_STORE_UNDECLARED = (
+    "perry-tasks: refusing to write `risks.jsonl`.\n\n"
+    "  The risks register's record shape, its renderer and its drift report "
+    "are implemented and tested, and `risks-diff` proves the projection "
+    "round-trips byte for byte. What is missing is the DECLARATION: a "
+    "canonical record file in the state root is declared in "
+    "`schema/state-schema.json § claims` with an owner and an anchor, the way "
+    "`tasks.jsonl` is, and writing one that is not declared puts a file Perry "
+    "does not admit to owning into the user's project.\n\n"
+    "  That declaration is the user's to give. Until it lands, "
+    "`perry-tasks risks-build` derives the records and `risks-diff` checks the "
+    "projection, both without writing anything.")
+
+
+def cmd_risks_render(root: Path, byte_compare: bool,
+                     write_board: bool = False) -> int:
+    """Render `## Top risks` from the risks store, or byte-compare the two.
+
+    **From the store on disk when there is one, and from the section when
+    there is not.** The second case is the migration gate and it says so in the
+    payload (`source: "board"`): rendering records derived from the very
+    section they are compared against cannot prove the store is right, and it
+    is the only thing that can prove the RENDERER is — that every cell of the
+    register rebuilds from a typed field rather than surviving as a literal.
+    The report carries `cells_verbatim` and
+    `cells_the_store_and_board_disagree_on` for exactly that reason: an
+    uncounted fallback is how a renderer passes `cmp` while reproducing
+    nothing.
+    """
+    board, ops = risk_board(root)
+    try:
+        records, store_path = load_risk_store(root)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"identical": False, "store_valid": False,
+                          "store_findings": [{"message":
+                              f"risks store is not readable JSONL "
+                              f"({type(exc).__name__}: {exc})"}]},
+                         ensure_ascii=False, indent=2),
+              file=sys.stdout if byte_compare else sys.stderr)
+        return 2
+    source = "store"
+    if records:
+        records, findings = perry_store.validate_risk_records(records)
+        if findings:
+            print(json.dumps({"identical": False, "store_valid": False,
+                              "store_findings": findings},
+                             ensure_ascii=False, indent=2),
+                  file=sys.stdout if byte_compare else sys.stderr)
+            return 2
+    else:
+        source = "board"
+        if write_board:
+            # **`--write` needs a store.** Rendering the section from records
+            # derived out of that same section writes the file back over
+            # itself: a no-op that reports success and would let somebody
+            # believe a projection had been restored. `cmd_render` refuses the
+            # storeless case for the same reason one register over.
+            print(json.dumps({
+                "store": str(store_path), "exists": store_path.exists(),
+                "note": "no risks store on disk, so there is nothing to render "
+                        "`## Top risks` FROM — rendering it from records "
+                        "derived out of that same section would write the file "
+                        "back over itself and report success. "
+                        "`perry-tasks risks-diff` is the storeless check.",
+            }, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 2
+        records = perry_store.risk_records(board, ops)
+    text, report = perry_store.risk_render(board, records, ops)
+    report["source"] = source
+    report["store"] = str(store_path)
+    if not byte_compare:
+        if write_board:
+            state_root = P.resolve_state_root(root)
+            lib.write_atomic(state_root / "BOARD.md", text)
+            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} "
+                  f"§ Top risks from {len(records)} risk record(s)")
+            return 0
+        sys.stdout.write(text)
+        return 0
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    report["identical"] = text == live
+    if not report["identical"]:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        report["first_difference"] = {
+            "line": n + 1,
+            "file": (a[n] if n < len(a) else "<past end of file>")[:400],
+            "rendered": (b[n] if n < len(b) else "<past end of render>")[:400],
+        }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if report["identical"] else 1
+
+
 def _would_discard(on_disk: list[dict], derived: list[dict]) -> list[str]:
     """Stored values the board-derived records do not carry, one line each.
 
@@ -239,8 +382,10 @@ def main(argv: list[str], _locked: bool = False) -> int:
         root = Path(argv[argv.index("--root") + 1]).expanduser().resolve()
     root = Path(os.environ.get("PERRY_PROJECT") or root).resolve()
 
-    if cmd not in ("build", "verify", "write", "render", "diff"):
-        print(f"perry-tasks: expected build / verify / write / render / diff, "
+    if cmd not in ("build", "verify", "write", "render", "diff",
+                   "risks-build", "risks-render", "risks-write", "risks-diff"):
+        print(f"perry-tasks: expected build / verify / write / render / diff "
+              f"or risks-build / risks-render / risks-write / risks-diff, "
               f"got {cmd!r}", file=sys.stderr)
         return 2
 
@@ -255,6 +400,25 @@ def main(argv: list[str], _locked: bool = False) -> int:
         except Refused as exc:
             print(f"perry-tasks: refused — {exc}", file=sys.stderr)
             return 1
+
+    if cmd in ("risks-render", "risks-diff"):
+        return cmd_risks_render(root, byte_compare=cmd == "risks-diff",
+                                write_board="--write" in argv)
+
+    if cmd == "risks-build":
+        board, ops = risk_board(root)
+        records = perry_store.risk_records(board, ops)
+        shape, _tables = perry_store.risk_section_shape(board, ops)
+        print(json.dumps({"records": len(records),
+                          "stored_fields": len(perry_store.RISK_STORED),
+                          "register": shape,
+                          "sample": records[0] if records else None},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if cmd == "risks-write":
+        print(RISK_STORE_UNDECLARED, file=sys.stderr)
+        return 1
 
     if cmd in ("render", "diff"):
         # **Not `build(root)`.** These two read the store from disk for the

@@ -2200,22 +2200,29 @@ def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
     return good, findings
 
 
-def _stored_fields() -> tuple:
-    """`perry_store.STORED` — the field list, not a second copy of it.
+def _store_module():
+    """`bin/perry_store.py`, loaded once at import.
 
-    Loaded once at import. Writing the twenty names here would be the "N
-    implementations of one rule" defect with N=2, and the copy would go stale
-    the first time a field is added.
+    Every field list this file compares against comes from here rather than
+    being spelled out again: writing the names in would be the "N
+    implementations of one rule" defect with N=2, and the copy goes stale the
+    first time a field is added.
     """
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "perry_store", Path(__file__).resolve().parent / "perry_store.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.STORED
+    return mod
 
 
-_STORED_FIELDS = _stored_fields()
+_STORE = _store_module()
+_STORED_FIELDS = _STORE.STORED
+#: The risks register's field list (TASK-040). A risk record and a task record
+#: are different shapes, so `looks_like_perry_record` has to know both or it
+#: reports the risks store as a file Perry did not write, against Perry's own
+#: claim, on every project that has one.
+_RISK_STORED_FIELDS = _STORE.RISK_STORED
 
 
 def _empty_store_drift_stats() -> dict:
@@ -2388,6 +2395,155 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
             f"`{rel_store}` — at this scale the store is stale rather than the "
             f"file hand-edited, and `perry-tasks verify` caps at ten too."))
     findings.extend(_order_drift(stored, projected_live, rel_board, rel_store))
+    return findings
+
+
+def _empty_risk_store_drift_stats() -> dict:
+    """The typed machine-readable state before a risks comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## Top risks` and `risks.jsonl` disagree — ADR-007, TASK-040.
+
+    **The same posture as `check_store_drift` one register over, at the same
+    severity, for the same reason.** ADR-007 decision 2 accepted the cost of a
+    canonical store in the user's own words — *a hand edit becomes drift* — and
+    named `perry-state § reconcile_drift` as the precedent for what happens
+    next. That precedent reports; it does not refuse. So does this, at `warn`:
+    the store is authoritative, so drift never changes what a risk IS, and
+    rendering restores the projection.
+
+    **Silent when there is no store, explicit in the payload.** "No store" and
+    "clean" are different answers. Perry's own project has no `risks.jsonl`
+    today — the file needs a `claims[]` entry before anything may write one —
+    so this check emits nothing here and says `comparison_performed: false`
+    rather than reporting a clean register it never compared.
+
+    **Field-level, like its sibling, and for the opposite reason.** The task
+    check is field-level because `BOARD.md` carries columns the store has no
+    field for. Here every column IS a stored field, so a whole-line comparison
+    would also work — but `cleared` is a stored field with NO column, and a
+    line comparison cannot see it drift at all. Comparing fields is what makes
+    the one value the projection cannot show still checkable.
+    """
+    findings: list[Finding] = []
+    check_risk_store_drift.stats = _empty_risk_store_drift_stats()
+
+    store_path = _STORE.risk_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_risk_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "risk-store-unreadable",
+                        f"`risks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## Top risks` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "risk-store-unreadable",
+                        "`risks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "risk-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    # One check may not kill the lint — the rule its sibling states and broke.
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.risk_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "risk-store-drift-uncheckable",
+                        f"the risks store could not be derived from the "
+                        f"current files ({type(exc).__name__}: {exc}), so "
+                        f"drift is unknown here rather than absent")]
+
+    good, issues = _STORE.validate_risk_records(on_disk)
+    for issue in issues:
+        rid = issue.get("id")
+        who = repr(rid) if rid else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "risk-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["id"]: r for r in good}
+    live = {r["id"]: r for r in derived}
+    check_risk_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[str, str, int | None]] = []
+    board_text = board_path.read_text(errors="replace")
+    for rid in sorted(live):
+        want, got = stored.get(rid), live[rid]
+        line = _board_line_of(board_text, rid)
+        if want is None:
+            rows.append((rid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is a fact about a sequence, not about a row —
+                     # `_order_drift` says why, and the risks register has one
+                     # section, so a moved row is reported once, below.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((rid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for rid in sorted(set(stored) - set(live)):
+        rows.append((rid, "the store holds this risk and `## Top risks` "
+                          "renders no row for it", None))
+
+    check_risk_store_drift.stats["drifted"] = len(rows)
+    for rid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"{rid} — {detail}. Under ADR-007 `## Top risks` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. `perry-tasks risks-render --write` puts the section "
+            f"back in line with the store, which is the fix whenever "
+            f"`perry-task risk-add` / `risk-clear` wrote the value — the "
+            f"ordinary case. `perry-tasks risks-write --from-board` runs the "
+            f"other direction and DISCARDS the stored value.", line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further risk(s) disagree with "
+            f"`{rel_store}`."))
+
+    # Order, once for the section. A record with no `order` at all is skipped
+    # rather than sorted to the front: "not recorded" and "recorded as first"
+    # are different claims (`_order_drift` carries the argument in full).
+    graded = [r for r in live
+              if r in stored and stored[r].get("order") is not None
+              and live[r].get("order") is not None]
+    on_board = sorted(graded, key=lambda r: live[r]["order"])
+    in_store = sorted(graded, key=lambda r: stored[r]["order"])
+    if on_board != in_store:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"`Top risks` — the rows of this section sit in a different order "
+            f"in the file than in `{rel_store}`: file "
+            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
+            f"Row order is recorded, not re-derived, so a row moved by hand is "
+            f"drift like any other cell."))
     return findings
 
 
@@ -2652,8 +2808,9 @@ def looks_like_perry_record(path: Path) -> bool:
     if not isinstance(rec, dict):
         return False
     keys = set(rec)
-    if "id" in keys and keys <= set(_STORED_FIELDS):
-        return True                 # the store
+    if "id" in keys and (keys <= set(_STORED_FIELDS)
+                         or keys <= set(_RISK_STORED_FIELDS)):
+        return True                 # a store — tasks or risks
     return keys.issuperset(_EVENT_FIELDS)
 
 
@@ -2931,6 +3088,7 @@ def main(argv: list[str]) -> int:
 
     findings: list[Finding] = []
     check_store_drift.stats = _empty_store_drift_stats()
+    check_risk_store_drift.stats = _empty_risk_store_drift_stats()
 
     if mode_templates:
         root = PERRY_HOME
@@ -2996,6 +3154,10 @@ def main(argv: list[str]) -> int:
             # deriving anything — and that is every project today, which is
             # why it runs in the default pass rather than behind a flag.
             findings.extend(check_store_drift(project_root, root))
+            # Same shape, same cost, one register over (TASK-040): it returns
+            # before deriving anything when there is no `risks.jsonl`, which is
+            # every project today.
+            findings.extend(check_risk_store_drift(project_root, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -3027,6 +3189,9 @@ def main(argv: list[str]) -> int:
             payload["conformance"] = conformance_note
             payload["store_drift"] = dict(getattr(
                 check_store_drift, "stats", _empty_store_drift_stats()))
+            payload["risk_store_drift"] = dict(getattr(
+                check_risk_store_drift, "stats",
+                _empty_risk_store_drift_stats()))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -3053,6 +3218,20 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · store: {_st['records']} record(s), "
                       f"{_st['drifted']} row(s) drifted")
+        # Printed on its own line rather than folded into the one above: "no
+        # risks store" and "a clean risks store" are different answers, and so
+        # are "no task store" and "no risks store".
+        _rst = getattr(check_risk_store_drift, "stats", None)
+        if _rst and not mode_templates:
+            if not _rst["store_present"]:
+                print("  · no `risks.jsonl` — drift against the risks store "
+                      "is unchecked, not clean")
+            elif not _rst["comparison_performed"]:
+                print(f"  · risks store: {_rst['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · risks store: {_rst['records']} record(s), "
+                      f"{_rst['drifted']} risk(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "
