@@ -60,6 +60,7 @@ import sys
 import unittest
 
 from test_task_writer import PT, PERRY_HOME, Project
+from test_one_startable_rule import Graph
 
 
 #: Two ids nothing in this repository will ever carry, **assembled rather than
@@ -265,6 +266,47 @@ class TestNoEdgeWasReDecided(unittest.TestCase):
         self.assertEqual(source.count("def dependency_satisfied("), 1)
         self.assertEqual(source.count('task["blocked_by"] = ['), 1,
                          "the edge rule has more than one home again")
+
+
+class TestBothListPathsCarryIt(unittest.TestCase):
+    """TASK-148's lesson applied to a new key rather than to a rule.
+
+    `cmd_list` serves a project that has a store; `_cmd_list_from_board` is the
+    derivation `perry-tasks build` runs for one that does not. A key added to
+    one template and not the other is a payload whose shape depends on which
+    command minted it — and `tests/test_one_startable_rule.py`'s `Graph` is
+    already the harness that reaches both, so this reuses it rather than
+    building a third fixture for the same two callers.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        graph = Graph()
+        cls.store = graph.from_store()
+        cls.board = graph.from_board()
+
+    def resolved(self, payload: dict) -> dict:
+        return {t["id"]: t.get("depends_on_resolved", "MISSING KEY")
+                for t in payload["tasks"]}
+
+    def test_the_key_is_on_every_row_of_both_payloads(self):
+        for name, data in (("store", self.store), ("board", self.board)):
+            for tid, value in self.resolved(data).items():
+                self.assertIsInstance(value, list, f"{name} path, {tid}")
+
+    def test_the_two_paths_resolve_the_same_edges(self):
+        self.assertEqual(self.resolved(self.board), self.resolved(self.store),
+                         "`cmd_list` and `_cmd_list_from_board` disagree "
+                         "about what a dependency is")
+
+    def test_the_fixture_actually_carries_a_resolved_and_an_open_edge(self):
+        """Two identical empty payloads would agree about nothing. TASK-002
+        waits on a closed row and TASK-004 on an open one."""
+        by_id = self.resolved(self.store)
+        self.assertEqual([(e["kind"], e["satisfied"]) for e in by_id["TASK-002"]],
+                         [("task", True)])
+        self.assertEqual([(e["kind"], e["satisfied"]) for e in by_id["TASK-004"]],
+                         [("task", False)])
 
 
 class TestTheNeedsYouRegisterDidNotMove(unittest.TestCase):
