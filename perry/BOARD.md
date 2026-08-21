@@ -21,6 +21,7 @@
 | 2026-08-21 | the suite's red set changes with the interpreter, so "all green" has never been a portable claim | — |
 | 2026-08-21 | the contract-invariance gate records one branch of a union type and calls it the shape | — |
 | 2026-08-21 | `status --status blocked` still requires a TASK- dependency, so a row waiting on a USER- ask must use --reason instead | — |
+| 2026-08-21 | perry-okr and perry-config write a canonical record file with no claims guard, and perry-tasks risks-write is the only one that refuses | — |
 
 ## P0 (must finish this period)
 
@@ -39,7 +40,7 @@
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 | TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
-| TASK-114 | aiMark reads Perry through the current contracts instead of an anchor five minors back | Coding Agent | blocked | Send perry/evidence/2026-08/TASK-114-delegation-prompt-v2.md, NOT the v1 file USER-015's cell still names — v1 said aiMark was pinned at 1.2 and the contract at 1.11; both were wrong (1.9 and 1.14) and v1's third acceptance item was already satisfied before dispatch. The real job is 1.9 to 1.14 plus goals 2.0 to 2.1, and only 1.12 and 1.14 need code | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | USER-015 | main |  |  |  |  |  |  |
+| TASK-114 | aiMark reads Perry through the current contracts instead of an anchor five minors back | Coding Agent | blocked | v2 prompt handed to an aiMark agent 2026-08-21 (USER-015's first half done). Waiting on the agent's result to be pasted back; the ask stays pending until it is | evidence/2026-08/TASK-114-delegation-prompt.md | V4 | USER-015 | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
