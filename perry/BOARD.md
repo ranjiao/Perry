@@ -28,6 +28,7 @@
 | 2026-08-21 | risk-add and risk-clear write the board and the event log but not risks.jsonl, so any imported project drifts on the next risk | — |
 | 2026-08-21 | _would_discard's loss refusal in perry-tasks write is unreachable past the --from-board guard above it | — |
 | 2026-08-21 | perry-state's hook_profile comment says the schema does not declare the High-stakes prefix and it does | — |
+| 2026-08-21 | the dispatch cap leaks a slot under contention: 20 concurrent registers let a third through a cap of 2 | — |
 
 ## P0 (must finish this period)
 
@@ -49,7 +50,6 @@
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
-| TASK-153 | perry-diagnose counts test fixtures as the project own state, so a fixture USER row makes it disagree with perry-task | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-153-diagnose-skips-fixtures per evidence/2026-08/TASK-153-spec-v2.md — option A, and the predicate must be by name not by path | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-165 | an id must dangle once before the report exemption can cover it | Coding Agent | not_started | RE-SCOPED 2026-08-21: the quoted-output case resolved itself once TASK-162 landed, because TASK-126 report rule needs BOTH halves — the document names a check AND the id has been reported on. The residual cost is that an id must go red once before it can be exempted | — | V4 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
