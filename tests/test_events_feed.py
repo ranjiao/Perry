@@ -21,11 +21,20 @@ and tail are the same window, and the one that did page asserted `[0,1,2,3]`
 because that is what it saw. `TestTheFirstPageIsTheTail` is the pin that makes
 the next drift a failure rather than a document.
 
+**WHICH KINDS, and why the answer is no longer a hand-kept list (TASK-171).**
+The same page's `event` key table listed fourteen values; the writer could emit
+twenty-five, and `ask`, `answer` and `intake` had been in this project's own log
+for days. `TestTheDocumentedKindsAreTheWriters` at the bottom of this file
+derives the emittable set from `bin/perry-task` and compares it both ways, so a
+kind added to the writer reddens the suite on the commit that adds it. That is
+the direction the table rotted in — nobody deleted a row, somebody added a kind.
+
 Run: python3 tests/parallel test_events_feed
 """
 
 from __future__ import annotations
 
+import ast
 import importlib.machinery
 import importlib.util
 import json
@@ -306,10 +315,6 @@ class TestItIsReadOnly(FeedCase):
         self.assertEqual(self.feed()["total"], 0)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 # ── the documented kinds vs the kinds the writer can emit ─────────────────────
 #
 # **The table this pins went stale by eleven names.** `schema/events-list-
@@ -337,8 +342,6 @@ if __name__ == "__main__":
 # not been taught about. A new kind has to evade BOTH to reach the log
 # undocumented, and the direction that matters is the one that let this table
 # rot: ADDING a kind and not documenting it.
-
-import ast   # noqa: E402  — used only by the derivation below
 
 CONTRACT = ROOT / "schema" / "events-list-contract.md"
 
@@ -479,3 +482,6 @@ class TestTheDocumentedKindsAreTheWriters(unittest.TestCase):
         self.assertEqual(
             leaked, set(),
             f"§ The event kinds is being read as a key table: {sorted(leaked)}")
+
+if __name__ == "__main__":
+    unittest.main()
