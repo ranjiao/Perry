@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "002-fields-are-typed"
-updated: "2026-08-21T03:25:37Z"
+updated: "2026-08-21T10:04:08Z"
 objectives:
   - id: O1
     title: "The three stores are stores"
@@ -46,7 +46,6 @@ objectives:
         title: "Lines of markdown parser serving the three stores"
         metric: "0 for the three; adoption keeps what it needs (baseline 3,320 across `viewer/parsers.py` and `viewer/tables.py`)"
         target: 0
-        current: 0
         stretch: false
         tasks: ["TASK-095", "TASK-099"]
   - id: O3
