@@ -1,5 +1,5 @@
 {
-  "contract_files_discovered": 5,
+  "contract_files_discovered": 6,
   "contracts": {
     "perry-decide/list/1.0": {
       "command": "perry-decide list --json",
@@ -46,6 +46,18 @@
       "unassigned": [],
       "unparsed_sketches": []
     },
+    "perry-knowledge/list/1.0": {
+      "command": "perry-knowledge list --json",
+      "contract": "perry-knowledge/list/1.0",
+      "documented": 16,
+      "documented_not_emitted": [],
+      "emitted": 16,
+      "emitted_not_documented": [],
+      "file": "schema/knowledge-list-contract.md",
+      "not_observable": {},
+      "unassigned": [],
+      "unparsed_sketches": []
+    },
     "perry-roles/list/1.0": {
       "command": "perry-state --json \u00a7 roles",
       "contract": "perry-roles/list/1.0",
@@ -68,9 +80,9 @@
     "perry-task/list/1.14": {
       "command": "perry-task list --json",
       "contract": "perry-task/list/1.14",
-      "documented": 115,
+      "documented": 113,
       "documented_not_emitted": [],
-      "emitted": 115,
+      "emitted": 113,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
       "not_observable": {},
@@ -81,14 +93,16 @@
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 means",
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 status",
         "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 threshold_hours",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 asked",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 blocks",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 id",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 idle",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 idle_days",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 needed",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 priority",
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 status",
         "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 id",
-        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 unknown",
-        "`intake` \u2014 queue mode's inbox \u00a7 age_days",
-        "`intake` \u2014 queue mode's inbox \u00a7 arrived",
-        "`intake` \u2014 queue mode's inbox \u00a7 discharged",
-        "`intake` \u2014 queue mode's inbox \u00a7 n",
-        "`intake` \u2014 queue mode's inbox \u00a7 outcome",
-        "`intake` \u2014 queue mode's inbox \u00a7 request"
+        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 unknown"
       ],
       "unparsed_sketches": []
     }
