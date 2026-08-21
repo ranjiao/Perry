@@ -74,7 +74,7 @@ bin/perry-lint --root . --json --strict
 the standup payload; the linter answers "is this file well-formed?", the
 extractor answers "what does it say?".
 
-## The three read contracts
+## The six read contracts
 
 A program outside Perry reads state through these, not through this schema and
 not by parsing markdown. Each is versioned **independently** (DESIGN-005 § 4
@@ -86,6 +86,31 @@ another moves.
 | `perry-task/list/1.11` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
 | `perry-decide/list/1.0` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
 | `perry-goals/list/1.0` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
+| `perry-roles/list/1.0` | `perry-state --json § roles` | `schema/roles-list-contract.md` | the declared roles and what each is allowed to do |
+| `perry-events/list/1.0` | `perry-task events --json` | `schema/events-list-contract.md` | the append-only event log behind the board |
+| `perry-knowledge/list/1.0` | `perry-knowledge list --json` | `schema/knowledge-list-contract.md` | knowledge cards, their provenance, and staleness |
+
+### How a reader finds one — the glob, not this table
+
+Every contract page is `schema/*-contract.md`, and each states its own
+invocation in its `# ` heading inside backticks. That is how
+`tests/contract_key_parity.py` runs each tool **without holding a list of
+them**, and the run prints how many files it matched. A page added later is
+therefore discovered and measured whether or not anyone remembered to add a row
+above — and the row count here is held to the glob's count by
+`tests/test_contract_key_parity.py § TestThisREADMEAgreesWithTheGlob`, so this
+sentence stops being true out loud rather than quietly.
+
+This is not a hypothetical. `perry-knowledge/list/1.0` shipped its payload,
+emitted its `contract:` string, and had no page here for its whole life — so a
+consumer reading `schema/` concluded there was no read side for knowledge cards
+at all and asked for one to be built. **A contract with no page in `schema/` is
+a contract that does not exist to the reader it was written for.**
+
+**The version in the first column is a convenience and nothing checks it.** The
+authoritative version is the `contract` string in the payload itself, plus the
+page's own heading; two of the pins above are behind their pages today, and
+correcting them is TASK-130's row rather than something to fix in passing.
 
 Three properties they share, and the third is the one that matters on a real
 project:

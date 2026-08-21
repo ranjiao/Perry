@@ -24,7 +24,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
@@ -241,6 +241,146 @@ class TestTheOtherMandatoryFields(Base):
             mod.lib.is_iso_date = original
         self.assertEqual(len(cards), 1)
         self.assertEqual(calls, ["DATE-SENTINEL"])
+
+
+class TestTheContractPageStatesTheRealStalePredicate(Base):
+    """`schema/knowledge-list-contract.md` tells a consumer what `stale` means.
+
+    Perry's own store holds one card, and one card can make almost any rule
+    look true. A page that stated a plausible-but-wrong predicate would be
+    worse than no page: the whole point of publishing the contract is that a
+    front-end renders "3 cards unverified since June" from this flag, and it
+    can only do that safely if the flag means what the page says.
+
+    So the three claims the page makes are exercised against the tool, at the
+    boundary and on each shape the predicate treats as unmeasurable — not
+    against the one card that happens to be checked in.
+    """
+
+    THRESHOLD = SCHEMA["thresholds"]["knowledge_stale_days"]["value"]
+
+    def cards(self, cases: dict[str, tuple[str, str]]) -> dict[str, dict]:
+        """`{slug: (last_verified_cell, invalidated_by_cell)}` → the payload,
+        keyed by slug. An empty cell means the field is omitted entirely."""
+        files = {}
+        for slug, (seen, trip) in cases.items():
+            files[f"knowledge/reporting/{slug}.md"] = (
+                f"# reporting/{slug} — the claim this card makes\n\n"
+                "- Kind: knowledge\n- Owner role: —\n"
+                f"- Source: {SRC}\n"
+                + (f"- Last verified: {seen}\n" if seen else "")
+                + (f"- Invalidated by: {trip}\n" if trip else "")
+                + "\nbody\n")
+        root = self.project(files)
+        r = self.run_tool(root, "list", "--json")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        payload = json.loads(r.stdout)
+        self.assertEqual(len(payload["cards"]), len(cases))
+        return {"payload": payload,
+                "by_slug": {c["slug"]: c for c in payload["cards"]}}
+
+    def test_the_boundary_is_strictly_greater_than_the_threshold(self):
+        """The page says "at exactly `knowledge_stale_days` days old a card is
+        *not* stale; one day later it is". A page saying "older than 90 days"
+        and meaning `>=` is off by one on exactly the day someone looks."""
+        today = date.today()
+        def ago(days: int) -> str:
+            return (today - timedelta(days=days)).isoformat()
+        got = self.cards({
+            "day_before": (ago(self.THRESHOLD - 1), "the source moves"),
+            "on_the_day": (ago(self.THRESHOLD), "the source moves"),
+            "day_after": (ago(self.THRESHOLD + 1), "the source moves"),
+        })["by_slug"]
+        self.assertFalse(got["day_before"]["stale"])
+        self.assertFalse(got["on_the_day"]["stale"],
+                         f"a card verified exactly {self.THRESHOLD} days ago "
+                         f"is not stale — the predicate is `age > threshold`")
+        self.assertTrue(got["day_after"]["stale"])
+
+    def test_a_date_that_cannot_be_read_is_false_not_true(self):
+        """The page says `stale: false` means "not measurably stale", not
+        "verified recently". Every shape with no readable date lands on
+        `false`, including one that is old enough to be alarming."""
+        got = self.cards({
+            "absent": ("", "the source moves"),
+            "dash": ("—", "the source moves"),
+            "prose": ("last June", "the source moves"),
+            "impossible": ("2026-02-30", "the source moves"),
+            "future": ((date.today() + timedelta(days=400)).isoformat(),
+                       "the source moves"),
+        })["by_slug"]
+        for slug, card in got.items():
+            self.assertFalse(
+                card["stale"],
+                f"{slug}: a card with no readable date reported stale — the "
+                f"page promises a consumer that `false` can mean unmeasurable")
+            if slug != "absent":
+                self.assertNotEqual(
+                    card["last_verified"], "",
+                    f"{slug}: the cell is copied verbatim so a consumer can "
+                    f"see why it was unmeasurable")
+        self.assertEqual("", got["absent"]["last_verified"])
+
+    def test_the_tripwire_is_not_an_input_to_stale(self):
+        """The third claim, and the one a reader is most likely to assume the
+        other way round, given `--help` calls `Invalidated by` the field that
+        stops a card going stale in silence. It stops it at WRITE time. It is
+        not read here: `stale` is a day count and only a day count."""
+        old = (date.today() - timedelta(days=self.THRESHOLD + 30)).isoformat()
+        fresh = date.today().isoformat()
+        got = self.cards({
+            "old_with_tripwire": (old, "the tenants table drops is_test"),
+            "old_without_tripwire": (old, ""),
+            "fresh_without_tripwire": (fresh, ""),
+        })
+        by_slug = got["by_slug"]
+        self.assertEqual("", by_slug["old_without_tripwire"]["invalidated_by"])
+        self.assertEqual(
+            by_slug["old_with_tripwire"]["stale"],
+            by_slug["old_without_tripwire"]["stale"],
+            "the tripwire changed `stale`, which the contract page says it "
+            "cannot")
+        self.assertTrue(by_slug["old_with_tripwire"]["stale"])
+        self.assertFalse(
+            by_slug["fresh_without_tripwire"]["stale"],
+            "a card that can never be invalidated is still not `stale` — a "
+            "consumer wanting that list tests `invalidated_by == ''`")
+        self.assertEqual(2, got["payload"]["stale"])
+        self.assertEqual(3, got["payload"]["total"])
+
+    def test_the_threshold_is_read_from_the_schema_not_hard_coded(self):
+        """The page tells a consumer the number is not part of the contract
+        and must be read from `thresholds`. That is only honest if the tool
+        reads it from there too."""
+        mod = load_tool_module()
+        mod.load_schema()
+        source = TOOL.read_text(encoding="utf-8")
+        self.assertIn("knowledge_stale_days", source)
+        self.assertEqual(
+            self.THRESHOLD,
+            mod.lint().SCHEMA_THRESHOLDS["knowledge_stale_days"]["value"])
+
+    def test_the_aggregates_describe_the_array_in_front_of_you(self):
+        """`total` and `stale` are documented as aggregates over THIS payload,
+        which is what makes them safe to render beside a filtered list."""
+        old = (date.today() - timedelta(days=self.THRESHOLD + 30)).isoformat()
+        root = self.project({
+            "knowledge/reporting/a.md": (
+                f"# reporting/a — claim\n\n- Kind: knowledge\n- Owner role: —\n"
+                f"- Source: {SRC}\n- Last verified: {old}\n"
+                f"- Invalidated by: x\n\nbody\n"),
+            "knowledge/toolchain/b.md": (
+                f"# toolchain/b — claim\n\n- Kind: knowledge\n- Owner role: —\n"
+                f"- Source: {SRC}\n- Last verified: {date.today()}\n"
+                f"- Invalidated by: x\n\nbody\n")})
+        whole = json.loads(self.run_tool(root, "list", "--json").stdout)
+        self.assertEqual((2, 1), (whole["total"], whole["stale"]))
+        one = json.loads(
+            self.run_tool(root, "list", "--json", "--topic", "toolchain").stdout)
+        self.assertEqual((1, 0), (one["total"], one["stale"]))
+        self.assertEqual(one["total"], len(one["cards"]))
+        self.assertEqual(one["stale"],
+                         len([c for c in one["cards"] if c["stale"]]))
 
 
 class TestARealCloseProducesACard(Base):

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 import tempfile
 import unittest
@@ -103,6 +104,63 @@ class TestDiscoveryIsAGlob(unittest.TestCase):
             before = len(parity.discover(home))
             (home / "sixth-contract.md").write_text(SIXTH.format(extra="ghost"))
             self.assertEqual(before + 1, len(parity.discover(home)))
+
+
+class TestThisREADMEAgreesWithTheGlob(unittest.TestCase):
+    """`schema/README.md` said *three* read contracts for two contracts' worth
+    of drift, while the directory beside it held five.
+
+    A count in prose is exactly the hand-written list `discover()` refuses to
+    carry, and it rots the same way — so it is checked against the glob rather
+    than against a person who counted once. The failure this prevents is not
+    cosmetic: a consumer is told to read `schema/`, and a contract the README
+    does not list is one a careful reader concludes does not exist.
+    `perry-knowledge/list/1.0` shipped, emitted its `contract:` string, and was
+    asked to be built anyway.
+    """
+
+    #: Small on purpose. The README writes the number as a word, in house
+    #: style, and a general number parser here would be more machinery than
+    #: the fact deserves.
+    WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+             "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+    def setUp(self):
+        self.readme = (parity.ROOT / "schema" / "README.md").read_text()
+        self.pages = parity.discover()
+
+    def test_the_stated_count_is_the_number_of_contract_pages(self):
+        stated = re.search(r"^## The (\w+) read contracts\s*$",
+                           self.readme, flags=re.M)
+        self.assertIsNotNone(
+            stated, "schema/README.md no longer has a `## The <n> read "
+                    "contracts` heading for the count to be checked against")
+        word = stated.group(1).lower()
+        self.assertIn(word, self.WORDS,
+                      f"the heading says {word!r}, which is not a number word "
+                      f"this check knows")
+        self.assertEqual(
+            len(self.pages), self.WORDS[word],
+            "schema/README.md says there are "
+            f"{self.WORDS[word]} read contracts and {parity.GLOB} matches "
+            f"{len(self.pages)}: "
+            + ", ".join(p.name for p in self.pages))
+
+    def test_every_contract_page_on_disk_is_listed(self):
+        """The count agreeing is necessary and not sufficient — six rows for
+        five pages plus one invention would pass the check above."""
+        for page in self.pages:
+            self.assertIn(
+                f"schema/{page.name}", self.readme,
+                f"{page.name} is a contract page that schema/README.md never "
+                f"names, so a reader of that page cannot find it")
+
+    def test_the_readme_says_how_a_new_one_is_discovered(self):
+        """Point 2 of TASK-169: the count going stale again is expected, and
+        what saves the reader is being told the glob — not the table."""
+        self.assertIn(parity.GLOB, self.readme,
+                      "schema/README.md does not tell a reader the glob that "
+                      "discovers a contract page")
 
 
 class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
