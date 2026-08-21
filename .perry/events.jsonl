@@ -713,3 +713,4 @@
 {"ts": "2026-08-21T14:07:50", "event": "intake", "id": "", "title": "conformance.missing_projection ships and is documented but no version ever announced it, and key-parity cannot see that", "arrived": "2026-08-21", "actor": "agent", "from": null, "to": "intake"}
 {"ts": "2026-08-21T14:13:21", "event": "start", "id": "TASK-040", "title": "risks are still read from a markdown table and are not records in the store", "track": "main", "actor": "agent", "from": "not_started", "to": "in_progress"}
 {"ts": "2026-08-21T14:13:21", "event": "start", "id": "TASK-045", "title": "Retire the runtime tolerance branches, behind the conformance marker", "track": "main", "actor": "agent", "from": "not_started", "to": "in_progress"}
+{"ts": "2026-08-21T14:19:32", "event": "intake", "id": "", "title": "no test pins the drift severity at warn, so the decision recorded 2026-08-21 has no mechanical guard", "arrived": "2026-08-21", "actor": "agent", "from": null, "to": "intake"}

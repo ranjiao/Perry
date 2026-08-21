@@ -37,8 +37,18 @@ stays that way. A dependency is a decision, not an implementation detail.
 
 ## User Commitments
 
-- Decide whether a **hand-edited rendered file** is a `warn` or an `error`
-  (ADR-007 decision 2 says it becomes drift; the severity is unset).
+- ~~Decide whether a **hand-edited rendered file** is a `warn` or an `error`
+  (ADR-007 decision 2 says it becomes drift; the severity is unset).~~
+  **DECIDED `warn` — Ran Jiao, 2026-08-21.** This confirms what ships rather
+  than changing it: all nine drift findings in `bin/perry-lint`, across both
+  the task store and the risks store, are already `Finding("warn", …)` and none
+  is `error`. The reasoning the code gives for it is the reasoning accepted:
+  *a drifted Board still has a valid Board shape*, and the conformance gate's
+  boundary is that **warnings are quality signals while errors are shape
+  violations**. The store stays authoritative, so drift can never change Task
+  truth, and re-rendering restores the projection. Consequence accepted with
+  it: a hand edit does not fail CI, and an emergency hand edit stays possible
+  and is recorded rather than refused.
 - Sign off the migration against a real project at **V5** — the same bar
   TASK-044 carried, because this rewrites the same files.
 
