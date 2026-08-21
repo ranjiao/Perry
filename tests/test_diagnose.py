@@ -1188,6 +1188,123 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
                          {"queue": 1, "design": 1})
 
 
+class AFixtureIsNotTheProjectsState(unittest.TestCase):
+    """TASK-153. `tests/fixtures/sample-project/BOARD.md` keeps a pending
+    `USER-014` because a test needs a board with a pending row on it. LOAD-03
+    counted it as one of *Perry's* open decisions, so `diagnose` reported a
+    queue of 1 against `perry-task`'s 0 — and only once every one of Perry's
+    real rows had been answered did the disagreement become visible.
+
+    The fix is `perry-explain § is_illustrative`, called and not restated. The
+    objection the row was opened with is what these tests exist for: this tool
+    runs on **any** folder, so the rule may not be a guess about anybody's
+    layout. `is_illustrative` decides by directory NAME, relative to the root
+    being diagnosed — which is why a project that itself lives inside
+    `tests/fixtures/` keeps its whole queue.
+    """
+
+    def project(self, root: Path) -> Path:
+        (root / ".perry").mkdir(parents=True, exist_ok=True)
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+        return root
+
+    # ── the half the objection is about ──────────────────────────────────
+    def test_a_project_rooted_inside_a_fixtures_directory_keeps_its_queue(self):
+        """The failure mode the fix could have introduced: a vendored or
+        embedded project whose real state sits at
+        `…/tests/fixtures/vendor-app/` reporting an empty queue because of
+        where somebody else filed it. Paths are read relative to the root
+        being diagnosed, so none of those directory names is ever seen."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "tests" / "fixtures" / "vendor-app"
+            root.mkdir(parents=True)
+            self.project(root)
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Which region is the default | TASK-005 | 3d | pending |\n"))
+            write(root, "notes/rollout.md",
+                  "# Rollout\n\nUSER-001 blocks the rollout.\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"],
+                         {"queue": 1, "design": 0},
+                         "a project stored under tests/fixtures/ lost its own "
+                         "queue")
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-001"])
+
+    # ── the half the row was opened for ──────────────────────────────────
+    def test_a_fixture_board_is_neither_the_queue_nor_a_row_in_it(self):
+        """`examples/BOARD.md` is a fixture, `state/BOARD.md` is the project.
+
+        Three ways this used to go wrong, all in one tree:
+
+        * `examples/` sorts before `state/`, so the `*/BOARD.md` fallback read
+          the fixture's queue as the project's;
+        * `USER-900` exists only in the fixture, is discussed in the project's
+          own notes — which is how a fixture id reaches `in_tracking_doc` —
+          and was counted;
+        * `USER-001` is defined in the fixture too, because the sorted walk
+          reaches `examples/` first. Dropping on the definition point alone
+          would lose a real pending row, which is the same miscount with the
+          sign flipped.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            write(root, "examples/BOARD.md", board_with_queue(
+                "| USER-001 | Which region is the default | TASK-005 | 9d | pending |\n"
+                "| USER-900 | A row a test needs to see pending | TASK-9 | 4d | pending |\n"))
+            write(root, "state/BOARD.md", board_with_queue(
+                "| USER-001 | Which region is the default | TASK-005 | 3d | pending |\n"))
+            write(root, "notes/testing.md",
+                  "# Testing\n\nThe board fixture keeps USER-900 pending on "
+                  "purpose, and USER-001 is the row it mirrors.\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"],
+                         {"queue": 1, "design": 0})
+        samples = load["open_decision_samples"]
+        self.assertEqual(len(samples), 1, samples)
+        # The evidence must point at the project's board, not the fixture's —
+        # the id alone would pass while the reader was sent to `examples/`.
+        self.assertTrue(samples[0].startswith("state/BOARD.md:"), samples[0])
+        self.assertTrue(samples[0].endswith("— USER-001"), samples[0])
+
+    # ── one rule, one implementation ─────────────────────────────────────
+    def test_the_queue_register_asks_perry_explains_own_predicate(self):
+        """Agreement over a corpus would pass with two copies of the rule in
+        the tree, and a second copy is the defect `bin/perry-diagnose §
+        load_sibling` was written to avoid. So this asserts identity: the
+        function object the queue register calls is the one `perry-explain`
+        defines, proved by replacing it and watching the answer change."""
+        diagnose = load_bin_module("perry-diagnose")
+        explain = diagnose.load_sibling("perry-explain")
+        self.assertNotIn("is_illustrative", vars(diagnose),
+                         "perry-diagnose grew its own copy of the rule")
+
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            write(root, "examples/BOARD.md", board_with_queue(
+                "| USER-900 | A row a test needs pending | TASK-9 | 4d | pending |\n"))
+            write(root, "notes/testing.md",
+                  "# Testing\n\nUSER-900 is the fixture's own row.\n")
+            entries = explain.harvest(root)
+
+            self.assertEqual(diagnose.open_user_asks(root, entries, explain), [])
+
+            asked: list[str] = []
+            real = explain.is_illustrative
+            try:
+                explain.is_illustrative = lambda rel: asked.append(rel) or False
+                relaxed = diagnose.open_user_asks(root, entries, explain)
+            finally:
+                explain.is_illustrative = real
+
+        self.assertTrue(asked, "the queue register never consulted the rule")
+        self.assertEqual([i for i, _ in relaxed], ["USER-900"],
+                         "the register answered from something other than "
+                         "perry-explain.is_illustrative")
+
+
 class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
     """Evidence files quote command transcripts, and those transcripts carry
     ids from throwaway fixtures and from copies of *other* projects. Committing
