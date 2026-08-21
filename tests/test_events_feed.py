@@ -11,6 +11,16 @@ The other half is order. `ts` has seconds precision and ties are real, and
 cross-task stream therefore has no authoritative order unless the log's own
 order is the answer.
 
+**WHICH END, and why this file now says so out loud (1.1, TASK-168).** Every
+text described the tail — this docstring's first line, `schema/events-list-
+contract.md` line 1 and § Why this exists, `--help`, and that page's own paging
+example — while the code returned the HEAD. Nothing here disagreed with the
+code, so the drift lived for three days and was found by a consumer, not by the
+suite: the tests below all used logs shorter than the default limit, where head
+and tail are the same window, and the one that did page asserted `[0,1,2,3]`
+because that is what it saw. `TestTheFirstPageIsTheTail` is the pin that makes
+the next drift a failure rather than a document.
+
 Run: python3 tests/parallel test_events_feed
 """
 
@@ -82,25 +92,98 @@ class TestOrderIsLogOrder(FeedCase):
                          [0, 1, 2, 3, 4])
 
 
+class TestTheFirstPageIsTheTail(FeedCase):
+    """**The direction, pinned. This is the test that was missing.**
+
+    `perry-task events --json --limit 6` on a 733-event log returned `seq`
+    0 through 5 — the OLDEST events in the project, five days stale — while
+    three texts and a code comment in the contract's own example promised the
+    tail. A consumer that trusted the documentation shipped a "recent activity"
+    panel of the oldest events it had; the one that found it read 437 KB per
+    project to slice the end itself.
+
+    **Every case here uses a log LONGER than the window**, which is the one
+    thing the pre-1.1 tests never did: on a log shorter than `--limit` the head
+    and the tail are the same rows and the bug is invisible.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.log(*[self.ev(n, to=f"s{n}") for n in range(30)])
+
+    def test_a_limited_window_is_the_newest_events_not_the_oldest(self):
+        got = self.feed("--limit", "6")
+        self.assertEqual([e["seq"] for e in got["events"]],
+                         [24, 25, 26, 27, 28, 29])
+        self.assertEqual([e["to"] for e in got["events"]],
+                         ["s24", "s25", "s26", "s27", "s28", "s29"])
+
+    def test_the_default_window_is_the_newest_events_too(self):
+        """No `--limit` is the same question with the default of 20, and it is
+        the call a "recent activity" panel actually makes."""
+        self.assertEqual([e["seq"] for e in self.feed()["events"]],
+                         list(range(10, 30)))
+
+    def test_the_window_is_still_ascending_log_order_within_the_page(self):
+        """The tail, **not** the log reversed. A consumer rendering newest-first
+        reverses it itself; a payload that arrived pre-reversed would break the
+        `seq` contiguity every other test here relies on."""
+        seqs = [e["seq"] for e in self.feed("--limit", "6")["events"]]
+        self.assertEqual(seqs, sorted(seqs))
+
+    def test_the_last_event_of_the_page_is_the_last_line_of_the_log(self):
+        self.assertEqual(self.feed("--limit", "3")["events"][-1]["to"], "s29")
+
+
 class TestPagingDoesNotOverlapOrSkip(FeedCase):
     def setUp(self):
         super().setUp()
         self.log(*[self.ev(n, to=f"s{n}") for n in range(10)])
 
     def test_two_pages_partition_the_log(self):
+        """Since 1.1 the cursor walks BACKWARDS — there is nothing after the
+        tail to page to, so older is the only direction left."""
         a = self.feed("--limit", "4")
         b = self.feed("--limit", "4", "--since", a["cursor"])
         first = [e["seq"] for e in a["events"]]
         second = [e["seq"] for e in b["events"]]
-        self.assertEqual(first, [0, 1, 2, 3])
-        self.assertEqual(second, [4, 5, 6, 7])
+        self.assertEqual(first, [6, 7, 8, 9])
+        self.assertEqual(second, [2, 3, 4, 5])
         self.assertEqual(set(first) & set(second), set())
+
+    def test_paging_the_whole_log_yields_every_event_exactly_once(self):
+        """**The check that catches a bad tail-first flip.** Skipping or
+        repeating one event at a window boundary is the obvious way to get this
+        wrong, and it survives a spot check of two pages: the boundary is only
+        wrong by one."""
+        seen, cursor, pages = [], None, 0
+        while True:
+            pages += 1
+            self.assertLess(pages, 20, "paging did not terminate")
+            page = self.feed(*(["--limit", "3"]
+                               + (["--since", cursor] if cursor else [])))
+            seen = [e["seq"] for e in page["events"]] + seen
+            if not page["more"]:
+                break
+            cursor = page["cursor"]
+        self.assertEqual(seen, list(range(10)),
+                         "the pages are not the log, in order, exactly once")
+
+    def test_the_cursor_is_the_oldest_event_in_the_window(self):
+        """It is the boundary the NEXT page ends at, so it must name the end
+        the next page grows from — the oldest row here, not the newest."""
+        page = self.feed("--limit", "4")
+        self.assertEqual(page["cursor"].split(":", 1)[0],
+                         str(page["events"][0]["seq"]))
 
     def test_more_is_false_at_the_end(self):
         last = self.feed("--limit", "10")
         self.assertFalse(last["more"])
         self.assertEqual(self.feed("--limit", "10",
                                    "--since", last["cursor"])["count"], 0)
+
+    def test_more_is_true_while_older_events_remain(self):
+        self.assertTrue(self.feed("--limit", "4")["more"])
 
     def test_a_bad_limit_is_refused_not_guessed(self):
         proc = subprocess.run(
@@ -125,6 +208,19 @@ class TestRotationIsDetectedNotHidden(FeedCase):
         out = self.feed("--since", cursor)
         self.assertTrue(out["rotated"])
         self.assertEqual(out["events"][0]["seq"], 0, "it must restart, not skip")
+
+    def test_it_restarts_at_the_newest_window_not_at_the_head(self):
+        """Since 1.1, "restart" means *where a feed with no cursor starts* —
+        the tail. Restarting at the head would answer a rotation by handing the
+        consumer the oldest events in the project labelled as a fresh page,
+        which is the exact defect 1.1 removed. The log here is longer than the
+        window, which is what makes the two answers different."""
+        self.log(*[self.ev(n, to=f"s{n}") for n in range(30)])
+        cursor = self.feed("--limit", "4")["cursor"]
+        self.log(*[self.ev(n, to=f"s{n}") for n in range(60, 90)])
+        out = self.feed("--limit", "4", "--since", cursor)
+        self.assertTrue(out["rotated"])
+        self.assertEqual([e["seq"] for e in out["events"]], [26, 27, 28, 29])
 
     def test_an_unrotated_cursor_does_not_claim_rotation(self):
         self.log(*[self.ev(n) for n in range(5)])
@@ -153,6 +249,43 @@ class TestTheFieldsThatWereInvisible(FeedCase):
         self.log(self.ev(0, event="done", owner="Claude", role="coding"))
         e = self.feed()["events"][0]
         self.assertEqual((e["owner"], e["role"]), ("Claude", "coding"))
+
+
+class TestTheFlipWasAnnouncedNotSilent(FeedCase):
+    """**Same key, same type, different rows.** `1.x` only adds keys and that
+    rule is unbroken — which is exactly why it does not cover this change, and
+    why the minor had to move and `semantics` had to carry an entry. A silent
+    flip is the failure mode a consumer cannot detect at all.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.log(*[self.ev(n) for n in range(3)])
+
+    def test_the_minor_moved(self):
+        self.assertEqual(self.feed()["contract"], "perry-events/list/1.1")
+
+    def test_the_payload_carries_a_semantics_array(self):
+        self.assertIsInstance(self.feed().get("semantics"), list)
+
+    def test_the_current_minor_has_an_entry_naming_the_fields_that_moved(self):
+        entry = next((s for s in self.feed()["semantics"]
+                      if s["version"] == "1.1"), None)
+        self.assertIsNotNone(entry, "1.1 changed a meaning and must say so")
+        self.assertEqual(set(entry["fields"]), {"events", "cursor", "more"})
+        self.assertTrue(entry["note"].strip(), "the note is what gets shown")
+
+    def test_semantics_is_ordered_oldest_minor_first(self):
+        """It is read as "everything newer than the minor I tested against",
+        which is a slice only while it is sorted. `perry-task/list` shipped
+        1.5, 1.9, 1.7 once."""
+        got = [s["version"] for s in self.feed()["semantics"]]
+        self.assertEqual(got, sorted(
+            got, key=lambda v: tuple(int(x) for x in v.split("."))))
+
+    def test_the_contract_document_states_the_same_version(self):
+        page = (ROOT / "schema" / "events-list-contract.md").read_text()
+        self.assertIn("perry-events/list/1.1", page.splitlines()[0])
 
 
 class TestItIsReadOnly(FeedCase):

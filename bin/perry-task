@@ -117,9 +117,11 @@ Usage:
   perry-task list  [--all] [--track T] [--json]
   perry-task events [--limit N] [--since <cursor>] [--json]
                   the event log's TAIL, in log order, with a cursor.
-                  A separate surface from `list` because three of that
-                  payload's fields are defined relative to the payload,
-                  so paging it would change their meaning per page.
+                  --limit N is the newest N events; --since <cursor> pages
+                  BACKWARDS from there into older ones. A separate surface
+                  from `list` because three of that payload's fields are
+                  defined relative to the payload, so paging it would change
+                  their meaning per page.
 
   --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
   --dry-run       print what would be written; touch nothing
@@ -273,6 +275,37 @@ LIST_SEMANTICS = [
              "and every `DESIGN-`/`ADR-` handle, none of which have a state "
              "Perry can ever read — is still unknown and still "
              "unsatisfied."},
+]
+
+# `perry-task events --json`. Its own contract because it is its own surface:
+# `schema/events-list-contract.md` § Why this exists rather than `--limit` on
+# `list` has the measurement that made a second payload cheaper than paging the
+# first one.
+EVENTS_CONTRACT = "perry-events/list/1.1"
+
+# Same rule as `LIST_SEMANTICS`, for the feed: one entry per minor under which
+# an existing value changed MEANING. Empty is the normal case and 1.1 is not
+# it — the fix for TASK-168 returns different ROWS under `events[]` without
+# adding, removing or retyping a single key, which is precisely the change
+# "`1.x` only adds keys" does not cover and this array does.
+EVENTS_SEMANTICS = [
+    {"version": "1.1",
+     "fields": ["events", "cursor", "more"],
+     "note": "The first page is now the log's TAIL, and paging with `--since` "
+             "runs BACKWARDS into older events. Until 1.1 the first page was "
+             "the log's HEAD while this contract's first line, its § Why this "
+             "exists, `--help` and this page's own paging example all said "
+             "tail — so `events --limit 6` returned the six OLDEST events in "
+             "the project, five days stale on the log that reported it, with "
+             "nothing in the payload saying so. `cursor` was the NEWEST event "
+             "in the window and is now the OLDEST one, the boundary the next "
+             "page ends at; `more` asked whether events followed the cursor "
+             "and now asks whether older ones precede it. `seq` is unchanged "
+             "and is still the absolute position in the log, so a consumer "
+             "that reassembles pages sorts on `seq` either way. If you read "
+             "the whole log to slice the newest N off the end yourself, stop: "
+             "`--limit N` is that slice. If you paged forward from `0:` to "
+             "walk the log, you now walk it from the other end."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -5647,6 +5680,25 @@ def cmd_events(args, ctx) -> dict:
     only WITHIN one id. A flattened cross-task stream therefore has no
     authoritative order at all. This returns **log order**, and the contract
     says so.
+
+    **Which END of the log, and the bug that named it (1.1, TASK-168).** Until
+    1.1 the first page was the log's HEAD. Three texts — this docstring, the
+    contract's first line and its § Why this exists, and `--help` — all said TAIL, and the
+    contract's own paging example carried the comment `# newest window is the
+    FIRST page`. The implementation was what drifted, not the design: a
+    consumer that trusted the documentation shipped a "recent activity" panel
+    of the OLDEST events in the project, and the one that caught it worked
+    around it by asking for a window larger than any real log — 437 KB per
+    project — and slicing the end itself. `--limit 6` now returns the six
+    events somebody asking for six wants.
+
+    **Paging therefore runs backwards, into older events, and that is forced
+    rather than chosen.** If the first page is the newest window there is
+    nothing after it to page to; the only direction left is older. `cursor` is
+    the OLDEST event in the window — the boundary the next page ends at — and
+    `more` says whether anything sits before it. `seq` is unchanged: it is the
+    absolute position in the log, so a consumer reassembling the log from its
+    pages sorts on `seq` and does not have to know which way it walked.
     """
     events = ctx["events"]
     limit = 20
@@ -5662,7 +5714,13 @@ def cmd_events(args, ctx) -> dict:
     # is what makes rotation DETECTABLE — if the event now at that index carries
     # a different ts, lines were removed beneath it and the consumer is told
     # rather than silently handed the wrong window.
-    start, rotated = 0, False
+    #
+    # The window is a half-open `[start, end)` and it is ANCHORED AT ITS END:
+    # with no cursor the end is the log's end, so the first page is the tail.
+    # `--since` moves the end back to the cursored event, EXCLUSIVE, which is
+    # what makes the pages a partition — the cursored event is the OLDEST row
+    # of the page that produced the cursor and must not be handed out twice.
+    end, rotated = len(events), False
     if args.since:
         raw = str(args.since)
         idx, _, want_ts = raw.partition(":")
@@ -5671,15 +5729,27 @@ def cmd_events(args, ctx) -> dict:
         except ValueError:
             raise Refused(
                 f"--since takes a cursor from a previous call; got {raw!r}")
-        start = at_i + 1
         at = events[at_i] if 0 <= at_i < len(events) else None
         if want_ts and (at is None or at.get("ts") != want_ts):
-            rotated, start = True, 0
+            # Rotation restarts at the NEWEST window, which is where a feed
+            # with no cursor starts. Restarting at the head would hand a
+            # consumer the oldest events in the project labelled as a fresh
+            # page — the exact defect 1.1 exists to remove.
+            rotated, end = True, len(events)
+        else:
+            end = max(0, min(at_i, len(events)))
+    start = max(0, end - limit)
 
-    window = events[start:start + limit]
-    last = start + len(window) - 1
+    window = events[start:end]
     return {
-        "contract": "perry-events/list/1.0",
+        "contract": EVENTS_CONTRACT,
+        # The minors under which a value here changed MEANING, oldest first.
+        # Rule 2 promises `1.x` only adds keys and that is still true; 1.1 adds
+        # no key and returns different ROWS under the same one, which is
+        # exactly the case this array reports and the reason the minor moved.
+        "semantics": sorted(
+            EVENTS_SEMANTICS,
+            key=lambda e: tuple(int(x) for x in e["version"].split("."))),
         "project_root": ctx["project_root"].as_posix(),
         "events": [{
             "seq": start + n,
@@ -5706,9 +5776,15 @@ def cmd_events(args, ctx) -> dict:
         } for n, e in enumerate(window)],
         "count": len(window),
         "total": len(events),
-        "cursor": (f"{last}:{window[-1].get('ts', '')}" if window
+        # The OLDEST event in this window, since 1.1 — the boundary the NEXT
+        # page ends at. Feeding it back returns the `limit` events immediately
+        # before it, so the pages partition the log and neither skip nor repeat
+        # one at a boundary.
+        "cursor": (f"{start}:{window[0].get('ts', '')}" if window
                    else (args.since or "")),
-        "more": start + len(window) < len(events),
+        # There are OLDER events before `cursor`. Since 1.1: paging runs
+        # backwards, so this is the question a consumer asks to keep going.
+        "more": start > 0,
         # True when the cursor pointed at an event the log no longer holds.
         # Rotation under TASK-070 truncates history, and a feed that silently
         # restarted would look like a burst of new activity.
