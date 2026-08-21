@@ -60,6 +60,7 @@
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-170 | an answered USER- ask is in no register a consumer can query | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-170-answered-asks | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | DECIDED 2026-08-21 by the user: option A — an objective record in okr.jsonl with a minted stable id, not a computed key and not a declaration that objectives are unaddressable. Needs the RFC first: minting an id for an entity that has never had one is the change ADR-007 and DESIGN-008 each took an RFC to make, and DESIGN-007 section 5.3 already plans the Goal store this row is the missing piece of | — | V4 | — | main |  |  |  |  |  |  |
+| TASK-177 | OKR setting is a ten-field checklist where it should be an elicitation | Coding Agent | not_started | study done: evidence/2026-08/office-hours-elicitation-study.md. goals/reference/setup.md contains ZERO AskUserQuestion calls — init is a ten-field checklist and the rubric grades the result at the end. The gap is everything before the draft exists. Needs the design doc first | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
