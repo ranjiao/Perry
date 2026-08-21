@@ -699,6 +699,46 @@ class TestTheTwoStoreFilesAreReportable(Fixture):
         self.assertNotIn("perry/tasks.jsonl", paths)
         self.assertNotIn(".perry/events.jsonl", paths)
 
+    def test_the_two_md_stores_are_not_reported_as_files_perry_did_not_write(self):
+        """`looks_like_perry_record` knew the task and risk shapes only.
+
+        `okr.jsonl` and `.perry/config.jsonl` are the other two stores Perry
+        claims, and their records key on `kind` — a `setting` record carries
+        `key` and a `track` record carries `track`, neither of which has an
+        `id` — so the `id`-gated branch could not see them at all. Adding the
+        `okr.jsonl` claim reproduced, one store over, exactly the false
+        positive TASK-040 fixed for risks: a fourth NS-01 warning naming
+        Perry's own file against Perry's own claim.
+
+        One record per kind, built from `perry_md_store.STORED` rather than
+        spelled out, so a field added there cannot leave this asserting a
+        shape that no longer ships."""
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("perry_lint_rec", str(LINT))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        lint = importlib.util.module_from_spec(spec)
+        loader.exec_module(lint)
+
+        md = lint._MD_STORE
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for kind, fields in md.STORED.items():
+            rec = dict.fromkeys(fields, "")
+            rec["kind"] = kind
+            f = tmp / f"{kind}.jsonl"
+            f.write_text(json.dumps(rec, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+            self.assertTrue(lint.looks_like_perry_record(f),
+                            f"a stored `{kind}` record reads as foreign")
+
+        # The other direction, or the check above is a rule that excuses
+        # anything carrying a `kind`.
+        alien = tmp / "alien.jsonl"
+        alien.write_text(json.dumps({"kind": "kr", "wat": 1}) + "\n",
+                         encoding="utf-8")
+        self.assertFalse(lint.looks_like_perry_record(alien))
+
     def test_the_recognition_is_by_record_not_by_name(self):
         """`looks_like_perry_record` must not excuse a file for being called
         `tasks.jsonl`. Matching on the name would make the claim self-defeating:

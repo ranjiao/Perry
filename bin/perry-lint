@@ -2216,7 +2216,26 @@ def _store_module():
     return mod
 
 
+def _md_store_module():
+    """`bin/perry_md_store.py`, loaded once at import — same reason as above.
+
+    It carries `STORED`, the field list for the record kinds `okr.jsonl` and
+    `.perry/config.jsonl` hold: `kr`, `commitment`, `version`, `setting`,
+    `track`. Without it `looks_like_perry_record` knows two of the four stores
+    Perry claims and reports the other two as files it did not write, against
+    its own claim — which is exactly what TASK-040 fixed for the risks store
+    and what adding the `okr.jsonl` claim reproduced one store over.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "perry_md_store", Path(__file__).resolve().parent / "perry_md_store.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 _STORE = _store_module()
+_MD_STORE = _md_store_module()
 _STORED_FIELDS = _STORE.STORED
 #: The risks register's field list (TASK-040). A risk record and a task record
 #: are different shapes, so `looks_like_perry_record` has to know both or it
@@ -2811,6 +2830,13 @@ def looks_like_perry_record(path: Path) -> bool:
     if "id" in keys and (keys <= set(_STORED_FIELDS)
                          or keys <= set(_RISK_STORED_FIELDS)):
         return True                 # a store — tasks or risks
+    # `okr.jsonl` and `.perry/config.jsonl` key on `kind`, not on `id`: a
+    # `setting` record carries `key` and a `track` record carries `track`, so
+    # the branch above cannot see them. Same rule, read off the same tuple.
+    kind = rec.get("kind")
+    if isinstance(kind, str) and kind in _MD_STORE.STORED:
+        if keys <= set(_MD_STORE.STORED[kind]):
+            return True             # a store — okr or config
     return keys.issuperset(_EVENT_FIELDS)
 
 

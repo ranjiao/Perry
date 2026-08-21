@@ -261,6 +261,48 @@ RISK_STORE_UNDECLARED = (
     "projection, both without writing anything.")
 
 
+#: The same refusal once the declaration HAS landed. Two messages, because
+#: after 2026-08-21 the first one is a lie: `claims[]` now carries
+#: `risks.jsonl`, and a tool that keeps naming the declaration as the gap sends
+#: whoever reads it to add an entry that is already there. The gap moved one
+#: step: `cmd_risks_write` was never written. The agent that stopped here
+#: stopped BEFORE the write path on purpose and left this constant standing in
+#: for a command that does not exist, which was true on the day and is not now.
+RISK_STORE_NO_WRITE_PATH = (
+    "perry-tasks: refusing to write `risks.jsonl`.\n\n"
+    "  The DECLARATION has landed — `schema/state-schema.json § claims` "
+    "carries `risks.jsonl`, owner `work`, anchor `state` — so this is no "
+    "longer the gap. What is missing is the write path itself: TASK-040 "
+    "shipped the record shape, the renderer, the byte-identity gate and the "
+    "drift report, and deliberately stopped before building "
+    "`risks-write --from-board`, because writing an undeclared file was the "
+    "thing to refuse and the declaration was not its to give.\n\n"
+    "  Until it is built, `perry-tasks risks-build` derives the records and "
+    "`risks-diff` checks the projection, both without writing anything.")
+
+
+def risk_store_is_declared() -> bool:
+    """Does `schema/state-schema.json § claims` carry `risks.jsonl`?
+
+    Read from the schema rather than hardcoded, so the refusal below cannot
+    outlive the condition it reports. A schema this tool cannot read is
+    treated as NOT declaring it: "I cannot see it" is not "it is there", the
+    same rule that makes an unknown dependency id unsatisfied.
+    """
+    try:
+        claims = lib.load_schema(RuntimeError).get("claims", [])
+    except Exception:
+        return False
+    return any(isinstance(c, dict) and c.get("path") == "risks.jsonl"
+               for c in claims)
+
+
+def risk_store_refusal() -> str:
+    """Which of the two gaps is actually open today."""
+    return (RISK_STORE_NO_WRITE_PATH if risk_store_is_declared()
+            else RISK_STORE_UNDECLARED)
+
+
 def cmd_risks_render(root: Path, byte_compare: bool,
                      write_board: bool = False) -> int:
     """Render `## Top risks` from the risks store, or byte-compare the two.
@@ -417,7 +459,7 @@ def main(argv: list[str], _locked: bool = False) -> int:
         return 0
 
     if cmd == "risks-write":
-        print(RISK_STORE_UNDECLARED, file=sys.stderr)
+        print(risk_store_refusal(), file=sys.stderr)
         return 1
 
     if cmd in ("render", "diff"):

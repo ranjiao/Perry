@@ -521,6 +521,64 @@ class TestTheMigrationSurface(unittest.TestCase):
         self.assertIn("claims", out.stderr)
         self.assertFalse((p.root / "risks.jsonl").exists())
 
+    def test_the_refusal_names_the_gap_that_is_actually_open(self):
+        """Two gaps, one at a time, and the message must not outlive its own
+        condition.
+
+        The declaration landed on 2026-08-21. A refusal that keeps naming it
+        sends whoever reads it to add a `claims[]` entry that is already
+        there — the same wasted trip TASK-114's v1 delegation prompt sent an
+        agent on, for the same reason: a message measured against a world that
+        moved. So the branch is read off the schema, and BOTH branches are
+        asserted here rather than only whichever one is live today."""
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("perry_tasks_uut",
+                                                      str(TASKS))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+
+        # The live schema declares it, so this is the branch shipping today.
+        self.assertTrue(mod.risk_store_is_declared(),
+                        "schema/state-schema.json no longer claims "
+                        "risks.jsonl — the declaration was reverted")
+        self.assertIn("DECLARATION has landed", mod.risk_store_refusal())
+        self.assertIn("claims", mod.risk_store_refusal())
+
+        # And the other branch, reached by making the reader say no. Without
+        # this the two-message split is a constant nothing selects between.
+        real = mod.risk_store_is_declared
+        mod.risk_store_is_declared = lambda: False
+        try:
+            self.assertIn("What is missing is the DECLARATION",
+                          mod.risk_store_refusal())
+        finally:
+            mod.risk_store_is_declared = real
+
+    def test_an_unreadable_schema_does_not_claim_the_file_is_declared(self):
+        """"I cannot see it" is not "it is there" — the same rule that makes an
+        unknown dependency id unsatisfied. A schema that will not load must
+        fall to the undeclared branch, or a broken install silently reports
+        the safer of the two gaps as closed."""
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("perry_tasks_uut2",
+                                                      str(TASKS))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        mod = importlib.util.module_from_spec(spec)
+        loader.exec_module(mod)
+
+        real = mod.lib.load_schema
+        mod.lib.load_schema = lambda *a, **k: (_ for _ in ()).throw(
+            OSError("no schema here"))
+        try:
+            self.assertFalse(mod.risk_store_is_declared())
+            self.assertIn("What is missing is the DECLARATION",
+                          mod.risk_store_refusal())
+        finally:
+            mod.lib.load_schema = real
+
 
 if __name__ == "__main__":
     unittest.main()

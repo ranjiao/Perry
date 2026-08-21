@@ -864,6 +864,27 @@
       "note": "the task STORE (ADR-007) - the canonical Task record `BOARD.md` is projected from. Written by every mutating `perry-task` command, so it is territory Perry occupies. State-root relative like the board beside it: `perry/tasks.jsonl` when the state root is `perry/`."
     },
     {
+      "path": "okr.jsonl",
+      "kind": "file",
+      "owner": "goals",
+      "anchor": "state",
+      "note": "the OKR STORE (ADR-007, TASK-092) - the canonical KR and version-log record `OKR.md` is projected from. State-root relative like the file beside it: `perry/okr.jsonl` when the state root is `perry/`."
+    },
+    {
+      "path": "risks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the risks STORE (ADR-007, TASK-040) - the canonical Risk record the `Top risks` section of `BOARD.md` is projected from. State-root relative, beside `tasks.jsonl`."
+    },
+    {
+      "path": ".perry/config.jsonl",
+      "kind": "file",
+      "owner": "perry",
+      "anchor": "project",
+      "note": "the config STORE (ADR-007, TASK-092). Anchored at the project root, inside the `.perry/` anchor rather than behind the State root pointer, for the same reason `.perry/events.jsonl` is: this is the file that declares where the state root is, so it cannot sit behind that pointer. Declared before it exists, like `incidents/` and `runbook/`; `perry-config write --from-file` is the explicit import that creates it."
+    },
+    {
       "path": "PROJECT_STATE.md",
       "kind": "file",
       "owner": "work",
