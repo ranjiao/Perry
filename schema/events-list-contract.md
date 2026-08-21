@@ -91,7 +91,7 @@ files a `USER-` ask under a task id that does not exist. `field` is `""` on all
 ten — `from`/`to` there describe the section row's own status, which is not one
 of the task cells `field` names.
 
-### The fifteen that describe a task row
+### The kinds that describe a task row
 
 | Kind · the subcommand that writes it | `task` | What it records |
 |---|---|---|
@@ -111,7 +111,7 @@ of the task cells `field` names.
 | `done` · `perry-task done` | `TASK-` id | the row closed. `rung`, `evidence`, `owner` and `role` ride along |
 | `drop` · `perry-task drop` | `TASK-` id | the row closed unfinished. Same extra keys as `done` |
 
-### The ten that describe something else
+### The kinds that describe something else
 
 | Kind · the subcommand that writes it | `task` | What it records |
 |---|---|---|
