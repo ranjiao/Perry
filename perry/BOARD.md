@@ -30,6 +30,7 @@
 | 2026-08-21 | perry-state's hook_profile comment says the schema does not declare the High-stakes prefix and it does | — |
 | 2026-08-21 | the dispatch cap leaks a slot under contention: 20 concurrent registers let a third through a cap of 2 | — |
 | 2026-08-21 | DESIGN-007 names the goal store perry/goals.jsonl and the file on disk is perry/okr.jsonl | — |
+| 2026-08-21 | a wait-loop whose own command line matches the pattern it waits on never exits and poisons every agent's is-a-suite-running check | — |
 
 ## P0 (must finish this period)
 
@@ -54,7 +55,6 @@
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-165 | an id must dangle once before the report exemption can cover it | Coding Agent | not_started | RE-SCOPED 2026-08-21: the quoted-output case resolved itself once TASK-162 landed, because TASK-126 report rule needs BOTH halves — the document names a check AND the id has been reported on. The residual cost is that an id must go red once before it can be exempted | — | V4 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
-| TASK-168 | perry-task events returns the log's head while three places promise its tail | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-168-events-tail | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-169 | perry-knowledge/list/1.0 ships every field aiMark asked for and has no contract page | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-169-knowledge-contract-page | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-170 | an answered USER- ask is in no register a consumer can query | Coding Agent | not_started | QUEUED behind TASK-168: both touch bin/perry-task. Carries a small design call — answered asks stay in asks.items with their status, or the edge declares its own kind — which the spec will require the agent to argue rather than pick silently | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | DECIDED 2026-08-21 by the user: option A — an objective record in okr.jsonl with a minted stable id, not a computed key and not a declaration that objectives are unaddressable. Needs the RFC first: minting an id for an entity that has never had one is the change ADR-007 and DESIGN-008 each took an RFC to make, and DESIGN-007 section 5.3 already plans the Goal store this row is the missing piece of | — | V4 | — | main |  |  |  |  |  |  |
