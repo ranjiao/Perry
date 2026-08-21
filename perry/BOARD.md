@@ -47,8 +47,8 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Arrived |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TASK-037 | perry-goals writer | Coding Agent | not_started | unblocked: TASK-092 closed 2026-08-20. Re-scope per its own note — flag naming and the module-scope handler defect only; the rest was overtaken by TASK-092 and TASK-123 | — | V4 | TASK-092 | main |  |  |
-| TASK-040 | perry-task: Top risks becomes a table with id / opened / cleared | Coding Agent | not_started | Risks still read from a markdown table with empty opened/cleared; make them records in the store. | — | V4 | TASK-089 | main |  |  |
+| TASK-037 | one perry-goals refusal names the flag the user typed and its sibling does not | Coding Agent | not_started | RE-SCOPED 2026-08-21 after verifying round 3 and round 4 against todays code: the NameError is gone, viewer/tables.py no longer raises an undefined name, and the whitespace refusal names its flag. What survives is the line-break refusal, which does not | — | V3 | TASK-092 | main |  |  |
+| TASK-040 | risks are still read from a markdown table and are not records in the store | Coding Agent | not_started | RE-SCOPED 2026-08-21: the original title described making Top risks a markdown table with id/opened/cleared, which ADR-007 superseded. Its real content is that risks become store records | — | V3 | TASK-089 | main |  |  |
 | TASK-045 | Retire the runtime tolerance branches, behind the conformance marker | Coding Agent | not_started | unblocked: the whole chain closed — TASK-044 and TASK-047 are both done. The conformance marker enforces on this branch, which is the precondition this row was waiting for | — | V4 | TASK-044, TASK-047 | main |  |  |
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
