@@ -3678,74 +3678,43 @@ def cmd_cadence_done(args, ctx) -> dict:
     return {"id": cid, "last_run": f"{ran:%Y-%m-%d}", "next_due": due, **plan}
 RISK_ID_RE = re.compile(r"\bRX-(\d+)\b")
 
-# The tool owns the row and every computed cell; the agent owns the prose cell.
-# `ID` and `Opened` are stamped, `Status` is a state machine with two moves, and
-# `Risk` is the human's sentence and is never parsed, never enum-checked and
-# never rewritten.
-RISK_COLUMNS = ["ID", "Risk", "Opened", "Status"]
-
-# A bullet that is a placeholder rather than a risk. `BOARD_TEMPLATE.md` ships
-# `- (no active risks)` and several fixtures carry `- none`; migrating those
-# would mint an id for a risk named "none".
-_RISK_PLACEHOLDER = re.compile(
-    r"^\(?\s*(?:no active risks?|none|n/a|na|tbd|—|-|–|无|暂无)\s*\)?[.。]?$", re.I)
-
-_RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
-
-_TABLE_SEP = re.compile(r"^\|\s*:?-{2,}")
-
-
-def risk_section_tables(board: Board) -> list[list[str]]:
-    """Every table header under `## Top risks`, in document order.
-
-    Deliberately NOT `Board.section_table`, which answers "the first table in
-    this section" and cannot see a second one. This is the same scan
-    `viewer/parsers.py:_has_risk_header` runs, asking the same question of the
-    same section — and the writer has to ask it the same way, because the two
-    answering it differently is what B-1 was.
-    """
-    start, end = board.named_section("Top risks")
-    out = []
-    for i in range(start + 1, end):
-        if not _TABLE_SEP.match(board.lines[i].strip()):
-            continue
-        prev = board.lines[i - 1].strip()
-        if prev.startswith("|"):
-            out.append(split_row(board.lines[i - 1]))
-    return out
+# ── the risks register: this file ASKS, it does not answer ────────────────
+#
+# **TASK-040, ADR-007 applied to `## Top risks`.** Four of the five names below
+# used to be definitions here, and each had a counterpart in
+# `viewer/parsers.py` that was supposed to say the same thing. Twice they did
+# not, and both times every exit closed at once: on `| ID | **Risk** | … |`
+# this file said "risk table" and the reader said "not one", so `risk-add`
+# wrote rows, `perry-state` reported 0 risks, `perry-lint` was clean and
+# `risk-migrate` said "already migrated"; and on `1. a risk` this file saw a
+# bullet the reader did not.
+#
+# They are BINDINGS now, not copies. `viewer/parsers.py` holds the rule because
+# it is the bottom of the import graph — this file, `bin/perry-lint`,
+# `bin/perry-state` and `bin/perry_store.py` all import it already — and
+# `tests/test_risks_store.py` asserts these are the same objects rather than
+# two functions that happen to agree on a corpus.
+RISK_COLUMNS = P.RISK_COLUMNS
+is_risk_header = P.is_risk_register_header
+_RISK_PLACEHOLDER = P._RE_RISK_PLACEHOLDER
+_RISK_BULLET = P._RE_RISK_BULLET
 
 
-def is_risk_header(header: list[str]) -> bool:
-    """Whether a header declares the risk-statement column, resolved by name.
-
-    `Risk` is the column that identifies the migrated shape — the reader says
-    so at `viewer/parsers.py:_parse_risk_table`, and it is the cell that holds
-    the sentence, so a table without it is not a risk table no matter what
-    else it has.
-    """
-    return any(norm(h) == norm("Risk") for h in header)
-
-
-def risk_section_shape(board: Board) -> tuple[str, list[list[str]]]:
+def risk_section_shape(board: Board) -> tuple[str, list[dict]]:
     """How `## Top risks` is currently written: `table` | `bullets` | `foreign`.
 
-    `foreign` covers both shapes this writer must not touch: a table under the
-    heading that has no `Risk` column (a legend, a severity key), and a section
-    holding two tables. Neither is malformed — the reader handles both — but
-    `Board.section_table` and `Board.section_rows` address the FIRST table in a
-    section and read straight through a blank line into the next one, so a
-    write into either shape lands in the wrong table. Refusing is the only
-    answer available that does not invent one.
+    `bin/perry_store.py § risk_section_shape` is the implementation — the store
+    has to answer this to know which lines it renders, and the writer has to
+    answer it to know whether it may write, and those are the same question.
+    A section this returns `absent` for is one `has_section` already refused
+    for the caller, so it collapses into `bullets` here rather than adding a
+    fourth answer the three call sites would each have to handle.
     """
-    tables = risk_section_tables(board)
-    if len(tables) == 1 and is_risk_header(tables[0]):
-        return "table", tables
-    if tables:
-        return "foreign", tables
-    return "bullets", tables
+    shape, tables = perry_store.risk_section_shape(board, _ops())
+    return ("bullets" if shape == "absent" else shape), tables
 
 
-def refuse_foreign_risk_table(tables: list[list[str]]) -> None:
+def refuse_foreign_risk_table(tables: list[dict]) -> None:
     if len(tables) > 1:
         raise Refused(
             "`## Top risks` holds more than one table, and this tool writes "
@@ -3753,7 +3722,8 @@ def refuse_foreign_risk_table(tables: list[list[str]]) -> None:
             "table. Nothing was written. Move the other table under its own "
             "heading, then run this again")
     raise Refused(
-        f"`## Top risks` holds a table with no `Risk` column ({tables[0]}), so "
+        f"`## Top risks` holds a table with no `Risk` column "
+        f"({tables[0]['header']}), so "
         f"it is not a risk register — a legend or a severity key reads exactly "
         f"like this. Nothing was written, and no column was added to it: "
         f"bolting the risk columns onto it would make the reader treat it as "
@@ -3782,17 +3752,19 @@ def mint_risk_id(board: Board, events: list[dict], state_root: Path) -> str:
 
 
 def risk_bullets(board: Board) -> list[tuple[int, str]]:
-    """(line index, bullet text) for every risk bullet, placeholders excluded."""
+    """(line index, bullet text) for every risk bullet, placeholders excluded.
+
+    What counts as a bullet and what counts as a placeholder is
+    `parsers.risk_bullet_text`, which the reader calls too. This function only
+    supplies the lines and keeps their indices, which the reader has no use for
+    and the writer cannot do without.
+    """
     start, end = board.named_section("Top risks")
     out = []
     for i in range(start + 1, end):
-        m = _RISK_BULLET.match(board.lines[i].strip())
-        if not m:
-            continue
-        text = m.group(1).strip()
-        if not text or _RISK_PLACEHOLDER.match(text):
-            continue
-        out.append((i, text))
+        text = P.risk_bullet_text(board.lines[i])
+        if text:
+            out.append((i, text))
     return out
 
 
@@ -4047,7 +4019,12 @@ def cmd_risk_clear(args, ctx) -> dict:
     keys = [norm(h) for h in header]
     values = dict(zip(keys, cells))
     prev = (values.get("status", "") or "").strip()
-    if re.match(r"^(?:cleared|resolved|closed)\b", prev.strip("*~` "), re.I):
+    # `P.status_is_cleared`, not a local regex. This site had its own
+    # `^(?:cleared|resolved|closed)\b` — three of the eight words the reader
+    # knows — so a risk a human had retired as `mitigated` or `已缓解` read as
+    # live here and as cleared everywhere else, and clearing it a second time
+    # overwrote the first clear's date and its reason.
+    if P.status_is_cleared(prev):
         raise Refused(f"{args.id} is already cleared: {prev[:60]}")
     today = f"{date.today():%Y-%m-%d}"
     values["status"] = f"cleared {today} — {args.reason}"
@@ -4395,7 +4372,7 @@ def board_sections(ctx) -> dict:
         # addition to it, not a precondition for it.
         return empty
     open_risks = snap.open_top_risks
-    risks = [{
+    risk_entry = lambda r: {  # noqa: E731 — named so the note below can point at it
         # `id` is `""` on a bullet, and that is the honest answer rather than
         # the first word of somebody's sentence. It used to be the SEVERITY
         # LETTER: `- H · Apple developer agreement expired` arrived as
@@ -4422,9 +4399,30 @@ def board_sections(ctx) -> dict:
         # for "raised today".
         "age_days": ps.days_since(r.opened or ""),
         "status": r.status or "",
+        # The date the risk stopped being live — `cleared` in the store's
+        # record (`perry_store.RISK_STORED`), `cleared_on` here because that is
+        # the name this payload has carried since 1.6 and renaming a live key
+        # buys nothing. `""` on an open risk AND on a risk retired without a
+        # date: a cleared risk whose row names no day has no cleared date, and
+        # stamping today would assert a fact about the project's history that
+        # nothing in its files supports.
         "cleared_on": r.cleared_on or "",
         "meta": r.meta or "",
-    } for r in open_risks]
+    }
+    risks = [risk_entry(r) for r in open_risks]
+    # **`bin/perry-state --json § risks` carries a `cleared_items` list and this
+    # payload does not**, which is deliberate and was measured rather than
+    # chosen. `tests/contract_key_parity.py § place` assigns a key table to the
+    # container it best describes and refuses to place one that two containers
+    # fit equally well. `items[]` and `cleared_items[]` are the same eleven
+    # keys, so adding the second here left the page's one risk table matching
+    # both and matching neither: KR-O2.4 went from 0 to 22 in a run. The
+    # instrument is right — a page with one table and two identically shaped
+    # arrays genuinely does not say which it documents — and teaching it about
+    # tied containers is a change to the KR's own measurement, which is not
+    # this row's to make. `perry-state --json` carries no contract page and no
+    # parity coverage, so the cleared risks are readable there today; this
+    # surface gains them when the page can name them unambiguously.
     asks = [{
         "id": u.id or "",
         "needed": u.needed_from_user or "",

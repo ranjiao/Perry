@@ -37,6 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
 import lib  # noqa: E402
+import parsers as P  # noqa: E402
 from tables import cell_spans, split_row  # noqa: E402
 
 #: Written to the store. Everything else in `perry-task/list` is computed.
@@ -606,7 +607,307 @@ def render(board, records: list[dict], ops) -> tuple[str, dict]:
     return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
+# ── the risks register ────────────────────────────────────────────────────
+#
+# **ADR-007, one register further along (TASK-040).** `tasks.jsonl` was the
+# first slice and `okr.jsonl` the second (TASK-092); `## Top risks` is the
+# third register to stop being a document that several tools each read their
+# own way. Everything below is the SAME machinery the task store runs on —
+# `markdown_tables`
+# finds the table, `row_descriptor` and `describe_cell` decide how a row is
+# rebuilt from a record, `render_lines` puts the file back together, and the
+# acceptance is `cmp`. Nothing here is a second renderer, because two renderers
+# of one file is the defect ADR-007 exists to remove and a fifth arrangement
+# would be that defect wearing a store.
+#
+# What is register-specific is exactly two tables — which fields are stored and
+# which column each is rendered from — and one question, "which table under
+# this heading IS the register", which `viewer/parsers.py` answers for
+# everybody.
+
+#: Written to the risks store, in a fixed key order so two writes of the same
+#: state produce the same bytes.
+#:
+#: **`cleared` has no column, on purpose.** It is the date the risk stopped
+#: being live, and the original TASK-040 row wanted it and could not have it:
+#: the register has four columns and the cleared date rides inside the `Status`
+#: cell's prose (`cleared 2026-08-16 — <reason>`). A record has room for it,
+#: so it is a typed field here and stays a rendered detail of `Status` there —
+#: the same arrangement `summary` has on a task, which is stored, has no Board
+#: column, and is carried across rebuilds from the store rather than recovered
+#: from prose (`bin/perry-task § store_records`, ADR-009).
+#:
+#: `order` records authored row order for the reason `STORED` gives one line
+#: up: a store that did not carry it would reorder somebody's section on the
+#: first write.
+RISK_STORED = ("id", "risk", "opened", "cleared", "status", "order")
+
+#: `norm(header cell)` → the store field that column is rendered from. Four
+#: columns, four fields, and `cleared` is deliberately absent — see above.
+RISK_FIELD_BY_COLUMN = {"id": "id", "risk": "risk", "opened": "opened",
+                        "status": "status"}
+
+#: The heading the register lives under, canonically. Resolved per language by
+#: `ops.heading_matches` / `parsers.heading_is`, never by this literal.
+RISK_SECTION = "Top risks"
+
+
+def risk_store_path(state_root: Path) -> Path:
+    return Path(state_root) / "risks.jsonl"
+
+
+def risk_section_shape(board, ops) -> tuple[str, list[dict]]:
+    """How `## Top risks` is currently written, and every table under it.
+
+    `absent` | `table` | `bullets` | `foreign`, where `foreign` covers the two
+    shapes a writer must not write into: a table with no `Risk` column (a
+    legend, a severity key) and a section holding more than one table. Neither
+    is malformed — the reader handles both — but a write addressed at "the
+    section's first table" lands in the wrong one.
+
+    Tables come back as `markdown_tables` blocks rather than as bare headers,
+    so the caller that needs to refuse and the caller that needs to render are
+    looking at the same objects.
+    """
+    if not board.has_section(RISK_SECTION):
+        return "absent", []
+    start, end = board.named_section(RISK_SECTION)
+    tables = markdown_tables(board.lines, start, end, ops.norm)
+    if len(tables) == 1 and P.is_risk_register_header(tables[0]["header"]):
+        return "table", tables
+    if tables:
+        return "foreign", tables
+    return "bullets", tables
+
+
+def risk_table(board, ops) -> dict | None:
+    """The one table under `## Top risks` that IS the register, or None.
+
+    None means "there is nothing here this store can hold" — no section, a
+    bullet list, or a shape a writer must not touch — and it is never the same
+    answer as "a register with no rows in it", which is a table with a header
+    and an empty `rows`. Collapsing those two is how a migrated project with
+    zero risks came to re-read its own prose preamble as risk bullets.
+    """
+    shape, tables = risk_section_shape(board, ops)
+    return tables[0] if shape == "table" else None
+
+
+def risk_record(values: dict, order: int | None, stored: dict | None = None) -> dict:
+    """One register row → one store record, in `RISK_STORED` key order.
+
+    `values` is the row's cells keyed by `ops.norm`ed column, as
+    `markdown_tables` returns them.
+
+    **`cleared` is the one field that is not a cell.** It comes from the store
+    when the store has this row, because the store is what the field means
+    (ADR-007 decision 2) and a hand edit to the `Status` prose is drift to be
+    reported, not a value to absorb. It is read out of the `Status` cell only
+    when the store has nothing to say — which is the migration case, where the
+    date genuinely exists nowhere else, and is the same one-way import
+    `perry-tasks write --from-board` performs for a task.
+
+    **A risk with neither date carries neither.** `opened` is `""` on a row
+    migrated from a bullet, because the day a pre-existing risk was raised is
+    not recorded anywhere and stamping today would assert that a nine-month-old
+    risk is new; `cleared` is `""` on an open risk and on a risk retired
+    without a date. Neither is a zero and neither is today.
+    """
+    status = values.get("status", "")
+    if stored is not None and stored.get("cleared"):
+        cleared = stored["cleared"]
+    else:
+        cleared = P.status_cleared_date(status)
+    out: dict = {}
+    for k in RISK_STORED:
+        if k == "order":
+            out[k] = order
+        elif k == "cleared":
+            out[k] = cleared
+        else:
+            out[k] = values.get(k, "")
+    return out
+
+
+def risk_records(board, ops, current: list[dict] | None = None) -> list[dict]:
+    """The risks store, derived from `## Top risks` as it stands.
+
+    The one derivation, so the store `risk-add` writes and the store a
+    migration derives cannot differ. Rows whose `ID` cell holds no handle are
+    not records — they are layout, and `risk_plan` reports them as verbatim
+    rather than minting an id for them.
+    """
+    table = risk_table(board, ops)
+    if table is None:
+        return []
+    by_id = {r.get("id"): r for r in (current or []) if r.get("id")}
+    out: list[dict] = []
+    seen: set[str] = set()
+    # **Position among the rows the STORE holds**, not among the lines — the
+    # rule `board_order` states for tasks. A row whose first cell is prose
+    # rather than a handle is layout, the store has no record of it, and
+    # letting it advance the counter would leave a hole in a sequence whose
+    # only job is to say which record comes before which.
+    n = 0
+    for row in table["rows"]:
+        rid = ops.strip_handle(row["values"].get("id", ""))
+        if not rid or rid in seen:
+            continue
+        seen.add(rid)
+        values = dict(row["values"])
+        values["id"] = rid
+        out.append(risk_record(values, n, by_id.get(rid)))
+        n += 1
+    return out
+
+
+def validate_risk_records(records: list) -> tuple[list[dict], list[dict]]:
+    """Valid risk records, and structured findings for the malformed ones.
+
+    Same shape and same rules as `validate_records` one register over: one JSON
+    object per line, `id` a unique non-empty string, `order` an integer or
+    null, everything else a string or null. `bool` is not an integer here even
+    though Python subclasses it from `int`.
+    """
+    good: list[dict] = []
+    findings: list[dict] = []
+    seen: set[str] = set()
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line, "field": None,
+                             "message": "expected one JSON object per line"})
+            continue
+        bad = []
+        for field, value in rec.items():
+            if field not in RISK_STORED:
+                continue
+            if field == "order":
+                ok = value is None or (isinstance(value, int)
+                                       and not isinstance(value, bool))
+                expected = "integer or null"
+            else:
+                ok = value is None or isinstance(value, str)
+                expected = "string or null"
+            if not ok:
+                bad.append({"field": field, "actual": type(value).__name__,
+                            "expected": expected})
+        rid = rec.get("id")
+        if not isinstance(rid, str) or not rid.strip():
+            bad.append({"field": "id", "actual": type(rid).__name__,
+                        "expected": "non-empty string"})
+        elif rid in seen:
+            bad.append({"field": "id", "actual": rid,
+                        "expected": "unique risk id"})
+        if bad:
+            findings.append({"line": line,
+                             "id": rid if isinstance(rid, str) else None,
+                             "fields": bad,
+                             "message": "; ".join(
+                                 f"`{b['field']}` is {b['actual']}, expected "
+                                 f"{b['expected']}" for b in bad)})
+            continue
+        seen.add(rid)
+        good.append(rec)
+    return good, findings
+
+
+def risk_plan(board, records: list[dict], ops) -> dict:
+    """`## Top risks`, split into the lines the store fills and the lines it does not.
+
+    The same split `plan` performs for the task tables, over one section and
+    one table. Disagreements are reported rather than smoothed over: a row on
+    the board the store does not hold renders verbatim and lands in
+    `rows_verbatim`, a record the section has no line for lands in
+    `rows_not_on_board`, and a cell whose stored value differs from the file's
+    text is rendered FROM THE STORE and named in
+    `cells_the_store_and_board_disagree_on`. None of the three shows up in
+    `cmp`, which is why each is counted.
+
+    **Row order is checked, not obeyed**, exactly as `plan` does it and for the
+    same reason: reordering here would turn one moved row into a whole-section
+    diff, and the disagreement is a finding either way.
+    """
+    lines = board.lines
+    by_id = {r["id"]: r for r in records}
+    rows: dict[int, dict] = {}
+    report = {"register": "absent", "rows_from_store": 0, "rows_verbatim": [],
+              "rows_not_on_board": [], "cells_verbatim": {},
+              "cells_wearing_decoration": {},
+              "cells_the_store_and_board_disagree_on": [],
+              "rows_out_of_stored_order": {}}
+    shape, _tables = risk_section_shape(board, ops)
+    report["register"] = shape
+    table = risk_table(board, ops)
+    if table is None:
+        # Nothing under this heading is a register row, so nothing is rendered
+        # from the store — and every record the store holds is a record the
+        # projection has no line for.
+        report["rows_not_on_board"] = sorted(by_id)
+        return {"lines": lines, "rows": rows, "report": report,
+                "records": dict(by_id)}
+
+    header, keys = table["header"], table["keys"]
+    in_line_order: list[str] = []
+    seen: set[str] = set()
+    for row in table["rows"]:
+        i, cells = row["line"], row["cells"]
+        # **By column NAME, not by position.** `plan` one register over reads
+        # `cells[0]` because a task table's id is its first cell by contract;
+        # nothing says that about a register a human may have written, and
+        # `risk_records` already resolves it by name — reading it two ways
+        # here and there is the shape of every disagreement in this file's
+        # history.
+        rid = ops.strip_handle(row["values"].get("id", ""))
+        rec = by_id.get(rid) if rid else None
+        if rec is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60]})
+            continue
+        desc, findings = row_descriptor(lines[i], cells, header, keys,
+                                        RISK_FIELD_BY_COLUMN, rec)
+        if desc is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60],
+                                            "why": findings[0]["why"]})
+            continue
+        desc["id"] = desc["key"] = rid
+        seen.add(rid)
+        in_line_order.append(rid)
+        for f in findings:
+            if "verbatim" in f:
+                report["cells_verbatim"][f["verbatim"]] = \
+                    report["cells_verbatim"].get(f["verbatim"], 0) + 1
+            elif "decorated" in f:
+                report["cells_wearing_decoration"][f["decorated"]] = \
+                    report["cells_wearing_decoration"].get(f["decorated"], 0) + 1
+            else:
+                report["cells_the_store_and_board_disagree_on"].append(
+                    {"id": rid, "column": f["column"],
+                     "board": f["file"], "store": f["store"]})
+        rows[i] = desc
+        report["rows_from_store"] += 1
+    report["rows_not_on_board"] = sorted(set(by_id) - seen)
+    # A record with no `order` at all — a store written before the field
+    # existed — is not a disagreement, so it is skipped rather than sorted to
+    # the front. "Not recorded" and "recorded as first" are different claims.
+    graded = [r for r in in_line_order if by_id[r].get("order") is not None]
+    if graded != sorted(graded, key=lambda r: by_id[r]["order"]):
+        report["rows_out_of_stored_order"] = {
+            "on_the_board": graded,
+            "in_the_store": sorted(graded, key=lambda r: by_id[r]["order"])}
+    return {"lines": lines, "rows": rows, "report": report,
+            "records": dict(by_id)}
+
+
+def risk_render(board, records: list[dict], ops) -> tuple[str, dict]:
+    """`perry/risks.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
+    p = risk_plan(board, records, ops)
+    return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
+
+
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
            "render_line", "render_lines", "row_descriptor", "slot_descriptor",
-           "store_path", "store_text", "markdown_tables", "validate_records"]
+           "store_path", "store_text", "markdown_tables", "validate_records",
+           "RISK_STORED", "RISK_FIELD_BY_COLUMN", "RISK_SECTION",
+           "risk_store_path", "risk_section_shape", "risk_table",
+           "risk_record", "risk_records", "risk_plan", "risk_render",
+           "validate_risk_records"]

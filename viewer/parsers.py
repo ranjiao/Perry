@@ -126,6 +126,121 @@ def _column_keys(canonical: str) -> tuple[str, ...]:
     return _column_index().get(key, (key,))
 
 
+# ── the risks register: ONE rule, every caller ────────────────────────────
+#
+# **TASK-040.** Four implementations of "what is a risk row" is what this row
+# died of once (`bin/perry-task § is_risk_header` against this file's
+# `_has_risk_header`, and this file's own two bullet scanners against
+# `bin/perry-task § _RISK_BULLET`). They were unified pairwise and stayed four
+# functions, which is a state that holds only while nobody edits one of them.
+# The four questions live here now, in the module every reader of a Perry
+# document already imports, and the callers ask rather than answer:
+#
+#   `viewer/parsers.py`   `_has_risk_header`, `_risk_bullets`, `_parse_risk_table`
+#   `bin/perry-task`      `is_risk_header`, `risk_bullets`, `cmd_risk_clear`
+#   `bin/perry_store.py`  the register's record shape and its renderer
+#   `bin/perry-lint`      `looks_like_perry_record`, the drift report
+#
+# This file is the bottom of the import graph — it imports `tables` and the
+# standard library and nothing else — so a rule placed here is reachable from
+# `bin/` and from `viewer/` without either one growing a dependency on the
+# other. That is why it is here and not in `bin/perry_store.py`, which imports
+# this direction already.
+
+#: The register's columns, in the order `perry-task risk-migrate` writes them.
+#: `ID` and `Opened` are stamped by the tool, `Status` is a two-move state
+#: machine written as prose, and `Risk` is the human's sentence — never parsed,
+#: never enum-checked, never rewritten.
+RISK_COLUMNS = ["ID", "Risk", "Opened", "Status"]
+
+
+def is_risk_register_header(header: list[str]) -> bool:
+    """Whether this table header declares the risk-statement column.
+
+    `Risk` is the column that identifies the register: it is the cell that
+    holds the sentence, so a table under `## Top risks` without one is a legend
+    or a severity key, not the register. Resolved by NAME through the schema
+    glossary (`schema/README.md § Columns resolve by name`), so `| 编号 | 风险 |`
+    counts, and by `squash`, so `| ID | **Risk** |` counts.
+
+    On `| ID | **Risk** | Opened | Status |` the writer's copy of this squashed
+    to `risk` and said yes while the reader's lowered to `**risk**` and said
+    no — `risk-add` wrote rows, `perry-state` reported 0 risks, `perry-lint`
+    was clean and `risk-migrate` said "already migrated". Four exits, all
+    closed, and the user's live risks invisible in every one. There is one
+    predicate now because that defect is only reachable while there are two.
+    """
+    return bool(set(_column_keys("Risk")) & {squash(c) for c in header})
+
+
+#: What counts as a risk bullet on a section that has not migrated, and what
+#: counts as a placeholder standing in for none. `BOARD_TEMPLATE.md` ships
+#: `- (no active risks)` and several fixtures carry `- none`; reading those as
+#: risks returned `id='(no'` — a handle split out of prose at the space.
+_RE_RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
+_RE_RISK_PLACEHOLDER = re.compile(
+    r"^\(?\s*(?:no active risks?|none|n/a|na|tbd|—|-|–|无|暂无)\s*\)?[.。]?$", re.I)
+
+
+def risk_bullet_text(line: str) -> str:
+    """The risk a bullet line states, or `""` when it states none.
+
+    One rule for both the reader and the writer. They disagreed twice: this
+    file matched `- ` only while `bin/perry-task` matched `- ` and `1. `, so a
+    numbered register read as zero risks on one side and nine on the other;
+    and only the writer knew about placeholders, so the template's own
+    `- (no active risks)` came back from the reader as a risk.
+    """
+    m = _RE_RISK_BULLET.match(line.strip())
+    if not m:
+        return ""
+    text = m.group(1).strip()
+    if not text or _RE_RISK_PLACEHOLDER.match(text):
+        return ""
+    return text
+
+
+#: A `Status` cell that means "this risk is no longer live". Matched as a
+#: PREFIX on the cleaned cell and never as an enum: `perry-task risk-clear`
+#: writes `cleared <date> — <reason>`, but the column is free text on any board
+#: a human has touched, and `## Top risks` is a section three real projects
+#: write by hand today. Imposing an enum on a prose column is the mistake this
+#: repo made once already and reverted.
+_RE_CLEARED = re.compile(
+    r"^(?:cleared|resolved|closed|retired|mitigated|已解除|已关闭|已缓解)\b", re.I)
+_RE_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def undecorate_cell(cell: str) -> str:
+    """A cell with the decoration a human adds removed, text otherwise kept."""
+    return (cell or "").replace("~", "").replace("*", "").replace("`", "").strip()
+
+
+def status_is_cleared(status_cell: str) -> bool:
+    """Whether a `Status` cell says the risk is over.
+
+    `cmd_risk_clear` had its own `^(?:cleared|resolved|closed)\\b` — three of
+    the eight words this knows — so a risk a human retired as `mitigated` could
+    be cleared twice, and the second clear overwrote the first one's date and
+    reason.
+    """
+    return bool(_RE_CLEARED.match(undecorate_cell(status_cell)))
+
+
+def status_cleared_date(status_cell: str) -> str:
+    """The date a `Status` cell says the risk was cleared on, or `""`.
+
+    **`""` is not today and it is not a zero.** A risk retired with no date
+    recorded has no cleared date, and inventing one would assert a fact about
+    a project's history that nothing in its files supports — the same defect
+    as a `current: 0` default that reads as a drive-to-zero already met.
+    """
+    if not status_is_cleared(status_cell):
+        return ""
+    m = _RE_ISO_DATE.search(undecorate_cell(status_cell))
+    return m.group(0) if m else ""
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -1419,33 +1534,15 @@ def _parse_user_input(section: str) -> list[UserInput]:
     return items
 
 
-# What counts as a risk bullet, and what counts as a placeholder standing in
-# for none — ONE definition, read by both readers below and mirrored by
-# `bin/perry-task:_RISK_BULLET` / `_RISK_PLACEHOLDER`, which is the writer's
-# copy. There used to be three matchers for the first rule and one for the
-# second, and they disagreed: `_parse_risks` matched `- ` only while
-# `parse_top_risks` matched `- ` and `1. `, so a numbered list read as 0 risks
-# through one and 2 through the other. Only the writer knew about
-# placeholders, so `BOARD_TEMPLATE.md`'s own `- (no active risks)` came back
-# from the reader as a risk with `id='(no'` — an id split out of prose at the
-# first space, which is the exact defect the table form exists to remove.
-_RE_RISK_BULLET = re.compile(r"^(?:-|\d+\.)\s+(.*)$")
-_RE_RISK_PLACEHOLDER = re.compile(
-    r"^\(?\s*(?:no active risks?|none|n/a|na|tbd|—|-|–|无|暂无)\s*\)?[.。]?$", re.I)
-
-
 def _risk_bullets(section: str) -> list[str]:
-    """Every risk bullet in `section`, placeholders and empties dropped."""
-    out = []
-    for raw in section.split("\n"):
-        m = _RE_RISK_BULLET.match(raw.strip())
-        if not m:
-            continue
-        text = m.group(1).strip()
-        if not text or _RE_RISK_PLACEHOLDER.match(text):
-            continue
-        out.append(text)
-    return out
+    """Every risk bullet in `section`, placeholders and empties dropped.
+
+    The rule is `risk_bullet_text` at the top of this file, which the writer
+    calls too. It was mirrored here and in `bin/perry-task` and the copies
+    disagreed in both directions — see that function.
+    """
+    return [t for t in (risk_bullet_text(raw) for raw in section.split("\n"))
+            if t]
 
 
 def _parse_intake(section: str) -> list[dict]:
@@ -1969,15 +2066,12 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
 _RE_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
 
-# A `Status` cell that means "this risk is no longer live". Matched as a
-# PREFIX on the cleaned cell and never as an enum: `perry-task risk-clear`
-# writes `cleared <date> — <reason>`, but the column is free text on any board
-# a human has touched, and `## Top risks` is a section three real projects
-# write by hand today. Imposing an enum on a prose column is the mistake this
-# repo made once already and reverted.
-_RE_CLEARED = re.compile(
-    r"^(?:cleared|resolved|closed|retired|mitigated|已解除|已关闭|已缓解)\b", re.I)
-_RE_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# `_RE_CLEARED` and `_RE_ISO_DATE` used to be declared here. They are
+# `status_is_cleared` / `status_cleared_date` at the top of this file now,
+# because `bin/perry-task § cmd_risk_clear` had a third of the same rule
+# (`cleared|resolved|closed` — three of eight words) and could therefore clear a
+# risk a human had already retired as `mitigated`, overwriting the first
+# clear's date and reason.
 
 
 def _risk_severity(body: str, resolved: bool) -> str:
@@ -2047,12 +2141,10 @@ def split_severity_marker(text: str) -> tuple[str, str, str]:
 def _has_risk_header(section: str) -> bool:
     """Whether any table in `section` declares a risk-statement column.
 
-    Resolved by NAME through the schema glossary, so `| 编号 | 风险 | … |`
-    counts (`schema/README.md § Columns resolve by name`), and by the same
-    `squash` the writer's `is_risk_header` uses, so `| ID | **Risk** | … |`
-    counts here exactly when it counts there.
+    The predicate is `is_risk_register_header` at the top of this file, which
+    the writer and the store both call. This function only finds the headers to
+    ask it about.
     """
-    wanted = set(_column_keys("Risk"))
     lines = section.split("\n")
     for i, line in enumerate(lines):
         if not re.match(r"^\|\s*:?-{2,}", line.strip()) or i == 0:
@@ -2060,8 +2152,7 @@ def _has_risk_header(section: str) -> bool:
         prev = lines[i - 1].strip()
         if not prev.startswith("|"):
             continue
-        header = [squash(c) for c in split_row(prev)]
-        if wanted & set(header):
+        if is_risk_register_header(split_row(prev)):
             return True
     return False
 
@@ -2096,15 +2187,13 @@ def _parse_risk_table(section: str) -> list[TopRisk] | None:
         statement = _col(row, "Risk")
         if not statement:
             continue
-        rid = _col(row, "ID").replace("~", "").replace("*", "").replace("`", "").strip()
+        rid = undecorate_cell(_col(row, "ID"))
         status = _col(row, "Status")
-        clean_status = status.replace("*", "").replace("~", "").replace("`", "").strip()
-        resolved = bool(_RE_CLEARED.match(clean_status)) or \
+        resolved = status_is_cleared(status) or \
             bool(re.search(r"\*\*RESOLVED", statement)) or statement.strip().startswith("~~")
-        cleared_on = ""
-        if resolved:
-            d = _RE_ISO_DATE.search(clean_status)
-            cleared_on = d.group(0) if d else ""
+        # `""` when the row is cleared and names no date. Not today's date —
+        # see `status_cleared_date`.
+        cleared_on = status_cleared_date(status) if resolved else ""
         pct = _RE_PCT.search(statement)
         # DETECTED, not stripped. A table's `Risk` cell comes back whole —
         # `test_the_statement_is_never_split_into_an_id_and_a_remainder` is the

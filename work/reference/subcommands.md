@@ -393,9 +393,44 @@ published `id: "Perry"`, `title: "is half-adopted: …"`.
 `cleared <date> — <reason>` into `Status` and the row remains: it is the record
 that the mitigation worked. It simply stops counting.
 
-**`perry-state` reports open risks only**, with `age_days` computed from
+**The section is a projection of a record store** (TASK-040, ADR-007 applied to
+this register the way it was applied to `BOARD.md`). `bin/perry_store.py` holds
+the record shape — `id`, `risk`, `opened`, `cleared`, `status`, `order` — and
+renders it back through the same functions the task store uses, so the two
+cannot drift into two renderers.
+
+```bash
+"$PERRY_HOME/bin/perry-tasks" risks-build   # derive the records; write nothing
+"$PERRY_HOME/bin/perry-tasks" risks-diff    # render them back and byte-compare
+```
+
+`cleared` is the field the four columns could not hold: the day a risk stopped
+being live rides inside the `Status` cell's prose, so the record carries it
+typed and the cell keeps rendering it as prose — the same arrangement a task's
+`summary` has, stored with no column of its own. **A risk with neither date
+carries neither**; `""` is the honest answer for a risk raised before the
+register existed or retired without a day recorded, and today's date would be
+a claim about the project's history that nothing in its files supports.
+
+`perry-lint` reports a hand edit to the section as `risk-store-drift`, at
+`warn` — the severity `store-drift` uses for `BOARD.md`, and for the same
+reason: the store is authoritative, so drift never changes what a risk is, and
+`perry-tasks risks-render --write` restores the projection. The check is silent
+and says so when there is no `risks.jsonl`: *no store* and *clean* are
+different answers.
+
+**`risks-write` refuses today**, and names why: a canonical record file in the
+state root is declared in `schema/state-schema.json § claims` with an owner and
+an anchor, the way `tasks.jsonl` is, and that declaration is the user's to
+give. Until it lands, the register is still written by `risk-add` / `risk-clear`
+into the markdown, and the store surface is derive-and-check only.
+
+**`perry-state` counts open risks only**, with `age_days` computed from
 `Opened` at read time — the same rule as `Asked`/`Idle` on the User Input
-Queue, and for the same reason. `risks.source` is one of four values —
+Queue, and for the same reason. The cleared ones sit in `risks.cleared_items`,
+never in `risks.items`: a risk that is over is not a top risk, but `cleared`
+was a bare integer, so the one field a cleared risk exists to carry — the day
+it ended — was emitted by nothing. `risks.source` is one of four values —
 `table`, `bullets`, `mixed`, `none` — saying which form the payload was read
 from; on a bullet the `id` is invented and `age_days` is `null`, and a reader
 is entitled to know which it got. `mixed` means the rows came from more than

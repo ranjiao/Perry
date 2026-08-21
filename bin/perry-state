@@ -1704,6 +1704,23 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "cleared": len(snap.top_risks) - len(open_risks),
             "source": snap.risks_source,
             "items": [encode_risk(r) for r in open_risks],
+            # **The cleared ones, in full, beside the count and never inside
+            # `items`** (TASK-040). `items` is the live set and stays it. But
+            # `cleared` was a bare integer, so the one field a cleared risk
+            # exists to carry — `cleared_on`, the day it stopped being a risk,
+            # a typed field of the register's record — was emitted by nothing
+            # and readable only by opening the markdown.
+            #
+            # **`perry-task list --json § risks` deliberately does not carry
+            # it.** That payload is a versioned contract whose page is read by
+            # `tests/contract_key_parity.py`, and `items[]` and
+            # `cleared_items[]` are the same eleven keys — so its one risk key
+            # table matched both containers and therefore neither, taking
+            # KR-O2.4 from 0 to 22 in a measured run. This surface carries no
+            # contract page, so the cleared risks are readable here today; the
+            # contract gains them when its page can name them unambiguously.
+            "cleared_items": [encode_risk(r) for r in snap.top_risks
+                              if r.resolved],
         },
         "decisions": {
             "count": len(snap.adrs),
