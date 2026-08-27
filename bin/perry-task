@@ -32,7 +32,9 @@ than an edit, which is the cost ADR-007 decision 2 accepted in the user's own
 words.
 
 What the tool computes rather than accepts — the payload, per DESIGN-004 § 5.2:
-IDs are minted from max(board ∪ journal ∪ events), never reused; timestamps are taken at
+IDs are minted from the canonical store plus every id `purge` has taken out of
+it (`minting_records`; this line said "max(board ∪ journal ∪ events)" and has
+been wrong since ADR-007 made the store canonical), never reused; timestamps are taken at
 call time rather than asserted; `Stage since` / `Arrived` are stamped
 structurally; any column a track's mode requires and the board lacks is created
 in the same edit; rungs are validated against the schema enum before write.
@@ -88,6 +90,14 @@ Usage:
   perry-task resolve-intake <n> --outcome dropped|deferred --reason "…"
   perry-task intake-sweep                  discharged intake rows → journal
   perry-task drop  <ID> --reason "…"
+  perry-task purge <ID> --reason "…"
+                    DELETE a record from the task store. `drop` records a
+                    decision about the work and leaves the row in
+                    `tasks.jsonl` reading `status: dropped`; this takes the
+                    record OUT. Terminal rows only, never a row any live
+                    reference names, and never the id — the log keeps it, so
+                    it is never reissued. The removed record rides on the
+                    `purge` event verbatim and is reconstructible from it.
   perry-task status <ID> --status blocked|review|not_started|in_progress
                     [--on "TASK-050"] [--reason "…"] [--next "…"]
   perry-task depends <ID> --on "TASK-050, TASK-051" | --clear
@@ -1630,6 +1640,35 @@ def mint_id(records: list[dict], prefix: str | None = None) -> str:
     return f"{prefix or DEFAULT_PREFIX}-{max(seen, default=0) + 1:03d}"
 
 
+def minting_records(ctx) -> list[dict]:
+    """The store, plus the ids `purge` took out of it. **What a new id may not be.**
+
+    **TASK-167, and the reason `purge` is not just a `del`.** Since ADR-007
+    `mint_id` counts the canonical store and nothing else — the module
+    docstring above still says *"max(board ∪ journal ∪ events)"* and has been
+    wrong about that since the store became canonical. That is correct while
+    nothing can leave the store, and `purge` is the first thing that can: with
+    the record gone, the next `add` mints the number again.
+
+    **A reissued id is not a cosmetic collision.** `.perry/events.jsonl` is
+    append-only and still carries the purged row's `add`, `drop` and `purge`,
+    so a new row wearing that number inherits the dead row's `timeline[]` — and
+    inherits its `purge`, which `_cmd_list_from_board` honours by deleting the
+    row. A rebuild would erase the live task. Measured before this existed: the
+    first `add` after purging `TASK-001` was handed `TASK-001`.
+
+    So a purged number is retired, not freed. The record is reconstructible
+    from the log; the id is not reusable, which is the property that makes
+    removal safe to do to a store other registers resolve ids against.
+
+    Both minting call sites read this — `add` and `route`, which is the second
+    of them and the one that gets missed.
+    """
+    return list(ctx["task_records"]) + [
+        {"id": e.get("id") or ""} for e in ctx["events"]
+        if e.get("event") == "purge" and e.get("id")]
+
+
 # ── events ────────────────────────────────────────────────────────────────
 
 
@@ -2029,7 +2068,7 @@ def replace_canonical_pair(state_root: Path,
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "", signoff_block: str = "",
-           off_board: bool = False) -> dict:
+           off_board: bool = False, removed_id: str = "") -> dict:
     """Write the store and the journal together, render the board, log the event.
 
     **The three-way write is `store + journal + event` now, not `board +
@@ -2072,7 +2111,23 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # from the store byte-for-field; otherwise an unrelated Board edit would
     # become truth merely because another row changed. Section-only commands
     # mutate no task at all.
-    if event.get("event") in TASK_EVENTS and subject:
+    if removed_id:
+        # **`purge`, and the only write that makes the store smaller.** It goes
+        # through this function rather than beside it so the removal gets the
+        # same guarantee every other write gets: store and journal replaced as
+        # one recoverable transaction, board re-rendered after, event appended
+        # last. A deletion written with `open(...,'w')` next door would be the
+        # one mutation in this file that a crash could leave half-applied.
+        #
+        # Nothing else in the branch below applies. There is no projected row
+        # to read the new values out of — the record is terminal and the board
+        # has not carried a line for it since it closed — and there is no
+        # `changed` whitelist, because no field is being written.
+        #
+        # `order` is deliberately NOT renumbered; see `cmd_purge`.
+        records = [dict(record) for record in current
+                   if record["id"] != removed_id]
+    elif event.get("event") in TASK_EVENTS and subject:
         projected = derived_by_id.get(subject)
         old = current_by_id.get(subject)
         event_name = event.get("event")
@@ -2506,8 +2561,9 @@ def cmd_add(args, ctx) -> dict:
             f"— what someone else would run to disagree with you")
     track = track_of(ctx["config"], args.track or "main")
     mode = track["mode"]
-    prefix = resolve_prefix(ctx["task_records"], args.prefix)
-    tid = mint_id(ctx["task_records"], prefix)
+    minting = minting_records(ctx)
+    prefix = resolve_prefix(minting, args.prefix)
+    tid = mint_id(minting, prefix)
     priority, group = target_section(ctx["board"], args)
 
     if mode == "project" and args.stage:
@@ -3636,6 +3692,263 @@ def cmd_drop(args, ctx) -> dict:
     return {"id": tid, "reason": args.reason, "removed": line, **plan}
 
 
+# ── TASK-167: the removal path, and what it refuses ───────────────────────
+
+
+def names_id(text: str, tid: str) -> bool:
+    """Does `text` cite `tid` as an id, rather than contain it as a substring?
+
+    The boundary on the RIGHT is a hyphen too, and that is the whole reason
+    this is a function. Measured on this repository's own store: **109 of 176
+    `Evidence` cells contain a `TASK-nnn` token**, and essentially all of them
+    are filenames — `perry/evidence/2026-08/TASK-089-v4-review-r4.md`. A
+    substring test, or `\\b` alone, reads every one of those as a reference and
+    makes the removal path refuse every row on the project.
+    """
+    return re.search(r"(?<![0-9A-Za-z_-])" + re.escape(tid)
+                     + r"(?![0-9A-Za-z_-])", text or "") is not None
+
+
+#: A cited path this size is not prose somebody wrote a task id into, and
+#: reading it is how a refusal check becomes slower than the write it guards.
+_REFERENCE_SCAN_MAX_BYTES = 1 << 20
+
+#: The suffixes `live_references` will read a cited evidence path as prose in.
+#: The same set `bin/perry-explain § walk_md` resolves ids over — see that
+#: function's docstring for why a code file's mention is not a reference.
+_REFERENCE_SCAN_SUFFIXES = (".md", ".markdown")
+
+
+def live_references(ctx, tid: str) -> list[str]:
+    """Every place a SURVIVING record or register still names `tid`.
+
+    **What counts as live, stated, because the spec's wording would have made
+    this command unrunnable.** TASK-167 asked for a refusal on "a row … an
+    evidence record cites", and taken as *any document that mentions the id*
+    that is a refusal nothing can ever pass: `perry-task add` writes a journal
+    line naming the id it minted, so **every** row the tool has ever created is
+    named by a document, forever. Measured on the three rows this command was
+    built to sweep: a whole-repo grep finds `TASK-081` in
+    `perry/evidence/2026-08/TASK-067-round3-v4-review.md` and all three in two
+    journal files. Under "any mention", the deliverable refuses its own first
+    use.
+
+    The distinction that does hold is between a **pointer** and a **record of
+    what happened**:
+
+    - A pointer is resolved by a reader. `depends_on`, `parent` and
+      `commitment` are ids Perry follows from a row that is still there;
+      `next_action` is prose the contract resolves ids in
+      (`conformance.next_action_cites_closed`); `krs[].tasks` in a linkage
+      register and `linked` in the goals store are the registers that tie work
+      to a key result. Remove the row and each of those points at nothing.
+    - A record of what happened is history. The journal, `.perry/events.jsonl`
+      and a review write-up describe a day on which that row existed, and they
+      go on being true after it is removed — which is exactly the reading
+      `.perry/events.jsonl` already gets, and why the removal is appended to it
+      rather than edited out of it.
+
+    Evidence documents are checked, on the half where they are pointers: a
+    **markdown** document **cited by the `Evidence` cell of a record that
+    survives this removal**, which names the id. A reader following that
+    surviving row's evidence lands on a page pointing at a row Perry can no
+    longer resolve — that is a broken reference and this refuses it. A document
+    nothing cites is somebody's file; refusing on it would be refusing on the
+    repository.
+
+    **Markdown, not every cited file, and that was measured too.** `Evidence`
+    cells cite source as often as they cite prose — `bin/perry-task` is cited
+    by three records on this project — and this function's own docstring
+    naming an id it had swept made the first dry run refuse itself. A code
+    comment recording why a line exists is history in the same sense the
+    journal is. It is also the line Perry's own id resolver already draws:
+    `bin/perry-explain § harvest` walks markdown and nothing else, so an id in
+    a `.py` file is not a mention `perry-diagnose` can report dangling either.
+
+    Returns one human-readable line per reference, empty when there are none.
+    """
+    out: list[str] = []
+    survivors = [r for r in ctx["task_records"] if r.get("id") != tid]
+
+    for rec in survivors:
+        rid = rec.get("id") or "?"
+        if tid in (rec.get("depends_on") or []):
+            out.append(f"{rid}.depends_on — the edge would point at an id "
+                       f"nothing resolves (`perry-task depends {rid}` rewrites it)")
+        for field in ("parent", "commitment"):
+            if (rec.get(field) or "").strip() == tid:
+                out.append(f"{rid}.{field}")
+        if names_id(rec.get("next_action") or "", tid):
+            out.append(f"{rid}.next_action — `{(rec.get('next_action') or '')[:60]}`")
+
+    # `phase/*-linkage.md § krs[].tasks` — the register that ties tasks to a
+    # key result. Read as the lines they are written on rather than through a
+    # YAML parser, because Perry is stdlib-only and this file is markdown with
+    # a YAML-shaped block in it, not a YAML document.
+    for path in sorted((ctx["state_root"] / "phase").glob("*-linkage.md")):
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        for n, line in enumerate(text.split("\n"), 1):
+            if re.match(r"\s*tasks:", line) and names_id(line, tid):
+                out.append(f"{path.name}:{n} krs[].tasks")
+
+    # The goals store's own linkage field. Empty on this project today, which
+    # is a fact about this project and not about the register.
+    okr = ctx["state_root"] / "okr.jsonl"
+    if okr.exists():
+        for line in okr.read_text(errors="replace").split("\n"):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict) and names_id(str(row.get("linked") or ""), tid):
+                out.append(f"okr.jsonl {row.get('id') or '?'}.linked")
+
+    seen: set[str] = set()
+    for rec in survivors:
+        found, _missing = evidence_paths(rec.get("evidence") or "",
+                                         ctx["state_root"], ctx["project_root"])
+        for rel in found:
+            target = ctx["project_root"] / rel
+            files = (sorted(target.rglob("*")) if target.is_dir() else [target])
+            for f in files:
+                if f.suffix.lower() not in _REFERENCE_SCAN_SUFFIXES \
+                        or not f.is_file():
+                    continue
+                key = f"{rec.get('id')}\0{f}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    if f.stat().st_size > _REFERENCE_SCAN_MAX_BYTES:
+                        continue
+                    body = f.read_text(errors="replace")
+                except OSError:
+                    continue
+                if names_id(body, tid):
+                    out.append(f"{rel} — evidence cited by {rec.get('id')}")
+    return out
+
+
+def cmd_purge(args, ctx) -> dict:
+    """Take a record OUT of `tasks.jsonl`. The store's only removal path.
+
+    **Why it is not `drop`, and why the two names must not be confusable.**
+    `drop` writes a *status*: it records a decision about the work — this was
+    not finished and will not be — and the record stays, because that decision
+    is part of the project's history. `purge` writes *nothing*: it says the
+    record should not be in the store at all, which is a claim about the store
+    and not about the work. Three rows titled `t`, added and dropped inside
+    sixty seconds on 2026-08-18 while somebody smoke-tested the writer, are the
+    case: no decision about them is worth keeping, because there was never any
+    work.
+
+    The names share no prefix, so neither completes to the other and no
+    abbreviation reaches both; and they are not synonyms in English, which
+    `remove`, `discard` and `delete` all are for `drop`. `remove` was rejected
+    for a second reason — `cmd_drop`'s payload already carries a `removed` key,
+    holding the BOARD LINE it took out, so a `remove` subcommand beside it
+    would put one word on two different objects.
+
+    **What it refuses.** Four things, in this order, and each says which:
+
+    1. No `--reason`. Same rule as `drop`, harder: this is a destructive write
+       to the user's own state and the reason is the only prose that survives
+       it in the canonical half of the transaction.
+    2. A row that is not `done` or `dropped`. Removing an open row would leave
+       its `add` event with no row and no close — which is precisely
+       `perry-state § reconcile_drift`'s `orphaned` condition — so a purge of
+       live work would MANUFACTURE the false drift that `drop` exists to
+       prevent. Open work gets dropped, then purged, in that order.
+    3. A row the projection still carries a line for. It should not, once
+       terminal, and if it does then `BOARD.md` is stale — removing the record
+       under a stale board would leave a line rendering from nothing.
+    4. Any live reference. `live_references` above is where "live" is defined
+       and measured; the refusal names the first one and counts the rest.
+
+    **What it does to `order`: nothing, and that is the answer rather than an
+    omission.** `order` records authored position within a board section
+    (`perry_store § STORED`). A row that has closed is in no section — and
+    `commit()` has already done the renumbering, at close time: `done` and
+    `drop` decrement every peer that sat below the row and then set the row's
+    own `order` to `null`. So every record this command can reach carries
+    `order: null` (all three sweep targets do, though TASK-167's spec says two
+    of the three), there is no position to vacate, and re-running the
+    decrement here would shift peers a second time for one close. A record
+    that somehow carries a non-null `order` is a store `perry-task` did not
+    write, and guessing a renumbering for it means guessing at a board this
+    command cannot see.
+
+    **Whether it is reversible: the record is, by hand, from the log.** The
+    `purge` event carries the removed record VERBATIM under `record`, so
+    `json.loads(...)["record"]` is the line that was in `tasks.jsonl`, ready to
+    be appended back. There is no `unpurge`, deliberately: restoring a record
+    is rare enough that a tool for it would be a second, less-tested writer,
+    and the log is where a restore should be read from anyway. What is NOT
+    reversible is the id — `mint_id` reads the log, the `add` event is still
+    in it, and a purged number is never handed out again. That is the property
+    that makes this safe to do to a store other tools resolve ids against.
+    """
+    tid = args.id
+    if not args.reason:
+        raise Refused(
+            f"{tid}: --reason is required. `purge` deletes a record from "
+            f"{perry_store.store_path(ctx['state_root'])}; a removal with no "
+            f"stated reason is indistinguishable from a store that was "
+            f"corrupted")
+    record = task_record(ctx, tid)
+    status = (record.get("status") or "").strip().lower()
+    if status not in ("done", "dropped"):
+        raise Refused(
+            f"{tid} is {status or 'unset'}, not done or dropped. `purge` "
+            f"removes the record, and removing an OPEN row leaves its `add` "
+            f"event with no row and no close — the `orphaned` drift "
+            f"`perry-state` reports. Close it first: `perry-task drop {tid} "
+            f"--reason \"…\"` records the decision, and this removes the "
+            f"record afterwards if it should not be kept")
+    if _row_is_on_the_board(ctx, tid):
+        raise Refused(
+            f"{tid} is {status} in the store and still has a line on "
+            f"{ctx['board'].path.name}. The projection is stale, and removing "
+            f"the record under it would leave a row rendering from nothing: "
+            f"run `perry-tasks render --write` and retry")
+    refs = live_references(ctx, tid)
+    if refs:
+        more = (f" (and {len(refs) - 1} more: {', '.join(refs[1:4])})"
+                if len(refs) > 1 else "")
+        raise Refused(
+            f"{tid} is named by {refs[0]}{more}. Removing the record would "
+            f"leave that reference pointing at an id nothing resolves. Clear "
+            f"the reference first, or leave the row in the store — `dropped` "
+            f"is a legitimate resting state and `purge` is for records that "
+            f"should never have existed")
+
+    jline = (f"- [{tid}] {status} → purged from the store · "
+             f"reason: {args.reason}")
+    event = {"ts": lib.event_stamp(), "event": "purge", "id": tid,
+             "title": record.get("title") or "",
+             "track": record.get("track") or "main",
+             # Same reason as `done` and `drop`: this is the last place the
+             # row says who held it.
+             "owner": record.get("owner") or "",
+             "role": record.get("role") or "",
+             "actor": args.actor,
+             # `to` is `""`, not a new state: there is no destination status
+             # because there is no longer a record. See `EVENT_FIELD`.
+             "from": record.get("status") or "", "to": "",
+             "reason": args.reason,
+             # **The reconstruction.** The whole record, verbatim, so the line
+             # that left `tasks.jsonl` can be read back out of the log.
+             "record": dict(record)}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, event, args.dry_run, removed_id=tid)
+    return {"id": tid, "reason": args.reason, "record": dict(record), **plan}
+
+
 def cmd_resolve_intake(args, ctx) -> dict:
     """Discharge an intake row without routing it — dropped or deferred.
 
@@ -4438,8 +4751,9 @@ def cmd_route(args, ctx) -> dict:
     if track["mode"] == "project":
         raise Refused(f"track {track['track']!r} is mode `project`; routing is a "
                       f"queue-mode operation (`modes/queue.md`)")
-    prefix = resolve_prefix(ctx["task_records"], args.prefix)
-    tid = mint_id(ctx["task_records"], prefix)
+    minting = minting_records(ctx)
+    prefix = resolve_prefix(minting, args.prefix)
+    tid = mint_id(minting, prefix)
     # Same function `cmd_add` calls, so `--group` cannot be a flag one of them
     # reads and the other throws away. It was: the drain could not run at all
     # on a board with no `## P0`/`## P1`/`## P2`, and `check_priority`'s
@@ -5375,6 +5689,29 @@ def _cmd_list_from_board(args, ctx) -> dict:
             # Found independently by two agents working in separate worktrees,
             # neither aware of the other. That is corroboration, not noise.
             continue
+        if e.get("event") == "purge":
+            # **The one event that removes, and the reason `purge` cannot be a
+            # store-only operation.** This reconstruction is what
+            # `perry-tasks write --from-board` and `perry-tasks verify` derive
+            # a store from, and it rebuilds a CLOSED task out of the event
+            # stream alone — that is exactly how `TASK-081`…`TASK-083` got
+            # into `tasks.jsonl`: they were never on the board, they were
+            # `add` + `drop` in the log, and the migration derived them.
+            #
+            # So a `purge` that only deleted a JSONL line would be undone by
+            # the next `write --from-board`, silently, and the row would come
+            # back with no event saying it had. The removal has to be legible
+            # to the derivation, and the only place it can be written without
+            # rewriting the append-only log is the log's own tail: the event
+            # is the record of the removal AND the instruction to the reader
+            # that rebuilds from it.
+            #
+            # Log order is what makes this sound — the fold walks the file in
+            # order, so `add` … `drop` … `purge` deletes last. The id is NOT
+            # released: `mint_id` reads the log, the `add` event is still
+            # there, and a purged number is never handed out again.
+            tasks.pop(tid, None)
+            continue
         t = tasks.setdefault(tid, blank(tid))
         # A row that has left the board is closed; one still on it stays open,
         # and its live cells win over anything the event stream remembers.
@@ -5883,9 +6220,9 @@ def perry_conform():
 #: is never gated, so it is not merely excluded here — `tests/test_conformance`
 #: asserts it still answers on an undeclared project with the gate enforcing.
 READ_ONLY_COMMANDS = {"list", "events", "signoff-offer"}
-TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "status",
-                     "depends", "next", "retitle", "summary", "rung",
-                     "evidence", "prioritize"}
+TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
+                     "status", "depends", "next", "retitle", "summary",
+                     "rung", "evidence", "prioritize"}
 GATED_FILE = "BOARD.md"
 
 
@@ -5997,9 +6334,18 @@ def parse(argv: list[str]) -> Args:
 # allowlist drops a future event from the payload, a denylist leaks one into it,
 # and either way nobody finds out until a consumer reports it. This file has
 # already lost that bet twice with a tuple and a dict holding "the same" list.
+#
+# `purge` is here and not in `SECTION_EVENTS`, which would have been the
+# convenient answer: it is the only classification under which `commit()`'s
+# task branch is skipped for free. It is also false. `SECTION_EVENTS` is the
+# set of events written against `## Intake`, `## User Input Queue`,
+# `## Cadence` and `## Top risks` — the board sections that are *not tasks* —
+# and a `purge` carries a `TASK-` id and is about a task row. Classifying it
+# there to save four lines would put the wrong word in the one register two
+# contracts derive their event vocabulary from.
 TASK_EVENTS = frozenset({"add", "route", "start", "stage", "track", "status",
                          "next", "retitle", "summary", "rung", "evidence",
-                         "prioritize", "depends", "done", "drop"})
+                         "prioritize", "depends", "done", "drop", "purge"})
 # **What a timeline entry's `from`/`to` pair actually refers to.** One row per
 # task event, no default — `tests/test_prioritize.py` asserts this map's keys
 # are exactly `TASK_EVENTS`, so an event cannot be added without declaring what
@@ -6020,6 +6366,13 @@ TASK_EVENTS = frozenset({"add", "route", "start", "stage", "track", "status",
 EVENT_FIELD = {
     "add": "status", "route": "status", "start": "status",
     "status": "status", "done": "status", "drop": "status",
+    # `purge`'s pair is the row's STATUS and its `to` is `""`, which is this
+    # payload's documented unknown value and here means "there is no
+    # destination status, because there is no longer a record". The
+    # alternative — inventing a `purged` state — would put a word the
+    # `task_status` enum does not carry into the one field a consumer
+    # branches on, to describe a row it can no longer look up.
+    "purge": "status",
     "stage": "stage",
     # `track` is a cell of its own and a key of the task payload. It is NOT
     # `stage`: a move re-stamps the stage as a consequence, and a consumer told
@@ -6184,7 +6537,8 @@ COMMANDS = {"add": cmd_add, "start": cmd_start, "stage": cmd_stage,
             "cadence-add": cmd_cadence_add, "cadence-done": cmd_cadence_done,
             "risk-add": cmd_risk_add, "risk-clear": cmd_risk_clear,
             "risk-migrate": cmd_risk_migrate,
-            "done": cmd_done, "drop": cmd_drop, "intake": cmd_intake,
+            "done": cmd_done, "drop": cmd_drop, "purge": cmd_purge,
+            "intake": cmd_intake,
             "route": cmd_route, "resolve-intake": cmd_resolve_intake,
             "retitle": cmd_retitle, "summary": cmd_summary, "rung": cmd_rung,
             "evidence": cmd_evidence, "prioritize": cmd_prioritize,
