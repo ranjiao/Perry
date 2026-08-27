@@ -4830,6 +4830,51 @@ def live_dispatch_ids() -> set[str]:
     return live
 
 
+def rows_with_no_computable_age(tasks: dict, *, has_event_log: bool) -> list[str]:
+    """Open rows carrying no clock at all — no event, no `Stage since`, no
+    `Arrived`.
+
+    **The date cells go through `lib.is_blank_cell`, not through raw
+    truthiness.** They are columns a person edits by hand, and a person writing
+    "there is nothing here" writes `—`, not an empty string. Raw truthiness
+    reads that dash as a date: the row has an age, the age is unreadable, and
+    the finding whose entire job is to say "this row has no age" stays silent.
+    Measured on a hand-edited board before this was fixed:
+
+        Arrived `—`   perry-task: not reported   perry-state: sla_no_clock
+
+    — one cell, two tools, two answers, and `bin/perry-state § sla_no_clock`
+    was the one that was right. It reached that answer through
+    `lib.is_blank_cell`, so this reads the same rule from the same place rather
+    than growing a second opinion beside it. The vocabulary itself lives in
+    `schema § i18n.blank_cell`; `bin/perry-task § ABSENT` is an older, smaller
+    hardcoded copy of the same idea (no `?`, no `待定`, no markdown stripping)
+    and is deliberately NOT what this uses.
+
+    It stayed invisible for weeks because the writer emits `""` for a row with
+    no arrival, so no board Perry wrote could show the disagreement. Only a
+    hand-edited one could, and that is the fixture the test uses.
+
+    **Empty when there is no event log at all**, and that is not an oversight:
+    on such a project EVERY open row lands here by construction — 17 of 17 on
+    the front-end that reported it — so the list restated `has_event_log:
+    false` once per row instead of naming a finding. Contract 1.9 `semantics`
+    carries that decision; it is unchanged here.
+
+    One statement for both `list` paths, which assemble `tasks` differently and
+    once carried this expression twice. The board path had it, the record path
+    had it, and a fix to either alone would have left the two disagreeing about
+    a dash for the same reason the two tools did.
+    """
+    if not has_event_log:
+        return []
+    return sorted(
+        task["id"] for task in tasks.values()
+        if task["open"] and not task["updated"]
+        and lib.is_blank_cell(str(task["stage_since"] or ""))
+        and lib.is_blank_cell(str(task["arrived"] or "")))
+
+
 def stranded_row_findings(tasks: dict, *, has_event_log: bool, thresholds: dict,
                           live: set, now: datetime) -> dict:
     """The four `conformance` entries about a row nothing is moving.
@@ -5503,22 +5548,11 @@ def _cmd_list_from_board(args, ctx) -> dict:
     #
     # Computed HERE, after the event merge: doing it during the board walk
     # flagged rows the tool had created itself, because `updated` was not
-    # filled in yet.
-    # **Empty when there is no event log at all**, and that is the whole
-    # change: on such a project EVERY open row lands here by construction — 17
-    # of 17 on the front-end that reported it — so the list restated
-    # `has_event_log: false` once per row instead of naming a finding. A
-    # `conformance` entry is meant to be the payload's account of what it could
-    # not classify; "this project predates the writer" is one fact about the
-    # project, and the flag already carries it.
-    #
-    # Not suppressed silently: the meaning of this array moved under a live
-    # consumer, so `semantics` carries an entry and the minor moved with it.
-    conformance["rows_with_no_computable_age"] = [] if not conformance[
-        "has_event_log"] else sorted(
-        t["id"] for t in tasks.values()
-        if t["open"] and not t["updated"]
-        and not t["stage_since"] and not t["arrived"])
+    # filled in yet. The rule itself — including why a hand-written `—` is no
+    # clock and why the array is empty without an event log — is stated once,
+    # above.
+    conformance["rows_with_no_computable_age"] = rows_with_no_computable_age(
+        tasks, has_event_log=conformance["has_event_log"])
 
     # The stranded-row family, from `stranded_row_findings` above — the ONE
     # statement of these four, which `cmd_list` below calls too. It carries
@@ -5713,12 +5747,10 @@ def cmd_list(args, ctx) -> dict:
     conformance["blocked_without_dependency"] = sorted(
         task["id"] for task in tasks.values()
         if task["open"] and task["status"] == "blocked" and not task["depends_on"])
-    conformance["rows_with_no_computable_age"] = [] if not conformance[
-        "has_event_log"] else sorted(
-        task["id"] for task in tasks.values()
-        if task["open"] and not task["updated"]
-        and not task["stage_since"] and not task["arrived"])
-    # The same call the board-derived path makes, for the same reason.
+    # Both of these are the same call the board-derived path makes, for the
+    # same reason: the rule has one home, not one per `list` path.
+    conformance["rows_with_no_computable_age"] = rows_with_no_computable_age(
+        tasks, has_event_log=conformance["has_event_log"])
     conformance.update(stranded_row_findings(
         tasks, has_event_log=conformance["has_event_log"],
         thresholds=ctx["schema"].get("thresholds") or {},
