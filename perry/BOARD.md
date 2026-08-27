@@ -55,8 +55,9 @@
 | 2026-08-28 | perry-migrate CROSS_FILE_INPUTS omits tasks.jsonl, so linkage-task-exists declines in the dry run's newly-visible delta — one-word fix | — |
 | 2026-08-28 | no procedure in work/reference/subcommands.md mentions perry-task purge, so an agent will not reach for it | — |
 | 2026-08-28 | perry-decide mint_id reads max(files ∪ index) but render_index rebuilds DECISIONS.md from the files, so the departed half erases itself — deleting the highest ADR hands ADR-003 back, and perry-decide reads the event log zero times | — |
-| 2026-08-28 | bin/perry-conform:283 cites test_conformance § 7 for TASK-047 cost 1; it is pinned in § 6 | — |
-| 2026-08-28 | bin/README.md:234 and perry-conform:273-274 cite ~/proj/gimegime-pmo as measured evidence for TASK-047 cost 1 — that measurement now runs nowhere; point them at the test | — |
+| 2026-08-28 | bin/perry-conform:283 cites test_conformance § 7 for TASK-047 cost 1; it is pinned in § 6 | dropped 2026-08-28 — Folded into the consolidated row — see evidence/2026-08/2026-08-28-citations-that-point-at-a-directory.md. Four instances of one defect, filed separately by three rows in one night. |
+| 2026-08-28 | bin/README.md:234 and perry-conform:273-274 cite ~/proj/gimegime-pmo as measured evidence for TASK-047 cost 1 — that measurement now runs nowhere; point them at the test | dropped 2026-08-28 — Folded into the consolidated row — see evidence/2026-08/2026-08-28-citations-that-point-at-a-directory.md. |
+| 2026-08-28 | four docstrings cite a directory on this machine as their evidence — bin/README.md:234, perry-conform:273-274 and :283, perry-goals:459 and :334; three are only fixable because TASK-124 and TASK-125 built the tests to point at | — |
 
 ## P0 (must finish this period)
 
