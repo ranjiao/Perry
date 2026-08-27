@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.16`**
+> Contract: **`perry-task/list/1.17`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.15",  // check this before anything else
+  "contract":     "perry-task/list/1.17",  // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -114,6 +114,7 @@ counts; without it, `closed` is a constant.
 | `commitment` | string | the commitment id this row discharges |
 | `next_action` | string | |
 | `evidence` | string | stored relation text. Often a comma-separated list of backticked paths, sometimes a symbol or a prose note. |
+| `evidence_relations` | array | **the same cell, typed and whole** (1.17) — one entry per thing the cell names, in cell order, each carrying the span **verbatim** beside whatever Perry could resolve out of it. `evidence_paths` keeps only the file half of a column that on a real board carries four things at once: *which documents*, *how many tests*, *what kind of verification*, and sometimes a section reference that is not a file (`schema § thresholds`). Measured here: **139 live cells, 28 of them naming more than one thing**, and 45 spans of prose, counts and test ids that reached no array at all. `evidence_paths` and `conformance.evidence_not_found` are **unchanged** and this array agrees with both by construction. Fields below. |
 | `evidence_paths` | array | strings, each **relative to `project_root`** and each one that **exists**. Perry resolves against `state_root` and `project_root` in that order, because both conventions are live in that column on real boards and nothing in the string distinguishes them. Spans that resolve nowhere are in `conformance.evidence_not_found` rather than here — a dead link is worse than a string. **Resolved for closed rows as well as open ones** — it was not until 1.5, and a closed row's evidence is the document that justifies the close, which is the one a reader most wants to open. |
 | `verification` | string | `V1`…`V6`, or `""` if unrated |
 | `role` | string — the declared role accountable for this row, or `""`. **Required once the project declares any `.perry/roles/*.md`, absent otherwise** (1.8). A project with no role cards is never asked for one and never refused for omitting one, which is DESIGN-006's Goal 7. |
@@ -177,6 +178,57 @@ lives in `tasks.jsonl.depends_on`; the event log records its transition and the
 Board renderer projects it into a `Depends on` cell. A cycle is refused at
 write time; a cycle introduced by an external store edit is reported by
 `conformance.dependency_cycles`.
+
+
+#### An `evidence_relations[]` entry
+
+Added at 1.17. **One entry per thing the cell names, in cell order.** The
+`Evidence` column is free text and this page has said so since 1.0 — *"often a
+comma-separated list of backticked paths, sometimes a symbol or a prose note"*.
+`evidence_paths` reads the file half of it and says nothing about the rest;
+this array is the whole cell, said in a shape a consumer can branch on.
+
+**The shape considered and rejected was `{path, kind, round}`.** Measured
+against the 139 live evidence cells on Perry's own board:
+
+- **`round` is not emitted, because nothing carries it.** It appears only
+  inside the filenames of some review artifacts — `TASK-089-v4-review-r4.md`,
+  `-r3`, `-r8`, eight cells of 139 — and never as a component the cell states.
+  Producing it means parsing a number out of an opaque name, which is what the
+  `id` row above tells you never to do. A key that is `""` on 131 rows and a
+  guess on the other 8 is worse than no key.
+- **`path` cannot hold a span on its own.** In circulation on this board: a
+  section (`SKILL.md § Mandatory first move`), a symbol
+  (`bin/perry-state.load_packs`), a test node (`…py::TestFullTaskSet`), a step
+  (`step 2`, `gate 3`), a count (`(21 tests, 3 mutations verified)`), a
+  signature (`(signed Ran Jiao 2026-08-16)`), a command line
+  (`perry-state --dashboard`). So every entry keeps `text`.
+- **`schema § thresholds` needs no fourth case.** `schema/` is a real
+  directory, so it resolves and the entry is `kind: "dir"` — with
+  `§ thresholds`, which is not a path and never was, intact in `text`.
+- **"the document that justifies the close" and "the code that was changed"
+  are not two `kind`s.** They are two ROLES, and the string does not carry the
+  difference: `perry/evidence/…-result.md` justifies, `bin/perry-task` was
+  changed, and `reference/adoption.md` is either one depending on the row.
+  Deriving a role from a path prefix would invent provenance the cell never
+  stated, which is what `risks[].id` was corrected for at 1.6. **`kind` is a
+  fact about the STRING, not about what it is for.**
+
+| Key | Type | Meaning |
+|---|---|---|
+| `text` | string | the span **verbatim**, exactly as it stands in the cell, backticks and surrounding whitespace removed and nothing else. Never composed, normalised or repaired. This is the field that makes the array lossless: the only characters of `evidence` that reach no entry are `,`, `;`, their full-width forms, backticks and whitespace. |
+| `path` | string | the same value `evidence_paths` carries for this span — relative to `project_root`, existing, resolved against `state_root` then `project_root` in that order. `""` when the span resolved nowhere or was never path-shaped. `[e["path"] for e in evidence_relations if e["path"]]` **is** `evidence_paths`, the same list in the same order, so the two can never disagree. |
+| `kind` | string | `file` \| `dir` \| `unresolved` \| `note`. `file`/`dir` — the head resolved to that. `unresolved` — path-shaped and resolving under neither root; these are exactly the spans `conformance.evidence_not_found` reports for this row, said here in cell order beside their neighbours rather than in a separate list. `note` — text the cell carries outside any backticked span, which Perry never treated as a path: `(17 tests)`, `no fixture edited`, `byte-identical on all 3 fixtures before/after`. |
+
+**A cell that cannot be typed is not dropped and not repaired.** It comes back
+as `unresolved` or `note` with its full text — the rule `By when` → `Due` +
+`By when note` established, applied to a column carrying four things instead of
+two. On this repository: **139 cells → 223 entries; 116 cells wholly typed, 23
+carrying at least one verbatim fallback; 0 cells losing a character.**
+
+**Nothing else moved.** `evidence_paths`, `conformance.evidence_not_found` and
+every other field are byte-identical to 1.16 on any project — this is a key
+addition, which is why `semantics` gained no 1.17 entry.
 
 
 ### A timeline entry
@@ -518,6 +570,32 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.17 — 2026-08-28
+
+**`tasks[].evidence_relations[]` — the `Evidence` cell was one string doing
+four jobs (TASK-102).** A key addition and nothing else: `evidence_paths`,
+`conformance.evidence_not_found` and every other field are byte-identical on
+any project, which is why there is **no `semantics` entry** for this minor.
+
+The measurement: **139 rows carry an evidence cell, 28 of them name more than
+one thing**, and 45 spans — test counts, mutation tallies, byte-identical
+claims, elided test ids, a signature — reached neither `evidence_paths` nor
+`evidence_not_found` and were not reported anywhere. `evidence_paths` kept the
+file half of the column and discarded the rest without saying so.
+
+The row was titled `{path, kind, round}` and **that shape does not hold today's
+cells**; the argument, and what shipped instead, is in
+§ An `evidence_relations[]` entry above. Briefly: `round` has no bearer outside
+eight filenames and is not emitted; a span is a path *plus* a section, symbol,
+test node, step or count, so every entry keeps its text verbatim;
+`schema § thresholds` resolves as a directory and needed no fourth case; and
+"justifies the close" vs "was changed" is a role the string does not carry, so
+`kind` says what the string **is**.
+
+If you read `evidence_paths`, nothing changed for you. If you were rendering
+the raw `evidence` string because the paths array was not enough, this is the
+array that replaces your parser.
 
 ### 1.16 — 2026-08-28
 

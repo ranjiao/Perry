@@ -258,7 +258,7 @@ class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
         and `review_idle` carry one entry shape on purpose, so no matcher can
         tell them apart — one key table names both, and both must be
         documented by it, not one of them and not neither."""
-        task = self.live["contracts"]["perry-task/list/1.16"]
+        task = self.live["contracts"]["perry-task/list/1.17"]
         for array in ("in_progress_with_no_live_run", "review_idle"):
             for key in ("id", "status", "last_event", "idle_hours",
                         "threshold_hours", "means"):
@@ -499,22 +499,33 @@ WITNESSED = (
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00"'),
-    ("perry-task/list/1.16", "task-list-contract.md",
+    ("perry-task/list/1.17", "task-list-contract.md",
      "conformance.depends_on_unknown",
      "conformance.depends_on_unknown[].unknown",
      "| `unknown` | array | the dependency ids"),
-    ("perry-task/list/1.16", "task-list-contract.md",
+    ("perry-task/list/1.17", "task-list-contract.md",
      "conformance.in_progress_with_no_live_run",
      "conformance.in_progress_with_no_live_run[].means",
      "| `means` | string | the sentence to show a reader."),
-    ("perry-task/list/1.16", "task-list-contract.md",
+    ("perry-task/list/1.17", "task-list-contract.md",
      "conformance.review_idle", "conformance.review_idle[].means", ""),
+    ("perry-task/list/1.17", "task-list-contract.md",
+     "tasks[].evidence_relations", "tasks[].evidence_relations[].kind", ""),
 )
 
 #: The four that were unobservable when this row was opened, and the mutation
-#: each was proved with. `review_idle` is not here: its keys are observable
-#: from the live board today, so deleting a row of the shared idle table is
-#: already caught without the witness.
+#: each was proved with. Two entries above carry no mutation and are excluded,
+#: for opposite reasons:
+#:
+#: - `review_idle`'s keys are observable from the live board today, so deleting
+#:   a row of the shared idle table is already caught without the witness.
+#: - `tasks[].evidence_relations` (1.17) is observable from the live board
+#:   **only when the first open row happens to carry an evidence cell** — a
+#:   payload lists an entry shape from its FIRST element, and 4 of this board's
+#:   36 open rows carry one. Asserting it unobservable-without-the-witness
+#:   would pin a reading that flips with row order, which is the oscillation
+#:   the witness exists to remove; the witness holds `WIT-001`'s cell open so
+#:   the three keys are compared either way.
 MUTATED = tuple(w for w in WITNESSED if w[4])
 
 

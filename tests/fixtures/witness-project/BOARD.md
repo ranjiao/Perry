@@ -9,7 +9,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
-| WIT-001 | The row nobody is holding | Coding Agent | in_progress | finish the rollback path | — |
+| WIT-001 | The row nobody is holding | Coding Agent | in_progress | finish the rollback path | `README.md`, `phase/001-linkage.md § the register this project keeps stale` (2 rows), `decisions/` |
 | WIT-002 | The edge no register carries | Coding Agent | blocked | resolve the dependency | — |
 
 ## P1
