@@ -31,13 +31,41 @@ Declared paths come from two places, both mechanical:
    declares those keys. A first cell carrying prose is not a key table, which
    is how the changelog and `decide § Reading is tolerant` tables stay out.
 
-A table says nothing about *where* its keys hang. That is resolved by matching
-the table's key set against the emitted containers and taking the best fit —
-with a floor, so a single coincidental overlap cannot claim a table. **A table
-that finds no container is reported by name as unassigned rather than dropped**:
-a collection this project's own state leaves empty (`intake.rows`, `asks.items`,
-`roles.cards`) offers no children to match against, and a silently narrowed
-denominator is worse than a smaller one that is stated.
+A table usually says nothing about *where* its keys hang. That is resolved by
+matching the table's key set against the emitted containers and taking the best
+fit — with a floor, so a single coincidental overlap cannot claim a table. **A
+table that finds no container is reported by name as unassigned rather than
+dropped**: a collection this project's own state leaves empty (`intake.rows`,
+`asks.items`, `roles.cards`) offers no children to match against, and a
+silently narrowed denominator is worse than a smaller one that is stated.
+
+**Unless the heading says where.** A heading may name the collections its table
+describes, as backticked `name[]` references:
+
+    #### The idle entry — `in_progress_with_no_live_run[]` and `review_idle[]`
+
+and then the table is placed on **every** collection named and inference is not
+consulted at all. This is the one thing best-fit matching structurally cannot
+do: two collections with the same entry shape are the same key set, so scoring
+either splits the table onto one of them or — because neither wins — refuses it
+outright. Six documented keys sat in `unassigned` for three contract versions
+for exactly that reason, and `cleared_items[]` beside `items[]` could not be
+documented at all without copying its key table.
+
+The syntax is narrow on purpose, because the value of this check is that it
+refuses to guess:
+
+- the reference must carry `[]`. A bare backticked `` `asks` `` in a heading is
+  the section's topic, not a statement about the table below it — and reading
+  it as one would hang `asks[].id` off an object whose keys are `items` and
+  `open`, inventing findings.
+- the name must resolve to exactly one emitted collection, by its own last
+  segment (`` `semantics[]` `` → `semantics[]`, `` `depends_on_resolved[]` ``
+  → `tasks[].depends_on_resolved[]`). A full path may be written instead.
+- a name that resolves to **nothing**, or to more than one collection, is a
+  **failure reported by name** (`named_no_such_collection`) and the whole table
+  stays `unassigned`. An author who stated where a table hangs and got it wrong
+  is told so; a page that names nothing keeps the old inference and its floors.
 
 ## What the two numbers mean
 
@@ -64,6 +92,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GLOB = "schema/*-contract.md"
@@ -85,6 +114,14 @@ CONTRACT_ID = re.compile(r"`(perry-[a-z]+/[a-z]+/\d+\.\d+)`")
 #: A table row's first cell must be backticked names and nothing else. What is
 #: allowed BETWEEN them: commas, slashes and whitespace.
 SEPARATORS = re.compile(r"[\s,/]+")
+
+#: A collection a HEADING names for the table beneath it: a backticked
+#: ``name[]`` or ``parent.name[]``. The `[]` is the whole syntax — it is what
+#: separates *these are the entries of that collection* from a mention of a
+#: section by name, and the difference is not cosmetic: ``| `asks` — `##
+#: User Input Queue` |`` names the section an entry table belongs to, while the
+#: entries themselves hang under `asks.items[]`.
+NAMED_COLLECTION = re.compile(r"`([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*)\[\]`")
 
 
 # ---------------------------------------------------------------- the payload
@@ -212,12 +249,67 @@ def containers(emitted: dict[str, str], empties: set[str]) -> dict[str, set[str]
     return out
 
 
-def place(keys: list[str], boxes: dict[str, set[str]]) -> str | None:
-    """The container a key table describes, or `None`.
+class Placement(NamedTuple):
+    """Where a key table's keys hang.
 
-    Scored on **coverage** — how much of the table the container accounts for —
-    and broken on **precision**, how much of the container the table accounts
-    for. Both are needed and neither alone is enough:
+    `boxes` empty means unplaced — the caller reports the table by name rather
+    than dropping it. `named` says the heading stated the containers, so the
+    reader of a report can tell a declaration from an inference. `problems`
+    are collections the heading named and the payload does not carry; they are
+    a failure to report, never a reason to fall back to guessing.
+    """
+
+    boxes: list[str]
+    named: bool
+    problems: list[str]
+
+
+def named_boxes(heading: str, boxes: dict[str, set[str]]) -> Placement:
+    """The collections a heading names, resolved against the payload.
+
+    A name resolves by its **last segment**, so a page may write the short
+    ``` `depends_on_resolved[]` ``` for `tasks[].depends_on_resolved[]` the way
+    its prose already does — or the whole path, if that is what disambiguates.
+    Anything that resolves to no collection, or to several, is a problem
+    reported by name: the author said where the table hangs, and a statement
+    that does not check out is worth more as an error than as a silent guess.
+    """
+    found: list[str] = []
+    problems: list[str] = []
+    for name in NAMED_COLLECTION.findall(heading):
+        target = f"{name}[]"
+        hits = sorted(b for b in boxes
+                      if b == target or b.endswith(f".{target}"))
+        if len(hits) == 1:
+            found.append(hits[0])
+        elif not hits:
+            problems.append(f"`{target}` is named by the heading and the "
+                            f"payload carries no such collection")
+        else:
+            problems.append(f"`{target}` is named by the heading and matches "
+                            f"{len(hits)} collections: " + ", ".join(hits))
+    return Placement([] if problems else found,
+                     bool(found or problems), problems)
+
+
+def place(keys: list[str], boxes: dict[str, set[str]],
+          heading: str = "") -> Placement:
+    """The containers a key table describes.
+
+    **A heading that names them wins outright.** ``#### The idle entry —
+    `in_progress_with_no_live_run[]` and `review_idle[]` `` places its six rows
+    on both arrays, and no amount of scoring could have: the two have the same
+    entry shape by design — "one shape for both, so a consumer needs one code
+    path" — which makes them indistinguishable to a matcher and, being tied,
+    refused. Inference is not consulted when the heading has spoken, and a
+    heading that names a collection the payload lacks is a reported failure
+    rather than a fall-through, or the syntax would be a way to *soften* the
+    check instead of a way to state a fact.
+
+    With no name to go on, the old inference stands. Scored on **coverage** —
+    how much of the table the container accounts for — and broken on
+    **precision**, how much of the container the table accounts for. Both are
+    needed and neither alone is enough:
 
     - Coverage alone put `asks`'s eight fields on `tasks[]`, which shares
       `id`, `blocks`, `status` and `priority` with them, and filed four
@@ -228,6 +320,9 @@ def place(keys: list[str], boxes: dict[str, set[str]]) -> str | None:
 
     A table that clears neither floor is left unplaced and reported by name.
     """
+    stated = named_boxes(heading, boxes)
+    if stated.named:
+        return stated
     heads = {k.split(".")[0] for k in keys}
     scored = sorted(
         ((len(heads & children) / len(heads),
@@ -238,10 +333,10 @@ def place(keys: list[str], boxes: dict[str, set[str]]) -> str | None:
     best = scored[0]
     runner = scored[1] if len(scored) > 1 else (0.0, 0.0, 0, "")
     if best[0] < 0.6 or best[2] < 2:
-        return None
+        return Placement([], False, [])
     if (best[0], best[1]) == (runner[0], runner[1]):
-        return None
-    return best[3]
+        return Placement([], False, [])
+    return Placement([best[3]], False, [])
 
 
 # ------------------------------------------------------------------ the check
@@ -297,13 +392,16 @@ def compare(path: pathlib.Path, root: str = "") -> dict:
 
     documented, unparsed = sketch_paths(text)
     unassigned: list[str] = []
+    misnamed: list[str] = []
     for heading, keys in key_tables(text):
-        box = place(keys, boxes)
-        if box is None:
+        spot = place(keys, boxes, heading)
+        misnamed.extend(f"{heading} § {p}" for p in spot.problems)
+        if not spot.boxes:
             unassigned.extend(f"{heading} § {k}" for k in keys)
             continue
-        for key in keys:
-            documented[f"{box}.{key}" if box else key] = "documented"
+        for box in spot.boxes:
+            for key in keys:
+                documented[f"{box}.{key}" if box else key] = "documented"
 
     not_observable = {p: under_empty(p, empties) for p in documented
                       if under_empty(p, empties)}
@@ -323,6 +421,7 @@ def compare(path: pathlib.Path, root: str = "") -> dict:
         "not_observable": {p: f"inside `{v}`, which is empty in this run"
                            for p, v in sorted(not_observable.items())},
         "unassigned": sorted(unassigned),
+        "named_no_such_collection": sorted(misnamed),
         "unparsed_sketches": unparsed,
     }
 
@@ -361,6 +460,8 @@ def report(result: dict) -> str:
             lines.append(f"    table matched no emitted collection: "
                          f"{len(c['unassigned'])}")
             lines.extend(f"        {p}" for p in c["unassigned"])
+        for problem in c.get("named_no_such_collection", []):
+            lines.append(f"    HEADING NAMES NO SUCH COLLECTION: {problem}")
         for problem in c["unparsed_sketches"]:
             lines.append(f"    SKETCH DID NOT PARSE: {problem}")
         lines.append("")
