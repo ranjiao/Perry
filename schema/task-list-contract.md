@@ -179,7 +179,6 @@ Board renderer projects it into a `Depends on` cell. A cycle is refused at
 write time; a cycle introduced by an external store edit is reported by
 `conformance.dependency_cycles`.
 
-
 #### An `evidence_relations[]` entry
 
 Added at 1.17. **One entry per thing the cell names, in cell order.** The
@@ -229,7 +228,6 @@ carrying at least one verbatim fallback; 0 cells losing a character.**
 **Nothing else moved.** `evidence_paths`, `conformance.evidence_not_found` and
 every other field are byte-identical to 1.16 on any project — this is a key
 addition, which is why `semantics` gained no 1.17 entry.
-
 
 ### A timeline entry
 
