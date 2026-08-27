@@ -44,6 +44,37 @@ that polls should surface this rather than assume.
 never observes a half-applied change; on a contended project it may wait up to
 10s and then refuse rather than return a torn view.
 
+## A record can leave the store
+
+**An id in `tasks[]` today may be absent tomorrow, and this is the one way that
+happens.** `done` and `drop` close a row and keep its record; the id stays in
+`tasks[]` with `open: false` forever. `perry-task purge` (2026-08-28) removes
+the record from `tasks.jsonl` outright — it is the repair for a row that should
+never have been in the store at all, such as the three rows a smoke test of
+`perry-task add` left on this project on 2026-08-18. The id then vanishes from
+this payload.
+
+**No version moved for it, deliberately.** No key was added, removed or
+retyped, and no value is computed differently: `tasks[]` has always been *the
+records the store holds*, and `purge` changes the store rather than this
+payload. A `1.x` bump would have said something about the shape that is not
+true.
+
+What a consumer has to know is not a shape, it is these three facts:
+
+- **The id is retired, never reissued.** A number that leaves is not handed to
+  a later row, so joining on `id` across time stays sound; an id you cached and
+  can no longer resolve is gone, not renamed.
+- **The removal is on the event feed.** `perry-task events` carries a `purge`
+  event naming the id, and its log line carries the removed record verbatim, so
+  the disappearance is explainable and the record is reconstructible. See
+  `schema/events-list-contract.md § The event kinds`.
+- **It refuses a row anything still points at.** `depends_on`, `parent`,
+  `commitment` and `next_action` on a surviving record, a phase linkage
+  register's `krs[].tasks`, the goals store's `linked`, and any markdown
+  document a surviving record cites as evidence. So an id that disappears is
+  one nothing in Perry's own state was resolving.
+
 ## Why call the tool instead of parsing `BOARD.md`
 
 Because the second parser is the bug.
@@ -234,7 +265,7 @@ addition, which is why `semantics` gained no 1.17 entry.
 | Key | Type |
 |---|---|
 | `ts` | string — ISO-8601, **seconds** precision, local wall clock **with its UTC offset** since 1.18; no zone suffix at all on lines written before it, read as the reading machine's local time (§ Changelog 1.18, and `bin/lib § ts_moment`, which is the only converter). Compare two of them by converting, never as text. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
-| `event` | string — `add`, `route`, `start`, `stage`, `track`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
+| `event` | string — `add`, `route`, `start`, `stage`, `track`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop`. **`purge` is a sixteenth kind you will not see here**: it removes the record, so there is no `tasks[]` entry left to carry its timeline. It is on `perry-task events` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
 | `field` | string — **what `from`/`to` refer to on this event** (1.7) |
@@ -248,7 +279,7 @@ Perry adds a second such event, silently, with nothing in the payload to say so.
 
 Its value, per event:
 
-- **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`. A status value.
+- **`status`** — on `add`, `route`, `start`, `status`, `done`, `drop`, `purge`. A status value; `""` as `purge`'s `to`, which is this payload's unknown value and here means the row has no destination status because it has no record.
 - **`section`** — on `prioritize`. A **board section**: `P2` → `P1`, or a project's own heading such as `Open — 工程线`.
 - **`stage`** — on `stage`. A stage from the track's declared vocabulary.
 - **`track`** — on `track`. A track declared in `.perry/config.md § Tracks`. **Not `stage`**, though a move re-stamps one: a consumer told the pair was a stage would resolve `main` → `intake` against a stage vocabulary that does not contain them. The stage and the `Arrived` the move produced ride on the stored event's own `stage` / `stage_from` / `arrived` / `arrived_from` keys.
@@ -262,7 +293,7 @@ Its value, per event:
 The map's keys are asserted equal to the writer's own event set, so an event
 cannot ship without declaring what its pair means. The ask that produced this
 proposed `status` for everything except `prioritize`; that would have been
-false for **eight** of the fifteen — `stage`, `track`, `retitle`, `summary`,
+false for **eight** of the sixteen — `stage`, `track`, `retitle`, `summary`,
 `next`, `rung`, `evidence` and `depends` — and a wrong word in the field whose job is to stop
 you guessing is worse than no field.
 
@@ -960,10 +991,10 @@ Also documented, not changed: the event enum in § A timeline entry listed 7 of
 were all shipping and none was named, so a front-end building its event handling
 from the spec met them first at runtime.
 
-`field` is `status` on six events, and `section` / `stage` / `track` / `title` /
+`field` is `status` on seven events, and `section` / `stage` / `track` / `title` /
 `summary` / `next_action` / `verification` / `evidence` / `depends_on` on the rest. The ask
 proposed `status` for everything except `prioritize`; that is false for
-**eight** of the fifteen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
+**eight** of the sixteen — `stage`, `track`, `retitle`, `summary`, `next`, `rung`,
 `evidence` and `depends` — and a wrong word in the field whose job is to stop you guessing is
 worse than no field.
 One line per version. `1.x` may only add keys; a removal or a retype is a major
