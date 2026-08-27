@@ -119,6 +119,24 @@ The first column names the contract **family**. Which minor is live is the
 `contract` string in the payload and the page's own first line — never a number
 copied here.
 
+### One key table, several collections — say so in the heading
+
+A key table is normally placed by matching its keys against what the command
+emits. That cannot work for two collections built to share an entry shape:
+they are the same key set, so the match either ties or lands on whichever one
+the project's state happens to have filled. Name them in the heading instead,
+as backticked `name[]` references:
+
+```
+#### The idle entry — `in_progress_with_no_live_run[]` and `review_idle[]`
+```
+
+and the table below is read as documenting **both**. The `[]` is the whole
+syntax — a bare `` `asks` `` in a heading is the section's topic, not a claim
+about the table — and a name that matches no emitted collection, or more than
+one, **fails the check by name** rather than being quietly ignored. Nothing
+else about the page changes; a heading that names nothing keeps the matching.
+
 Three properties they share, and the third is the one that matters on a real
 project:
 

@@ -236,6 +236,29 @@ class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
         for name, entry in self.live["contracts"].items():
             self.assertEqual([], entry["unparsed_sketches"], name)
 
+    def test_no_heading_names_a_collection_the_payload_does_not_carry(self):
+        """A heading that names its collections is a claim about the payload,
+        and a claim that does not check out is a failure here rather than a
+        quiet fall-back to guessing. Renaming an emitted array without
+        touching the page that documents it fails on this line."""
+        for name, entry in self.live["contracts"].items():
+            self.assertEqual([], entry["named_no_such_collection"], name)
+
+    def test_the_idle_entry_table_lands_on_both_arrays(self):
+        """The row this syntax was added for. `in_progress_with_no_live_run`
+        and `review_idle` carry one entry shape on purpose, so no matcher can
+        tell them apart — one key table names both, and both must be
+        documented by it, not one of them and not neither."""
+        task = self.live["contracts"]["perry-task/list/1.15"]
+        for array in ("in_progress_with_no_live_run", "review_idle"):
+            for key in ("id", "status", "last_event", "idle_hours",
+                        "threshold_hours", "means"):
+                path = f"conformance.{array}[].{key}"
+                self.assertNotIn(path, task["emitted_not_documented"])
+            self.assertFalse(
+                [u for u in task["unassigned"] if array in u],
+                f"the table naming {array} is back in unassigned")
+
 
 class TestTheCheckDiscriminatesInBothDirections(unittest.TestCase):
     """Anti-vacuity. A check written and never proved to fire is the failure
@@ -262,6 +285,188 @@ class TestTheCheckDiscriminatesInBothDirections(unittest.TestCase):
     def test_a_page_naming_no_command_is_refused_rather_than_scored_zero(self):
         with self.assertRaises(ValueError):
             parity.invoke("# a contract page with no command\n")
+
+
+#: Two collections with the SAME entry shape, both non-empty, and **one** key
+#: table naming both in its heading. This is TASK-040's case — `cleared_items[]`
+#: beside `items[]` — and no tool on disk emits it, so the payload is handed to
+#: `compare()` directly rather than run.
+#:
+#: It is the primary evidence for this row **because the repository's own board
+#: cannot be trusted to hold the tie**: the two idle arrays are non-empty only
+#: while rows happen to be idle, and KR-O2.4 reads 12 or 0 for the same source
+#: tree depending on that. The fixture holds the tie open on purpose.
+TIED = {
+    "contract": "perry-sixth/list/1.0",
+    "open": 1,
+    "items": [{"id": "R-1", "note": "live"}],
+    "cleared_items": [{"id": "R-2", "note": "retired"}],
+}
+
+TIED_PAGE = """# `perry-decide list --json` — `perry-sixth/list/1.0`
+
+## The payload
+
+```jsonc
+{{
+  "contract": "perry-sixth/list/1.0",
+  "open": 1,
+  "items": [],
+  "cleared_items": []
+}}
+```
+
+#### {heading}
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the row. |
+| `note` | string | what it says. |
+"""
+
+#: Same tie, but the two collections hang under different parents, so a bare
+#: `rows[]` in a heading names two of them.
+AMBIGUOUS = {"a": {"rows": [{"id": "x", "note": "y"}]},
+             "b": {"rows": [{"id": "x", "note": "y"}]}}
+
+
+class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
+    """One key table, several containers — and the refusal that keeps it honest.
+
+    `place` scores a table's key set against every emitted container. Two
+    collections built to share an entry shape are therefore the SAME key set,
+    and the outcome depends on which of them the project's state happens to
+    have filled that minute:
+
+    - both non-empty — a tie, refused, every key unassigned and its emitted
+      twin filed as undocumented;
+    - one non-empty — no tie, the table silently lands on whichever one has
+      rows, and the other is documented only by being unobservable;
+    - both empty — refused again, and invisible because nothing is emitted.
+
+    The gap is constant; only its visibility moves. A heading that names its
+    collections settles it in the document, where the author already said it.
+    """
+
+    def compare(self, text: str, payload: dict) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            page = pathlib.Path(tmp) / "sixth-contract.md"
+            page.write_text(text)
+            return parity.compare(page, payload=payload)
+
+    def test_one_table_naming_both_arrays_documents_both(self):
+        """TASK-040's case, which is the acceptance test for this row: two
+        identically-shaped arrays and ONE key table, 0 and 0."""
+        result = self.compare(
+            TIED_PAGE.format(
+                heading="The entry — `items[]` and `cleared_items[]`"), TIED)
+        self.assertEqual([], result["documented_not_emitted"])
+        self.assertEqual([], result["emitted_not_documented"])
+        self.assertEqual([], result["unassigned"])
+        self.assertEqual([], result["named_no_such_collection"])
+
+    def test_the_named_table_reads_the_same_however_full_the_arrays_are(self):
+        """The oscillation, and the end of it.
+
+        Inference reads the *state*: with both arrays full it ties and refuses,
+        with one full it lands on that one, with both empty it refuses again
+        and nothing is emitted to miss — so the same page and the same code
+        measure 4, 0 and 0. A heading names collections, not rows, and an empty
+        array is still a collection, so all three states now read 0.
+        """
+        named = "The entry — `items[]` and `cleared_items[]`"
+        for label, payload in (
+                ("both non-empty", TIED),
+                ("one non-empty", dict(TIED, cleared_items=[])),
+                ("both empty", dict(TIED, items=[], cleared_items=[]))):
+            with self.subTest(label):
+                bare = self.compare(
+                    TIED_PAGE.format(heading="The entry, key by key"), payload)
+                result = self.compare(TIED_PAGE.format(heading=named), payload)
+                self.assertEqual([], result["emitted_not_documented"], label)
+                self.assertEqual([], result["documented_not_emitted"], label)
+                self.assertEqual([], result["unassigned"], label)
+                if label == "one non-empty":
+                    self.assertEqual(
+                        ["items[]"],
+                        parity.place(["id", "note"], parity.containers(
+                            parity.paths(payload),
+                            parity.empty_lists(payload))).boxes,
+                        "the state-reading placement this test exists about "
+                        "has changed shape")
+                    self.assertEqual([], bare["emitted_not_documented"],
+                                     "and it reads clean, which is the trap")
+
+    def test_the_same_table_naming_nothing_is_still_unassigned(self):
+        """The half that keeps the instrument honest. Identical payload,
+        identical table — the heading is the only difference, and without it
+        the tie is refused exactly as before."""
+        result = self.compare(
+            TIED_PAGE.format(heading="The entry, key by key"), TIED)
+        self.assertEqual(
+            ["The entry, key by key § id", "The entry, key by key § note"],
+            result["unassigned"])
+        self.assertEqual(
+            ["cleared_items[].id", "cleared_items[].note",
+             "items[].id", "items[].note"],
+            result["emitted_not_documented"])
+
+    def test_a_heading_naming_a_collection_the_payload_lacks_is_a_failure(self):
+        """Not a silent pass and not a fall-back to guessing: the author said
+        where the table hangs, so a name that resolves to nothing is reported
+        and the table stays unassigned."""
+        result = self.compare(
+            TIED_PAGE.format(heading="The entry — `ghosts[]`"), TIED)
+        self.assertEqual(1, len(result["named_no_such_collection"]))
+        self.assertIn("`ghosts[]`", result["named_no_such_collection"][0])
+        self.assertIn("no such collection",
+                      result["named_no_such_collection"][0])
+        self.assertEqual(2, len(result["unassigned"]))
+        self.assertIn("items[].id", result["emitted_not_documented"])
+
+    def test_one_bad_name_beside_a_good_one_refuses_the_whole_table(self):
+        """Half a stated intent is not a licence to act on the other half."""
+        result = self.compare(
+            TIED_PAGE.format(heading="The entry — `items[]` and `ghosts[]`"),
+            TIED)
+        self.assertEqual(1, len(result["named_no_such_collection"]))
+        self.assertEqual(2, len(result["unassigned"]))
+        self.assertIn("items[].id", result["emitted_not_documented"])
+
+    def test_a_name_matching_two_collections_is_a_failure_not_a_pick(self):
+        result = self.compare(
+            TIED_PAGE.format(heading="The entry — `rows[]`"), AMBIGUOUS)
+        self.assertEqual(1, len(result["named_no_such_collection"]))
+        for expected in ("a.rows[]", "b.rows[]"):
+            self.assertIn(expected, result["named_no_such_collection"][0])
+        self.assertEqual(2, len(result["unassigned"]))
+
+    def test_a_name_is_matched_on_a_whole_segment(self):
+        """`items[]` must not swallow `cleared_items[]`, or the ambiguity
+        refusal above would fire on the very case this row exists to allow."""
+        boxes = parity.containers(parity.paths(TIED), parity.empty_lists(TIED))
+        self.assertEqual(
+            parity.Placement(["items[]"], True, []),
+            parity.named_boxes("The entry — `items[]`", boxes))
+
+    def test_a_bare_name_without_brackets_is_not_a_collection_reference(self):
+        """`` `asks` — `## User Input Queue` `` names the section an entry
+        table belongs to; the entries hang under `asks.items[]`. Reading a
+        bare backticked word as a container is how the check would start
+        inventing findings against the wrong object."""
+        boxes = parity.containers(parity.paths(TIED), parity.empty_lists(TIED))
+        self.assertEqual(parity.Placement([], False, []),
+                         parity.named_boxes("`items` — the open ones", boxes))
+
+    def test_the_live_roles_page_names_no_collection_and_stays_unassigned(self):
+        """On real data, not a fixture: `roles.cards` is empty in this project
+        and its key table's heading names nothing, so it is still reported by
+        name rather than guessed onto something."""
+        entry = parity.compare(parity.ROOT / "schema"
+                               / "roles-list-contract.md")
+        self.assertEqual(6, len(entry["unassigned"]))
+        self.assertTrue(all(u.startswith("A card — the six frozen fields")
+                            for u in entry["unassigned"]))
 
 
 class TestWhatCouldNotBeComparedIsNamed(unittest.TestCase):
