@@ -58,6 +58,8 @@
 | 2026-08-28 | bin/perry-conform:283 cites test_conformance § 7 for TASK-047 cost 1; it is pinned in § 6 | dropped 2026-08-28 — Folded into the consolidated row — see evidence/2026-08/2026-08-28-citations-that-point-at-a-directory.md. Four instances of one defect, filed separately by three rows in one night. |
 | 2026-08-28 | bin/README.md:234 and perry-conform:273-274 cite ~/proj/gimegime-pmo as measured evidence for TASK-047 cost 1 — that measurement now runs nowhere; point them at the test | dropped 2026-08-28 — Folded into the consolidated row — see evidence/2026-08/2026-08-28-citations-that-point-at-a-directory.md. |
 | 2026-08-28 | four docstrings cite a directory on this machine as their evidence — bin/README.md:234, perry-conform:273-274 and :283, perry-goals:459 and :334; three are only fixable because TASK-124 and TASK-125 built the tests to point at | — |
+| 2026-08-28 | a mutation sweep killed mid-flight leaves the tree mutated — TASK-147's was SIGTERM'd at a tool cap and its finally never ran, leaving a live mutation in bin/perry_store.py; sweeps should run detached with signal handlers | — |
+| 2026-08-28 | render_line's desc.get('escape', True) default is unreachable from production — both builders always set the key | — |
 
 ## P0 (must finish this period)
 
@@ -91,7 +93,6 @@
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
-| TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | in_progress | — | — | V3 | — | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
