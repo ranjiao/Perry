@@ -50,6 +50,7 @@
 | 2026-08-28 | load_snapshot binds STATE_ROOT at def time, so perry-state's override can never reach it | — |
 | 2026-08-28 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so Depends on 待定 parses as a real dependency id | — |
 | 2026-08-28 | diagnose and perry-task disagree about open queue rows — 2 vs 0 — and the disagreement rides along on TASK-179's red | — |
+| 2026-08-28 | a row can be resolved by work in a repo Perry does not own, and Perry has no signal for it — TASK-161 and TASK-175 in one night | — |
 
 ## P0 (must finish this period)
 
@@ -92,7 +93,6 @@
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | in_progress | — | — | V2 | — | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
-| TASK-175 | aiMark's KR meter renders a stale assertion identically to a fresh one | Coding Agent | not_started | DECIDED 2026-08-21: mark it. This lifts TASK-114 acceptance item 6, which forbade touching the OKR chain view and contradicted the goals-2.1 instruction in the same prompt — the KR meter IS the chain view. Restraint is the point: do not caption every KR with 'this is an assertion', because it is true of all of them and says nothing. Only stale, and only unasserted | — | V3 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
