@@ -1359,14 +1359,40 @@ def idish_tokens_that_resolve_nowhere(text: str, ctx) -> list[str]:
     Advisory, never a refusal: `USER-014` and `ADR-006` are legitimate
     references to ids this board does not carry, and refusing them would make
     the tool unable to cite a decision.
+
+    **The families are the project's, not Perry's (TASK-158).** This asked
+    `prefix in {ADR, DESIGN, USER, SRC, KR, TASK}` plus whatever the task
+    store carried, which is a closed list of the families PERRY mints — so on
+    a project whose decisions are `DEC-014` and whose specs are `SPEC-007`,
+    every legitimate citation of either got the warning, and the warning was
+    false twice over. It said the token "names nothing" when
+    `decisions/DEC-014-ingest-format.md` is exactly what it names, and it said
+    "`perry-diagnose` reports it as dangling" when `perry-diagnose` — reading
+    the same project through `perry-explain § harvest` — reports nothing at
+    all. An advisory that fires on correct writes and cites a tool that
+    disagrees with it is how a checker teaches people to ignore it, which is
+    the same failure `perry-explain § NOT_AN_ID` exists to avoid.
+
+    So the question moved from "is this family one of Perry's" to "is this
+    family one this PROJECT uses", answered against the project by
+    `bin/lib § declared_id_families` — the same filename rule `harvest` opens
+    with, so this tool and the tool its message names cannot disagree.
+    Perry's own six stay as the floor, because a project that has not written
+    its first ADR yet still cites `ADR-006` legitimately.
+
+    **The walk is paid for only when there is something to warn about.** Every
+    write on which no token is unknown by the cheap test returns before
+    touching the filesystem, which is nearly all of them; the tokens that
+    would have produced a warning are the ones that buy the second look.
     """
     known = set(task_id_prefixes(ctx["task_records"]))
-    known.update({"ADR", "DESIGN", "USER", "SRC", "KR", "TASK"})
-    out = []
-    for prefix, num in _IDISH.findall(text or ""):
-        if prefix not in known:
-            out.append(f"{prefix}-{num}")
-    return out
+    known.update(lib.PERRY_CITATION_FAMILIES)
+    suspect = [(prefix, num) for prefix, num in _IDISH.findall(text or "")
+               if prefix not in known]
+    if not suspect:
+        return []
+    known.update(lib.declared_id_families(ctx["project_root"]))
+    return [f"{prefix}-{num}" for prefix, num in suspect if prefix not in known]
 
 
 def declared_roles(ctx) -> list[str]:

@@ -504,6 +504,12 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
 
         Loaded through the real `load_task_records`, so the reader under test
         is the shipped one; only the records are the test's own.
+
+        `project_root` is the same throwaway directory and carries no document
+        at all, which is the case that matters here: a project that declares no
+        id family of its own must behave exactly as it did before
+        `declared_id_families` existed (TASK-158). A project that DOES declare
+        one is `tests/test_id_families.py`.
         """
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
@@ -511,7 +517,8 @@ class TestEveryEventSaysWhatItsPairMeans(unittest.TestCase):
         (root / "tasks.jsonl").write_text(
             "".join(json.dumps(r) + "\n" for r in self.FIXTURE_TASKS),
             encoding="utf-8")
-        return {"task_records": self.mod.load_task_records(root)}
+        return {"task_records": self.mod.load_task_records(root),
+                "project_root": root}
 
     def test_an_id_shaped_word_in_prose_is_warned_about(self):
         """`ROUND-2` is English with a hyphen and an identifier to every id

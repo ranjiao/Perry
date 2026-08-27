@@ -1636,7 +1636,7 @@ def _perry_shaped(path: Path, schema: dict) -> bool:
     if path.name in ("README.md", "INDEX.md"):
         return True
     stem = path.stem
-    if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
+    if lib.perry_named_artifact(stem) or re.match(r"^\d{3}-", stem):
         return True
     if re.match(r"^\d{4}-\d{2}(-\d{2})?$", stem) or re.match(r"^\d{4}-W?\d{2}$", stem):
         return True
