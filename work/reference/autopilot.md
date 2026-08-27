@@ -24,7 +24,7 @@ The executor enum is `claude-subagent | opencode-subagent | codex | manual`. Aut
 
 ## When to use
 
-- You have ≥ 3 P0/P1 specs ready to dispatch (`Dispatch mode: auto`, all dependencies resolved).
+- You have ≥ 3 P0/P1 rows that `"$PERRY_HOME/bin/perry-task" list --json` reports as `startable`, with specs pinned to `Dispatch mode: auto`.
 - You're about to be away long enough that synchronous dispatch + babysit is wasteful.
 - The work is well-scoped — specs are in good shape, executors are pinned, hook safety list is well-curated.
 
@@ -127,15 +127,29 @@ First-run protection:
 
 1. Run the standup ritual (per `SKILL.md § Mandatory first move`).
 2. Check stop signal: if `~/.cache/perry/autopilot.stop` exists, refuse and ask user to delete it.
-3. Read the BOARD top-to-bottom. For each open row, classify:
-   - **Eligible**: status ∈ {`not_started`, `blocked` with all blockers resolved}, has `evidence/<YYYY-MM>/<TASK-ID>-spec.md` with `Dispatch mode: auto` + non-`manual` Executor, hook safety scan passes, all listed dependencies resolved.
+3. Read the BOARD through the payload, not by eye:
+
+   ```
+   "$PERRY_HOME/bin/perry-task" list --json
+   ```
+
+   Every row it returns carries `startable`, `blocked_stale`, `blocked_by` and `depends_on_resolved`. **The dependency question is already answered there; do not answer it a second time from the row's cells.** This page used to, and its answer went stale three times without anyone noticing: contract 1.12 stopped `startable` deferring to the stored `Status`, 1.14 made an unanswered `USER-` ask block a row exactly as an open task does, and 1.15 made the reason readable per edge. A rule stated in two places is fixed in one.
+
+   For each open row, classify:
+   - **Eligible**: `startable` is `true`, has `evidence/<YYYY-MM>/<TASK-ID>-spec.md` with `Dispatch mode: auto` + non-`manual` Executor, and the hook safety scan passes.
+
+     A row whose `Status` cell still reads `blocked` can be `startable` all the same — `blocked_stale` is `true` beside it, and the cell is what is out of date, not the verdict. Perry does not rewrite the cell, so it will still read `blocked` when the run report is written; say so there rather than treating the row as ineligible.
    - **Skipped — manual**: `Dispatch mode: manual` (intended) — these are listed in the skip section but never auto-dispatched.
    - **Skipped — high-stakes**: hook safety scan flags a match → never auto-dispatched even if `Dispatch mode: auto` (safety > flag). The scan is `"$PERRY_HOME/bin/perry-state" --escalation-scan <spec>` and its exit code is the verdict (`dispatch.md` pre-flight step 4) — autopilot runs unattended, so this is the one place the match must never be performed by reading a fragment list and judging by eye.
    - **Skipped — no spec**: P0/P1 missing `<TASK-ID>-spec.md` → never auto-dispatched (spec is the safety contract).
-   - **Skipped — blocked**: open dependency.
+   - **Skipped — waiting on other work**: `blocked_by` is non-empty and the matching `depends_on_resolved` entries say `kind: task`. Name those ids and their titles in the skip list; *"blocked"* on its own is not something a returning user can act on.
+   - **Skipped — waiting on the user**: `blocked_by` names an id whose `depends_on_resolved` entry says `kind: ask` — a `USER-` question that has not come back. **This is a different queue and it goes in the run report's *Left for user* section**, not in with the rows waiting on other work: nothing autopilot or any executor does will clear it, and the person reading the report is the only one who can. An ask only started resolving edges at contract 1.14; before that a row waiting on a question was invisible here.
+   - **Skipped — dependency Perry cannot see**: the `depends_on_resolved` entry says `kind: unknown` — a `DESIGN-`/`ADR-` handle, or an id neither register carries. It counts as unsatisfied, because *"I cannot see it"* is not *"it closed"*.
    - **Skipped — already in flight**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` shows it as currently running.
     - **Skipped — host mismatch**: the spec pins a native executor unavailable on `$HOST`. Claude Code permits `claude-subagent`; OpenCode permits `opencode-subagent`; Codex CLI permits neither. Every host also permits `codex`. The spec must be edited explicitly; autopilot never reroutes it.
    - **Skipped — review/done**: already past dispatch.
+   When a row you expected is missing from the will-dispatch list, its `startable` is `false` because not every one of its dependencies has closed; `blocked_by` names which ones, and `depends_on_resolved` says of each whether it is a task or a question waiting on you. Report that, rather than re-deciding it.
+
 4. Apply priority order: P0 first, then P1, then P2 (within each, oldest-pending first).
 5. Truncate eligible list to `max-dispatches` (default 10).
 6. Compute estimated total cycle time using each spec's `Estimated cycle` field (small=1m, medium=5m, large=15m baseline; per-project hook may override). Compare to `max-duration` (default 2h).
@@ -224,6 +238,7 @@ Sections:
 - DATA-008-B (review): user verifies pipeline-002 §1.2.A R-2 result reproducibility
 - DATA-009 (review, FAILED): pytest failed with <one-line summary>; user investigates
 - TECH-001 (skipped — manual): waiting for user to flip Dispatch mode after spec review
+- DATA-012 (skipped — waiting on the user): `blocked_by` names `USER-014`, "which vendor API tier are we buying?" — no executor can clear this one
 - ...
 
 ## Counters
