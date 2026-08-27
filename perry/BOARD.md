@@ -51,7 +51,6 @@
 | 2026-08-28 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so Depends on 待定 parses as a real dependency id | — |
 | 2026-08-28 | diagnose and perry-task disagree about open queue rows — 2 vs 0 — and the disagreement rides along on TASK-179's red | — |
 | 2026-08-28 | a row can be resolved by work in a repo Perry does not own, and Perry has no signal for it — TASK-161 and TASK-175 in one night | — |
-| 2026-08-28 | .perry/config.jsonl is declared in claims[] and does not exist — the second half of P-O1.2, whose only linked task closed | dropped 2026-08-28 — Wrong as filed, corrected 2026-08-28. bin/perry-config is complete and runs today; the store is absent BY DECISION, recorded in TASK-092's dispatch note — making .perry/config.md a projection turns a hand edit into reported drift, and SKILL.md promises the user hand-owns that file. Not missing work. Re-filed as a USER- ask, which is the right register for a decision. See evidence/2026-08/2026-08-28-a-kr-with-no-open-task.md |
 | 2026-08-28 | a KR short of target whose every linked task is terminal is stalled, and nothing reports it — must be phase-scoped or three of four results are noise | — |
 | 2026-08-28 | perry-migrate CROSS_FILE_INPUTS omits tasks.jsonl, so linkage-task-exists declines in the dry run's newly-visible delta — one-word fix | — |
 
