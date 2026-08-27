@@ -53,6 +53,7 @@
 | 2026-08-28 | a row can be resolved by work in a repo Perry does not own, and Perry has no signal for it — TASK-161 and TASK-175 in one night | — |
 | 2026-08-28 | .perry/config.jsonl is declared in claims[] and does not exist — the second half of P-O1.2, whose only linked task closed | dropped 2026-08-28 — Wrong as filed, corrected 2026-08-28. bin/perry-config is complete and runs today; the store is absent BY DECISION, recorded in TASK-092's dispatch note — making .perry/config.md a projection turns a hand edit into reported drift, and SKILL.md promises the user hand-owns that file. Not missing work. Re-filed as a USER- ask, which is the right register for a decision. See evidence/2026-08/2026-08-28-a-kr-with-no-open-task.md |
 | 2026-08-28 | a KR short of target whose every linked task is terminal is stalled, and nothing reports it — must be phase-scoped or three of four results are noise | — |
+| 2026-08-28 | perry-migrate CROSS_FILE_INPUTS omits tasks.jsonl, so linkage-task-exists declines in the dry run's newly-visible delta — one-word fix | — |
 
 ## P0 (must finish this period)
 
@@ -90,7 +91,6 @@
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
-| TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | in_progress | — | — | V3 | — | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | in_progress | — | — | V2 | — | intake | triaged | 2026-08-21 |
