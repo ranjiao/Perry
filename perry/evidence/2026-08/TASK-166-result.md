@@ -33,9 +33,23 @@ writers the refusal is the tool saying *that work is over*:
 
 Every other cell is a claim ABOUT the work, and a claim about finished work is
 finished with it. The title is not a claim about the work — it is what a reader
-is handed INSTEAD OF a bare id, which `reference/user-load.md` forbids outright,
-and it is needed for exactly as long as anybody reads the record. A closed row is
-read more often than an open one and by people who were not there.
+is handed INSTEAD OF a bare id, and `reference/user-load.md` forbids the
+alternative in two separate rules: *"the first time an ID appears in any
+user-facing output … it carries its human name"* and *"never mint an ID without
+a title in the same write"*. A name is needed for exactly as long as anybody
+reads the record, and a closed row is read by more people than an open one and
+by people who were not there.
+
+That was not theoretical. The lookup `user-load.md` tells the agent to run
+answered like this:
+
+```
+$ perry-explain TASK-029
+TASK-029  —  (no title found)
+```
+
+The row was in permanent violation of the rule on the very surface the rule
+exists to protect, and the tool that repairs titles refused to touch it.
 
 The compounding follows from that asymmetry rather than from bad luck: an open
 row with no title gets one the next time somebody reads the board, so the only

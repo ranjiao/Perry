@@ -237,7 +237,23 @@ to". One event name would lose all three at once.
 
 `next` is the only one that refuses a finished row: a completed row has no next
 step, and writing one puts a live-looking instruction on finished work. Its
-title, its rung and its evidence path stay correctable.
+title, its rung and its evidence path stay correctable **while the row is still
+on the board** — a project that stages finished work in place rather than
+removing it.
+
+**Once a row has left the board, `retitle` is the only one of the four that
+still reaches it.** Closing removes the row, so all four normally refuse with
+*is not a row on the board*; `retitle` alone falls back to the record in
+`tasks.jsonl`. The reason is what the cell is. A rung and an evidence path are
+claims about work that was checked, and a claim about finished work is finished
+with it; a title is the row's NAME, `reference/user-load.md` forbids handing a
+reader a bare id, and a name is needed for as long as anybody reads the record.
+TASK-166 was the case that surfaced it — `TASK-029` sat `done` at `V3` with real
+evidence and no title, reported by nothing and repairable by nothing.
+
+A rung or an evidence path that is genuinely wrong on a closed row is a
+different conversation and does not have a tool path: correcting either means
+re-stating what was checked, which is a re-review, not a repair.
 
 **A rung is set when the row is opened, and corrected the same way.**
 
