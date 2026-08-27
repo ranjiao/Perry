@@ -10,7 +10,6 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 import tempfile
@@ -427,55 +426,6 @@ class StateExtractor(unittest.TestCase):
                 capture_output=True, text=True, check=True,
             )
             self.assertFalse(json.loads(out.stdout)["installed"])
-
-
-class ViewerTemplates(unittest.TestCase):
-    """Templates read parser attributes by name, so a renamed field breaks them
-    silently. Skipped when jinja2 isn't installed (the viewer is opt-in)."""
-
-    def setUp(self):
-        try:
-            import jinja2  # noqa: F401
-        except ImportError:
-            self.skipTest("jinja2 not installed (viewer is opt-in)")
-
-    def _env(self):
-        import jinja2
-        env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(str(PERRY_HOME / "viewer" / "templates")))
-        # Filters that serve.py registers at runtime. Read them OUT of
-        # serve.py rather than listing them here: a hardcoded list silently
-        # goes stale the moment someone adds a filter, and then this test
-        # reports a working template as broken. That already happened once,
-        # with `strip_md_link`.
-        serve = (PERRY_HOME / "viewer" / "serve.py").read_text()
-        names = re.findall(r'@app\.template_filter\(\s*["\']([\w]+)["\']', serve)
-        self.assertTrue(names, "no template filters found in serve.py — "
-                               "the registration pattern changed")
-        for name in names:
-            env.filters.setdefault(name, lambda v, *a, **k: v)
-        return env
-
-    def test_all_templates_compile(self):
-        import jinja2
-        env = self._env()
-        for path in sorted((PERRY_HOME / "viewer" / "templates").glob("*.html")):
-            with self.subTest(template=path.name):
-                try:
-                    env.get_template(path.name)
-                except jinja2.TemplateSyntaxError as exc:
-                    self.fail(f"{path.name}:{exc.lineno}: {exc}")
-
-    def test_phase_track_renders_a_real_day_number(self):
-        """Regression: the phase-track subtitle used to print the number of
-        scope triggers as the phase day."""
-        env = self._env()
-        snap = P.load_snapshot(FIXTURE)
-        out = env.from_string(
-            "{% import '_macros.html' as m %}{{ m.phase_track(snap) }}"
-        ).render(snap=snap)
-        self.assertIn(f"day {snap.phase.day}", out)
-        self.assertNotIn(f"day {len(snap.phase.scope_triggers)} ", out)
 
 
 class Linter(unittest.TestCase):

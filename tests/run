@@ -49,7 +49,7 @@ for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
   python3 "$f" --help >/dev/null 2>&1 || { echo "  ✗ $f --help failed"; fail=1; }
 done
 for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
-         bin/perry-codex-preflight bin/perry-viewer; do
+         bin/perry-codex-preflight; do
   bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
 done
 [ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"
