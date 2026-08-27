@@ -59,6 +59,7 @@
 | 2026-08-28 | a mutation sweep killed mid-flight leaves the tree mutated — TASK-147's was SIGTERM'd at a tool cap and its finally never ran, leaving a live mutation in bin/perry_store.py; sweeps should run detached with signal handlers | — |
 | 2026-08-28 | render_line's desc.get('escape', True) default is unreachable from production — both builders always set the key | — |
 | 2026-08-28 | perry-lint's store-drift census covers tasks.jsonl only — okr.jsonl's 36 records and .perry/config.jsonl are never checked for drift, so ADR-007's guarantee holds for one store of three | — |
+| 2026-08-28 | the id scanner excludes fenced blocks but not inline code spans, so a regex in backticks becomes a dangling id — Z0-9 is on today's list and is not an id; fix the false positives before TASK-179's decision is made | — |
 
 ## P0 (must finish this period)
 
