@@ -366,9 +366,26 @@ class TestOnThisRepositoryAndNotAFixture(unittest.TestCase):
         cls.rows = {t["id"]: t for t in cls.data["tasks"]}
 
     def test_the_gap_this_row_opened_for_is_still_the_live_shape(self):
-        self.assertEqual(self.data["asks"], {"items": [], "open": 0},
-                         "this board's asks are all answered — if that has "
-                         "changed, re-measure before trusting the rest")
+        """The precondition this class needs is that the two asks it reads are
+        ANSWERED — not that the board has no open ask at all.
+
+        It was originally written as `asks == {"items": [], "open": 0}`, which
+        said the same thing only while nobody had asked anything new. Filing
+        `USER-903` — an ordinary, correct use of `perry-task ask` — turned this
+        red, and the row it was protecting had not moved.
+
+        That is the defect `test_the_contract_moved_and_the_document_says_why`
+        lectures about four methods below, committed in the same class: an
+        assertion that encodes a moment rather than the rule. The rule is that
+        an *answered* ask stays legible at the edge, and a new *unanswered* one
+        is none of this test's business."""
+        open_ids = {a["id"] for a in self.data["asks"]["items"]}
+        self.assertNotIn("USER-016", open_ids,
+                         "USER-016 is open again — re-measure before trusting "
+                         "the rest of this class")
+        self.assertNotIn("USER-015", open_ids,
+                         "USER-015 is open again — re-measure before trusting "
+                         "the rest of this class")
         self.assertEqual(self.rows["TASK-040"]["depends_on"], ["USER-016"])
 
     def test_user_016_resolves_to_its_question_text_in_one_lookup(self):
