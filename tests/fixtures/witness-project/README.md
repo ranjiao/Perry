@@ -17,6 +17,7 @@ and every entry they report here is **derived** from the files below:
 | `perry-task` → `conformance.depends_on_unknown` | `WIT-002` depends on `WIT-404`, an id no register here carries |
 | `perry-task` → `conformance.in_progress_with_no_live_run` | `WIT-001` is `in_progress`, holds no dispatch slot, and nothing has moved it since 2026-08-06 |
 | `perry-task` → `conformance.review_idle` | `WIT-003` has been in `review` since 2026-08-06 and nobody has ruled on it |
+| `perry-task` → `tasks[].evidence_relations` | `WIT-001` carries a real evidence cell naming a file, a file with a `§` section, a `(2 rows)` note and a directory — the four `kind`s, on the FIRST row, which is where a payload lists an entry shape from |
 
 The first four are the ones that were unobservable when this project was
 written. **`review_idle` is here for the general case**: it is
@@ -39,6 +40,13 @@ is a true statement about **this** project.
   unresolved, `WIT-001` stays idle, `WIT-003` stays unreviewed, ADR-001 stays
   `active` past its sunset, and `phase/001-linkage.md` keeps a date older than
   `.perry/events.jsonl`.
+- **`WIT-001`'s evidence cell was written into the store and the board by
+  hand, on purpose, and no event was logged for it.** `perry-task evidence`
+  would have appended an event dated today, and `WIT-001`'s whole job here is
+  that **nothing has moved it since 2026-08-06** — writing that cell through
+  the tool empties `in_progress_with_no_live_run`, the condition this row was
+  added beside. Every path in the cell exists in this directory, so the cell
+  is a true statement about this project and `evidence_not_found` stays empty.
 - **`.perry/events.jsonl` uses real event kinds.** `add`, `start`, `status` —
   `bin/perry-task § TASK_EVENTS`. An event whose kind is not in that set is
   skipped when a row's timeline is built, so a plausible-looking `"created"`

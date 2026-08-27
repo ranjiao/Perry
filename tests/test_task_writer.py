@@ -1465,6 +1465,11 @@ class TestListContract(unittest.TestCase):
         # contract. A parallel array, because retyping `depends_on` would be a
         # major on the key every consumer of this payload reads.
         "depends_on_resolved",
+        # 1.17 — the `Evidence` cell said in a shape a consumer can branch on.
+        # `evidence_paths` kept the file half of a column that carries four
+        # things at once; the prose, the counts and the elided test ids reached
+        # no array at all. Additive, and `evidence_paths` is unchanged.
+        "evidence_relations",
     }
     TOP_KEYS = {"contract", "semantics", "project_root", "state_root",
                 "conformance",
@@ -1511,6 +1516,13 @@ class TestListContract(unittest.TestCase):
     #: of those because inventing one out of a handle is what `risks[].id`
     #: was corrected for at 1.6.
     RESOLVED_EDGE_KEYS = {"id", "kind", "satisfied", "title", "status"}
+    #: `tasks[].evidence_relations[]` (1.17). `text` is the span verbatim,
+    #: `path` is the same value `evidence_paths` carries for it, and `kind`
+    #: says what the STRING is — `file`/`dir`/`unresolved`/`note` — never what
+    #: it is FOR. "The document that justifies the close" and "the code that
+    #: was changed" are roles the string does not carry, and deriving one from
+    #: a path prefix is the invention `risks[].id` was corrected for at 1.6.
+    EVIDENCE_RELATION_KEYS = {"text", "path", "kind"}
     #: `conformance.sections_read[]`. Its shape was stated inside the
     #: `conformance` table's Meaning cell, which is prose to both checkers.
     SECTIONS_READ_KEYS = {"heading", "priority", "rows"}
@@ -1729,7 +1741,7 @@ class TestListContract(unittest.TestCase):
                  | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS
                  | self.CITATION_KEYS | self.IDLE_ROW_KEYS
                  | self.UNKNOWN_DEP_KEYS | self.SEMANTICS_KEYS
-                 | self.RESOLVED_EDGE_KEYS
+                 | self.RESOLVED_EDGE_KEYS | self.EVIDENCE_RELATION_KEYS
                  | self.SECTIONS_READ_KEYS | self.EVIDENCE_NOT_FOUND_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,

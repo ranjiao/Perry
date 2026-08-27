@@ -101,16 +101,17 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-task/list/1.16": {
+    "perry-task/list/1.17": {
       "collections_the_witness_filled": [
         "conformance.depends_on_unknown",
-        "conformance.in_progress_with_no_live_run"
+        "conformance.in_progress_with_no_live_run",
+        "tasks[].evidence_relations"
       ],
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.16",
-      "documented": 133,
+      "contract": "perry-task/list/1.17",
+      "documented": 137,
       "documented_not_emitted": [],
-      "emitted": 125,
+      "emitted": 126,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
       "named_no_such_collection": [],
@@ -123,7 +124,10 @@
         "conformance.in_progress_with_no_live_run[].last_event": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
         "conformance.in_progress_with_no_live_run[].means": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
         "conformance.in_progress_with_no_live_run[].status": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
-        "conformance.in_progress_with_no_live_run[].threshold_hours": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`"
+        "conformance.in_progress_with_no_live_run[].threshold_hours": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "tasks[].evidence_relations[].kind": "inside `tasks[].evidence_relations`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "tasks[].evidence_relations[].path": "inside `tasks[].evidence_relations`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "tasks[].evidence_relations[].text": "inside `tasks[].evidence_relations`, which is empty in this run and carries entries in `tests/fixtures/witness-project`"
       },
       "unassigned": [
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 asked",
