@@ -46,6 +46,11 @@ Neither arm is the golden file the docstring above warns about, because neither
 is re-recordable into agreement: re-running `--record` cannot change what a
 contract page says.
 
+Measured 2026-08-28: **182 recorded paths, 189 the pages declare a type for,
+231 live.** 132 paths are held by both arms, **57 by the page alone** — keys
+added since the fixture was taken, which nothing checked the type of until now
+— and 50 by the fixture alone, where no page states a type.
+
 **And element zero stopped deciding.** `shape` unions over EVERY element of a
 list rather than collapsing to the first. Collapsing avoided keying on length
 and replaced it with something narrower: for `tasks[].created` the recorded
