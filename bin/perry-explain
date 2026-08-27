@@ -47,12 +47,18 @@ from parsers import resolve_state_root  # noqa: E402
 
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import perry_store  # noqa: E402
+import lib  # noqa: E402
 
-SKIP_DIRS = {
-    ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
-    ".claude", ".agents", ".trae",
-    "target", ".next", "vendor", "site-packages", ".pytest_cache", ".tox",
-}
+# The walk over "the markdown that belongs to this project" moved to `bin/lib`
+# (TASK-158), so that `bin/perry-task`'s write-site advisory can learn a
+# project's id families from the same tree this file resolves ids over — two
+# walks would be two answers to "what counts as this project". Re-exported
+# under their own names: this module is imported by `bin/perry-diagnose` as a
+# resolver, and a caller should not have to know which file a primitive
+# settled in. `bin/perry-diagnose` keeps its OWN, larger `SKIP_DIRS` on
+# purpose; see the note above its walk.
+SKIP_DIRS = lib.SKIP_DIRS
+walk_md = lib.walk_md
 
 # REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's KR form P-O1.2
 ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
@@ -265,21 +271,6 @@ def heading_title(text: str, subject: str) -> str:
     if m and m.group(1) == subject:
         lead = lead[m.end():]
     return lead.strip(TITLE_TRIM)
-
-
-def walk_md(root: Path):
-    for dirpath, dirnames, filenames in os.walk(root):
-        # A directory carrying its own `.git` is a different project — a
-        # vendored checkout, a submodule, an agent worktree. Skipping by name
-        # never finishes, and this walk feeds `perry-diagnose`'s user-load
-        # scan, which reported a dangling id that existed in no file of this
-        # repo: it was reading a subagent's half-written source out of a
-        # worktree. `.git` is a directory in a clone and a file in a worktree.
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
-                       and not (Path(dirpath) / d / ".git").exists()]
-        for fn in filenames:
-            if fn.lower().endswith((".md", ".markdown")):
-                yield Path(dirpath) / fn
 
 
 def harvest(root: Path) -> dict:

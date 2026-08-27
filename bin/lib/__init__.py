@@ -825,3 +825,130 @@ def resolve_startability(tasks) -> None:
             task["open"] and not task["blocked_by"]
             and (task["blocked_stale"]
                  or task["status"] not in WAITING_ON_SOMEBODY_ELSE))
+
+
+# ── which id families a project uses ──────────────────────────────────────
+#
+# TASK-158. Perry's own families were written out by name in four places, and
+# each one of them answered a slightly different question with the same six
+# letters. The spellings are here now — one per question, each read by its
+# callers rather than retyped — and the *project's* families are derived
+# instead of listed, because there is no list Perry could have written that
+# has `DEC` or `SPEC` on it.
+
+
+#: A markdown artifact named after an id: `ADR-002-single-region.md`,
+#: `TASK-158-spec.md`, `DEC-014-ingest-format.md`. Group 1 is the family.
+#:
+#: The shape is `bin/perry-explain § ID_RE`'s, minus the KR form: a capitalised
+#: word, a hyphen, digits. That is deliberate — `perry-explain` is the resolver
+#: every id reader in this repository defers to, and a family this cannot see
+#: is a family its `harvest` cannot see either.
+ID_NAMED_FILE_RE = re.compile(r"^([A-Z][A-Z0-9]{1,9})-\d")
+
+
+def id_family(stem: str) -> str | None:
+    """The id family a filename declares, or None when it declares none."""
+    m = ID_NAMED_FILE_RE.match(stem)
+    return m.group(1) if m else None
+
+
+#: The families **Perry itself** mints ids in and writes citations of. Closed
+#: on purpose, and it is the floor rather than the answer: a project that has
+#: not written its first ADR yet still cites `ADR-006` legitimately, so these
+#: are known before any evidence of them exists on disk.
+#:
+#: `SRC` and `KR` are in here and NOT in `PERRY_ARTIFACT_FAMILIES` below,
+#: which is the reason these are two names and not one. A `SRC-n` lives in a
+#: `Id:` line inside a digest and a `KR` in a register row; neither is ever a
+#: filename, so a file called `SRC-1-notes.md` is not something Perry wrote.
+PERRY_CITATION_FAMILIES = frozenset(("ADR", "DESIGN", "USER", "SRC", "KR",
+                                     "TASK"))
+
+#: The families Perry puts in a FILENAME — `DESIGN-001-…`, `ADR-002-…`. Read
+#: by `bin/perry-lint § looks_like_perry_state` and
+#: `bin/perry-diagnose § _perry_shaped`, which are one predicate — "would Perry
+#: have written this file" — that was spelled out in both files.
+#:
+#: **This one stays closed, and widening it is a different decision.** Those
+#: two callers ask whether a file in a folder Perry claimed is Perry's or the
+#: user's; answering "yes" for every id-named file would silence the collision
+#: warning that exists to tell an adopting project its `decisions/` already has
+#: something in it. Perry's own three standing NS-01 warnings are files of its
+#: own that this correctly does not claim.
+PERRY_ARTIFACT_FAMILIES = ("DESIGN", "ADR", "TASK", "USER")
+
+_PERRY_ARTIFACT_RE = re.compile(
+    r"^(?:" + "|".join(PERRY_ARTIFACT_FAMILIES) + r")-\d")
+
+
+def perry_named_artifact(stem: str) -> bool:
+    """Is this file stem one of Perry's own id-named artifacts?"""
+    return _PERRY_ARTIFACT_RE.match(stem) is not None
+
+
+#: Directories a walk over a project must not descend into: another toolchain's
+#: cache, another agent's workspace, a vendored tree. Lives here because
+#: `bin/perry-explain § walk_md` and `declared_id_families` below walk the same
+#: tree for the same reason, and a second skip list is a second answer to
+#: "what counts as this project".
+SKIP_DIRS = {
+    ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
+    ".claude", ".agents", ".trae",
+    "target", ".next", "vendor", "site-packages", ".pytest_cache", ".tox",
+}
+
+MD_SUFFIXES = (".md", ".markdown")
+
+
+def walk_md(root: Path):
+    """Every markdown file under `root` that belongs to THIS project.
+
+    A directory carrying its own `.git` is a different project — a vendored
+    checkout, a submodule, an agent worktree. Skipping by name never finishes,
+    and this walk feeds `perry-diagnose`'s user-load scan, which reported a
+    dangling id that existed in no file of this repo: it was reading a
+    subagent's half-written source out of a worktree. `.git` is a directory in
+    a clone and a file in a worktree.
+    """
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS
+                       and not (Path(dirpath) / d / ".git").exists()]
+        for fn in filenames:
+            if fn.lower().endswith(MD_SUFFIXES):
+                yield Path(dirpath) / fn
+
+
+def declared_id_families(root: Path) -> set[str]:
+    """The id families THIS project uses, read off the project.
+
+    A project declares a family by using it, and the place it uses it that
+    every id reader here already agrees on is the filename:
+    `bin/perry-explain § harvest` opens with *"a file named for an ID defines
+    it"*, and that definition point is exactly what keeps `perry-diagnose` from
+    reporting the id dangling. So a tool that wants to know whether a citation
+    of `DEC-014` is a citation or a typo can ask the same question the reader
+    downstream of it will ask, and get the same answer — without being taught
+    the letters `DEC`.
+
+    **Filenames, and nothing read.** `harvest` also takes definitions from
+    headings, table rows and YAML ids, and it costs a read of every markdown
+    document in the project to do it. This is called from a WRITE path, where
+    that is a cost paid on every `perry-task next`; the stems come out of the
+    same walk for free. Measured on this repository: 456 markdown files, 80 ms
+    for the walk, against about a second to read them. The consequence is
+    stated rather than hidden — a family whose only definition point is a
+    heading inside a document named something else is not learned here, and a
+    citation of it is still warned about.
+
+    **A fixture's family counts, and that is not a bug.** `harvest` defines an
+    id from an id-named file wherever it sits, `is_illustrative` only filtering
+    what counts as a *mention*. So this repository's own
+    `tests/fixtures/.../REL-001-spec.md` puts `REL` in this set — and it must,
+    because `perry-diagnose`, reading the same tree, will not report `REL-002`
+    dangling either. A caller that filtered fixtures out here would go back to
+    warning about ids the tool it cites is silent about, which is the defect
+    this function was extracted to end.
+    """
+    return {fam for path in walk_md(root)
+            if (fam := id_family(path.stem)) is not None}
