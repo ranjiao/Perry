@@ -37,6 +37,7 @@
 | 2026-08-21 | perry-dispatch-limit list reports bookkeeping, not observation, so a killed agent holds a slot for four hours and the PMO reports it as running | — |
 | 2026-08-21 | viewer/ stops being a viewer once the viewer is deleted, and the two files left in it are the shared read layer | — |
 | 2026-08-21 | the report exemption covers dangling but not open_decisions_by_register, so quoting a checker's output re-opens a queue row | — |
+| 2026-08-27 | an import-grep cannot see a module that reads another module as text, which is how the viewer deletion nearly broke test_parsers | — |
 
 ## P0 (must finish this period)
 
@@ -63,7 +64,6 @@
 | TASK-166 | a closed row whose title was lost is invisible to the check and unreachable by the writer | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | DESIGN-009 drafted 2026-08-21: design/DESIGN-009-the-objective-is-a-record.md. Four User Decisions open — id shape, write-back location, how the five existing objectives get minted, and whether krs[].objective keeps the title. The key finding: the PHASE level already solved this. phase/002-linkage.md states id: O1 and the payload carries it, while okr.objectives[].id is '' for all five — and the contract already says a STATED id is legitimate where a DERIVED one is not | — | V4 | — | main |  |  |  |  |  |  |
 | TASK-177 | OKR setting is a ten-field checklist where it should be an elicitation | Coding Agent | not_started | DESIGN-011 drafted 2026-08-21: design/DESIGN-011-the-okr-is-elicited-not-collected.md. Four User Decisions open. Step 2 is the gate — run the question bank against a project with no OKR.md and run the rubric on the output; goal 3 (the rubric surfaces ZERO issues) is measured there or it is not measured | — | V4 | — | main |  |  |  |  |  |  |
-| TASK-178 | the read-only web viewer is deleted; aiMark is the consumption surface | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-178-delete-viewer | — | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -92,7 +92,6 @@
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
 | TASK-174 | autopilot re-derives startability instead of reading the field the contract already computes | Coding Agent | not_started | the cheap half of the autopilot split decided 2026-08-21. Contract 1.12 stopped startable reading the stored status and 1.14 made a USER- ask a graph node, so the rule has exactly one implementation now and autopilot carries a second. The other half — late spec generation — goes to the RFC | — | V3 |  | main |  |  |
 | TASK-175 | aiMark's KR meter renders a stale assertion identically to a fresh one | Coding Agent | not_started | DECIDED 2026-08-21: mark it. This lifts TASK-114 acceptance item 6, which forbade touching the OKR chain view and contradicted the goals-2.1 instruction in the same prompt — the KR meter IS the chain view. Restraint is the point: do not caption every KR with 'this is an assertion', because it is true of all of them and says nothing. Only stale, and only unasserted | — | V3 |  | main |  |  |
-| TASK-176 | contract_key_parity refuses two identically shaped containers, so a payload can never grow a second list of an existing entry shape | Coding Agent | in_progress | dispatched 2026-08-21 on coding/task-176-tied-containers — KR-O2.4 is 12 and all 12 are false | — | V4 | — | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
