@@ -5399,24 +5399,12 @@ def _cmd_list_from_board(args, ctx) -> dict:
     # field. Reported rather than papered over: a bare id is exactly what
     # `reference/user-load.md` forbids handing a reader.
     #
-    # **Computed BEFORE the `open` filter, and that is TASK-166's half one.**
-    # It used to be computed after, so the only kind of row that can be
-    # PERMANENTLY untitled — a closed one, which no triage will ever look at
-    # again and which nothing else in the payload names — was the one kind
-    # this array could not report. Measured on this repository: `TASK-029` is
-    # `done` at V3 with real evidence and an empty title, and `untitled` was
-    # `[]` without `--all` and `["TASK-029"]` with it. An open row's missing
-    # title gets noticed the next time somebody reads the board; a closed
-    # row's never does.
-    #
-    # Not a contract change: § The payload has always defined this key as
-    # "ids with no title in ANY record", and `open`/`closed` are documented as
-    # the counts that move with the flags. The code was out of conformance
-    # with its own document, so the version does not move.
-    #
-    # `--track` still scopes it. That flag names a slice of the project and
-    # every other array in this payload respects it; `open` names a slice of
-    # TIME, and a title does not stop being needed when the work finishes.
+    # Before the `open` filter, as in `cmd_list` — which is the builder a
+    # `list` call actually reaches, and where TASK-166's argument is written
+    # out. This payload's `untitled` is discarded by `store_records`, its only
+    # caller, and it is kept in step anyway: two builders of one contract that
+    # disagree silently is the defect `store_records` itself exists to
+    # prevent, and "the copy nobody reads may drift" is how it starts.
     untitled = [t["id"] for t in rows if not t["title"]]
     if not args.all:
         rows = [t for t in rows if t["open"]]
@@ -5610,9 +5598,27 @@ def cmd_list(args, ctx) -> dict:
     rows = sorted(tasks.values(), key=lambda task: task["id"])
     if args.track:
         rows = [task for task in rows if task["track"] == args.track]
-    # Before the `open` filter — see the twin of this line in
-    # `_cmd_list_from_board` for the measurement. The two payload builders
-    # answer one contract, so a fix applied to one of them is half a fix.
+    # **Computed BEFORE the `open` filter, and that is TASK-166's half one.**
+    # It used to be computed after, so the only kind of row that can be
+    # PERMANENTLY untitled — a closed one, which no triage will look at again
+    # and which nothing else in the payload names — was the one kind this
+    # array could not report. Measured on this repository: `TASK-029` is
+    # `done` at V3 with real evidence and an empty title, and `untitled` was
+    # `[]` without `--all` and `["TASK-029"]` with it. An open row's missing
+    # title gets noticed the next time somebody reads the board; a closed
+    # row's never does, which is why the compounding was not bad luck — the
+    # check only looked where `retitle` could reach, and `retitle` only
+    # reached where the check already looked.
+    #
+    # Not a contract change: § The payload has always defined this key as
+    # "ids with no title in ANY record", while `open` and `closed` are
+    # documented as the counts that move with the flags. The code was out of
+    # conformance with its own document, so the version does not move and
+    # `LIST_SEMANTICS` gains no entry.
+    #
+    # `--track` still scopes it. That flag names a slice of the PROJECT and
+    # every array in this payload respects it; `open` names a slice of TIME,
+    # and a title does not stop being needed when the work finishes.
     untitled = [task["id"] for task in rows if not task["title"]]
     if not args.all:
         rows = [task for task in rows if task["open"]]
