@@ -702,12 +702,36 @@ def reconcile_drift(project_root: Path, board, events: dict) -> dict:
 
     Reported, never refused (decision 5): a user editing their own markdown is
     legitimate, and the right response is that Perry notices.
+
+    **UNCHECKED IS `null`, NOT ZERO (TASK-117).** With no event log this
+    returned `checked: false` beside `drift: 0`, `unrecorded: 0` and three
+    empty lists — and every one of those five values is an ASSERTION that
+    somebody looked and found nothing. `checked` is honest; the numbers sitting
+    beside it are the trap, because a consumer that reads a count and not a
+    flag concludes clean. That is the same defect `perry-lint §
+    check_store_drift` states the rule for in its own docstring — *"'No store'
+    and 'clean' are different answers"* — and the same shape as `not_observable`
+    reading zero.
+
+    So when nothing was compared, nothing is reported: every findings-shaped
+    field is `null`. `null` does not assert an absence the way `0` and `[]` do,
+    and a consumer that skipped the flag fails loudly (`None + None`,
+    `for x in None`) instead of rendering a clean board. `baseline` stays `""`
+    because it is not a finding — it is a timestamp that genuinely does not
+    exist here.
+
+    The three list fields are nulled for the same reason as the two counts and
+    not one reason weaker: `len(orphaned)` reads exactly as `drift` does. One
+    predicate — `checked` — governs the whole block, so there is one thing to
+    read rather than five.
     """
-    out = {"checked": False, "baseline": "", "drift": 0,
-           "unrecorded": 0, "unrecorded_sample": [],
-           "orphaned": [], "stale_done": []}
+    out = {"checked": False, "baseline": "", "drift": None,
+           "unrecorded": None, "unrecorded_sample": None,
+           "orphaned": None, "stale_done": None}
     if not events.get("present"):
         return out  # no log — a pre-DESIGN-004 project, not a broken one
+    out.update(drift=0, unrecorded=0, unrecorded_sample=[],
+               orphaned=[], stale_done=[])
 
     path = project_root / ".perry" / "events.jsonl"
     seq: dict[str, list[dict]] = {}
