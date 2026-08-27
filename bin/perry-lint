@@ -3312,10 +3312,16 @@ def main(argv: list[str]) -> int:
             elif not _st["log_present"]:
                 # Named rather than folded into "comparison incomplete": the
                 # user can DO something about a missing log, and a reason is
-                # the difference between a diagnosis and a shrug.
+                # the difference between a diagnosis and a shrug. The route
+                # out is named too — `perry-tasks verify` compares the six
+                # rendered columns in the board-to-store direction and needs
+                # no log, which is why it reports 0 mismatches on the same
+                # tree this check reported 175 drifted rows on.
                 print(f"  · store: {_st['records']} record(s), but no "
                       f"`.perry/events.jsonl` — the board-to-store derivation "
-                      f"reads the log, so drift is unchecked, not clean")
+                      f"reads the log, so drift is unchecked, not clean; "
+                      f"`perry-tasks verify` compares the rendered columns "
+                      f"without it")
             elif not _st["comparison_performed"]:
                 print(f"  · store: {_st['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")

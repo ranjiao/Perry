@@ -664,6 +664,10 @@ class TestTheTwoToolsAgreeAboutWhetherAComparisonHappened(Fixture):
         self.assertIn("no `.perry/events.jsonl`", text)
         self.assertIn("unchecked, not clean", text)
         self.assertNotIn("[store-drift]", text)
+        # And the route that still works. `perry-tasks verify` compares the
+        # rendered columns in the board-to-store direction and reads no log,
+        # so it is the answer to "then how do I check" rather than a silence.
+        self.assertIn("perry-tasks verify", text)
 
 
 if __name__ == "__main__":
