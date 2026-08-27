@@ -114,10 +114,11 @@ renamed is a red rather than a rule that silently stopped firing; and
 
 **One entry today, and that is a measurement rather than a shortcut.**
 Startability is the only contract predicate a procedure page was found to have
-copied — the sweep behind this module reported 2 sentences across 45 pages, both
-in `autopilot.md`, both fixed by TASK-174. `TARGETS` in the neighbour started
-smaller than it is and grew the day a writer existed to grow it (TASK-119); this
-one grows the day a second predicate is found copied.
+copied — the sweep behind this module reported **2 sentences across the 46
+pages the walk returns**, both in `autopilot.md`, and TASK-174 fixed both.
+`TARGETS` in the neighbour started smaller than it is now and grew the day a
+writer existed to grow it (TASK-119); this list grows the day a second
+predicate is found copied.
 
 Run: python3 tests/parallel test_procedures_read_the_contract
 """
