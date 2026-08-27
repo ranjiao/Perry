@@ -389,18 +389,27 @@ class TestOnThisRepositoryAndNotAFixture(unittest.TestCase):
 
     def test_the_contract_moved_and_the_document_says_why(self):
         """V3 item 4. A pure key addition is a plain minor: nothing existing
-        changed meaning, so `semantics` gains no entry and the array's last
-        word stays 1.14's."""
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.15")
+        changed meaning, so `semantics` gains no entry for it.
+
+        The claim is **the absence of a 1.15 entry**, and that is what is
+        asserted. It was originally written as "the array's last word is
+        1.14's", which said the same thing only while 1.15 was the newest
+        version — 1.16 (TASK-117) moved five values' meaning and correctly
+        added an entry, and the old form would have called that a regression
+        in this row. An assertion that encodes a moment rather than the rule
+        is the defect this repository has spent the most nights on.
+        """
+        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.16")
         self.assertEqual(self.data["contract"], PT.LIST_CONTRACT)
         doc = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
-        self.assertIn("`perry-task/list/1.15`", doc)
+        self.assertIn("`perry-task/list/1.16`", doc)
         self.assertIn("### 1.15 —", doc)
         self.assertIn("depends_on_resolved", doc)
         self.assertNotIn("1.15", [e["version"] for e in PT.LIST_SEMANTICS],
                          "1.15 adds a key and moves no meaning, so a "
                          "`semantics` entry would be a false alarm")
-        self.assertEqual(PT.LIST_SEMANTICS[-1]["version"], "1.14")
+        self.assertIn("1.14", [e["version"] for e in PT.LIST_SEMANTICS],
+                      "1.14's entry is what 1.15 was measured against")
 
 
 if __name__ == "__main__":

@@ -173,7 +173,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.15"
+LIST_CONTRACT = "perry-task/list/1.16"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -275,6 +275,17 @@ LIST_SEMANTICS = [
              "and every `DESIGN-`/`ADR-` handle, none of which have a state "
              "Perry can ever read — is still unknown and still "
              "unsatisfied."},
+    {"version": "1.16",
+     "fields": ["drift.drift", "drift.unrecorded", "drift.unrecorded_sample",
+                "drift.orphaned", "drift.stale_done"],
+     "note": "All five are `null` rather than `0`/`[]` when `drift.checked` "
+             "is `false`. The page said, until 1.16, that when there is no "
+             "event log 'everything else is then zero or empty' — so a "
+             "consumer reading `drift == 0` as 'no drift' was following the "
+             "documented text, not ignoring it. It now reads `null`, which "
+             "rule 1 names as this payload's unknown value, and a consumer "
+             "that skipped `checked` fails loudly instead of being "
+             "reassured. Nothing about a project WITH a log changed."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:

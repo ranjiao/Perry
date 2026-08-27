@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.15`**
+> Contract: **`perry-task/list/1.16`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -519,12 +519,15 @@ change under you. Everything a Work surface needs is here.
 
 ## Changelog
 
-**Not a version, 2026-08-28 (TASK-117).** `drift.drift`, `drift.unrecorded`
+### 1.16 — 2026-08-28
+
+**The unchecked drift block reads `null`, not zero (TASK-117).** `drift.drift`, `drift.unrecorded`
 and the block's three arrays are `null` rather than `0`/`[]` when
-`drift.checked` is `false`. **No key was added, removed or renamed**, and the
-version does not move for the reason rule 1 gives: an unknown value in this
-payload is `""`, `null` or `[]`, and a count nobody computed is an unknown
-value. Emitting `0` there was this payload reporting a measurement it had not
+`drift.checked` is `false`. **No key was added, removed or renamed**, and no key changed type in a way a
+schema would catch — but **the meaning of five values moved**, which is what
+`semantics` is for and what 1.5 established moves the minor. Rule 1 already
+names `""`, `null` and `[]` as this payload's unknown value, and a count nobody
+computed is an unknown value. Emitting `0` there was this payload reporting a measurement it had not
 taken — the same defect as `not_observable` reading zero — and it is what let
 one tool call a tree clean while `perry-lint` reported drift on it.
 

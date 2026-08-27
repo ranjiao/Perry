@@ -302,7 +302,7 @@ class TestTheContractAnnouncedTheChange(unittest.TestCase):
     DOC = (PERRY_HOME / "schema" / "task-list-contract.md").read_text()
 
     def test_the_minor_moved(self):
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.15")
+        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.16")
         self.assertIn(PT.LIST_CONTRACT, self.DOC)
 
     def test_semantics_carries_an_entry_for_it(self):

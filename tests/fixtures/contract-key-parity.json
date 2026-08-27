@@ -101,13 +101,13 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-task/list/1.15": {
+    "perry-task/list/1.16": {
       "collections_the_witness_filled": [
         "conformance.depends_on_unknown",
         "conformance.in_progress_with_no_live_run"
       ],
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.15",
+      "contract": "perry-task/list/1.16",
       "documented": 133,
       "documented_not_emitted": [],
       "emitted": 125,

@@ -43,6 +43,8 @@
 | 2026-08-28 | two writers appending to .perry/events.jsonl in parallel conflict textually, and the resolution is only safe because seq is computed at read time | — |
 | 2026-08-28 | the queue-reconcile test is order/parallel sensitive: it fails under -j 4 and passes in a smaller run | — |
 | 2026-08-28 | paths() collapses a list to its first element, so a condition true on krs[1] and false on krs[0] is unobservable to key parity | — |
+| 2026-08-28 | perry-state's design.by_status keys come from a set, so the payload's key order flips with the hash seed and cannot be byte-compared | — |
+| 2026-08-28 | two agents running tests/parallel write to the same scratchpad baseline path and overwrite each other's readings | — |
 
 ## P0 (must finish this period)
 
@@ -76,7 +78,6 @@
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
-| TASK-117 | two tools disagree about whether the board has drifted when the event log is absent | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-117-drift-unchecked-not-clean | — | V3 | — | main |  |  |
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |

@@ -258,7 +258,7 @@ class TestTheTwoWayDiffIsHeldToItsBaseline(unittest.TestCase):
         and `review_idle` carry one entry shape on purpose, so no matcher can
         tell them apart — one key table names both, and both must be
         documented by it, not one of them and not neither."""
-        task = self.live["contracts"]["perry-task/list/1.15"]
+        task = self.live["contracts"]["perry-task/list/1.16"]
         for array in ("in_progress_with_no_live_run", "review_idle"):
             for key in ("id", "status", "last_event", "idle_hours",
                         "threshold_hours", "means"):
@@ -499,15 +499,15 @@ WITNESSED = (
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00"'),
-    ("perry-task/list/1.15", "task-list-contract.md",
+    ("perry-task/list/1.16", "task-list-contract.md",
      "conformance.depends_on_unknown",
      "conformance.depends_on_unknown[].unknown",
      "| `unknown` | array | the dependency ids"),
-    ("perry-task/list/1.15", "task-list-contract.md",
+    ("perry-task/list/1.16", "task-list-contract.md",
      "conformance.in_progress_with_no_live_run",
      "conformance.in_progress_with_no_live_run[].means",
      "| `means` | string | the sentence to show a reader."),
-    ("perry-task/list/1.15", "task-list-contract.md",
+    ("perry-task/list/1.16", "task-list-contract.md",
      "conformance.review_idle", "conformance.review_idle[].means", ""),
 )
 
