@@ -24,6 +24,15 @@ Proved by mutation, in both directions, before it was committed:
 - moving one file out of `schema/` changes `contract_files_discovered` from 5
   to 4 and fails `test_the_glob_still_finds_every_contract_on_disk`.
 
+**A key inside a collection this project leaves empty was never in either
+count.** `not_observable` said so honestly and that meant nothing had ever
+checked it — 15 keys in four collections on 2026-08-27, with both numbers
+reading 0. `tests/fixtures/witness-project` is read for those keys, and
+`TestAWitnessProjectMakesAnEmptyCollectionObservable` plus
+`TestTheWitnessedKeysRedden` hold the four collections open and prove one key
+of each is compared: the same page mutation is named with the witness and
+silent without it.
+
 Run: python3 tests/parallel test_contract_key_parity
 """
 
@@ -467,6 +476,190 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
         self.assertEqual(6, len(entry["unassigned"]))
         self.assertTrue(all(u.startswith("A card — the six frozen fields")
                             for u in entry["unassigned"]))
+
+
+#: The collections Perry's own board leaves empty, the contract page that
+#: documents each, and ONE key of each entry to delete in the mutation below.
+#: Measured 2026-08-27: **15 keys across the first four**, every one of them in
+#: `not_observable` and none of them ever compared against a payload.
+#:
+#: `review_idle` is the fifth and is here for the general case rather than for
+#: tonight's reading: it is `in_progress_with_no_live_run`'s twin by design,
+#: it happens to be non-empty on this board right now, and the day it empties
+#: is the day its six keys would have gone dark. The witness holds it open
+#: either way — which is what "the reading no longer depends on which rows are
+#: idle this minute" has to mean if it means anything.
+#:
+#: `mutate` is the text to remove from the page — a real declaration on the
+#: real page, not a marker put there for the test.
+WITNESSED = (
+    ("perry-decide/list/1.0", "decide-list-contract.md", "expired_sunsets",
+     "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
+    ("perry-goals/list/2.1", "goals-list-contract.md",
+     "krs[].current_staleness.moved_tasks",
+     "krs[].current_staleness.moved_tasks[].at",
+     ',\n                           "at": "2026-08-21T09:10:00"'),
+    ("perry-task/list/1.15", "task-list-contract.md",
+     "conformance.depends_on_unknown",
+     "conformance.depends_on_unknown[].unknown",
+     "| `unknown` | array | the dependency ids"),
+    ("perry-task/list/1.15", "task-list-contract.md",
+     "conformance.in_progress_with_no_live_run",
+     "conformance.in_progress_with_no_live_run[].means",
+     "| `means` | string | the sentence to show a reader."),
+    ("perry-task/list/1.15", "task-list-contract.md",
+     "conformance.review_idle", "conformance.review_idle[].means", ""),
+)
+
+#: The four that were unobservable when this row was opened, and the mutation
+#: each was proved with. `review_idle` is not here: its keys are observable
+#: from the live board today, so deleting a row of the shared idle table is
+#: already caught without the witness.
+MUTATED = tuple(w for w in WITNESSED if w[4])
+
+
+class TestAWitnessProjectMakesAnEmptyCollectionObservable(unittest.TestCase):
+    """TASK-132. A key inside a collection this project leaves empty has no
+    entry to be compared against, so it lands in `not_observable` and **nothing
+    has ever checked it**. On 2026-08-27 that was 15 keys in four collections,
+    and KR-O2.4 read 0 with all fifteen unverified — which is TASK-176's
+    oscillation wearing an honest label.
+
+    `tests/fixtures/witness-project` is a second project whose own state puts
+    those collections in a non-empty state, read by the same commands. Nothing
+    is written into a payload: the fixture holds a decision past its sunset, a
+    dependency on an id no register carries, an `in_progress` row nothing has
+    moved, a `review` row nobody has ruled on, and a linkage register older
+    than its event log — and the real tools derive the entries from those files.
+    """
+
+    def setUp(self):
+        self.live = parity.measure()
+        self.blind = parity.measure(witness=None)
+
+    def witness_payload(self, contract: str) -> dict:
+        page = parity.ROOT / "schema" / dict(
+            (c, f) for c, f, *_ in WITNESSED)[contract]
+        argv, subtree = parity.invoke(page.read_text())
+        return parity.run(argv, parity.WITNESS, subtree, "witness")
+
+    def collection(self, payload: dict, path: str):
+        """Walk a dotted path, stepping through `krs[]` as `krs[0]`."""
+        node = payload
+        for segment in path.split("."):
+            if segment.endswith("[]"):
+                node = node[segment[:-2]]
+                self.assertTrue(node, f"{segment} is empty in the witness")
+                node = node[0]
+            else:
+                node = node[segment]
+        return node
+
+    def test_the_witness_project_still_holds_every_condition_open(self):
+        """The fixture is the instrument, and it is asserted against the
+        WITNESS PROJECT rather than against the live board — an edit that
+        resolves `WIT-404` or closes `WIT-001` must fail here whatever Perry's
+        own board happens to be doing that minute."""
+        for contract, _, collection, _, _ in WITNESSED:
+            with self.subTest(collection):
+                self.assertTrue(
+                    self.collection(self.witness_payload(contract), collection),
+                    f"{collection} is empty in {parity.WITNESS} — see that "
+                    f"project's README for what produces it; do not fix the "
+                    f"finding, it IS the deliverable")
+
+    def test_every_key_in_those_collections_is_actually_compared(self):
+        """Not merely reported as reachable: on the same footing as a key the
+        live board emits, which means a disagreement with the page lands in one
+        of the two gap lists. Proved by mutation below.
+
+        Deliberately silent about WHICH project supplied the entry — the live
+        board filling one of these collections is a fine reason for the witness
+        not to be consulted, and a test that demanded the witness every time
+        would be reading the board again."""
+        for contract, _, _, key, _ in WITNESSED:
+            with self.subTest(key):
+                entry = self.live["contracts"][contract]
+                self.assertNotIn(key, entry["not_observable"])
+                self.assertNotIn(key, entry["documented_not_emitted"])
+                self.assertNotIn(key, entry["emitted_not_documented"])
+
+    def test_without_the_witness_the_four_are_unobservable(self):
+        """Anti-vacuity, and the measurement this row was opened on. Reading
+        `--root` alone puts all four back in `not_observable` with a reason —
+        so they are checked *because of* the witness, not because they were
+        fine anyway."""
+        for contract, _, collection, key, _ in MUTATED:
+            with self.subTest(key):
+                entry = self.blind["contracts"][contract]
+                self.assertIn(key, entry["not_observable"])
+                self.assertIn(collection, entry["not_observable"][key])
+
+    def test_the_witness_supplies_an_entry_shape_and_never_a_placement(self):
+        """The narrowing that keeps this from being the same defect in a new
+        costume. A fixture project's shape must not decide where a live page's
+        key table hangs, or the ruler moves with something other than what it
+        measures. `unassigned` is therefore identical with and without it —
+        roles' six frozen fields and task's eight `asks` rows stay exactly
+        where they were."""
+        for name, entry in self.live["contracts"].items():
+            with self.subTest(name):
+                self.assertEqual(self.blind["contracts"][name]["unassigned"],
+                                 entry["unassigned"])
+                self.assertEqual(
+                    self.blind["contracts"][name]["named_no_such_collection"],
+                    entry["named_no_such_collection"])
+
+    def test_not_observable_still_names_anything_left_uncovered(self):
+        """The reporting is not deleted and not weakened — it is how this row
+        was found. Whatever the witness cannot show is still named with the
+        reason, and the reason now says which of the two projects left it
+        empty."""
+        for name, entry in self.blind["contracts"].items():
+            for key, why in entry["not_observable"].items():
+                self.assertTrue(why.strip(), f"{name}: {key} has no reason")
+        for name, entry in self.live["contracts"].items():
+            for key, why in entry["not_observable"].items():
+                self.assertIn("empty in this run", why, f"{name}: {key}")
+                self.assertIn(parity.WITNESS, why, f"{name}: {key}")
+
+
+class TestTheWitnessedKeysRedden(unittest.TestCase):
+    """Verification 2, one key per collection that was unobservable: delete a
+    real declaration from a copy of the real page and the check must name the
+    key. Without the witness each of these mutations is silent, which is
+    exactly what `not_observable` cost."""
+
+    def mutate(self, page: str, removed: str, witness) -> dict:
+        source = parity.ROOT / "schema" / page
+        text = source.read_text()
+        self.assertIn(removed, text,
+                      f"{page} no longer contains the declaration this "
+                      f"mutation removes")
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = pathlib.Path(tmp) / page
+            copy.write_text(text.replace(removed, "", 1))
+            return parity.compare(copy, witness=witness)
+
+    def test_removing_a_witnessed_key_from_its_page_is_reported(self):
+        for contract, page, _, key, removed in MUTATED:
+            with self.subTest(key):
+                result = self.mutate(page, removed, parity.WITNESS)
+                self.assertIn(
+                    key, result["emitted_not_documented"],
+                    f"{page} no longer declares {key} and the check said "
+                    f"nothing — the key is reported as observable and is not "
+                    f"being compared")
+
+    def test_the_same_mutation_is_silent_without_the_witness(self):
+        """The cost of `not_observable`, stated as a test rather than as a
+        paragraph: the identical page defect passes cleanly when the only
+        project read is one that leaves the collection empty."""
+        for contract, page, _, key, removed in MUTATED:
+            with self.subTest(key):
+                result = self.mutate(page, removed, None)
+                self.assertNotIn(key, result["emitted_not_documented"])
+                self.assertNotIn(key, result["documented_not_emitted"])
 
 
 class TestWhatCouldNotBeComparedIsNamed(unittest.TestCase):

@@ -171,6 +171,26 @@ page added later is measured without anyone remembering to add it to a list.
 And **neither count is asserted to be zero**: the baseline is what makes a
 change to either one visible, not a claim that the gap is closed.
 
+### A collection this project leaves empty — the witness
+
+A key that lives inside an **empty** collection has no entry to diff, so it is
+reported under `not_observable` and nothing checks it. That was 15 keys in four
+collections on 2026-08-27, with both counts reading 0 the whole time.
+
+So the check reads a **second project** for those keys only:
+`tests/fixtures/witness-project`, whose own state is non-empty exactly where
+Perry's board is empty. The same commands read it and the real tools derive the
+entries — nothing is written into a payload by hand and nothing is added to
+`perry/`. It supplies an **entry shape**, never a placement: where a key table
+hangs is still decided by the project being measured, or the ruler would move
+with something other than what it measures.
+
+    python3 tests/contract_key_parity.py --no-witness   # the reading without it
+
+`not_observable` is unchanged in job and name — it now reports what is empty in
+**both** projects, and says so. Making a fifth collection observable means
+adding the state that produces it to that project, never adding the finding.
+
 ## Consumers
 
 The schema is a **cross-repo contract**, not a Perry-internal detail. Four

@@ -77,11 +77,37 @@ whatever rows the measurement produces. The baseline in
 `tests/fixtures/contract-key-parity.json` is what makes the number comparable
 across runs by someone who was not here.
 
+## The third number: what the project's own state could not show
+
+A key inside a collection this project leaves **empty** has no entry to be
+compared against. Reporting it as missing would be a lie, so it goes to
+`not_observable` with its reason — honest, and it means **nothing has ever
+checked it**. On 2026-08-27 that was 15 keys across four collections
+(`expired_sunsets`, `krs[].current_staleness.moved_tasks`,
+`conformance.depends_on_unknown`, `conformance.in_progress_with_no_live_run`)
+and both numbers above read 0 with all fifteen unverified. That is TASK-176's
+oscillation wearing an honest label: the reading depends on which rows happen
+to be idle this minute, not on whether the page is right.
+
+`WITNESS` is a **second project**, `tests/fixtures/witness-project`, whose own
+state is non-empty exactly where this one is empty — a decision past its sunset,
+a dependency on an id no register carries, an `in_progress` row nothing has
+moved, a linkage register older than its event log. The same commands read it
+and derive the entries; **no payload is written by hand**, and nothing is added
+to `perry/`. See `compare` for the one thing it is allowed to decide (entry
+shape, never placement) and that project's `README.md` for what produces each
+of its four conditions.
+
+`not_observable` keeps its job: it names every key that is still inside an
+empty collection after the witness has been read, and says which of the two
+projects left it empty. `--no-witness` is the reading without it.
+
 Run:
 
     python3 tests/contract_key_parity.py             # per-contract counts
     python3 tests/contract_key_parity.py --json      # the same, machine-readable
     python3 tests/contract_key_parity.py --record    # rewrite the baseline
+    python3 tests/contract_key_parity.py --no-witness  # the pre-TASK-132 reading
 """
 
 from __future__ import annotations
@@ -97,6 +123,13 @@ from typing import NamedTuple
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GLOB = "schema/*-contract.md"
 BASELINE = ROOT / "tests" / "fixtures" / "contract-key-parity.json"
+
+#: A second project, read by the same commands, whose own state is non-empty
+#: exactly where Perry's board is empty. It is consulted for **entry shape
+#: only**, and only for a collection the measured project left empty — see
+#: `compare` and the project's own `README.md`. Not a payload: a directory the
+#: real tools read, so every entry it produces is derived rather than written.
+WITNESS = "tests/fixtures/witness-project"
 
 #: A key, or a dotted path of keys. Lower-case with underscores, which is every
 #: key in every one of these payloads and is not any of the prose, versions
@@ -366,8 +399,22 @@ def invoke(text: str) -> tuple[list[str], str]:
     return command.split(), (subtree.group(1) if subtree else "")
 
 
+def run(argv: list[str], root: str, subtree: str, label: str) -> dict:
+    """The command a page's own heading states, against one project."""
+    proc = subprocess.run(
+        [sys.executable, f"bin/{argv[0]}", *argv[1:]]
+        + (["--root", root] if root else []),
+        capture_output=True, text=True, cwd=ROOT)
+    if proc.returncode != 0:
+        raise RuntimeError(f"{label}: `{' '.join(argv)}` exited "
+                           f"{proc.returncode}: {proc.stderr[-300:]}")
+    payload = json.loads(proc.stdout)
+    return {subtree: payload[subtree]} if subtree else payload
+
+
 def compare(path: pathlib.Path, root: str = "",
-            payload: dict | None = None) -> dict:
+            payload: dict | None = None, witness: str | None = WITNESS,
+            witness_payload: dict | None = None) -> dict:
     """`root` is the PROJECT the tools read. It defaults to Perry's own
     repository, which is the representative fixture — the same choice
     `test_contract_invariance` makes, and for the same reason: it is the only
@@ -382,24 +429,62 @@ def compare(path: pathlib.Path, root: str = "",
     real command without adding that array to a real payload — which is
     TASK-040's row, not this one. No page in `schema/` is read this way; the
     glob path always runs the command the page's own heading states.
+
+    ## The witness, and the one thing it is allowed to decide
+
+    A key inside a collection `root` leaves **empty** has no entry to be
+    compared against, so it lands in `not_observable` and nothing has ever
+    checked it. On 2026-08-27 that was 15 keys in four collections, and
+    KR-O2.4 read 0 with all fifteen unverified — TASK-176's oscillation
+    wearing an honest label.
+
+    `witness` is a **second project**, read the same way by the same command,
+    whose own state puts those collections in a non-empty state
+    (`tests/fixtures/witness-project`, which explains each of its four
+    conditions in its own README). Its payload contributes **only** paths that
+    sit inside a collection empty on `root`. Nothing else of it is read: a key
+    the live board can already answer for is answered by the live board.
+
+    **It supplies an entry shape; it never places a table.** `boxes` stays
+    built from `root`'s payload alone. Letting a fixture's shape decide where a
+    live page's key table hangs would be the same defect this row is about in a
+    new costume — a ruler that moves with something other than what it measures.
+    A collection that is empty on the live board is therefore still documentable
+    only by its sketch or by a heading that names it, exactly as before.
+
+    `not_observable` keeps its job and its name: it reports every key that is
+    STILL inside an empty collection after the witness has been read, and says
+    which of the two projects left it empty.
     """
     text = path.read_text()
     argv, subtree = invoke(text)
     if payload is None:
-        proc = subprocess.run(
-            [sys.executable, f"bin/{argv[0]}", *argv[1:]]
-            + (["--root", root] if root else []),
-            capture_output=True, text=True, cwd=ROOT)
-        if proc.returncode != 0:
-            raise RuntimeError(f"{path.name}: `{' '.join(argv)}` exited "
-                               f"{proc.returncode}: {proc.stderr[-300:]}")
-        payload = json.loads(proc.stdout)
-    if subtree:
+        payload = run(argv, root, subtree, path.name)
+    elif subtree:
         payload = {subtree: payload[subtree]}
 
     emitted = paths(payload)
     empties = empty_lists(payload)
     boxes = containers(emitted, empties)
+
+    # ── the witness ───────────────────────────────────────────────────────
+    # Consulted only where `root` has nothing to show, and only for the
+    # collections `root` left empty. `witness` is None on a page whose payload
+    # was handed in: there is no command to re-run against a second project.
+    witnessed: dict[str, str] = {}
+    witness_used = ""
+    if empties and (witness_payload is not None
+                    or (witness and root != witness)):
+        witness_used = witness or "(payload)"
+        seen = witness_payload if witness_payload is not None else run(
+            argv, witness, subtree, f"{path.name} [witness]")
+        if witness_payload is not None and subtree:
+            seen = {subtree: seen[subtree]}
+        witnessed = {p: t for p, t in paths(seen).items()
+                     if under_empty(p, empties)}
+    filled = {under_empty(p, empties) for p in witnessed}
+    still_empty = empties - filled
+    observable = {**emitted, **witnessed}
 
     documented, unparsed = sketch_paths(text)
     unassigned: list[str] = []
@@ -414,11 +499,11 @@ def compare(path: pathlib.Path, root: str = "",
             for key in keys:
                 documented[f"{box}.{key}" if box else key] = "documented"
 
-    not_observable = {p: under_empty(p, empties) for p in documented
-                      if under_empty(p, empties)}
+    not_observable = {p: under_empty(p, still_empty) for p in documented
+                      if under_empty(p, still_empty)}
     gone = sorted(p for p in documented
-                  if p not in emitted and p not in not_observable)
-    extra = sorted(p for p in emitted if p not in documented)
+                  if p not in observable and p not in not_observable)
+    extra = sorted(p for p in observable if p not in documented)
     identifier = CONTRACT_ID.search(text)
     return {
         "contract": identifier.group(1) if identifier else "",
@@ -427,35 +512,50 @@ def compare(path: pathlib.Path, root: str = "",
         "command": " ".join(argv) + (f" § {subtree}" if subtree else ""),
         "documented": len(documented),
         "emitted": len(emitted),
+        "witness": witness_used,
         "documented_not_emitted": gone,
         "emitted_not_documented": extra,
-        "not_observable": {p: f"inside `{v}`, which is empty in this run"
-                           for p, v in sorted(not_observable.items())},
+        "observed_in_witness": {
+            p: f"inside `{under_empty(p, empties)}`, which is empty in this "
+               f"run and carries entries in `{witness_used}`"
+            for p in sorted(witnessed)},
+        "collections_the_witness_filled": sorted(filled),
+        "not_observable": {
+            p: (f"inside `{v}`, which is empty in this run"
+                + (f" and in `{witness_used}`" if witness_used else ""))
+            for p, v in sorted(not_observable.items())},
         "unassigned": sorted(unassigned),
         "named_no_such_collection": sorted(misnamed),
         "unparsed_sketches": unparsed,
     }
 
 
-def measure(root: str = "") -> dict:
+def measure(root: str = "", witness: str | None = WITNESS) -> dict:
+    """`witness=None` is the live-board-only reading — what this check saw
+    before TASK-132, and the number the two are compared against."""
     files = discover()
     return {
         "glob": GLOB,
         "root": root or ".",
+        "witness": witness or "",
         "contract_files_discovered": len(files),
         "contracts": {c["contract"] or c["file"]: c
-                      for c in (compare(f, root) for f in files)},
+                      for c in (compare(f, root, witness=witness)
+                                for f in files)},
     }
 
 
 def report(result: dict) -> str:
     lines = [f"contract files discovered: "
              f"{result['contract_files_discovered']}   ({result['glob']})",
-             f"project read: {result['root']}", ""]
-    gone = extra = 0
+             f"project read: {result['root']}",
+             f"witness project: {result.get('witness') or '(none)'}", ""]
+    gone = extra = seen = blind = 0
     for name, c in sorted(result["contracts"].items()):
         gone += len(c["documented_not_emitted"])
         extra += len(c["emitted_not_documented"])
+        seen += len(c.get("observed_in_witness", {}))
+        blind += len(c["not_observable"])
         lines.append(f"{name}   {c['file']}")
         lines.append(f"    `{c['command']}`   "
                      f"{c['documented']} documented / {c['emitted']} emitted")
@@ -463,6 +563,12 @@ def report(result: dict) -> str:
                            ("emitted_not_documented", "emitted_not_documented")):
             lines.append(f"    {label}: {len(c[key])}")
             lines.extend(f"        {p}" for p in c[key])
+        if c.get("observed_in_witness"):
+            lines.append(f"    observed in the witness: "
+                         f"{len(c['observed_in_witness'])}   "
+                         + ", ".join(f"`{b}`" for b in
+                                     c["collections_the_witness_filled"]))
+            lines.extend(f"        {p}" for p in c["observed_in_witness"])
         if c["not_observable"]:
             lines.append(f"    not observable here: {len(c['not_observable'])}")
             for p, why in c["not_observable"].items():
@@ -479,6 +585,8 @@ def report(result: dict) -> str:
     lines.append(f"TOTAL   documented_not_emitted: {gone}   "
                  f"emitted_not_documented: {extra}   "
                  f"(KR-O2.4 metric: {gone + extra})")
+    lines.append(f"        keys the witness made checkable: {seen}   "
+                 f"keys still unobservable: {blind}")
     return "\n".join(lines)
 
 
@@ -489,8 +597,11 @@ def main(argv: list[str] | None = None) -> int:
                     help=f"rewrite {BASELINE.relative_to(ROOT)}")
     ap.add_argument("--root", default="",
                     help="the project to read (default: Perry's own repo)")
+    ap.add_argument("--no-witness", action="store_true",
+                    help="read only --root, so a collection it leaves empty "
+                         "is unobservable — the reading before TASK-132")
     args = ap.parse_args(argv)
-    result = measure(args.root)
+    result = measure(args.root, None if args.no_witness else WITNESS)
     if args.record:
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
