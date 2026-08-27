@@ -41,6 +41,8 @@
 | 2026-08-27 | perry-state and perry-task both emit intake.oldest_undischarged and mean different things by it — a date string against a row number | — |
 | 2026-08-28 | only_an_example short-circuits to 'not an example' for an id with no definition point, so the illustrative rule cannot judge an id lifted out of a report | — |
 | 2026-08-28 | two writers appending to .perry/events.jsonl in parallel conflict textually, and the resolution is only safe because seq is computed at read time | — |
+| 2026-08-28 | the queue-reconcile test is order/parallel sensitive: it fails under -j 4 and passes in a smaller run | — |
+| 2026-08-28 | paths() collapses a list to its first element, so a condition true on krs[1] and false on krs[0] is unobservable to key parity | — |
 
 ## P0 (must finish this period)
 
@@ -78,7 +80,6 @@
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
-| TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-132-unobservable-keys | — | V3 | — | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
@@ -92,7 +93,7 @@
 | TASK-164 | perry-state assigns the state root to a global that means the project root | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
-| TASK-174 | autopilot re-derives startability instead of reading the field the contract already computes | Coding Agent | not_started | the cheap half of the autopilot split decided 2026-08-21. Contract 1.12 stopped startable reading the stored status and 1.14 made a USER- ask a graph node, so the rule has exactly one implementation now and autopilot carries a second. The other half — late spec generation — goes to the RFC | — | V3 |  | main |  |  |
+| TASK-174 | autopilot re-derives startability instead of reading the field the contract already computes | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-174-autopilot-reads-startable | — | V3 | — | main |  |  |
 | TASK-175 | aiMark's KR meter renders a stale assertion identically to a fresh one | Coding Agent | not_started | DECIDED 2026-08-21: mark it. This lifts TASK-114 acceptance item 6, which forbade touching the OKR chain view and contradicted the goals-2.1 instruction in the same prompt — the KR meter IS the chain view. Restraint is the point: do not caption every KR with 'this is an assertion', because it is true of all of them and says nothing. Only stale, and only unasserted | — | V3 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
