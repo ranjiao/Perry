@@ -1669,6 +1669,75 @@ def minting_records(ctx) -> list[dict]:
         if e.get("event") == "purge" and e.get("id")]
 
 
+def minting_text(board: Board, events: list[dict],
+                 state_root: Path) -> list[str]:
+    """`minting_records` for a register that has no store. **What a new id may not be.**
+
+    `USER-`, `CAD-` and `RX-` have no `.jsonl`. `## User Input Queue`,
+    `## Cadence` and `## Top risks` are not projections of anything — they are
+    the record — so ADR-007's *"read the store, not the board"* has nothing to
+    point these three minters at. What ADR-007 asks of a minter is the shape
+    `minting_records` has: **the register's canonical form, plus the ids that
+    have left it.** For `mint_id` that is `tasks.jsonl` plus the ids `purge`
+    took out of it. Here the canonical half is markdown, and the departed half
+    is the two append-only records a board row cannot be deleted without
+    leaving behind — `.perry/events.jsonl` and the journal.
+
+    So all four minters do read one kind of thing, and the three docstrings
+    that said *"max(board ∪ journal ∪ events), like `mint_id`"* were wrong
+    twice: `mint_id` has not read a board since ADR-007, and the union is not a
+    grab-bag of three sources — it is canonical-plus-departed with a markdown
+    canonical.
+
+    **This is what answers TASK-167's question for these three.** `purge` is a
+    task-store path and does not reach them; the way one of their rows leaves
+    is a human deleting the line. The `ask` / `cadence-add` / `risk-add` that
+    minted the id is still in the log and still in the journal, so the number
+    is retired — the property `minting_records` had to be built to get, reached
+    here because the log was already in the union. `mint_risk_id` chose that
+    (its docstring names the pruning case); the other two inherited it.
+
+    The residual hole is an id **hand-written onto the board and never routed
+    through this tool**: nothing but the board ever held it, so deleting that
+    row does free the number. That is irreducible without a store, and it is
+    the one case a store would fix — see `mint_risk_id`.
+
+    The board is read whole rather than by section, deliberately. A live queue
+    id is routinely named by a task row's `Next action` as well as by its own
+    row — measured on Perry's board, where `USER-015` appears in both — so
+    narrowing to `## User Input Queue` would stop counting ids that are
+    demonstrably live. A superset can only over-retire, and that is free.
+    """
+    # `str(... or "")` for the reason `minting_records` writes it one function
+    # up: `read_events` keeps whatever JSON a line held ("a corrupt line is not
+    # a reason to refuse a write"), the log is append-only, hand-editable and
+    # shared with `perry-goals`. A single `"id": null` in it used to reach
+    # `re.findall` and raise `TypeError` — not a `Refused` — which took `ask`,
+    # `cadence-add` and `risk-add` down together.
+    out = [board.text()] + [str(e.get("id") or "") for e in events]
+    for p in sorted((state_root / "journal").rglob("*.md")):
+        try:
+            out.append(p.read_text(errors="replace"))
+        except OSError:
+            continue
+    return out
+
+
+def mint_register_id(prefix: str, pat: re.Pattern, board: Board,
+                     events: list[dict], state_root: Path) -> str:
+    """Next `<prefix>-NNN` for a register whose canonical form is the board.
+
+    The one numbering step for all three of them, so that "what an id counts"
+    is a fact about `minting_text` and not about which of three copies of the
+    expression a reader happened to open. `pat` is the family's own regex
+    because the families are not spelled alike — `CAD_ID_RE` also matches
+    `CADENCE-`, and that difference is load-bearing (see `mint_cadence_id`).
+    """
+    seen = {int(m) for t in minting_text(board, events, state_root)
+            for m in pat.findall(t)}
+    return f"{prefix}-{max(seen, default=0) + 1:03d}"
+
+
 # ── events ────────────────────────────────────────────────────────────────
 
 
@@ -4011,15 +4080,13 @@ USER_ID_RE = re.compile(r"\bUSER-(\d+)\b")
 
 
 def mint_user_id(board: Board, events: list[dict], state_root: Path) -> str:
-    """Next `USER-NNN` from max(board ∪ journal ∪ events), like `mint_id`."""
-    seen = {int(m) for m in USER_ID_RE.findall(board.text())}
-    seen |= {int(m) for e in events for m in USER_ID_RE.findall(e.get("id", ""))}
-    for p in sorted((state_root / "journal").rglob("*.md")):
-        try:
-            seen |= {int(m) for m in USER_ID_RE.findall(p.read_text(errors="replace"))}
-        except OSError:
-            continue
-    return f"USER-{max(seen, default=0) + 1:03d}"
+    """Next `USER-NNN` from `minting_text` — the queue's board, plus what left it.
+
+    The queue has no store: the board section IS the record, and `USER-` ids in
+    `tasks.jsonl` are references a task makes (`depends_on: ["USER-015"]`), not
+    rows. So the canonical half here is markdown by fact, not by omission.
+    """
+    return mint_register_id("USER", USER_ID_RE, board, events, state_root)
 
 
 def cmd_ask(args, ctx) -> dict:
@@ -4104,7 +4171,7 @@ FREQ_HELP = ("a period — `daily`, `weekly`, `biweekly`, `monthly`, `quarterly`
 
 
 def mint_cadence_id(board: Board, events: list[dict], state_root: Path) -> str:
-    """Next `CAD-NNN` from max(board ∪ journal ∪ events), like `mint_id`.
+    """Next `CAD-NNN` from `minting_text` — the register's board, plus what left it.
 
     It counts `CADENCE-NNN` as well as `CAD-NNN`. That is not hypothetical
     tidiness: a live register numbers its rows `CADENCE-000`, `CADENCE-002`,
@@ -4118,14 +4185,7 @@ def mint_cadence_id(board: Board, events: list[dict], state_root: Path) -> str:
     live) are simply not part of the sequence — they cannot collide with a
     number, so nothing needs to be done about them.
     """
-    seen = {int(m) for m in CAD_ID_RE.findall(board.text())}
-    seen |= {int(m) for e in events for m in CAD_ID_RE.findall(e.get("id", ""))}
-    for p in sorted((state_root / "journal").rglob("*.md")):
-        try:
-            seen |= {int(m) for m in CAD_ID_RE.findall(p.read_text(errors="replace"))}
-        except OSError:
-            continue
-    return f"CAD-{max(seen, default=0) + 1:03d}"
+    return mint_register_id("CAD", CAD_ID_RE, board, events, state_root)
 
 
 def check_frequency(freq: str, hint: str = "") -> tuple[str, int, str]:
@@ -4344,22 +4404,23 @@ def refuse_foreign_risk_table(tables: list[dict]) -> None:
 
 
 def mint_risk_id(board: Board, events: list[dict], state_root: Path) -> str:
-    """Next `RX-NNN` from max(board ∪ journal ∪ events), like `mint_id`.
+    """Next `RX-NNN` from `minting_text` — the register's board, plus what left it.
 
-    Same three sources for the same reason: a cleared risk still owns its
-    number. `## Top risks` holds cleared rows rather than deleting them, so the
-    board alone would nearly always be enough — but "nearly always" is how an id
-    gets reissued the first time somebody prunes the section, and every journal
-    line naming the old risk would then silently re-point.
+    A cleared risk still owns its number. `## Top risks` holds cleared rows
+    rather than deleting them, so the board alone would nearly always be enough
+    — but "nearly always" is how an id gets reissued the first time somebody
+    prunes the section, and every journal line naming the old risk would then
+    silently re-point. That is the departed half of `minting_text`, named here
+    before it existed as a function.
+
+    **The day `risks.jsonl` exists** — `USER-016`'s open item, `claims[]`
+    already declares the file and `perry-lint` reports it missing every run —
+    the change is to read the store plus the ids that have left it, exactly as
+    `minting_records` does, and this stops being the register whose canonical
+    form is markdown. That is a swap of `minting_text`'s first element, not a
+    new mechanism, which is the point of routing all three through one.
     """
-    seen = {int(m) for m in RISK_ID_RE.findall(board.text())}
-    seen |= {int(m) for e in events for m in RISK_ID_RE.findall(e.get("id", ""))}
-    for p in sorted((state_root / "journal").rglob("*.md")):
-        try:
-            seen |= {int(m) for m in RISK_ID_RE.findall(p.read_text(errors="replace"))}
-        except OSError:
-            continue
-    return f"RX-{max(seen, default=0) + 1:03d}"
+    return mint_register_id("RX", RISK_ID_RE, board, events, state_root)
 
 
 def risk_bullets(board: Board) -> list[tuple[int, str]]:
