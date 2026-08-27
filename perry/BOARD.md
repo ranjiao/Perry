@@ -51,6 +51,8 @@
 | 2026-08-28 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so Depends on 待定 parses as a real dependency id | — |
 | 2026-08-28 | diagnose and perry-task disagree about open queue rows — 2 vs 0 — and the disagreement rides along on TASK-179's red | — |
 | 2026-08-28 | a row can be resolved by work in a repo Perry does not own, and Perry has no signal for it — TASK-161 and TASK-175 in one night | — |
+| 2026-08-28 | .perry/config.jsonl is declared in claims[] and does not exist — the second half of P-O1.2, whose only linked task closed | — |
+| 2026-08-28 | a KR short of target whose every linked task is terminal is stalled, and nothing reports it — must be phase-scoped or three of four results are noise | — |
 
 ## P0 (must finish this period)
 
