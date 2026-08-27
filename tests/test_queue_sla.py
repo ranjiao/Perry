@@ -177,9 +177,9 @@ class TestTheNoClockReportThatMustKeepWorking(Base):
 
     def test_the_clockless_row_is_in_both_reports_and_neither_is_the_other(self):
         # An EMPTY cell, which is what `perry-task` itself writes for a row
-        # with no arrival — the em-dash spelling is covered separately below,
-        # because the two readers do not agree about it and that is a finding
-        # rather than something this change gets to alter.
+        # with no arrival. The em-dash spelling is asserted separately, in
+        # `TestAHandWrittenDashIsNoClockToEitherReader` below — the two readers
+        # once disagreed about it, and a tool-written board could not show it.
         root = self.project(OPS_5D, row("TASK-900", ""))
         self.import_board(root)
         # A tool-written row beside it, so an event log exists — without one
@@ -207,6 +207,109 @@ class TestTheNoClockReportThatMustKeepWorking(Base):
                 tr = self.track(self.project(OPS_5D, row("T-1", cell)))
                 self.assertEqual(tr["sla_no_clock"], ["T-1"])
                 self.assertEqual(tr["sla_breaches"], [])
+
+
+class TestAHandWrittenDashIsNoClockToEitherReader(Base):
+    """TASK-163. The board column a person edits by hand, read twice.
+
+    `perry-state § sla_no_clock` asked `lib.is_blank_cell`, so `—` was no
+    clock. `perry-task § rows_with_no_computable_age` asked `not
+    t["arrived"]`, and `—` is truthy, so the row had an age and the finding
+    whose whole job is to say "this row has no age" said nothing. Measured:
+
+        Arrived `—`   perry-task: not reported   perry-state: sla_no_clock
+        Arrived ``    perry-task: reported       perry-state: sla_no_clock
+
+    **Every fixture here is hand-edited, and that is the point.** `perry-task`
+    writes `""` for a row with no arrival, so no board the tool produced could
+    ever exhibit the disagreement — which is why it survived weeks of a suite
+    that only ever asserted on tool-written rows. `import_board` is what puts a
+    hand-written cell in front of `perry-task list`.
+
+    Asserted on the SAME board, in the same test, for both tools: two
+    single-tool assertions in different classes would both stay green while the
+    tools disagreed, which is exactly the state this row found.
+    """
+
+    #: A hand-written em-dash, plus a tool-written row so an event log exists —
+    #: without one `rows_with_no_computable_age` is empty by contract 1.9 and
+    #: would pass this test for the wrong reason.
+    def board(self, cell: str, tid: str = "T-DASH") -> Path:
+        root = self.project(OPS_5D, row(tid, cell))
+        self.import_board(root)
+        self.task(root, "add", "--title", "tool written",
+                  "--deliverable", "d with a test", "--verification", "v",
+                  "--next", "n", "--track", "ops")
+        return root
+
+    def both(self, cell: str, tid: str = "T-DASH") -> tuple[bool, bool]:
+        """(is it clockless to `perry-task`, is it clockless to `perry-state`)."""
+        root = self.board(cell, tid)
+        listed = self.task(root, "list", "--all")
+        return (tid in listed["conformance"]["rows_with_no_computable_age"],
+                tid in self.track(root)["sla_no_clock"])
+
+    def test_a_dash_is_clockless_to_both_readers(self):
+        """The row this task exists for. `not t["arrived"]` returns
+        `(False, True)` here — the two tools disagreeing about one cell."""
+        self.assertEqual(self.both("—"), (True, True),
+                         "a hand-written `—` is a clock to one reader and not "
+                         "the other")
+
+    def test_an_empty_cell_is_clockless_to_both_readers(self):
+        self.assertEqual(self.both(""), (True, True))
+
+    def test_a_real_date_is_a_clock_to_both_readers(self):
+        """Neither list, not both — the fix must not make every row clockless."""
+        self.assertEqual(self.both(ago(1)), (False, False))
+
+    def test_every_declared_spelling_of_nothing_reaches_both_readers(self):
+        """`schema § i18n.blank_cell` is the vocabulary, and the point of
+        reading it from the schema is that a new language is a schema edit. A
+        list hardcoded in `perry-task` would pass the `—` case above and fail
+        these."""
+        for cell in ("—", "n/a", "无", "tbd", "-", "待定"):
+            with self.subTest(cell=cell):
+                self.assertTrue(lib.is_blank_cell(cell),
+                                "the fixture's premise moved")
+                self.assertEqual(self.both(cell), (True, True))
+
+    def test_the_dash_row_is_still_empty_without_an_event_log(self):
+        """Contract 1.9, unchanged. On a project with no event log EVERY open
+        row is clockless by construction, so the array names no finding and
+        stays empty — a dash does not become the exception that reopens it."""
+        root = self.project(OPS_5D, row("T-DASH", "—"))
+        self.import_board(root)
+        listed = self.task(root, "list", "--all")
+        self.assertFalse(listed["conformance"]["has_event_log"])
+        self.assertEqual(listed["conformance"]["rows_with_no_computable_age"],
+                         [])
+
+    #: The standard fixture head has no `Stage since`, so a board that carries
+    #: one is written here rather than assumed.
+    HEAD_WITH_STAGE_SINCE = (
+        "| ID | Title | Owner | Status | Next action | Evidence | "
+        "Verification | Track | Stage | Stage since | Arrived | Commitment |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|\n")
+
+    def test_a_dash_in_stage_since_is_no_clock_either(self):
+        """`Stage since` is the other hand-edited date cell in the same
+        predicate, and it was read with the same raw truthiness. A row whose
+        date cells are BOTH dashes has no clock in either column — and if only
+        `Arrived` had been fixed, this row would still read as dated."""
+        root = self.project(OPS_5D)
+        (root / "perry" / "BOARD.md").write_text(
+            "# Board\n\n## P1\n\n" + self.HEAD_WITH_STAGE_SINCE
+            + "| T-BOTH | t-both | User | in_progress | n | — | V2 | "
+              "ops | triaged | — | — | — |\n", encoding="utf-8")
+        self.import_board(root)
+        self.task(root, "add", "--title", "tool written",
+                  "--deliverable", "d with a test", "--verification", "v",
+                  "--next", "n", "--track", "ops")
+        listed = self.task(root, "list", "--all")
+        self.assertIn("T-BOTH",
+                      listed["conformance"]["rows_with_no_computable_age"],
+                      "a dash in `Stage since` still read as a date")
 
 
 class TestATrackWithNoSlaCannotRunTheStep(Base):
