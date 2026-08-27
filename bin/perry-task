@@ -173,7 +173,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.17"
+LIST_CONTRACT = "perry-task/list/1.18"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -286,13 +286,16 @@ LIST_SEMANTICS = [
              "rule 1 names as this payload's unknown value, and a consumer "
              "that skipped `checked` fails loudly instead of being "
              "reassured. Nothing about a project WITH a log changed."},
+    {"version": "1.18",
+     "fields": ["tasks[].created", "tasks[].updated", "tasks[].timeline[].ts"],
+     "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
 # `schema/events-list-contract.md` § Why this exists rather than `--limit` on
 # `list` has the measurement that made a second payload cheaper than paging the
 # first one.
-EVENTS_CONTRACT = "perry-events/list/1.1"
+EVENTS_CONTRACT = "perry-events/list/1.2"
 
 # Same rule as `LIST_SEMANTICS`, for the feed: one entry per minor under which
 # an existing value changed MEANING. Empty is the normal case and 1.1 is not
@@ -317,6 +320,9 @@ EVENTS_SEMANTICS = [
              "the whole log to slice the newest N off the end yourself, stop: "
              "`--limit N` is that slice. If you paged forward from `0:` to "
              "walk the log, you now walk it from the other end."},
+    {"version": "1.2",
+     "fields": ["events[].ts"],
+     "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and

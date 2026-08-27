@@ -23,10 +23,10 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-events/list/1.1": {
+    "perry-events/list/1.2": {
       "collections_the_witness_filled": [],
       "command": "perry-task events --json",
-      "contract": "perry-events/list/1.1",
+      "contract": "perry-events/list/1.2",
       "documented": 27,
       "documented_not_emitted": [],
       "emitted": 27,
@@ -101,14 +101,14 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-task/list/1.17": {
+    "perry-task/list/1.18": {
       "collections_the_witness_filled": [
         "conformance.depends_on_unknown",
         "conformance.in_progress_with_no_live_run",
         "tasks[].evidence_relations"
       ],
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.17",
+      "contract": "perry-task/list/1.18",
       "documented": 137,
       "documented_not_emitted": [],
       "emitted": 126,

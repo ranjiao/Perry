@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.17`**
+> Contract: **`perry-task/list/1.18`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.17",  // check this before anything else
+  "contract":     "perry-task/list/1.18",  // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -233,7 +233,7 @@ addition, which is why `semantics` gained no 1.17 entry.
 
 | Key | Type |
 |---|---|
-| `ts` | string — ISO-8601, **seconds** precision, local time, no zone suffix. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
+| `ts` | string — ISO-8601, **seconds** precision, local wall clock **with its UTC offset** since 1.18; no zone suffix at all on lines written before it, read as the reading machine's local time (§ Changelog 1.18, and `bin/lib § ts_moment`, which is the only converter). Compare two of them by converting, never as text. **Ties are possible and are not duplicates** — two events one operation apart land in the same second routinely. Timeline order is array order and is authoritative; if you re-sort by `ts`, use a stable sort or you will reorder a `start` after the `status` that followed it. |
 | `event` | string — `add`, `route`, `start`, `stage`, `track`, `status`, `prioritize`, `retitle`, `summary`, `next`, `rung`, `evidence`, `depends`, `done`, `drop` |
 | `from` | string \| null — **see `field` for what it refers to** |
 | `to` | string \| null — same |
@@ -568,6 +568,27 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+### 1.18 — 2026-08-28
+
+**One clock: `ts` says which zone it is in (TASK-144).** No key was added,
+removed or retyped; `tasks[].created`, `tasks[].updated` and
+`tasks[].timeline[].ts` return a different STRING for every event appended from
+now on, which is what `semantics` is for.
+
+**`ts` carries its offset** (`2026-08-28T02:15:22+08:00`) on every event appended since 1.18/1.2, and **carries no zone at all** on every line written before it. The log is append-only and its existing lines were not rewritten; `bin/lib § ts_moment` — the one place in the tree that decides what a timestamp means — reads a zoneless one as the **reading machine's local time**, which is what `datetime.now()` wrote it as. The stamp is local wall clock rather than UTC so the log's text keeps rising across the cutover instead of jumping backwards by the offset.
+
+The measurement that produced it. `.perry/events.jsonl` stamped local wall
+clock with no zone and `phase/NNN-linkage.md` stamped UTC with a `Z`, and
+`perry-goals list`'s `current_staleness` compared the two **as text** — so on a
+UTC+8 machine a task that moved six hours *before* a number was asserted was
+reported as having moved after it, and on a UTC-7 machine a task that moved two
+hours *after* it was reported fresh. The register keeps its `Z`; the log gained
+its offset; nothing was rewritten.
+
+A consumer that parses `ts` with `datetime.fromisoformat` (or any real ISO-8601
+parser) needs no change. One that hardcoded `%Y-%m-%dT%H:%M:%S`, sliced the
+string to a fixed width, or compared two stamps as text does.
 
 ### 1.17 — 2026-08-28
 
