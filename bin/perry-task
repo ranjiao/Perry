@@ -173,7 +173,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.14"
+LIST_CONTRACT = "perry-task/list/1.15"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -4790,8 +4790,19 @@ def stranded_row_findings(tasks: dict, *, has_event_log: bool, thresholds: dict,
 # register to resolve against.
 
 
-def ask_register(ctx) -> dict[str, bool]:
-    """Every `USER-` ask this project has put to a human → did it come back.
+def ask_register(ctx) -> dict[str, dict]:
+    """Every `USER-` ask this project has put to a human → the ask.
+
+    **`{"answered": bool, "needed": str, "status": str}`, not a bare bool
+    (1.15).** The verdict alone was everything `dependency_satisfied` needed
+    and nothing a consumer could render: an answered ask leaves the `asks`
+    payload by design, so `USER-016` in `TASK-040`'s `depends_on` was in no
+    register a reader could query — not `tasks[]`, not `asks.items`, not
+    `depends_on_unknown` — and the only way to learn it was an ask at all was
+    to notice it was missing from all three. That is set arithmetic over three
+    arrays, and aiMark refused to do it, correctly. `needed` is the question
+    text and `status` is the `answered …` cell verbatim, so the edge can carry
+    both and the reader needs no second lookup.
 
     Read from the board **in memory**, not from disk. `board_sections` builds
     the `asks` payload by re-parsing `BOARD.md` off disk, which mid-write is the
@@ -4823,10 +4834,13 @@ def ask_register(ctx) -> dict[str, bool]:
         aid = strip_handle(values.get("user-id", ""))
         if not aid:
             continue
-        register[aid] = answered(P.UserInput(
+        row = P.UserInput(
             id=aid, needed_from_user=values.get("needed from user", ""),
             blocks=values.get("blocks", ""), idle=values.get("idle", ""),
-            status=values.get("status", "")))
+            status=values.get("status", ""))
+        register[aid] = {"answered": answered(row),
+                         "needed": row.needed_from_user,
+                         "status": row.status}
     return register
 
 
@@ -4842,7 +4856,50 @@ def dependency_satisfied(dep: str, tasks: dict, asks: dict) -> bool:
     task = tasks.get(dep)
     if task is not None:
         return not task["open"]
-    return asks.get(dep, False)
+    return bool(asks.get(dep, {}).get("answered"))
+
+
+def resolved_edge(dep: str, tasks: dict, asks: dict) -> dict:
+    """One `depends_on` id, with what it IS attached to it (1.15).
+
+    **The edge declares its own kind, rather than a consumer deducing it from
+    three arrays the id is absent from.** `depends_on` stays exactly what it
+    was — a list of ids, unchanged, still the key every consumer reads — and
+    this is a parallel array beside it, because retyping that one would be a
+    major on the most-read key in the payload.
+
+    The alternative considered and rejected was putting answered asks back into
+    `asks.items`. That register is not a neutral list: its contract row says
+    *"the unanswered asks"*, `open` is documented as `len(items)`, and
+    `bin/perry-state § answered` exists because a dashboard once said *"2 items
+    waiting on you"* about two questions answered the same day. Widening
+    `items` either breaks `open == len(items)` or re-creates that count —
+    and `tests/test_diagnose.py § test_the_queue_register_reconciles_…` pins
+    `asks.open` against `perry-diagnose`'s queue register across two tools. A
+    key that keeps its name and changes what it holds is the 1.10 `status_text`
+    lesson; this row is not the place to repeat it.
+
+    `satisfied` is `dependency_satisfied`'s own answer, called and never
+    re-spelled, so this array cannot disagree with `blocked_by` about an edge.
+    `kind` is `task` | `ask` | `unknown`, and `unknown` is the honest third
+    value: a `DESIGN-`/`ADR-` handle and a mistyped id have no register, which
+    is the same thing `depends_on_unknown` says and is said here per edge.
+
+    `title` is the human text — a task's title, an ask's *Needed from user*
+    question — and `""` on an unknown id, because inventing one from a handle
+    is what `risks[].id` was corrected for at 1.6.
+    """
+    satisfied = dependency_satisfied(dep, tasks, asks)
+    task = tasks.get(dep)
+    if task is not None:
+        return {"id": dep, "kind": "task", "satisfied": satisfied,
+                "title": task["title"], "status": task["status"]}
+    ask = asks.get(dep)
+    if ask is not None:
+        return {"id": dep, "kind": "ask", "satisfied": satisfied,
+                "title": ask["needed"], "status": ask["status"]}
+    return {"id": dep, "kind": "unknown", "satisfied": satisfied,
+            "title": "", "status": ""}
 
 
 def resolve_dependency_edges(tasks: dict, asks: dict) -> list[dict]:
@@ -4866,8 +4923,14 @@ def resolve_dependency_edges(tasks: dict, asks: dict) -> list[dict]:
     already on its own row in the `Blocks` cell `ask --blocks` writes.
     """
     for task in tasks.values():
-        task["blocked_by"] = [dep for dep in task["depends_on"]
-                              if not dependency_satisfied(dep, tasks, asks)]
+        task["depends_on_resolved"] = [resolved_edge(dep, tasks, asks)
+                                       for dep in task["depends_on"]]
+        # Derived from the SAME entries, so 1.14's graph cannot move under
+        # 1.15: an edge is in `blocked_by` exactly when its resolved entry says
+        # `satisfied: false`, and there is one place that decides that.
+        task["blocked_by"] = [edge["id"]
+                              for edge in task["depends_on_resolved"]
+                              if not edge["satisfied"]]
     for task in sorted(tasks.values(), key=lambda row: row["id"]):
         for dep in task["depends_on"]:
             other = tasks.get(dep)
@@ -4915,7 +4978,8 @@ def _cmd_list_from_board(args, ctx) -> dict:
                 "commitment": "", "next_action": "", "evidence": "",
                 "verification": "", "open": False, "group": "",
                 "role": "",
-                "depends_on": [], "blocked_by": [], "blocks": [],
+                "depends_on": [], "depends_on_resolved": [],
+                "blocked_by": [], "blocks": [],
                 "startable": False, "blocked_stale": False,
                 "created": None, "updated": None, "timeline": []}
 
@@ -5318,6 +5382,7 @@ def cmd_list(args, ctx) -> dict:
             "open": status not in terminal, "group": rec.get("group") or "",
             "role": rec.get("role") or "",
             "depends_on": list(rec.get("depends_on") or []),
+            "depends_on_resolved": [],
             "blocked_by": [], "blocks": [], "startable": False,
             "blocked_stale": False,
             "created": rec.get("created"), "updated": None, "timeline": [],

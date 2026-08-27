@@ -77,12 +77,12 @@
       ],
       "unparsed_sketches": []
     },
-    "perry-task/list/1.14": {
+    "perry-task/list/1.15": {
       "command": "perry-task list --json",
-      "contract": "perry-task/list/1.14",
-      "documented": 113,
+      "contract": "perry-task/list/1.15",
+      "documented": 119,
       "documented_not_emitted": [],
-      "emitted": 113,
+      "emitted": 119,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
       "not_observable": {},

@@ -1451,6 +1451,13 @@ class TestListContract(unittest.TestCase):
         "depends_on", "blocked_by", "blocks", "startable",
         # 1.12 — the board says blocked and the graph says nothing is.
         "blocked_stale",
+        # 1.15 — what each `depends_on` id IS, beside the ids themselves. An
+        # ANSWERED ask is in no register a consumer can query — not `tasks[]`,
+        # not `asks.items`, not `depends_on_unknown` — and deducing its kind
+        # from three arrays it is missing from is set arithmetic, not a
+        # contract. A parallel array, because retyping `depends_on` would be a
+        # major on the key every consumer of this payload reads.
+        "depends_on_resolved",
     }
     TOP_KEYS = {"contract", "semantics", "project_root", "state_root",
                 "conformance",
@@ -1490,6 +1497,13 @@ class TestListContract(unittest.TestCase):
     #: holds, so the payload's own compatibility signal was the least
     #: documented thing in it.
     SEMANTICS_KEYS = {"version", "fields", "note"}
+    #: `tasks[].depends_on_resolved[]` (1.15). `satisfied` is
+    #: `dependency_satisfied`'s own answer rather than a second spelling of
+    #: it, so this array and `blocked_by` cannot disagree about an edge;
+    #: `kind` is `task` | `ask` | `unknown`, and `title` is `""` on the last
+    #: of those because inventing one out of a handle is what `risks[].id`
+    #: was corrected for at 1.6.
+    RESOLVED_EDGE_KEYS = {"id", "kind", "satisfied", "title", "status"}
     #: `conformance.sections_read[]`. Its shape was stated inside the
     #: `conformance` table's Meaning cell, which is prose to both checkers.
     SECTIONS_READ_KEYS = {"heading", "priority", "rows"}
@@ -1708,6 +1722,7 @@ class TestListContract(unittest.TestCase):
                  | self.ASKS_KEYS | self.ASK_KEYS | self.DRIFT_KEYS
                  | self.CITATION_KEYS | self.IDLE_ROW_KEYS
                  | self.UNKNOWN_DEP_KEYS | self.SEMANTICS_KEYS
+                 | self.RESOLVED_EDGE_KEYS
                  | self.SECTIONS_READ_KEYS | self.EVIDENCE_NOT_FOUND_KEYS)
         undocumented = known - documented
         self.assertFalse(undocumented,

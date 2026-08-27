@@ -1,6 +1,6 @@
 # `perry-task list --json` — the front-end contract
 
-> Contract: **`perry-task/list/1.14`**
+> Contract: **`perry-task/list/1.15`**
 > Locked by `tests/test_task_writer.py § TestListContract`.
 > Consumers today: aimark.
 
@@ -65,7 +65,7 @@ from task rows in Markdown.
 
 ```jsonc
 {
-  "contract":     "perry-task/list/1.14",  // check this before anything else
+  "contract":     "perry-task/list/1.15",  // check this before anything else
   "semantics":    [ /* see below */ ],     // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",             // where tasks.jsonl, BOARD.md and journal/ live
@@ -120,6 +120,7 @@ counts; without it, `closed` is a constant.
 | `group` | string | the stored projection group. `P0`/`P1`/`P2` for a standard board; a workstream name like `Open — 投资线` when the project organizes its Board that way. |
 | `open` | bool | `false` exactly when typed `status` is `done` or `dropped`; `true` otherwise. Use this served field as the live/closed test. |
 | `depends_on` | array | the stored opaque ids this task waits on, in declared order. An entry may name a closed task, a task not present in this filtered payload, a **`USER-` ask** from `## User Input Queue`, or a `DESIGN-`/`ADR-` handle. `[]` means no dependency is declared. |
+| `depends_on_resolved` | array | **what each of those ids IS** (1.15) — one entry per `depends_on` id, same order, same length. `depends_on` is unchanged and is still the list of ids; this answers *"what am I looking at"* at the edge, so a consumer never deduces an entity's kind from the arrays it is missing from. That deduction was the whole gap: an **answered** ask leaves `asks.items` by design and is not in `tasks[]` and — since 1.14 — not in `conformance.depends_on_unknown` either, so `USER-016` in `TASK-040`'s `depends_on` was in no register a consumer could query, and *"absent from three arrays, therefore an answered ask"* is set arithmetic, not a contract. Fields below. |
 | `blocked_by` | array | the subset of `depends_on` that is **not known-terminal** — an id whose task is still open, an ask that is still `pending`, or an id **neither register** carries. Changed in 1.14; see `semantics`. An id Perry cannot see counts as unsatisfied: *"I do not know"* is not *"it is done"*, and reporting the row ready is the one error that sends somebody to work on something still blocked. |
 | `blocks` | array | the reverse edge — ids in this payload whose `depends_on` names this row. So *"what does closing this free up"* is a lookup, not a scan. |
 | `startable` | bool | **the field a dashboard sorts on.** `true` when the row is `open`, `blocked_by` is empty, and its own `status` is not `blocked` or `review` (both mean somebody else has the ball) — **unless `blocked_stale` is `true`, in which case the stored `blocked` is a contradiction of the graph and does not win.** Changed in 1.12; see `semantics`. This is served so you never walk the graph yourself. |
@@ -137,6 +138,38 @@ exact, and there is no closure a consumer is missing.
 **Computed over the whole task set, before `--track` and `--all` filter it.** A
 row you filtered out still blocks the rows that name it. A `blocks` list that
 changed with your flags would be a different graph per query.
+
+#### A `depends_on_resolved[]` entry
+
+Added at 1.15. **A parallel array, not a retype of `depends_on`.** Making each
+`depends_on` entry an object would have been a breaking change on the key every
+consumer of this payload reads, which is a major; adding an array beside it
+costs a consumer that does not want it nothing.
+
+The alternative weighed and rejected was putting answered asks back into
+`asks.items` and letting their `answered …` status distinguish them. That
+register is not a neutral list of asks: its own row here reads *"the unanswered
+asks"*, `open` is documented as `len(items)`, and the shared `answered`
+predicate exists because a dashboard once reported **"2 items waiting on you"**
+about two questions answered the same day. Widening `items` either breaks
+`open == len(items)` or brings that count back — and `asks.open` is pinned
+across two tools against `perry-diagnose`'s
+`user_load.open_decisions_by_register.queue`. A key that keeps its name and
+changes what it holds is the 1.10 `status_text` lesson, and the question being
+asked here is about an **edge**, not about the register.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `id` | string | the id, verbatim from `depends_on`. |
+| `kind` | string | `task` \| `ask` \| `unknown` — which register carries it. `unknown` is the honest third value and covers a `DESIGN-`/`ADR-` handle, a mistyped task number and a `USER-` id the queue never minted; those are the same ids `conformance.depends_on_unknown` reports, said here per edge instead of per row. |
+| `satisfied` | bool | whether this one edge is resolved — a task that is `done`/`dropped`, or an ask that is `answered`. **The same value `blocked_by` is built from**, not a second opinion: `blocked_by` is exactly the ids whose entry here says `false`, so the two cannot disagree. |
+| `title` | string | the human text behind the id: a task's `title`, an ask's *Needed from user* question. **`""` on `kind: "unknown"`** — there is no text, and manufacturing one out of the handle is what `risks[].id` was corrected for at 1.6. |
+| `status` | string | the depended-on thing's own state: a task's typed `status`, an ask's `Status` cell verbatim (`answered 2026-08-21: …`, `pending`). `""` on `kind: "unknown"`. |
+
+**This changes no edge.** `blocked_by`, `startable`, `blocked_stale`,
+`conformance.depends_on_unknown` and `conformance.blocked_by_closed_rows` are
+byte-identical to 1.14 on any project. 1.14 decided which edges resolve; 1.15
+only makes an already-resolved one legible.
 
 A dependency is written by `perry-task depends <ID> --on "TASK-050, TASK-051"`,
 by `perry-task status <ID> --status blocked --on …`, or by `add --depends`. It
@@ -483,6 +516,59 @@ same eleven keys, so adding the second here left this page's one risk table
 matching both and matching neither — KR-O2.4 went from 0 to 22 in a measured
 run. The instrument is right, and teaching it about tied containers is a change
 to the KR's own measurement rather than to this contract.
+
+### 1.15 — 2026-08-21
+
+**An answered `USER-` ask was in no register a consumer could query.**
+
+1.14 made an ask a node in the dependency graph and got the edge right. What it
+left behind is a reader's problem rather than a graph's: on this board,
+
+```
+$ perry-task list --all --json
+asks: {"items": [], "open": 0}
+TASK-040.depends_on: ["USER-016"]
+```
+
+`USER-015` and `USER-016` were answered on 2026-08-21, so they are gone from
+`asks.items` — which is correct, that register is the *needs-you* list. But a
+satisfied dependency **stays in the record**, which is the whole reason 1.14
+resolves it instead of reporting it unknown. So the id was in `tasks[]`: no.
+In `asks.items`: no. In `conformance.depends_on_unknown`: no, deliberately.
+It rendered as a bare satisfied id with nothing behind it.
+
+It *is* derivable — an id in `depends_on`, in no register, and absent from
+`depends_on_unknown` can only be an answered ask. aiMark noticed that and
+**refused to implement it**, because inferring an entity's kind from three
+arrays it is missing from is set arithmetic, not a contract. That refusal is
+correct and this minor exists because of it.
+
+**Why not widen `asks.items`.** It is the smaller-looking change and it is the
+wrong one. `asks.items` is documented as *"the unanswered asks"*, `asks.open`
+is documented as `len(items)`, and `bin/perry-state § answered` — the predicate
+that filters them out — was extracted because a dashboard reported **"2 items
+waiting on you"** about two questions answered the same day. Widening `items`
+forces a choice between breaking the documented `open == len(items)` identity
+and re-creating that count; and `asks.open` is not a private number, it is
+pinned against `perry-diagnose`'s
+`user_load.open_decisions_by_register.queue` by a cross-tool test. A key that
+keeps its name and changes what it contains is exactly the 1.10 `status_text`
+move, and it would have been made here on the payload's most decision-relevant
+list. The question is about an **edge** — *what is this id in my
+`depends_on`* — and answering it at the register would still leave a consumer
+doing *"not a task, so try the asks"*.
+
+**A pure key addition, so no `semantics` entry.** No existing value moved.
+`depends_on` keeps its type and its contents; `blocked_by` is now *derived
+from* `depends_on_resolved` rather than recomputed beside it, and is
+byte-identical on every project because both read the one
+`dependency_satisfied`. `startable`, `blocked_stale`,
+`conformance.depends_on_unknown` and `conformance.blocked_by_closed_rows` are
+unchanged; `asks` is untouched in both its keys and its filter. This minor
+makes an already-resolved edge legible and re-decides no edge.
+
+- **added** `tasks[].depends_on_resolved`, with `id`, `kind`, `satisfied`,
+  `title` and `status` per entry.
 
 ### 1.14 — 2026-08-21
 
