@@ -1305,6 +1305,104 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
                          "perry-explain.is_illustrative")
 
 
+class AQuotedIdIsNotAQueueRow(unittest.TestCase):
+    """TASK-165. The two halves of `user_load` disagreed about `USER-900`.
+
+    The exemption for an id that is QUOTED rather than referenced was built for
+    `dangling` and reached `open_decisions_by_register.queue` not at all. So
+    `USER-900` — a `tests/fixtures/` board row whose only live mention outside
+    the fixture is `TASK-153-result.md:50` quoting the test's own output while
+    reporting what the check said — was in `dangling_in_reports` AND in
+    `open_decision_samples` at the same time, and `diagnose` reported a queue of
+    1 against `perry-task`'s 0.
+
+    **Not a TASK-153 regression.** That fix filters on `is_illustrative`, which
+    judges the FILE a row is DEFINED in, and `tests/test_diagnose.py` is
+    illustrative. An id quoted out of a report has no definition point at all,
+    so there was nothing for that rule to judge and the fallback counted it.
+
+    The fix is `split_dangling`'s own verdict, passed in — `reported_only` is
+    already the set of ids every live mention of which is a report. One rule,
+    one implementation; these tests are what say so.
+    """
+
+    def project(self, root: Path) -> Path:
+        (root / ".perry").mkdir(parents=True, exist_ok=True)
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+        return root
+
+    # ── the one that stops a fix which just suppresses everything ────────
+    def test_a_genuine_row_survives_a_note_quoting_another_id(self):
+        """Verification 3, as a fixture. One real pending ask and one id the
+        project only quoted back out of a check report, in the same tree.
+
+        A fix that silenced the queue register would pass the reconciliation
+        test on this repository — Perry's own queue is empty — and fail here.
+        The count must be 1 and it must name `USER-001`.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Which region is the default | TASK-005 | 3d | pending |\n"))
+            # A project note reporting what a check said. `LOAD-03` is one of
+            # this checker's own finding codes, so the paragraph announces
+            # itself as a report without anybody reading the English — and
+            # `USER-902` is defined nowhere, which is what an id lifted out of
+            # a report looks like.
+            write(root, "notes/check-log.md",
+                  "# Check log\n\n"
+                  "LOAD-03 named USER-902 as the row it was counting, and the "
+                  "id came out of the fixture rather than out of this queue.\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"],
+                         {"queue": 1, "design": 0},
+                         "a quoted id was counted as an ask, or a real ask was "
+                         "suppressed along with it")
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-001"])
+        self.assertIn("USER-902", load["dangling_in_reports"],
+                      "the fixture no longer exercises the quoted case")
+
+    def test_the_two_halves_of_user_load_agree_about_every_id(self):
+        """The shape of the defect, pinned directly: an id the report
+        exemption covers must not also be a row of the queue register. Before
+        this row `USER-900` was in both lists at once on this repository."""
+        load = scan(PERRY_HOME)["user_load"]
+        named = {s.split(" — ")[-1] for s in load["open_decision_samples"]}
+        self.assertEqual(named & set(load["dangling_in_reports"]), set(),
+                         "an id exempted as a quotation is also being counted "
+                         "as a pending queue row")
+
+    def test_the_quoted_verdict_has_one_implementation(self):
+        """`split_dangling` decides quotation from reference. The queue
+        register is handed that answer; it does not re-derive one.
+
+        Asserted by identity rather than by agreement: the register is called
+        with a verdict the test invents, and its answer moves. A private copy
+        inside `open_user_asks` would keep the old answer, which is exactly how
+        `test_the_queue_register_asks_perry_explains_own_predicate` pins the
+        other half of the same rule.
+        """
+        diagnose = load_bin_module("perry-diagnose")
+        explain = diagnose.load_sibling("perry-explain")
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(board_with_queue(""))
+            write(root, "notes/check-log.md",
+                  "# Check log\n\nLOAD-03 named USER-902.\n")
+            entries = explain.harvest(root)
+            counted = diagnose.open_user_asks(root, entries, explain, set())
+            exempt = diagnose.open_user_asks(root, entries, explain,
+                                             {"USER-902"})
+        self.assertEqual([i for i, _ in counted], ["USER-902"],
+                         "the fallback stopped counting an id for some reason "
+                         "other than the verdict it was handed")
+        self.assertEqual(exempt, [],
+                         "the queue register ignored split_dangling's verdict")
+
+
 class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
     """Evidence files quote command transcripts, and those transcripts carry
     ids from throwaway fixtures and from copies of *other* projects. Committing

@@ -329,7 +329,8 @@ def decision_label(cell: str) -> str:
     return s[:57] + "…" if len(s) > 58 else s
 
 
-def open_user_asks(root: Path, entries: dict, explain) -> list[tuple[str, str]]:
+def open_user_asks(root: Path, entries: dict, explain,
+                   quoted: set[str] | None = None) -> list[tuple[str, str]]:
     """Pending `USER-` asks, one entry per ROW: `(id, "file:line")`.
 
     Rows, not a count, because the id is what makes a decision countable
@@ -357,7 +358,32 @@ def open_user_asks(root: Path, entries: dict, explain) -> list[tuple[str, str]]:
     on; `is_illustrative` decides by directory NAME, relative to the root
     being diagnosed, so a project that itself lives under `tests/fixtures/`
     is still counted in full.
+
+    **An id this project only QUOTED is not a row it is waiting on either, and
+    that verdict is `split_dangling`'s — passed in, not recomputed.** The
+    illustrative rule above is about the FILE a row lives in; it says nothing
+    about an id that has no row anywhere and reaches the fallback below purely
+    because some non-illustrative document mentioned it. `USER-900` is that id
+    on this repository: it is a `tests/fixtures/` board row that
+    `TASK-153-result.md:50` quotes back verbatim while reporting what the
+    check said, so `only_an_example` correctly answers "no" — there is no
+    definition point for it to judge — and the fallback counted a quotation as
+    a pending ask. `perry-task` read `perry/BOARD.md` and reported 0; this
+    reported 1; the same two registers stopped reconciling a second time.
+
+    `quoted` is `split_dangling`'s `reported_only` — the ids every one of whose
+    live mentions is a report rather than a reference. **The same predicate,
+    not a second one.** `split_dangling` asks *"is this id a reference that
+    resolves nowhere, or a quotation?"*; the fallback here asks *"is this id a
+    row of this project's queue?"*, and it only ever asks that of an id with no
+    definition point — which is exactly `split_dangling`'s domain. An id
+    nothing refers to is a row of nothing, so the first answer settles the
+    second. Where the two questions do not overlap this changes nothing: an id
+    that IS a row of this board's queue is kept by `where` below whatever
+    `quoted` says, and an id with a definition point is one `split_dangling`
+    never judges and never names here.
     """
+    quoted = quoted or set()
     ids = {e["id"] for e in entries.values()
            if e["id"].startswith("USER-") and e.get("in_tracking_doc")}
     if not ids:
@@ -368,9 +394,15 @@ def open_user_asks(root: Path, entries: dict, explain) -> list[tuple[str, str]]:
         loc = entries[i].get("defined") or ""
         return bool(loc) and explain.is_illustrative(loc.rsplit(":", 1)[0])
 
+    def not_a_row_of_this_queue(i: str) -> bool:
+        """Shown as an example, or quoted back from a report. Neither is an
+        ask. The second half is read from `split_dangling`'s verdict so the
+        rule that tells quotation from reference has one implementation."""
+        return i in quoted or only_an_example(i)
+
     def elsewhere(open_ids: set[str]) -> list[tuple[str, str]]:
         return sorted((i, entries[i].get("defined") or "")
-                      for i in open_ids if not only_an_example(i))
+                      for i in open_ids if not not_a_row_of_this_queue(i))
 
     board = root / "BOARD.md"
     if not board.exists():
@@ -413,7 +445,7 @@ def open_user_asks(root: Path, entries: dict, explain) -> list[tuple[str, str]]:
     # `harvest` picked as its definition point — `defined` is first-seen in a
     # sorted walk, so a fixture that sorts ahead of the real board owns it, and
     # dropping on that alone would trade one silent miscount for another.
-    own = {i for i in ids if i in where or not only_an_example(i)}
+    own = {i for i in ids if i in where or not not_a_row_of_this_queue(i)}
     return sorted((i, where.get(i) or (entries[i].get("defined") or ""))
                   for i in own - answered)
 
@@ -821,7 +853,15 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     # TASK-113's three: an equality that was true when it was measured, pinned
     # as though it were an invariant. The invariant is per register, and it is
     # `open_decisions_by_register` that carries it.
-    queue_records = open_user_asks(root, entries, explain)
+    #
+    # `dangling_in_reports` is handed to the queue register rather than being
+    # re-derived there. It is the ids whose every live mention is a report, and
+    # `split_dangling` is where that is decided — the same rule serving both
+    # halves of `user_load`, which is what stopped them disagreeing about
+    # `USER-900`. See `open_user_asks` for why the two questions have one
+    # answer where they overlap.
+    queue_records = open_user_asks(root, entries, explain,
+                                   set(dangling_in_reports))
     design_records = open_design_decisions(root, inventory, explain)
     records = queue_records + design_records
     mentions, mention_samples = scan_decision_mentions(
