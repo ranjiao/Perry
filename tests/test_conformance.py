@@ -15,8 +15,10 @@ failure modes the task's own rubric names:
   `.perry/config.md`. A guard that only ever runs in one mode is not a guard.
 - a second definition of Perry's shape. `TestOneDefinitionOfTheShape` compares
   `perry-conform`'s per-file error counts against `perry-lint`'s own findings,
-  file by file, on a real project. They agree because there is one
-  implementation; if someone writes a second one, this goes red.
+  file by file, on `tests/fixtures/witness-project` — a project in the
+  repository, read through `--root`, whose findings are constructed rather
+  than captured. They agree because there is one implementation; if someone
+  writes a second one, this goes red.
 
 Run: python3 -m unittest discover -s tests   (or ./tests/run)
 """
@@ -436,8 +438,51 @@ class TestReadingIsNotGated(unittest.TestCase):
 # ── 6 · one definition of the shape ───────────────────────────────────────
 
 
-SNAPSHOT = os.environ.get("PERRY_TEST_CORPUS")
-REAL = Path(SNAPSHOT) if SNAPSHOT else Path.home() / "proj" / "gimegime-pmo"
+#: The corpus for § 6, and it is inside the repository on every machine.
+#:
+#: It used to be `~/proj/gimegime-pmo`, behind `PERRY_TEST_CORPUS` and an
+#: `if (REAL / "BOARD.md").exists()` in `setUpClass`. On the author's machine
+#: the four tests below ran; on every other checkout they skipped, so the "one
+#: definition of the shape" claim — the thing this section exists to hold —
+#: had no coverage anywhere it mattered. TASK-111's sweep named this file and
+#: left it its own row; TASK-124 is that row.
+#:
+#: `tests/fixtures/witness-project` (TASK-132) replaces it, read through the
+#: **same `--root` seam** the real project was read through. It is not a
+#: snapshot of anybody's project: every finding in it is constructed, one per
+#: rule, and its own top-risk line says so. And nothing below asserts what
+#: those findings ARE — the assertions are that `perry-conform` and
+#: `perry-lint` report the *same* per-file error counts, whatever the fixture
+#: happens to carry. A golden file recording what one real project looked like
+#: on capture day is the failure TASK-145 spent a row escaping; this is the
+#: other shape, where correctness is a property of the two checkers and the
+#: fixture only has to be non-trivial.
+#:
+#: `PERRY_TEST_CORPUS` is gone. It was a way to point these tests at a
+#: different directory, and the only thing it ever pointed them at was the one
+#: directory that is now unnecessary; keeping it would leave a second, untested
+#: way for this corpus to become something else.
+WITNESS = PERRY_HOME / "tests" / "fixtures" / "witness-project"
+
+
+def copy_of(src: Path, into: tempfile.TemporaryDirectory) -> Path:
+    """A COPY, always — `declare` and `perry-tasks write` both write, and the
+    fixture is read by other modules in the same run."""
+    root = Path(into.name) / "project"
+    shutil.copytree(src, root, ignore=shutil.ignore_patterns(".git"),
+                    symlinks=True)
+    return root
+
+
+def lint_errors_by_file(root: Path) -> dict[str, int]:
+    lint = json.loads(subprocess.run(
+        ["python3", str(LINT), "--root", str(root), "--json"],
+        capture_output=True, text=True).stdout)
+    by_file: dict[str, int] = {}
+    for f in lint["findings"]:
+        if f["severity"] == "error":
+            by_file[f["file"]] = by_file.get(f["file"], 0) + 1
+    return by_file
 
 
 class TestOneDefinitionOfTheShape(unittest.TestCase):
@@ -446,35 +491,38 @@ class TestOneDefinitionOfTheShape(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.tmp = None
-        if not (REAL / "BOARD.md").exists():
-            return
-        # A COPY, always. Something else on this machine writes to that folder.
         cls.tmp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls.tmp.name) / "project"
-        shutil.copytree(REAL, cls.root,
-                        ignore=shutil.ignore_patterns(".git"), symlinks=True)
+        cls.root = copy_of(WITNESS, cls.tmp)
 
     @classmethod
     def tearDownClass(cls):
-        if cls.tmp:
-            cls.tmp.cleanup()
+        cls.tmp.cleanup()
+
+    def test_the_corpus_can_still_tell_the_two_checkers_apart(self):
+        """The anti-vacuity guard, stated before the comparisons that need it.
+
+        A corpus with no errors makes both tests below pass against a
+        `perry-conform` that returns 0 for everything, and a corpus whose
+        errors all sit in one file, or all come out the same count, makes them
+        pass against one that reports the project total per file. This is the
+        one place that asserts something about the fixture, and it asserts the
+        least that the measurement requires: two files, two counts."""
+        by_file = lint_errors_by_file(self.root)
+        self.assertGreaterEqual(
+            len(by_file), 2,
+            f"{WITNESS.name} carries lint errors in fewer than two files "
+            f"({by_file}) — the per-file comparison below cannot fail")
+        self.assertGreaterEqual(
+            len(set(by_file.values())), 2,
+            f"every file with errors in {WITNESS.name} carries the same "
+            f"number of them ({by_file}) — a perry-conform that reported the "
+            f"project total for every file would pass")
 
     def test_per_file_error_counts_match_perry_lints_own_findings(self):
-        if self.tmp is None:
-            self.skipTest(f"no corpus at {REAL}")
-        lint = json.loads(subprocess.run(
-            ["python3", str(LINT), "--root", str(self.root), "--json"],
-            capture_output=True, text=True).stdout)
+        by_file = lint_errors_by_file(self.root)
         conform = json.loads(subprocess.run(
             ["python3", str(CONFORM), "status", "--root", str(self.root), "--json"],
             capture_output=True, text=True).stdout)
-
-        by_file: dict[str, int] = {}
-        for f in lint["findings"]:
-            if f["severity"] == "error":
-                by_file[f["file"]] = by_file.get(f["file"], 0) + 1
-        self.assertTrue(by_file, "a corpus with no lint errors proves nothing here")
 
         for row in conform["files"]:
             with self.subTest(path=row["path"]):
@@ -482,96 +530,181 @@ class TestOneDefinitionOfTheShape(unittest.TestCase):
         self.assertEqual(sum(r["errors"] for r in conform["files"]),
                          sum(by_file.values()),
                          "the two disagree about how many errors this project has")
+        self.assertEqual(
+            {r["path"] for r in conform["files"] if r["errors"]}, set(by_file),
+            "the two disagree about WHICH files this project's errors are in")
 
-    def test_the_real_project_can_declare_the_files_that_already_conform(self):
-        """The concrete ADR-004 § 5 case: this project's board cannot be
-        declared and three of its files can."""
-        if self.tmp is None:
-            self.skipTest(f"no corpus at {REAL}")
+    def test_declare_all_splits_the_project_exactly_where_status_does(self):
+        """The concrete ADR-004 § 5 case, as a property rather than a census:
+        `declare --all` declares every file `perry-conform status` reports at
+        zero errors and refuses every file it reports with errors — so a
+        partial declaration is partial along the line the checker draws, not
+        along a list of filenames someone wrote down. Both sides are asserted
+        non-empty, because a project where everything is refused and one where
+        everything is declared each pass half of this by accident."""
+        conform = json.loads(subprocess.run(
+            ["python3", str(CONFORM), "status", "--root", str(self.root), "--json"],
+            capture_output=True, text=True).stdout)
+        clean = {r["path"] for r in conform["files"] if r["errors"] == 0}
+        dirty = {r["path"] for r in conform["files"] if r["errors"] > 0}
+        self.assertTrue(clean, "nothing in the corpus conforms")
+        self.assertTrue(dirty, "everything in the corpus conforms")
+
         r = subprocess.run(
             ["python3", str(CONFORM), "declare", "--all",
              "--root", str(self.root), "--json"],
             capture_output=True, text=True)
         out = json.loads(r.stdout)
-        self.assertEqual(r.returncode, 1)
-        self.assertTrue(out["declared"], "nothing at all could be declared")
-        self.assertIn("BOARD.md", {x["path"] for x in out["refused"]})
+        self.assertEqual(r.returncode, 1, "a partial declaration exits 1")
+        self.assertEqual({x["path"] for x in out["declared"]}, clean)
+        self.assertEqual({x["path"] for x in out["refused"]}, dirty)
+
+
+#: A board with exactly two errors, of two kinds, chosen so that
+#: `perry-migrate` must fix one and must refuse the other:
+#:
+#: - `## Cadence` is missing. That is a shape error `fix_sections` repairs by
+#:   adding the empty section, and nothing is invented in doing it.
+#: - `T-001`'s status reads `half-solved`, which is not in the enum and is not
+#:   an alias of anything in it. It is a distinction its author drew in their
+#:   own words, and coercing it to `in_progress` would be asserting a fact
+#:   nobody stated.
+#:
+#: Written here rather than committed as a project because what is under test
+#: is the migrator's behaviour on a board of this shape, not any project's
+#: history. `T-002` is present so the board is not one unmigratable row.
+BOARD_WITH_A_ROW_MIGRATION_CANNOT_COERCE = """# Board — T
+
+## P0 (must finish this period)
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+| T-001 | the row whose state its author named themselves | Coding Agent | half-solved | say what half-solved means | — |
+| T-002 | an ordinary row | Coding Agent | in_progress | keep going | — |
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Idle | Status |
+|---|---|---|---|---|
+
+## Top risks
+
+- none
+"""
 
 
 class TestMigrationDoesNotReachTheWholeBoard(unittest.TestCase):
-    """TASK-047, cost 1 — measured on a real project rather than argued.
+    """TASK-047, cost 1 — the residue the `enforce` flip ships with.
 
     ADR-004 says flip the gate to `enforce` once the migration exists, and
-    TASK-047 flipped it. What this pins is the residue the flip therefore
-    ships with: on `~/proj/gimegime-pmo`, `perry-migrate` takes `BOARD.md` from
-    3 errors to 1, and the survivor is a row reading `Status: 半解` — a
-    distinction the user drew in their own words, which `perry-migrate`
-    correctly refuses to coerce into `in_progress`.
+    TASK-047 flipped it. What this pins is what that flip therefore costs: a
+    board can carry a shape error `perry-migrate` **must not** fix, because
+    fixing it would mean choosing a meaning its author did not choose. The
+    file then stays refused until a human edits it and declares it. That is a
+    door needing a hand rather than a wall — the refusal names `perry-lint`
+    and `perry-conform declare` as well as `perry-migrate` — but it is a real
+    cost and it is stated, not discovered.
 
-    So a file a complete migration leaves non-conformant stays refused until a
-    human edits it and declares it. That is a door needing a hand rather than a
-    wall — the refusal names `perry-lint` and `perry-conform declare` as well
-    as `perry-migrate` — but it is a real cost and it is stated, not
-    discovered.
+    It used to be measured on `~/proj/gimegime-pmo`, whose board carried a row
+    reading `Status: 半解`, and it therefore measured nothing on any other
+    machine. The row is now written by the test, which is the stronger claim
+    in any case: the old assertions were "*that* project still has a residue",
+    and these are "a board of this shape gets partly migrated and is not
+    written" — true of the project too, and checkable everywhere.
 
-    Read-only: a dry run, on a copy, and it asserts nothing about WHICH
-    residual finding remains — only that one does. This goes RED the day the
-    residue is solved, which is the day the row in `bin/README.md` can go."""
+    Read-only about the fixture: a dry run, on a board this class wrote, and
+    it asserts nothing about which residual finding remains — only that one
+    does, and that the migration got strictly closer without arriving. This
+    goes RED the day `perry-migrate` learns to coerce a status nobody defined,
+    which is the day the row in `bin/README.md` needs re-reading rather than
+    deleting."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls.tmp = None
-        if not (REAL / "BOARD.md").exists():
-            return
-        cls.tmp = tempfile.TemporaryDirectory()
-        cls.root = Path(cls.tmp.name) / "project"
-        shutil.copytree(REAL, cls.root,
-                        ignore=shutil.ignore_patterns(".git"), symlinks=True)
+    def project(self) -> Project:
+        return Project(board=BOARD_WITH_A_ROW_MIGRATION_CANNOT_COERCE)
 
-    @classmethod
-    def tearDownClass(cls):
-        if cls.tmp:
-            cls.tmp.cleanup()
-
-    def test_the_migration_plan_for_the_board_does_not_reach_zero(self):
-        if self.tmp is None:
-            self.skipTest(f"no corpus at {REAL}")
+    def plan_for_the_board(self, p: Project) -> dict:
         r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-migrate"),
-             "--root", str(self.root), "--only", "BOARD.md", "--json"],
+            ["python3", str(MIGRATE), "--root", str(p.root),
+             "--only", "BOARD.md", "--json"],
             capture_output=True, text=True, timeout=600)
         plan = json.loads(r.stdout)
-        board = next(f for f in plan["files"] if f["path"] == "BOARD.md")
+        self.assertIn("files", plan, plan)
+        return next(f for f in plan["files"] if f["path"] == "BOARD.md")
+
+    def test_the_migration_plan_for_the_board_does_not_reach_zero(self):
+        board = self.plan_for_the_board(self.project())
         self.assertGreater(board["before_errors"], 0,
-                           "the corpus board is already conformant — this test "
-                           "no longer measures anything")
+                           "the board this test wrote is already conformant — "
+                           "it no longer measures anything")
         self.assertGreater(
             board["after_errors"], 0,
-            "perry-migrate now takes a real board to zero errors: cost 1 in "
-            "bin/README.md § The switch-over checklist is gone. Delete this "
-            "test and the row it pins — the flip itself already happened "
-            "(TASK-047), so nothing about DEFAULT_MODE needs revisiting.")
+            "perry-migrate now takes this board to zero errors, which means it "
+            "coerced a status its author invented. Cost 1 in bin/README.md "
+            "§ The switch-over checklist is either gone or wrong — the flip "
+            "itself already happened (TASK-047), so nothing about DEFAULT_MODE "
+            "needs revisiting, but the residue this pins does.")
+        self.assertLess(
+            board["after_errors"], board["before_errors"],
+            "the plan fixed nothing at all, so 'does not reach zero' is true "
+            "for the wrong reason — migration is not partial here, it is inert")
         self.assertFalse(board["writable"],
                          "a plan with residual errors must not be applied — "
                          "ADR-004 guarantee 5, partial migration is per file")
 
-    def test_that_the_migrated_store_is_read_while_board_is_unwritable(self):
-        """Conformance gates projection writes, not reads of canonical tasks."""
-        if self.tmp is None:
-            self.skipTest(f"no corpus at {REAL}")
+    def test_the_residue_is_the_cell_no_one_may_choose_a_meaning_for(self):
+        """Names which finding survives, so the cost above can be checked
+        rather than trusted. Deliberately not asserted by the test above: that
+        one is about the arithmetic of a partial migration, and would still be
+        making its point if the residue were some other rule."""
+        board = self.plan_for_the_board(self.project())
+        rules = {f["rule"] for f in board["residual"]}
+        self.assertEqual(rules, {"bad-enum"}, board["residual"])
+        self.assertIn("half-solved",
+                      " ".join(f["message"] for f in board["residual"]))
+        self.assertEqual(
+            [c["kind"] for c in board["changes"]], ["section-added"],
+            "the half of the board migration CAN fix stopped being fixed")
+
+    def test_that_the_store_is_read_while_the_board_is_unwritable(self):
+        """Conformance gates projection writes, not reads of canonical tasks.
+
+        The count is taken from the board this test wrote — every row of it
+        comes back, not "more than twenty", which was a census of the author's
+        project and would have gone red the week it was triaged."""
+        p = self.project()
+        expected = sum(1 for line in BOARD_WITH_A_ROW_MIGRATION_CANNOT_COERCE
+                       .split("\n") if line.startswith("| T-"))
+        self.assertEqual(expected, 2, "the board constant lost a row")
+
+        rc, out, _ = p.run(CONFORM, "status", enforce=True)
+        board = next(f for f in out["files"] if f["path"] == "BOARD.md")
+        self.assertGreater(board["errors"], 0,
+                           "the board conforms, so nothing here is gated and "
+                           "the read below proves nothing")
+
         seeded = subprocess.run(
             ["python3", str(PERRY_HOME / "bin" / "perry-tasks"), "write",
-             "--from-board", "--root", str(self.root)],
+             "--from-board", "--root", str(p.root)],
             capture_output=True, text=True, timeout=300)
         self.assertEqual(seeded.returncode, 0, seeded.stdout + seeded.stderr)
         r = subprocess.run(
             ["python3", str(TASK), "list", "--all",
-             "--root", str(self.root), "--json"],
+             "--root", str(p.root), "--json"],
             capture_output=True, text=True,
             env=dict(os.environ, PERRY_CONFORMANCE="enforce"), timeout=300)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertGreater(len(json.loads(r.stdout)["tasks"]), 20,
-                           "the unwritable board stopped being readable")
+        self.assertEqual(len(json.loads(r.stdout)["tasks"]), expected,
+                         "the unwritable board stopped being readable")
 
 
 class TestConformanceIsErrorsNotWarnings(unittest.TestCase):
