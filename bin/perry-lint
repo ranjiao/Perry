@@ -2245,9 +2245,23 @@ _RISK_STORED_FIELDS = _STORE.RISK_STORED
 
 
 def _empty_store_drift_stats() -> dict:
-    """The typed machine-readable state before a store comparison runs."""
-    return {"store_present": False, "comparison_performed": False,
-            "records": 0, "drifted": 0}
+    """The typed machine-readable state before a store comparison runs.
+
+    **`drifted` is `None` until a comparison produces a number (TASK-117).**
+    It read `0` in all three states this dict describes before one runs — no
+    store, unreadable store, derivation refused — so the payload said
+    `comparison_performed: false` and `drifted: 0` in the same breath, which is
+    the trap this file's own human summary already refuses to print. A count is
+    an assertion that somebody counted; `null` is the only honest value for a
+    census that did not happen. `records` stays an `int` because it is a fact
+    about the store FILE rather than a drift verdict.
+
+    `log_present` says whether `.perry/events.jsonl` — one of the two inputs
+    `check_store_drift`'s derivation needs — was there, so a reader of the
+    payload can tell *why* a present store went uncompared.
+    """
+    return {"store_present": False, "log_present": False,
+            "comparison_performed": False, "records": 0, "drifted": None}
 
 
 def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
@@ -2288,9 +2302,49 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     derivation there is) against what it holds on disk. The renderer's byte diff
     remains a separate projection check; `build`/`verify` keep the field
     semantics they have rather than redefining them here.
+
+    **THE DERIVATION NEEDS THE EVENT LOG, AND WITHOUT IT THERE IS NO
+    COMPARISON (TASK-117).** `perry-tasks.build()` reads `BOARD.md` *and*
+    `.perry/events.jsonl` — its own docstring says so, "because `done` removes
+    a row". The log is DERIVED AND DISPOSABLE (DESIGN-004 § 5.3). So when it is
+    gone the LEFT side of this comparison is degraded, and every difference
+    that follows is the log's absence wearing the board's name.
+
+    Measured, not reasoned: on Perry's own board and store with the log moved
+    aside, 175 of 175 records "drifted" — 137 store-only rows the open board
+    cannot re-derive, and 38 differing on `created` **and on nothing else**.
+    `created` is in `perry_store.STORED` and is not in `FIELD_BY_COLUMN`: NO
+    BOARD COLUMN RENDERS IT, so `file=''` there is not a hand edit, it is a
+    field the projection never carried being read as if it had been erased.
+    Putting the log back turned the same board and the same store into 0 of
+    175. Nothing about the two files being compared changed.
+
+    The remedy the finding prints made it worse than noise: `perry-tasks write
+    --from-board` would DISCARD those 137 canonical records and 38 real
+    timestamps, on a board the user never touched. And `perry-task`'s own
+    writer already knows better — `store_records(..., preserve_terminal=True)`
+    carries terminal rows and `created` over FROM THE STORE precisely because
+    "the event log is derived and disposable". The linter was comparing against
+    a derivation the writer itself would refuse to write.
+
+    So a missing log is the state this function already has a name for —
+    `store_drift-uncheckable`, "drift is unknown here rather than absent" — one
+    it could not previously detect, because `build()` degrades silently instead
+    of raising. Reported like the no-store case and for the same reason:
+    **silent finding list, explicit machine state.** 175 warnings that all
+    restate one flag is the "check people learn to ignore" failure
+    `perry-state § reconcile_drift` names in its own docstring, and the
+    `perry-task/list` 1.9 semantics entry records this exact mistake being made
+    once already, one register over, at 17 of 17 rows.
+
+    What is NOT gated on the log: `store-badly-typed`. That is a fact about the
+    store file, it needs no derivation, and losing it here would trade one
+    silent failure for another.
     """
     findings: list[Finding] = []
     check_store_drift.stats = _empty_store_drift_stats()
+    log_present = (project_root / ".perry" / "events.jsonl").exists()
+    check_store_drift.stats["log_present"] = log_present
 
     store_path = state_root / "tasks.jsonl"
     if not store_path.exists():
@@ -2332,23 +2386,32 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
     board_text = (board_path.read_text(errors="replace")
                   if board_path.exists() else "")
 
+    # **Validated before the gate below, not after.** A store record's TYPE is
+    # a property of the file; it needs no derivation and no log, so the one
+    # check here that can still run on a project with no log still runs.
+    on_disk, type_findings = _well_typed(on_disk, rel_store)
+    findings.extend(type_findings)
+    stored = {r.get("id"): r for r in on_disk if r.get("id")}
+    check_store_drift.stats["records"] = len(stored)
+
+    if not log_present:
+        # No log, so no derivation, so no comparison — see the docstring. The
+        # stats already say `comparison_performed: False` and `drifted: None`,
+        # and `main()` prints the reason. Nothing here is silence about drift;
+        # it is silence about a question that was never asked.
+        return findings
+
     try:
         derived = _tasks_module().build(project_root)
     except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
-        return [Finding("warn", rel_board, "store-drift-uncheckable",
-                        f"the store could not be derived from the current "
-                        f"files ({type(exc).__name__}: {exc}), so drift is "
-                        f"unknown here rather than absent")]
+        return findings + [Finding(
+            "warn", rel_board, "store-drift-uncheckable",
+            f"the store could not be derived from the current "
+            f"files ({type(exc).__name__}: {exc}), so drift is "
+            f"unknown here rather than absent")]
 
-    on_disk, type_findings = _well_typed(on_disk, rel_store)
-    findings.extend(type_findings)
-
-    stored = {r.get("id"): r for r in on_disk if r.get("id")}
     live = {r.get("id"): r for r in derived if r.get("id")}
-    check_store_drift.stats.update({
-        "comparison_performed": not type_findings,
-        "records": len(stored),
-    })
+    check_store_drift.stats["comparison_performed"] = not type_findings
 
     rows: list[tuple[str, str, int | None]] = []
     projected_live: dict[str, dict] = {}
@@ -2395,7 +2458,15 @@ def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
         rows.append((tid, "the store holds this row and nothing in the file or "
                           "the event log still derives it", None))
 
-    check_store_drift.stats["drifted"] = len(rows)
+    # **`drifted` is a census, and a census that skipped part of its
+    # population is not a smaller census.** The invariant this pins is one
+    # line — `drifted is None` exactly when `comparison_performed` is false —
+    # so a consumer needs one test and cannot reach a number that means
+    # something else. Excluded badly-typed records leave the rows below true
+    # (they did drift) and the total unknown: "here is what I found" and "here
+    # is how many there are" are different claims.
+    if check_store_drift.stats["comparison_performed"]:
+        check_store_drift.stats["drifted"] = len(rows)
     for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
         findings.append(Finding(
             "warn", rel_board, "store-drift",
@@ -3238,6 +3309,19 @@ def main(argv: list[str]) -> int:
             if not _st["store_present"]:
                 print("  · no `tasks.jsonl` — drift against the store is "
                       "unchecked, not clean")
+            elif not _st["log_present"]:
+                # Named rather than folded into "comparison incomplete": the
+                # user can DO something about a missing log, and a reason is
+                # the difference between a diagnosis and a shrug. The route
+                # out is named too — `perry-tasks verify` compares the six
+                # rendered columns in the board-to-store direction and needs
+                # no log, which is why it reports 0 mismatches on the same
+                # tree this check reported 175 drifted rows on.
+                print(f"  · store: {_st['records']} record(s), but no "
+                      f"`.perry/events.jsonl` — the board-to-store derivation "
+                      f"reads the log, so drift is unchecked, not clean; "
+                      f"`perry-tasks verify` compares the rendered columns "
+                      f"without it")
             elif not _st["comparison_performed"]:
                 print(f"  · store: {_st['records']} valid record(s), "
                       "comparison incomplete — drift is unchecked, not clean")
