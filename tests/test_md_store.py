@@ -47,6 +47,7 @@ sys.path.insert(0, str(ROOT / "viewer"))
 import parsers as P                                            # noqa: E402
 import perry_md_store as M                                     # noqa: E402
 import perry_store as S                                        # noqa: E402
+import tables as T                                             # noqa: E402
 
 from gate import GATE_OFF                                      # noqa: E402
 
@@ -552,6 +553,259 @@ class TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave(
         # And the repair actually restored the stored value, so the clean
         # `--check` is not the cleanliness of a file nothing happened to.
         self.assertIn("- State root: perry", cfg.read_text())
+
+
+#: TASK-147's corpus, written here rather than borrowed from `.perry/config.md`.
+#: The value under test has to CONTAIN the cell separator, and Perry's own
+#: configuration carries a pipe in no setting and no track cell — so a class
+#: pointed at that file would pass against a renderer that escapes nothing at
+#: all, and asserting what it says today would be a check reading the project
+#: around it as its expected value, which is the defect class this repository
+#: pays for most.
+SEPARATED = "Id | Task | Owner"
+
+#: One value in both shapes: a preamble bullet, which reaches
+#: `perry_store.slot_descriptor` (the `escape=False` call site of
+#: `describe_cell`), and a `## Tracks` cell, which reaches
+#: `perry_store.row_descriptor` (the defaulted-`True` one). One file, one tool,
+#: one round trip, both sides of the boundary — `bin/perry_md_store.py § plan`
+#: dispatches on `site["how"] == "table"` and both of its branches are here.
+SEPARATED_CONFIG = """\
+# A project whose configuration writes the separator down
+
+- Document language: English
+- State root: perry
+- Repo layout: single
+- Board columns: {bullet}
+{gate}
+## Tracks
+
+| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+| main | project | phase/ | — | — | — | — | V3 |
+| intake | queue | {cell} | new→triaged | 6 | 5d | weekly | V3 |
+"""
+
+
+class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
+    """TASK-147 — the one question `escape` answers, seen from outside it.
+
+    **The enumeration is the row.** `bin/perry_store.py § describe_cell` has
+    exactly two call sites: `row_descriptor` (a markdown table cell, `escape`
+    left at its default `True`) and `slot_descriptor` (a `- Key: value`
+    bullet, `escape=False`). Every other decider of the flag is one of those
+    same two functions writing `escape` into the descriptor it returns, which
+    `render_line` reads back. There is no third answer to "is this inside a
+    table?" in the codebase: `viewer/tables.py § render_row` and `check_cell`
+    escape unconditionally and are only ever handed table rows, so they never
+    ask the question.
+
+    Until this class the separation was asserted only by calling the function
+    that implements it. `.perry/config.md` carries BOTH shapes — preamble
+    settings on the bullet path, `## Tracks` rows on the table path — so a
+    single `perry-config` round trip crosses the boundary in both directions
+    and the guard becomes visible in the tool rather than only in the unit.
+
+    **What is asserted is a property, not a capture-day census**: ONE stored
+    value, carrying the separator, reaches the file escaped in the cell and
+    raw in the bullet, reads back as itself through the file's own reader, and
+    moves in both shapes when the store moves.
+
+    **Byte identity is not the whole guard, and that is the finding.** Flipping
+    `row_descriptor`'s `describe_cell` call to `escape=False` leaves this file
+    byte-for-byte identical — the cell is described as *disagreeing*, and the
+    descriptor's own `escape` flag then re-escapes the stored value at render
+    time into exactly the bytes that were already there. `cmp` is this
+    module's stated bar and `cmp` cannot see it. Only the report can, which is
+    why `test_a_round_trip_reports_no_drift_in_either_shape` asserts the plan
+    and not just the bytes.
+    """
+
+    def setUp(self):
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="perry-separated-"))
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        (self.root / "perry").mkdir()
+        (self.root / ".perry").mkdir()
+        self.path = self.root / ".perry" / "config.md"
+        self.store = self.root / ".perry" / "config.jsonl"
+        self.path.write_text(
+            SEPARATED_CONFIG.format(bullet=SEPARATED,
+                                    cell=SEPARATED.replace("|", "\\|"),
+                                    gate=GATE_OFF),
+            encoding="utf-8")
+        proc = self.config("write", "--from-file")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        # The corpus is evidence only while it carries the separator on both
+        # sides. An edit that dropped the pipe would leave every assertion
+        # below true against a renderer that escapes nothing at all, so the
+        # anti-vacuity guard is here rather than in one of the cases.
+        self.assertIn("|", SEPARATED)
+        self.assertNotEqual(SEPARATED, SEPARATED.replace("|", "\\|"))
+        self.assertIn("\\|", self.path.read_text())
+
+    # ── the seam ──────────────────────────────────────────────────────────
+
+    def config(self, *args):
+        return run("perry-config", *args, root=self.root)
+
+    def rendered(self) -> str:
+        proc = self.config("render")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    def records(self) -> list:
+        return [json.loads(line) for line
+                in self.store.read_text().splitlines() if line.strip()]
+
+    def bullet(self, text: str) -> str:
+        return next(ln for ln in text.split("\n")
+                    if ln.startswith("- Board columns:"))
+
+    def spine(self, text: str) -> tuple:
+        """The `intake` row, and its `Spine` cell read back two ways.
+
+        `perry_store.cell_spans` gives the raw bytes the row carries;
+        `viewer/tables.py § split_row` gives the value a reader takes out of
+        them. Two implementations, so the escape is not being marked by the
+        code that wrote it.
+        """
+        lines = text.split("\n")
+        header = next(ln for ln in lines if ln.startswith("| Track "))
+        row = next(ln for ln in lines if ln.startswith("| intake "))
+        at = T.split_row(header).index("Spine")
+        a, b = S.cell_spans(row)[at]
+        return row, row[a:b].strip(), T.split_row(row)[at]
+
+    # ── the cases ─────────────────────────────────────────────────────────
+
+    def test_the_store_holds_one_unescaped_value_for_both_shapes(self):
+        """Escaping is presentation; the store's vocabulary is the value.
+
+        If either path stored what it renders, the same text would be two
+        different records and no comparison between them would mean anything —
+        the property below would be comparing a cell against a cell.
+        """
+        recs = self.records()
+        setting = next(r for r in recs if r.get("key") == "board_columns")
+        track = next(r for r in recs if r.get("track") == "intake")
+        self.assertEqual(setting["value"], SEPARATED)
+        self.assertEqual(track["spine"], SEPARATED)
+        self.assertNotIn(
+            "\\|", self.store.read_text(),
+            "a cell's escaping reached the store, so the store now holds two "
+            "spellings of one value and the file is its own authority again")
+
+    def test_the_cell_is_escaped_and_the_bullet_is_not(self):
+        """The boundary, in the bytes the tool prints.
+
+        A bullet slot sits between literal spans that already carry every
+        character around it, so a backslash there is one the file never had.
+        A table cell is joined on `|`, a character its own value may contain,
+        so the escape is what keeps the row readable as the row it is.
+        """
+        text = self.rendered()
+        bullet = self.bullet(text)
+        row, raw, value = self.spine(text)
+
+        self.assertEqual(bullet, f"- Board columns: {SEPARATED}")
+        self.assertNotIn("\\|", bullet,
+                         "a bullet slot was handed cell escaping it never had")
+        self.assertEqual(
+            raw, SEPARATED.replace("|", "\\|"),
+            "a table cell lost the escaping its row needs — the row now "
+            "carries more cells than its header declares")
+        self.assertEqual(
+            value, SEPARATED,
+            "the escaped cell does not read back as the value the store holds")
+        self.assertNotEqual(
+            raw, bullet.split(":", 1)[1].strip(),
+            "the two shapes of one stored value came out identical, so the "
+            "escape is a no-op and nothing here is measuring it")
+
+    def test_both_shapes_move_when_the_store_does(self):
+        """Leg 3 of this module's own guard, applied to the boundary.
+
+        A renderer that cannot be made to print a wrong value cannot be shown
+        to print a right one. Without this, the case above would hold just as
+        well for a renderer that echoed the file it was handed.
+        """
+        moved = "A | B"
+        recs = self.records()
+        for r in recs:
+            if r.get("key") == "board_columns":
+                r["value"] = moved
+            if r.get("track") == "intake":
+                r["spine"] = moved
+        self.store.write_text(M.store_text(recs), encoding="utf-8")
+
+        proc = self.config("render", "--write")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        text = self.path.read_text()
+        _row, raw, value = self.spine(text)
+        self.assertEqual(self.bullet(text), f"- Board columns: {moved}")
+        self.assertEqual(raw, moved.replace("|", "\\|"))
+        self.assertEqual(value, moved)
+        # And the moved file is a fixed point in both shapes: rendering it
+        # again changes nothing, so the move was a projection rather than an
+        # edit that happens to land somewhere.
+        self.assertEqual(self.config("diff").returncode, 0)
+
+    def test_a_round_trip_reports_no_drift_in_either_shape(self):
+        """The leg `cmp` cannot carry.
+
+        `describe_cell` decides what the file's bytes MEAN; the descriptor's
+        `escape` decides what the store's value becomes. Get the first wrong
+        at either call site and the second quietly undoes it, so the bytes
+        agree while the plan says the file and the store disagree about a cell
+        they agree on. That report is the only witness, and a file rendered
+        from a plan full of phantom disagreements is one hand edit away from
+        being rewritten against them.
+        """
+        diff = self.config("diff")
+        self.assertEqual(diff.returncode, 0, diff.stdout)
+        report = json.loads(diff.stdout)
+        self.assertTrue(report["identical"])
+        self.assertEqual(
+            report["cells_the_store_and_the_file_disagree_on"], [],
+            "a cell or a slot was described with the wrong `escape`: the "
+            "store and the file hold the same value and the plan says they "
+            "do not")
+        self.assertEqual(report["cells_verbatim"], {})
+        self.assertEqual(report["cells_wearing_decoration"], {})
+        self.assertEqual(self.config("verify").returncode, 0)
+
+        # Both shapes were actually claimed. A clean report over lines nobody
+        # read is the vacuous pass this whole module is arranged against.
+        self.assertEqual(report["lines_verbatim"], [])
+        self.assertEqual(report["records_not_in_the_file"], [])
+        self.assertEqual(report["lines_from_store"], len(self.records()))
+        self.assertLessEqual(
+            {"board_columns", "intake"},
+            {r.get("key") or r.get("track") for r in self.records()})
+
+    def test_a_bullet_that_gained_cell_escaping_is_reported_and_repaired(self):
+        """The failure the row names, planted in the file.
+
+        A `\\|` in a `- Key: value` bullet is a table's rule leaking into a
+        list. The store never held it, so it has to be REPORTED rather than
+        absorbed, and the repair the refusal message advertises has to put the
+        raw separator back rather than carry the escape forward as if the file
+        were the authority.
+        """
+        self.path.write_text(self.path.read_text().replace(
+            f"- Board columns: {SEPARATED}",
+            "- Board columns: " + SEPARATED.replace("|", "\\|")))
+
+        verify = self.config("verify")
+        self.assertEqual(verify.returncode, 1, verify.stdout)
+        drifted = json.loads(verify.stdout)[
+            "cells_the_store_and_the_file_disagree_on"]
+        self.assertEqual([d["key"] for d in drifted], ["setting/board_columns"])
+
+        self.assertEqual(self.config("render", "--write").returncode, 0)
+        self.assertEqual(self.bullet(self.path.read_text()),
+                         f"- Board columns: {SEPARATED}")
+        self.assertEqual(self.config("diff").returncode, 0)
 
 
 class Project:
