@@ -120,7 +120,6 @@ Just type `/perry` to see where things stand. From there:
 | Write this week's status | `/perry work friday-review` |
 | Save context before you stop | `/perry work handoff` |
 | Start a design doc | `/perry decide new <name>` |
-| Open a live view in your browser | `/perry work viewer` |
 
 You can drop the lane name when it's unambiguous — `/perry plan-week` and `/perry goals plan-week` are the same thing.
 
@@ -165,7 +164,6 @@ The task board, the daily journal, status reports and handoffs. This is where mo
 | `handoff` | Write a note so tomorrow's session starts informed |
 | `risk` / `nudge` | Review risks; chase things waiting on you |
 | `incident <name>` | Record what broke in production and what you changed |
-| `viewer` | Open a live browser view of the project |
 
 Recording a decision used to live in this lane. It moved to `decide` on 2026-08-16, so that a settled decision and the document that settles it have one owner between them — it is `/perry decide adr <topic>` now, and the old form is gone rather than aliased.
 
@@ -264,10 +262,9 @@ A few more appear only if you use them: `ARCHITECTURE.md` (a system overview you
 
 ## Reading it comfortably
 
-Markdown is great to write and diff, less great to read once there's a lot of it. Two options:
+Markdown is great to write and diff, less great to read once there's a lot of it. Use **[aiMark](https://github.com/ranjiao/aimark)** — point it at your project folder; it renders everything live and understands Perry's structure. Reloads the moment a file changes.
 
-- **[aiMark](https://github.com/ranjiao/aimark)** — point it at your project folder; it renders everything live and understands Perry's structure. Reloads the moment a file changes.
-- **`/perry work viewer`** — a zero-setup local page (Today / Board / OKR / Phase / Risks / Architecture). Read-only, runs on your machine, stops with Ctrl-C. First run installs itself; ignore it and you carry no extra dependencies.
+Perry itself stays stdlib Python with no dependencies, and reading is deliberately somebody else's job: it had a local web console of its own until 2026-08, and deleting it is what made that sentence true.
 
 ---
 

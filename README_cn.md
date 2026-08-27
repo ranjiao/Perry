@@ -122,7 +122,6 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 | 写本周状态          | `/perry work friday-review`   |
 | 收工前保存上下文       | `/perry work handoff`         |
 | 起一份设计文档        | `/perry decide new <名字>`      |
-| 在浏览器里看实时视图     | `/perry work viewer`          |
 
 子命令不产生歧义时可以省略车道名 —— `/perry plan-week` 和 `/perry goals plan-week` 是一回事。
 
@@ -167,7 +166,6 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 | `handoff`                                         | 写一份交接，让明天的会话一开局就知道情况                 |
 | `risk` / `nudge`                                  | 过风险；催那些在等你的事                         |
 | `incident <名字>`                                   | 记录线上出了什么问题、你改了什么                     |
-| `viewer`                                          | 打开项目的实时浏览器视图                         |
 
 记录决策以前也归这条车道。2026-08-16 它挪到了 `decide`，为的是让「一个已定的决策」和「定下它的那份文档」归同一个写入方。现在是 `/perry decide adr <主题>`，旧写法是删掉，不是设了别名。
 
@@ -266,10 +264,9 @@ your-project/
 
 ## 舒服地读这些内容
 
-markdown 写起来和 diff 起来很好，但量一大就不好读了。两个选择：
+markdown 写起来和 diff 起来很好，但量一大就不好读了。用 **[aiMark](https://github.com/ranjiao/aimark)** —— 指向你的项目目录，它会实时渲染所有文件，并且原生理解 Perry 的结构。文件一变立刻刷新。
 
-- **[aiMark](https://github.com/ranjiao/aimark)** —— 指向你的项目目录，它会实时渲染所有文件，并且原生理解 Perry 的结构。文件一变立刻刷新。
-- **`/perry work viewer`** —— 零配置的本地页面（Today / Board / OKR / Phase / Risks / Architecture）。只读，跑在你自己机器上，Ctrl-C 就停。第一次运行会自装环境；完全不用它，你也不会多背任何依赖。
+Perry 自己只用标准库、不带任何依赖，「读」这件事是刻意交出去的：它本来自带一个本地 web 控制台，2026-08 把那个删掉之后，上面这句话才真的成立。
 
 ***
 

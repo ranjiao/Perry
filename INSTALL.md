@@ -51,7 +51,7 @@ Only the targets selected for your machine should exist. In any host, invoke the
 - OpenCode choices use `question`; its native executor is synchronous `Task(subagent_type: general)`, represented by `opencode-subagent`.
 - Codex CLI choices use numbered free text and has no native subagent executor.
 - The `codex` executor remains available on all hosts.
-- OpenCode and Codex use shell backgrounding for the asynchronous Codex executor and viewer because they have no Claude background-shell tool parameter.
+- OpenCode and Codex use shell backgrounding for the asynchronous Codex executor because they have no Claude background-shell tool parameter.
 
 The complete matrix and strict host/executor mismatch behavior are in [`reference/host-capabilities.md`](reference/host-capabilities.md).
 

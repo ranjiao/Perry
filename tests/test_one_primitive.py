@@ -43,7 +43,7 @@ LIB = PERRY_HOME / "bin" / "lib"
 def _is_python(p: Path) -> bool:
     """A Python source file, by suffix or shebang — not by extension list.
 
-    `bin/` holds bash scripts (`perry-viewer`, `perry-dispatch-limit`) and
+    `bin/` holds bash scripts (`perry-detect-host`, `perry-dispatch-limit`) and
     Python scripts with no suffix at all (`perry-task`). Asking what the file
     is beats a suffix blacklist that the next asset type would extend — the
     same judgement `tests/test_one_header_rule.py` had to reach.

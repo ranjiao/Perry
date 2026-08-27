@@ -28,7 +28,7 @@ otherwise be no way to accept one.
 
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
-                schema is what silently breaks the viewer and the standup.
+                schema is what silently breaks the standup.
   --claims      report which paths Perry would claim in this folder are already
                 taken by someone else's files. Runs BEFORE adoption, so unlike
                 the default mode it is deliberately NOT gated on is_adopted() —

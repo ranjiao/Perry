@@ -18,7 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # No dependencies to install — Perry's scripts and tests are stdlib only.
-      # The viewer's Flask requirement is opt-in and not exercised here.
+      # No dependencies to install — Perry's scripts and tests are stdlib only,
+      # with no exception since TASK-178 deleted the web viewer (its Flask,
+      # markdown and jinja2 were the only non-stdlib packages Perry ever named).
       - name: Run the suite
         run: bash tests/run

@@ -174,7 +174,7 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
 9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
 10. **Process Note** — pointer to PMO's cadence work so phase Objectives don't waste slots on "do weekly status reports".
 
-The header block must carry `**Started**: <YYYY-MM-DD>` and `**Status**: active` — phase day is computed from `Started:`, and every consumer (standup, viewer, scope-reduction triggers) reads it. A missing or unparseable date makes phase day unknowable, not zero.
+The header block must carry `**Started**: <YYYY-MM-DD>` and `**Status**: active` — phase day is computed from `Started:`, and every consumer (standup, aiMark, scope-reduction triggers) reads it. A missing or unparseable date makes phase day unknowable, not zero.
 
 ### Writing it
 

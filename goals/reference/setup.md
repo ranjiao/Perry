@@ -30,7 +30,7 @@ KRs are written as a **table** under each `### Objective <N> — <title>` headin
 | KR-O1.1 | Cut median release time | median ≤ 12 min | no | 2026-09-01 |
 ```
 
-This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by `bin/perry-lint`. It is also what `bin/perry-state` and the viewer read — a KR written as a prose bullet instead will not be counted anywhere. After writing, run:
+This shape is declared in `$PERRY_HOME/schema/state-schema.json` and checked by `bin/perry-lint`. It is also what `bin/perry-state` reads — a KR written as a prose bullet instead will not be counted anywhere. After writing, run:
 
 ```
 "$PERRY_HOME/bin/perry-lint" --root .

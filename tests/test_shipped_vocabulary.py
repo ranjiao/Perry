@@ -130,7 +130,7 @@ class TestEveryShippedToolsHelpIsTypeable(unittest.TestCase):
         # One of each language, and the three that were actually wrong.
         for expected in ("perry-state", "perry-lint", "perry-task",
                          "perry-dispatch-limit", "perry-codex-preflight",
-                         "perry-viewer", "perry-detect-host"):
+                         "perry-detect-host"):
             self.assertIn(expected, names)
         # The two languages must both be represented, because the previous
         # guard could only ever have seen one of them.
@@ -904,8 +904,8 @@ class TestEveryCommandTheReadmeShowsExists(unittest.TestCase):
     TOKEN = re.compile(r"`([^`]+)`")
     WORD = re.compile(r"^[a-z][a-z0-9-]*$")
     # `/perry work triage`, `/perry goals plan-phase`, and the lane docs'
-    # shorthand `/pmo viewer` — which is where `viewer` is declared, since it
-    # lives in `work/SKILL.md`'s reference table and not in its index.
+    # shorthand `/pmo <sub>` — a subcommand can be declared in a lane's
+    # reference table rather than in its index, and both count as declared.
     INLINE = re.compile(
         r"/(?:perry\s+)?(goals|work|decide|okr|pmo|design)\s+([a-z][a-z0-9-]*)")
 
@@ -1005,7 +1005,7 @@ class TestEveryCommandTheReadmeShowsExists(unittest.TestCase):
                            f"the lane index tables have moved")
         for expected in (("goals", "plan-phase"), ("goals", "score-phase"),
                          ("work", "triage"), ("work", "close-task"),
-                         ("work", "viewer"), ("decide", "adr"),
+                         ("work", "handoff"), ("decide", "adr"),
                          ("decide", "resolve"), ("decide", "lock")):
             self.assertIn(expected, pairs)
         self.assertIn("diagnose", bare)
@@ -1158,14 +1158,17 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
     — and that is how a whole directory falls out.
 
     A V4 round partitioned the seventeen top-level paths and found `viewer/` in
-    neither list: `viewer/README.md:19-22` tells non-technical users to run
-    `/pmo viewer`, `/pmo browse` and `/pmo viewer stop` and calls it "the
-    recommended path", and `viewer/templates/architecture.html` prints
+    neither list: `viewer/README.md:19-22` told non-technical users to run
+    `/pmo viewer`, `/pmo browse` and `/pmo viewer stop` and called it "the
+    recommended path", and `viewer/templates/architecture.html` printed
     `/pmo architecture init` into the page every project sees before
-    `architecture init` is run. The spec's out-of-scope names only `README.md`,
+    `architecture init` is run. The spec's out-of-scope named only `README.md`,
     `README_cn.md` and `INSTALL.md`.
 
-    This is the partition, asserted. A new top-level directory of shipped
+    **Those files are gone** — TASK-178 deleted the web viewer, and what is left
+    under `viewer/` is `parsers.py` and `tables.py`, which ship no prose a user
+    reads. The finding is history; the partition it produced is not, and this
+    is that partition, asserted. A new top-level directory of shipped
     documentation lands in neither list by default, and by default that is
     now a failure.
     """
@@ -1179,53 +1182,7 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         ".claude": "not shipped",
         ".github": "CI configuration",
         "perry": "this project's own state, not the skill",
-        "viewer/static": "third-party assets",
     }
-
-    def test_the_viewer_is_enforced_not_merely_listed(self):
-        """`viewer/` is where the partition's first finding actually lived.
-
-        `viewer/README.md` told non-technical users to run `/pmo viewer` and
-        called it "the recommended path"; `viewer/templates/architecture.html`
-        printed `/pmo architecture init` into the page **every** project sees
-        before `architecture init` has been run. Both are read by a user, and
-        neither list covered the directory they live in.
-
-        Putting `viewer` in the enforced set above is not enough on its own —
-        nothing would have checked the files. This does.
-        """
-        hits = []
-        for pattern in ("*.md", "*.html"):
-            for f in sorted((PERRY_HOME / "viewer").rglob(pattern)):
-                if "static" in f.parts:
-                    continue
-                for n, line in enumerate(f.read_text(errors="replace")
-                                         .splitlines(), 1):
-                    if withdrawn_hits(line) and not self._is_url(line):
-                        hits.append(f"{f.relative_to(PERRY_HOME)}:{n}")
-        self.assertEqual(hits, [], f"withdrawn shorthand a user reads: {hits}")
-
-    @staticmethod
-    def _is_url(line: str) -> bool:
-        """**`/okr` is two different things and only one of them is a command.**
-
-        In `viewer/`, `/okr` and `/design` are also **HTTP routes** — nav
-        tuples, `href=` attributes, and the page names the README lists. The
-        round-5 reviewer flagged the ambiguity and declined to fail on it,
-        asking for a written decision instead. This is that decision: a URL is
-        a different namespace, renaming one breaks the running web app, and the
-        rename was never about it.
-
-        What IS in scope is the same token used as a chat command, which the
-        README did one section later — *"every mutation goes through `/pmo`,
-        `/okr`, `/design` **in chat**"*. That one is fixed.
-        """
-        return bool(re.search(
-            r"href=|url_for|\('\w+', '/"          # nav tuples and links
-            r"|^\s*-\s+\*\*`/"                   # the README's page list
-            r"|full detail on /|\bon /\w"          # prose naming a PAGE
-            r"|\{#.*\bon /",                       # a jinja comment doing so
-            line))
 
     def test_every_shipped_top_level_path_is_in_one_list_or_the_other(self):
         """The carve-out is READ, not restated.
@@ -1242,7 +1199,7 @@ class TestTheTwoListsCoverTheTree(unittest.TestCase):
         exempt = {m.strip("`/*").split("/")[0]
                   for m in re.findall(r"`([^`]+)`", note)}
         enforced = {"work", "goals", "decide", "modes", "SKILL.md", "AGENTS.md",
-                    "README.md", "README_cn.md", "INSTALL.md", "viewer"}
+                    "README.md", "README_cn.md", "INSTALL.md"}
         uncovered = []
         for p in sorted(PERRY_HOME.iterdir()):
             name = p.name

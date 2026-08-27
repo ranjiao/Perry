@@ -147,7 +147,7 @@ Every evidence record cites its source in a form that can be re-opened:
 |---|---|---|
 | file | `<path>#L<start>-<end>` | `TODOS.md#L40-52` |
 | git commit | `git:<short-sha>` | `git:5f1941f` |
-| git aggregate | `git:<scope>@<window>` | `git:viewer@30d` |
+| git aggregate | `git:<scope>@<window>` | `git:parsers@30d` |
 | issue / PR | `<tracker>#<id>` | `gh#412` |
 | filesystem | `fs:<path>@<mtime>` | `fs:notes/q3.md@2026-07-02` |
 

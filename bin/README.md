@@ -7,8 +7,7 @@ A script that counts them is either right or broken loudly.
 
 So the division of labour is: **the SKILL.md files decide what to do, these tools
 read and write the state.** No tool here calls an LLM. All of them are stdlib-only
-Python 3 or POSIX-ish bash, with no install step and no dependencies — except
-`perry-viewer`, which builds its own private venv on first run.
+Python 3 or POSIX-ish bash, with no install step and no dependencies at all.
 
 ---
 
@@ -29,7 +28,6 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies — except
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
 | [`perry-state-cost`](perry-state-cost) | read | What a project's Perry state costs it: bytes, file count, share of tracked bytes and the growth trend, per claimed path, at a named commit. The paths come from `schema/state-schema.json § claims`, so a directory cannot fall out of the report by being forgotten. Reads `evidence/` and `journal/` to size them and writes nothing anywhere. |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P-O1.2`) to what it actually means, where it was defined, and everywhere it is referenced. |
-| [`perry-viewer`](perry-viewer) | read | Launches the opt-in read-only local web console (`viewer/`). Builds its own venv. |
 | [`perry-detect-host`](perry-detect-host) | read | Prints `claude-code` \| `codex-cli` \| `unknown`, so SKILL.md branches pick the right host capability. |
 | [`perry-update-check`](perry-update-check) | writes to the *skill*, not the project | Weekly throttled check that the Perry install is current with `origin/main`. |
 | [`perry-codex-preflight`](perry-codex-preflight) | cache only | Verifies the `codex` CLI is installed, recent enough and actually responds, before a dispatch depends on it. |
@@ -107,15 +105,6 @@ The standup dashboard as plain text, pre-computed — the same rows the agent sh
 Because Perry mints a lot of IDs and you never agreed to memorize them. `--all`
 prints the whole glossary; `--dangling` lists IDs that are referenced but were
 never defined anywhere.
-
-```bash
-bash "$PERRY_HOME/bin/perry-viewer"
-```
-
-Opens a read-only web view of the project at `localhost:8080` (`--port` to change
-it, Ctrl‑C to stop, nothing runs in the background afterwards). First run installs
-Flask into a private venv under `~/.cache/perry/`, which takes about a minute.
-More in [`viewer/README.md`](../viewer/README.md).
 
 ---
 
@@ -218,8 +207,8 @@ so `perry-task` gates on `BOARD.md` and `perry-decide` on `DECISIONS.md`, and
 neither looks at the other.
 
 **Reading is never gated.** `perry-state`, `perry-task list`, `perry-goals list`,
-`perry-decide list` and the viewer answer on an unmarked project, whatever the
-gate is set to.
+and `perry-decide list` answer on an unmarked project, whatever the gate is set
+to.
 
 The gate ships **enforce**: a writer refuses a state file that is not declared
 conformant, naming the file, the shape version it was checked against, and the
@@ -306,7 +295,7 @@ Four other modes, each answering a different question:
 
 | Mode | Question |
 |---|---|
-| `--templates` | Have Perry's own `state/*_TEMPLATE.md` drifted from the schema? (This is the guard that keeps the viewer and standup from silently breaking.) |
+| `--templates` | Have Perry's own `state/*_TEMPLATE.md` drifted from the schema? (This is the guard that keeps the standup from silently breaking.) |
 | `--claims` | Before adopting a folder — which paths Perry wants are already someone else's files? Deliberately not gated on adoption; add `--state-root <path>` to test an alternative. |
 | `--verification` | Advisory: does every done row carry a verification rung its evidence can actually satisfy? |
 | `--provenance` | Advisory: does every cited `SRC-n` resolve to a digest under `knowledge/` with an id, an origin and a fetch date? |
@@ -365,7 +354,7 @@ never the bare pair. Use `perry-explain <ID>` to resolve one. Full rule in
 |---|---|
 | [`schema/state-schema.json`](../schema/state-schema.json) | The state-file contract every tool, template and parser agrees with. `perry-lint` is the conformance test. |
 | [`schema/task-list-contract.md`](../schema/task-list-contract.md) | The shape of `perry-task list --json`, for outside consumers. |
-| [`viewer/parsers.py`](../viewer/parsers.py) | **The only markdown parser.** `perry-state`, `perry-goals`, `perry-decide`, `perry-lint`, `perry-diagnose` and the viewer all import it. |
+| [`viewer/parsers.py`](../viewer/parsers.py) | **The only markdown parser.** `perry-state`, `perry-goals`, `perry-decide`, `perry-lint` and `perry-diagnose` all import it. It is named for a web console that no longer exists (TASK-178); the directory is kept because renaming it touches 44 files' imports. |
 
 That last row is load-bearing. This project has twice shipped a bug caused by a
 second reader of the same file disagreeing with the first — most recently

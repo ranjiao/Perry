@@ -1,4 +1,4 @@
-"""TASK-159 — one answer to "what is a project root", proved by rendering.
+"""TASK-159 — one answer to "what is a project root", asserted on the resolvers.
 
 Three readers each held a different answer, measured at `efa0d73`:
 
@@ -10,37 +10,32 @@ Three readers each held a different answer, measured at `efa0d73`:
 
 On a project whose state lives in a subdirectory — **Perry's own,
 `.perry/config.md § State root: perry`** — those are different directories, so
-the viewer rendered an EMPTY snapshot when pointed exactly where its own
-launcher points it. Measured before the fix, against this repository:
+a reader handed the project root read `BOARD.md` from a directory that has none
+and got an EMPTY snapshot. Measured before the fix, against this repository:
 `tasks 0 · adrs 0 · phase None`.
 
-**Every test here that makes a claim about the viewer goes through the render**
-— `serve.py`'s shipped route functions and the shipped `viewer/templates/`,
-via `tests/test_kr_chain_render.py`'s stand-ins, imported rather than retyped.
-A resolution change proved only by a unit test on the resolver is not proved:
-the resolver was self-consistent the whole time, and the page was still blank.
+**This module is what survived TASK-178.** The original `tests/test_project_root.py`
+proved the row through the web viewer's render — `serve.py`'s route functions
+against the shipped `viewer/templates/` — because at the time a resolver that
+was self-consistent while the page stayed blank was the exact failure mode. The
+viewer is deleted and there is no page left to render, but the resolution
+contract it was proving is not the viewer's: `resolve_state_root` and
+`resolve_project_root` are `viewer/parsers.py`'s, and `bin/perry-state`,
+`bin/perry-task`, `bin/perry-goals`, `bin/perry-lint` and `bin/perry-diagnose`
+all reach the same two directories through them. Every assertion here is one
+that was **never** about rendering; the render-only classes went with the
+templates.
 
-The two directions are one class each, and both must hold. A fix keyed on the
-wrong side satisfies exactly one of them:
+The three claims, each of which a fix keyed on the wrong side satisfies alone:
 
-- `TestAProjectWhoseStateIsASubdirectoryRenders` — Perry's own shape;
-- `TestAProjectWhoseStateIsItsRootIsUnchanged` — every other project's shape.
+- `TestBothEntrancesLandOnTheSameTwoDirectories` — `viewer/parsers.py` and
+  `bin/perry-state --root`, fed one value, land on the same PAIR;
+- `TestTheInverseIsAnInverse` — `resolve_project_root` really is the inverse of
+  `resolve_state_root`, round-tripped both ways;
+- `TestTheCwdWalkMatchesPerryStates` — the two walks that answer "which project
+  am I standing in" are the same predicate.
 
-Measured, one revert at a time, against the 24 tests here:
-
-| revert | failures |
-|---|---|
-| `load_snapshot`'s default root back to `PROJECT_ROOT` | 6 |
-| `/architecture` and `/file/<rel>` read from `PROJECT_ROOT` again | 2 |
-| the CWD walk stops reading `.perry/config.md` | 1 |
-| `resolve_project_root` drops the round trip and takes the first anchor | 1 |
-| `walk_design` handed the state root as its project root again | 1 |
-
-`tests/test_kr_chain_render.py` stays green under every one of them — this row
-does not touch what TASK-146 landed, and the chain card's degraded-mode
-wording is exercised here rather than changed.
-
-Run: python3 tests/parallel -j 4 test_project_root
+Run: python3 tests/parallel -j 4 test_project_root_resolution
 """
 
 from __future__ import annotations
@@ -48,7 +43,6 @@ from __future__ import annotations
 import importlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -62,14 +56,6 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME")
 sys.path.insert(0, str(PERRY_HOME / "tests"))
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 
-#: The Flask / `markdown` stand-ins and the real-templates Jinja environment
-#: TASK-146 built so a route could be rendered in a suite that must not require
-#: the viewer's opt-in dependencies. Imported, because a second copy of them is
-#: a second thing to keep true — and because a page rendered through a
-#: DIFFERENT harness than the one guarding the chain card would not prove the
-#: chain card still works.
-from test_kr_chain_render import (  # noqa: E402
-    _env, _stub_flask, _stub_markdown, text_of)
 from test_kr_progress_provenance import build_project  # noqa: E402
 
 STATE_TOOL = PERRY_HOME / "bin" / "perry-state"
@@ -83,12 +69,7 @@ ARCHITECTURE = "# Architecture\n\n## Layers\n\nOne fixture, two layouts.\n"
 
 #: The store rows that reach a board lane. TASK-146's fixture files its records
 #: with no `group`, because the chain reads them by id and never asks which
-#: section they sit in; a board reads nothing else. Added here rather than
-#: there, so the fixture the chain card is guarded by stays exactly as it was.
-#:
-#: `TASK-001` and `TASK-002` are `done` and deliberately keep their group: a
-#: closed row leaves the board while staying in the store, so their ABSENCE
-#: from the rendered page is itself evidence the store is what was read.
+#: section they sit in; a board reads nothing else.
 ON_BOARD = "P1"
 
 
@@ -118,10 +99,7 @@ def nested_project(sub: str = "state") -> Path:
     """The same project with `State root: <sub>` — Perry's own shape.
 
     Built by MOVING a flat fixture's files rather than by writing a second
-    fixture, so the two layouts differ in nothing but where the state sits.
-    That is what lets the render assertions below be identical strings: if the
-    nested page said less than the flat one, it would be this resolution and
-    not the content."""
+    fixture, so the two layouts differ in nothing but where the state sits."""
     root = flat_project()
     dest = root / sub
     dest.mkdir(parents=True)
@@ -132,113 +110,39 @@ def nested_project(sub: str = "state") -> Path:
     return root
 
 
-# ── the shipped route, rendered ───────────────────────────────────────────
+def roots_of(root: Path) -> tuple[Path, Path]:
+    """`(PROJECT_ROOT, STATE_ROOT)` as `viewer/parsers.py` resolves them.
 
-
-def render(root: Path, route: str = "board") -> str:
-    """`GET /<route>`, through `serve.py`'s route function and the real templates.
-
-    `root` is what `bin/perry-viewer` exports as `$PERRY_PROJECT`: the PROJECT
-    root. Passing anything else here would be testing a configuration the
-    launcher never produces."""
-    filters: dict = {}
-    sys.modules["flask"] = _stub_flask(filters)
-    sys.modules["markdown"] = _stub_markdown()
-
+    `root` is the PROJECT root — what `bin/perry-state --root` takes and what
+    `$PERRY_PROJECT` carried. Passing anything else here would be testing a
+    configuration no entrance produces. Both roots are module globals frozen at
+    import, so the module is reloaded per fixture."""
     os.environ["PERRY_PROJECT"] = str(root)
     import parsers
-    importlib.reload(parsers)      # both roots are module globals frozen at
-    import serve                   # import, and each test renders another project
-    importlib.reload(serve)
-
-    env = _env(filters)
-    serve.render_template = lambda name, **ctx: env.get_template(name).render(**ctx)
-    return getattr(serve, route)()
+    importlib.reload(parsers)
+    return parsers.PROJECT_ROOT, parsers.STATE_ROOT
 
 
-TASK_ID = re.compile(r"TASK-\d{3}")
+# ── the bounded walk the inverse replaced ─────────────────────────────────
 
 
-class Rendered(unittest.TestCase):
-    def setUp(self):
-        self.addCleanup(os.environ.pop, "PERRY_PROJECT", None)
-
-    def board_of(self, root: Path) -> str:
-        return text_of(render(root, "board"))
-
-
-# ── item 1 — a project whose state is a subdirectory ──────────────────────
-
-
-class TestAProjectWhoseStateIsASubdirectoryRenders(Rendered):
-    """Pointed at the PROJECT root, which is the only thing the launcher exports."""
-
-    def setUp(self):
-        super().setUp()
-        self.root = nested_project()
-        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-
-    def test_the_board_carries_the_projects_rows_and_not_an_empty_snapshot(self):
-        """The whole defect, in the one place a reader would have seen it.
-
-        Before this row the same call rendered a board with no rows at all —
-        not an error, not a warning, an empty project."""
-        page = self.board_of(self.root)
-        self.assertEqual(sorted(set(TASK_ID.findall(page))),
-                         ["TASK-003", "TASK-004"])
-        for title in ("Three", "Four"):
-            self.assertIn(title, page)
-
-    def test_the_phase_page_finds_the_phase_under_the_state_root(self):
-        page = text_of(render(self.root, "phase"))
-        self.assertIn("a-phase", page)
-        self.assertNotIn("No active phase", page)
-
-    def test_the_architecture_page_reads_a_file_under_the_state_root(self):
-        """`/architecture` reads its file off a root of its own rather than
-        through the snapshot, so it is the one page that could still be blank
-        after the board was fixed."""
-        page = text_of(render(self.root, "architecture"))
-        self.assertIn("One fixture, two layouts.", page)
-
-    def test_a_file_link_from_the_page_resolves(self):
-        """Every `/file/<rel>` link in the templates is a STATE-root-relative
-        path — `EvidenceFile.rel`, `DesignDoc.rel`, a literal `BOARD.md`. A
-        route resolving them against the project root 404s all of them."""
-        render(self.root, "board")          # loads `serve` for this project
-        import serve
-        page = text_of(serve.view_file("BOARD.md"))
-        self.assertIn("TASK-001", page)
-
-    def test_the_chain_card_still_refuses_to_invent(self):
-        """TASK-146's degraded-mode behaviour must survive being un-degraded.
-
-        The card's job is to state what it cannot evaluate; what changed here
-        is only that on this shape it can now evaluate it. So the guarantee is
-        asserted where it is load-bearing — no percentage, no verdict — rather
-        than by the absence of the old apology."""
-        card = text_of(render(self.root, "phase")).lower()
-        for banned in ("%", "achieved", "on track", "complete"):
-            self.assertNotIn(banned, card)
-        self.assertIsNone(re.search(r"\bmet\b", card))
-        self.assertIn("asserted by the author, not measured", card)
-
-
-class TestTheInverseReachesWhatTheBoundedWalkCannot(Rendered):
+class TestTheInverseReachesWhatTheBoundedWalkCannot(unittest.TestCase):
     """`walk_design` looks for `.perry/events.jsonl` by walking up FOUR levels
     from the state root, because when it was written there was no inverse to
     ask. Four is a guess, and this fixture is the fifth level.
 
-    Asserted through `/design`, where the count is the difference between "1
-    task" and "no refs" — the design-handoff signal `walk_design`'s own
-    docstring says shipped code was reported as never handed off for."""
+    Asserted on `DesignDoc.impl_refs`, where the count is the difference
+    between "1 task" and "no refs" — the design-handoff signal `walk_design`'s
+    own docstring says shipped code was reported as never handed off for.
+    TASK-178 moved this off the `/design` page and onto the snapshot the page
+    was reading; the number and its meaning are unchanged."""
 
     DOC = ("# DESIGN-009 — a thing\n\n"
            "> **Status**: locked 2026-08-01\n> **Date**: 2026-08-01\n\n"
            "## Plan\n\nOne doc, five levels down.\n")
 
     def setUp(self):
-        super().setUp()
+        self.addCleanup(os.environ.pop, "PERRY_PROJECT", None)
         self.root = nested_project(sub="a/b/c/d/e")
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         state = self.root / "a/b/c/d/e"
@@ -250,45 +154,31 @@ class TestTheInverseReachesWhatTheBoundedWalkCannot(Rendered):
                                  "next": "implements DESIGN-009"}) + "\n")
 
     def test_the_design_is_not_reported_as_never_handed_off(self):
-        html = render(self.root, "design")
-        self.assertIn("DESIGN-009", text_of(html))
-        self.assertIn(">1 task<", html)
-        # The page's own footnote says the words "no refs", so the negative is
-        # asserted on the cell that would carry them and not on the page.
-        self.assertNotIn("locked but no BOARD task references this design ID",
-                         html)
+        proj, state = roots_of(self.root)
+        self.assertNotEqual(proj, state,
+                            "the fixture's state root is not a subdirectory — "
+                            "this test would pass on the defect")
+        import parsers
+        snap = parsers.load_snapshot(state)
+        docs = {d.id: d for d in snap.design}
+        self.assertIn("DESIGN-009", docs)
+        self.assertEqual(docs["DESIGN-009"].impl_refs, 1)
 
 
 # ── item 2 — a project whose state IS its root, unchanged ─────────────────
 
 
-class TestAProjectWhoseStateIsItsRootIsUnchanged(Rendered):
+class TestAProjectWhoseStateIsItsRootIsUnchanged(unittest.TestCase):
     """The configuration every non-Perry project has.
 
-    This is the half a fix keyed on the wrong side breaks: teaching the
-    launcher to export the state root, or the viewer to treat what it is given
-    as one, satisfies the class above and silently re-points this one."""
+    This is the half a fix keyed on the wrong side breaks: teaching a caller to
+    export the state root, or a reader to treat what it is given as one,
+    satisfies the nested shape and silently re-points this one."""
 
     def setUp(self):
-        super().setUp()
+        self.addCleanup(os.environ.pop, "PERRY_PROJECT", None)
         self.flat = flat_project()
-        self.nested = nested_project()
         self.addCleanup(shutil.rmtree, self.flat, ignore_errors=True)
-        self.addCleanup(shutil.rmtree, self.nested, ignore_errors=True)
-
-    def test_the_board_carries_the_projects_rows(self):
-        page = self.board_of(self.flat)
-        self.assertEqual(sorted(set(TASK_ID.findall(page))),
-                         ["TASK-003", "TASK-004"])
-
-    def test_both_layouts_render_the_same_rows(self):
-        """One body of state, two layouts, one page. Asserted as a pair rather
-        than one at a time, because each half passes on its own under a fix
-        that has simply moved the disagreement."""
-        rows = TASK_ID.findall(self.board_of(self.flat))
-        self.assertTrue(rows, "neither layout rendered a row — this would "
-                              "otherwise pass by both being empty")
-        self.assertEqual(rows, TASK_ID.findall(self.board_of(self.nested)))
 
     def test_the_two_roots_are_the_same_directory_here(self):
         import parsers
@@ -299,37 +189,41 @@ class TestAProjectWhoseStateIsItsRootIsUnchanged(Rendered):
 # ── item 1, on the project the row was found on ───────────────────────────
 
 
-class TestPerrysOwnConfiguration(Rendered):
+class TestPerrysOwnConfiguration(unittest.TestCase):
     """`PERRY_HOME` itself: `State root: perry`, state in a subdirectory.
 
-    Rendered against the live repository rather than a fixture, because a
+    Asserted against the live repository rather than a fixture, because a
     fixture is a shape somebody chose and this is the shape the defect was
-    reported on. Nothing here asserts a particular row — the board moves — only
-    that the page is a board of this project and not an empty one."""
+    reported on."""
 
     def setUp(self):
-        super().setUp()
         self.assertTrue((PERRY_HOME / ".perry" / "config.md").exists(),
                         "PERRY_HOME is not a Perry project")
 
     def test_the_state_root_really_is_a_subdirectory_here(self):
-        """Guards every assertion below from passing vacuously: if Perry's own
-        state ever moves back to its root, this class stops testing the shape
-        it was written for and says so."""
+        """Guards the repository-shaped assertions from passing vacuously: if
+        Perry's own state ever moves back to its root, the classes written for
+        that shape stop testing it and this says so."""
         import parsers
         self.assertNotEqual(parsers.resolve_state_root(PERRY_HOME), PERRY_HOME)
 
-    def test_the_board_is_this_projects_board(self):
-        page = self.board_of(PERRY_HOME)
-        self.assertTrue(TASK_ID.findall(page),
-                        "the viewer rendered an empty board for Perry itself")
+    def test_the_snapshot_off_perrys_own_project_root_is_not_empty(self):
+        """The whole defect, on the project it was found on.
 
-    def test_the_decisions_this_project_has_recorded_are_on_the_page(self):
-        """A second reader off the same root — `DECISIONS.md`, not `BOARD.md` —
-        so the render is not proved by one file happening to be found."""
-        page = text_of(render(PERRY_HOME, "today"))
-        self.assertTrue(re.search(r"ADR-\d{3}", page),
-                        "no ADR reached the page from Perry's own DECISIONS.md")
+        Before this row the same call read `BOARD.md` from a directory that has
+        none and produced a snapshot with no tasks and no ADRs — not an error,
+        not a warning, an empty project."""
+        proj, state = roots_of(PERRY_HOME)
+        import parsers
+        snap = parsers.load_snapshot(state)
+        self.assertTrue(snap.board.all_tasks,
+                        "an empty board was read for Perry itself")
+        self.assertTrue(snap.adrs,
+                        "no ADR reached the snapshot from Perry's own "
+                        "DECISIONS.md")
+
+    def tearDown(self):
+        os.environ.pop("PERRY_PROJECT", None)
 
 
 # ── item 3 — the two entrances, asserted as a pair ────────────────────────
@@ -347,12 +241,6 @@ class TestBothEntrancesLandOnTheSameTwoDirectories(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         self.addCleanup(os.environ.pop, "PERRY_PROJECT", None)
 
-    def viewer_pair(self, root: Path) -> tuple[Path, Path]:
-        os.environ["PERRY_PROJECT"] = str(root)
-        import parsers
-        importlib.reload(parsers)
-        return parsers.PROJECT_ROOT, parsers.STATE_ROOT
-
     def state_pair(self, root: Path) -> tuple[Path, Path]:
         """What `perry-state --root <project>` says it read.
 
@@ -369,7 +257,7 @@ class TestBothEntrancesLandOnTheSameTwoDirectories(unittest.TestCase):
         return root.resolve(), Path(payload["project"]["root"]).resolve()
 
     def test_the_pair_agrees_where_the_two_roots_differ(self):
-        proj, state = self.viewer_pair(self.root)
+        proj, state = roots_of(self.root)
         self.assertNotEqual(proj, state,
                             "the fixture's state root is not a subdirectory — "
                             "this test would pass on the defect")
@@ -378,12 +266,12 @@ class TestBothEntrancesLandOnTheSameTwoDirectories(unittest.TestCase):
     def test_the_pair_agrees_where_the_two_roots_are_one(self):
         flat = flat_project()
         self.addCleanup(shutil.rmtree, flat, ignore_errors=True)
-        proj, state = self.viewer_pair(flat)
+        proj, state = roots_of(flat)
         self.assertEqual(proj, state)
         self.assertEqual((proj, state), self.state_pair(flat))
 
     def test_the_pair_agrees_on_this_repository(self):
-        self.assertEqual(self.viewer_pair(PERRY_HOME), self.state_pair(PERRY_HOME))
+        self.assertEqual(roots_of(PERRY_HOME), self.state_pair(PERRY_HOME))
 
 
 # ── the inverse itself, round-tripped ─────────────────────────────────────
@@ -470,9 +358,10 @@ class TestTheCwdWalkMatchesPerryStates(unittest.TestCase):
     """`_resolve_project_root`'s walk and `bin/perry-state § resolve_root`'s
     are the same predicate, asserted rather than commented.
 
-    The launcher exports `$PERRY_PROJECT` from its own cwd, so if these two
-    walks disagreed the pair above would still be wrong for anyone who started
-    the viewer from a subdirectory — the same defect one level out."""
+    A caller that takes its project root from its own cwd — which is what every
+    `bin/` tool invoked with no `--root` does — would otherwise be reading a
+    different project than the tool beside it, for anyone standing in a
+    subdirectory: the same defect one level out."""
 
     def setUp(self):
         self.root = nested_project()
@@ -485,16 +374,16 @@ class TestTheCwdWalkMatchesPerryStates(unittest.TestCase):
         os.chdir(cwd)
         import parsers
         importlib.reload(parsers)
-        viewer = parsers.PROJECT_ROOT
+        walked = parsers.PROJECT_ROOT
         proc = subprocess.run([sys.executable, "-c", PROBE],
                               capture_output=True, text=True, cwd=str(cwd))
         self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
-        return viewer, Path(proc.stdout.strip())
+        return walked, Path(proc.stdout.strip())
 
     def test_standing_in_the_project_root_both_say_the_project_root(self):
-        viewer, tool = self.walked(self.root)
-        self.assertEqual(viewer, self.root)
-        self.assertEqual(viewer, tool)
+        parsed, tool = self.walked(self.root)
+        self.assertEqual(parsed, self.root)
+        self.assertEqual(parsed, tool)
 
     def test_standing_in_a_subdirectory_both_walk_up_to_the_project_root(self):
         """The case that separates the two predicates.
@@ -503,21 +392,20 @@ class TestTheCwdWalkMatchesPerryStates(unittest.TestCase):
         directory holding `BOARD.md`, a walk that looks only for state files
         finds none and falls back to the CWD — while `perry-state` standing in
         the same place walks up to `.perry/config.md` and reports the project
-        root. The launcher exports its own CWD, so that gap is this same row
-        one level out: two tools, one directory, two projects."""
+        root. Two tools, one directory, two projects."""
         sub = self.root / "elsewhere"
         sub.mkdir()
-        viewer, tool = self.walked(sub)
-        self.assertEqual(viewer, self.root)
-        self.assertEqual(viewer, tool)
+        parsed, tool = self.walked(sub)
+        self.assertEqual(parsed, self.root)
+        self.assertEqual(parsed, tool)
 
     def test_standing_in_the_state_root_both_say_the_same_thing(self):
         """Whatever the answer is, it must be ONE answer. `perry-state` stops
         at the first directory holding `BOARD.md`, so this is the state root
-        for both — a viewer that walked further would render a project the
-        `bin/` tool beside it says it is not looking at."""
-        viewer, tool = self.walked(self.root / "state")
-        self.assertEqual(viewer, tool)
+        for both — a reader that walked further would load a project the `bin/`
+        tool beside it says it is not looking at."""
+        parsed, tool = self.walked(self.root / "state")
+        self.assertEqual(parsed, tool)
 
 
 if __name__ == "__main__":
