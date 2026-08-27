@@ -56,6 +56,11 @@ None. Nothing here waits on a person.
   - Deliverable: a `depends_on` id neither `tasks.jsonl` nor the ask queue knows
   - Verification: `conformance.depends_on_unknown` names it
 
+- **WIT-003 — The row waiting on a verdict**
+  - Owner: PMO Agent
+  - Deliverable: a `review` row nobody has ruled on for longer than the threshold
+  - Verification: `conformance.review_idle` names it
+
 ---
 
 ## Definition of Done

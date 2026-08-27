@@ -16,6 +16,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence |
 |---|---|---|---|---|---|
+| WIT-003 | The row waiting on a verdict | PMO Agent | review | give the verdict | — |
 
 ## P2
 
