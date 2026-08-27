@@ -94,8 +94,16 @@ board edit is a contract change" outcome the docstring set out to avoid.
   it returns `null`. The contract documents are the authority; the fixture is
   a cache of one observation.
 - **Must** keep the gate's real catch intact: it was proved by removing
-  `tasks[].startable` at both emit sites and watching it go red. Any fix has to
-  keep that mutation red.
+  `tasks[].startable` and watching it go red. Any fix has to keep that mutation
+  red.
+
+  **Correction, 2026-08-28 (TASK-145).** "Both emit sites" is wrong, and it is
+  wrong here and in `test_contract_invariance`'s own docstring. There are
+  **three**: the two initialisers in `bin/perry-task` and the assignment at
+  `bin/lib/__init__.py:824`, which puts the key back. TASK-145 proved this by
+  running the *old* gate as a control against that exact mutation — the old
+  gate was green on `startable` too. So the claim was wrong about the code
+  before any change was made to the gate.
 - For array-nested keys, collapsing to element zero should become a union over
   **every** element, or the fixture must record the union — otherwise order
   sensitivity survives the fix.

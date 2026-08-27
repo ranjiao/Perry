@@ -48,6 +48,7 @@
 | 2026-08-28 | subcommands.md:82 and :118-128 restate contract semantics in prose and carry a TASK-162 marker proving they rot | — |
 | 2026-08-28 | bin/perry-state:751 picks a drift baseline as a min over raw ts strings and the new zone guard cannot see it | — |
 | 2026-08-28 | load_snapshot binds STATE_ROOT at def time, so perry-state's override can never reach it | — |
+| 2026-08-28 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so Depends on 待定 parses as a real dependency id | — |
 
 ## P0 (must finish this period)
 
@@ -84,12 +85,10 @@
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
-| TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-145-shape-baseline — owns one of the two standing reds | — | V2 | — | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
-| TASK-163 | two readers disagree about whether a dash is a clock | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-163-a-dash-is-not-a-clock | — | V3 | — | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
 | TASK-175 | aiMark's KR meter renders a stale assertion identically to a fresh one | Coding Agent | not_started | DECIDED 2026-08-21: mark it. This lifts TASK-114 acceptance item 6, which forbade touching the OKR chain view and contradicted the goals-2.1 instruction in the same prompt — the KR meter IS the chain view. Restraint is the point: do not caption every KR with 'this is an assertion', because it is true of all of them and says nothing. Only stale, and only unasserted | — | V3 |  | main |  |  |
