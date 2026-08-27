@@ -1149,24 +1149,63 @@ class TestTheWriterWritesTheStore(unittest.TestCase):
         self.assertEqual(report["cells_verbatim"], {})
         self.assertEqual(report["kinds"]["commitment"], 4)
 
-    def test_a_hand_edit_is_reported_by_the_writer_and_not_swallowed(self):
-        """Perry's own Operating Principle: *a hand edit is reported, never
-        refused*. So the writer says so on stderr and proceeds — it does not
-        invent a second refusal beside `check_hand_edit`, and it does not
-        absorb the edit in silence, which is the defect `bin/perry-tasks §
-        write` records."""
+    def edited_by_hand(self):
+        """A project whose register carries one cell the store does not."""
         d = self.project()
         run("perry-goals", "commit", "--track", "ops", "--promise", "a",
             "--to", "RM", "--due", "3d", root=d)
         okr = d / "OKR.md"
         okr.write_text(okr.read_text().replace("Weekly candidate memo",
                                                "Weekly candidate memo (revised)"))
+        return d
+
+    def test_a_hand_edit_is_reported_and_the_write_over_it_refuses(self):
+        """TASK-123 **reverses the second half of this test**, and the reason
+        is worth stating because the version it replaces was deliberate.
+
+        It used to assert that the writer *reported and proceeded*, citing
+        Perry's Operating Principle — *a hand edit is reported, never refused*.
+        Proceeding meant the next `commit` derived the store from the edited
+        file, so the store took `(revised)` as its own value: the edit was
+        reported **and honoured**. ADR-007 decision 2 is that a hand edit to a
+        rendered file is *"reported rather than honoured"*, so those two
+        sentences cannot both hold on this file, and the one that lost is the
+        one that made `okr.jsonl` a projection of the projection.
+
+        The Principle is not broken by this. *"Editing your own markdown stays
+        legitimate"* — the edit stands, in the file, untouched; nothing here
+        overwrites it. What refuses is the **write that would decide against
+        it**, which is exactly what `check_hand_edit` has done since TASK-042
+        under DESIGN-005 § 9's *never silently authoritative either*. Readers
+        report and proceed (`perry-state § reconcile_drift`); writers refuse
+        and name the way out (`perry-tasks write --from-file` already does).
+        """
+        d = self.edited_by_hand()
+        before_okr = (d / "OKR.md").read_bytes()
+        before_store = (d / "okr.jsonl").read_bytes()
         proc = run("perry-goals", "commit", "--track", "ops", "--promise", "b",
                    "--to", "RM", "--due", "3d", root=d)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("edited by hand", proc.stderr)
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("by hand", proc.stderr)
         self.assertIn("research/1", proc.stderr)
-        # Proceeded, and the projection is exact again.
+        self.assertIn("--accept-hand-edit", proc.stderr)
+        self.assertNotIn("Traceback", proc.stderr)
+        # Neither artifact moved: the edit is not overwritten and not absorbed.
+        self.assertEqual((d / "OKR.md").read_bytes(), before_okr)
+        self.assertEqual((d / "okr.jsonl").read_bytes(), before_store)
+
+    def test_accepting_the_hand_edit_proceeds_and_keeps_the_projection_exact(self):
+        """The documented way through, with the meaning the flag already has
+        everywhere else in `perry-goals`: the FILE's value becomes the truth
+        and the write records it. The projection stays byte-exact after it,
+        which is the invariant every other test in this class rests on."""
+        d = self.edited_by_hand()
+        proc = run("perry-goals", "commit", "--track", "ops", "--promise", "b",
+                   "--to", "RM", "--due", "3d", "--accept-hand-edit", root=d)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        row = next(r for r in M.load_store(d / "okr.jsonl")
+                   if r["kind"] == "commitment" and r["id"] == "research/1")
+        self.assertEqual(row["promise"], "Weekly candidate memo (revised)")
         self.assertEqual(run("perry-okr", "diff", root=d).returncode, 0)
 
 

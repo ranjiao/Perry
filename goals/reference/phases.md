@@ -127,6 +127,24 @@ every commitments register alive today is in that state. Those are written to
 normally. (DESIGN-005 § 9's last entry is why this direction was settled before
 the writer was built.)
 
+**The same reconcile runs against `okr.jsonl`, over every column** — not just
+`Status`, and not just rows the log knows. That file is the canonical record of
+this register and `OKR.md § Commitments` is rendered from it (ADR-007 decision
+2), so `commit` compares the two before it decides anything, and refuses on any
+cell they disagree about. `--accept-hand-edit` is the same way through, with the
+same meaning: the file's value becomes the truth. `perry-okr diff` asks the
+question on its own and `perry-okr render --write` puts the file back in line
+with the store.
+
+A project with no `okr.jsonl` is not drifted — it predates the store, exactly as
+a row the log has never heard of predates the log. `perry-okr write --from-file`
+is the one-time import that mints it.
+
+A row **deleted** from `OKR.md` by hand is reported and not refused, and the
+store keeps its record: a row leaving the projection does not delete what it
+meant, and its id is never minted again. `perry-okr verify` names those records
+under `records_not_in_the_file`.
+
 ## `plan-phase <slug>`
 
 Start a new phase. `<slug>` is user-chosen (short, hyphenated). OKR assigns `#<NNN>` automatically: `NNN = (max existing phase number) + 1`, zero-padded to 3 digits. The new file is `phase/<NNN>-<slug>.md` (e.g., `phase/002-release-pipeline.md`).
