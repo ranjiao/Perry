@@ -1,7 +1,7 @@
 # DESIGN-009: An Objective is a title string, and every link to it is a guess
 
 > Status: draft
-> Date: 2026-08-21 · Locked: —
+> Date: 2026-08-27 · Locked: —
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O4.1, KR-O4.2 (`perry/OKR.md` v2, Objective 4 — aiMark manages projects through Perry)
 > Supersedes: —   · Superseded by: —
@@ -12,7 +12,7 @@
 **Perry's OKR has five Objectives and not one of them has a name a program can
 hold.**
 
-Measured on this project, 2026-08-21:
+Measured on this project, 2026-08-27:
 
 ```
 $ perry-goals list --json → okr.objectives

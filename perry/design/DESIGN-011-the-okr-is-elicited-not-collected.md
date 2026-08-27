@@ -1,7 +1,7 @@
 # DESIGN-011: The OKR is collected as ten fields where it should be elicited
 
 > Status: draft
-> Date: 2026-08-21 · Locked: —
+> Date: 2026-08-27 · Locked: —
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O1.2 (`perry/OKR.md` v2, Objective 1 — the four work modes are usable, not just declared)
 > Supersedes: —   · Superseded by: —

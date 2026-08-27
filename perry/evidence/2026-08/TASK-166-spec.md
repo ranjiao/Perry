@@ -1,7 +1,7 @@
 # TASK-166 spec — a closed row whose title was lost is invisible and unrepairable
 
 > Dispatch mode: auto · Executor: `claude-subagent` · Estimated cycle: small
-> Both halves re-verified against today's code on 2026-08-21 before dispatch.
+> Both halves re-verified against today's code on 2026-08-27 before dispatch.
 
 ## The measurement
 

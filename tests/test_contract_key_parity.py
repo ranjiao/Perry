@@ -149,7 +149,7 @@ class TestThisREADMEAgreesWithTheGlob(unittest.TestCase):
     def test_the_contract_table_pins_no_version(self):
         """The README's table carried THREE stale versions at once.
 
-        On 2026-08-21 it pinned `perry-task/list` at `1.11` against a live
+        On 2026-08-27 it pinned `perry-task/list` at `1.11` against a live
         `1.15`, `perry-goals/list` at `1.0` against `2.1`, and
         `perry-events/list` at `1.0` against `1.1`. All three had been correct
         when written. A version copied into a second place goes stale the first

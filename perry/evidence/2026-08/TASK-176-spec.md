@@ -1,7 +1,7 @@
 # TASK-176 spec — one key table serving several containers is unreadable to `place`
 
 > Dispatch mode: auto · Executor: `claude-subagent` · Estimated cycle: medium
-> **This stopped being theoretical on 2026-08-21. KR-O2.4 is 12, and all 12 are
+> **This stopped being theoretical on 2026-08-27. KR-O2.4 is 12, and all 12 are
 > false.**
 
 ## What is live right now

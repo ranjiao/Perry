@@ -1,6 +1,6 @@
 # TASK-170 — an answered `USER-` ask is in no register a consumer can query
 
-**Merged locally 2026-08-21** from `coding/task-170-answered-asks` @ `b3623d4`.
+**Merged locally 2026-08-27** from `coding/task-170-answered-asks` @ `b3623d4`.
 Rung **V3**. `merge-check`: nothing new is red. `perry-task/list` **1.14 → 1.15**.
 
 > The safety classifier timed out on this subagent's run, so every payload claim
@@ -49,7 +49,7 @@ semantics versions:  [1.5 1.7 1.9 1.10 1.12 1.13 1.14]   ← no 1.15 entry
 TASK-040 depends_on  ['USER-016']
          resolved    [{id: USER-016, kind: ask, satisfied: true,
                        title: "declare risks.jsonl in schema/state-schema.json § claims …",
-                       status: "answered 2026-08-21: …"}]
+                       status: "answered 2026-08-27: …"}]
 rows where blocked_by != unsatisfied(depends_on_resolved):  0
 asks:                {items: [], open: 0}   ← unchanged
 ```

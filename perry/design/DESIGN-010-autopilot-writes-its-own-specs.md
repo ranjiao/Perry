@@ -1,7 +1,7 @@
 # DESIGN-010: Autopilot cannot dispatch anything, and the spec is why
 
 > Status: draft
-> Date: 2026-08-21 · Locked: —
+> Date: 2026-08-27 · Locked: —
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O5.3, KR-O5.4 (`perry/OKR.md` v2, Objective 5 — Tasks are executed by roles that know things)
 > Supersedes: —   · Superseded by: —

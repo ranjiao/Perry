@@ -1,7 +1,7 @@
 # TASK-178 spec — delete the read-only web viewer
 
 > Dispatch mode: auto · Executor: `claude-subagent` · Estimated cycle: medium
-> Decided by the user 2026-08-21: aiMark exists, so the local console has no value.
+> Decided by the user 2026-08-27: aiMark exists, so the local console has no value.
 
 ## The boundary, measured before this spec was written
 

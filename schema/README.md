@@ -82,7 +82,7 @@ decision 5) so a consumer that reads one is not forced to re-check its code when
 another moves.
 
 **This table carries no version numbers, on purpose.** It listed three stale
-ones at once on 2026-08-21 — `perry-task/list` pinned at `1.11` against a live
+ones at once on 2026-08-27 — `perry-task/list` pinned at `1.11` against a live
 `1.15`, `perry-goals/list` at `1.0` against `2.1`, and `perry-events/list` at
 `1.0` against `1.1` — because a number copied into a second place goes stale the
 first time the first place moves, and nothing here was checking it. **The
@@ -203,7 +203,7 @@ fixtures (`tests/fixtures/sample-project/`).
 > and `decisions/` were canonical hand-editable markdown and their contracts did
 > not exist yet (DESIGN-005 § 6, steps 1–2). **Both shipped**: `perry-goals/list`
 > and `perry-decide/list` are in the table above, and `OKR.md` has had a store
-> beside it since 2026-08-21. The "resolve columns by name, never by position"
+> beside it since 2026-08-27. The "resolve columns by name, never by position"
 > rule below still applies to everything a consumer reads out of markdown —
 > which, for the four registers of `BOARD.md` that have no store, is still
 > several things.

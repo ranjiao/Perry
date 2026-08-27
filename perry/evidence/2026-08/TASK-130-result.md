@@ -1,6 +1,6 @@
 # TASK-130 — `schema/README.md`'s contract table pinned versions nothing checked
 
-**Done 2026-08-21** by the PMO, in the main checkout. Rung **V3**.
+**Done 2026-08-27** by the PMO, in the main checkout. Rung **V3**.
 
 ## The row's scope grew twice before it was touched
 
