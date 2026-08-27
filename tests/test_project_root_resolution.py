@@ -408,5 +408,138 @@ class TestTheCwdWalkMatchesPerryStates(unittest.TestCase):
         self.assertEqual(parsed, tool)
 
 
+# ── TASK-164 — the two globals the tool leaves behind ─────────────────────
+
+
+#: `bin/perry-state § main`, run in a child process against one project root,
+#: reporting what it LEFT IN `viewer/parsers.py`'s two root globals. The tool is
+#: loaded and `main()` called rather than the script being run, because the
+#: globals are what is being measured and a finished subprocess has none left to
+#: read. Its payload goes to a buffer; only the roots come back on stdout.
+GLOBALS_PROBE = (
+    "import contextlib, io, json, pathlib, sys\n"
+    f"src = pathlib.Path({str(STATE_TOOL)!r}).read_text()\n"
+    f"ns = {{'__file__': {str(STATE_TOOL)!r}, '__name__': 'perry_state_probe'}}\n"
+    f"exec(compile(src, {str(STATE_TOOL)!r}, 'exec'), ns)\n"
+    "with contextlib.redirect_stdout(io.StringIO()):\n"
+    "    rc = ns['main'](['--root', sys.argv[1], '--json'])\n"
+    "P = ns['P']\n"
+    "print(json.dumps({\n"
+    "    'rc': rc,\n"
+    "    'project_root': str(P.PROJECT_ROOT),\n"
+    "    'state_root': str(P.STATE_ROOT),\n"
+    "    'hook_under_project_root': (P.PROJECT_ROOT / '.perry' / 'hook.md').exists(),\n"
+    "    'hook_under_state_root': (P.STATE_ROOT / '.perry' / 'hook.md').exists(),\n"
+    "}))\n"
+)
+
+#: A hook with one backticked fragment in it. The content is beside the point
+#: here — what is asserted is that the FILE is reachable from the global whose
+#: name says `.perry/` is anchored under it.
+HOOK = ("# Perry hook — fixture\n\n## High-stakes operations\n\n"
+        "- Publishing to a public repo — `git push`\n")
+
+#: `nested_project()`'s default subdirectory, spelled out rather than resolved,
+#: so this class asserts against a directory it chose and not against the
+#: resolver it is checking the callers of.
+SUB = "state"
+
+
+class TestTheToolLeavesEachGlobalMeaningItsName(unittest.TestCase):
+    """`bin/perry-state § main` overrides `viewer/parsers.py`'s root globals so
+    that `--root` survives whatever cwd the script was invoked from. It used to
+    override ONE of them with the OTHER one's value:
+
+        root = P.resolve_state_root(project_root)   # the STATE root
+        P.PROJECT_ROOT = root                       # the PROJECT root global
+
+    On every project whose state IS its root the two are one directory and the
+    inversion is invisible — which is every project but this one. On a project
+    with `State root: <subdir>` it left `PROJECT_ROOT` naming a directory with
+    no `.perry/` under it, and `.perry/` is the one thing that name promises:
+    it holds the pointer, so it cannot sit behind it.
+
+    **It has already cost once, and was fixed at one call site rather than at
+    the global.** `--escalation-scan`, handed the state root, found zero
+    fragments and reported a clean `unarmed` — a safety gate saying it has
+    nothing to check, from a project whose hook lists thirty things.
+
+    So `.perry/hook.md` is asserted DIRECTLY here, never through that gate's
+    verdict: `unarmed` has two causes — nothing declared, and nothing found —
+    and reading the verdict instead of the file is exactly how this hid the
+    first time.
+
+    TASK-164."""
+
+    def setUp(self):
+        self.root = nested_project(SUB)
+        self.state = self.root / SUB
+        (self.root / ".perry" / "hook.md").write_text(HOOK)
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.addCleanup(os.environ.pop, "PERRY_PROJECT", None)
+        os.environ.pop("PERRY_PROJECT", None)
+
+    def probe(self, root: Path, cwd: str | None = None) -> dict:
+        proc = subprocess.run([sys.executable, "-c", GLOBALS_PROBE, str(root)],
+                              capture_output=True, text=True, cwd=cwd)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+        return json.loads(proc.stdout)
+
+    def test_the_fixture_really_separates_the_two_roots(self):
+        """Without this the rest of the class would pass on the defect."""
+        self.assertNotEqual(self.root, self.state)
+        self.assertTrue((self.root / ".perry" / "hook.md").exists())
+        self.assertFalse((self.state / ".perry" / "hook.md").exists())
+
+    def test_the_project_root_global_holds_the_project_root(self):
+        seen = self.probe(self.root)
+        self.assertEqual(Path(seen["project_root"]), self.root)
+        self.assertNotEqual(seen["project_root"], seen["state_root"])
+
+    def test_the_state_root_global_holds_the_state_root(self):
+        seen = self.probe(self.root)
+        self.assertEqual(Path(seen["state_root"]), self.state)
+
+    def test_a_project_root_anchored_file_is_found_after_the_tool_has_run(self):
+        """The case that already failed once, asserted on the file itself."""
+        seen = self.probe(self.root)
+        self.assertTrue(
+            seen["hook_under_project_root"],
+            "`.perry/hook.md` is not under PROJECT_ROOT — the state root was "
+            "assigned to the project root global")
+        self.assertFalse(
+            seen["hook_under_state_root"],
+            "the fixture's state root holds a `.perry/`, so the assertion "
+            "above could not have failed on the defect")
+
+    def test_the_pair_survives_an_unrelated_cwd(self):
+        """The requirement that motivated the assignment in the first place.
+
+        Run from `/tmp`, which holds no project of its own and is not an
+        ancestor of anything either global would otherwise walk to."""
+        seen = self.probe(self.root, cwd=tempfile.gettempdir())
+        self.assertEqual(seen["rc"], 0)
+        self.assertEqual(Path(seen["project_root"]), self.root)
+        self.assertEqual(Path(seen["state_root"]), self.state)
+        self.assertTrue(seen["hook_under_project_root"])
+
+    def test_a_project_whose_state_is_its_root_is_unchanged(self):
+        flat = flat_project()
+        self.addCleanup(shutil.rmtree, flat, ignore_errors=True)
+        (flat / ".perry" / "hook.md").write_text(HOOK)
+        seen = self.probe(flat)
+        self.assertEqual(Path(seen["project_root"]), flat)
+        self.assertEqual(Path(seen["state_root"]), flat)
+        self.assertTrue(seen["hook_under_project_root"])
+
+    def test_on_this_repository(self):
+        """Perry's own layout — the one the row was found on."""
+        seen = self.probe(PERRY_HOME)
+        self.assertEqual(Path(seen["project_root"]), PERRY_HOME)
+        self.assertNotEqual(seen["project_root"], seen["state_root"])
+        self.assertTrue(seen["hook_under_project_root"])
+        self.assertFalse(seen["hook_under_state_root"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
