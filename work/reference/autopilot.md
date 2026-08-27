@@ -148,6 +148,8 @@ First-run protection:
    - **Skipped — already in flight**: `bash "$PERRY_HOME/bin/perry-dispatch-limit" list` shows it as currently running.
     - **Skipped — host mismatch**: the spec pins a native executor unavailable on `$HOST`. Claude Code permits `claude-subagent`; OpenCode permits `opencode-subagent`; Codex CLI permits neither. Every host also permits `codex`. The spec must be edited explicitly; autopilot never reroutes it.
    - **Skipped — review/done**: already past dispatch.
+   When a row you expected is missing from the will-dispatch list, its `startable` is `false` because not every one of its dependencies has closed; `blocked_by` names which ones, and `depends_on_resolved` says of each whether it is a task or a question waiting on you. Report that, rather than re-deciding it.
+
 4. Apply priority order: P0 first, then P1, then P2 (within each, oldest-pending first).
 5. Truncate eligible list to `max-dispatches` (default 10).
 6. Compute estimated total cycle time using each spec's `Estimated cycle` field (small=1m, medium=5m, large=15m baseline; per-project hook may override). Compare to `max-duration` (default 2h).
