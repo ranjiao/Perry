@@ -321,7 +321,7 @@ Output is a drift report, not a write:
 ```
 🔄 Adoption recheck · <project> · <N>d since adoption
 
-   New work not on the board   : 4  (commit scopes: viewer, schema)
+   New work not on the board   : 4  (commit scopes: parsers, schema)
    Board rows with no activity : 2  (TASK-014 idle 23d, no commits touch its paths)
    New docs not digested       : 1  (doc/rendering-pipeline.md)
    Previously rejected, unchanged: 9 (not re-proposed)
@@ -341,7 +341,7 @@ improvised.
 1. **The roadmap file's own headings** — a project that keeps a `TODOS.md` /
    `ROADMAP.md` has usually already grouped its own work, and those groups beat
    anything Perry would derive. Free, authored by the user, and semantic.
-2. **Conventional-commit scopes** — `feat(okr):`, `fix(viewer):`. Only useful when
+2. **Conventional-commit scopes** — `feat(okr):`, `fix(parsers):`. Only useful when
    the project actually uses them consistently; measure before relying on it (on
    the first real adoption test, 11 of 113 commits carried a scope, spread across
    6 scopes — useless as a seed).

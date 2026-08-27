@@ -1085,7 +1085,7 @@ def _build_column_maps() -> None:
     """Read `schema § i18n.columns` once — every spelling of every header.
 
     `perry-task` was the single component in this stack that never consulted
-    this table. `perry-state`, `perry-lint` and the viewer all resolve headers
+    this table. `perry-state` and `perry-lint` both resolve headers
     through it; the writer keyed rows on hardcoded English. Because TASK-033
     routed *every* board write through this tool, that made it the one
     component able to corrupt a board written in the document language Perry

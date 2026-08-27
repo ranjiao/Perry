@@ -696,8 +696,8 @@ class TestCadenceIsNotATask(unittest.TestCase):
 
 
 class TestTheLegacyProjectionIsUnchanged(unittest.TestCase):
-    """`BoardState.cadence` has consumers that predate `Cadence` — `all_tasks`,
-    the viewer's board template, and `perry-state`'s drift exclusion, which keys
+    """`BoardState.cadence` has consumers that predate `Cadence` — `all_tasks`
+    and `perry-state`'s drift exclusion, which keys
     on `priority == "Cadence"`. One parse feeds both views; this pins the old
     one so the refactor changed no payload."""
 

@@ -98,7 +98,7 @@ def perry_home_with(values: list[str]) -> tempfile.TemporaryDirectory:
     A symlink farm, not a copy: every top-level entry is linked back to the
     install, and only `schema/state-schema.json` is a real, patched file. That
     keeps the fixture honest — the tool under test is the shipped tool, loading
-    the shipped `viewer/` and `bin/`, reading one edited enum.
+    the shipped `viewer/parsers.py` and `bin/`, reading one edited enum.
     """
     tmp = tempfile.TemporaryDirectory()
     farm = Path(tmp.name)

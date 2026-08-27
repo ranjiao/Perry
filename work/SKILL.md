@@ -32,7 +32,6 @@ This `SKILL.md` is intentionally lean. It contains what's run on **every** invoc
 | `$PERRY_HOME/packs/software-ops/incidents.md` | `/pmo incident <slug>` / `close` / `list` / `archive` (postmortem records + 3-question feedback gate) |
 | `$PERRY_HOME/packs/software-ops/architecture.md` | `/pmo architecture init / review / diff`, `/pmo architecture-audit` (single-source-of-truth ARCHITECTURE.md + dispatch compliance gate + independent review agent) |
 | `reference/health-check.md` | `/pmo health-check` (per-phase meta-runner: audit + runbook-check + incident patterns + digest stale) |
-| `reference/viewer.md` | `/pmo viewer` / `/pmo browse` (start the read-only web console in the background + open it in the user's browser; `stop` to end it) |
 | `reference/delegate.md` | `/pmo delegate <task-id> <role>` |
 | `reference/review.md` | `/pmo review <task-id> …` — dispatching a V4: the criteria gate, the four rules that make a round converge, the machine-readable verdict block, and concurrent dispatch of independent rows |
 | `reference/review-constraints.md` | Read by every review agent — referenced by path from the prompt, never retyped into it |
@@ -93,7 +92,7 @@ EVERY Perry file falls into exactly one of three tiers based on **who reads it**
 
 - **Tier 1 — user-read-and-edit** (`OKR.md`, `phase/<NNN>-<slug>.md`, `ARCHITECTURE.md`, `runbook/<component>.md`, `.perry/{config,hook}.md`). Strategic; the user must read it raw, so each has a **hard line cap**. When a write would exceed it, OKR / PMO **refuses the write** and forces the overflow into a sibling file (typically `evidence/<YYYY-MM>/<topic>-appendix.md` or `architecture/sections/§N-<topic>.md`), leaving the main file as a §-index + 1-paragraph summaries. This preserves tier 1's "readable in one sitting" property.
 - **Tier 2 — agent-internal state** (`BOARD.md`, `journal/`, `evidence/`, `decisions/`, `incidents/`, `weekly/`, `handoff/`, `PROJECT_STATE.md`, `phase/snapshots/`, `phase/<NNN>-linkage.md`, `architecture/audit-history/`, `knowledge/`). No user-read constraint, so no hard cap — only the soft BOARD ≤200 / SKILL.md ~300 limits, which are context-budget driven, not readability driven.
-- **Tier 3 — the consumption surface.** Perry does **not** write this tier. Reading state richly is the frontend's job: **aiMark** (`~/proj/aimark`) watches the project directory and renders it live, and the optional `bin/perry-viewer` console does the same locally. Perry's obligation to tier 3 is to write tier 1/2 in the declared structure so a reader can parse it — see `$PERRY_HOME/schema/README.md`.
+- **Tier 3 — the consumption surface.** Perry does **not** write this tier. Reading state richly is the frontend's job, and the frontend is **aiMark** (`~/proj/aimark`), which watches the project directory and renders it live. Perry's obligation to tier 3 is to write tier 1/2 in the declared structure so a reader can parse it — see `$PERRY_HOME/schema/README.md`.
 
 **Per-file caps and the structural contract each file must satisfy** live in `$PERRY_HOME/schema/state-schema.json` (checked by `bin/perry-lint`); the full inventory is in `reference/state-files.md`. `bin/perry-state` reports current cap usage in `operations.tier1_caps`, so the standup sees an overrun before the next write hits it.
 
@@ -105,7 +104,6 @@ Trigger on any of:
 - The user invokes `/pmo autopilot [flags]` — see `reference/autopilot.md`. The standup ritual still runs as part of autopilot's pre-flight (it's where the BOARD eligibility analysis comes from), but no other subcommand interleaves until autopilot exits.
 - The user invokes `/pmo digest <path>` or drops a file in `inputs/` and asks for digestion — see `reference/digests.md`. Digest is a focused subcommand and does not require the full standup before running.
 - The user asks "where are we", "项目状态", "what's the plan this week", "weekly status", "what's blocked", "delegate this", "rollover".
-- The user wants to open / view the project in a browser or web console — "打开看板", "在浏览器里看", "启动 viewer", "open the dashboard in a browser", "start the web view" → run `/pmo viewer` (see `reference/viewer.md`). Focused action; does not require the full standup first.
 - The user wants to plan a week, close a task, log a decision, write a handoff, run a cadence ritual, or consolidate work from other agents/sessions.
 - A new session opens in a project that contains a `BOARD.md` at the root.
 

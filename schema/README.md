@@ -7,7 +7,7 @@ sync:
 2. **`*/state/*_TEMPLATE.md`** — what actually gets written.
 3. **`viewer/parsers.py`** — what gets read back.
 
-When those drifted, nothing failed loudly. The viewer rendered an empty panel
+When those drifted, nothing failed loudly. A reader rendered an empty panel
 and there was no way to tell "this project has no scope triggers" from "the
 parser was looking for a heading that no longer exists".
 
@@ -154,7 +154,6 @@ readers depend on it, and none of them may guess:
 | Reader | Language | How it reads |
 |---|---|---|
 | `bin/perry-state` | Python | via `viewer/parsers.py` |
-| `viewer/serve.py` | Python | via `viewer/parsers.py` |
 | `bin/perry-lint` | Python | the schema directly |
 | **aiMark** (`~/proj/aimark`) | TypeScript | its own in-process parser, written to this schema |
 
@@ -273,7 +272,8 @@ Two rules make this safe for every reader:
    cannot sit behind the pointer. Schema entries declare this with
    `"anchor": "project"`; everything else is `"anchor": "state"`.
 2. **One resolver.** `viewer/parsers.py § resolve_state_root` is the single
-   implementation, used by `bin/perry-state`, `bin/perry-lint` and the viewer. A
+   implementation, used by `bin/perry-state`, `bin/perry-lint`, `bin/perry-task`
+   and `bin/perry-diagnose`. A
    state root that escapes the project is ignored rather than honoured — two
    readers silently pointed outside the project is worse than one ignored field.
 

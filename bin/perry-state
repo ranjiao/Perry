@@ -2,11 +2,9 @@
 """
 perry-state — the single deterministic read of a Perry project's state.
 
-One extractor, two consumers:
-  - the standup ritual (`/perry`, and its `goals` / `work` / `decide` lanes)
-    reads `--json` instead of opening a dozen files, so dashboard numbers are
-    computed, never eyeballed;
-  - `viewer/serve.py` imports the same `parsers.py` this script does.
+One extractor, one consumer: the standup ritual (`/perry`, and its `goals` /
+`work` / `decide` lanes) reads `--json` instead of opening a dozen files, so
+dashboard numbers are computed, never eyeballed.
 
 The frontend (aiMark) does NOT call this script — it parses the same files
 in-process from `schema/state-schema.json`. The schema, not this payload, is

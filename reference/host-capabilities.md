@@ -85,14 +85,14 @@ Architecture review on OpenCode is another synchronous `Task(subagent_type: gene
 
 ## No-background-shell-tool fallback
 
-OpenCode and Codex do not expose Claude's Bash background parameter. For the asynchronous `codex` executor and long-lived viewer, use explicit shell backgrounding with logs and a PID where relevant:
+OpenCode and Codex do not expose Claude's Bash background parameter. For the asynchronous `codex` executor, use explicit shell backgrounding with logs and a PID where relevant:
 
 ```
 codex exec "<prompt>" > "/tmp/perry-dispatch-<task-id>.log" 2>&1 &
 echo $! > "/tmp/perry-dispatch-<task-id>.pid"
 ```
 
-Poll the RESULT log/process for dispatch completion. Neither host has a Claude background-task notification. The same fallback applies to `perry-viewer` via `nohup`; see `work/reference/viewer.md`.
+Poll the RESULT log/process for dispatch completion. Neither host has a Claude background-task notification.
 
 ## What Perry does not depend on
 

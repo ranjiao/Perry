@@ -94,7 +94,7 @@ class Finding(NamedTuple):
 def is_python(path: pathlib.Path) -> bool:
     """A Python source file, by suffix or by shebang.
 
-    `bin/` holds bash (`perry-viewer`), Python with a `.py` suffix
+    `bin/` holds bash (`perry-detect-host`), Python with a `.py` suffix
     (`perry_store.py`) and Python with none at all (`perry-task`) — the file
     this whole check is about. The same judgement `tests/test_one_primitive.py`
     had to reach, and for the same directory.

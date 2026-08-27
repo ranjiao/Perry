@@ -30,8 +30,9 @@ LANES = ("work", "goals", "decide")
 #: Where a subcommand name has to appear for a session to reach it.
 #:
 #: **The lane's own `SKILL.md` is the load-bearing one**, and the first version
-#: of this list left it out. That version flagged `viewer`, `link` and `pivot`
-#: as unreachable; all three are named in their lane's index table with the
+#: of this list left it out. That version flagged `viewer` (since deleted),
+#: `link` and `pivot` as unreachable; all three were named in their lane's
+#: index table with the
 #: command spelled out, which is exactly how a session finds them. A guard that
 #: reports correct code is one people switch off — the same reason TASK-050's
 #: header rule deliberately stops short of the value normalizers.

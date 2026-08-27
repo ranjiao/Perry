@@ -1161,8 +1161,8 @@ def losslessness(before: str, after: str, rewritten: list[str]) -> list[str]:
 def records(text: str, key: str) -> dict[str, list]:
     """What Perry's own readers turn this file's *rows* into.
 
-    `viewer/parsers` and nothing else — the readers `bin/perry-task`,
-    `bin/perry-state` and the viewer all go through. A second reading written
+    `viewer/parsers` and nothing else — the reader `bin/perry-task` and
+    `bin/perry-state` both go through. A second reading written
     here would be the two-implementations defect ADR-004 is about, and would
     also miss the point: the question is what the tools that consume this file
     will see, not what a checker thinks they should.

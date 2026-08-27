@@ -24,4 +24,4 @@ Detailed view, not just the snapshot. Start from `"$PERRY_HOME/bin/perry-state" 
 - Linear-projection end-of-phase score
 - Operating Principles still in force, Anti-Goals still in force
 
-For a rich visual version, point the user at the frontend — aiMark, or `/pmo viewer` — rather than growing this text output.
+For a rich visual version, point the user at the frontend — aiMark — rather than growing this text output.

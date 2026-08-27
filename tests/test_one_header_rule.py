@@ -60,9 +60,9 @@ def _is_python(p) -> bool:
     """A Python source file, by suffix or shebang — not by extension list.
 
     The first widened version enumerated every file and flagged
-    `bin/perry-dispatch-limit` (bash) and `viewer/static/sortable.js`. Neither
-    can reach `squash` and neither reads a Perry markdown table, so reporting
-    them is a guard crying wolf — and this module's own docstring says the
+    `bin/perry-dispatch-limit` (bash) and, while it existed, the viewer's
+    `static/sortable.js`. Neither can reach `squash` and neither reads a Perry
+    markdown table, so reporting them is a guard crying wolf — and this module's own docstring says the
     judgement about scope IS the module. Excluding by suffix list would have
     to be extended for the next asset type; asking what the file is does not.
     """

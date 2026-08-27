@@ -42,8 +42,8 @@ def load_bin_module(name: str):
 
 
 class TemplateContract(unittest.TestCase):
-    """The shipped templates must parse. A template the parser can't read is
-    the exact failure that made the viewer show empty panels."""
+    """The shipped `state/*_TEMPLATE.md` files must parse. A template the parser
+    can't read is the exact failure that made a reader show empty panels."""
 
     def test_okr_template_yields_objectives_and_krs(self):
         okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))

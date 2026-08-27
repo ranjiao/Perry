@@ -4,8 +4,8 @@ The claim under test: **the tool mechanizes Perry's markdown format; it does not
 change it.**
 
 That claim is load-bearing because every reader keys on the format — Perry's own
-`perry-state` and `perry-lint`, the viewer, and at least one external consumer
-(aimark) that Perry does not control. A write tool that normalizes whitespace,
+`perry-state` and `perry-lint`, and at least one external consumer
+(aiMark) that Perry does not control. A write tool that normalizes whitespace,
 reorders columns or realigns pipes would be a silent breaking change to all of
 them, and it would look like an improvement while doing it.
 
@@ -422,7 +422,7 @@ class TestALocalizedBoard(unittest.TestCase):
     """`perry-task` was the only component in the stack that never read
     `schema § i18n.columns`.
 
-    `perry-state`, `perry-lint` and the viewer all resolve headers through it;
+    `perry-state` and `perry-lint` both resolve headers through it;
     the writer keyed rows on hardcoded English. TASK-033 then routed *every*
     board write through the writer — so the migration handed the one component
     that could corrupt a localized board responsibility for all of them.

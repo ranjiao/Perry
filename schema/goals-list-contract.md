@@ -18,7 +18,7 @@ no lock.
 ## It parses nothing
 
 Every field comes from `viewer/parsers.py § load_snapshot` — the same code
-`perry-state` and the viewer use. A fourth reader of `OKR.md` would be a fourth
+`perry-state` uses. A third reader of `OKR.md` would be a third
 chance at the defect this project has already hit twice, most recently when
 `perry-task` placed board cells by resolved header name while `viewer/parsers.py`
 read them by position, and a board with one extra column reported every task's
