@@ -381,7 +381,7 @@ class TestReadingIsNotGated(unittest.TestCase):
         # freeze still freezes: every other key in the set is unchanged, the
         # version string had to move in the same edit, and a fourth key added
         # without touching this line still fails here.
-        "perry-task/list/1.17": (
+        "perry-task/list/1.18": (
             TASK, ("list", "--all"),
             {"project_root", "state_root", "contract", "semantics", "tasks",
              "open", "closed", "events", "untitled", "conformance", "intake",
@@ -390,7 +390,7 @@ class TestReadingIsNotGated(unittest.TestCase):
             DECIDE, ("list",),
             {"project_root", "state_root", "contract", "decisions", "active",
              "total", "expired_sunsets", "conformance"}),
-        "perry-goals/list/2.1": (
+        "perry-goals/list/2.2": (
             GOALS, ("list",),
             {"project_root", "state_root", "contract", "okr", "phase", "krs",
              "linkage", "counts", "conformance", "unlinked_task_ids",

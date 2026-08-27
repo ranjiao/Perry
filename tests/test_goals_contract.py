@@ -1,4 +1,4 @@
-"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.1`.
+"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.2`.
 
 The third read contract, and the last one a front-end needs before it can show
 a whole project without opening a markdown file.

@@ -173,7 +173,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.17"
+LIST_CONTRACT = "perry-task/list/1.18"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -286,13 +286,16 @@ LIST_SEMANTICS = [
              "rule 1 names as this payload's unknown value, and a consumer "
              "that skipped `checked` fails loudly instead of being "
              "reassured. Nothing about a project WITH a log changed."},
+    {"version": "1.18",
+     "fields": ["tasks[].created", "tasks[].updated", "tasks[].timeline[].ts"],
+     "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
 ]
 
 # `perry-task events --json`. Its own contract because it is its own surface:
 # `schema/events-list-contract.md` § Why this exists rather than `--limit` on
 # `list` has the measurement that made a second payload cheaper than paging the
 # first one.
-EVENTS_CONTRACT = "perry-events/list/1.1"
+EVENTS_CONTRACT = "perry-events/list/1.2"
 
 # Same rule as `LIST_SEMANTICS`, for the feed: one entry per minor under which
 # an existing value changed MEANING. Empty is the normal case and 1.1 is not
@@ -317,6 +320,9 @@ EVENTS_SEMANTICS = [
              "the whole log to slice the newest N off the end yourself, stop: "
              "`--limit N` is that slice. If you paged forward from `0:` to "
              "walk the log, you now walk it from the other end."},
+    {"version": "1.2",
+     "fields": ["events[].ts"],
+     "note": "Every event appended from now on stamps its UTC OFFSET: `2026-08-28T02:15:22+08:00`, where the same event used to be written `2026-08-28T02:15:22` and meant local wall clock without saying so. The lines already in the log are not rewritten and still carry no zone; `bin/lib § ts_moment` reads those as the reading machine's local time, which is what `datetime.now()` wrote them as. Local rather than UTC on purpose, so the log's text goes on rising across the cutover. A consumer that parses `ts` must accept an offset — `datetime.fromisoformat` always has; a hand-rolled `%Y-%m-%dT%H:%M:%S` will not — and one that compares two of them as TEXT is why this moved: the register stamps UTC, and comparing the two shapes as strings put every move inside the machine's offset on the wrong side of the assertion it was compared against."},
 ]
 
 # Which events describe a TASK. `## Intake`, `## User Input Queue` and
@@ -2586,7 +2592,7 @@ def cmd_add(args, ctx) -> dict:
         f"- **Out of scope**: {args.out_of_scope or '—'}",
         f"- **KR linkage**: {args.kr or 'unlinked'}",
     ])
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "add",
+    event = {"ts": lib.event_stamp(), "event": "add",
              "id": tid, "title": args.title, "track": track["track"], "mode": mode,
              "priority": priority, "actor": args.actor,
              "summary": args.summary or "",
@@ -2617,7 +2623,7 @@ def cmd_start(args, ctx) -> dict:
     # entered its current Stage"; `cmd_stage` is its only writer.
     line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] {prev or '—'} → in_progress · started"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "start",
+    event = {"ts": lib.event_stamp(), "event": "start",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
              "actor": args.actor, "from": prev, "to": "in_progress"}
@@ -3029,7 +3035,7 @@ def cmd_done(args, ctx) -> dict:
                               for label in SIGNED_DISPOSITIONS
                               if counts[label])
                   + (", plus free text" if signoff["also_checked"] else ""))
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "done",
+    event = {"ts": lib.event_stamp(), "event": "done",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
              # **`owner` and `role` travel with the close, or the closed half
@@ -3109,7 +3115,7 @@ def cmd_stage(args, ctx) -> dict:
         values["stage since"] = f"{date.today():%Y-%m-%d}"
     line = ctx["board"].replace_row(idx, header, values)
     jline = f"- [{tid}] stage {prev or '—'} → {stage}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "stage",
+    event = {"ts": lib.event_stamp(), "event": "stage",
              "id": tid, "title": values.get("title", ""),
              "track": track["track"], "actor": args.actor,
              "from": prev, "to": stage}
@@ -3236,7 +3242,7 @@ def cmd_track(args, ctx) -> dict:
              f"arrived {prev_arrived or '—'} → {arrived or '—'}")
     if args.reason:
         jline += f" · reason: {args.reason}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "track", "id": tid, "title": values.get("title", ""),
              # The track the row is NOW on, like every other event's `track`.
              # `from`/`to` carry the move itself.
@@ -3306,7 +3312,7 @@ def cmd_status(args, ctx) -> dict:
     line = ctx["board"].replace_row(idx, header, values)
     tail = f" · {args.reason or ', '.join(depends)}" if (args.reason or depends) else ""
     jline = f"- [{tid}] {prev or '—'} → {want}{tail}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "status",
+    event = {"ts": lib.event_stamp(), "event": "status",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"), "actor": args.actor,
              "depends_on": depends,
@@ -3361,7 +3367,7 @@ def cmd_depends(args, ctx) -> dict:
     line = ctx["board"].replace_row(idx, header, values)
     shown = ", ".join(ids) or "—"
     jline = f"- [{tid}] depends on · {', '.join(prev) or '—'} → {shown}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "depends", "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"), "actor": args.actor,
              "depends_on": ids,
@@ -3439,7 +3445,7 @@ def repair_off_board_cell(args, ctx, field: str, event: str, why: str,
         raise Refused(f"{args.id}'s {field} is already that")
     jline = (f"- [{args.id}] {why} · {previous or '—'} → {value}"
              if show_previous else f"- [{args.id}] {why} · {value}")
-    ev = {"ts": datetime.now().isoformat(timespec="seconds"),
+    ev = {"ts": lib.event_stamp(),
           "event": event, "id": args.id, "title": value,
           "track": record.get("track") or "main", "actor": args.actor,
           "from": previous, "to": value}
@@ -3502,7 +3508,7 @@ def cell_writer(field: str, flag: str, event: str, why: str,
         # the transition, and a reader may be parsing either.
         jline = (f"- [{tid}] {why} · {prev or '—'} → {value}" if show_previous
                  else f"- [{tid}] {why} · {value}")
-        ev = {"ts": datetime.now().isoformat(timespec="seconds"),
+        ev = {"ts": lib.event_stamp(),
               "event": event, "id": tid, "title": values.get("title", ""),
               "track": values.get("track", "main"), "actor": args.actor,
               "from": prev, "to": value}
@@ -3554,7 +3560,7 @@ def cmd_summary(args, ctx) -> dict:
     shown = value or "—"
     jline = f"- [{args.id}] summary · {previous or '—'} → {shown}"
     event = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
+        "ts": lib.event_stamp(),
         "event": "summary", "id": args.id,
         "title": record.get("title") or "",
         "track": record.get("track") or "main", "actor": args.actor,
@@ -3613,7 +3619,7 @@ def cmd_drop(args, ctx) -> dict:
     jline = (f"- [{tid}] {prev or '—'} → dropped · "
              + (f"at stage: {stage} · " if stage else "")
              + f"reason: {args.reason}")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "drop",
+    event = {"ts": lib.event_stamp(), "event": "drop",
              "id": tid, "title": values.get("title", ""),
              "track": values.get("track", "main"),
              # Same reason as `done`: the row is leaving and these are the last
@@ -3660,7 +3666,7 @@ def cmd_resolve_intake(args, ctx) -> dict:
         ctx["board"].lines[idx] = render_row(
             [intake.get(k, "") if k != "outcome" else text for k in keys])
     jline = f"- [intake] {intake.get('request', '')[:48]} → {text}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "resolve-intake", "id": "",
              "title": intake.get("request", ""),
              "arrived": intake.get("arrived", ""), "actor": args.actor,
@@ -3680,7 +3686,7 @@ def cmd_intake(args, ctx) -> dict:
     line = ctx["board"].append_section_row(
         "Intake", {"arrived": arrived, "request": args.title, "outcome": "—"})
     jline = f"- [intake] arrived {arrived} · {args.title}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "intake",
+    event = {"ts": lib.event_stamp(), "event": "intake",
              "id": "", "title": args.title, "arrived": arrived,
              "actor": args.actor, "from": None, "to": "intake"}
     plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
@@ -3733,7 +3739,7 @@ def cmd_ask(args, ctx) -> dict:
         "blocks": args.blocks or "—", "asked": asked, "status": "pending"})
     jline = f"- [{uid}] — → pending · {args.needed}" + (
         f" · blocks: {args.blocks}" if args.blocks else "")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "ask",
+    event = {"ts": lib.event_stamp(), "event": "ask",
              "id": uid, "title": args.needed, "asked": asked,
              "blocks": args.blocks or "", "actor": args.actor,
              "from": None, "to": "pending"}
@@ -3757,7 +3763,7 @@ def cmd_answer(args, ctx) -> dict:
     values["status"] = f"answered {today}: {args.answer}"
     ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
     jline = f"- [{args.id}] pending → answered · {args.answer}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "answer",
+    event = {"ts": lib.event_stamp(), "event": "answer",
              "id": args.id, "title": values.get("needed from user", ""),
              "answer": args.answer, "actor": args.actor,
              "from": "pending", "to": "answered"}
@@ -3886,7 +3892,7 @@ def cmd_cadence_add(args, ctx) -> dict:
         "last evidence": "—", "evidence": "—"})
     jline = (f"- [{cid}] — → registered · {args.title} · "
              f"frequency: {args.frequency} · next due {due}")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "cadence-add", "id": cid, "title": args.title,
              "frequency": args.frequency, "kind": kind,
              "last_run": f"{ran:%Y-%m-%d}" if ran else "",
@@ -3959,7 +3965,7 @@ def cmd_cadence_done(args, ctx) -> dict:
 
     jline = (f"- [{cid}] ran {ran:%Y-%m-%d} · {values.get('recurring task', '')} · "
              f"evidence: `{args.evidence}` · next due {due}")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "cadence-done", "id": cid,
              "title": values.get("recurring task", ""), "frequency": freq,
              "last_run": f"{ran:%Y-%m-%d}", "next_due": due,
@@ -4235,7 +4241,7 @@ def cmd_risk_migrate(args, ctx) -> dict:
     ids = [m["id"] for m in migrated]
     jline = (f"- [risks] {len(migrated)} bullet(s) → table rows "
              f"({ids[0]}–{ids[-1]}) · `## Top risks` migrated")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "risk-migrate", "id": "", "title": "",
              "count": len(migrated), "migrated": ids, "actor": args.actor,
              "from": "bullets", "to": "table"}
@@ -4278,7 +4284,7 @@ def cmd_risk_add(args, ctx) -> dict:
     line = ctx["board"].append_section_row("Top risks", {
         "id": rid, "risk": args.title, "opened": opened, "status": "open"})
     jline = f"- [{rid}] — → open · {args.title}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "risk-add", "id": rid, "title": args.title,
              "opened": opened, "actor": args.actor,
              "from": None, "to": "open"}
@@ -4322,7 +4328,7 @@ def cmd_risk_clear(args, ctx) -> dict:
     values["status"] = f"cleared {today} — {args.reason}"
     ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
     jline = f"- [{args.id}] open → cleared · {args.reason}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "risk-clear", "id": args.id,
              "title": values.get("risk", ""), "reason": args.reason,
              "actor": args.actor, "from": "open", "to": "cleared"}
@@ -4396,7 +4402,7 @@ def cmd_intake_sweep(args, ctx) -> dict:
         [f"- **{r.get('arrived', '—')}** · {r.get('request', '')} → "
          f"{r.get('outcome', '')}" for _, r in discharged])
     jline = f"- [intake] {len(discharged)} discharged row(s) left the board"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "intake-sweep", "id": "", "title": "",
              "count": len(discharged), "actor": args.actor,
              "from": "intake", "to": "journal"}
@@ -4504,7 +4510,7 @@ def cmd_route(args, ctx) -> dict:
     line = ctx["board"].append_row(priority, values, group=group)
     jline = (f"- [{tid}] — → not_started · routed from intake "
              f"(arrived {arrived or '—'}) · track: {track['track']}")
-    event = {"ts": datetime.now().isoformat(timespec="seconds"), "event": "route",
+    event = {"ts": lib.event_stamp(), "event": "route",
              "id": tid, "title": values["title"], "track": track["track"],
              "arrived": arrived, "actor": args.actor,
              "from": "intake", "to": "not_started"}
@@ -4593,7 +4599,7 @@ def cmd_prioritize(args, ctx) -> dict:
     jline = f"- [{tid}] {was} → {now} · reprioritized"
     if args.reason:
         jline += f" · reason: {args.reason}"
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": "prioritize", "id": tid,
              "title": values.get("title", ""),
              "track": values.get("track", "main"),
@@ -4859,11 +4865,18 @@ def stranded_row_findings(tasks: dict, *, has_event_log: bool, thresholds: dict,
     `rows_with_no_computable_age`.
     """
     def idle_hours(task: dict) -> float | None:
-        try:
-            seen = datetime.fromisoformat(str(task["updated"] or ""))
-        except (TypeError, ValueError):
+        # **Both sides through `lib.ts_moment`, including the clock reading.**
+        # `task["updated"]` is an event `ts`, and since TASK-144 the log holds
+        # two shapes — 798 zoneless lines and every line after them carrying
+        # its offset. Subtracting one from a bare `datetime.now()` is either a
+        # `TypeError` or an eight-hour lie depending on which shape it met, and
+        # deciding that here would be the second converter this row exists to
+        # prevent. `now` may arrive naive or aware; the one rule reads both.
+        seen = lib.ts_moment(task["updated"])
+        ref = lib.ts_moment(now)
+        if seen is None or ref is None:
             return None
-        return (now - seen).total_seconds() / 3600.0
+        return (ref - seen).total_seconds() / 3600.0
 
     def threshold(name: str, fallback: float) -> float:
         entry = (thresholds or {}).get(name) or {}
@@ -5343,7 +5356,13 @@ def _cmd_list_from_board(args, ctx) -> dict:
         ts = e.get("ts") or ""
         if e.get("event") in ("add", "route") and ts:
             t["created"] = ts
-        if ts and (t["updated"] is None or ts > t["updated"]):
+        # `ts` and the stamp already held are compared through the ONE
+        # converter, not as text: the log carries two shapes since
+        # TASK-144 and `"…T02:15:22+08:00" > "…T02:11:03"` is a text
+        # comparison that happens to be right only while every line
+        # was written at one offset.
+        if ts and (t["updated"] is None
+                   or lib.ts_key(ts) > lib.ts_key(t["updated"])):
             t["updated"] = ts
         entry = {k: e.get(k) for k in ("ts", "event", "from", "to", "actor")}
         # **`field` says what `from`/`to` refer to**, so a consumer needs no
@@ -5648,7 +5667,13 @@ def cmd_list(args, ctx) -> dict:
         if task is None or event.get("event") not in TASK_EVENTS:
             continue
         ts = event.get("ts") or ""
-        if ts and (task["updated"] is None or ts > task["updated"]):
+        # `ts` and the stamp already held are compared through the ONE
+        # converter, not as text: the log carries two shapes since
+        # TASK-144 and `"…T02:15:22+08:00" > "…T02:11:03"` is a text
+        # comparison that happens to be right only while every line
+        # was written at one offset.
+        if ts and (task["updated"] is None
+                   or lib.ts_key(ts) > lib.ts_key(task["updated"])):
             task["updated"] = ts
         entry = {k: event.get(k) for k in ("ts", "event", "from", "to", "actor")}
         entry["field"] = EVENT_FIELD.get(event.get("event") or "", "")

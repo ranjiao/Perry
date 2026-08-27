@@ -1,4 +1,4 @@
-# `perry-task events --json` — `perry-events/list/1.1`
+# `perry-task events --json` — `perry-events/list/1.2`
 
 The event log's **tail**, in **log order**, with a cursor you can page on.
 `--limit N` is the **newest** N events; the cursor walks **backwards** from
@@ -35,7 +35,7 @@ is the answer. It is.
 
 ```jsonc
 {
-  "contract": "perry-events/list/1.1",
+  "contract": "perry-events/list/1.2",
   "semantics": [ /* below */ ],  // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "events":  [ /* below */ ],
@@ -57,7 +57,7 @@ has to know which way the cursor walked.
 | Key | Type | Meaning |
 |---|---|---|
 | `seq` | int | position in the log. Stable **until rotation**, which is what `rotated` is for |
-| `ts` | string | ISO-8601, **seconds**. Ties are real and are not duplicates |
+| `ts` | string | ISO-8601, **seconds**, and **since 1.2 it carries its UTC offset** — `2026-08-28T02:15:22+08:00`. Lines written before 1.2 carry no zone and are read as the reading machine's local time; see § Changelog 1.2. Ties are real and are not duplicates |
 | `event` | string | which kind of event this is. **The twenty-five kinds are § The event kinds**, below — ten of them do not describe a task at all |
 | `task` | string | the id this event is about — **not always a `TASK-` id, and on four kinds `""`.** § The event kinds says which, and what a consumer indexing on this key has to do about it |
 | `title_then` | string | **the title as written when the event was appended.** A retitled task's earlier events still carry the old name — correct for a history view, wrong the moment you render it as the row's *current* name. `perry-task/list § title` has that one |
@@ -191,6 +191,22 @@ Same shape as `perry-task/list § semantics[]`, on purpose.
 | `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Meant to be shown, not branched on |
 
 ## Changelog
+
+### 1.2 — 2026-08-28 — one clock (TASK-144)
+
+**No key added, removed or retyped; `events[].ts` returns a different string
+for every event appended from now on**, which is the case `semantics` reports
+and the reason the minor moves — the same reading 1.1 took.
+
+**`ts` carries its offset** (`2026-08-28T02:15:22+08:00`) on every event appended since 1.18/1.2, and **carries no zone at all** on every line written before it. The log is append-only and its existing lines were not rewritten; `bin/lib § ts_moment` — the one place in the tree that decides what a timestamp means — reads a zoneless one as the **reading machine's local time**, which is what `datetime.now()` wrote it as. The stamp is local wall clock rather than UTC so the log's text keeps rising across the cutover instead of jumping backwards by the offset.
+
+What made it wrong rather than merely undeclared: the linkage register stamps
+UTC with a `Z`, and `perry-goals list`'s staleness check compared a register
+stamp against a log stamp **as text**. Every move inside the machine's offset
+of an assertion landed on the wrong side of it. A consumer that parses `ts`
+with a real ISO-8601 parser needs no change; one that hardcoded
+`%Y-%m-%dT%H:%M:%S` or compared two stamps as strings does.
+
 
 **Not a version, 2026-08-21 (TASK-171).** § The event kinds documents the
 **eleven** emittable values of `event` this page never listed — `summary`,

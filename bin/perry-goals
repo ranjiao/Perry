@@ -100,7 +100,7 @@ import sys
 import re
 from contextlib import contextmanager
 from dataclasses import asdict, is_dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -493,7 +493,14 @@ class Okr:
 # contract document's own rule for this is written at the bottom of its
 # Changelog — "if it is added later it is `2.1`, additive, and this table
 # records it" — so the minor moves in the same edit that adds the keys.
-LIST_CONTRACT = "perry-goals/list/2.1"
+#
+# TASK-144 moves it to `2.2`, and adds no key at all. The three timestamps in
+# those blocks — `asserted_at`, `staleness.since` and `moved_tasks[].at` — are
+# UTC now and carry a `Z`, where `at` used to be the log's LOCAL text and was
+# compared against the register's UTC as though the two were one clock. Same
+# keys, different values, which is exactly the case `perry-task/events/1.1`
+# moved its own minor for. A consumer rendering `at` sees the change.
+LIST_CONTRACT = "perry-goals/list/2.2"
 
 #: `list` only reads, and reading is never gated (ADR-004). Every other
 #: subcommand writes `OKR.md`, which is the one file this lane gates on — one
@@ -1864,7 +1871,7 @@ def cmd_link(args, ctx) -> dict:
               for n, v in enumerate(rest)]
 
     expect = asdict(reg.model)
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = lib.register_stamp()
     if mode == "edge":
         result = link_edge(reg, expect, values[0], values[1])
     elif mode == "unlinked":
@@ -1916,7 +1923,7 @@ def cmd_link(args, ctx) -> dict:
     reg.verify(expect)
     result["updated"] = stamp
     result["diff"] = reg.diff()
-    event = {"ts": datetime.now().isoformat(timespec="seconds"),
+    event = {"ts": lib.event_stamp(),
              "event": f"link-{mode}", "actor": args.actor,
              "file": reg.path.name,
              **{k: v for k, v in result.items()
@@ -2351,7 +2358,7 @@ def cmd_commit(args, ctx) -> dict:
         result = {"migrated": counts, "id": "—", "created_section": False,
                   "widened": list(counts["widened"]), "file": str(okr.path)}
         result["event"] = {
-            "ts": datetime.now().isoformat(timespec="seconds"),
+            "ts": lib.event_stamp(),
             "event": "commit-migrate", "id": "—", "track": "",
             "actor": args.actor, "from": None, "to": None,
             "counts": result["migrated"]}
@@ -2475,7 +2482,7 @@ def cmd_commit(args, ctx) -> dict:
                              f"{existing} · {note.strip()}" if existing
                              else note.strip())
         result = {"id": cid, "from": was, "to": to}
-        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+        event = {"ts": lib.event_stamp(),
                  "event": "commit-close" if args.close else "commit-miss",
                  "id": cid, "track": row.get("Track", ""),
                  "promise": row.get("Promise", ""),
@@ -2545,7 +2552,7 @@ def cmd_commit(args, ctx) -> dict:
             with naming_the_flag(FLAG_FOR_COLUMN.get(column, "")):
                 okr.set_cell(line, at, value)
         result = {"id": args.id, "changed": sorted(changes)}
-        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+        event = {"ts": lib.event_stamp(),
                  "event": "commit-update", "id": args.id,
                  "track": row.get("Track", ""), "changed": changes,
                  "actor": args.actor, "from": was, "to": was}
@@ -2595,7 +2602,7 @@ def cmd_commit(args, ctx) -> dict:
             _, line = okr.append_table_row(
                 lo, hi, [values.get(c, "") for c in order])
         result = {"id": cid, "row": line, "track": args.track}
-        event = {"ts": datetime.now().isoformat(timespec="seconds"),
+        event = {"ts": lib.event_stamp(),
                  "event": "commit", "id": cid, "track": args.track,
                  "mode": (track.get("mode") or "project").lower(),
                  "promise": args.promise, "to_whom": args.to,

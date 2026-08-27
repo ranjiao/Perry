@@ -568,10 +568,16 @@ class TestWhatTheToolComputes(unittest.TestCase):
             f"the journal already carried it")
 
     def test_timestamps_are_observed_not_asserted(self):
+        """**And they carry their offset** (TASK-144). The stamp is local wall
+        clock, so the log's text keeps rising across the zoneless lines written
+        before this, and it says which offset that wall clock was read at — a
+        zoneless stamp is what let `current_staleness` compare the log against
+        the register's UTC as though the two were one clock."""
         p = Project()
         p.run("add", "--title", "X")
         ts = p.events()[0]["ts"]
-        self.assertRegex(ts, r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
+        self.assertRegex(
+            ts, r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$")
 
     def test_a_bad_rung_is_refused_before_anything_is_written(self):
         p = Project()

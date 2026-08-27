@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/2.1`**
+> Contract: **`perry-goals/list/2.2`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,7 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/2.1",
+  "contract":     "perry-goals/list/2.2",
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
   "conformance":  { /* below */ },
@@ -49,12 +49,12 @@ Perry's tests cannot reach.
       "target": 0, "current": 0, "due": "", "task_ids": ["TASK-094"],
       "current_provenance": {
         "state": "asserted", "measured": false, "source": "linkage-register",
-        "asserted_at": "2026-08-20T20:32:00", "asserted_scope": "register" },
+        "asserted_at": "2026-08-20T20:32:00Z", "asserted_scope": "register" },
       "current_staleness": {
-        "stale": true, "evaluated": true, "since": "2026-08-20T20:32:00",
-        "reason": "1 linked task changed state after 2026-08-20T20:32:00: …",
+        "stale": true, "evaluated": true, "since": "2026-08-20T20:32:00Z",
+        "reason": "1 linked task changed state after 2026-08-20T20:32:00Z: …",
         "moved_tasks": [ { "id": "TASK-094", "from": "review", "to": "done",
-                           "at": "2026-08-21T09:10:00" } ] },
+                           "at": "2026-08-21T09:10:00Z" } ] },
       "linked_task_completion": {
         "total": 2, "done": 1, "dropped": 0, "open": 1, "unknown": 0 }
   } ],
@@ -114,13 +114,13 @@ whatever conclusion it likes from the pair. Perry draws none.
 | `current_provenance.state` | string | `asserted` when the register gave a number, `unasserted` when it did not. **An absent `current` is `null` and `unasserted`, never `0`** — that default is what makes a drive-to-zero KR read as met before the work starts |
 | `current_provenance.measured` | bool | **always `false` today.** No tool in Perry re-runs a KR's metric, so nothing it publishes as `current` is a measurement. Emitted rather than implied, so a consumer showing "measured" has an explicit answer to key on |
 | `current_provenance.source` | string | `linkage-register`, or `""` when unasserted |
-| `current_provenance.asserted_at` | string | the register's own `updated` timestamp, or `""` |
+| `current_provenance.asserted_at` | string | the register's own `updated` timestamp **in UTC, with a `Z`**, or `""`. Unreadable text is `""`, not a half-interpreted value |
 | `current_provenance.asserted_scope` | string | `register` — the date above belongs to the **whole register**, not to this KR. Emitted with the date so it cannot be read as "when this number was arrived at" |
 | `current_staleness.stale` | bool | a linked task changed state after `asserted_at` |
 | `current_staleness.evaluated` | bool | whether staleness could be decided at all. `false` with `stale: false` means *nobody asked*, not *nothing moved* — a register with no `updated`, or a project with no event log, cannot answer |
-| `current_staleness.since` | string | the timestamp compared against, or `""` |
+| `current_staleness.since` | string | the timestamp compared against, in UTC with a `Z`, or `""` |
 | `current_staleness.reason` | string | prose, always populated, in both directions |
-| `current_staleness.moved_tasks` | array | the tasks that moved, each `{id, from, to, at}`. `from` is `""` for a task created after the assertion |
+| `current_staleness.moved_tasks` | array | the tasks that moved, each `{id, from, to, at}`. `at` is the event's timestamp **in UTC, with a `Z`** — not the text the log holds, which is local. `from` is `""` for a task created after the assertion |
 | `linked_task_completion.total` | int | ids in `task_ids` |
 | `linked_task_completion.done` | int | |
 | `linked_task_completion.dropped` | int | counted apart from `done`: a dropped task closed without advancing anything |
@@ -133,14 +133,24 @@ event second. `moved_tasks` reads the event log only, and an event counts as a
 state move when its `to` is a task status — `next`, `evidence` and `rung` also
 carry `from`/`to` and hold prose, a path and a rung.
 
-**One honest limit.** The register writes `updated` as an ISO datetime with a
-`Z`; the event log writes `ts` as a naive local datetime with no zone. There is
-no conversion between those that is not a guess, so the `Z` is stripped rather
-than applied. A register written within a few hours of a task move can
-therefore order wrongly, and `stale: false` is that much weaker than it looks.
-A date-only `updated` is read as midnight, which errs toward reporting
-staleness on purpose: a false *recheck this* costs a look, a false *this number
-is fine* costs the number.
+**Every timestamp in these three blocks is UTC and says so** (`2.2`,
+TASK-144). They are compared on one clock, and the rule each shape is read by
+is stated once, in `bin/lib § ts_moment`, which is the only place in the tree
+that decides what a timestamp means:
+
+| Written as | Read as |
+|---|---|
+| `2026-08-21T10:04:08Z`, `2026-08-28T02:15:22+08:00` | itself, converted to UTC. Both writers emit a zone: the register stamps UTC, the event log stamps local wall clock **with its offset** |
+| `2026-08-28T02:15:22` — no zone | **the reading machine's local time.** `.perry/events.jsonl` is append-only and holds hundreds of these; `datetime.now()` wrote them, so local wall clock is what they hold. They are not rewritten — that is a migration and a separate decision — and the cost is stated rather than hidden: a log carried to another zone reads its older lines by the new machine's offset |
+| `2026-08-21` — a date | UTC midnight. A date carries no wall clock to be local about, and the register is the only surface that writes one |
+| anything else | `""`, and staleness reports that it could not be evaluated. Never a half-interpreted value, which would sort against real ones |
+
+Until `2.2` the two were compared **as text** with the `Z` stripped, so a task
+that moved inside the machine's offset of the assertion was reported on the
+wrong side of it — `stale: true` for a move that predated the number on a
+positive offset, and `stale: false` for a real one on a negative offset. A
+date-only `updated` still errs toward reporting staleness on purpose: a false
+*recheck this* costs a look, a false *this number is fine* costs the number.
 
 ### The phase
 
@@ -276,6 +286,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `2.0` | 2026-08-18 | **unchanged by TASK-037.** The writer shipped and this payload gained no key. |
 | `2.1` | 2026-08-21 | **additive, TASK-120.** Four keys added, none removed or retyped: `krs[].current_provenance`, `krs[].current_staleness`, `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. `current` itself is unchanged in type and in value; what changed is that the payload now says it is an author's assertion rather than a measurement, and says when a linked task has moved since. |
 | `2.1` | 2026-08-21 | **unchanged by TASK-131.** The payload sketch now carries `okr.objectives[].id` and the whole of `phase.objectives[]`, and *The phase* gained an `objectives` row. All five paths have shipped since `1.0`; only the page moved, so the version does not. Why the objective entry is a list rather than a key table is stated where it is written. |
+| `2.2` | 2026-08-28 | **no key added, one value's meaning changed, TASK-144.** `current_provenance.asserted_at`, `current_staleness.since` and `moved_tasks[].at` are now UTC and carry a `Z`; `at` in particular is no longer the local text the event log holds. Before this the register's UTC and the log's local wall clock were compared as text, and staleness answered wrongly inside the machine's offset in one direction or the other. The minor moves for the same reason `perry-task/events/1.1` moved: no key changed and the same key returns something different. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a

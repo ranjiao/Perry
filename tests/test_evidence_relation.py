@@ -333,8 +333,8 @@ class TestTheVersionMovedAndSemanticsDidNot(unittest.TestCase):
         self.pay = payload()
 
     def test_the_minor_moved_to_1_17(self):
-        self.assertEqual(self.pay["contract"], "perry-task/list/1.17")
-        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.17")
+        self.assertEqual(self.pay["contract"], "perry-task/list/1.18")
+        self.assertEqual(PT.LIST_CONTRACT, "perry-task/list/1.18")
 
     def test_1_17_has_no_semantics_entry_and_that_is_deliberate(self):
         """Recorded as a decision, not left as a gap. `semantics` carries only
