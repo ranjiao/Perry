@@ -1074,6 +1074,35 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     phase_krs: set[str] = set()
     if phase_file and phase_file.exists():
         phase_krs = set(re.findall(KR_ID_RE, strip_comments(phase_file.read_text())))
+    # linkage: every TASK the graph names must exist in the task store.
+    #
+    # **`None` is "this project has not been adopted", not "no tasks"** —
+    # `viewer/parsers.py § load_task_store` states that contract and this is
+    # the reader that has to honour it. A guard that read a missing
+    # `tasks.jsonl` as an empty id set would report every edge in every
+    # register as dangling on every project that has not adopted the store,
+    # which is TASK-117's inversion exactly: `check_store_drift` called 175 of
+    # 175 rows drifted when the only thing missing was the event log. So the
+    # whole sweep below is skipped, silently, and nothing is claimed about
+    # edges that were never checkable.
+    #
+    # `load_task_store` also answers `None` for a store it cannot parse, and
+    # that is the right answer here too rather than a coincidence worth
+    # working around: `check_store_drift` already reports `store-unreadable`,
+    # and a second check inventing "and every one of your edges dangles" out
+    # of the same one fact is the noise that finding exists to avoid.
+    #
+    # An EMPTY store is not that case. `[]` is an adopted, empty board, and a
+    # register naming a task on an empty board really is pointing at nothing;
+    # the report is true and the fix is real.
+    #
+    # The store is read once for the whole sweep — every linkage file is
+    # judged against the same set, deliberately; see the note in the loop.
+    store_records = P.load_task_store(root)
+    store_ids: set[str] | None = (
+        None if store_records is None
+        else {str(r.get("id")) for r in store_records
+              if isinstance(r, dict) and r.get("id")})
     for lf in sorted((root / "phase").glob("*-linkage.md")) if (root / "phase").is_dir() else []:
         link = P.parse_linkage(lf.read_text())
         rel = lf.relative_to(root).as_posix()
@@ -1108,6 +1137,53 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                     findings.append(Finding(
                         "warn", rel, "linkage-kr-exists",
                         f"{kr.id} is in the graph but not in the current phase file"))
+                # **The comment above does NOT transfer to task ids, and the
+                # difference is what makes this check simpler than that one.**
+                # A KR id is scoped to a phase file: `P-O1.1` in `001` and
+                # `P-O1.1` in `002` are different key results, so the only
+                # correct comparand for `001-linkage.md` is phase 001's own KR
+                # set — which is why that guard had to stop reading the
+                # CURRENT phase. **A task id is global.** There is one
+                # `tasks.jsonl` for the project, ids are minted across phases
+                # and never re-used, and no per-phase task store exists to
+                # read instead. So every register, current or scored, is
+                # judged against today's store — that is not "the current
+                # phase leaking into an old file", it is the only store there
+                # has ever been.
+                #
+                # The consequence is intended: when TASK-167's removal path
+                # takes a row out, a scored phase's edge to it starts
+                # dangling, and it IS dangling — the register credits that KR
+                # with work no record carries. That is the finding, not a
+                # false positive of one.
+                #
+                # **The comparand is the store and not `BOARD.md`.** A closed
+                # row leaves the board and stays in `tasks.jsonl` (ADR-007;
+                # `viewer/parsers.py § _records_by_group` skips a terminal
+                # status), so resolving against the rendered rows would report
+                # every finished task any register names, on every project.
+                # `perry-diagnose`'s `user_load.dangling` asks the
+                # markdown-mention question instead and does exactly that —
+                # measured on a fixture 2026-08-28, it called a `done` row
+                # dangling while its record sat in the store — which is why
+                # "another tool already notices dangling ids" does not cover
+                # this one.
+                for tid in kr.tasks:
+                    if store_ids is None or not tid or tid in store_ids:
+                        continue
+                    findings.append(Finding(
+                        "warn", rel, "linkage-task-exists",
+                        f"{kr.id} lists task {tid}, which is not a record in "
+                        f"`tasks.jsonl` — the edge points at nothing. It is "
+                        f"still counted: `bin/lib § kr_progress_provenance` "
+                        f"puts {tid} in this KR's `linked_task_completion."
+                        f"total` and files it under `unknown`, so the KR "
+                        f"carries a denominator no row can ever close. Either "
+                        f"the id is a typo or the row is gone. `perry-goals "
+                        f"link` appends an edge and never retracts one, so "
+                        f"this one comes out the way `link_edge`'s own "
+                        f"refusal says a mis-aimed edge comes out: on the "
+                        f"user's confirmation."))
 
     # design: locked docs need an implementation plan
     for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:

@@ -2229,6 +2229,11 @@
       "id": "linkage-task-single-kr",
       "severity": "error",
       "description": "A task id may appear under at most one KR's tasks[]; two would make its attribution ambiguous."
+    },
+    {
+      "id": "linkage-task-exists",
+      "severity": "warn",
+      "description": "Every id under a KR's tasks[] must be a record in the task store. Warn and not error for the same reason as linkage-kr-exists: it is the same statement one edge over, and a referent that is absent today can be a row not yet opened rather than a malformed file. SKIPPED ENTIRELY when there is no readable tasks.jsonl - a project with no store has not been adopted (viewer/parsers.py § load_task_store), and reading that as 'every edge dangles' is TASK-117's inversion. An old phase's register IS judged against today's store: a task id is global, unlike a KR id, so there is no per-phase store to judge it against."
     }
   ],
   "packs": {
