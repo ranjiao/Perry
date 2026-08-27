@@ -38,6 +38,7 @@
 | 2026-08-21 | viewer/ stops being a viewer once the viewer is deleted, and the two files left in it are the shared read layer | — |
 | 2026-08-21 | the report exemption covers dangling but not open_decisions_by_register, so quoting a checker's output re-opens a queue row | — |
 | 2026-08-27 | an import-grep cannot see a module that reads another module as text, which is how the viewer deletion nearly broke test_parsers | — |
+| 2026-08-27 | perry-state and perry-task both emit intake.oldest_undischarged and mean different things by it — a date string against a row number | — |
 
 ## P0 (must finish this period)
 
