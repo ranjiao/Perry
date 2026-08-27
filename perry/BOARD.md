@@ -76,7 +76,6 @@
 | TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
-| TASK-130 | schema README says three contracts and pins goals at a version that shipped two ago | Coding Agent | not_started | SCOPE GREW: the README has TWO stale pins, not the goals one this row's title names — line 86 says perry-task/list/1.11 against a live 1.14, line 88 says perry-goals/list/1.0 against 2.1. TASK-169 left both and added a line saying the version column is a convenience nothing checks | — | V2 | — | main |  |  |
 | TASK-132 | the parity check cannot see 23 keys because Perry own state leaves four collections empty | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |

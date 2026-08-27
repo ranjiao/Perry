@@ -81,14 +81,22 @@ not by parsing markdown. Each is versioned **independently** (DESIGN-005 § 4
 decision 5) so a consumer that reads one is not forced to re-check its code when
 another moves.
 
+**This table carries no version numbers, on purpose.** It listed three stale
+ones at once on 2026-08-21 — `perry-task/list` pinned at `1.11` against a live
+`1.15`, `perry-goals/list` at `1.0` against `2.1`, and `perry-events/list` at
+`1.0` against `1.1` — because a number copied into a second place goes stale the
+first time the first place moves, and nothing here was checking it. **The
+authoritative version is the `contract` string in the payload**, and each spec
+page states it on its own first line. A test pins this table to carry neither.
+
 | Contract | Command | Spec | Covers |
 |---|---|---|---|
-| `perry-task/list/1.11` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
-| `perry-decide/list/1.0` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
-| `perry-goals/list/1.0` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
-| `perry-roles/list/1.0` | `perry-state --json § roles` | `schema/roles-list-contract.md` | the declared roles and what each is allowed to do |
-| `perry-events/list/1.0` | `perry-task events --json` | `schema/events-list-contract.md` | the append-only event log behind the board |
-| `perry-knowledge/list/1.0` | `perry-knowledge list --json` | `schema/knowledge-list-contract.md` | knowledge cards, their provenance, and staleness |
+| `perry-task/list` | `perry-task list --all --json` | `schema/task-list-contract.md` | tasks, open and closed, with timeline |
+| `perry-decide/list` | `perry-decide list --json` | `schema/decide-list-contract.md` | the set of decisions |
+| `perry-goals/list` | `perry-goals list --json` | `schema/goals-list-contract.md` | objectives, KRs (flat), phase, linkage |
+| `perry-roles/list` | `perry-state --json § roles` | `schema/roles-list-contract.md` | the declared roles and what each is allowed to do |
+| `perry-events/list` | `perry-task events --json` | `schema/events-list-contract.md` | the append-only event log behind the board |
+| `perry-knowledge/list` | `perry-knowledge list --json` | `schema/knowledge-list-contract.md` | knowledge cards, their provenance, and staleness |
 
 ### How a reader finds one — the glob, not this table
 
@@ -107,10 +115,9 @@ consumer reading `schema/` concluded there was no read side for knowledge cards
 at all and asked for one to be built. **A contract with no page in `schema/` is
 a contract that does not exist to the reader it was written for.**
 
-**The version in the first column is a convenience and nothing checks it.** The
-authoritative version is the `contract` string in the payload itself, plus the
-page's own heading; two of the pins above are behind their pages today, and
-correcting them is TASK-130's row rather than something to fix in passing.
+The first column names the contract **family**. Which minor is live is the
+`contract` string in the payload and the page's own first line — never a number
+copied here.
 
 Three properties they share, and the third is the one that matters on a real
 project:
@@ -192,12 +199,14 @@ fixtures (`tests/fixtures/sample-project/`).
 > contract consumer does not, which is the whole point of freezing the payload
 > rather than the file format.
 >
-> **This applies to task state only.** `OKR.md`, `phase/` and `decisions/` stay
-> canonical hand-editable markdown, and their contracts —
-> `perry-goals/list/1.0` and `perry-decide/list/1.0` — do not exist yet
-> (DESIGN-005 § 6, steps 1–2). Until they do, a consumer that needs goals or
-> decisions still reads the files, and the "resolve columns by name, never by
-> position" rule below is the one that keeps it honest.
+> **This applied to task state only when it was written.** `OKR.md`, `phase/`
+> and `decisions/` were canonical hand-editable markdown and their contracts did
+> not exist yet (DESIGN-005 § 6, steps 1–2). **Both shipped**: `perry-goals/list`
+> and `perry-decide/list` are in the table above, and `OKR.md` has had a store
+> beside it since 2026-08-21. The "resolve columns by name, never by position"
+> rule below still applies to everything a consumer reads out of markdown —
+> which, for the four registers of `BOARD.md` that have no store, is still
+> several things.
 
 The rule that follows: **if a reader can't get something from the declared
 structure, the answer is to declare it — not to infer it.** A number that

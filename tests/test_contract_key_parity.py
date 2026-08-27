@@ -146,6 +146,38 @@ class TestThisREADMEAgreesWithTheGlob(unittest.TestCase):
             f"{len(self.pages)}: "
             + ", ".join(p.name for p in self.pages))
 
+    def test_the_contract_table_pins_no_version(self):
+        """The README's table carried THREE stale versions at once.
+
+        On 2026-08-21 it pinned `perry-task/list` at `1.11` against a live
+        `1.15`, `perry-goals/list` at `1.0` against `2.1`, and
+        `perry-events/list` at `1.0` against `1.1`. All three had been correct
+        when written. A version copied into a second place goes stale the first
+        time the first place moves, and nothing was checking this one.
+
+        So the table names the contract FAMILY and the numbers are gone. This
+        asserts they stay gone — deleting the stale pins without this test just
+        resets the clock on the same defect.
+
+        Scoped to the table, not the file: the prose around it cites
+        `perry-knowledge/list/1.0` while recounting the incident where that
+        exact version shipped with no page, and that sentence is a historical
+        fact rather than a pin. A file-wide ban would forbid the project from
+        describing its own history.
+        """
+        rows = [l for l in self.readme.splitlines()
+                if l.startswith("| `perry-") and "/list" in l]
+        self.assertEqual(len(rows), len(self.pages),
+                         f"expected one table row per contract page, got "
+                         f"{len(rows)} rows for {len(self.pages)} pages")
+        pinned = [l for l in rows if re.search(r"perry-[a-z]+/list/\d", l)]
+        self.assertEqual(
+            pinned, [],
+            "the contract table names a version again. The live version is the "
+            "`contract` string in the payload and the page's own first line; a "
+            "number here has nothing checking it and goes stale silently:\n  "
+            + "\n  ".join(pinned))
+
     def test_every_contract_page_on_disk_is_listed(self):
         """The count agreeing is necessary and not sufficient — six rows for
         five pages plus one invention would pass the check above."""
