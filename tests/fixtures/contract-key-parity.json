@@ -2,6 +2,9 @@
   "contract_files_discovered": 6,
   "contracts": {
     "perry-decide/list/1.0": {
+      "collections_the_witness_filled": [
+        "expired_sunsets"
+      ],
       "command": "perry-decide list --json",
       "contract": "perry-decide/list/1.0",
       "documented": 27,
@@ -9,15 +12,19 @@
       "emitted": 24,
       "emitted_not_documented": [],
       "file": "schema/decide-list-contract.md",
-      "not_observable": {
-        "expired_sunsets[].id": "inside `expired_sunsets`, which is empty in this run",
-        "expired_sunsets[].sunset": "inside `expired_sunsets`, which is empty in this run",
-        "expired_sunsets[].title": "inside `expired_sunsets`, which is empty in this run"
+      "named_no_such_collection": [],
+      "not_observable": {},
+      "observed_in_witness": {
+        "expired_sunsets[].id": "inside `expired_sunsets`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "expired_sunsets[].sunset": "inside `expired_sunsets`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "expired_sunsets[].title": "inside `expired_sunsets`, which is empty in this run and carries entries in `tests/fixtures/witness-project`"
       },
       "unassigned": [],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
     },
     "perry-events/list/1.1": {
+      "collections_the_witness_filled": [],
       "command": "perry-task events --json",
       "contract": "perry-events/list/1.1",
       "documented": 27,
@@ -25,11 +32,17 @@
       "emitted": 27,
       "emitted_not_documented": [],
       "file": "schema/events-list-contract.md",
+      "named_no_such_collection": [],
       "not_observable": {},
+      "observed_in_witness": {},
       "unassigned": [],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": ""
     },
     "perry-goals/list/2.1": {
+      "collections_the_witness_filled": [
+        "krs[].current_staleness.moved_tasks"
+      ],
       "command": "perry-goals list --json",
       "contract": "perry-goals/list/2.1",
       "documented": 82,
@@ -37,16 +50,20 @@
       "emitted": 78,
       "emitted_not_documented": [],
       "file": "schema/goals-list-contract.md",
-      "not_observable": {
-        "krs[].current_staleness.moved_tasks[].at": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
-        "krs[].current_staleness.moved_tasks[].from": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
-        "krs[].current_staleness.moved_tasks[].id": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run",
-        "krs[].current_staleness.moved_tasks[].to": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run"
+      "named_no_such_collection": [],
+      "not_observable": {},
+      "observed_in_witness": {
+        "krs[].current_staleness.moved_tasks[].at": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "krs[].current_staleness.moved_tasks[].from": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "krs[].current_staleness.moved_tasks[].id": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "krs[].current_staleness.moved_tasks[].to": "inside `krs[].current_staleness.moved_tasks`, which is empty in this run and carries entries in `tests/fixtures/witness-project`"
       },
       "unassigned": [],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
     },
     "perry-knowledge/list/1.0": {
+      "collections_the_witness_filled": [],
       "command": "perry-knowledge list --json",
       "contract": "perry-knowledge/list/1.0",
       "documented": 16,
@@ -54,11 +71,15 @@
       "emitted": 16,
       "emitted_not_documented": [],
       "file": "schema/knowledge-list-contract.md",
+      "named_no_such_collection": [],
       "not_observable": {},
+      "observed_in_witness": {},
       "unassigned": [],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": ""
     },
     "perry-roles/list/1.0": {
+      "collections_the_witness_filled": [],
       "command": "perry-state --json \u00a7 roles",
       "contract": "perry-roles/list/1.0",
       "documented": 4,
@@ -66,7 +87,9 @@
       "emitted": 4,
       "emitted_not_documented": [],
       "file": "schema/roles-list-contract.md",
+      "named_no_such_collection": [],
       "not_observable": {},
+      "observed_in_witness": {},
       "unassigned": [
         "A card \u2014 the six frozen fields \u00a7 accepted_by",
         "A card \u2014 the six frozen fields \u00a7 default_rung",
@@ -75,24 +98,34 @@
         "A card \u2014 the six frozen fields \u00a7 name",
         "A card \u2014 the six frozen fields \u00a7 path"
       ],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
     },
     "perry-task/list/1.15": {
+      "collections_the_witness_filled": [
+        "conformance.depends_on_unknown",
+        "conformance.in_progress_with_no_live_run"
+      ],
       "command": "perry-task list --json",
       "contract": "perry-task/list/1.15",
-      "documented": 119,
+      "documented": 133,
       "documented_not_emitted": [],
-      "emitted": 119,
+      "emitted": 125,
       "emitted_not_documented": [],
       "file": "schema/task-list-contract.md",
+      "named_no_such_collection": [],
       "not_observable": {},
+      "observed_in_witness": {
+        "conformance.depends_on_unknown[].id": "inside `conformance.depends_on_unknown`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.depends_on_unknown[].unknown": "inside `conformance.depends_on_unknown`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].id": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].idle_hours": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].last_event": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].means": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].status": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`",
+        "conformance.in_progress_with_no_live_run[].threshold_hours": "inside `conformance.in_progress_with_no_live_run`, which is empty in this run and carries entries in `tests/fixtures/witness-project`"
+      },
       "unassigned": [
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 id",
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 idle_hours",
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 last_event",
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 means",
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 status",
-        "The idle entry \u2014 `in_progress_with_no_live_run[]` and `review_idle[]` \u00a7 threshold_hours",
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 asked",
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 blocks",
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 id",
@@ -100,13 +133,13 @@
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 idle_days",
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 needed",
         "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 priority",
-        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 status",
-        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 id",
-        "`depends_on_unknown[]` \u2014 the entry, key by key \u00a7 unknown"
+        "`asks` \u2014 `## User Input Queue`, the **needs-you** list \u00a7 status"
       ],
-      "unparsed_sketches": []
+      "unparsed_sketches": [],
+      "witness": "tests/fixtures/witness-project"
     }
   },
   "glob": "schema/*-contract.md",
-  "root": "."
+  "root": ".",
+  "witness": "tests/fixtures/witness-project"
 }
