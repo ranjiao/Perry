@@ -199,6 +199,74 @@ def heading_subject(text: str) -> str | None:
     return m.group(1) if m and is_real_id(m.group(1)) else None
 
 
+# What a title may not begin or end on: whitespace, and the separators a
+# heading puts between the id it names and the name itself.
+TITLE_TRIM = " \t—–-:·"
+
+
+def heading_title(text: str, subject: str) -> str:
+    """The human name a heading gives `subject`: the sentence it wrote, minus
+    the subject's OWN id and nothing else's.
+
+    `heading_subject` above draws the line — **an id that OPENS a heading is
+    being named; an id inside the sentence is being mentioned** — and until
+    2026-08-28 this side of the split had never learned it. The title was
+    `ID_RE.sub("", …)` over the whole heading, which strips *every* id,
+    because stripping everything was the cheap way to guarantee the one thing
+    that does have to hold: an id must not appear in its own title. What it
+    cost was the sentence around it:
+
+        TASK-050 — why TASK-094 had to land first  ->  'why  had to land first'
+        TASK-050 supersedes TASK-049               ->  'supersedes'
+
+    The second is the one that matters. A heading whose whole content is a
+    relation between two ids reduced to a single dangling verb, and that verb
+    then *was* the id's name everywhere `perry-explain` is consulted.
+    `reference/user-load.md § The rule: an ID never travels alone` requires
+    every id to carry its human name; `TASK-050 ("supersedes")` satisfies the
+    letter of that and defeats it entirely.
+
+    **So a mentioned id stays, in full form.** It is part of the sentence that
+    names the subject, and it is why that sentence is legible at all. Cutting
+    it out produces exactly what the same file calls the hardest kind of
+    reference to resolve later — prose naming work with nothing left to
+    identify it — committed by the lookup itself rather than by an author.
+    Nothing in `user-load.md` forbids an id inside a title: its rule is about
+    a *bare* id in a user-facing sentence, and its own remedy for one is this
+    script. `Prefer the name in prose, the ID in tables` is advice to whoever
+    writes a heading, not a licence for a reader to rewrite one.
+
+    The considered alternative was to rebuild the title with the mentioned id
+    expanded — `why TASK-094 ("the store cutover") had to land first`. It is
+    worse: the title would be a sentence no document contains, it would depend
+    on harvest order for an id defined later in the walk, and titles flow on
+    into rows, standups and `--json`. `label()` below is where a *rendered*
+    sentence discharges the never-travel-alone obligation, and it is the right
+    place for it: it composes output, this composes a datum.
+
+    Removing only the leading id also removes the hole rather than moving it.
+    Nothing is cut from the middle of the sentence, so there is no double
+    space and no orphaned separator left behind for `TITLE_TRIM` to repair —
+    it only has to clean the join the heading itself wrote.
+
+    `TITLE_TRIM` is the strip set the removed line already used, deliberately
+    unchanged. It leaves the `/` in a heading that names co-subjects —
+    `# TASK-150 / TASK-151 / TASK-152 — result` gives TASK-150 the title
+    `/ TASK-151 / TASK-152 — result`, which was `/  /  — result` before.
+    Eating that `/` too would read as `TASK-151 / TASK-152 — result`, a title
+    that announces someone else as its subject; the slash is what shows the
+    heading covers a set and that this row is one of them.
+    """
+    lead = strip_md(text).lstrip(HEADING_LEAD)
+    m = ID_RE.match(lead)
+    # Only when the heading OPENS with this id is it the naming prefix. A
+    # heading over an id-named file that opens with some *other* id is naming
+    # nothing, and the sentence is left whole.
+    if m and m.group(1) == subject:
+        lead = lead[m.end():]
+    return lead.strip(TITLE_TRIM)
+
+
 def walk_md(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
         # A directory carrying its own `.git` is a different project — a
@@ -242,8 +310,10 @@ def harvest(root: Path) -> dict:
                 for ln in lines[:40]:
                     h = HEADING.match(ln)
                     if h:
-                        t = strip_md(h.group(1))
-                        t = ID_RE.sub("", t).strip(" —-–:·")
+                        # The subject is the FILENAME's id, so that is the
+                        # only one this H1 may lose — same rule as the
+                        # heading branch below, and see `heading_title`.
+                        t = heading_title(h.group(1), fname_ids[0])
                         if t:
                             e["title"] = e["title"] or t
                         break
@@ -342,7 +412,9 @@ def harvest(root: Path) -> dict:
                 e["defined"] = e["defined"] or f"{rel}:{n}"
                 e["kind"] = e["kind"] or "section"
                 if not e["title"]:
-                    t = ID_RE.sub("", strip_md(h.group(1))).strip(" —-–:·")
+                    # The subject's own id and nothing else's: an id the
+                    # sentence MENTIONS is part of the name, not noise in it.
+                    t = heading_title(h.group(1), subject)
                     e["title"] = t or None
 
             # ── yaml: - id: P-O1.1  /  title: "…"
