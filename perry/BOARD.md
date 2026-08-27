@@ -45,6 +45,7 @@
 | 2026-08-28 | paths() collapses a list to its first element, so a condition true on krs[1] and false on krs[0] is unobservable to key parity | — |
 | 2026-08-28 | perry-state's design.by_status keys come from a set, so the payload's key order flips with the hash seed and cannot be byte-compared | — |
 | 2026-08-28 | two agents running tests/parallel write to the same scratchpad baseline path and overwrite each other's readings | — |
+| 2026-08-28 | subcommands.md:82 and :118-128 restate contract semantics in prose and carry a TASK-162 marker proving they rot | — |
 
 ## P0 (must finish this period)
 
@@ -62,7 +63,7 @@
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
-| TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | not_started | — | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
+| TASK-102 | Evidence becomes a typed relation: {path, kind, round}, not one prose cell | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-102-evidence-is-a-relation | — | V4 | TASK-090, TASK-092 | main |  |  |  |  |  |  |
 | TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-144 | the event log timestamp has no zone and the register has one, so ordering them is a guess | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-20 |  |  |  |
@@ -85,7 +86,7 @@
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
 | TASK-145 | the contract shape baseline is stale against its own recorder | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-20 |
 | TASK-147 | nothing outside describe_cell proves the table and bullet paths stay separated | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
-| TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
+| TASK-154 | a heading naming a second id leaves a hole in the title it produces | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-154-heading-title-hole | — | V2 | — | intake | triaged | 2026-08-21 |
 | TASK-156 | a declared linkage edge to a task that never existed is invisible | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-158 | the citation families are hardcoded in the tool, so a project with its own id family gets noise on every legitimate citation | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
@@ -94,7 +95,6 @@
 | TASK-164 | perry-state assigns the state root to a global that means the project root | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-167 | three smoke-test rows and a blank line are in the live store | Coding Agent | not_started | — | — | V2 |  | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
-| TASK-174 | autopilot re-derives startability instead of reading the field the contract already computes | Coding Agent | in_progress | dispatched 2026-08-28 on coding/task-174-autopilot-reads-startable | — | V3 | — | main |  |  |
 | TASK-175 | aiMark's KR meter renders a stale assertion identically to a fresh one | Coding Agent | not_started | DECIDED 2026-08-21: mark it. This lifts TASK-114 acceptance item 6, which forbade touching the OKR chain view and contradicted the goals-2.1 instruction in the same prompt — the KR meter IS the chain view. Restraint is the point: do not caption every KR with 'this is an assertion', because it is true of all of them and says nothing. Only stale, and only unasserted | — | V3 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
