@@ -54,6 +54,9 @@
 | 2026-08-28 | a KR short of target whose every linked task is terminal is stalled, and nothing reports it — must be phase-scoped or three of four results are noise | — |
 | 2026-08-28 | perry-migrate CROSS_FILE_INPUTS omits tasks.jsonl, so linkage-task-exists declines in the dry run's newly-visible delta — one-word fix | — |
 | 2026-08-28 | no procedure in work/reference/subcommands.md mentions perry-task purge, so an agent will not reach for it | — |
+| 2026-08-28 | perry-decide mint_id reads max(files ∪ index) but render_index rebuilds DECISIONS.md from the files, so the departed half erases itself — deleting the highest ADR hands ADR-003 back, and perry-decide reads the event log zero times | — |
+| 2026-08-28 | bin/perry-conform:283 cites test_conformance § 7 for TASK-047 cost 1; it is pinned in § 6 | — |
+| 2026-08-28 | bin/README.md:234 and perry-conform:273-274 cite ~/proj/gimegime-pmo as measured evidence for TASK-047 cost 1 — that measurement now runs nowhere; point them at the test | — |
 
 ## P0 (must finish this period)
 
@@ -85,8 +88,6 @@
 | TASK-066 | Split perry-task by subcommand group | Coding Agent | not_started | Re-size the split after the markdown reader, row renderer and cell escaping are gone. | evidence/2026-08/TASK-066-context.md | V4 | TASK-065, TASK-038 | main |  |  |
 | TASK-112 | the sign-off drafting guard cannot describe itself, so a true statement about it is refused | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-116 | the mention list is write-only, mislabelled, and two of its carve-outs are unpinned | Coding Agent | not_started | — | — | V3 |  | main |  |  |
-| TASK-118 | the id minters read three sources and the canonical store is not one of them | Coding Agent | in_progress | — | — | V3 | — | main |  |  |
-| TASK-124 | the conformance corpus reads a project outside the repo and has no committed substitute | Coding Agent | in_progress | — | — | V3 | — | main |  |  |
 | TASK-125 | the Anti-Goals-inside-a-version insert case runs only on the author machine | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-137 | a new queue row is born in the second stage, not the first | Coding Agent | not_started | — | — | V2 |  | main |  |  |
 | TASK-139 | a design back-reference lives in a cell the close path clears, so a finished design reports as never handed off | Coding Agent | not_started | — | — | V3 | TASK-102 | intake | triaged | 2026-08-20 |
