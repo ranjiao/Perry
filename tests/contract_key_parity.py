@@ -366,23 +366,34 @@ def invoke(text: str) -> tuple[list[str], str]:
     return command.split(), (subtree.group(1) if subtree else "")
 
 
-def compare(path: pathlib.Path, root: str = "") -> dict:
+def compare(path: pathlib.Path, root: str = "",
+            payload: dict | None = None) -> dict:
     """`root` is the PROJECT the tools read. It defaults to Perry's own
     repository, which is the representative fixture — the same choice
     `test_contract_invariance` makes, and for the same reason: it is the only
     checked-in project carrying a real board, a real OKR and a real event log.
     Its own state is what decides which collections are observable, and the
-    ones it leaves empty are named in the report rather than dropped."""
+    ones it leaves empty are named in the report rather than dropped.
+
+    `payload` stands in for running the tool, and exists for one case: a
+    fixture page describing a payload **no tool on disk emits**. The
+    `items[]`-beside-`cleared_items[]` shape is the case a heading naming its
+    collections exists to make documentable, and it cannot be built out of a
+    real command without adding that array to a real payload — which is
+    TASK-040's row, not this one. No page in `schema/` is read this way; the
+    glob path always runs the command the page's own heading states.
+    """
     text = path.read_text()
     argv, subtree = invoke(text)
-    proc = subprocess.run(
-        [sys.executable, f"bin/{argv[0]}", *argv[1:]]
-        + (["--root", root] if root else []),
-        capture_output=True, text=True, cwd=ROOT)
-    if proc.returncode != 0:
-        raise RuntimeError(f"{path.name}: `{' '.join(argv)}` exited "
-                           f"{proc.returncode}: {proc.stderr[-300:]}")
-    payload = json.loads(proc.stdout)
+    if payload is None:
+        proc = subprocess.run(
+            [sys.executable, f"bin/{argv[0]}", *argv[1:]]
+            + (["--root", root] if root else []),
+            capture_output=True, text=True, cwd=ROOT)
+        if proc.returncode != 0:
+            raise RuntimeError(f"{path.name}: `{' '.join(argv)}` exited "
+                               f"{proc.returncode}: {proc.stderr[-300:]}")
+        payload = json.loads(proc.stdout)
     if subtree:
         payload = {subtree: payload[subtree]}
 
