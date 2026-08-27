@@ -903,12 +903,19 @@ class TestDriftReconciliation(unittest.TestCase):
 
     def test_a_project_with_no_log_is_not_reported_as_broken(self):
         """Every project predates the tool at the moment it upgrades. The first
-        standup after an upgrade must not be a wall of findings."""
+        standup after an upgrade must not be a wall of findings.
+
+        **Not broken is not the same as clean (TASK-117).** This asserted
+        `drift == 0` and `unrecorded == 0` beside `checked is False` — the two
+        numbers that made a consumer reading counts instead of the flag report
+        a clean board on a tree nothing had looked at. Silence about a question
+        nobody asked is the point; a zero is an answer.
+        """
         p = Project()
         d = self._drift(p)
         self.assertFalse(d["checked"])
-        self.assertEqual(d["drift"], 0)
-        self.assertEqual(d["unrecorded"], 0)
+        self.assertIsNone(d["drift"])
+        self.assertIsNone(d["unrecorded"])
 
     def test_rows_predating_the_log_are_context_not_drift(self):
         p = Project(board=BOARD.replace(
@@ -4446,10 +4453,20 @@ class TestTheSectionsAWorkSurfaceShows(unittest.TestCase):
         self.assertIn("HAND-001", d["unrecorded_sample"])
 
     def test_a_project_with_no_event_log_reports_drift_unchecked_not_broken(self):
+        """**The name was true and the assertion was not (TASK-117).**
+
+        `unchecked` was pinned by `checked is False` and then contradicted one
+        line down by `drift == 0`, which is a finding. Every field that would
+        otherwise report an absence is `null` here — rule 1 of this contract
+        names `null` as the unknown value, and a consumer that skipped the flag
+        now fails on it instead of rendering a clean board.
+        """
         p = Project()
         d = self.payload(p)["drift"]
         self.assertFalse(d["checked"])
-        self.assertEqual(0, d["drift"])
+        for key in ("drift", "unrecorded", "unrecorded_sample",
+                    "orphaned", "stale_done"):
+            self.assertIsNone(d[key], f"`{key}` answers a question nobody asked")
 
     def test_the_three_blocks_are_present_on_a_board_that_has_none_of_them(self):
         """Rule 1 of the contract: an unknown value is `""`, `null` or `[]`,
