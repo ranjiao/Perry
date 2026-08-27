@@ -24,6 +24,7 @@ import json
 import os
 import pathlib
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -90,10 +91,50 @@ IN_REPO = [
 #: Real projects, on the author's machine only. Never load-bearing: they widen
 #: the round-trip on the one machine that has them, and every test that reads
 #: them skips out loud with the reason named when they are absent.
+#:
+#: TASK-125: the round trip is now the ONLY thing they widen. The two write
+#: tests that also read this list were retired — see the note left where
+#: `TestTheRealFilesOnThisMachine` used to be, below.
 ELSEWHERE = [
     pathlib.Path.home() / "proj" / "gimegime-pmo" / "OKR.md",
     pathlib.Path.home() / "proj" / "aimark" / "perry" / "OKR.md",
 ]
+
+#: The one file in `IN_REPO` that nests `### Anti-Goals` INSIDE a version.
+#: TASK-111 committed that *shape*; the round trip over it has run everywhere
+#: since. TASK-125 is the row for the other half — the **insert** against it,
+#: which a round trip structurally cannot see, because a file that already has
+#: `## Commitments` renders back byte-identical whether or not the writer
+#: would have put a new one in the right place.
+#:
+#: `TestCreatingTheSection` derives its input from this file by deleting that
+#: section, rather than committing a second copy of the shape that could drift
+#: out of step with the one the round trip reads (TASK-145's golden-file
+#: lesson, and TASK-124's "0 bytes changed in tests/fixtures").
+NESTED_ANTI_GOALS = ROOT / "tests" / "fixtures" / "second-project" / "OKR.md"
+
+
+def level_two_span(text: str, prefix: str) -> tuple[int, int]:
+    """(first, end) line indexes of the `## ` block whose heading starts with
+    `prefix`; `end` is the next `#` or `##`, so a `###` beneath it is inside.
+
+    Deliberately a second, dumber implementation of what `Okr.section` does.
+    A test that carved its own input with the scanner under test would move
+    with a mutation of that scanner instead of catching it.
+    """
+    lines = text.split("\n")
+    lo = next((i for i, l in enumerate(lines) if l.startswith(prefix)), None)
+    assert lo is not None, f"no line starting {prefix!r}"
+    hi = next((j for j in range(lo + 1, len(lines))
+               if re.match(r"^#{1,2}\s", lines[j])), len(lines))
+    return lo, hi
+
+
+def without_level_two_section(text: str, prefix: str) -> str:
+    """`text` with one whole `## ` block removed, heading included."""
+    lo, hi = level_two_span(text, prefix)
+    lines = text.split("\n")
+    return "\n".join(lines[:lo] + lines[hi:])
 
 
 def goals_module():
@@ -557,6 +598,119 @@ class TestCreatingTheSection(WriterCase):
         p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         self.assertTrue(p.text().startswith("# OKR\n\n## Mission\n\nShip it.\n"))
         self.assertIn("## Commitments", p.text())
+
+    # -- the third shape: `Anti-Goals` nested INSIDE a version (TASK-125)
+    #
+    # `insert_section`'s fallbacks are ordered `Anti-Goals`, then `v<n>:`, then
+    # `Versioning`, and the two tests above pin the first and the last. The
+    # middle one is the interesting one and had no in-repo coverage: it is the
+    # case where "before Anti-Goals" and "before the versions" give DIFFERENT
+    # answers, because the only `Anti-Goals` in the file is a `###` sitting
+    # inside `## v2`. Insert before that heading and the register lands in the
+    # middle of a version block; insert before `## Versioning` and it lands
+    # between the last version and the log, which is the one place in that file
+    # it does not belong.
+    #
+    # Until this row the case ran only where `~/proj/gimegime-pmo` exists.
+
+    def nested_source(self) -> str:
+        """The committed nested-Anti-Goals fixture, minus its register.
+
+        Constructed, not captured: the shape comes from the file the round
+        trip already reads, and the one edit is the deletion that puts the
+        writer on the create branch at all. Nothing here asserts what that
+        project happens to hold — only where a new section may go.
+        """
+        return without_level_two_section(
+            NESTED_ANTI_GOALS.read_text(), "## Commitments")
+
+    def test_the_fixture_still_carries_the_nested_anti_goals_shape(self):
+        """Anti-vacuity, in the same change as the test it guards.
+
+        Every assertion below is satisfiable by a file that no longer poses
+        the question. Promote `### Anti-Goals` to `##` and the insert takes
+        the first fallback, which `test_it_lands_before_anti_goals...` already
+        covers; drop the version blocks and it takes the last. Either drift
+        would leave the test green while the case it names stopped being
+        exercised — so the drift fails here instead, loudly.
+        """
+        text = NESTED_ANTI_GOALS.read_text()
+        lines = text.split("\n")
+
+        self.assertEqual(
+            [], [l for l in lines if re.match(r"^##\s+(Anti-Goals|反目标)", l)],
+            "the fixture grew a LEVEL-2 Anti-Goals heading, so the insert now "
+            "takes the first fallback and the nested case is not exercised")
+
+        nested = [i for i, l in enumerate(lines)
+                  if re.match(r"^###\s+(Anti-Goals|反目标)", l)]
+        self.assertTrue(nested, "the fixture no longer carries `### Anti-Goals`")
+
+        versions = [i for i, l in enumerate(lines)
+                    if re.match(r"^##\s+v\d+\s*[::]", l)]
+        self.assertTrue(versions, "the fixture no longer carries a version block")
+        for i in nested:
+            enclosing = [v for v in versions if v < i]
+            self.assertTrue(
+                enclosing,
+                f"line {i} `### Anti-Goals` is no longer inside a version")
+
+        log = next(i for i, l in enumerate(lines)
+                   if re.match(r"^##\s+(Versioning|版本记录)", l))
+        self.assertGreater(
+            log, versions[-1],
+            "`## Versioning` no longer sits below the version blocks, so "
+            "'before the versions' and 'before the log' stopped disagreeing")
+
+        # and the derivation is not a silent no-op
+        self.assertIn("\n## Commitments\n", text)
+        self.assertNotIn("\n## Commitments\n", self.nested_source())
+
+    def test_it_lands_above_the_versions_when_anti_goals_is_nested_in_one(self):
+        """The property, not a capture-day census: wherever the section goes,
+        no `## v<n>:` block and no `## Versioning` may precede it."""
+        p = self.project(self.nested_source())
+        before = p.text()
+        p.commit("--track", "ops", "--promise", "Statements filed",
+                 "--to", "Auditor", "--due", "3d")
+
+        lines = p.text().split("\n")
+        at = next(i for i, l in enumerate(lines)
+                  if l.startswith("## Commitments"))
+        prior = [l for l in lines[:at] if l.startswith("## ")]
+        self.assertFalse(
+            [l for l in prior if re.match(r"^##\s+v\d+\s*[::]", l)],
+            f"landed inside or below a version block: {prior[-1] if prior else '?'}")
+        self.assertFalse(
+            [l for l in prior if re.match(r"^##\s+(Versioning|版本记录)", l)],
+            "landed below the versioning log")
+
+        # the version block that carries the nested heading is untouched, and
+        # the nested heading is still a `###` inside it
+        old = before.split("\n")
+        nested_at = next(i for i, l in enumerate(old)
+                         if re.match(r"^###\s+(Anti-Goals|反目标)", l))
+        holder = [l for i, l in enumerate(old)
+                  if i < nested_at and re.match(r"^##\s+v\d+\s*[::]", l)][-1]
+        lo, hi = level_two_span(p.text(), holder)
+        was = old[slice(*level_two_span(before, holder))]
+        self.assertEqual("\n".join(was), "\n".join(lines[lo:hi]),
+                         f"`{holder}` was rewritten")
+        self.assertTrue(
+            [l for l in lines[lo:hi] if re.match(r"^###\s+(Anti-Goals|反目标)", l)],
+            "the nested `### Anti-Goals` left the version block")
+
+        first = next(l for l in old if re.match(r"^##\s+v\d+\s*[::]", l))
+        at_first, _ = level_two_span(p.text(), first)
+
+        # nothing that was in the file before was rewritten or removed
+        self.assertEqual(
+            [], [d for d in p.changed_lines(before) if d[0] == "-"],
+            "an existing line was rewritten")
+
+        # the seam is still a blank line, not a heading glued to a table
+        self.assertEqual("", lines[at_first - 1],
+                         f"the inserted section runs straight into `{first}`")
 
 
 #: Every phrase the five failed review rounds fought over, in both languages.
@@ -1315,65 +1469,24 @@ class TestWideningIsTheOnlyEditThatTouchesOtherRows(WriterCase):
         self.assertIn("To whom", r.stderr)
 
 
-class TestTheRealFilesOnThisMachine(WriterCase):
-    """Rule 3 of this task: against COPIES, never the originals."""
-
-    def copy_of(self, source: pathlib.Path) -> Project | None:
-        if not source.exists():
-            return None
-        p = Project(source.read_text(), tracks=None)
-        self.addCleanup(p.cleanup)
-        return p
-
-    def test_both_refuse_and_change_nothing(self):
-        """Neither project declares a `pipeline` or `queue` track, and neither
-        `OKR.md` has a `## Commitments` section. The correct answer is a
-        refusal that names the modes the section serves — and a file that is
-        byte-identical afterwards."""
-        found = 0
-        for source in ELSEWHERE:
-            p = self.copy_of(source)
-            if p is None:
-                continue
-            found += 1
-            with self.subTest(path=str(source)):
-                before = p.text()
-                r = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                             "--due", "3d", expect=1)
-                self.assertIn("pipeline", r.stderr)
-                self.assertEqual(before, p.text())
-                self.assertEqual(source.read_text(), before,
-                                 "the ORIGINAL was touched")
-        if not found:
-            self.skipTest(f"none of {[str(p) for p in ELSEWHERE]} present")
-
-    def test_a_declared_queue_track_makes_the_section_land_cleanly(self):
-        """The other half of the same question: given a track that needs the
-        spine, does the section land in a real, unusual file without
-        disturbing it? gimegime nests `### Anti-Goals` INSIDE a version, so a
-        naive insert-before-Anti-Goals lands in the middle of `## v2`."""
-        found = 0
-        for source in ELSEWHERE:
-            if not source.exists():
-                continue
-            found += 1
-            p = Project(source.read_text(), tracks=TRACKS)
-            self.addCleanup(p.cleanup)
-            with self.subTest(path=str(source)):
-                before = p.text()
-                p.commit("--track", "ops", "--promise", "Statements filed",
-                         "--to", "Auditor", "--due", "3d", "--by-when-note", "within the track SLA")
-                added = [d for d in p.changed_lines(before) if d[0] == "-"]
-                self.assertEqual([], added, "an existing line was rewritten")
-                lines = p.text().split("\n")
-                at = next(i for i, l in enumerate(lines)
-                          if l.startswith("## Commitments"))
-                # not swallowed by a version block
-                prior = [l for l in lines[:at] if l.startswith("## ")]
-                self.assertFalse(any(l.startswith("## v") for l in prior),
-                                 f"landed inside {prior[-1] if prior else '?'}")
-        if not found:
-            self.skipTest(f"none of {[str(p) for p in ELSEWHERE]} present")
+# TASK-125 removed `TestTheRealFilesOnThisMachine`, whose two tests ran the
+# writer against COPIES of the `ELSEWHERE` files. Neither was a round trip —
+# they were the refusal half and the INSERT half — and both are now covered
+# in-repo, on every machine:
+#
+#   refusal, no pipeline/queue track   ->  TestCreatingTheSection
+#                                          .test_it_is_refused_when_no_track_...
+#   insert, `## Anti-Goals` at level 2  ->  ...test_it_lands_before_anti_goals...
+#   insert, `### Anti-Goals` nested     ->  ...test_it_lands_above_the_versions...
+#
+# `ELSEWHERE` itself SURVIVES, narrowed to the one thing its own docstring
+# claims for it: widening the ROUND TRIP. Byte identity over prose nobody
+# generated is breadth no fixture can fake, and it cannot be load-bearing.
+# A structural placement assertion is the opposite — its only input is the
+# heading skeleton, which a fixture captures exactly — so running it against a
+# live project bought no breadth, and cost a skip-counting idiom that was dead
+# everywhere but one machine and would have gone quiet if a directory were
+# ever renamed.
 
 
 class TestTheReadContractDidNotMove(unittest.TestCase):
