@@ -25,6 +25,38 @@ as the whole contract.
 Covers **180 field paths** across the three contracts, proved by removing
 `tasks[].startable` at both of its emit sites and watching this go red.
 
+**The fixture is not the authority on TYPE, and was never entitled to be
+(TASK-145).** A key whose contract is a union — `int | null` — has two correct
+types, and a recording captures whichever branch the project was in on the day
+it was taken. `intake.oldest_undischarged` was recorded `NoneType` and went red
+the morning three intake rows arrived, on a payload that had not moved:
+`schema/task-list-contract.md` declares it `int | null` and both halves are the
+contract. Four more keys in this fixture are the same landmine unfired —
+`perry/evidence/2026-08/contract-invariance-union-types.md` counts them.
+
+So a declared type is read off the page (`tests/contract_declared_types.py`)
+and the two arms divide the work:
+
+- **the page** decides the type of every path it declares, including the
+  ones this fixture never recorded, and `int` still fails on `null`;
+- **the fixture** decides that a key still EXISTS, and decides the type of the
+  paths no page declares.
+
+Neither arm is the golden file the docstring above warns about, because neither
+is re-recordable into agreement: re-running `--record` cannot change what a
+contract page says.
+
+**And element zero stopped deciding.** `shape` unions over EVERY element of a
+list rather than collapsing to the first. Collapsing avoided keying on length
+and replaced it with something narrower: for `tasks[].created` the recorded
+type was whichever branch the first row happened to have, so re-sorting the
+board or closing the top row flipped a type the contract never promised was
+stable — *"every board edit is a contract change"*, the outcome the collapse
+was chosen to prevent. A union over every element is a property of this
+function rather than of today's data, so there is no ordering left for it to
+depend on, and it still says nothing about length: one row and five hundred of
+the same shape read identically.
+
 Run: python3 tests/parallel test_contract_invariance
 """
 
@@ -36,13 +68,24 @@ import subprocess
 import sys
 import unittest
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import contract_declared_types as declared_types  # noqa: E402
+import contract_key_parity as parity  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "tests" / "fixtures" / "contract-shapes.json"
 
+#: The command, and the page that is its contract. The page is what states a
+#: field's declared type; it is discovered here rather than guessed at, and
+#: `TestTheShapeIsRecorded` asserts every one of them is on disk.
 CONTRACTS = {
-    "perry-task/list": ["bin/perry-task", "list", "--all"],
-    "perry-goals/list": ["bin/perry-goals", "list"],
-    "perry-decide/list": ["bin/perry-decide", "list"],
+    "perry-task/list": (["bin/perry-task", "list", "--all"],
+                        "schema/task-list-contract.md"),
+    "perry-goals/list": (["bin/perry-goals", "list"],
+                         "schema/goals-list-contract.md"),
+    "perry-decide/list": (["bin/perry-decide", "list"],
+                          "schema/decide-list-contract.md"),
 }
 
 # These are the contracts' primary entity collections. The checked-in Perry
@@ -56,8 +99,29 @@ REPRESENTATIVE_LISTS = {
 }
 
 
+def types(spec: str) -> set[str]:
+    """A shape entry back into the set of type names it stands for.
+
+    `"str"` is a set of one and `"NoneType|str"` a set of two, so a fixture
+    recorded before this file unioned over elements reads unchanged.
+    """
+    return set(spec.split("|"))
+
+
+def walk(value, path, out):
+    """Accumulate `{field path: {type names seen there}}` into `out`."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            here = f"{path}.{key}" if path else key
+            out.setdefault(here, set()).add(type(child).__name__)
+            walk(child, here, out)
+    elif isinstance(value, list):
+        for item in value:
+            walk(item, f"{path}[]", out)
+
+
 def shape(value, path=""):
-    """Every FIELD PATH in a payload, with the type at it.
+    """Every FIELD PATH in a payload, with the type(s) at it.
 
     Not "key path": in Perry a **key** is a Key Result, so
     `key path` reads as a KR identifier to anyone working in this
@@ -65,44 +129,70 @@ def shape(value, path=""):
     explained. `reference/glossary.md` exists to stop that, and it was
     built hours before this term was coined without checking it.
 
-    Lists collapse to their first element's shape: a contract promises what an
-    entry looks like, not how many there are, and keying on length would make
-    every board edit a contract change.
+    **A list is the union of every element's shape**, written `"NoneType|str"`.
+    It used to collapse to element zero, and the reason given was sound as far
+    as it went — a contract promises what an entry looks like, not how many
+    there are, and keying on length would make every board edit a contract
+    change. The union keeps that: one entry and five hundred entries of the
+    same shape produce the same result, so length still says nothing.
+
+    What collapsing also did, unintentionally, was hand the decision to **one
+    row**. For `tasks[].created`, declared `string | null`, the recorded type
+    was whichever branch the first task happened to have — so re-sorting the
+    board, re-prioritising a row or closing the one that used to be first flips
+    a type nothing promised was stable. That is *"every board edit is a
+    contract change"* arriving through the door the collapse was meant to shut
+    (TASK-145). Unioning over every element is a property of this function and
+    not of today's data: there is no privileged element left for an edit to
+    change.
     """
-    out = {}
-    if isinstance(value, dict):
-        for k, v in value.items():
-            out[f"{path}.{k}" if path else k] = type(v).__name__
-            out.update(shape(v, f"{path}.{k}" if path else k))
-    elif isinstance(value, list) and value:
-        out.update(shape(value[0], f"{path}[]"))
-    return out
+    out: dict[str, set[str]] = {}
+    walk(value, path, out)
+    return {key: "|".join(sorted(seen)) for key, seen in out.items()}
 
 
 def empty_lists(value, path=""):
-    """Return list paths whose current payload has no item to inspect.
+    """Return list paths that carried no item ANYWHERE in this payload.
 
     The parent list remains part of the contract. An empty runtime value cannot
     prove or disprove a hypothetical item's fields; focused producer tests
     exercise those shapes. Without this distinction the gate depends on whether
     today's project happens to carry a conformance finding.
+
+    A path is unobservable only when **every** occurrence of it was empty. The
+    old reading descended into element zero alone, so a nested list that was
+    empty on the first task and populated on the ninth counted as having
+    nothing to inspect — the same element-zero dependence `shape` shed.
     """
-    out = set()
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}" if path else key
-            out.update(empty_lists(child, child_path))
-    elif isinstance(value, list):
-        if not value:
-            out.add(path)
-        else:
-            out.update(empty_lists(value[0], f"{path}[]"))
-    return out
+    seen: set[str] = set()
+    filled: set[str] = set()
+
+    def scan(node, here):
+        if isinstance(node, dict):
+            for key, child in node.items():
+                scan(child, f"{here}.{key}" if here else key)
+        elif isinstance(node, list):
+            seen.add(here)
+            if node:
+                filled.add(here)
+            for item in node:
+                scan(item, f"{here}[]")
+
+    scan(value, path)
+    return seen - filled
 
 
-def capture() -> dict:
+def read() -> dict:
+    """Run each contract's command once, and read its page.
+
+    Three things per contract: the live shape, the lists this project left
+    empty, and `declared` — the types the contract PAGE states, by field path.
+    The page is read against this payload because that is what places its key
+    tables (`tests/contract_key_parity.py § place`), which is also why the two
+    checks can never disagree about which object a table describes.
+    """
     got = {}
-    for name, argv in CONTRACTS.items():
+    for name, (argv, page) in CONTRACTS.items():
         proc = subprocess.run([sys.executable, *argv, "--json"],
                               capture_output=True, text=True, cwd=ROOT)
         assert proc.returncode == 0, f"{name}: {proc.stderr[-300:]}"
@@ -113,10 +203,26 @@ def capture() -> dict:
                 f"{name}: representative `{field}` list is empty; nested "
                 "contract fields cannot be checked"
             )
+        boxes = parity.containers(parity.paths(payload),
+                                  parity.empty_lists(payload))
         got[name] = {"contract": payload.get("contract"),
                      "shape": shape(payload),
-                     "empty_lists": sorted(empty_lists(payload))}
+                     "empty_lists": sorted(empty_lists(payload)),
+                     "declared": declared_types.declared(
+                         (ROOT / page).read_text(), boxes)}
     return got
+
+
+def capture() -> dict:
+    """The recordable part of `read()` — what `--record` writes.
+
+    `declared` is deliberately not in it. It is not an observation of this
+    project and recording it would create the second copy of a contract page
+    that goes stale silently; it is re-read from `schema/` on every run.
+    """
+    return {name: {key: value for key, value in record.items()
+                   if key != "declared"}
+            for name, record in read().items()}
 
 
 class TestTheShapeIsRecorded(unittest.TestCase):
@@ -131,6 +237,14 @@ class TestTheShapeIsRecorded(unittest.TestCase):
         recorded = json.loads(BASELINE.read_text())
         self.assertEqual(set(recorded), set(CONTRACTS))
 
+    def test_every_contract_names_a_page_that_exists(self):
+        """The declared-type arm is only as good as the file it reads. A page
+        renamed out from under this table would silence it — every path would
+        become undeclared and the fixture would quietly be the authority
+        again, which is the state this gate was fixed out of."""
+        for name, (_, page) in CONTRACTS.items():
+            self.assertTrue((ROOT / page).exists(), f"{name}: no {page}")
+
 
 class TestNothingIsRemovedOrRetyped(unittest.TestCase):
     """`1.x` may only ADD keys. The two things it may not do are checked
@@ -139,7 +253,7 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
 
     def setUp(self):
         self.recorded = json.loads(BASELINE.read_text())
-        self.live = capture()
+        self.live = read()
 
     def test_no_key_disappeared(self):
         gone = []
@@ -153,14 +267,73 @@ class TestNothingIsRemovedOrRetyped(unittest.TestCase):
         self.assertEqual(gone, [], "\n" + "\n".join(gone))
 
     def test_no_key_changed_type(self):
+        """Where no page states a type, the recording is the authority.
+
+        The recorded type must still be one of the types the payload produces
+        at that path. A path its own contract page DECLARES is not judged here
+        at all — `test_no_type_contradicts_its_contract_page` judges it against
+        the page, which is a stronger statement and a different one: a fixture
+        can only say what was true once, and for `int | null` that is half the
+        contract. Recording the other half later would be the regeneration this
+        module's docstring refuses.
+        """
         moved = []
         for name, rec in self.recorded.items():
             live = self.live[name]["shape"]
+            declared = self.live[name]["declared"]
             for key, was in rec["shape"].items():
                 now = live.get(key)
-                if now and now != was:
+                if now is None or key in declared:
+                    continue
+                if not types(was) & types(now):
                     moved.append(f"{name}: {key} was {was}, now {now}")
         self.assertEqual(moved, [], "\n" + "\n".join(moved))
+
+    def test_no_type_contradicts_its_contract_page(self):
+        """A value whose type its own page does not declare.
+
+        The arm no fixture can supply. It holds a key declared `int` to `int`
+        on the very first run that returns `null` — the fixture would agree
+        with that `null` the moment it was recorded — and it holds the keys the
+        fixture never recorded, the 44 added since it was taken, to the same
+        rule. `int | null` passes on either branch because both are the
+        contract, and that is not leniency: a consumer coding against that page
+        already has to handle both.
+        """
+        wrong = []
+        for name, live in sorted(self.live.items()):
+            for key, allowed in sorted(live["declared"].items()):
+                now = live["shape"].get(key)
+                if now is None:
+                    continue
+                off = sorted(types(now) - allowed)
+                if off:
+                    wrong.append(
+                        f"{name}: {key} is {'|'.join(off)}; its contract page "
+                        f"declares {'|'.join(sorted(allowed))}")
+        self.assertEqual(wrong, [], "\n" + "\n".join(wrong))
+
+    def test_the_pages_still_declare_the_keys_that_moved_under_this_gate(self):
+        """The five union keys TASK-145 found are read off their pages.
+
+        Named, because "the page decides" is worth nothing if the page stopped
+        being readable — a table that stops being placed, a *Type* cell
+        rewritten into prose, and this arm goes quiet with every test still
+        green. These five are the ones with a history: each was recorded as
+        `NoneType` and each is a union its page declares.
+        """
+        expected = {
+            "perry-task/list": {"intake.oldest_undischarged": {"int", "NoneType"},
+                                "risks.items[].age_days": {"int", "NoneType"},
+                                "tasks[].created": {"str", "NoneType"}},
+            "perry-goals/list": {"krs[].current": {"int", "float", "NoneType"},
+                                 "krs[].target": {"int", "float", "NoneType"}},
+        }
+        for name, paths in expected.items():
+            for path, allowed in paths.items():
+                self.assertEqual(self.live[name]["declared"].get(path), allowed,
+                                 f"{name}: {path} is no longer read off "
+                                 f"{CONTRACTS[name][1]}")
 
     def test_the_major_version_did_not_move(self):
         for name, rec in self.recorded.items():
@@ -211,6 +384,134 @@ class TestAnAdditionIsAllowedAndAnnounced(unittest.TestCase):
             "conformance.rows_with_unrecognized_id",
         })
         self.assertIn("legacy display alias", entry["note"])
+
+
+class TestArrayOrderDoesNotDecide(unittest.TestCase):
+    """The sharper half of TASK-145. `int | null` firing was one key; element
+    zero choosing the recorded type was every array-nested key at once, and it
+    turned re-sorting a board into a contract change."""
+
+    ROWS = [{"created": None}, {"created": "2026-08-21T09:00:00"}]
+
+    def test_a_list_is_the_union_of_its_elements(self):
+        self.assertEqual(shape({"tasks": self.ROWS})["tasks[].created"],
+                         "NoneType|str")
+
+    def test_reversing_a_collection_changes_nothing(self):
+        """The property, stated as an equality rather than as two readings
+        that happen to agree today."""
+        self.assertEqual(shape({"tasks": self.ROWS}),
+                         shape({"tasks": list(reversed(self.ROWS))}))
+
+    def test_length_still_does_not_decide_either(self):
+        """The reason element zero was chosen in the first place, kept. A
+        board edit that adds a row of the same shape is not a contract
+        change."""
+        self.assertEqual(shape({"tasks": [{"created": "x"}]}),
+                         shape({"tasks": [{"created": "x"}] * 40}))
+
+    def test_the_live_payload_reads_the_same_reordered(self):
+        """On the real thing, not a two-row sketch. `tasks` is the collection
+        whose first element used to decide `created`, and Perry's own board
+        carries both branches in it."""
+        proc = subprocess.run([sys.executable, "bin/perry-task", "list",
+                               "--all", "--json"],
+                              capture_output=True, text=True, cwd=ROOT)
+        payload = json.loads(proc.stdout)
+        flipped = dict(payload, tasks=list(reversed(payload["tasks"])))
+        self.assertEqual(shape(payload), shape(flipped))
+        self.assertEqual(empty_lists(payload), empty_lists(flipped))
+
+    def test_a_nested_list_empty_only_on_the_first_row_is_still_observable(self):
+        """`empty_lists` shed element zero for the same reason. A row with no
+        timeline used to make every `timeline[]` field unobservable — and an
+        unobservable field is one `test_no_key_disappeared` waves through."""
+        payload = {"tasks": [{"timeline": []},
+                             {"timeline": [{"event": "add"}]}]}
+        self.assertEqual(empty_lists(payload), set())
+        self.assertEqual(shape(payload)["tasks[].timeline[].event"], "str")
+
+
+class TestThePageIsTheAuthorityOnType(unittest.TestCase):
+    """`tests/contract_declared_types.py`, held to what these pages write."""
+
+    def test_a_union_cell_declares_both_branches(self):
+        self.assertEqual(declared_types.type_words(r"int | null"),
+                         {"int", "NoneType"})
+
+    def test_number_is_two_python_types(self):
+        """JSON has one numeric type and `json.load` picks by whether the text
+        carried a `.`, so a KR's `current` moving from `0` to `0.5` is not a
+        retype and the page never promised which it would be."""
+        self.assertEqual(declared_types.type_words("number | null"),
+                         {"int", "float", "NoneType"})
+
+    def test_a_type_written_beside_its_explanation_is_read_to_the_em_dash(self):
+        self.assertEqual(
+            declared_types.type_words("string — the declared role, or `\"\"`"),
+            {"str"})
+
+    def test_an_enum_declares_nothing(self):
+        """`` `P0` \\| `P1` \\| `P2` `` is a *Meaning* cell. A reader that took
+        it for a type would declare three types no `type().__name__` produces
+        and fail every row it touched."""
+        self.assertEqual(declared_types.type_words("`P0` | `P1` | `P2`"), set())
+
+    def test_prose_declares_nothing(self):
+        self.assertEqual(
+            declared_types.type_words("the `RX-NNN` `risk-add` minted"), set())
+
+    def test_one_unknown_word_voids_the_whole_cell(self):
+        """Never a partial reading: `string | timestamp` is a page this file
+        does not understand, and half of it is worse than none of it."""
+        self.assertEqual(declared_types.type_words("string | timestamp"), set())
+
+
+class TestTheDeclaredArmRefusesTheWrongBranch(unittest.TestCase):
+    """Verification 3 and 4, as tests rather than as a paragraph. Both run
+    against a page and a payload built here, so neither depends on Perry's own
+    board holding a particular row today."""
+
+    PAGE = ("# `demo list --json`\n\n"
+            "### A row\n\n"
+            "| Key | Type | Meaning |\n|---|---|---|\n"
+            "| `id` | string | the row |\n"
+            "| `n` | int | a count, never absent |\n"
+            "| `age_days` | int \\| null | `today − opened` |\n")
+
+    def declared_for(self, payload):
+        boxes = parity.containers(parity.paths(payload),
+                                  parity.empty_lists(payload))
+        return declared_types.declared(self.PAGE, boxes)
+
+    def off_contract(self, payload):
+        declared = self.declared_for(payload)
+        live = shape(payload)
+        return sorted(key for key, allowed in declared.items()
+                      if key in live and types(live[key]) - allowed)
+
+    def test_a_key_declared_int_that_returns_null_is_red(self):
+        good = {"rows": [{"id": "a", "n": 1, "age_days": 3}]}
+        self.assertEqual(self.declared_for(good),
+                         {"rows[].id": {"str"}, "rows[].n": {"int"},
+                          "rows[].age_days": {"int", "NoneType"}})
+        self.assertEqual(self.off_contract(good), [])
+        broken = {"rows": [{"id": "a", "n": None, "age_days": 3}]}
+        self.assertEqual(self.off_contract(broken), ["rows[].n"])
+
+    def test_a_union_is_green_on_either_branch_and_on_both(self):
+        for rows in ([{"id": "a", "n": 1, "age_days": 3}],
+                     [{"id": "a", "n": 1, "age_days": None}],
+                     [{"id": "a", "n": 1, "age_days": None},
+                      {"id": "b", "n": 2, "age_days": 3}]):
+            with self.subTest(rows=rows):
+                self.assertEqual(self.off_contract({"rows": rows}), [])
+
+    def test_the_union_is_caught_on_a_later_element_too(self):
+        """Element zero is not the only row judged against the page either."""
+        rows = [{"id": "a", "n": 1, "age_days": 3},
+                {"id": "b", "n": None, "age_days": 3}]
+        self.assertEqual(self.off_contract({"rows": rows}), ["rows[].n"])
 
 
 # Recording is its own entry, ABOVE the canonical one, so the file still ends

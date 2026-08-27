@@ -148,6 +148,11 @@ CONTRACT_ID = re.compile(r"`(perry-[a-z]+/[a-z]+/\d+\.\d+)`")
 #: allowed BETWEEN them: commas, slashes and whitespace.
 SEPARATORS = re.compile(r"[\s,/]+")
 
+#: A cell boundary: a `|` the row did not escape. A contract page writes a
+#: union type as `int \| null` inside one cell, so the escape is load-bearing
+#: and splitting on every pipe would report a cell that is not there.
+CELL = re.compile(r"(?<!\\)\|")
+
 #: A collection a HEADING names for the table beneath it: a backticked
 #: ``name[]`` or ``parent.name[]``. The `[]` is the whole syntax — it is what
 #: separates *these are the entries of that collection* from a mention of a
@@ -234,15 +239,31 @@ def sketch_paths(text: str) -> tuple[dict[str, str], list[str]]:
     return found, unparsed
 
 
-def key_tables(text: str) -> list[tuple[str, list[str]]]:
-    """`(heading, keys)` for every table whose first column is keys.
+def row_cells(line: str) -> list[str]:
+    """A table row's cells, split on the pipes the row did not escape.
 
-    The heading is the nearest one above the table, and is only ever used to
-    NAME an unassigned table in the report — never to place it. Placing by
-    heading would mean inventing a mapping from English to payload structure,
-    which is the hand-written list this check refuses to carry.
+    Splitting on every `|` tears ``| `created` | string \\| null | … |`` into
+    four cells and hands `string \\` back as the declared type. That costs this
+    check nothing — it reads the first cell only — and it is exactly the union
+    `contract_declared_types` exists to read, so the split is done correctly
+    once, here, rather than a second time somewhere else.
     """
-    tables: list[tuple[str, list[str]]] = []
+    return [cell.strip().replace("\\|", "|")
+            for cell in CELL.split(line.strip().strip("|"))]
+
+
+def key_rows(text: str) -> list[tuple[str, list[tuple[str, list[str]]]]]:
+    """`(heading, [(key, the whole row)])` for every table whose first column
+    is keys.
+
+    The scan `key_tables` has always done, keeping each row's cells instead of
+    discarding everything but the names in its first one. A caller that needs
+    the *Type* column therefore reads it out of the same table this file
+    already found, under the same rule for what counts as a key table — and
+    `the second parser is the bug` stays a thing this repository says about
+    other people.
+    """
+    tables: list[tuple[str, list[tuple[str, list[str]]]]] = []
     heading, current, fenced = "", [], False
     for line in text.splitlines():
         if line.startswith("```"):
@@ -253,17 +274,29 @@ def key_tables(text: str) -> list[tuple[str, list[str]]]:
         if line.startswith("#"):
             heading = line.lstrip("#").strip()
         if line.startswith("|"):
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            cells = row_cells(line)
             names = re.findall(r"`([^`]+)`", cells[0])
             residue = SEPARATORS.sub("", re.sub(r"`[^`]+`", "", cells[0]))
             if names and not residue and all(IDENT.match(n) for n in names):
-                current.extend(names)
+                current.extend((name, cells) for name in names)
         elif current:
             tables.append((heading, current))
             current = []
     if current:
         tables.append((heading, current))
     return tables
+
+
+def key_tables(text: str) -> list[tuple[str, list[str]]]:
+    """`(heading, keys)` for every table whose first column is keys.
+
+    The heading is the nearest one above the table, and is only ever used to
+    NAME an unassigned table in the report — never to place it. Placing by
+    heading would mean inventing a mapping from English to payload structure,
+    which is the hand-written list this check refuses to carry.
+    """
+    return [(heading, [key for key, _ in rows])
+            for heading, rows in key_rows(text)]
 
 
 def containers(emitted: dict[str, str], empties: set[str]) -> dict[str, set[str]]:
