@@ -77,11 +77,37 @@ whatever rows the measurement produces. The baseline in
 `tests/fixtures/contract-key-parity.json` is what makes the number comparable
 across runs by someone who was not here.
 
+## The third number: what the project's own state could not show
+
+A key inside a collection this project leaves **empty** has no entry to be
+compared against. Reporting it as missing would be a lie, so it goes to
+`not_observable` with its reason — honest, and it means **nothing has ever
+checked it**. On 2026-08-27 that was 15 keys across four collections
+(`expired_sunsets`, `krs[].current_staleness.moved_tasks`,
+`conformance.depends_on_unknown`, `conformance.in_progress_with_no_live_run`)
+and both numbers above read 0 with all fifteen unverified. That is TASK-176's
+oscillation wearing an honest label: the reading depends on which rows happen
+to be idle this minute, not on whether the page is right.
+
+`WITNESS` is a **second project**, `tests/fixtures/witness-project`, whose own
+state is non-empty exactly where this one is empty — a decision past its sunset,
+a dependency on an id no register carries, an `in_progress` row nothing has
+moved, a linkage register older than its event log. The same commands read it
+and derive the entries; **no payload is written by hand**, and nothing is added
+to `perry/`. See `compare` for the one thing it is allowed to decide (entry
+shape, never placement) and that project's `README.md` for what produces each
+of its four conditions.
+
+`not_observable` keeps its job: it names every key that is still inside an
+empty collection after the witness has been read, and says which of the two
+projects left it empty. `--no-witness` is the reading without it.
+
 Run:
 
     python3 tests/contract_key_parity.py             # per-contract counts
     python3 tests/contract_key_parity.py --json      # the same, machine-readable
     python3 tests/contract_key_parity.py --record    # rewrite the baseline
+    python3 tests/contract_key_parity.py --no-witness  # the pre-TASK-132 reading
 """
 
 from __future__ import annotations

@@ -24,6 +24,15 @@ Proved by mutation, in both directions, before it was committed:
 - moving one file out of `schema/` changes `contract_files_discovered` from 5
   to 4 and fails `test_the_glob_still_finds_every_contract_on_disk`.
 
+**A key inside a collection this project leaves empty was never in either
+count.** `not_observable` said so honestly and that meant nothing had ever
+checked it — 15 keys in four collections on 2026-08-27, with both numbers
+reading 0. `tests/fixtures/witness-project` is read for those keys, and
+`TestAWitnessProjectMakesAnEmptyCollectionObservable` plus
+`TestTheWitnessedKeysRedden` hold the four collections open and prove one key
+of each is compared: the same page mutation is named with the witness and
+silent without it.
+
 Run: python3 tests/parallel test_contract_key_parity
 """
 
