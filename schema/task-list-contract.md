@@ -416,17 +416,35 @@ version. Same block, same meaning, now under this contract.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `checked` | bool | `false` when there is no event log — a pre-`perry-task` project, not a broken one. Everything else is then zero or empty. |
-| `baseline` | string | the earliest event timestamp, so you can judge `unrecorded` yourself |
-| `drift` | int | `len(orphaned) + len(stale_done)` — **only the unambiguous conditions** |
-| `unrecorded` | int | board rows with no creating event. **Not counted as drift**: a row can be a hand-edit or can simply predate the tool, and nothing on a row distinguishes them. Perry's own board had 29 the day the writer shipped. |
-| `unrecorded_sample` | array | up to 5 of those ids |
-| `orphaned` | array | ids an event opened and the board has neither a row nor a close for — the mutation did not land in the markdown |
-| `stale_done` | array | `done` rows whose latest event is not their close — edited after the tool wrote them |
+| `checked` | bool | `false` when there is no event log — a pre-`perry-task` project, not a broken one. **Every other key in this block is then `null`**, including the arrays. Read this one first. |
+| `baseline` | string | the earliest event timestamp, so you can judge `unrecorded` yourself. `""` when unchecked — it is a timestamp that does not exist, not a finding. |
+| `drift` | int \| null | `len(orphaned) + len(stale_done)` — **only the unambiguous conditions**. `null` when `checked` is `false`. |
+| `unrecorded` | int \| null | board rows with no creating event. **Not counted as drift**: a row can be a hand-edit or can simply predate the tool, and nothing on a row distinguishes them. Perry's own board had 29 the day the writer shipped. `null` when `checked` is `false`. |
+| `unrecorded_sample` | array \| null | up to 5 of those ids |
+| `orphaned` | array \| null | ids an event opened and the board has neither a row nor a close for — the mutation did not land in the markdown |
+| `stale_done` | array \| null | `done` rows whose latest event is not their close — edited after the tool wrote them |
+
+**Why `null` and not `0` (TASK-117).** This block used to read `checked: false`
+beside `drift: 0`, `unrecorded: 0` and three empty arrays, and this page said so
+in as many words — *"Everything else is then zero or empty"*. A consumer that
+reads a count and not a flag then renders a clean board for a tree nothing
+looked at, and `len(orphaned)` reads exactly the way `drift` does, so nulling
+only the two counts would have left the same hole three keys over. `0` and `[]`
+are findings; `null` is rule 1's unknown value, and a consumer that skipped
+`checked` now fails on it rather than getting a reassuring number.
 
 A hand edit to the Board projection is not task truth. `perry-lint` reports
 store/projection drift; this compatibility block only describes whether the
 event history explains the rows visible in that projection.
+
+**And `perry-lint`'s store comparison is unchecked here too.** It derives what
+the store would hold from `BOARD.md` **and this same event log**, so on a
+project with no log it has no left-hand side: its `--json` payload reports
+`store_drift.log_present: false`, `comparison_performed: false` and
+`drifted: null` rather than a count. Before TASK-117 it reported 175 of 175
+records drifted on a board and store that were byte-identical to the reading
+that reported 0 with the log present. The two tools now answer *"was a
+comparison performed"* the same way on the same tree.
 
 
 ## The three rules that make it safe to code against
@@ -500,6 +518,22 @@ parse the markdown.
 change under you. Everything a Work surface needs is here.
 
 ## Changelog
+
+**Not a version, 2026-08-28 (TASK-117).** `drift.drift`, `drift.unrecorded`
+and the block's three arrays are `null` rather than `0`/`[]` when
+`drift.checked` is `false`. **No key was added, removed or renamed**, and the
+version does not move for the reason rule 1 gives: an unknown value in this
+payload is `""`, `null` or `[]`, and a count nobody computed is an unknown
+value. Emitting `0` there was this payload reporting a measurement it had not
+taken — the same defect as `not_observable` reading zero — and it is what let
+one tool call a tree clean while `perry-lint` reported drift on it.
+
+A consumer that read `drift` without reading `checked` was wrong before this
+change and is now told so instead of being reassured; `checked` has said
+`false` on these projects since the block shipped, and rule 1 has said what an
+unknown value looks like for just as long. If you rendered a drift badge from
+the count, gate it on `checked` — one test, and it is the test this block has
+always documented.
 
 **Not a version, 2026-08-21 (TASK-040).** `risks[].cleared_on` gained a
 definition rather than a description: it is the risks register record's
