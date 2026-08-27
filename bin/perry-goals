@@ -35,6 +35,15 @@ prose through a parsed model produces a file that still passes `perry-lint` and
 no longer reads the way its author wrote it, which DESIGN-005 § 5.5 rates worse
 than having no writer at all.
 
+**`okr.jsonl` is the truth for the register, and `OKR.md § Commitments` is the
+projection of it** (ADR-007 decision 2, TASK-123). `commit` reads that store
+BEFORE it decides anything, and a cell the two disagree about is a hand edit it
+refuses to act on — `register_drift` and `check_register_drift`. It does not
+re-render the file to get there; it compares, and once the comparison passes,
+every cell read out of the markdown below is provably the store's own value.
+`--accept-hand-edit` is the way past, with the meaning it already has here: the
+FILE's value becomes the new truth and the next write records it.
+
 **The log is the truth, the file is the view** — accepted by the user on
 2026-08-17 (DESIGN-005 § 9, last entry) *before* this writer was built, exactly
 so it would not be built against "the file is the truth". Every write appends
@@ -638,22 +647,9 @@ def write_okr_and_store(state_root: Path, project_root: Path, okr,
     text = okr.render()
     store = md_store.OKR.store_path(project_root, state_root)
     derived = md_store.derive(md_store.OKR, text)
-    _valid, malformed_now = md_store.validate_records(derived)
-    if malformed_now:
-        raise Refused(
-            f"the write would produce an OKR store this tool could not read "
-            f"back ({malformed_now[0]['message']}). Two lines of `OKR.md` "
-            f"carrying one key is the usual cause. Nothing was written")
-    rendered, report = md_store.render(md_store.OKR, text, derived)
-    if rendered != text:
-        where = report.get("first_difference") or {}
-        raise Refused(
-            f"the OKR store cannot reproduce the file this write would "
-            f"produce, so writing either would lose the difference between "
-            f"them (first at line {where.get('line', '?')}). That is this "
-            f"renderer's bug, not the file's. Nothing was written")
     out = {"store": str(store), "store_records": len(derived),
-           "store_drift": []}
+           "store_drift": [], "records_the_file_no_longer_renders": []}
+    prior: list[dict] = []
     if store.exists():
         try:
             prior, malformed = md_store.validate_records(
@@ -669,8 +665,44 @@ def write_okr_and_store(state_root: Path, project_root: Path, okr,
                 f"{store} is malformed at line {malformed[0]['line']} "
                 f"({malformed[0]['message']}); refusing to overwrite a store "
                 f"that cannot be safely compared. Nothing was written")
+
+    # **A record whose line has left the file is KEPT (TASK-123).** Deriving
+    # the whole store from the text meant a row deleted from `OKR.md` by hand
+    # deleted the canonical record with it — the file editing the store, which
+    # is the direction ADR-007 reverses, and `perry-okr write --from-file`
+    # refuses this exact loss by name (*"the whole record would be dropped"*)
+    # while this path performed it and reported success. Nothing renders for a
+    # kept record, so `rendered == text` still holds below and `perry-okr diff`
+    # stays byte-clean; `perry-okr verify` is where it shows, under
+    # `records_not_in_the_file`, which is what "reported rather than honoured"
+    # means for a row that is gone rather than changed.
+    #
+    # No write path in this tool removes a line — `commit` appends, amends and
+    # widens — so a key that has left is a hand edit by construction.
+    have = {md_store.record_key(r) for r in derived}
+    kept = [r for r in prior if md_store.record_key(r) not in have]
+    final = derived + kept
+    out["records_the_file_no_longer_renders"] = sorted(
+        md_store.record_key(r).replace("\x00", "/") for r in kept)
+    out["store_records"] = len(final)
+
+    _valid, malformed_now = md_store.validate_records(final)
+    if malformed_now:
+        raise Refused(
+            f"the write would produce an OKR store this tool could not read "
+            f"back ({malformed_now[0]['message']}). Two lines of `OKR.md` "
+            f"carrying one key is the usual cause. Nothing was written")
+    rendered, report = md_store.render(md_store.OKR, text, final)
+    if rendered != text:
+        where = report.get("first_difference") or {}
+        raise Refused(
+            f"the OKR store cannot reproduce the file this write would "
+            f"produce, so writing either would lose the difference between "
+            f"them (first at line {where.get('line', '?')}). That is this "
+            f"renderer's bug, not the file's. Nothing was written")
+    if prior:
         out["store_drift"] = [
-            line for line in md_store.would_discard(prior, derived)
+            line for line in md_store.would_discard(prior, final)
             if not md_store.touches(line, touched)]
     if out["store_drift"] and not quiet:
         print(f"perry-goals: ⚠ `OKR.md` was edited by hand since the store was "
@@ -680,12 +712,22 @@ def write_okr_and_store(state_root: Path, project_root: Path, okr,
               f"`perry-okr diff` asks about it on its own.", file=sys.stderr)
         for line in out["store_drift"][:5]:
             print(f"    {line}", file=sys.stderr)
+    if out["records_the_file_no_longer_renders"] and not quiet:
+        print(f"perry-goals: ⚠ {len(out['records_the_file_no_longer_renders'])} "
+              f"record(s) are in `okr.jsonl` and no longer have a row in "
+              f"`OKR.md`: "
+              f"{', '.join(out['records_the_file_no_longer_renders'][:5])}. "
+              f"The store keeps them — a row deleted from a rendered file does "
+              f"not delete what it means (ADR-007 decision 2), and their ids "
+              f"are never reused. `perry-okr verify` names them; `perry-okr "
+              f"render --write` cannot bring a deleted row back, so restoring "
+              f"one is a hand edit or a new `commit`.", file=sys.stderr)
     write_atomic(state_root, okr.path, text)
     # The store is written second and unconditionally, under the same project
     # lock as the file above, so a reader cannot catch the pair half-written.
     # If the process dies between the two, the next command reports the
     # difference as drift rather than absorbing it in silence.
-    lib.write_atomic(store, md_store.store_text(derived))
+    lib.write_atomic(store, md_store.store_text(final))
     return out
 
 
@@ -2246,7 +2288,8 @@ def commitment_id_at(header: list[str]) -> int:
 ID_N_RE = re.compile(r"^(?P<track>.+)/(?P<n>\d+)$")
 
 
-def mint_commitment_id(track: str, rows: list[dict], events: list[dict]) -> str:
+def mint_commitment_id(track: str, rows: list[dict], events: list[dict],
+                       stored_ids: "list[str] | tuple[str, ...]" = ()) -> str:
     """`<track>/<n>`, `<n>` one greater than the highest **for that track**.
 
     `phases.md`: *"Ids are never reused and never renumbered."* So the search
@@ -2255,9 +2298,21 @@ def mint_commitment_id(track: str, rows: list[dict], events: list[dict]) -> str:
     and reusing its number would silently re-point every board row that carries
     it at a different promise. That is the one failure mode worse than a
     dangling link, because nothing looks broken.
+
+    **And over `okr.jsonl`, which is the only one of the three that holds a row
+    this tool never wrote.** TASK-123 measured the hole: a register imported
+    with `perry-okr write --from-file` puts its rows in the store and NOT in
+    the log — `commit` has never seen them — so deleting `ops/1` from the file
+    by hand left the number in the store alone, invisible to both lists above.
+    The next `commit --track ops` minted `ops/1` a second time, for a different
+    promise, and reported success. `store_drift` did not catch it either: the
+    new row's key IS `commitment/ops/1`, so `touches` excused the record it had
+    just destroyed as this write's own doing. Reproduced end to end; the store
+    is the third list because it is the only one that knew.
     """
     seen = [r.get("Id", "") for r in rows]
     seen += [e.get("id", "") for e in commitment_events(events)]
+    seen += list(stored_ids)
     highest = 0
     for cid in seen:
         m = ID_N_RE.match((cid or "").strip().strip("*` "))
@@ -2283,6 +2338,130 @@ def find_commitment(rows: list[dict], cid: str, flag: str = "") -> dict:
     raise Refused(f"{where}was given {cid!r}, which is not a row in "
                   f"`OKR.md § Commitments`; present: {known or '(none)'}. "
                   f"Nothing was written")
+
+
+#: The commitment fields a hand edit can move. `kind` is the record's name and
+#: `order` is its position — a row dragged up the table changes `order` and
+#: says nothing about any value, which is why `perry-lint § check_store_drift`
+#: excludes the same field from the same comparison.
+COMMITMENT_FIELDS = tuple(f for f in md_store.STORED["commitment"]
+                          if f not in ("kind", "order"))
+
+
+def register_drift(state_root: Path, project_root: Path, okr) -> dict:
+    """How `OKR.md § Commitments` differs from `okr.jsonl`, before any edit.
+
+    TASK-123. **This is the read side of TASK-092's write side**, and until it
+    existed `OKR.md` had two writers with opposite notions of which artifact is
+    true: `perry-okr` treats `okr.jsonl` as canonical and reports a hand edit,
+    while every decision `cmd_commit` makes — a row's `Status`, whether its
+    `Due` is in the past, what its `Discharged by` already says, which id is
+    free — was read out of the markdown and then written back INTO the store as
+    the new truth. Three cases were reproduced end to end before this landed:
+
+      * a hand edit to a row the command touches was absorbed into the store
+        and **not reported at all** (`store_drift: []`), because `touches`
+        excuses that row as the write's own doing;
+      * a hand edit to a row the command does not touch was reported as drift
+        and then written into the store anyway — reported AND honoured, which
+        is the one outcome ADR-007 exists to prevent;
+      * an id whose row was deleted by hand was minted again (see
+        `mint_commitment_id`).
+
+    So the store is consulted FIRST, and a cell the two disagree about is a
+    hand edit: `cmd_commit` refuses on it rather than deciding against a value
+    the canonical file does not carry. Nothing here re-renders `OKR.md` — the
+    file is not touched, and once the comparison passes, every cell this tool
+    reads out of the markdown is provably the store's own value.
+
+    Presence is reported and never refused, because refusing would buy nothing
+    that is not already bought: a record whose row has left is KEPT by
+    `write_okr_and_store` and named in `records_the_file_no_longer_renders`,
+    its id is protected by `mint_commitment_id`, and `find_commitment` refuses
+    by name for a row that is not there. Nothing is lost by proceeding, and
+    `phases.md`'s own worked example deletes a row by hand and expects the next
+    `commit` to go through.
+
+    A project with no store is not drifted, it **predates the store** — the
+    same distinction `logged_status` draws for the log, and for the same
+    reason: every register alive today was written by hand, and treating those
+    as edits makes the first write on every real project a wall of prompts.
+    """
+    store = md_store.OKR.store_path(project_root, state_root)
+    out = {"store": str(store), "compared": False, "stored_ids": [],
+           "disagreements": [], "in_the_store_not_in_the_file": [],
+           "in_the_file_not_in_the_store": []}
+    if not store.exists():
+        return out
+    try:
+        on_disk = md_store.load_store(store)
+    except (OSError, ValueError) as exc:
+        raise Refused(
+            f"{store} exists but is not readable JSONL "
+            f"({type(exc).__name__}: {exc}), so `OKR.md` cannot be compared "
+            f"against the file it is a projection of. Move it aside and "
+            f"re-run. Nothing was written") from None
+    prior, malformed = md_store.validate_records(on_disk)
+    if malformed:
+        raise Refused(
+            f"{store} is malformed at line {malformed[0]['line']} "
+            f"({malformed[0]['message']}), so `OKR.md` cannot be compared "
+            f"against it. Nothing was written")
+
+    def by_id(records: list[dict]) -> dict:
+        return {r.get("id", ""): r for r in records
+                if r.get("kind") == "commitment" and r.get("id")}
+
+    stored = by_id(prior)
+    live = by_id(md_store.derive(md_store.OKR, okr.text))
+    out["compared"] = True
+    out["stored_ids"] = sorted(stored)
+    for cid in sorted(set(stored) & set(live)):
+        for field in COMMITMENT_FIELDS:
+            was, now = stored[cid].get(field) or "", live[cid].get(field) or ""
+            if was != now:
+                out["disagreements"].append(
+                    {"id": cid, "field": field, "store": was, "file": now})
+    out["in_the_store_not_in_the_file"] = sorted(set(stored) - set(live))
+    out["in_the_file_not_in_the_store"] = sorted(set(live) - set(stored))
+    return out
+
+
+def check_register_drift(drift: dict, accept: bool, quiet: bool = False) -> None:
+    """Refuse a write decided against a cell `okr.jsonl` does not carry.
+
+    `--accept-hand-edit` is the documented way past it and keeps the meaning it
+    already has everywhere else in this tool: **the FILE's value becomes the
+    new truth**, and the next write records it. That is DESIGN-005 § 9's
+    reconcile — *never silently overwritten, and never silently authoritative
+    either* — which is strictly stronger than ADR-007's "reported rather than
+    honoured" and satisfies it. `perry-okr diff` asks the same question on its
+    own, and `perry-okr render --write` is the other way back.
+    """
+    if not drift["disagreements"]:
+        return
+    shown = [f"{d['id']}.{d['field']}: `okr.jsonl` holds "
+             f"{d['store'] or '(empty)'!r}, `OKR.md` reads "
+             f"{d['file'] or '(empty)'!r}" for d in drift["disagreements"]]
+    if accept:
+        if not quiet:
+            print(f"perry-goals: ⚠ taking the FILE's value on "
+                  f"{len(shown)} cell(s) `okr.jsonl` disagrees with, because "
+                  f"`--accept-hand-edit` says so:", file=sys.stderr)
+            for line in shown[:5]:
+                print(f"    {line}", file=sys.stderr)
+        return
+    raise Refused(
+        f"{len(shown)} cell(s) of `OKR.md § Commitments` disagree with "
+        f"`okr.jsonl`, which is the canonical record of this register "
+        f"(ADR-007 decision 2) — someone edited the row by hand:\n    "
+        + "\n    ".join(shown[:5])
+        + (f"\n    … and {len(shown) - 5} more" if len(shown) > 5 else "")
+        + "\n\n  This write reads those cells to decide what to do, so it "
+          "will not run against a value the store does not carry. Re-run with "
+          "`--accept-hand-edit` to take `OKR.md`'s values as the truth and "
+          "record them, or `perry-okr render --write` to put the file back in "
+          "line with the store. Nothing was written")
 
 
 def check_hand_edit(events: list[dict], row: dict, accept: bool) -> str:
@@ -2338,6 +2517,14 @@ def cmd_commit(args, ctx) -> dict:
     """Add, update, close or miss one row of `OKR.md § Commitments`."""
     okr, sr = ctx["okr"], ctx["state_root"]
     events = ctx["events"]
+    # **The store is consulted before any decision is made against the file.**
+    # Every branch below reads `Status`, `Due`, `Discharged by` and the set of
+    # ids out of the markdown; `okr.jsonl` is what those fields MEAN (ADR-007
+    # decision 2), so a cell the two disagree about is a hand edit and this
+    # write does not get to act on it. `--dry-run` is gated too — a plan
+    # computed against a drifted file is a plan for a file nobody has.
+    drift = register_drift(sr, ctx["project_root"], okr)
+    check_register_drift(drift, args.accept_hand_edit, quiet=args.as_json)
     ending = args.close or args.miss
     if args.close and args.miss:
         raise Refused("--close and --miss end a commitment two different ways; "
@@ -2356,7 +2543,8 @@ def cmd_commit(args, ctx) -> dict:
                 "register to split. Nothing was written")
         counts = migrate_commitments(okr, ctx["tracks"])
         result = {"migrated": counts, "id": "—", "created_section": False,
-                  "widened": list(counts["widened"]), "file": str(okr.path)}
+                  "widened": list(counts["widened"]), "file": str(okr.path),
+                  "register_drift": drift}
         result["event"] = {
             "ts": lib.event_stamp(),
             "event": "commit-migrate", "id": "—", "track": "",
@@ -2573,7 +2761,8 @@ def cmd_commit(args, ctx) -> dict:
                 "rather than in the commitments register. Nothing was written")
         track = track_named(ctx["tracks"], args.track, "--track")
         check_due(track, args.due or "")
-        cid = mint_commitment_id(args.track, rows, events)
+        cid = mint_commitment_id(args.track, rows, events,
+                                 drift["stored_ids"])
         values = {"Id": cid, "Track": args.track, "Promise": args.promise,
                   "To whom": args.to, "Due": args.due,
                   # Prose, written exactly as given and never inspected.
@@ -2612,6 +2801,7 @@ def cmd_commit(args, ctx) -> dict:
     result["created_section"] = created_section
     result["widened"] = widened
     result["file"] = str(okr.path)
+    result["register_drift"] = drift
     result["event"] = event
     if args.dry_run:
         result["dry_run"] = True
