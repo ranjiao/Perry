@@ -58,6 +58,7 @@
 | 2026-08-28 | four docstrings cite a directory on this machine as their evidence — bin/README.md:234, perry-conform:273-274 and :283, perry-goals:459 and :334; three are only fixable because TASK-124 and TASK-125 built the tests to point at | — |
 | 2026-08-28 | a mutation sweep killed mid-flight leaves the tree mutated — TASK-147's was SIGTERM'd at a tool cap and its finally never ran, leaving a live mutation in bin/perry_store.py; sweeps should run detached with signal handlers | — |
 | 2026-08-28 | render_line's desc.get('escape', True) default is unreachable from production — both builders always set the key | — |
+| 2026-08-28 | perry-lint's store-drift census covers tasks.jsonl only — okr.jsonl's 36 records and .perry/config.jsonl are never checked for drift, so ADR-007's guarantee holds for one store of three | — |
 
 ## P0 (must finish this period)
 
@@ -75,7 +76,6 @@
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
-| TASK-123 | the goals writer takes the file as truth and derives the store, which is the opposite direction from the KR | Coding Agent | in_progress | — | — | V4 | — | main |  |  |  |  |  |  |
 | TASK-129 | Agent is five strings that do not join, and role has never once been written | Coding Agent | not_started | unblocked: work owns .perry/agents.jsonl → .perry/roles/ as of the 2026-08-20 signature; needs a spec, then dispatch | — | V3 | TASK-128 | main |  |  |  |  |  |  |
 | TASK-155 | the register updated field carries two facts, so appending an edge silently re-dates every asserted number in the file | Coding Agent | not_started | — | — | V3 |  | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-173 | an Objective is not a record, so it has no durable address | Coding Agent | not_started | DESIGN-009 drafted 2026-08-21: design/DESIGN-009-the-objective-is-a-record.md. Four User Decisions open — id shape, write-back location, how the five existing objectives get minted, and whether krs[].objective keeps the title. The key finding: the PHASE level already solved this. phase/002-linkage.md states id: O1 and the payload carries it, while okr.objectives[].id is '' for all five — and the contract already says a STATED id is legitimate where a DERIVED one is not | — | V4 | — | main |  |  |  |  |  |  |
