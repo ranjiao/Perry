@@ -107,6 +107,24 @@ consumer reading `schema/` concluded there was no read side for knowledge cards
 at all and asked for one to be built. **A contract with no page in `schema/` is
 a contract that does not exist to the reader it was written for.**
 
+### One key table, several collections — say so in the heading
+
+A key table is normally placed by matching its keys against what the command
+emits. That cannot work for two collections built to share an entry shape:
+they are the same key set, so the match either ties or lands on whichever one
+the project's state happens to have filled. Name them in the heading instead,
+as backticked `name[]` references:
+
+```
+#### The idle entry — `in_progress_with_no_live_run[]` and `review_idle[]`
+```
+
+and the table below is read as documenting **both**. The `[]` is the whole
+syntax — a bare `` `asks` `` in a heading is the section's topic, not a claim
+about the table — and a name that matches no emitted collection, or more than
+one, **fails the check by name** rather than being quietly ignored. Nothing
+else about the page changes; a heading that names nothing keeps the matching.
+
 **The version in the first column is a convenience and nothing checks it.** The
 authoritative version is the `contract` string in the payload itself, plus the
 page's own heading; two of the pins above are behind their pages today, and
