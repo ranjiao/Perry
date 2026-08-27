@@ -1997,9 +1997,26 @@ def main(argv: list[str]) -> int:
     # project already uses a directory name Perry claims. `.perry/` stays at the
     # project root — it holds the pointer, so it can't sit behind it.
     root = P.resolve_state_root(project_root)
-    # parsers.py resolves PROJECT_ROOT at import time from cwd; override it so
-    # --root works regardless of where the script was invoked from.
-    P.PROJECT_ROOT = root
+    # parsers.py resolves BOTH roots at import time by walking up from the cwd,
+    # so on `--root <elsewhere>` they answer for the wrong project entirely.
+    # Overridden here, as a PAIR, each to the root its own name means.
+    #
+    # This line used to be `P.PROJECT_ROOT = root` — the STATE root, assigned to
+    # the global that means the directory `.perry/` is anchored at. On every
+    # project whose state IS its root the two are the same directory and the
+    # inversion is invisible; on a project with `State root: <subdir>` — this
+    # one — it left PROJECT_ROOT pointing at a directory with no `.perry/` in
+    # it. That is not a naming complaint: `--escalation-scan` below was handed
+    # the same wrong root, found zero fragments and reported a clean `unarmed`,
+    # and was fixed at its own call site rather than here (TASK-164).
+    #
+    # Nothing in parsers.py reads either global at call time today —
+    # `load_snapshot`'s `STATE_ROOT` default is bound at def time and every
+    # caller passes a root explicitly — so this is a sync, not a hand-off. It
+    # is kept, and kept paired, because the next reader to appear will read the
+    # name and get the directory the name promises.
+    P.PROJECT_ROOT = project_root
+    P.STATE_ROOT = root
 
     # Ahead of `build()` on purpose: the gate needs the hook and the role
     # cards, not the board, the OKR or the journal. A safety check that cannot
