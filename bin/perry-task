@@ -1904,7 +1904,8 @@ def replace_canonical_pair(state_root: Path,
 
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
-           definition: str = "", signoff_block: str = "") -> dict:
+           definition: str = "", signoff_block: str = "",
+           off_board: bool = False) -> dict:
     """Write the store and the journal together, render the board, log the event.
 
     **The three-way write is `store + journal + event` now, not `board +
@@ -1955,6 +1956,22 @@ def commit(project_root: Path, state_root: Path, board: Board,
             # A terminal Task remains editable even if its disposable event log
             # is gone and therefore cannot reconstruct a Board row.
             projected = dict(old)
+        if off_board and event_name == "retitle" and old is not None:
+            # **TASK-166.** The subject has no Board line to mutate, so the
+            # projection cannot be the source of the new value the way it is
+            # for every other write: `store_records` would rebuild this row off
+            # the EVENT STREAM, and the field being repaired is precisely the
+            # one an event predating the `title` key does not carry — so the
+            # derivation returns the empty title that is the defect and the
+            # write silently becomes a no-op.
+            #
+            # The value therefore comes from the event, exactly as `summary`'s
+            # does, and for the same reason: a field the projection cannot hold
+            # cannot be read back out of it. `changed` below is still what
+            # bounds this to one cell — reaching the row and rewriting it are
+            # separate permissions, and only `title` has both.
+            projected = dict(old)
+            projected["title"] = event.get("to") or ""
         if projected is None:
             raise Refused(
                 f"{subject} could not be rendered into the task projection. "
@@ -1991,10 +2008,14 @@ def commit(project_root: Path, state_root: Path, board: Board,
                 target[field] = (event.get("to") or "" if field == "summary"
                                  else projected.get(field))
 
-        if old is not None and event_name == "summary":
-            # Summary is store-only metadata. Updating it must not turn one
-            # field edit into a whole-store reorder by moving the record to the
-            # final JSONL line.
+        # Summary is store-only metadata. Updating it must not turn one
+        # field edit into a whole-store reorder by moving the record to the
+        # final JSONL line. An off-board repair is the same case for the same
+        # reason and one more: the record it edits is FINISHED, and its
+        # position in the store is the order the work actually happened in.
+        # Rewriting a name is not a reason to move history.
+        in_place = old is not None and (event_name == "summary" or off_board)
+        if in_place:
             records = [target if record["id"] == subject else dict(record)
                        for record in current]
         else:
@@ -2015,7 +2036,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
                      if record.get("group") == target.get("group")
                      and record.get("order") is not None]
             target["order"] = max(peers, default=-1) + 1
-        if not (old is not None and event_name == "summary"):
+        if not in_place:
             records.append(target)
     else:
         records = [dict(record) for record in current]
@@ -3232,9 +3253,89 @@ def cmd_depends(args, ctx) -> dict:
     return {"id": tid, "depends_on": ids, "row": line, **plan}
 
 
+#: The board columns, keyed the other way round. `off_board_repair` reaches a
+#: record with no projection row, so it has to name the STORE field; every
+#: other path in `cell_writer` goes through `task_projection_row`, which is
+#: keyed by column.
+_BOARD_TO_STORE = {column: field for field, column in _STORE_TO_BOARD.items()}
+
+
+def _row_is_on_the_board(ctx, task_id: str) -> bool:
+    """Does the projection hold a line for this id? (It does not, once closed.)"""
+    board = ctx.get("board")
+    if board is None:
+        return False
+    try:
+        board.find(task_id)
+    except Refused:
+        return False
+    return True
+
+
+def repair_off_board_cell(args, ctx, field: str, event: str, why: str,
+                          value: str, show_previous: bool) -> dict:
+    """Write one cell of a record the projection no longer carries a row for.
+
+    **TASK-166.** `cell_writer` refuses a row that is not on the board, and
+    that refusal is right for the cell writers as a class — `next` refuses a
+    finished row on purpose, `rung` and `evidence` are claims about work that
+    was checked, and a closed row's `status` has exactly one writer. Closing
+    REMOVES the row, so "not on the board" and "finished" are the same
+    condition seen from the projection, and the refusal is how the tool says
+    "that work is over".
+
+    `title` is the one cell where that is false, and the reason is what the
+    cell IS. Every other cell `cell_writer` writes is a claim about the work —
+    where it got to, who checked it, what is next — and a claim about finished
+    work is finished too. The title is the row's NAME: it is what a reader is
+    handed instead of a bare id, which `reference/user-load.md` forbids
+    outright, and a name is needed for exactly as long as anybody reads the
+    record. On this repository the only permanently untitled row is
+    `TASK-029`, and it is permanently untitled BECAUSE it closed: an open row
+    with no title gets one the next time somebody reads the board, so the two
+    halves of the defect were one shape — the check that would find it only
+    looked where the writer could reach, and the writer only reached where the
+    check already looked.
+
+    **How narrow this door is, stated so a mutation can widen it and redden a
+    test.** Three separate guards, none of which is the other's restatement:
+
+    1. `off_board_repair=True` is passed by `retitle` and by nothing else, so
+       `next`, `rung`, `evidence` and `status` never reach this function.
+    2. It refuses a record that is not terminal. An OPEN row missing from the
+       projection is a rendering failure, not a closed row, and repairing it
+       here would paper over a stale `BOARD.md`.
+    3. `commit`'s per-event `changed` whitelist still bounds the write to
+       `("title",)`, so even this path cannot carry a second field across.
+    """
+    record = task_record(ctx, args.id)
+    status = (record.get("status") or "").strip().lower()
+    if status not in ("done", "dropped"):
+        raise Refused(
+            f"{args.id} is {status or 'unset'} and is not a row on the board. "
+            f"An open row missing from the projection is a rendering failure, "
+            f"not finished work: run `perry-tasks render --write` and retry.")
+    store_field = _BOARD_TO_STORE[field]
+    previous = record.get(store_field) or ""
+    if previous.strip() == value.strip():
+        raise Refused(f"{args.id}'s {field} is already that")
+    jline = (f"- [{args.id}] {why} · {previous or '—'} → {value}"
+             if show_previous else f"- [{args.id}] {why} · {value}")
+    ev = {"ts": datetime.now().isoformat(timespec="seconds"),
+          "event": event, "id": args.id, "title": value,
+          "track": record.get("track") or "main", "actor": args.actor,
+          "from": previous, "to": value}
+    plan = commit(ctx["project_root"], ctx["state_root"], ctx["board"],
+                  jline, ev, args.dry_run, off_board=True)
+    # No `row`: there is no projection line, and inventing one would be the
+    # tool claiming a board edit it did not make.
+    return {"id": args.id, field: value, **plan}
+
+
 def cell_writer(field: str, flag: str, event: str, why: str,
                 validate=None, terminal_ok: bool = True,
-                required_msg: str = "", show_previous: bool = True):
+                required_msg: str = "", show_previous: bool = True,
+                off_board_repair: bool = False):
     """One implementation for "correct this cell and nothing else".
 
     There were three — `next`, `retitle`, `rung` — written weeks apart and each
@@ -3257,6 +3358,13 @@ def cell_writer(field: str, flag: str, event: str, why: str,
                           f"subcommand exists to write that cell")
         if validate:
             value = validate(value, ctx)
+        # Only `retitle` sets this, and only a row the projection has already
+        # let go of takes the branch. Everything else falls through to
+        # `task_projection_row`, whose `find()` is the refusal that protects
+        # the other cells.
+        if off_board_repair and not _row_is_on_the_board(ctx, tid):
+            return repair_off_board_cell(args, ctx, field, event, why, value,
+                                         show_previous)
         pri, idx, header, values = task_projection_row(ctx, tid)
         if not terminal_ok:
             status = values.get("status", "").strip().strip("*` ").lower()
@@ -3303,8 +3411,13 @@ cmd_next = cell_writer(
 #: is the identity and never moves: a `Commitment` cell, a linkage graph and
 #: every event point at the id, and none of them reads the title. That is also
 #: why there is no subcommand for changing an id.
+#:
+#: It is also the ONE cell writer that reaches a row the board no longer
+#: carries — `off_board_repair`, TASK-166. See `repair_off_board_cell` for why
+#: the row's NAME is the only cell for which that is not a contradiction, and
+#: for the three guards that keep the door this narrow.
 cmd_retitle = cell_writer(
-    "title", "title", "retitle", "retitled",
+    "title", "title", "retitle", "retitled", off_board_repair=True,
     required_msg="--title is required: this subcommand exists to write that "
                  "cell, and a row with no title is one nobody can find")
 
@@ -5281,13 +5394,32 @@ def _cmd_list_from_board(args, ctx) -> dict:
     rows = sorted(tasks.values(), key=lambda t: t["id"])
     if args.track:
         rows = [t for t in rows if t["track"] == args.track]
-    if not args.all:
-        rows = [t for t in rows if t["open"]]
 
     # An id whose only record is an event with no title predates the `title`
     # field. Reported rather than papered over: a bare id is exactly what
     # `reference/user-load.md` forbids handing a reader.
+    #
+    # **Computed BEFORE the `open` filter, and that is TASK-166's half one.**
+    # It used to be computed after, so the only kind of row that can be
+    # PERMANENTLY untitled — a closed one, which no triage will ever look at
+    # again and which nothing else in the payload names — was the one kind
+    # this array could not report. Measured on this repository: `TASK-029` is
+    # `done` at V3 with real evidence and an empty title, and `untitled` was
+    # `[]` without `--all` and `["TASK-029"]` with it. An open row's missing
+    # title gets noticed the next time somebody reads the board; a closed
+    # row's never does.
+    #
+    # Not a contract change: § The payload has always defined this key as
+    # "ids with no title in ANY record", and `open`/`closed` are documented as
+    # the counts that move with the flags. The code was out of conformance
+    # with its own document, so the version does not move.
+    #
+    # `--track` still scopes it. That flag names a slice of the project and
+    # every other array in this payload respects it; `open` names a slice of
+    # TIME, and a title does not stop being needed when the work finishes.
     untitled = [t["id"] for t in rows if not t["title"]]
+    if not args.all:
+        rows = [t for t in rows if t["open"]]
     # `## Intake` — the one section a procedure must act on by POSITION.
     # `route <n>` and `resolve-intake <n>` take a row number, and the only way
     # to get one was to open `BOARD.md` and count, twenty lines below the rule
@@ -5478,9 +5610,12 @@ def cmd_list(args, ctx) -> dict:
     rows = sorted(tasks.values(), key=lambda task: task["id"])
     if args.track:
         rows = [task for task in rows if task["track"] == args.track]
+    # Before the `open` filter — see the twin of this line in
+    # `_cmd_list_from_board` for the measurement. The two payload builders
+    # answer one contract, so a fix applied to one of them is half a fix.
+    untitled = [task["id"] for task in rows if not task["title"]]
     if not args.all:
         rows = [task for task in rows if task["open"]]
-    untitled = [task["id"] for task in rows if not task["title"]]
     return {"contract": LIST_CONTRACT,
             "semantics": sorted(
                 LIST_SEMANTICS,
@@ -6040,7 +6175,13 @@ def main(argv: list[str]) -> int:
         print(f"\n  {result['open']} open · {in_progress} in_progress · "
               f"{result['closed']} closed · "
               f"{result['events']} event(s)")
-        untitled = [r["id"] for r in displayed if not r["title"]]
+        # From the payload, not from `displayed`. The third copy of the same
+        # filter and the one a human actually reads: recomputing it over the
+        # rows on screen made the warning a caption for the listing, so a
+        # closed untitled row was invisible here for the same reason it was
+        # invisible in the JSON. The listing is scoped by `--all`; the finding
+        # is not, and `perry-task retitle` repairs either kind.
+        untitled = result["untitled"]
         if untitled:
             print(f"  ⚠ {len(untitled)} id(s) have no title in the record: "
                   f"{', '.join(untitled)}")

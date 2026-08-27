@@ -3861,6 +3861,241 @@ class TestOneCellWriterNotFour(unittest.TestCase):
 
 
 
+class TestAClosedRowKeepsItsName(unittest.TestCase):
+    """TASK-166. `TASK-029` on this repository is `done`, at `V3`, with real
+    evidence, and has no title — and until this row landed, nothing reported it
+    and nothing could repair it.
+
+    **The two halves were one shape.** The `untitled` check read the rows
+    AFTER they had been filtered to `open`, so the only kind of row that can be
+    permanently untitled was the one kind it could not see; and `retitle` is a
+    `cell_writer`, which edits a BOARD row, and closing a row REMOVES it from
+    the board. The check only looked where the writer could reach, and the
+    writer only reached where the check already looked. Fixing either alone is
+    worse than fixing neither: a reported row nobody can repair is a permanent
+    warning, and a repair path nobody is told to use is dead code.
+
+    **Why `title` and not the other cells.** Every other cell `cell_writer`
+    writes is a claim ABOUT the work — where it got to, what is next, who
+    checked it, what they checked — and a claim about finished work is finished
+    with it. That is why `next` refuses a terminal row on purpose. The title is
+    the row's NAME: `reference/user-load.md` forbids handing a reader a bare
+    id, and a name is needed for exactly as long as anybody reads the record.
+    """
+
+    #: A board that has already let a finished row go — which is what `done`
+    #: does, and therefore the state every closed row on a real project is in.
+    #: The record survives in `tasks.jsonl`; the projection line does not.
+    def closed_row(self) -> tuple[Project, str]:
+        p = Project()
+        _, a = p.run("add", "--title", "temporary name", "--priority", "P0")
+        code, out = p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        self.assertEqual(code, 0, out)
+        self.assertNotIn(f"| {a['id']} ", p.board(),
+                         "the fixture is wrong: closing did not remove the row")
+        return p, a["id"]
+
+    def record(self, p, tid) -> dict:
+        text = (p.root / "tasks.jsonl").read_text()
+        return next(json.loads(l) for l in text.splitlines()
+                    if l.strip() and json.loads(l)["id"] == tid)
+
+    def blank_the_title(self, p, tid) -> None:
+        """Reproduce `TASK-029`'s state: a closed record with an empty title.
+
+        Written by hand into the store because no tool path can produce it any
+        more — which is the point. It arrived through a migration that no
+        longer runs (see `perry/evidence/2026-08/TASK-166-result.md`), and the
+        row it left behind still has to be repairable.
+        """
+        path = p.root / "tasks.jsonl"
+        out = []
+        for line in path.read_text().splitlines():
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec["id"] == tid:
+                rec["title"] = ""
+            out.append(json.dumps(rec, ensure_ascii=False))
+        path.write_text("\n".join(out) + "\n")
+
+    # ── half one: the check sees it ───────────────────────────────────────
+
+    def test_an_untitled_closed_row_is_reported_without_all(self):
+        """The measurement that opened the row: `untitled` was `[]` on a
+        default call and named the row only under `--all` — the flag a triage
+        does not pass, on the rows a triage will never look at again."""
+        p, tid = self.closed_row()
+        self.blank_the_title(p, tid)
+        _, default = p.run("list")
+        self.assertIn(tid, default["untitled"],
+                      "a closed row with no title is invisible again")
+        _, everything = p.run("list", "--all")
+        self.assertEqual(default["untitled"], everything["untitled"],
+                         "the finding still moves with the flag")
+
+    def test_the_finding_is_not_a_caption_for_the_listing(self):
+        """`untitled` names rows that are NOT in `tasks[]` on a default call.
+        That is deliberate: it is a finding about the project, not a legend for
+        the rows on screen, and the human printer reads the same key."""
+        p, tid = self.closed_row()
+        self.blank_the_title(p, tid)
+        _, payload = p.run("list")
+        self.assertNotIn(tid, [t["id"] for t in payload["tasks"]])
+        self.assertIn(tid, payload["untitled"])
+        r = subprocess.run(["python3", str(TOOL), "list", "--root",
+                            str(p.root)], capture_output=True, text=True)
+        self.assertIn(tid, r.stdout,
+                      "the surface a human reads still hides it")
+
+    def test_an_open_untitled_row_is_still_reported(self):
+        """The half of the check that already worked must keep working."""
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        self.blank_the_title(p, a["id"])
+        _, payload = p.run("list")
+        self.assertEqual([a["id"]], payload["untitled"])
+
+    def test_a_titled_project_reports_nothing(self):
+        """The check must not have become an unconditional warning."""
+        p, tid = self.closed_row()
+        _, payload = p.run("list")
+        self.assertEqual([], payload["untitled"])
+
+    # ── half two: the writer reaches it ───────────────────────────────────
+
+    def test_retitle_repairs_a_row_the_board_has_let_go_of(self):
+        p, tid = self.closed_row()
+        self.blank_the_title(p, tid)
+        code, out = p.run("retitle", tid, "--title", "the name it had")
+        self.assertEqual(code, 0, out)
+        self.assertEqual("the name it had", self.record(p, tid)["title"])
+        _, payload = p.run("list")
+        self.assertEqual([], payload["untitled"],
+                         "repaired and still reported")
+
+    def test_the_repair_leaves_the_row_closed_at_its_rung(self):
+        """Verification 4, from the record's side: the door reaches the row,
+        and carries one field through it."""
+        p, tid = self.closed_row()
+        before = self.record(p, tid)
+        self.assertEqual(0, p.run("retitle", tid, "--title", "clearer")[0])
+        after = self.record(p, tid)
+        self.assertEqual("clearer", after["title"])
+        for field in [k for k in before if k != "title"]:
+            self.assertEqual(before[field], after[field],
+                             f"the repair also rewrote {field}")
+
+    def test_no_other_cell_writer_reaches_a_row_off_the_board(self):
+        """Verification 4, from the door's side. `off_board_repair` is passed
+        by `retitle` and by nothing else; a mutation that passes it to another
+        writer reddens this."""
+        p, tid = self.closed_row()
+        for sub, flag, value in (("next", "--next", "do more"),
+                                 ("rung", "--rung", "V5"),
+                                 ("evidence", "--evidence", "other.md"),
+                                 ("status", "--status", "in_progress"),
+                                 ("start", None, None)):
+            with self.subTest(sub=sub):
+                argv = (sub, tid) + ((flag, value) if flag else ())
+                code, out = p.run(*argv)
+                self.assertEqual(code, 1, f"{sub} reached a closed row: {out}")
+                self.assertIn("not a row on the board", str(out))
+
+    def test_next_still_refuses_a_finished_row_that_is_on_the_board(self):
+        """Verification 3. The refusal this row must not weaken is not the
+        board one — it is `terminal_ok`, which fires on a project that stages
+        finished work in place rather than removing it."""
+        p = Project(board=BOARD.replace(
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n\n## P1",
+            "| ID | Title | Owner | Status | Next action | Evidence |\n|---|---|---|---|---|---|\n"
+            "| TASK-900 | finished in place | User | done | — | e.md |\n\n## P1", 1))
+        code, out = p.run("next", "TASK-900", "--next", "something")
+        self.assertEqual(code, 1, out)
+        self.assertIn("finished", str(out))
+        self.assertEqual(0, p.run("retitle", "TASK-900", "--title", "named")[0],
+                         "the title stopped being correctable in place")
+
+    def test_an_open_row_missing_from_the_board_is_still_refused(self):
+        """The third guard. "Not on the board" means "finished" only because
+        `done` removes the row; an OPEN row that is missing from it is a stale
+        projection, and repairing the record here would paper over that."""
+        p = Project()
+        _, a = p.run("add", "--title", "x", "--priority", "P0")
+        board = p.board()
+        p_board = "\n".join(l for l in board.split("\n")
+                            if not l.startswith(f"| {a['id']} "))
+        (p.root / "BOARD.md").write_text(p_board)
+        code, out = p.run("retitle", a["id"], "--title", "new")
+        self.assertEqual(code, 1, out)
+        self.assertIn("rendering failure", str(out))
+
+    def test_the_repair_does_not_reorder_the_store(self):
+        """A finished record's position is the order the work happened in.
+        Rewriting a name is not a reason to move history — and the generic
+        writer path appends, which would move it to the last line."""
+        p, tid = self.closed_row()
+        _, b = p.run("add", "--title", "later", "--priority", "P0")
+        order = lambda: [json.loads(l)["id"] for l in
+                         (p.root / "tasks.jsonl").read_text().splitlines()
+                         if l.strip()]
+        before = order()
+        self.assertEqual(0, p.run("retitle", tid, "--title", "renamed")[0])
+        self.assertEqual(before, order())
+
+    def test_the_repair_is_recorded_as_a_retitle_and_carries_the_new_name(self):
+        """The event log is how a later reader learns the name was repaired
+        rather than never missing. `TASK-029`'s own history is why: its only
+        event predates the `title` key, and that is exactly what made the
+        question "never written, or written and lost?" hard to answer."""
+        p, tid = self.closed_row()
+        self.blank_the_title(p, tid)
+        self.assertEqual(0, p.run("retitle", tid, "--title", "restored")[0])
+        ev = p.events()[-1]
+        self.assertEqual("retitle", ev["event"])
+        self.assertEqual(tid, ev["id"])
+        self.assertEqual("", ev["from"])
+        self.assertEqual("restored", ev["to"])
+        self.assertEqual("restored", ev["title"])
+        self.assertIn(f"- [{tid}] retitled", p.journal())
+
+    def test_a_no_op_repair_is_still_refused(self):
+        p, tid = self.closed_row()
+        code, out = p.run("retitle", tid, "--title", "temporary name")
+        self.assertEqual(code, 1, out)
+        self.assertIn("already", str(out))
+
+    def test_an_id_nothing_knows_is_still_refused(self):
+        p, _ = self.closed_row()
+        code, out = p.run("retitle", "TASK-9999", "--title", "x")
+        self.assertEqual(code, 1, out)
+        self.assertIn("not a task", str(out))
+
+    def test_every_event_this_tool_writes_carries_a_title(self):
+        """The question TASK-166 had to answer about `TASK-029` was whether a
+        write path can DROP a title. On this repository exactly one event of
+        770 has no `title` key — the first line of the log, written before
+        `TASK-030` added the field. This pins the answer for today's writer:
+        no live path emits a task event without one, so the loss was a
+        migration artefact and not a defect that can recur.
+        """
+        p = Project()
+        _, a = p.run("add", "--title", "named", "--priority", "P0")
+        p.run("start", a["id"])
+        p.run("next", a["id"], "--next", "a step")
+        p.run("rung", a["id"], "--rung", "V3")
+        p.run("evidence", a["id"], "--evidence", "e.md")
+        p.run("retitle", a["id"], "--title", "renamed")
+        p.run("summary", a["id"], "--summary", "a summary")
+        p.run("done", a["id"], "--evidence", "e.md", "--rung", "V3")
+        p.run("retitle", a["id"], "--title", "renamed after closing")
+        events = [e for e in p.events() if e.get("id", "").startswith("TASK-")]
+        self.assertGreaterEqual(len(events), 9)
+        for e in events:
+            self.assertIn("title", e, e)
+            self.assertTrue(e["title"], e)
+
+
 class TestADependencyIsQueryable(unittest.TestCase):
     """TASK-063. `blocked` said a row was stopped and never said on what.
 
