@@ -173,7 +173,7 @@ class Refused(Exception):
 # separate from Perry's because the whole point is that it does NOT move when
 # Perry's storage does. Bump the minor for an ADDED key; the major only for a
 # removed or retyped one. Specified in `schema/task-list-contract.md`.
-LIST_CONTRACT = "perry-task/list/1.16"
+LIST_CONTRACT = "perry-task/list/1.17"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 #
@@ -400,6 +400,113 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
         else:
             unresolved.append(cand)
     return found, unresolved
+
+
+#: The separators an `Evidence` cell uses between the things it lists. The same
+#: set `evidence_paths` splits an unbackticked cell on, named once so the two
+#: readers of this column cannot drift apart on what "next item" means.
+EVIDENCE_SEPARATORS = ",，;；"
+
+
+def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[dict]:
+    """The same cell as `evidence_paths`, TYPED and WHOLE, one entry per thing.
+
+    **The shape this row was titled with does not fit, and that is the finding.**
+    The title proposed `{path, kind, round}`. Measured against the 139 live
+    evidence cells on this repository:
+
+    - **`round` has no bearer.** It appears in exactly the filenames of some
+      review artifacts (`TASK-089-v4-review-r4.md`, `-r3`, `-r8`) — 8 of 139
+      cells — and nowhere as a component the cell states. Producing it means
+      parsing a number out of an opaque filename, which is the one thing
+      `schema/task-list-contract.md` tells a consumer never to do to an `id`.
+      A key that is `""` on 131 of 139 rows and a guess on the other 8 is
+      worse than no key. **Not emitted.**
+    - **`path` is not enough for a span.** A span is a path *plus* something in
+      circulation: `§ Section` (`SKILL.md § Mandatory first move`), a symbol
+      (`bin/perry-state.load_packs`), a test node (`…py::TestFullTaskSet`), a
+      step (`step 2`, `gate 3`), a count (`(21 tests, 3 mutations verified)`),
+      a signature (`(signed Ran Jiao 2026-08-16)`). None of that is a path and
+      none of it is disposable, so every entry carries the span **verbatim** in
+      `text` beside the path Perry could resolve out of its head.
+    - **`schema § thresholds` needs no fourth case.** `schema/` is a real
+      directory, so its head resolves and the entry is `kind: "dir"` — with
+      `§ thresholds`, which is not a path and never was, intact in `text`.
+    - **"justifies the close" vs "was changed" is NOT a `kind`.** The spec asked
+      whether they are the same kind. They are different *roles* and the string
+      does not carry the difference: `perry/evidence/…-result.md` justifies,
+      `bin/perry-task` was changed, and `reference/adoption.md` is either one
+      depending on the row. Deriving it from the path prefix would be inventing
+      provenance the cell never stated — the thing `risks[].id` was corrected
+      for at 1.6. `kind` here says **what the string is**, not what it is for.
+
+    So the shape is `{text, path, kind}` and `kind` is a closed set of four:
+
+        `file`        the head resolved to an existing file
+        `dir`         the head resolved to an existing directory
+        `unresolved`  the head is shaped like a path and resolves under neither
+                      root — the same spans `conformance.evidence_not_found`
+                      reports, said here in cell order beside their neighbours
+        `note`        text the cell carries outside any backticked span, which
+                      Perry never treated as a path at all: "(21 tests, 3
+                      mutations verified)", "no fixture edited", "lint clean"
+
+    **Nothing is invented and nothing is dropped.** `text` is always a verbatim
+    slice of the cell; the only characters of the cell that reach no entry are
+    the separators above, backticks and surrounding whitespace. That is the
+    `By when` → `Due` + `By when note` rule applied to a column that carries
+    four things instead of two: what cannot be typed survives said so.
+
+    **`evidence_paths` is untouched and this agrees with it by construction.**
+    The head rule, the root order and the `ABSENT` skip are the same lines, so
+    `[e["path"] for e in evidence_relations(...) if e["path"]]` equals
+    `evidence_paths(...)[0]` element for element — pinned on all 139 live cells
+    by `tests/test_evidence_relation.py`.
+    """
+    raw = (cell or "").strip()
+    if raw.lower() in ABSENT:
+        return []
+    out: list[dict] = []
+
+    def span(text: str) -> None:
+        # The same head rule as `evidence_paths`, deliberately: `path §
+        # Section` and `path (12 tests)` both put the path at the head, and two
+        # copies of that rule is how a reader and a writer of one column drift.
+        cand = re.split(r"\s+§|\s+\(", text.strip())[0].strip().rstrip(",.")
+        if not cand or cand.lower() in ABSENT:
+            out.append({"text": text.strip(), "path": "", "kind": "note"})
+            return
+        for root in (state_root, project_root):
+            p = (root / cand)
+            if p.exists():
+                try:
+                    rel = str(p.resolve().relative_to(project_root.resolve()))
+                except ValueError:
+                    rel = str(p.resolve())
+                out.append({"text": text.strip(), "path": rel,
+                            "kind": "dir" if p.is_dir() else "file"})
+                return
+        out.append({"text": text.strip(), "path": "", "kind": "unresolved"})
+
+    if "`" in raw:
+        # A backticked cell means the author marked the spans, and
+        # `evidence_paths` reads only those. Everything BETWEEN them is the
+        # prose it discards — counts, mutation tallies, byte-identical claims —
+        # and discarding it here too would drop content this row exists to
+        # keep. It becomes a `note`, in place, in cell order.
+        parts = re.split(r"`([^`]+)`", raw)
+        for i, part in enumerate(parts):
+            if i % 2:
+                span(part)
+                continue
+            text = part.strip().strip(EVIDENCE_SEPARATORS).strip()
+            if text and text.lower() not in ABSENT:
+                out.append({"text": text, "path": "", "kind": "note"})
+    else:
+        for piece in re.split(r"[" + EVIDENCE_SEPARATORS + r"]", raw):
+            if piece.strip():
+                span(piece)
+    return out
 
 
 #: What an id cell may look like, as ONE regex read by everything that has to
@@ -5097,7 +5204,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
         # One template, so a key can never exist on some tasks and not others.
         return {"id": tid, "title": "", "summary": "", "owner": "", "priority": "",
                 "status": "", "status_text": "", "track": "main", "mode": "",
-                "stage": "", "evidence_paths": [],
+                "stage": "", "evidence_paths": [], "evidence_relations": [],
                 "stage_since": "", "arrived": "", "parent": "",
                 "commitment": "", "next_action": "", "evidence": "",
                 "verification": "", "open": False, "group": "",
@@ -5302,6 +5409,8 @@ def _cmd_list_from_board(args, ctx) -> dict:
         found, missing = evidence_paths(
             t["evidence"], ctx["state_root"], ctx["project_root"])
         t["evidence_paths"] = found
+        t["evidence_relations"] = evidence_relations(
+            t["evidence"], ctx["state_root"], ctx["project_root"])
         if missing:
             conformance["evidence_not_found"].append(
                 {"id": t["id"], "paths": missing})
@@ -5509,6 +5618,7 @@ def cmd_list(args, ctx) -> dict:
             "commitment": rec.get("commitment") or "",
             "next_action": rec.get("next_action") or "",
             "evidence": rec.get("evidence") or "", "evidence_paths": [],
+            "evidence_relations": [],
             "verification": rec.get("verification") or "",
             "open": status not in terminal, "group": rec.get("group") or "",
             "role": rec.get("role") or "",
@@ -5551,6 +5661,8 @@ def cmd_list(args, ctx) -> dict:
         found, missing = evidence_paths(
             task["evidence"], ctx["state_root"], ctx["project_root"])
         task["evidence_paths"] = found
+        task["evidence_relations"] = evidence_relations(
+            task["evidence"], ctx["state_root"], ctx["project_root"])
         if missing:
             conformance["evidence_not_found"].append(
                 {"id": task["id"], "paths": missing})
