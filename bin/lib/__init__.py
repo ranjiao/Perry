@@ -39,6 +39,8 @@ import time
 import re
 import stat
 from datetime import date as _date
+from datetime import datetime as _datetime
+from datetime import timezone as _timezone
 from pathlib import Path
 
 #: `bin/lib/` → `bin/` → the install. Every tool computes `PERRY_HOME` the same
@@ -496,26 +498,125 @@ def _is_state_move(event: dict) -> bool:
     return str(event.get("to") or "") in TASK_STATUSES
 
 
-def _ts_key(value: str) -> str:
-    """A timestamp reduced to something two of them can be compared on.
+# ── the one clock ─────────────────────────────────────────────────────────
+#
+# TASK-144. Two surfaces stamped time in two zones and one expression compared
+# them as STRINGS. Measured on this machine, which is UTC+8:
+#
+#     event log   '2026-08-28T02:15:22'    no zone — LOCAL wall clock
+#     register    '2026-08-21T10:04:08Z'   UTC
+#
+# `current_staleness` asked "has a linked task moved since this number was
+# asserted?" by comparing the two texts, so every task that moved inside the
+# offset — eight hours here, whatever the machine says anywhere else —
+# answered `stale: false` when it had moved.
+#
+# **What changed, and why it is the log that changed and not the register.**
+# A new event stamps its local wall clock WITH the offset it was written at
+# (`2026-08-28T02:15:22+08:00`), so it is self-describing from now on:
+#
+#   - Dropping the register's `Z` instead would make every timestamp in the
+#     project machine-local, and `.perry/events.jsonl` is a COMMITTED file. A
+#     second machine in a second zone would then read a file whose meaning
+#     depends on who is holding it, permanently and undetectably.
+#   - Converting only at the comparison would leave two shapes in the tree and
+#     the next comparison somebody writes is wrong again — the defect, not a
+#     fix for it.
+#   - Stamping the log in UTC would be self-describing too, but it moves the
+#     wall clock of new lines eight hours BACKWARDS against the 798 already in
+#     the file, so the log's text stops rising and anything that read it as a
+#     rising string breaks at the cutover. Keeping local and appending the
+#     offset leaves the text rising and adds only a suffix.
+#
+# **The 798 zoneless entries are left exactly as they are and are read as
+# local.** That is not a guess: `datetime.now()` wrote them, so local wall
+# clock is what they hold. Rewriting them to say so is a migration and a
+# decision, not this row — and the rule below costs nothing to state and makes
+# them mean, today, what they meant when they were written.
+#
+# The stamps below and `_ts_moment` are the whole of it: two writers and ONE
+# reader. A second converter anywhere is how the skew comes back.
 
-    The register writes `updated` as an ISO datetime with a `Z`; the event log
-    writes `ts` as a naive local datetime with no zone at all. There is no
-    conversion that is honest between those two, so the `Z` is STRIPPED rather
-    than applied — stated here because it means a register written within a few
-    hours of a task move can order wrongly, and a reader is entitled to know
-    that before trusting a `stale: false`.
 
-    A date-only value becomes midnight, which errs toward reporting staleness:
-    a false "recheck this" costs a look, and a false "this number is fine"
-    costs the number.
+def event_stamp() -> str:
+    """The stamp every appended event carries: local wall clock, WITH offset.
+
+    `2026-08-28T02:15:22+08:00`. Local rather than UTC so the text of the log
+    keeps rising across the 798 lines that predate this, and offset-bearing so
+    no reader ever has to assume which machine wrote a line again.
     """
-    text = str(value or "").strip().rstrip("Z")
-    if not text:
-        return ""
-    if len(text) == 10:          # YYYY-MM-DD
-        return text + "T00:00:00"
-    return text
+    return _datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def register_stamp() -> str:
+    """The stamp the linkage register's `updated` carries: UTC, with `Z`.
+
+    Unchanged by TASK-144 — the register was already saying which zone it
+    meant, and `schema/goals-list-contract.md` and `tests/test_linkage_writer
+    .py § TestUpdated` both pin the shape. It lives here so the two writers
+    that stamp Perry's clocks are read side by side.
+    """
+    return _datetime.now(_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def ts_moment(value):
+    """**The one converter.** Any timestamp Perry writes or has written → UTC.
+
+    Returns an aware `datetime` in UTC, or `None` for anything unreadable —
+    never a partly-interpreted value, because a timestamp that cannot be
+    placed on a line must not be allowed to sort against ones that can.
+
+    The four shapes, and the rule each is read by:
+
+    - `2026-08-21T10:04:08Z` / `+08:00` — zone-bearing. Converted. This is
+      what both writers emit from now on.
+    - `2026-08-28T02:15:22` — zoneless, and there are 798 of them in this
+      project's append-only log. **Read as the reading machine's local time**,
+      because `datetime.now()` wrote them and local wall clock is exactly what
+      they hold. A log carried to another zone therefore reads its OLD lines
+      by the new machine's offset; its new ones say what they mean.
+    - `2026-08-21` — a date, not a wall clock. Read as UTC midnight: the
+      register is the only surface that writes one, and the register is UTC.
+    - anything else, including `""` — `None`.
+
+    Accepts a `datetime` as well as a string so a caller holding a clock
+    reading rather than a field gets the same rule applied to it, rather than
+    writing the second half of this function at its own call site.
+    """
+    if isinstance(value, _datetime):
+        moment = value
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        if text.endswith("Z"):          # `fromisoformat` learned `Z` in 3.11
+            text = text[:-1] + "+00:00"
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            # A date carries no wall clock to be local ABOUT, so this one does
+            # not go through the naive rule below. Midnight also errs toward
+            # reporting staleness, which is the direction to err in: a false
+            # "recheck this" costs a look, a false "this number is fine" costs
+            # the number.
+            text += "T00:00:00+00:00"
+        try:
+            moment = _datetime.fromisoformat(text)
+        except ValueError:
+            return None
+    if moment.tzinfo is None:
+        moment = moment.astimezone()    # naive → this machine's local zone
+    return moment.astimezone(_timezone.utc)
+
+
+def ts_key(value) -> str:
+    """`ts_moment`'s string face: the UTC text two timestamps are compared on.
+
+    Carries its `Z`, because this string is also EMITTED — as
+    `current_provenance.asserted_at`, `current_staleness.since` and
+    `moved_tasks[].at` — and a payload that publishes a zoneless timestamp is
+    the defect this row removed, reintroduced at the contract boundary.
+    """
+    moment = ts_moment(value)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ") if moment else ""
 
 
 def task_status_index(state_root, board=None) -> dict:
@@ -575,7 +676,7 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
         # The register timestamps ITSELF, not each KR. A reader must not take
         # this for the date this KR's number was arrived at, so the granularity
         # is emitted with the date.
-        "asserted_at": _ts_key(register_updated) if asserted else "",
+        "asserted_at": ts_key(register_updated) if asserted else "",
         "asserted_scope": "register" if asserted else "",
     }
 
@@ -628,7 +729,7 @@ def kr_progress_provenance(current, task_ids, *, register_updated: str = "",
             tid = str(event.get("id") or "")
             if tid not in wanted or not _is_state_move(event):
                 continue
-            at = _ts_key(event.get("ts", ""))
+            at = ts_key(event.get("ts", ""))
             if not at or at <= since:
                 continue
             # Last move wins, so a task that moved twice is named once with

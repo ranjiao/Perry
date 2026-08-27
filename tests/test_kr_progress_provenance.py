@@ -47,10 +47,18 @@ sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 
 
-def goals(root: Path, *argv) -> dict:
+def goals(root: Path, *argv, tz: str = "") -> dict:
+    """`perry-goals list --json`, optionally read in a named zone.
+
+    `tz` sets `TZ` for the CHILD only, which is what makes TASK-144's cases
+    reproducible: the rule for a zoneless stamp is "the reading machine's local
+    time", so a test of that rule has to name the machine's zone rather than
+    inherit whatever the runner happens to be in.
+    """
+    env = {**os.environ, "TZ": tz} if tz else None
     r = subprocess.run(
         ["python3", str(GOALS), "list", *argv, "--root", str(root), "--json"],
-        capture_output=True, text=True)
+        capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr[-2000:]
     return json.loads(r.stdout)
 
@@ -146,17 +154,23 @@ TASKS = [
 
 #: Every state move predates the register's `updated`, so the register is
 #: current until a test appends one that does not.
+#:
+#: **Zone-bearing on purpose (TASK-144).** These stamps are days away from the
+#: assertion, so no case here turns on the offset — and writing them with a
+#: zone is what keeps that true on a runner in any zone. The two shapes the
+#: offset actually decides, and the rule the log's 798 zoneless lines are read
+#: by, are `TestOneClockAcrossTheOffset` below, which pins `TZ` per read.
 EVENTS = [
-    {"ts": "2026-08-10T09:00:00", "event": "done", "id": "TASK-001",
+    {"ts": "2026-08-10T09:00:00Z", "event": "done", "id": "TASK-001",
      "from": "review", "to": "done"},
-    {"ts": "2026-08-10T10:00:00", "event": "done", "id": "TASK-002",
+    {"ts": "2026-08-10T10:00:00Z", "event": "done", "id": "TASK-002",
      "from": "review", "to": "done"},
-    {"ts": "2026-08-10T11:00:00", "event": "start", "id": "TASK-003",
+    {"ts": "2026-08-10T11:00:00Z", "event": "start", "id": "TASK-003",
      "from": "not_started", "to": "in_progress"},
     # A non-state event AFTER the assertion. `next` carries `from`/`to` holding
     # prose, and a staleness check keyed on the event NAME rather than on the
     # value would call every KR below stale on the strength of this line.
-    {"ts": "2026-08-20T12:00:00", "event": "next", "id": "TASK-003",
+    {"ts": "2026-08-20T12:00:00Z", "event": "next", "id": "TASK-003",
      "from": "an old next action", "to": "a new next action"},
 ]
 
@@ -355,17 +369,17 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
         self.assertEqual(s["moved_tasks"], [])
         self.assertEqual(
             s["reason"],
-            "no linked task has changed state since 2026-08-15T12:00:00")
+            "no linked task has changed state since 2026-08-15T12:00:00Z")
 
     def test_closing_one_linked_task_makes_it_stale_and_names_that_task(self):
         before = kr(goals(self.root), "P-O1.2")["current_staleness"]
         self.assertFalse(before["stale"])
         self.assertEqual(
             before["reason"],
-            "no linked task has changed state since 2026-08-15T12:00:00")
+            "no linked task has changed state since 2026-08-15T12:00:00Z")
 
         close_task(self.root, "TASK-003")
-        append_event(self.root, {"ts": "2026-08-21T09:10:00", "event": "done",
+        append_event(self.root, {"ts": "2026-08-21T09:10:00Z", "event": "done",
                                  "id": "TASK-003", "from": "in_progress",
                                  "to": "done"})
 
@@ -374,17 +388,17 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
         self.assertTrue(after["evaluated"])
         self.assertEqual(
             after["reason"],
-            "1 linked task changed state after 2026-08-15T12:00:00: "
+            "1 linked task changed state after 2026-08-15T12:00:00Z: "
             "TASK-003 (in_progress → done)")
         self.assertEqual(after["moved_tasks"],
                          [{"id": "TASK-003", "from": "in_progress",
-                           "to": "done", "at": "2026-08-21T09:10:00"}])
+                           "to": "done", "at": "2026-08-21T09:10:00Z"}])
 
     def test_only_the_kr_whose_task_moved_goes_stale(self):
         """Staleness is per KR, not per register. A register-wide flag would
         make one moved task discredit every number in the file."""
         close_task(self.root, "TASK-003")
-        append_event(self.root, {"ts": "2026-08-21T09:10:00", "event": "done",
+        append_event(self.root, {"ts": "2026-08-21T09:10:00Z", "event": "done",
                                  "id": "TASK-003", "from": "in_progress",
                                  "to": "done"})
         payload = goals(self.root)
@@ -402,7 +416,7 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
 
     def test_perry_state_warns_and_counts_it(self):
         close_task(self.root, "TASK-003")
-        append_event(self.root, {"ts": "2026-08-21T09:10:00", "event": "done",
+        append_event(self.root, {"ts": "2026-08-21T09:10:00Z", "event": "done",
                                  "id": "TASK-003", "from": "in_progress",
                                  "to": "done"})
         payload = state(self.root)
@@ -451,10 +465,156 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
         root = build_project(updated="2026-08-10")
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         s = kr(goals(root), "P-O1.1")["current_staleness"]
-        self.assertEqual(s["since"], "2026-08-10T00:00:00")
+        self.assertEqual(s["since"], "2026-08-10T00:00:00Z")
         self.assertTrue(s["stale"], s["reason"])
         self.assertEqual([m["id"] for m in s["moved_tasks"]],
                          ["TASK-001", "TASK-002"])
+
+
+# ── TASK-144: one clock ───────────────────────────────────────────────────
+
+
+#: The register asserts at this instant. Everything below is placed relative
+#: to it, in UTC, and then written in the zone the case is about.
+ASSERTED = "2026-08-21T10:04:08Z"
+
+
+class TestOneClockAcrossTheOffset(unittest.TestCase):
+    """The skew, in both of the directions an offset can produce it.
+
+    Measured on the machine that filed TASK-144, which is UTC+8:
+
+        event log   '2026-08-28T02:15:22'    no zone — LOCAL wall clock
+        register    '2026-08-21T10:04:08Z'   UTC
+
+    and `current_staleness` compared the two AS TEXT. Every case here spans the
+    offset — the answer text-comparison gives is the opposite of the true one —
+    because a case inside the offset proves nothing about a clock.
+
+    Each read names its `TZ`, so these run the same on a machine in any zone.
+    """
+
+    def project(self) -> Path:
+        root = build_project(updated=ASSERTED)
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def stale(self, root: Path, tz: str, kr_id: str = "P-O1.2") -> dict:
+        return kr(goals(root, tz=tz), kr_id)["current_staleness"]
+
+    def test_the_since_it_compares_against_is_the_registers_own_instant(self):
+        """`since` is emitted, so it carries its zone. A payload that publishes
+        a zoneless timestamp is this row's defect at the contract boundary."""
+        s = self.stale(self.project(), "Asia/Shanghai")
+        self.assertEqual(s["since"], "2026-08-21T10:04:08Z")
+
+    def test_an_earlier_move_that_reads_later_in_local_text_is_not_stale(self):
+        """**UTC+8, and the direction the text comparison gets wrong here.**
+
+        The move is at `04:04:08Z` — six hours BEFORE the assertion, so the
+        number is fine. Written where it happened it reads `12:04:08+08:00`,
+        two hours after the register's text, and
+        `"2026-08-21T12:04:08" > "2026-08-21T10:04:08"` reported it stale.
+        """
+        root = self.project()
+        close_task(root, "TASK-003")
+        append_event(root, {"ts": "2026-08-21T12:04:08+08:00", "event": "done",
+                            "id": "TASK-003", "from": "in_progress",
+                            "to": "done"})
+        s = self.stale(root, "Asia/Shanghai")
+        self.assertFalse(
+            s["stale"],
+            "a task that moved six hours BEFORE the assertion was reported as "
+            f"moving after it — the offset, read as text: {s['reason']}")
+        self.assertTrue(s["evaluated"])
+        self.assertEqual(s["moved_tasks"], [])
+
+    def test_a_later_move_that_reads_earlier_in_local_text_is_stale(self):
+        """**UTC-7, and the direction that costs the number rather than a look.**
+
+        The move is at `12:04:08Z` — two hours AFTER the assertion, so the
+        number is stale. Written where it happened it reads `05:04:08-07:00`,
+        five hours before the register's text, and
+        `"2026-08-21T05:04:08" <= "2026-08-21T10:04:08"` reported it FRESH.
+        """
+        root = self.project()
+        close_task(root, "TASK-003")
+        append_event(root, {"ts": "2026-08-21T05:04:08-07:00", "event": "done",
+                            "id": "TASK-003", "from": "in_progress",
+                            "to": "done"})
+        s = self.stale(root, "America/Los_Angeles")
+        self.assertTrue(
+            s["stale"],
+            "a task that moved two hours AFTER the assertion was reported "
+            f"fresh — the offset, read as text: {s['reason']}")
+        self.assertEqual(s["moved_tasks"],
+                         [{"id": "TASK-003", "from": "in_progress",
+                           "to": "done", "at": "2026-08-21T12:04:08Z"}])
+
+    def test_a_zoneless_entry_is_read_as_the_reading_machines_local_time(self):
+        """The rule the log's existing zoneless lines are read by, stated as a
+        test rather than only in a docstring: `datetime.now()` wrote them, so
+        they hold local wall clock, and ONE line therefore answers differently
+        in two zones — which is the cost of not rewriting them, paid visibly."""
+        root = self.project()
+        close_task(root, "TASK-003")
+        append_event(root, {"ts": "2026-08-21T12:04:08", "event": "done",
+                            "id": "TASK-003", "from": "in_progress",
+                            "to": "done"})
+        east = self.stale(root, "Asia/Shanghai")
+        self.assertFalse(east["stale"],
+                         "read as +08:00 that is 04:04:08Z, before the "
+                         f"assertion: {east['reason']}")
+        west = self.stale(root, "America/Los_Angeles")
+        self.assertTrue(west["stale"],
+                        "read as -07:00 that is 19:04:08Z, after the "
+                        f"assertion: {west['reason']}")
+        self.assertEqual([m["at"] for m in west["moved_tasks"]],
+                         ["2026-08-21T19:04:08Z"])
+
+    def test_the_two_writers_stamp_a_zone_and_the_log_stamps_a_local_one(self):
+        """The write side of the same decision. The log keeps its LOCAL wall
+        clock and gains the offset — so the text of the log goes on rising
+        across the lines that predate this — and the register keeps its `Z`."""
+        def stamp(fn: str, tz: str) -> str:
+            r = subprocess.run(
+                ["python3", "-c",
+                 "import sys; sys.path.insert(0, sys.argv[1]); import lib; "
+                 f"print(lib.{fn}())", str(PERRY_HOME / "bin")],
+                capture_output=True, text=True,
+                env={**os.environ, "TZ": tz})
+            assert r.returncode == 0, r.stderr[-2000:]
+            return r.stdout.strip()
+
+        self.assertRegex(stamp("event_stamp", "Asia/Shanghai"),
+                         r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+08:00$")
+        self.assertRegex(stamp("event_stamp", "America/Los_Angeles"),
+                         r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-0[78]:00$")
+        self.assertRegex(stamp("register_stamp", "Asia/Shanghai"),
+                         r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+    def test_no_tool_stamps_a_zoneless_time_any_more(self):
+        """The writers go through `lib`, so there is nowhere else for a naive
+        stamp to be minted. A new `datetime.now().isoformat()` in a writer is
+        what would put the second shape back into the append-only log."""
+        for tool in ("perry-task", "perry-goals"):
+            source = (PERRY_HOME / "bin" / tool).read_text()
+            self.assertNotIn(
+                'datetime.now().isoformat(', source,
+                f"bin/{tool} mints a zoneless stamp of its own")
+
+    def test_the_converter_has_exactly_one_home(self):
+        """A second converter is what makes the next comparison wrong again.
+        `ts_moment` is the only thing in the tree that decides what a timestamp
+        without a zone means; `ts_key` is its string face and calls it."""
+        source = (PERRY_HOME / "bin" / "lib" / "__init__.py").read_text()
+        self.assertEqual(1, source.count("def ts_moment("))
+        self.assertEqual(1, source.count("def ts_key("))
+        for tool in ("perry-task", "perry-goals", "perry-state"):
+            text = (PERRY_HOME / "bin" / tool).read_text()
+            self.assertNotIn(
+                "fromisoformat(str(task[", text,
+                f"bin/{tool} parses an event timestamp itself")
 
 
 class TestADanglingEdgeIsNotCountedAsOpen(unittest.TestCase):

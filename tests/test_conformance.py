@@ -390,7 +390,7 @@ class TestReadingIsNotGated(unittest.TestCase):
             DECIDE, ("list",),
             {"project_root", "state_root", "contract", "decisions", "active",
              "total", "expired_sunsets", "conformance"}),
-        "perry-goals/list/2.1": (
+        "perry-goals/list/2.2": (
             GOALS, ("list",),
             {"project_root", "state_root", "contract", "okr", "phase", "krs",
              "linkage", "counts", "conformance", "unlinked_task_ids",

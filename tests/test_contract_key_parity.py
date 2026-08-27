@@ -495,7 +495,7 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 WITNESSED = (
     ("perry-decide/list/1.0", "decide-list-contract.md", "expired_sunsets",
      "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
-    ("perry-goals/list/2.1", "goals-list-contract.md",
+    ("perry-goals/list/2.2", "goals-list-contract.md",
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00"'),
