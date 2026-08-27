@@ -333,6 +333,38 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
         self.assertEqual([], result["unassigned"])
         self.assertEqual([], result["named_no_such_collection"])
 
+    def test_the_named_table_reads_the_same_however_full_the_arrays_are(self):
+        """The oscillation, and the end of it.
+
+        Inference reads the *state*: with both arrays full it ties and refuses,
+        with one full it lands on that one, with both empty it refuses again
+        and nothing is emitted to miss — so the same page and the same code
+        measure 4, 0 and 0. A heading names collections, not rows, and an empty
+        array is still a collection, so all three states now read 0.
+        """
+        named = "The entry — `items[]` and `cleared_items[]`"
+        for label, payload in (
+                ("both non-empty", TIED),
+                ("one non-empty", dict(TIED, cleared_items=[])),
+                ("both empty", dict(TIED, items=[], cleared_items=[]))):
+            with self.subTest(label):
+                bare = self.compare(
+                    TIED_PAGE.format(heading="The entry, key by key"), payload)
+                result = self.compare(TIED_PAGE.format(heading=named), payload)
+                self.assertEqual([], result["emitted_not_documented"], label)
+                self.assertEqual([], result["documented_not_emitted"], label)
+                self.assertEqual([], result["unassigned"], label)
+                if label == "one non-empty":
+                    self.assertEqual(
+                        ["items[]"],
+                        parity.place(["id", "note"], parity.containers(
+                            parity.paths(payload),
+                            parity.empty_lists(payload))).boxes,
+                        "the state-reading placement this test exists about "
+                        "has changed shape")
+                    self.assertEqual([], bare["emitted_not_documented"],
+                                     "and it reads clean, which is the trap")
+
     def test_the_same_table_naming_nothing_is_still_unassigned(self):
         """The half that keeps the instrument honest. Identical payload,
         identical table — the heading is the only difference, and without it
