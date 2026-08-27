@@ -603,18 +603,47 @@ class TestOneClockAcrossTheOffset(unittest.TestCase):
                 'datetime.now().isoformat(', source,
                 f"bin/{tool} mints a zoneless stamp of its own")
 
+    #: Every way Python has of turning a zone into an answer. A file that
+    #: contains one of these is deciding what a timestamp MEANS, and exactly
+    #: one file in the tree is allowed to do that.
+    ZONE_AWARE = ("astimezone", "timezone.utc", "tzinfo", "utcoffset",
+                  'rstrip("Z")', "rstrip('Z')", "utcnow")
+
     def test_the_converter_has_exactly_one_home(self):
-        """A second converter is what makes the next comparison wrong again.
-        `ts_moment` is the only thing in the tree that decides what a timestamp
-        without a zone means; `ts_key` is its string face and calls it."""
-        source = (PERRY_HOME / "bin" / "lib" / "__init__.py").read_text()
+        """**Verification 4, as a search rather than a claim.**
+
+        A second converter is this project's most-paid-for defect: the skew
+        TASK-144 removed came back the moment anybody wrote a comparison
+        without reading the row. So no file in `bin/` or `viewer/` may contain
+        a zone construct at all except `bin/lib/__init__.py`, and inside it
+        `ts_moment` is the one function that decides — `ts_key` is its string
+        face and calls it.
+        """
+        home = (PERRY_HOME / "bin" / "lib" / "__init__.py")
+        source = home.read_text()
         self.assertEqual(1, source.count("def ts_moment("))
         self.assertEqual(1, source.count("def ts_key("))
-        for tool in ("perry-task", "perry-goals", "perry-state"):
-            text = (PERRY_HOME / "bin" / tool).read_text()
-            self.assertNotIn(
-                "fromisoformat(str(task[", text,
-                f"bin/{tool} parses an event timestamp itself")
+        self.assertEqual(1, source.count("def event_stamp("))
+        self.assertEqual(1, source.count("def register_stamp("))
+
+        scanned = 0
+        for path in sorted((PERRY_HOME / "bin").rglob("*")) + sorted(
+                (PERRY_HOME / "viewer").glob("*.py")):
+            if (not path.is_file() or path == home
+                    or "__pycache__" in path.parts
+                    or path.suffix in (".pyc", ".json", ".md")):
+                continue
+            text = path.read_text(errors="replace")
+            if not (text.startswith("#!") or path.suffix == ".py"):
+                continue
+            scanned += 1
+            for token in self.ZONE_AWARE:
+                self.assertNotIn(
+                    token, text,
+                    f"{path.relative_to(PERRY_HOME)} decides what a zone "
+                    f"means ({token!r}); `bin/lib § ts_moment` is the one "
+                    f"place that may")
+        self.assertGreater(scanned, 5, "the scan found almost no tools to read")
 
 
 class TestADanglingEdgeIsNotCountedAsOpen(unittest.TestCase):
