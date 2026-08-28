@@ -16,67 +16,6 @@
 
 | Arrived | Request | Outcome |
 |---|---|---|
-| 2026-08-21 | two test modules import `from tests.X`, and `tests` is a name another project on this machine owns | — |
-| 2026-08-21 | the opencode dispatch-cap test reads machine-wide state, so a second suite on the same box turns it red | — |
-| 2026-08-21 | the suite's red set changes with the interpreter, so "all green" has never been a portable claim | — |
-| 2026-08-21 | the contract-invariance gate records one branch of a union type and calls it the shape | — |
-| 2026-08-21 | `status --status blocked` still requires a TASK- dependency, so a row waiting on a USER- ask must use --reason instead | — |
-| 2026-08-21 | perry-okr and perry-config write a canonical record file with no claims guard, and perry-tasks risks-write is the only one that refuses | — |
-| 2026-08-21 | the v2 delegation prompt carried v1's out-of-scope prose forward unchecked, and it described deleted code | — |
-| 2026-08-21 | conformance.missing_projection ships and is documented but no version ever announced it, and key-parity cannot see that | — |
-| 2026-08-21 | no test pins the drift severity at warn, so the decision recorded 2026-08-21 has no mechanical guard | — |
-| 2026-08-21 | risk-add and risk-clear write the board and the event log but not risks.jsonl, so any imported project drifts on the next risk | — |
-| 2026-08-21 | _would_discard's loss refusal in perry-tasks write is unreachable past the --from-board guard above it | — |
-| 2026-08-21 | perry-state's hook_profile comment says the schema does not declare the High-stakes prefix and it does | — |
-| 2026-08-21 | the dispatch cap leaks a slot under contention: 20 concurrent registers let a third through a cap of 2 | — |
-| 2026-08-21 | DESIGN-007 names the goal store perry/goals.jsonl and the file on disk is perry/okr.jsonl | — |
-| 2026-08-21 | a wait-loop whose own command line matches the pattern it waits on never exits and poisons every agent's is-a-suite-running check | — |
-| 2026-08-21 | the recorded parity baseline drifts with the board: 115/115 fixture against 113/113 live, and nothing catches it | — |
-| 2026-08-21 | perry-knowledge/list emits stale without the threshold that produced it, so a consumer must read state-schema.json to name the number | — |
-| 2026-08-21 | contract_key_parity's docstring says five contracts and there are six | — |
-| 2026-08-21 | perry-dispatch-limit list reports bookkeeping, not observation, so a killed agent holds a slot for four hours and the PMO reports it as running | — |
-| 2026-08-21 | viewer/ stops being a viewer once the viewer is deleted, and the two files left in it are the shared read layer | — |
-| 2026-08-21 | the report exemption covers dangling but not open_decisions_by_register, so quoting a checker's output re-opens a queue row | — |
-| 2026-08-27 | an import-grep cannot see a module that reads another module as text, which is how the viewer deletion nearly broke test_parsers | — |
-| 2026-08-27 | perry-state and perry-task both emit intake.oldest_undischarged and mean different things by it — a date string against a row number | — |
-| 2026-08-28 | only_an_example short-circuits to 'not an example' for an id with no definition point, so the illustrative rule cannot judge an id lifted out of a report | — |
-| 2026-08-28 | two writers appending to .perry/events.jsonl in parallel conflict textually, and the resolution is only safe because seq is computed at read time | — |
-| 2026-08-28 | the queue-reconcile test is order/parallel sensitive: it fails under -j 4 and passes in a smaller run | — |
-| 2026-08-28 | paths() collapses a list to its first element, so a condition true on krs[1] and false on krs[0] is unobservable to key parity | — |
-| 2026-08-28 | perry-state's design.by_status keys come from a set, so the payload's key order flips with the hash seed and cannot be byte-compared | — |
-| 2026-08-28 | two agents running tests/parallel write to the same scratchpad baseline path and overwrite each other's readings | — |
-| 2026-08-28 | subcommands.md:82 and :118-128 restate contract semantics in prose and carry a TASK-162 marker proving they rot | — |
-| 2026-08-28 | bin/perry-state:751 picks a drift baseline as a min over raw ts strings and the new zone guard cannot see it | — |
-| 2026-08-28 | load_snapshot binds STATE_ROOT at def time, so perry-state's override can never reach it | — |
-| 2026-08-28 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so Depends on 待定 parses as a real dependency id | — |
-| 2026-08-28 | diagnose and perry-task disagree about open queue rows — 2 vs 0 — and the disagreement rides along on TASK-179's red | — |
-| 2026-08-28 | a row can be resolved by work in a repo Perry does not own, and Perry has no signal for it — TASK-161 and TASK-175 in one night | — |
-| 2026-08-28 | a KR short of target whose every linked task is terminal is stalled, and nothing reports it — must be phase-scoped or three of four results are noise | — |
-| 2026-08-28 | perry-migrate CROSS_FILE_INPUTS omits tasks.jsonl, so linkage-task-exists declines in the dry run's newly-visible delta — one-word fix | — |
-| 2026-08-28 | no procedure in work/reference/subcommands.md mentions perry-task purge, so an agent will not reach for it | — |
-| 2026-08-28 | perry-decide mint_id reads max(files ∪ index) but render_index rebuilds DECISIONS.md from the files, so the departed half erases itself — deleting the highest ADR hands ADR-003 back, and perry-decide reads the event log zero times | — |
-| 2026-08-28 | four docstrings cite a directory on this machine as their evidence — bin/README.md:234, perry-conform:273-274 and :283, perry-goals:459 and :334; three are only fixable because TASK-124 and TASK-125 built the tests to point at | — |
-| 2026-08-28 | a mutation sweep killed mid-flight leaves the tree mutated — TASK-147's was SIGTERM'd at a tool cap and its finally never ran, leaving a live mutation in bin/perry_store.py; sweeps should run detached with signal handlers | — |
-| 2026-08-28 | render_line's desc.get('escape', True) default is unreachable from production — both builders always set the key | — |
-| 2026-08-28 | perry-lint's store-drift census covers tasks.jsonl only — okr.jsonl's 36 records and .perry/config.jsonl are never checked for drift, so ADR-007's guarantee holds for one store of three | — |
-| 2026-08-28 | the id scanner excludes fenced blocks but not inline code spans, so a regex in backticks becomes a dangling id — Z0-9 is on today's list and is not an id; fix the false positives before TASK-179's decision is made | — |
-| 2026-08-28 | DESIGN-007 decision #4 (KR ids become P002-O3-KR1, locked 2026-08-19) was never implemented — zero traces in code, old form still hardcoded in perry-lint:124 and perry-explain:64, and perry-lint:1122 recovers the phase from the filename precisely because the id does not carry it | — |
-| 2026-08-28 | a locked decision that gets no task row does not ship — DESIGN-007's plan went 5-for-5 with rows and 0-for-9 without; decide lock is documented to hand implementation tasks to work and did not | — |
-| 2026-08-28 | escalation scan: Files in scope / Deliverable / Out of scope have NO zh alias while High-stakes operations does, so a Chinese-headed spec scans clean — half the pair is internationalised, and gimegime-pmo's document language is 中文 | — |
-| 2026-08-28 | escalate_unextractable flags a line with no backtick, not a line that produced no fragment — so a backticked 2-char token like 下单 is silently dropped by the len>2 floor and raises no warning; 18 of 20 Chinese trading verbs affected | — |
-| 2026-08-28 | escalation_fragments' len>2 floor is an ASCII assumption: it drops 2-character CJK tokens that are whole words, while _ESC_WORD was deliberately written ASCII-only so CJK WOULD match | — |
-| 2026-08-28 | bin/perry-state:1954 scans the FLAT role union and never reads the row's Role: — correct by accident and load-bearing, since narrowing it to the row's own role would break the cross-role seam catch; pin it with a test before someone optimises it | — |
-| 2026-08-28 | tasks[].role is typed as one string but a seam row needs two — a coding-owned row whose subject is a live risk cap is accountable to both roles | — |
-| 2026-08-28 | DUE-* 日期型强制动作 is unrepresentable by the escalation union in principle: the union fires on a dispatch, and the danger is a dispatch that never happens | — |
-| 2026-08-28 | test_host_support flakes under suite contention — third occurrence tonight, merge-check refused to attribute it once and TASK-147's sweep excluded it; it passes 3/3 alone every time | — |
-| 2026-08-28 | perry-explain resolves P002-O1-KR1 and P002-O2-KR2 to a table row in TASK-120-spec.md, not to the linkage register — perry/evidence/ walks before perry/phase/ and harvest takes the first definition; 14 of 16 resolve correctly | — |
-| 2026-08-28 | green_lit does not de-duplicate across touches sections while refuse does | — |
-| 2026-08-28 | a heading with a numbering prefix (## §8. Executor 交付物, which gimegime-pmo uses) does not resolve — _section matches by prefix, so it is equally true of English; a decision rather than a patch | — |
-| 2026-08-28 | 下单 still fires on 系统永不下单 — a boundary-free script cannot express polarity, named in the code rather than hidden | — |
-| 2026-08-28 | events contract says not to re-sort because second-precision ties are real, which reads as a rounding problem — the real reason is a deliberately backdated stamp twelve hours out of log order | — |
-| 2026-08-28 | perry-dispatch-limit exits 0 and prints usage on an unknown subcommand, so every 'acquire' this session was a silent no-op — the subcommand is 'register'; the concurrency cap was enforced by nothing but the caller's own counting | — |
-| 2026-08-28 | BOARD.md's Last updated header reads 2026-08-16 while the board is re-rendered dozens of times a day — perry-state reports it as board.last_updated and nothing refreshes it | — |
-| 2026-08-28 | tests/test_migrate.py:155's HOOK constant carries the same unarmed bullet test_conformance.py had — green today because that suite does not run the new check | — |
 
 ## P0 (must finish this period)
 
@@ -119,6 +58,10 @@
 | TASK-206 | a write returns no seq, so a poll cannot tell a stale read from a fresh one | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-207 | no compare-and-set on a write, and the board demonstrably moves between a read and a write | Coding Agent | not_started | — | — | V3 | TASK-206 | main |  |  |  |  |  |  |
 | TASK-208 | perry-diagnose asks 'is this ask answered' with a word search over free prose, and disagrees with the store in both directions | Coding Agent | not_started | — | — | V3 | TASK-179 | main |  |  |  |  |  |  |
+| TASK-209 | perry-lint's store-drift census covers tasks.jsonl only, so ADR-007's guarantee holds for one store of five | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-210 | the id scanner excludes fenced blocks but not inline code spans, so a regex in backticks becomes a dangling id | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-211 | perry-dispatch-limit exits 0 on an unknown subcommand, so a typo silently disables the concurrency cap | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-212 | a locked decision that gets no task row does not ship, and nothing links a design's plan step to the work that discharges it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
@@ -132,6 +75,9 @@
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | — | — | V3 |  | intake | triaged | 2026-08-21 |
 | TASK-172 | four of six document collections are unreachable through any contract | Coding Agent | not_started | DEFERRED 2026-08-21 by the user: aiMark reads the directories directly for now. THE COST, stated so it is on the record: aiMark then owns a reader of Perry's LAYOUT, and perry relocate moves every claimed path — a consumer holding perry/design/ breaks silently the first time a project moves its state root. aiMark's own document says it did not want this ('a second reader of your layout is the thing this whole integration exists to avoid'); the decision overrides that knowingly | — | V4 | — | main |  |  |
 | TASK-198 | ## Cadence becomes a store | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-213 | bin/perry-task's ABSENT is a fourth copy of the blank-cell list, so 'Depends on: 待定' parses as a real dependency id | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-214 | perry-decide's mint_id reads max(files ∪ index) but render_index rebuilds the index from the files, so the departed half erases itself | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-215 | BOARD.md's Last updated header is twelve days stale while the file is re-rendered dozens of times a day | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
