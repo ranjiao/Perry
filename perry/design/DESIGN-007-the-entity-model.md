@@ -3,7 +3,7 @@
 > Status: locked
 > Date: 2026-08-19 · Locked: 2026-08-19
 > Author: Perry maintainer   · Implementation owner: TBD
-> Linked OKR: P-O3.1 (phase 002 — `fields-are-typed`)
+> Linked OKR: P002-O3-KR1 (phase 002 — `fields-are-typed`)
 > Supersedes: —   · Superseded by: —
 
 > **Signed off: Ran Jiao, 2026-08-19.**
@@ -13,7 +13,8 @@
 > in turn, with #10 raised by the reviewer rather than offered. Two corrections
 > were made against the draft and both changed the design:
 >
-> - the phase-KR id, from the drafted `002/P-O3.1` to **`P002-O3-KR1`**, on the
+> - the phase-KR id, from the drafted `002/P-O3.1` [[old-form]] to
+>   **`P002-O3-KR1`**, on the
 >   ground that every segment should carry its own label rather than rely on
 >   position (decision #4);
 > - **the Task/Run duplication** — `documents[]` stored on both entities and
@@ -89,14 +90,14 @@ that actually happened.**
 
 The store has no `phase` field. The only Task↔Phase edge is
 `phase/NNN-linkage.md § objectives[].krs[].tasks[]` — hand-maintained,
-phase-local, and measurably stale (`P-O1.1` carries `current: 0` for a phase
+phase-local, and measurably stale (`P001-O1-KR1` carries `current: 0` for a phase
 that finished). So "which tasks belong to this phase" is answered by a file
 nobody writes deterministically, and "which phase did this task belong to" is
 not answered at all.
 
 ### 1.4 The same KR is written twice at two fidelities
 
-`phase/001-work-modes-live.md` holds `| P-O1.1 | … | 3 of 3 modes live |
+`phase/001-work-modes-live.md` holds `| P001-O1-KR1 | … | 3 of 3 modes live |
 KR-O1.1 |` — four prose cells. `phase/001-linkage.md` holds the same id with
 `target: 3`, `current: 0`, `tasks: [...]`. Two files must agree and nothing
 checks that they do. The same split exists one level up: `OKR.md § Objectives`
@@ -104,8 +105,10 @@ stores `Metric / Target` and `Deadline` as prose while the linkage frontmatter
 stores `target` as a number — **the same concept, prose in one file and typed
 in another.**
 
-Also: `P-O3.1` exists in both phase 001 and phase 002 and means different
-things. The linkage schema treats `^P-O\d+\.\d+$` as an id.
+Also: `P-O3.1` [[old-form]] existed in both phase 001 and phase 002 and
+meant different things. The linkage schema treated `^P-O\d+\.\d+$`
+[[old-form]] as an id. (Both quoted as the defect this document decides
+against; TASK-180 made them `P001-O3-KR1` and `P002-O3-KR1`.)
 
 ### 1.5 A Task's documents are one prose cell with four meanings
 
@@ -247,7 +250,8 @@ Notes on the non-obvious rows:
 
 - **#4 — resolved: `P002-O3-KR1`.** Every segment carries its own label, so the
   id is read without knowing the position convention. The draft proposed
-  `002/P-O3.1`, which is unique but still requires the reader to know that the
+  `002/P-O3.1` [[old-form]], which is unique but still requires the reader to
+  know that the
   number after the dot is the KR. **The overall (non-phase) KR follows as
   `O3-KR1`** — the same grammar with the phase segment absent, replacing
   today's `KR-O1.1`. Both are project-unique, which is what `serves` needs to
@@ -689,7 +693,7 @@ pins 33 `tasks[].*` field paths including all eight — but it pins the **payloa
 of `perry-task list`, not the storage layout**, and `perry-task/list` already
 emits nine fields it does not store. `tasks[].status` keeps appearing, resolved
 from the latest run; a consumer pinned at `perry-task/list/1.9` needs no edit,
-which is the same property phase 002's KR `P-O3.2` already claims.
+which is the same property phase 002's KR `P002-O3-KR2` already claims.
 
 **A Task has at least one Run.** `perry-task add` opens run 1 in `planned` —
 so a task that was specified and never started is visible as a planned run
@@ -723,7 +727,7 @@ needed and with its specified verification rung.
 | 7 | **TASK-102** — `documents[]` replaces the `evidence` cell | 1, 14 | Contract change: `tasks[].evidence` and `tasks[].evidence_paths` are pinned at `perry-task/list/1.9`. **Depends on Runs** — `documents[].run` is a foreign key, and a foreign key with no table is a counter (§ 5.9) |
 | 8 | `perry-task add` requires a spec and writes it | 7 | Decision #5. Refused at creation, not at close — § 5.7 |
 | 9 | **TASK-092** — `OKR.md` becomes a store; `Metric / Target` and `Deadline` split like `Due` did | 1 | Decision #6 |
-| 10 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 9 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` currently names two different KRs |
+| 10 | KR ids migrate to `O<n>-KR<m>` and `P<NNN>-O<n>-KR<m>` | 9 | Decision #4. Two phase files plus the linkage frontmatter; `P-O3.1` [[old-form]] named two different KRs — done by TASK-180, 2026-08-28 |
 | 11 | Task gains `phase` and `serves` | 1, 10 | Decision #3. `serves` stores one value because step 10 made the id project-unique |
 | 12 | `supervised_by` lands; `supervises[]` is derived | 1, 3 | Decision #1 and § 5.6. **Not** a reuse of `parent` |
 | 13 | The phase table becomes a rendering of the linkage record | 9, 11 | Ends the two-fidelity split § 1.4 measures |

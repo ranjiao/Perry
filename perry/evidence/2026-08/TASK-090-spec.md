@@ -14,7 +14,7 @@
 
 - **Owner**: Coding Agent
 - **Priority**: P1
-- **Attribution**: P-O1.1, P-O3.2
+- **Attribution**: P002-O1-KR1, P002-O3-KR2
 
 ### Deliverable
 

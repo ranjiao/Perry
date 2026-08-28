@@ -2,7 +2,8 @@
 """
 perry-explain — resolve an ID to what it actually means.
 
-Agent-run projects accumulate stable IDs fast: REL-001, ADR-003, P-O1.2,
+Agent-run projects accumulate stable IDs fast: REL-001, ADR-003,
+P<NNN>-O<n>-KR<n>,
 DESIGN-002, USER-014. They are good for the agent — precise, greppable, stable
 across renames — and they are how a board stays unambiguous. But they are
 write-optimized for the wrong reader. A standup line like
@@ -60,8 +61,30 @@ import lib  # noqa: E402
 SKIP_DIRS = lib.SKIP_DIRS
 walk_md = lib.walk_md
 
-# REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's KR form P-O1.2
-ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+# REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's phase-KR form
+# P002-O3-KR1 (DESIGN-007 decision #4, migrated by TASK-180).
+#
+# **The specific arm changed; the generic arm did not, and that is the
+# finding.** `P002-O3-KR1` ends in `KR1`, not in digits, so
+# `[A-Z][A-Z0-9]{1,9}-\d{1,4}` cannot reach it however it is read — its two
+# candidate splits are `P002-O3` (the tail is not digits) and `O3-KR1` (same).
+# Widening that arm to end in an optional `-KR\d+` would have made it match
+# ids no project mints, on every repository this tool is ever pointed at, to
+# buy something one three-token literal already buys here. `bin/lib §
+# declared_id_families` has no opinion to defer to either: it learns families
+# from FILENAMES, and `bin/lib § PERRY_CITATION_FAMILIES` records that a KR
+# "lives in a register row … never a filename". So no phase-KR id, old form or
+# new, has ever put a family in that set, and this arm is the only thing that
+# has ever recognised one.
+ID_RE = re.compile(r"\b((?:P\d{3}-O\d+-KR\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+
+#: The pre-TASK-180 phase-KR form, held here to be **refused by name**.
+#: Nothing below reads it: `main` does not resolve it, `harvest` does not
+#: define it, `find_ids` does not collect it. It exists so that the refusal
+#: is a sentence rather than a shrug — `P-O1.1` [[old-form]] named two
+#: different KRs and
+#: the tool that cannot tell you that is the tool that let the ambiguity live.
+LEGACY_KR_ID_RE = re.compile(r"^P-O(\d+)\.(\d+)$")
 TASK_ID = re.compile(r"^TASK-\d{1,4}$", re.I)
 
 # Tokens shaped exactly like a project ID that are nothing of the kind. Without
@@ -408,7 +431,7 @@ def harvest(root: Path) -> dict:
                     t = heading_title(h.group(1), subject)
                     e["title"] = t or None
 
-            # ── yaml: - id: P-O1.1  /  title: "…"
+            # ── yaml: - id: P<NNN>-O<n>-KR<n>  /  title: "…"
             ym = YAML_ID.match(raw)
             if ym and ID_RE.fullmatch(ym.group(1)) and is_real_id(ym.group(1)):
                 yaml_pending = ym.group(1)
@@ -708,6 +731,31 @@ def main(argv: list[str]) -> int:
             if term["note"]:
                 print(f"  implemented in {term['note']}")
         return 0
+
+    # The old phase-KR form is REFUSED, not merely missed. Falling through to
+    # the generic "not found" would have been true and useless: the reason
+    # `P-O1.1` [[old-form]] resolves to nothing is not that no such KR exists
+    # but that it
+    # named TWO, in two phases, which is the ambiguity DESIGN-007 decision #4
+    # was locked to end. Naming the migration is history in the record; it
+    # resolves nothing and adds no fallback, which is the line the user drew.
+    legacy = LEGACY_KR_ID_RE.match(want.upper())
+    if legacy:
+        print(f"{want} — the pre-2026-08-28 phase-KR form. Refused: it does "
+              f"not identify one KR.")
+        print(f"  A phase-KR id is now `P<NNN>-O{legacy.group(1)}-"
+              f"KR{legacy.group(2)}` — segment-labelled and project-unique "
+              f"(DESIGN-007 decision #4, locked 2026-08-19; migrated by "
+              f"TASK-180 on 2026-08-28).")
+        print(f"  `{want}` named a different key result in each phase that "
+              f"declared it, which is exactly why the phase is now in the id. "
+              f"Say which phase you mean.")
+        cands = sorted(k for k in entries
+                       if re.fullmatch(rf"P\d{{3}}-O{legacy.group(1)}-"
+                                       rf"KR{legacy.group(2)}", k))
+        if cands:
+            print(f"  Candidates in this project: {', '.join(cands)}")
+        return 1
 
     e = entries.get(want) or entries.get(want.upper())
     if not e:

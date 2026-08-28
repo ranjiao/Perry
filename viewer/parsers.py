@@ -629,7 +629,7 @@ class BoardState:
 
 @dataclass
 class KR:
-    id: str              # e.g. "KR-O1.1" (OKR.md) or "P-O1.2" (phase file)
+    id: str              # e.g. "KR-O1.1" (OKR.md) or "P002-O1-KR2" (phase file)
     text: str            # the key-result statement
     qualifier: str = ""  # optional parenthetical, e.g. "(Phase 1, 系统建设期)"
     metric: str = ""     # 'Metric / Target' column, when the KR came from a table
@@ -1616,11 +1616,29 @@ def _parse_backbone(section: str) -> list[tuple[str, list[Task]]]:
 # ── OKR.md ────────────────────────────────────────────────────────────────
 
 
-# KR ids as written by the templates: "KR-O1.1" (OKR.md), "P-O1.2" (phase file).
+# KR ids as written by the templates: "KR-O1.1" (OKR.md), "P002-O1-KR2"
+# (phase file — DESIGN-007 decision #4, migrated by TASK-180).
 # The legacy bullet form ("- KR1: text") is still accepted for hand-written files.
-_RE_KR_ID = re.compile(r"^(?:KR|P)[-\w.]*\d$")
+#
+# `_RE_KR_ID` needed no change and that is worth stating rather than
+# leaving to be rediscovered: `^(?:KR|P)[-\w.]*\d$` already admitted
+# "P002-O3-KR1" — `P`, then `002-O3-KR`, then `1`. It is `_RE_KR_BULLET`
+# that hardcoded the shape, spelling the whole prefix `P-O`, and it is the
+# one that moved. The **overall** OKR family `KR-O1.1` is untouched: it is
+# a different family, out of TASK-180's scope by the same decision.
+# `{{NNN}}` is admitted because a phase-KR id now CONTAINS the phase
+# number, and a template cannot know it: `goals/state/phase_TEMPLATE.md`
+# ships `P{{NNN}}-O1-KR1`, and a reader that rejected it would report the
+# template as having no key results at all. That is tolerance for a
+# placeholder, not for the old id form — `P-O1.1` [[old-form]] still parses
+# here, and still fails `perry-lint` twice over (`schema/state-schema.json`
+# `id_pattern`/`pattern`, and `kr-id-legacy-form`). Deliberately: a
+# reader that silently dropped the row would hand the checker an empty
+# KR set, and an empty set is what every downstream guard treats as
+# "nothing to check".
+_RE_KR_ID = re.compile(r"^(?:KR|P)(?:\{\{[^}]*\}\}|[-\w.])*\d$")
 _RE_KR_BULLET = re.compile(
-    r"^-\s*\**((?:KR|P-O)[\w.\-]*\d)\**([^:：]*)[:：]\s*(.+)$"
+    r"^-\s*\**((?:KR|P\d+-O)[\w.\-]*\d)\**([^:：]*)[:：]\s*(.+)$"
 )
 
 

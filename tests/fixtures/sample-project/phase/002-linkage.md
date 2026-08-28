@@ -6,14 +6,14 @@ objectives:
   - id: O1
     title: "Automate the deploy path"
     krs:
-      - id: P-O1.1
+      - id: P002-O1-KR1
         title: "Deploy script green in staging"
         metric: "3 consecutive green runs"
         target: 3
         current: 1
         stretch: false
         tasks: [REL-001]
-      - id: P-O1.2
+      - id: P002-O1-KR2
         title: "Manual gates removed"
         metric: "manual steps = 0"
         target: 0
@@ -23,7 +23,7 @@ objectives:
   - id: O2
     title: "Make the signal trustworthy"
     krs:
-      - id: P-O2.1
+      - id: P002-O2-KR1
         title: "Flake rate measured and reduced"
         metric: "flaky runs <= 1%"
         stretch: false
@@ -36,13 +36,13 @@ agents:
     tasks: [REL-009]
 projects:
   - id: REL-001
-    serves: P-O1.1
+    serves: P002-O1-KR1
     objective: O1
     name: "Deploy script hardening"
     aliases: [deploy-hardening]
     status: active
   - id: REL-002
-    serves: P-O2.1
+    serves: P002-O2-KR1
     objective: O2
     name: "Flake detector"
     aliases: []

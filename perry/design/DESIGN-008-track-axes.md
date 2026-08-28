@@ -45,7 +45,7 @@ above is the observation, and § 5.2 is what it settled into.
 
 This was tested on 2026-08-20 rather than argued (`evidence/2026-08/TASK-133-track-experiment.md`).
 A `queue`-mode track was declared on this repository, a row created on it, and
-that row attached to `P-O1.3`, a KR of a `project`-mode phase:
+that row attached to `P002-O1-KR3`, a KR of a `project`-mode phase:
 
 ```
 attribution.linked          4 → 5

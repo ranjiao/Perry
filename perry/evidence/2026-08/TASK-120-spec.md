@@ -26,8 +26,8 @@ derives, checks or ages them**:
 
 | KR | target | current | reads as | actually |
 |---|---|---|---|---|
-| `P-O1.1` `BOARD.md` rendered from the store | 1.0 | **0.0** | 0% | **met** — TASK-038/088/089/090 all closed |
-| `P-O2.2` readers resolving a header cell (baseline 5) | 0.0 | **0.0** | **met** | **not met** — TASK-094 measured 13 row splits and 87 header resolutions still reaching `BOARD.md` |
+| `P002-O1-KR1` `BOARD.md` rendered from the store | 1.0 | **0.0** | 0% | **met** — TASK-038/088/089/090 all closed |
+| `P002-O2-KR2` readers resolving a header cell (baseline 5) | 0.0 | **0.0** | **met** | **not met** — TASK-094 measured 13 row splits and 87 header resolutions still reaching `BOARD.md` |
 
 The second shape is the systemic one: **six of the eight phase KRs have
 `target: 0.0`**, and an unset `current` defaults to `0.0`, so every
@@ -42,7 +42,7 @@ roll-up this project has produced was measured by hand.
 ## The trap this row must not fall into
 
 **Do not compute a completion ratio from the `tasks[]` edges and call it
-progress.** `P-O2.1`'s metric is *"0 occurrences of `CLOCK_RE`"*. "TASK-091 is
+progress.** `P002-O2-KR1`'s metric is *"0 occurrences of `CLOCK_RE`"*. "TASK-091 is
 closed" does not establish that the count is zero — only re-running the count
 does. A ratio presented as `current` would be a fabricated measurement, which
 `perry/OKR.md § Operating Principles` forbids in its first line: *never compute
@@ -77,8 +77,8 @@ two it is.
 ## Verification — V3
 
 1. **Both of today's wrong readings flip.** With `phase/002-linkage.md`
-   unchanged, `P-O1.1` no longer reports as 0-of-1 progress with four closed
-   tasks, and `P-O2.2` no longer reports as met. Assert the reported shape, not
+   unchanged, `P002-O1-KR1` no longer reports as 0-of-1 progress with four closed
+   tasks, and `P002-O2-KR2` no longer reports as met. Assert the reported shape, not
    a hand-typed number.
 2. **A drive-to-zero KR with no asserted `current` is `null`, not `0.0`** —
    proved on a fixture whose KR has `target: 0` and no `current`. Reverting that

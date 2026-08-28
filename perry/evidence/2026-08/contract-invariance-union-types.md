@@ -65,7 +65,7 @@ union, and each fires the first time the live project supplies the other half:
 | `perry-goals/list` `krs[].target` | number or absent | same |
 
 The goals pair survived this morning's `phase/002-linkage.md` edit — which set
-`P-O1.1` and `P-O1.2` to real numbers — only because the **first** KR in the
+`P002-O1-KR1` and `P002-O1-KR2` to real numbers — only because the **first** KR in the
 array still carries nulls.
 
 ## The sharper version: it is sensitive to array order

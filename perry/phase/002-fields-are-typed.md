@@ -69,32 +69,32 @@ somebody's board without them is what ADR-004 exists to prevent.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |---|---|---|---|
-| P-O1.1 | `BOARD.md` is rendered from `perry/tasks.jsonl`, which is the only thing writers write (baseline: the markdown is canonical) | 1 of 1 | — |
-| P-O1.2 | `OKR.md` and `.perry/config.md` likewise (baseline 0 of 2) | 2 of 2 | — |
-| P-O1.3 | A hand edit to a rendered file is reported rather than honoured, at the severity the user picks (baseline: it is honoured) | reported | — |
+| P002-O1-KR1 | `BOARD.md` is rendered from `perry/tasks.jsonl`, which is the only thing writers write (baseline: the markdown is canonical) | 1 of 1 | — |
+| P002-O1-KR2 | `OKR.md` and `.perry/config.md` likewise (baseline 0 of 2) | 2 of 2 | — |
+| P002-O1-KR3 | A hand edit to a rendered file is reported rather than honoured, at the severity the user picks (baseline: it is honoured) | reported | — |
 
 ## Objective 2 — The defect classes cannot be expressed
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |---|---|---|---|
-| P-O2.1 | `CLOCK_RE` deleted and `By when` split into `due` + `by_when_note` (baseline: one column, five failed review rounds) | 0 occurrences of `CLOCK_RE` | — |
-| P-O2.2 | Readers that resolve a header cell for the three stores (baseline 5 live copies across 4 rounds) | 0 | — |
-| P-O2.3 | Lines of markdown parser serving the three stores (baseline 3,320 across `viewer/parsers.py` and `viewer/tables.py`) | 0 for the three; adoption keeps what it needs | — |
+| P002-O2-KR1 | `CLOCK_RE` deleted and `By when` split into `due` + `by_when_note` (baseline: one column, five failed review rounds) | 0 occurrences of `CLOCK_RE` | — |
+| P002-O2-KR2 | Readers that resolve a header cell for the three stores (baseline 5 live copies across 4 rounds) | 0 | — |
+| P002-O2-KR3 | Lines of markdown parser serving the three stores (baseline 3,320 across `viewer/parsers.py` and `viewer/tables.py`) | 0 for the three; adoption keeps what it needs | — |
 
 ## Objective 3 — Agents work the new way
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |---|---|---|---|
-| P-O3.1 | Lane procedures that hand-edit a rendered file (baseline: unmeasured) | 0 | — |
-| P-O3.2 | The read contracts survive the move unchanged — a consumer pinned at `perry-task/list/1.9` needs no edit (baseline: 1.9 live, aiMark pinned at 1.5) | 0 breaking changes | — |
+| P002-O3-KR1 | Lane procedures that hand-edit a rendered file (baseline: unmeasured) | 0 | — |
+| P002-O3-KR2 | The read contracts survive the move unchanged — a consumer pinned at `perry-task/list/1.9` needs no edit (baseline: 1.9 live, aiMark pinned at 1.5) | 0 breaking changes | — |
 
 ## Week-by-week breakdown
 
 | Week | Focus | KRs | Notes |
 |---|---|---|---|
-| 2026-W34 | `tasks.jsonl` as truth; `BOARD.md` rendered from it | P-O1.1, P-O3.2 | TASK-038 is this |
-| 2026-W35 | `By when` split; `CLOCK_RE` deleted | P-O2.1 | independent of the rest |
-| 2026-W36 | `OKR.md` + `.perry/config.md`; parser removal | P-O1.2, P-O2.2, P-O2.3 | one migration |
+| 2026-W34 | `tasks.jsonl` as truth; `BOARD.md` rendered from it | P002-O1-KR1, P002-O3-KR2 | TASK-038 is this |
+| 2026-W35 | `By when` split; `CLOCK_RE` deleted | P002-O2-KR1 | independent of the rest |
+| 2026-W36 | `OKR.md` + `.perry/config.md`; parser removal | P002-O1-KR2, P002-O2-KR2, P002-O2-KR3 | one migration |
 
 ## Definition of Done
 

@@ -78,7 +78,7 @@ than letting the declared rung stand unearned — which is the failure mode
 this one.
 
 **If you want V3**, the remaining step is one you can do in a minute: open
-aiMark's OKR chain on this project, where `P-O1.1` and `P-O1.2` are asserted
+aiMark's OKR chain on this project, where `P002-O1-KR1` and `P002-O1-KR2` are asserted
 and 21 KRs are unasserted, and confirm the three states are visually distinct.
 
 ## Why it was open at all

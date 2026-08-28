@@ -7,8 +7,8 @@ opposite directions on the same day:
 
 | KR | target | current | read as | actually |
 |---|---|---|---|---|
-| `P-O1.1` | 1 | 0 | 0% | all four linked tasks closed |
-| `P-O2.2` | 0 | 0 | **met** | 13 row splits and 87 header resolutions still live |
+| `P002-O1-KR1` | 1 | 0 | 0% | all four linked tasks closed |
+| `P002-O2-KR2` | 0 | 0 | **met** | 13 row splits and 87 header resolutions still live |
 
 The second is the systemic shape: six of the register's eight phase KRs drive a
 count to zero, and the register template writes `current: 0`, so a
@@ -103,9 +103,9 @@ Drive two counts to zero, and leave a third KR with no number at all.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O1.1 | Rendered from the store | 1 of 1 | |
-| P-O1.2 | Readers resolving a header cell | 0 (baseline 5) | |
-| P-O1.3 | Never given a number | 0 (baseline unmeasured) | |
+| P001-O1-KR1 | Rendered from the store | 1 of 1 | |
+| P001-O1-KR2 | Readers resolving a header cell | 0 (baseline 5) | |
+| P001-O1-KR3 | Never given a number | 0 (baseline unmeasured) | |
 """
 
 LINKAGE = """---
@@ -116,21 +116,21 @@ objectives:
   - id: O1
     title: "Drive two counts to zero"
     krs:
-      - id: P-O1.1
+      - id: P001-O1-KR1
         title: "Rendered from the store"
         metric: "1 of 1"
         target: 1
         current: 0
         stretch: false
         tasks: ["TASK-001", "TASK-002"]
-      - id: P-O1.2
+      - id: P001-O1-KR2
         title: "Readers resolving a header cell"
         metric: "0 (baseline 5)"
         target: 0
         current: 0
         stretch: false
         tasks: ["TASK-003"]
-      - id: P-O1.3
+      - id: P001-O1-KR3
         title: "Never given a number"
         metric: "0 (baseline unmeasured)"
         target: 0
@@ -238,7 +238,7 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
         return goals(PERRY_HOME)
 
     def test_no_current_in_the_payload_claims_to_be_a_measurement(self):
-        """The `P-O2.2` reading. `target: 0` with `current: 0` read as MET; it
+        """The `P002-O2-KR2` reading. `target: 0` with `current: 0` read as MET; it
         cannot any more, because nothing in the payload says the zero was
         measured and the payload now says which."""
         payload = self.own_repo()
@@ -268,14 +268,15 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
                 self.assertNotIn(banned, k, f"{k['id']}: `{banned}` came back")
 
     def test_a_kr_reading_zero_with_every_task_closed_shows_both(self):
-        """The `P-O1.1` reading, on the fixture so the numbers are fixed.
+        """The `P002-O1-KR1` reading, reproduced on the fixture (whose own KR is
+        `P001-O1-KR1`) so the numbers are fixed.
 
         `current: 0` against `target: 1` with both linked tasks closed. The
         payload's job is to carry BOTH facts, in different units, and to
         resolve neither: `current` stays 0 because only re-running the metric
         may change it, and the task count says two of two are closed.
         """
-        k = kr(goals(self.root), "P-O1.1")
+        k = kr(goals(self.root), "P001-O1-KR1")
         self.assertEqual(k["current"], 0.0)
         self.assertEqual(k["target"], 1.0)
         self.assertEqual(k["current_provenance"]["state"], "asserted")
@@ -296,11 +297,11 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
         rows = [k for o in state(self.root)["linkage"]["objectives"]
                 for k in o["krs"]]
         by_id = {k["id"]: k for k in rows}
-        self.assertEqual(set(by_id), {"P-O1.1", "P-O1.2", "P-O1.3"})
-        from_goals = kr(goals(self.root), "P-O1.1")
+        self.assertEqual(set(by_id), {"P001-O1-KR1", "P001-O1-KR2", "P001-O1-KR3"})
+        from_goals = kr(goals(self.root), "P001-O1-KR1")
         for block in ("current_provenance", "current_staleness",
                       "linked_task_completion"):
-            self.assertEqual(by_id["P-O1.1"][block], from_goals[block],
+            self.assertEqual(by_id["P001-O1-KR1"][block], from_goals[block],
                              f"{block} differs between the two payloads")
 
 
@@ -308,7 +309,7 @@ class TestBothOfTodaysWrongReadingsFlip(Fixture):
 
 
 class TestAnUnassertedCurrentIsNullNotZero(Fixture):
-    """`P-O1.3` has `target: 0` and no `current` at all.
+    """`P001-O1-KR3` has `target: 0` and no `current` at all.
 
     This is the systemic defect stated as a test: an unset `current` defaulting
     to `0.0` makes every drive-to-zero KR read as met on the day it is written,
@@ -316,13 +317,13 @@ class TestAnUnassertedCurrentIsNullNotZero(Fixture):
     """
 
     def test_the_number_is_null(self):
-        k = kr(goals(self.root), "P-O1.3")
+        k = kr(goals(self.root), "P001-O1-KR3")
         self.assertEqual(k["target"], 0.0)
         self.assertIsNone(k["current"],
                           "an unwritten `current` came back as a number")
 
     def test_it_is_reported_as_unasserted_rather_than_as_a_value(self):
-        k = kr(goals(self.root), "P-O1.3")
+        k = kr(goals(self.root), "P001-O1-KR3")
         self.assertEqual(k["current_provenance"]["state"], "unasserted")
         self.assertEqual(k["current_provenance"]["asserted_at"], "")
         self.assertEqual(k["current_provenance"]["source"], "")
@@ -331,15 +332,15 @@ class TestAnUnassertedCurrentIsNullNotZero(Fixture):
         """There is no number, so there is nothing that could have aged. The
         reason says which — `stale: false` alone would be indistinguishable
         from a number that has been checked."""
-        s = kr(goals(self.root), "P-O1.3")["current_staleness"]
+        s = kr(goals(self.root), "P001-O1-KR3")["current_staleness"]
         self.assertFalse(s["stale"])
         self.assertFalse(s["evaluated"])
         self.assertIn("never asserted", s["reason"])
 
     def test_it_is_named_by_the_conformance_block(self):
         conf = goals(self.root)["conformance"]
-        self.assertIn("P-O1.3", conf["krs_without_numbers"])
-        self.assertNotIn("P-O1.3", conf["krs_with_stale_current"])
+        self.assertIn("P001-O1-KR3", conf["krs_without_numbers"])
+        self.assertNotIn("P001-O1-KR3", conf["krs_with_stale_current"])
 
     def test_perry_state_counts_it_apart_from_the_asserted_ones(self):
         counts = state(self.root)["attribution"]["kr_currents"]
@@ -362,7 +363,7 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
     """
 
     def test_not_stale_while_nothing_has_moved(self):
-        s = kr(goals(self.root), "P-O1.1")["current_staleness"]
+        s = kr(goals(self.root), "P001-O1-KR1")["current_staleness"]
         self.assertFalse(s["stale"])
         self.assertTrue(s["evaluated"],
                         "not-stale must mean CHECKED, not `nobody asked`")
@@ -372,7 +373,7 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
             "no linked task has changed state since 2026-08-15T12:00:00Z")
 
     def test_closing_one_linked_task_makes_it_stale_and_names_that_task(self):
-        before = kr(goals(self.root), "P-O1.2")["current_staleness"]
+        before = kr(goals(self.root), "P001-O1-KR2")["current_staleness"]
         self.assertFalse(before["stale"])
         self.assertEqual(
             before["reason"],
@@ -383,7 +384,7 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
                                  "id": "TASK-003", "from": "in_progress",
                                  "to": "done"})
 
-        after = kr(goals(self.root), "P-O1.2")["current_staleness"]
+        after = kr(goals(self.root), "P001-O1-KR2")["current_staleness"]
         self.assertTrue(after["stale"])
         self.assertTrue(after["evaluated"])
         self.assertEqual(
@@ -403,15 +404,15 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
                                  "to": "done"})
         payload = goals(self.root)
         self.assertEqual(payload["conformance"]["krs_with_stale_current"],
-                         ["P-O1.2"])
-        self.assertFalse(kr(payload, "P-O1.1")["current_staleness"]["stale"])
+                         ["P001-O1-KR2"])
+        self.assertFalse(kr(payload, "P001-O1-KR1")["current_staleness"]["stale"])
 
     def test_a_prose_event_after_the_assertion_is_not_a_state_move(self):
         """`next` carries `from`/`to` holding the old and new next action. A
         check keyed on the event NAME rather than on the value would report
-        `P-O1.2` stale on the strength of that line, and the fixture has one
+        `P001-O1-KR2` stale on the strength of that line, and the fixture has one
         dated after the assertion for exactly this."""
-        s = kr(goals(self.root), "P-O1.2")["current_staleness"]
+        s = kr(goals(self.root), "P001-O1-KR2")["current_staleness"]
         self.assertFalse(s["stale"], s["reason"])
 
     def test_perry_state_warns_and_counts_it(self):
@@ -422,9 +423,9 @@ class TestStalenessDiscriminatesInBothDirections(Fixture):
         payload = state(self.root)
         counts = payload["attribution"]["kr_currents"]
         self.assertEqual(counts["stale"], 1)
-        self.assertEqual(counts["stale_ids"], ["P-O1.2"])
+        self.assertEqual(counts["stale_ids"], ["P001-O1-KR2"])
         self.assertTrue(
-            any("P-O1.2" in w and "no longer be trusted" in w
+            any("P001-O1-KR2" in w and "no longer be trusted" in w
                 for w in payload["warnings"]),
             f"no warning named the stale KR: {payload['warnings']}")
 
@@ -440,7 +441,7 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
     def test_a_register_with_no_updated_timestamp_cannot_be_evaluated(self):
         root = build_project(updated="")
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        s = kr(goals(root), "P-O1.1")["current_staleness"]
+        s = kr(goals(root), "P001-O1-KR1")["current_staleness"]
         self.assertFalse(s["stale"])
         self.assertFalse(s["evaluated"])
         self.assertIn("no `updated` timestamp", s["reason"])
@@ -449,13 +450,13 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
         root = build_project()
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         (root / ".perry" / "events.jsonl").unlink()
-        s = kr(goals(root), "P-O1.1")["current_staleness"]
+        s = kr(goals(root), "P001-O1-KR1")["current_staleness"]
         self.assertFalse(s["stale"])
         self.assertFalse(s["evaluated"])
         self.assertIn("no event log", s["reason"])
         # And the tally still answers, from the board, rather than reporting
         # two closed tasks as unknown because a derived file is missing.
-        self.assertEqual(kr(goals(root), "P-O1.1")["linked_task_completion"],
+        self.assertEqual(kr(goals(root), "P001-O1-KR1")["linked_task_completion"],
                          {"total": 2, "done": 2, "dropped": 0, "open": 0,
                           "unknown": 0})
 
@@ -464,7 +465,7 @@ class TestWhatCouldNotBeDecidedSaysSo(unittest.TestCase):
         look, a false `this number is fine` costs the number."""
         root = build_project(updated="2026-08-10")
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        s = kr(goals(root), "P-O1.1")["current_staleness"]
+        s = kr(goals(root), "P001-O1-KR1")["current_staleness"]
         self.assertEqual(s["since"], "2026-08-10T00:00:00Z")
         self.assertTrue(s["stale"], s["reason"])
         self.assertEqual([m["id"] for m in s["moved_tasks"]],
@@ -499,7 +500,7 @@ class TestOneClockAcrossTheOffset(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         return root
 
-    def stale(self, root: Path, tz: str, kr_id: str = "P-O1.2") -> dict:
+    def stale(self, root: Path, tz: str, kr_id: str = "P001-O1-KR2") -> dict:
         return kr(goals(root, tz=tz), kr_id)["current_staleness"]
 
     def test_the_since_it_compares_against_is_the_registers_own_instant(self):
@@ -653,7 +654,7 @@ class TestADanglingEdgeIsNotCountedAsOpen(unittest.TestCase):
         text = (root / "phase" / "001-linkage.md").read_text().replace(
             'tasks: ["TASK-003"]', 'tasks: ["TASK-003", "TASK-999"]')
         (root / "phase" / "001-linkage.md").write_text(text)
-        tally = kr(goals(root), "P-O1.2")["linked_task_completion"]
+        tally = kr(goals(root), "P001-O1-KR2")["linked_task_completion"]
         self.assertEqual(tally, {"total": 2, "done": 0, "dropped": 0,
                                  "open": 1, "unknown": 1})
 

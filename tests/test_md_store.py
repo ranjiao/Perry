@@ -60,7 +60,14 @@ SECOND_PROJECT = pathlib.Path("~/proj/gimegime-pmo").expanduser()
 #: agree only because they are the same code, the coverage assertion below
 #: proves nothing.
 KR_TABLE_ROW = re.compile(r"^\|\s*\**(?:KR|P)[-\w.]*\d\**\s*\|")
-KR_BULLET = re.compile(r"^\s*-\s*\**(?:KR|P-O)[\w.\-]*\d\**[^:：]*[:：]")
+# The `P` arm tracks the phase-KR form migrated by TASK-180 (`P002-O1-KR1`).
+# It is dead weight against `OKR.md`, which carries the OVERALL `KR-O*`
+# family and is out of that migration by decision — kept in step anyway so
+# an independent counter does not become an out-of-date one. The frozen
+# `tests/fixtures/live-state/md_store.before.py` still spells it `P-O`
+# [[old-form]] and must: it is pinned by sha256 in
+# `tests/test_live_state_expectations.py § Instance6`.
+KR_BULLET = re.compile(r"^\s*-\s*\**(?:KR|P\d+-O)[\w.\-]*\d\**[^:：]*[:：]")
 
 
 def kr_lines(text: str) -> int:

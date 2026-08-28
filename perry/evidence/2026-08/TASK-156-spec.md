@@ -9,7 +9,7 @@ Re-verified: 2026-08-28 against `9653156`
 `phase/<NNN>-linkage.md` names task ids at `objectives[].krs[].tasks`:
 
 ```yaml
-      - id: P-O1.1
+      - id: P002-O1-KR1
         tasks: ["TASK-038", "TASK-088", "TASK-089", "TASK-090"]
 ```
 

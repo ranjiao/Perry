@@ -1,6 +1,13 @@
 # DESIGN-007 decision #4 was locked nine days ago and never implemented
 
-> Raised by the user 2026-08-28, on seeing me write `P-O1.2` in a summary.
+<!-- [[old-form]] · This document QUOTES the pre-TASK-180 phase-KR form as
+     the artifact under discussion; it does not reference KRs by it. TASK-180
+     migrated the project on 2026-08-28 and deliberately left every id below
+     standing. Occurrences inside a fence or a verbatim blockquote are marked
+     by the sentence that introduces them; the rest carry the marker inline. -->
+
+> Raised by the user 2026-08-28, on seeing me write `P-O1.2` [[old-form]] in
+> a summary.
 > They were right and I was wrong; this is what the measurement found behind it.
 
 ## The decision
@@ -13,7 +20,7 @@
 
 The document also records *why* it changed during review:
 
-> the phase-KR id, from the drafted `002/P-O3.1` to **`P002-O3-KR1`**, on the
+> the phase-KR id, from the drafted `002/P-O3.1` to **`P002-O3-KR1`**, on the <!-- [[old-form]] -->
 > ground that **every segment should carry its own label rather than rely on
 > position**
 
@@ -46,7 +53,8 @@ the decision closed and nothing recorded anything.
 
 ## The ambiguity is real, and it has already cost a bug
 
-Same id, two phases, two different KRs:
+Same id, two phases, two different KRs — the block below is the collision
+itself [[old-form]], and migrating it would delete the demonstration:
 
 ```
 001-linkage.md  P-O1.1  "Non-`project` modes running on a live, non-fixture track"
@@ -73,14 +81,15 @@ deleted this workaround; instead the workaround shipped and the decision did
 not.
 
 TASK-156's agent reasoned from the same fact last night, independently: *"a KR
-id is phase-scoped — `P-O1.1` names different KRs in 001 and 002 — which is
+id is phase-scoped — `P-O1.1` [[old-form]] names different KRs in 001 and 002 — which is
 exactly why that guard had to re-derive its comparand per file."* It built a
 correct guard **on top of the ambiguity**, because the ambiguity is the world it
 found.
 
 ## The detail that makes this hard to see
 
-**`DESIGN-007`'s own frontmatter uses the format it decided to replace:**
+**`DESIGN-007`'s own frontmatter uses the format it decided to replace**, as
+it stood before TASK-180 [[old-form]] — the line below is quoted, not live:
 
 ```
 > Linked OKR: P-O3.1 (phase 002 — `fields-are-typed`)
@@ -92,8 +101,9 @@ that ruled against it.
 
 ## What I got wrong
 
-I wrote `P-O1.2` in a handoff and in a summary as though it identified one KR.
-**It does not.** I had also been treating `P-O1.1`'s phase-scoping as a *fact
+I wrote `P-O1.2` [[old-form]] in a handoff and in a summary as though it
+identified one KR. **It does not.** I had also been treating the
+phase-scoping of `P-O1.1` [[old-form]] as a *fact
 about the world* — I repeated it in three evidence records last night as the
 reason a guard must be phase-scoped — **without ever checking whether it was a
 decided state or an undone one.** It is undone.

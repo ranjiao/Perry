@@ -240,7 +240,7 @@ class TestAWriteTouchesTwoLines(Case):
         """`tasks:` written as `- ` lines gets one more `- ` line."""
         p = self.project(BLOCK_STYLE)
         before = p.text()
-        p.link("ZZZ-001", "P-O1.1")
+        p.link("ZZZ-001", "P002-O1-KR1")
         after = p.text().split("\n")
         self.assertEqual(len(after), len(before.split("\n")) + 1)
         at = after.index("          - AAA-001")
@@ -256,11 +256,11 @@ class TestAWriteTouchesTwoLines(Case):
         model = P.parse_linkage(
             (ROOT / "perry" / "phase" / "002-linkage.md").read_text())
         linked, holder = a_linked_task(model)
-        for argv in (["ZZZ-001", "P-O9.9"],
+        for argv in (["ZZZ-001", "P002-O9-KR9"],
                      [linked, another_kr(model, holder)],
                      ["--unlinked", linked],
                      ["--alias", "NOPE-001", "a name"],
-                     ["--project", "NEW-001", "P-O9.9", "a name"],
+                     ["--project", "NEW-001", "P002-O9-KR9", "a name"],
                      ["ZZZ-001"],
                      ["ZZZ-001", first_kr(model), "extra"]):
             with self.subTest(argv=argv):
@@ -307,9 +307,26 @@ class TestTheRefusalFires(Case):
         r = p.link("ZZZ-001", "the store thing", expect=1)
         self.assertIn("is not a KR id, a Project id or a registered alias",
                       r.stderr)
-        for kr in ("P-O1.1", "P-O1.2", "P-O2.1"):
+        for kr in ("P002-O1-KR1", "P002-O1-KR2", "P002-O2-KR1"):
             self.assertIn(kr, r.stderr)
         self.assertIn("near-match is not a match", r.stderr)
+
+    def test_a_kr_id_that_disagrees_with_its_nesting_is_refused(self):
+        """`P002-O2-KR1` filed under `O1`, and the writer will not pick a side.
+
+        This exists because the mutation matrix for TASK-180 found nothing
+        holding the anchored `^P\\d{3}-(O\\d+)-KR\\d+$` in `link_edge`:
+        reverting it to the pre-migration `^P-(O\\d+)\\.` left every module
+        green, because `objective` silently falls back to the nesting and this
+        refusal is the only reader that can tell the two apart. An id form the
+        writer cannot parse is an id form whose disagreements it cannot see.
+        """
+        p = self.project(MISNESTED)
+        before = p.text()
+        r = p.link("--project", "NEW-001", "P002-O2-KR1", "a name", expect=1)
+        self.assertEqual(p.text(), before, "a refusal wrote to the register")
+        self.assertIn("encodes objective O2", r.stderr)
+        self.assertIn("sits under O1", r.stderr)
 
     def test_an_ambiguous_name_names_its_candidates_and_writes_nothing(self):
         """Two Projects answering to one label, on two different KRs.
@@ -324,21 +341,21 @@ class TestTheRefusalFires(Case):
         self.assertIn("does not resolve to exactly one KR", r.stderr)
         self.assertIn("PROJ-A", r.stderr)
         self.assertIn("PROJ-B", r.stderr)
-        self.assertIn("P-O1.1", r.stderr)
-        self.assertIn("P-O1.2", r.stderr)
+        self.assertIn("P002-O1-KR1", r.stderr)
+        self.assertIn("P002-O1-KR2", r.stderr)
         self.assertIn("never by resemblance", r.stderr)
 
     def test_the_writer_cannot_put_one_task_under_two_krs(self):
         p = self.project(SYNTHETIC)
         self.assertNotIn("linkage-task-single-kr", lint_findings(p.path))
-        p.link("ZZZ-001", "P-O1.1")
-        r = p.link("ZZZ-001", "P-O2.1", expect=1)
-        self.assertIn("already listed under P-O1.1", r.stderr)
+        p.link("ZZZ-001", "P002-O1-KR1")
+        r = p.link("ZZZ-001", "P002-O2-KR1", expect=1)
+        self.assertIn("already listed under P002-O1-KR1", r.stderr)
         self.assertIn("Move it, don't duplicate it", r.stderr)
         self.assertNotIn("linkage-task-single-kr", lint_findings(p.path))
         self.assertEqual(
             [k.id for o in p.model().objectives for k in o.krs
-             if "ZZZ-001" in k.tasks], ["P-O1.1"])
+             if "ZZZ-001" in k.tasks], ["P002-O1-KR1"])
 
     def test_declaring_a_linked_task_unlinked_is_refused(self):
         p = self.project(SYNTHETIC)
@@ -349,10 +366,10 @@ class TestTheRefusalFires(Case):
         """One edit, not two: otherwise it renders as both at once."""
         p = self.project(SYNTHETIC)
         self.assertIn("BBB-002", p.model().unlinked)
-        p.link("BBB-002", "P-O1.2")
+        p.link("BBB-002", "P002-O1-KR2")
         model = p.model()
         self.assertNotIn("BBB-002", model.unlinked)
-        self.assertEqual(model.kr_for_task("BBB-002"), "P-O1.2")
+        self.assertEqual(model.kr_for_task("BBB-002"), "P002-O1-KR2")
         self.assertNotIn("linkage-task-single-kr", lint_findings(p.path))
 
     def test_an_alias_another_project_claims_is_refused(self):
@@ -370,7 +387,7 @@ class TestTheRefusalFires(Case):
         p = self.corpus(
             ROOT / "tests" / "fixtures" / "sample-project" / "phase" / "002-linkage.md")
         p.link("ZZZ-001", "deploy-hardening")
-        self.assertEqual(p.model().kr_for_task("ZZZ-001"), "P-O1.1")
+        self.assertEqual(p.model().kr_for_task("ZZZ-001"), "P002-O1-KR1")
 
     def test_a_retired_project_is_named_rather_than_used(self):
         p = self.project(DROPPED)
@@ -380,16 +397,16 @@ class TestTheRefusalFires(Case):
 
     def test_a_new_project_derives_its_objective_and_keeps_the_linter_quiet(self):
         p = self.project(SYNTHETIC)
-        p.link("--project", "PROJ-009", "P-O2.1", "the reader cutover")
+        p.link("--project", "PROJ-009", "P002-O2-KR1", "the reader cutover")
         entry = [x for x in p.model().projects if x.project_id == "PROJ-009"][0]
         self.assertEqual((entry.serves_kr, entry.objective, entry.status),
-                         ("P-O2.1", "O2", "active"))
+                         ("P002-O2-KR1", "O2", "active"))
         self.assertEqual(lint_findings(p.path), [])
 
     def test_a_project_id_already_in_the_graph_is_refused(self):
         p = self.corpus(
             ROOT / "tests" / "fixtures" / "sample-project" / "phase" / "002-linkage.md")
-        r = p.link("--project", "REL-001", "P-O1.1", "another name", expect=1)
+        r = p.link("--project", "REL-001", "P002-O1-KR1", "another name", expect=1)
         self.assertIn("already in this phase's graph", r.stderr)
 
 
@@ -414,7 +431,7 @@ class TestNoInventedCurrent(Case):
 
     def test_a_register_made_from_the_template_carries_no_current(self):
         p = self.project(instantiate(TEMPLATE.read_text()))
-        p.link("ZZZ-001", "P-O1.1")
+        p.link("ZZZ-001", "P002-O1-KR1")
         for kr in [k for o in p.model().objectives for k in o.krs]:
             self.assertIsNone(kr.current, kr.id)
         front, _ = P.split_frontmatter(p.text())
@@ -430,7 +447,7 @@ class TestNoInventedCurrent(Case):
             instantiate(TEMPLATE.read_text()))
         e = dict(os.environ, PERRY_CONFORMANCE="advisory", PERRY_HOME=str(ROOT))
         run = subprocess.run(
-            [sys.executable, str(GOALS), "link", "ZZZ-001", "P-O1.1",
+            [sys.executable, str(GOALS), "link", "ZZZ-001", "P002-O1-KR1",
              "--root", str(root)], capture_output=True, text=True, env=e)
         self.assertEqual(run.returncode, 0, run.stderr)
         out = json.loads(subprocess.run(
@@ -438,7 +455,7 @@ class TestNoInventedCurrent(Case):
              "--root", str(root)], capture_output=True, text=True,
             env=e).stdout)["linkage"]
         kr = [k for o in out["objectives"] for k in o["krs"]
-              if k["id"] == "P-O1.1"][0]
+              if k["id"] == "P002-O1-KR1"][0]
         self.assertIsNone(kr["current"])
         self.assertEqual(kr["current_provenance"]["state"], "unasserted")
         self.assertEqual(kr["current_provenance"]["asserted_at"], "")
@@ -448,9 +465,9 @@ class TestNoInventedCurrent(Case):
         """Asserted over every write path, as text: neither key may appear on
         a line this tool added or changed."""
         p = self.project(SYNTHETIC)
-        for argv in (["ZZZ-001", "P-O1.1"],
+        for argv in (["ZZZ-001", "P002-O1-KR1"],
                      ["--unlinked", "ZZZ-002"],
-                     ["--project", "PROJ-009", "P-O2.1", "a project"],
+                     ["--project", "PROJ-009", "P002-O2-KR1", "a project"],
                      ["--alias", "PROJ-009", "another name"]):
             with self.subTest(argv=argv):
                 out = json.loads(p.link(*argv, "--json", expect=0).stdout)
@@ -477,12 +494,12 @@ class TestPerryReadsWhatTheWriterWrote(Case):
                               capture_output=True, text=True, env=e)
 
     def test_the_edge_the_writer_wrote_is_the_edge_perry_reports(self):
-        w = self.tool(GOALS, "link", "ZZZ-001", "P-O1.2")
+        w = self.tool(GOALS, "link", "ZZZ-001", "P002-O1-KR2")
         self.assertEqual(w.returncode, 0, w.stderr)
         out = json.loads(self.tool(
             STATE, "--json", "--section", "linkage").stdout)["linkage"]
         kr = [k for o in out["objectives"] for k in o["krs"]
-              if k["id"] == "P-O1.2"][0]
+              if k["id"] == "P002-O1-KR2"][0]
         self.assertIn("ZZZ-001", kr["tasks"])
         self.assertEqual(kr["current_provenance"]["asserted_scope"], "register")
         self.assertEqual(kr["current_provenance"]["source"], "linkage-register")
@@ -499,7 +516,7 @@ class TestPerryReadsWhatTheWriterWrote(Case):
         before = attribution()
         self.assertEqual([t["id"] for t in before["unlinked"]], ["REL-009"])
         self.assertEqual(before["declared_unlinked"], ["REL-009"])
-        w = self.tool(GOALS, "link", "REL-009", "P-O2.1")
+        w = self.tool(GOALS, "link", "REL-009", "P002-O2-KR1")
         self.assertEqual(w.returncode, 0, w.stderr)
         after = attribution()
         self.assertEqual(after["linked"], before["linked"] + 1)
@@ -528,16 +545,16 @@ class TestUpdated(Case):
         the user makes; naming the ids on every write is what keeps it from
         being discovered as a silent number months from now."""
         p = self.project(SYNTHETIC)
-        r = p.link("ZZZ-001", "P-O1.1")
+        r = p.link("ZZZ-001", "P002-O1-KR1")
         self.assertIn("asserted_scope: register", r.stderr)
         self.assertIn("lose any staleness signal", r.stderr)
-        self.assertIn("P-O1.2", r.stderr)
-        ids = json.loads(p.link("ZZZ-002", "P-O1.2", "--json", expect=0).stdout)
-        self.assertEqual(ids["current_assertions_redated"], ["P-O1.2"])
+        self.assertIn("P002-O1-KR2", r.stderr)
+        ids = json.loads(p.link("ZZZ-002", "P002-O1-KR2", "--json", expect=0).stdout)
+        self.assertEqual(ids["current_assertions_redated"], ["P002-O1-KR2"])
 
     def test_a_register_with_no_asserted_current_says_nothing(self):
         p = self.project(instantiate(TEMPLATE.read_text()))
-        r = p.link("ZZZ-001", "P-O1.1")
+        r = p.link("ZZZ-001", "P002-O1-KR1")
         self.assertNotIn("staleness signal", r.stderr)
 
 
@@ -559,7 +576,7 @@ class TestARefusedValueIsLocated(Case):
 
     def test_the_refusal_names_the_slot_not_just_a_position(self):
         p = self.project(SYNTHETIC)
-        r = p.link("AAA-001\nsecond line", "P-O1.1", expect=1)
+        r = p.link("AAA-001\nsecond line", "P002-O1-KR1", expect=1)
         self.assertIn("<TASK-ID> (argument 1) contains a line break",
                       r.stderr)
         self.assertNotIn("was written", p.text())
@@ -568,12 +585,12 @@ class TestARefusedValueIsLocated(Case):
         """One list, four grammars. The slot names come from `usage`, so a
         grammar that changes cannot leave the refusal quoting the old one."""
         for argv, bad_at, slot in (
-                (("{v}", "P-O1.1"), 0, "<TASK-ID>"),
+                (("{v}", "P002-O1-KR1"), 0, "<TASK-ID>"),
                 (("AAA-009", "{v}"), 1, "<KR-ID>"),
                 (("--unlinked", "{v}"), 1, "<TASK-ID>"),
                 (("--alias", "PROJ-001", "{v}"), 2, "<the other name>"),
-                (("--project", "{v}", "P-O1.1", "n"), 1, "<PROJECT-ID>"),
-                (("--project", "PROJ-009", "P-O1.1", "{v}"), 3, "<name>")):
+                (("--project", "{v}", "P002-O1-KR1", "n"), 1, "<PROJECT-ID>"),
+                (("--project", "PROJ-009", "P002-O1-KR1", "{v}"), 3, "<name>")):
             with self.subTest(argv=argv):
                 p = self.project(SYNTHETIC)
                 r = p.link(*[a.format(v="a\nb") for a in argv], expect=1)
@@ -598,12 +615,12 @@ class TestItRefusesWhatItCannotEditSafely(Case):
 
     def test_an_unreadable_register(self):
         p = self.project("---\nlinkage: 1\nobjectives:\n\tid: O1\n---\n")
-        r = p.link("ZZZ-001", "P-O1.1", expect=1)
+        r = p.link("ZZZ-001", "P002-O1-KR1", expect=1)
         self.assertIn("cannot be read", r.stderr)
 
     def test_an_unfilled_template(self):
         p = self.project(TEMPLATE.read_text())
-        r = p.link("ZZZ-001", "P-O1.1", expect=1)
+        r = p.link("ZZZ-001", "P002-O1-KR1", expect=1)
         self.assertIn("cannot be read", r.stderr)
 
     def test_crlf_is_refused_rather_than_mixed(self):
@@ -616,7 +633,7 @@ class TestItRefusesWhatItCannotEditSafely(Case):
     def test_no_current_phase(self):
         p = self.corpus(ROOT / "perry" / "phase" / "002-linkage.md")
         (p.dir / "phase" / "CURRENT").write_text("")
-        r = p.link("ZZZ-001", "P-O1.1", expect=1)
+        r = p.link("ZZZ-001", "P002-O1-KR1", expect=1)
         self.assertIn("no current phase", r.stderr)
 
     def test_a_value_the_reader_could_not_read_back(self):
@@ -646,6 +663,11 @@ def instantiate(template: str) -> str:
     Deliberately mechanical: what is under test is what the template does NOT
     contain, so anything this function added would be testing itself."""
     out = template.replace("{{NNN}}-{{slug}}", "002-a-phase")
+    # The KR ids carry `{{NNN}}` too now (TASK-180: a phase-KR id names
+    # its phase), and `plan-phase` fills that from the same number it
+    # filled the slug from. Left to the catch-all below it would become
+    # `Psome text-O1-KR1`, and the register would be testing a typo.
+    out = out.replace("{{NNN}}", "002")
     out = out.replace("{{YYYY-MM-DD}}T{{HH:MM:SS}}Z", "2026-08-20T09:00:00Z")
     out = out.replace("{{PROJ-001}}", "PROJ-001")
     return re.sub(r"\{\{[^}]*\}\}", "some text", out)
@@ -664,12 +686,12 @@ objectives:
   - id: O1
     title: "The first objective"
     krs:
-      - id: P-O1.1
+      - id: P002-O1-KR1
         title: "A KR with an edge"
         metric: "1 of 1"
         target: 1
         tasks: ["AAA-001"]
-      - id: P-O1.2
+      - id: P002-O1-KR2
         title: "A KR with an asserted current"
         metric: "0 occurrences (baseline 5)"
         target: 0
@@ -678,14 +700,14 @@ objectives:
   - id: O2
     title: "The second objective"
     krs:
-      - id: P-O2.1
+      - id: P002-O2-KR1
         title: "A KR with no numbers at all"
         metric: "reported rather than honoured"
         tasks: []
 unlinked: ["BBB-002"]
 projects:
   - id: PROJ-001
-    serves: P-O1.1
+    serves: P002-O1-KR1
     objective: O1
     name: "the first project"
     aliases: []
@@ -693,6 +715,29 @@ projects:
 ---
 
 # Phase #002 — synthetic
+"""
+
+#: A graph whose nesting contradicts its ids: `P002-O2-KR1` is filed under
+#: `O1`. `perry-lint § linkage-objective-agrees` reports it; the writer refuses
+#: to add a Project row to it rather than choosing which half is wrong.
+MISNESTED = """---
+linkage: 1
+phase: "002-misnested"
+updated: "2026-08-20T09:00:00Z"
+objectives:
+  - id: O1
+    title: "The first objective"
+    krs:
+      - id: P002-O2-KR1
+        title: "A KR filed under the wrong objective"
+        metric: "1 of 1"
+        target: 1
+        tasks: []
+unlinked: []
+projects: []
+---
+
+# Phase #002 — misnested
 """
 
 BLOCK_STYLE = """---
@@ -703,7 +748,7 @@ objectives:
   - id: O1
     title: "Written as block lists"
     krs:
-      - id: P-O1.1
+      - id: P002-O1-KR1
         title: "A KR"
         metric: "some metric"
         tasks:
@@ -721,23 +766,23 @@ objectives:
   - id: O1
     title: "Two projects, one label"
     krs:
-      - id: P-O1.1
+      - id: P002-O1-KR1
         title: "First"
         metric: "m"
         tasks: []
-      - id: P-O1.2
+      - id: P002-O1-KR2
         title: "Second"
         metric: "m"
         tasks: []
 projects:
   - id: PROJ-A
-    serves: P-O1.1
+    serves: P002-O1-KR1
     objective: O1
     name: "shared name"
     aliases: []
     status: active
   - id: PROJ-B
-    serves: P-O1.2
+    serves: P002-O1-KR2
     objective: O1
     name: "another name"
     aliases: ["shared name"]
@@ -755,13 +800,13 @@ objectives:
   - id: O1
     title: "One retired project"
     krs:
-      - id: P-O1.1
+      - id: P002-O1-KR1
         title: "A KR"
         metric: "m"
         tasks: []
 projects:
   - id: PROJ-OLD
-    serves: P-O1.1
+    serves: P002-O1-KR1
     objective: O1
     name: "retired"
     aliases: []

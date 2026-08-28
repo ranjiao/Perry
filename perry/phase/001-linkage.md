@@ -6,26 +6,26 @@ objectives:
   - id: O1
     title: "The three non-`project` modes run on a live track"
     krs:
-      - id: P-O1.1
+      - id: P001-O1-KR1
         title: "Non-`project` modes running on a live, non-fixture track"
         metric: "3 of 3 modes live (baseline 0 of 3)"
         target: 3
         current: 0
         stretch: false
         tasks: ["TASK-019", "TASK-021", "TASK-028"]
-      - id: P-O1.2
+      - id: P001-O1-KR2
         title: "Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance"
         metric: "3 of 3 produce output (baseline 0 of 3)"
         target: 3
         current: 0
         stretch: false
         tasks: ["TASK-020", "TASK-046"]
-      - id: P-O1.3
+      - id: P001-O1-KR3
         title: "Switching a track's mode edits one file and rewrites no state, shown by a revert test"
         metric: "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately."
         stretch: false
         tasks: []
-      - id: P-O1.4
+      - id: P001-O1-KR4
         title: "Blocking review findings open against the mode work"
         metric: "0 open (baseline 6 — 3 on TASK-019, 3 on TASK-020). `current` counts fix rows for blocking findings that are not yet `done`."
         target: 0
@@ -35,14 +35,14 @@ objectives:
   - id: O2
     title: "The `goals` lane can write its own state"
     krs:
-      - id: P-O2.1
+      - id: P001-O2-KR1
         title: "Lanes with a deterministic write tool"
         metric: "3 of 3 (baseline 2 of 3 — `goals` has none)"
         target: 3
         current: 3
         stretch: false
         tasks: ["TASK-037", "TASK-042"]
-      - id: P-O2.2
+      - id: P001-O2-KR2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
         metric: "1 passing test (baseline: no such test)"
         target: 1
@@ -52,14 +52,14 @@ objectives:
   - id: O3
     title: "A real project can become Perry-shaped, once"
     krs:
-      - id: P-O3.1
+      - id: P001-O3-KR1
         title: "A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration"
         metric: "1 marker, all 3 writers gating (baseline: `is_adopted()` answers only whether any Perry file exists)"
         target: 3
         current: 3
         stretch: false
         tasks: ["TASK-043", "TASK-045", "TASK-047"]
-      - id: P-O3.2
+      - id: P001-O3-KR2
         title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
         metric: "id set before == id set after (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked)"
         target: 1
@@ -97,109 +97,109 @@ agents:
     tasks: ["TASK-028"]
 projects:
   - id: "TASK-019"
-    serves: P-O1.1
+    serves: P001-O1-KR1
     objective: O1
     name: "`modes/pipeline.md`"
     aliases: []
     status: active
   - id: "TASK-020"
-    serves: P-O1.2
+    serves: P001-O1-KR2
     objective: O1
     name: "`modes/queue.md` + `BOARD.md § Intake` + triage drain"
     aliases: []
     status: active
   - id: "TASK-021"
-    serves: P-O1.1
+    serves: P001-O1-KR1
     objective: O1
     name: "Recurrence register (cadence-add / cadence-done)"
     aliases: []
     status: done
   - id: "TASK-027"
-    serves: P-O1.4
+    serves: P001-O1-KR4
     objective: O1
     name: "Lane rename goals/work/decide + aliases"
     aliases: []
     status: active
   - id: "TASK-028"
-    serves: P-O1.1
+    serves: P001-O1-KR1
     objective: O1
     name: "diagnose/adopt mode detection + both READMEs"
     aliases: []
     status: active
   - id: "TASK-037"
-    serves: P-O2.1
+    serves: P001-O2-KR1
     objective: O2
     name: "perry-goals writer"
     aliases: []
     status: active
   - id: "TASK-042"
-    serves: P-O2.1
+    serves: P001-O2-KR1
     objective: O2
     name: "OKR.md § Commitments — the half TASK-021 did not do"
     aliases: []
     status: active
   - id: "TASK-043"
-    serves: P-O3.1
+    serves: P001-O3-KR1
     objective: O3
     name: "Conformance marker: a project declares it is Perry-shaped, at version N"
     aliases: []
     status: done
   - id: "TASK-044"
-    serves: P-O3.2
+    serves: P001-O3-KR2
     objective: O3
     name: "Migration must be dry-runnable, lossless, recoverable and user-declared"
     aliases: []
     status: active
   - id: "TASK-045"
-    serves: P-O3.1
+    serves: P001-O3-KR1
     objective: O3
     name: "Retire the runtime tolerance branches, behind the conformance marker"
     aliases: []
     status: active
   - id: "TASK-046"
-    serves: P-O1.2
+    serves: P001-O1-KR2
     objective: O1
     name: "A queue track must declare an SLA at creation — no default"
     aliases: []
     status: active
   - id: "TASK-047"
-    serves: P-O3.1
+    serves: P001-O3-KR1
     objective: O3
     name: "Flip the conformance gate to enforce"
     aliases: []
     status: active
   - id: "TASK-051"
-    serves: P-O3.2
+    serves: P001-O3-KR2
     objective: O3
     name: "Migration recognizes a table by shape, not by vocabulary"
     aliases: []
     status: active
   - id: "TASK-052"
-    serves: P-O3.2
+    serves: P001-O3-KR2
     objective: O3
     name: "The losslessness assertions ask whether the bytes survived, never what the file now says"
     aliases: []
     status: active
   - id: "TASK-053"
-    serves: P-O1.4
+    serves: P001-O1-KR4
     objective: O1
     name: "route ignores --group, and the refusal that recommends it is mine"
     aliases: []
     status: active
   - id: "TASK-056"
-    serves: P-O1.4
+    serves: P001-O1-KR4
     objective: O1
     name: "A claim stated in three places and implemented in none — the missing-SLA finding"
     aliases: []
     status: active
   - id: "TASK-062"
-    serves: P-O1.4
+    serves: P001-O1-KR4
     objective: O1
     name: "The board-overflow signal does not name intake, and prescribes the split queue mode forbids"
     aliases: []
     status: active
   - id: "TASK-068"
-    serves: P-O3.2
+    serves: P001-O3-KR2
     objective: O3
     name: "Migration joins its header block onto the author's prose — the fourth instance of one defect class"
     aliases: []
@@ -239,12 +239,12 @@ unresolved → `unlinked`, excluded from roll-up.*
 
 | KR | Tasks | Why this edge |
 |---|---|---|
-| P-O1.1 | TASK-019, TASK-021, TASK-028 | unchanged from the previous version |
-| P-O1.2 | TASK-020, **TASK-046** | the KR's own metric names *"queue SLA age"* as one of the three questions that must answer from real state. A queue track with no SLA cannot answer it — the check has no clock. TASK-046 is that clock being required at creation |
-| P-O1.4 | TASK-027, **TASK-053**, **TASK-056**, **TASK-062** | the KR counts *open blocking review findings*. Each of the three additions was opened **by name** on TASK-019's or TASK-020's row as the fix for a specific V4 FAIL. The board says so; nothing here is inferred |
-| P-O2.1 | TASK-037, TASK-042 | unchanged |
-| P-O3.1 | TASK-043, TASK-045, **TASK-047** | the KR's metric is literally *"all 3 writers gating"*. TASK-047 is the flip from advisory to enforce, which is that clause |
-| P-O3.2 | TASK-044, **TASK-051**, **TASK-052**, **TASK-068** | all three were opened as fixes for TASK-044's V4 FAIL, named on its row. TASK-068 is the fourth instance of the same defect class, found by reading the migrated files back |
+| P001-O1-KR1 | TASK-019, TASK-021, TASK-028 | unchanged from the previous version |
+| P001-O1-KR2 | TASK-020, **TASK-046** | the KR's own metric names *"queue SLA age"* as one of the three questions that must answer from real state. A queue track with no SLA cannot answer it — the check has no clock. TASK-046 is that clock being required at creation |
+| P001-O1-KR4 | TASK-027, **TASK-053**, **TASK-056**, **TASK-062** | the KR counts *open blocking review findings*. Each of the three additions was opened **by name** on TASK-019's or TASK-020's row as the fix for a specific V4 FAIL. The board says so; nothing here is inferred |
+| P001-O2-KR1 | TASK-037, TASK-042 | unchanged |
+| P001-O3-KR1 | TASK-043, TASK-045, **TASK-047** | the KR's metric is literally *"all 3 writers gating"*. TASK-047 is the flip from advisory to enforce, which is that clause |
+| P001-O3-KR2 | TASK-044, **TASK-051**, **TASK-052**, **TASK-068** | all three were opened as fixes for TASK-044's V4 FAIL, named on its row. TASK-068 is the fourth instance of the same defect class, found by reading the migrated files back |
 
 ## What the unlinked rows actually serve
 
@@ -270,11 +270,11 @@ by where they do have a home, so `score-phase` has somewhere to start:
 
 ## Two KRs still carry zero tasks, on purpose
 
-- **P-O1.3** (mode-switch edits one file, rewrites no state) has no board row.
+- **P001-O1-KR3** (mode-switch edits one file, rewrites no state) has no board row.
   Nothing open produces the revert test it needs. Unchanged since the previous
   version, and now four weeks older — a completeness signal `plan-week` has not
   acted on.
-- **P-O2.2** (byte-identity test) is written into TASK-037's Verification
+- **P001-O2-KR2** (byte-identity test) is written into TASK-037's Verification
   rather than existing as its own row. TASK-037 has now **shipped** and is in
   `review`; its own report claims a test asserting the two real `OKR.md` files
   are byte-identical after a refused write. If the pending V4 confirms that,
@@ -284,7 +284,7 @@ by where they do have a home, so `score-phase` has somewhere to start:
 ## Rules (do not violate)
 
 - A Project **serves** exactly one KR. If it genuinely serves two, split it into two Projects.
-- A project's `objective` must agree with its `serves` KR id (`P-O1.2` → `O1`).
+- A project's `objective` must agree with its `serves` KR id (`P001-O1-KR2` → `O1`).
 - Add an **alias** only after the user confirms two names are the same Project.
 - `unlinked` is **declared, never inferred** — set arithmetic over the board would
   report the whole un-triaged backlog as drift on day one. That is why the 23 rows

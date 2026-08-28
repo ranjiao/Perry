@@ -1,6 +1,6 @@
 # TASK-096 — round 2: the exemption set, after a V4 broke it
 
-**Design**: ADR-007 rule 3. **KR**: `P-O3.1`. **Rung**: V4.
+**Design**: ADR-007 rule 3. **KR**: `P002-O3-KR1`. **Rung**: V4.
 **Round 1 verdict**: FAIL — `perry/evidence/2026-08/TASK-096-v4-review.md`.
 
 The row itself asked for this round in those words: *"AWAITING a fresh V4 on the

@@ -1,5 +1,10 @@
 # TASK-180 — migrate every phase-KR id, once, with no compatibility left behind
 
+<!-- [[old-form]] · This specification is ABOUT the pre-TASK-180 phase-KR
+     form; every occurrence of it below names the thing being migrated and
+     none references a KR. All of them deliberately survive the migration
+     they describe. Fenced blocks are marked by the sentence above them. -->
+
 Dispatch mode: auto
 Verification: V3
 Re-verified: 2026-08-28 against `0341c7b`
@@ -20,12 +25,14 @@ them correctly.
 
 ## The mapping
 
+The left-hand side below is the old form [[old-form]]:
+
 ```
 P-O<a>.<b>   in phase <NNN>   →   P<NNN>-O<a>-KR<b>
 ```
 
 Phase numbers are zero-padded to three digits, from DESIGN-007's own worked
-example: `002/P-O3.1` → `P002-O3-KR1`.
+example: `002/P-O3.1` [[old-form]] → `P002-O3-KR1`.
 
 ## Scope: `P-O*` only. `KR-O*` is a different family and is OUT.
 
@@ -53,9 +60,10 @@ measurement made that mistake).
 | `perry/design/` | 2 | 9 | prose |
 | `.perry/events.jsonl` | 1 | 3 | **append-only — CANNOT be rewritten** |
 
-**7 of the 8 ids collide across the two phases** — `P-O1.1`, `P-O1.2`,
-`P-O1.3`, `P-O2.1`, `P-O2.2`, `P-O3.1`, `P-O3.2`. Only `P-O1.4` (001 only) and
-`P-O2.3` (002 only) are decidable from the id alone. **So a global
+**7 of the 8 ids collide across the two phases** [[old-form]] — `P-O1.1`,
+`P-O1.2`, `P-O1.3`, `P-O2.1`, `P-O2.2`, `P-O3.1`, `P-O3.2` [[old-form]]. Only
+`P-O1.4` (001 only) and `P-O2.3` (002 only) [[old-form]] are decidable from
+the id alone. **So a global
 search-and-replace is wrong for 7 of 8 ids and you must not attempt one.**
 
 ## Resolving the phase in prose
@@ -67,7 +75,7 @@ phase 002   Started 2026-08-19   Status: active    linkage updated 2026-08-21
 
 The date a document was written is a **strong prior, not proof**. **Confirm each
 occurrence against the KR title or subject near it**, and against the two
-registers:
+registers, in the old form [[old-form]]:
 
 ```
 001  P-O1.1  "Non-`project` modes running on a live, non-fixture track"
@@ -86,10 +94,11 @@ reference to a KR. Rewriting those destroys the thing they exist to record.
 Known instances, and there will be more:
 
 - `perry/evidence/2026-08/2026-08-28-a-locked-decision-that-never-shipped.md`
-  lines 52-53 print `001-linkage.md P-O1.1` beside `002-linkage.md P-O1.1`
+  lines 52-53 print `001-linkage.md P-O1.1` beside `002-linkage.md P-O1.1` [[old-form]]
   **to demonstrate the collision.** Migrated, the demonstration says nothing.
-- `perry/design/DESIGN-007-*.md:16` quotes the drafted `002/P-O3.1` **as the
-  rejected form**, and its own frontmatter `Linked OKR: P-O3.1 (phase 002 …)`
+- `perry/design/DESIGN-007-*.md:16` quotes the drafted
+  `002/P-O3.1` [[old-form]] **as the rejected form**, and its own
+  frontmatter `Linked OKR: P-O3.1 (phase 002 …)` [[old-form]]
   is a *reference* and does migrate.
 
 **The rule: a reference migrates; a quotation of the old form as evidence
@@ -103,7 +112,7 @@ problem.**
 
 ## `.perry/events.jsonl` — append-only, and the answer is to append
 
-Three entries carry `P-O1.2`, all written 2026-08-28 04:02–04:08 (they are mine,
+Three entries carry `P-O1.2` [[old-form]], all written 2026-08-28 04:02–04:08 (they are mine,
 from last night's intake rows and `USER-903`). **You must not rewrite, compact
 or reorder that file.** Verify your result is a **strict prefix extension** of
 the original, exactly as TASK-167 did.
@@ -111,7 +120,7 @@ the original, exactly as TASK-167 did.
 So those three keep the old id forever, and *"no compatibility"* must not mean
 *"the log becomes unreadable"*. **Append one `migration` event carrying the
 complete old→new mapping**, including which phase each resolved to, so the log
-is self-describing: a reader meeting `P-O1.2` in an event from 04:02 can resolve
+is self-describing: a reader meeting `P-O1.2` [[old-form]] in an event from 04:02 can resolve
 it **through the log itself**, with no fallback branch in any reader. That is
 the difference between compatibility in the code (forbidden) and history in the
 record (required).
@@ -124,7 +133,7 @@ bin/perry-explain:64   ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|…)\b")
 ```
 
 Both accept **only** the new form afterwards. **The old form must be rejected,
-not merely unmatched** — if some check can be handed `P-O1.1` and silently do
+not merely unmatched** — if some check can be handed `P-O1.1` [[old-form]] and silently do
 nothing, that is the compatibility the user ruled out, wearing a different hat.
 Say which behaviour you chose and why.
 
@@ -136,7 +145,7 @@ opinions about this.
 
 ## Templates and placeholders
 
-`goals/`, `reference/`, `state/`, `schema/` use `P-O1.1` as an **example**, not
+`goals/`, `reference/`, `state/`, `schema/` use `P-O1.1` [[old-form]] as an **example**, not
 a reference. They become the new *shape* — pick a consistent placeholder and say
 what you picked. `SKILL.md § Style rules` forbids minting an example id that
 resolves to nothing, so prefer the documented placeholder form over a concrete

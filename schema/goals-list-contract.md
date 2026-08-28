@@ -42,7 +42,7 @@ Perry's tests cannot reach.
                     "objectives": [ {"id": "", "title": "…", "krs": ["KR1"]} ] },
   "phase":        { /* every key in the table below, and: */
                     "objectives": [ {"id": "O1", "title": "…",
-                                     "krs": ["P-O1.1"]} ] },   // or null
+                                     "krs": ["P<NNN>-O1-KR1"]} ] },   // or null
   "krs":          [ { /* every key below; the three provenance blocks in full */
       "id": "KR1", "level": "phase", "objective": "…", "title": "…",
       "metric": "…", "qualifier": "", "linked_to": "", "stretch": false,
@@ -91,9 +91,9 @@ Added in `2.1`. Until then the payload emitted `target` and `current` as bare
 numbers, and both of the readings a consumer could take from Perry's own
 register on 2026-08-21 were wrong — in opposite directions:
 
-- `P-O1.1` read `0.0 / 1.0`, i.e. nothing done, while all four of its linked
+- `P002-O1-KR1` read `0.0 / 1.0`, i.e. nothing done, while all four of its linked
   tasks were closed and the thing it asks for had shipped.
-- `P-O2.2` read `0.0 / 0.0`, i.e. **met**, while the task under it had measured
+- `P002-O2-KR2` read `0.0 / 0.0`, i.e. **met**, while the task under it had measured
   13 row splits and 87 header resolutions still live.
 
 The second is the systemic one. Six of that register's eight phase KRs drive a

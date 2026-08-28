@@ -11,7 +11,7 @@ Loaded when `/okr plan-week` fires. The most-used OKR subcommand, and the one pl
    Each task gets:
    - Short slug id (e.g., `migrate_user_table_v2`)
    - Title
-   - Linked Objective/KR (e.g., `kr:P-O1.2`) — the resolved ID, from the registry
+   - Linked Objective/KR (e.g., `kr:P<NNN>-O1-KR2`) — the resolved ID, from the registry
    - Owner (`User`, `User + Agent`, `Coding Agent`, `Research Agent`, `Review Agent`, or `PMO Agent`)
    - Priority (`P0` if blocks a Must-Have, `P1` if advances, `P2` otherwise)
    - Deliverable + Verification (1 line each)

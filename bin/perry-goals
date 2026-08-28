@@ -1816,12 +1816,21 @@ def link_project(reg: Register, expect: dict, pid: str, kr: str,
             f"prevent (`perry-lint § linkage-names-unique`). If this is the "
             f"same Project under a new name, that is an alias: `link --alias "
             f"{owner} \"{name}\"`. Nothing was written")
-    # `objective` is DERIVED from the KR id — `P-O1.2` → `O1` — and then
+    # `objective` is DERIVED from the KR id — `P002-O1-KR2` → `O1` — and then
     # checked against the objective the KR actually sits under. The linter
     # checks the first agreement (`linkage-objective-agrees`); the second is
     # this writer refusing to add a row to a graph whose own nesting already
     # disagrees with its ids, rather than picking a side.
-    m = re.match(r"^P-(O\d+)\.", kr)
+    # Anchored end to end (TASK-180). The pre-2026-08-28 `P-O1.2` [[old-form]]
+    # was prefix-matched here because its phase was nowhere in the id; the
+    # new form has every segment labelled, so a partial match would only
+    # ever be a malformed id being read halfway. Pinned by
+    # `tests/test_linkage_writer.py § TestTheRefusalFires.
+    # test_a_kr_id_that_disagrees_with_its_nesting_is_refused` — before
+    # that test the anchor could be reverted with nothing going red,
+    # because `objective` falls back to the nesting and the refusal below
+    # is the only thing that notices.
+    m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", kr)
     nests_under = objective_of(reg.model, kr)
     objective = m.group(1) if m else nests_under
     if m and nests_under and objective != nests_under:

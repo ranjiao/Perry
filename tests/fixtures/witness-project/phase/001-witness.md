@@ -42,7 +42,7 @@ None. Nothing here waits on a person.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O1.1 | Collections a live board leaves empty | 4 of 4 non-empty | KR-O1.1 |
+| P001-O1-KR1 | Collections a live board leaves empty | 4 of 4 non-empty | KR-O1.1 |
 
 ### Projects (seed for PMO TASK-IDs)
 

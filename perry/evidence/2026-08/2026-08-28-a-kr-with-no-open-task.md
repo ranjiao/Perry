@@ -12,10 +12,10 @@
 ## What is true
 
 ```
-002-linkage.md   P-O1.2   1.0 of 2.0   linked=1   its one task is `done`
+002-linkage.md   P002-O1-KR2   1.0 of 2.0   linked=1   its one task is `done`
 ```
 
-`P-O1.2` is *"`OKR.md` and `.perry/config.md` likewise [become stores]"*. The
+`P002-O1-KR2` is *"`OKR.md` and `.perry/config.md` likewise [become stores]"*. The
 first half shipped — `perry/okr.jsonl` exists, because **you ran
 `perry-okr write --from-file` at the start of this session.** The second half is
 absent from disk.
@@ -47,13 +47,13 @@ many words:**
 
 And the phase consequence was recorded at the time, not discovered by me:
 
-> *`P-O1.2` … On this reading the KR is **not yet met** by this row alone.
+> *`P002-O1-KR2` … On this reading the KR is **not yet met** by this row alone.
 > Recorded rather than resolved; **it is the user's to read.***
 
 ## So the item is one decision, and it is yours
 
 **Do you want `.perry/config.md` to become a rendered projection?** Saying yes
-costs one command and moves `P-O1.2` from 1 of 2 to 2 of 2. Saying yes also
+costs one command and moves `P002-O1-KR2` from 1 of 2 to 2 of 2. Saying yes also
 means a hand edit to your own config file becomes **reported drift** — at
 `warn`, the severity you chose on 2026-08-21 — which is a change to what
 `SKILL.md` promised you about that particular file.
@@ -98,7 +98,7 @@ the join is still never made. But this case teaches the guard its hardest
 requirement:
 
 **It must distinguish "stalled" from "waiting on a decision that is correctly
-the user's."** Fired here, a naive guard would have reported `P-O1.2` as a
+the user's."** Fired here, a naive guard would have reported `P002-O1-KR2` as a
 problem when the row is behaving exactly as designed — and would have been as
 wrong as I was, for the same reason.
 
@@ -109,10 +109,10 @@ the row.
 ## And the phase-scoping requirement, unchanged
 
 ```
-001-linkage.md   P-O1.1   0.0 of 3.0   STALLED
-001-linkage.md   P-O1.2   0.0 of 3.0   STALLED
-001-linkage.md   P-O3.2   0.0 of 1.0   STALLED
-002-linkage.md   P-O1.2   1.0 of 2.0   ← the only live one, and it is a decision
+001-linkage.md   P001-O1-KR1   0.0 of 3.0   STALLED
+001-linkage.md   P001-O1-KR2   0.0 of 3.0   STALLED
+001-linkage.md   P001-O3-KR2   0.0 of 1.0   STALLED
+002-linkage.md   P002-O1-KR2   1.0 of 2.0   ← the only live one, and it is a decision
 ```
 
 Phase 001 is closed and is *allowed* to end with unmet KRs. A guard that emits

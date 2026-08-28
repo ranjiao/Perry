@@ -34,7 +34,7 @@ falsified the day the store lands**, and nothing currently warns about that.
 
 ## 2 · The central test — a queue-track row carried a `kr:` edge with zero friction
 
-A probe row was created on the `intake` track and attached to `P-O1.3`, a KR of
+A probe row was created on the `intake` track and attached to `P002-O1-KR3`, a KR of
 a `project`-mode phase:
 
 ```

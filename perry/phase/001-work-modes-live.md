@@ -41,7 +41,7 @@ This phase does not target the aiMark write contract or the event-log-canonical 
 
 > What the user must contribute during this phase. Each becomes a USER-id in PMO's User Input Queue.
 
-- Decide which project carries the three non-`project` tracks — Perry's own `.perry/config.md`, or one of the three named real projects. P-O1.1 is written against Perry itself; naming a real project instead pulls KR-O3.1 into this phase.
+- Decide which project carries the three non-`project` tracks — Perry's own `.perry/config.md`, or one of the three named real projects. P001-O1-KR1 is written against Perry itself; naming a real project instead pulls KR-O3.1 into this phase.
 - V5 sign-off on TASK-028 (`diagnose`/`adopt` mode detection + both READMEs), which the board marks as needing it.
 - Confirm the four-round review cap above, or replace it with a number you will actually hold to.
 - Phase scope-reduction trigger review (decide whether to cut scope when the trigger fires).
@@ -56,7 +56,7 @@ If user input is missing for >5 calendar days, PMO continues non-blocking work i
 Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-date triggers — phases are not bound to dates.
 
 - **KR-progress trigger**: If at phase day 14, commit KRs are <50% achieved, Objective 1 collapses to TASK-019 and TASK-020 only; TASK-021, TASK-027 and TASK-028 defer to the next phase.
-- **Phase-day trigger**: If by phase day 10 the tracks-host decision (first User Commitment above) is still open, P-O1.1 collapses to declaring the three tracks on Perry itself, and the real-project variant defers to the phase that adopts one.
+- **Phase-day trigger**: If by phase day 10 the tracks-host decision (first User Commitment above) is still open, P001-O1-KR1 collapses to declaring the three tracks on Perry itself, and the real-project variant defers to the phase that adopts one.
 
 ---
 
@@ -68,10 +68,10 @@ Close the review debt blocking the mode work, then declare and exercise a `pipel
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O1.1 | Non-`project` modes running on a live, non-fixture track (baseline 0 of 3) | 3 of 3 modes live | KR-O1.1 |
-| P-O1.2 | Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance (baseline 0 of 3) | 3 of 3 produce output | KR-O1.2 |
-| P-O1.3 | Switching a track's mode edits one file and rewrites no state, shown by a revert test (baseline: unproven) | 1 file · 0 rewrites | KR-O1.3 |
-| P-O1.4 | Blocking review findings open against the mode work (baseline 6 — 3 on TASK-019, 3 on TASK-020) | 0 open | KR-O1.1 |
+| P001-O1-KR1 | Non-`project` modes running on a live, non-fixture track (baseline 0 of 3) | 3 of 3 modes live | KR-O1.1 |
+| P001-O1-KR2 | Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance (baseline 0 of 3) | 3 of 3 produce output | KR-O1.2 |
+| P001-O1-KR3 | Switching a track's mode edits one file and rewrites no state, shown by a revert test (baseline: unproven) | 1 file · 0 rewrites | KR-O1.3 |
+| P001-O1-KR4 | Blocking review findings open against the mode work (baseline 6 — 3 on TASK-019, 3 on TASK-020) | 0 open | KR-O1.1 |
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -115,8 +115,8 @@ Close the review debt blocking the mode work, then declare and exercise a `pipel
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O2.1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | KR-O2.1 |
-| P-O2.2 | `perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships (baseline: no such test) | 1 passing test | KR-O2.1 |
+| P001-O2-KR1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | KR-O2.1 |
+| P001-O2-KR2 | `perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships (baseline: no such test) | 1 passing test | KR-O2.1 |
 
 ### Projects
 
@@ -141,11 +141,11 @@ and creates work that serves no KR this phase had.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O3.1 | A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration (baseline: `is_adopted()` answers only "is there any Perry file here") | 1 marker, all 3 writers gating | KR-O3.4 |
-| P-O3.2 | Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked) | id set before == id set after | KR-O3.4 |
+| P001-O3-KR1 | A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration (baseline: `is_adopted()` answers only "is there any Perry file here") | 1 marker, all 3 writers gating | KR-O3.4 |
+| P001-O3-KR2 | Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked) | id set before == id set after | KR-O3.4 |
 
 `ADR-004`'s own reopening criterion is that migration proves unbuildable to its
-five guarantees. P-O3.2 is that criterion, made measurable — it is the KR whose
+five guarantees. P001-O3-KR2 is that criterion, made measurable — it is the KR whose
 failure retires the decision rather than the phase.
 
 ### Projects
@@ -176,10 +176,10 @@ failure retires the decision rather than the phase.
 
 | ISO week | Focus | Target KRs to advance | TASK-IDs (filled by `plan-week`) |
 |----------|-------|------------------------|------------------------------------|
-| 2026-W34 | Clear the blocking findings on TASK-019 / TASK-020; land TASK-027's 4th review | P-O1.4 | — |
-| 2026-W35 | Declare the three tracks; make each mode's triage question answer from real state | P-O1.1, P-O1.2 | — |
-| 2026-W36 | Mode-switch revert test; TASK-021; mid-phase review | P-O1.3 | — |
-| 2026-W37 | `perry-goals` writer + byte-identity test; TASK-028 V5; `score-phase` | P-O2.1, P-O2.2 | — |
+| 2026-W34 | Clear the blocking findings on TASK-019 / TASK-020; land TASK-027's 4th review | P001-O1-KR4 | — |
+| 2026-W35 | Declare the three tracks; make each mode's triage question answer from real state | P001-O1-KR1, P001-O1-KR2 | — |
+| 2026-W36 | Mode-switch revert test; TASK-021; mid-phase review | P001-O1-KR3 | — |
+| 2026-W37 | `perry-goals` writer + byte-identity test; TASK-028 V5; `score-phase` | P001-O2-KR1, P001-O2-KR2 | — |
 
 ---
 
@@ -187,11 +187,11 @@ failure retires the decision rather than the phase.
 
 ### Must-Have (failure = phase missed)
 
-- [ ] `.perry/config.md` carries a `## Tracks` table with a `pipeline`, a `queue` and an `inquiry` track, and `perry-state` loads all three mode files (P-O1.1)
-- [ ] TASK-019 and TASK-020 each pass V4 re-review with 0 blocking findings (P-O1.4)
-- [ ] TASK-027 passes its 4th review round (P-O1.4)
-- [ ] Each of the three live tracks answers its mode-specific triage question with a non-`—` value (P-O1.2)
-- [ ] `perry-goals` has a write path, and the byte-identity test against `perry/OKR.md` passes and fails when the writer is reverted (P-O2.1, P-O2.2, TASK-037)
+- [ ] `.perry/config.md` carries a `## Tracks` table with a `pipeline`, a `queue` and an `inquiry` track, and `perry-state` loads all three mode files (P001-O1-KR1)
+- [ ] TASK-019 and TASK-020 each pass V4 re-review with 0 blocking findings (P001-O1-KR4)
+- [ ] TASK-027 passes its 4th review round (P001-O1-KR4)
+- [ ] Each of the three live tracks answers its mode-specific triage question with a non-`—` value (P001-O1-KR2)
+- [ ] `perry-goals` has a write path, and the byte-identity test against `perry/OKR.md` passes and fails when the writer is reverted (P001-O2-KR1, P001-O2-KR2, TASK-037)
 - [ ] `phase/001-linkage.md` resolves every currently-open board task — each one either carries a phase-KR edge or sits in a declared `unlinked[]`, with none left unresolved
 - [ ] `perry-lint --root .` reports zero errors after every write above
 
@@ -237,14 +237,14 @@ number can be re-derived rather than trusted.
 
 | KR | Score | Measured |
 |---|---|---|
-| P-O1.1 | **missed** | `parse_tracks` on `.perry/config.md` returns `[('main','project')]` — 0 of 3 non-`project` modes on a live track |
-| P-O1.2 | **partial** | The code ships — `perry-state` carries `stage_counts`, `wip_breaches` and `intake`. Two of the three report empty **because no track is declared to exercise them**, so the capability is built and unproven |
-| P-O1.3 | **missed** | No revert test for a mode switch exists in `tests/test_work_modes.py` |
-| P-O1.4 | **partial** | Baseline 6, target 0. Two of three closed on TASK-019; TASK-020's round-6 finding is open (`route` ignores `--group`) |
-| P-O2.1 | **achieved** | `bin/perry-goals`, `bin/perry-task`, `bin/perry-decide` all exist and write — 3 of 3 |
-| P-O2.2 | **achieved** | The byte-identity test lives in `tests/test_goals_writer.py` and runs against all four `OKR.md` files |
-| P-O3.1 | **achieved** | `perry-conform status` reports **13/14 declared and matching**, and all three writers gate on it (ADR-004) |
-| P-O3.2 | **achieved** | TASK-044: dry-run byte-identical, 365 → 380 ids with none lost, 59 → 15 errors on gimegime-pmo, PolyForge refused in one sentence. Guarantee 3 FAILed on three unguarded write sites and was fixed; **its re-review has not run** |
+| P001-O1-KR1 | **missed** | `parse_tracks` on `.perry/config.md` returns `[('main','project')]` — 0 of 3 non-`project` modes on a live track |
+| P001-O1-KR2 | **partial** | The code ships — `perry-state` carries `stage_counts`, `wip_breaches` and `intake`. Two of the three report empty **because no track is declared to exercise them**, so the capability is built and unproven |
+| P001-O1-KR3 | **missed** | No revert test for a mode switch exists in `tests/test_work_modes.py` |
+| P001-O1-KR4 | **partial** | Baseline 6, target 0. Two of three closed on TASK-019; TASK-020's round-6 finding is open (`route` ignores `--group`) |
+| P001-O2-KR1 | **achieved** | `bin/perry-goals`, `bin/perry-task`, `bin/perry-decide` all exist and write — 3 of 3 |
+| P001-O2-KR2 | **achieved** | The byte-identity test lives in `tests/test_goals_writer.py` and runs against all four `OKR.md` files |
+| P001-O3-KR1 | **achieved** | `perry-conform status` reports **13/14 declared and matching**, and all three writers gate on it (ADR-004) |
+| P001-O3-KR2 | **achieved** | TASK-044: dry-run byte-identical, 365 → 380 ids with none lost, 59 → 15 errors on gimegime-pmo, PolyForge refused in one sentence. Guarantee 3 FAILed on three unguarded write sites and was fixed; **its re-review has not run** |
 
 **4 achieved · 2 partial · 2 missed.**
 
@@ -255,10 +255,10 @@ this one ends at day 3 with two missed. That is a deliberate exception, and the
 reason is `ADR-007`: it **changes the premise of two of these KRs** rather than
 merely competing with them.
 
-- **P-O1.1** wants three non-`project` modes live on a real track. A track is
+- **P001-O1-KR1** wants three non-`project` modes live on a real track. A track is
   declared in `.perry/config.md`, which ADR-007 turns into a store — so the
   file that KR is measured against is being replaced.
-- **P-O3.1** wants a state file to declare it is Perry-shaped at a version.
+- **P001-O3-KR1** wants a state file to declare it is Perry-shaped at a version.
   That declaration is about **markdown shape**, and three of the files it
   covers stop being markdown.
 
@@ -266,7 +266,7 @@ Carrying them forward unchanged would have scored the same work twice under two
 different meanings. They are re-expressed in phase 002 against the shapes that
 will actually exist.
 
-**P-O2.1 was already met and unscored** — 3 of 3 write tools — which is what
+**P001-O2-KR1 was already met and unscored** — 3 of 3 write tools — which is what
 the check for this rollover found first.
 
 

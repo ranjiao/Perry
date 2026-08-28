@@ -12,16 +12,16 @@ One derivation in `bin/lib/__init__.py`, three sibling keys per KR, emitted by
 both payloads. Verified on this repository:
 
 ```
-P-O1.1  current 0.0  target 1.0
+P002-O1-KR1  current 0.0  target 1.0
         provenance  state=asserted  measured=false  source=linkage-register
         completion  total 4  done 4  open 0
-P-O2.2  current 0.0  target 0.0
+P002-O2-KR2  current 0.0  target 0.0
         provenance  state=asserted  measured=false
         completion  total 2  done 0  open 2
 ```
 
-`P-O1.1` no longer reads as 0-of-1 progress: it reads as **an author's assertion
-of 0 against four closed tasks**, and Perry resolves neither. `P-O2.2` can no
+`P002-O1-KR1` no longer reads as 0-of-1 progress: it reads as **an author's assertion
+of 0 against four closed tasks**, and Perry resolves neither. `P002-O2-KR2` can no
 longer be read as met, because nothing claims the zero was measured.
 
 **No `met` / `achieved` / `progress` / `ratio` key exists** — asserted as an
@@ -41,9 +41,9 @@ spec drew and it held.
   kept `schema/state-schema.json` out of the change** — the agent found the
   cheap path around a gate rather than asking for a release.
 
-## The tally is what flips P-O1.1, not the staleness check
+## The tally is what flips P002-O1-KR1, not the staleness check
 
-Worth recording because it is counter-intuitive: P-O1.1 is **not stale by any
+Worth recording because it is counter-intuitive: P002-O1-KR1 is **not stale by any
 timestamp test** — all four of its tasks closed *before* the register's
 `updated`. The contradiction is visible only because the completion tally sits
 beside the number. A design that shipped staleness alone would have left that
