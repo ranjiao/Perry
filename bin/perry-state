@@ -1658,6 +1658,26 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     link = snap.linkage
     if link.spec and link.error:
         warnings.append(f"phase linkage file is unreadable ({link.error}) — KR roll-up is off.")
+    # **The three buckets are DISJOINT** (TASK-228). `unlinked` used to mean
+    # "did not resolve to a KR", which is true of a declared row as well as an
+    # undeclared one — so every row in `unlinked[]` was reported twice, once
+    # in each bucket, and `unlinked` read as a count of unresolved work when
+    # none of it was unresolved. Measured 2026-08-28 after declaring 48 rows:
+    # `linked=8, unlinked=48, declared_unlinked=48`, and the two sets were
+    # byte-identical.
+    #
+    # It is not a cosmetic double-count. `unlinked` is the number a standup
+    # renders as "N tasks awaiting KR attribution", and on 2026-08-29 it was
+    # read off this payload and reported to the user as 52 rows owing an
+    # answer when the true never-asked count was 0 — the answers had all been
+    # given, through `perry-goals link --unlinked`, the day before.
+    #
+    # `unlinked` now means the NEVER-ASKED state, which is what
+    # `phase/003-storage-code.md § P003-O3-KR1` drives to zero and what
+    # `reference/okr-linkage.md` already described: *"`unlinked` (couldn't
+    # resolve)"* beside *"`declared_unlinked` (the graph says outright that
+    # this work serves no KR)"*. The document was right; the payload was not.
+    declared_unlinked = set(link.unlinked or ())
     unlinked = []
     linked = 0
     for t in all_tasks:
@@ -1665,6 +1685,10 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             continue
         if resolve_kr(t, link):
             linked += 1
+        elif t.id in declared_unlinked:
+            # Declared: an answer was given, and the answer was "no KR". It is
+            # reported in `declared_unlinked` and nowhere else.
+            continue
         else:
             unlinked.append({"id": t.id, "title": t.title})
 
