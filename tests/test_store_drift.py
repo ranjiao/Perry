@@ -670,8 +670,6 @@ class TestTheTwoToolsAgreeAboutWhetherAComparisonHappened(Fixture):
         self.assertIn("perry-tasks verify", text)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 #: The census line each declared store prints, whichever branch it takes.
@@ -961,3 +959,7 @@ class TestABadlyTypedMarkdownStoreIsExcludedNotIgnored(MarkdownStore):
         _, payload = self.lint(d)
         self.assertIn("config-store-unreadable",
                       [f["rule"] for f in payload["findings"]])
+
+
+if __name__ == "__main__":
+    unittest.main()
