@@ -59,7 +59,6 @@
 | TASK-207 | no compare-and-set on a write, and the board demonstrably moves between a read and a write | Coding Agent | not_started | — | — | V3 | TASK-206 | main |  |  |  |  |  |  |
 | TASK-208 | perry-diagnose asks 'is this ask answered' with a word search over free prose, and disagrees with the store in both directions | Coding Agent | not_started | — | — | V3 | TASK-179 | main |  |  |  |  |  |  |
 | TASK-209 | perry-lint's store-drift census covers tasks.jsonl only, so ADR-007's guarantee holds for one store of five | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-210 | the id scanner excludes fenced blocks but not inline code spans, so a regex in backticks becomes a dangling id | Coding Agent | in_progress | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-211 | perry-dispatch-limit exits 0 on an unknown subcommand, so a typo silently disables the concurrency cap | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-212 | a locked decision that gets no task row does not ship, and nothing links a design's plan step to the work that discharges it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
