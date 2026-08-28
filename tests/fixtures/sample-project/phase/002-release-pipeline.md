@@ -44,8 +44,8 @@ Remove every manual step between merge and production.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O1.1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
-| P-O1.2 | Manual gates removed | manual steps = 0 | KR-O1.2 |
+| P002-O1-KR1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
+| P002-O1-KR2 | Manual gates removed | manual steps = 0 | KR-O1.2 |
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -62,7 +62,7 @@ Remove every manual step between merge and production.
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O2.1 | Flake rate measured and reduced | flaky runs ≤ 1% | KR-O2.1 |
+| P002-O2-KR1 | Flake rate measured and reduced | flaky runs ≤ 1% | KR-O2.1 |
 
 ### Projects
 

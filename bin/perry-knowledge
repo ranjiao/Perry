@@ -1,0 +1,654 @@
+#!/usr/bin/env python3
+"""
+perry-knowledge — the knowledge card write path (DESIGN-006 phase B).
+
+Phase A made a card's provenance checkable. This is where it becomes
+**refusable**, because the write is the one moment the person who knows the
+answer is still in the room. `perry-lint --knowledge` reports a sourceless card
+afterwards; this tool never writes one at all.
+
+Two commands, and the split is the whole design:
+
+  propose   READ-ONLY. Answers "should the capture point fire, and with what
+            already filled in". Evidence proposes.
+  promote   WRITES the card. Runs only after a user chose it. The user declares.
+
+That asymmetry is `reference/adoption.md`'s one rule applied to the knowledge
+layer: a card is never written because an agent found the finding interesting.
+The capture points that call `propose` are `close-task`, `end-phase-retro` and
+incident close — the procedure is `work/reference/promotion.md`, and it is one
+procedure quoted in three places rather than three procedures.
+
+What `promote` refuses, and why each refusal is a refusal rather than a warning:
+
+  no source          a card that cannot say where its claim came from is a
+                     claim about the agent's memory. This is `no done without
+                     evidence` extended one layer.
+  source resolves    a citation naming a file, task or `SRC-n` that does not
+  nowhere            exist is worse than none: it looks checkable and is not.
+  no tripwire        `Invalidated by` is what makes a card revisable instead of
+                     accumulating. Without it the card goes stale in silence,
+                     which is the failure mode the whole card schema exists for.
+  no claim           the title line IS the claim; a card without one is a note.
+  card already there a record is never silently overwritten.
+  unowned            on a project that declares roles, a card nobody owns is a
+                     card nobody re-verifies. Derived when there is exactly one
+                     role; required otherwise.
+
+Usage:
+  perry-knowledge propose --source "<evidence path | TASK-NNN | SRC-n>"
+                          [--task TASK-NNN] [--rung V1..V6]
+  perry-knowledge promote --topic <topic> --slug <slug>
+                          --claim "<the claim, one line>"
+                          --source "<evidence path | TASK-NNN | SRC-n>"
+                          --invalidated-by "<the observable tripwire>"
+                          [--kind knowledge|source-of-truth]
+                          [--owner-role <role>] [--body "…" | --body-file <p>]
+  perry-knowledge list [--topic <topic>]
+
+  --root <path>   project root; default $PERRY_PROJECT, else walk up from cwd
+  --dry-run       print what would be written; touch nothing
+  --json          machine-readable result
+
+Exit codes:
+  0  written (or, with --dry-run, would be); `propose` and `list` succeeded
+  1  refused — the reason is printed and nothing was written
+  2  bad invocation / unreadable schema
+
+The card schema is read from `schema/state-schema.json § files[id=knowledge-card]`
+and the "does this source resolve" rule is imported from `bin/perry-lint`, never
+re-implemented: a write path and a linter that disagree about what a valid card
+is would be worse than having only one of them.
+
+This tool writes inside `knowledge/`, which the hand-off contract gives to the
+`work` lane (`schema/state-schema.json § files[].owner`, `SKILL.md § The
+hand-off contract`). It writes nothing else — not `BOARD.md`, not `journal/`,
+not `DECISIONS.md`.
+
+No LLM, no external dependencies (stdlib only). DESIGN-006 section 5.4.
+"""
+
+from __future__ import annotations
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import parsers as P  # noqa: E402
+import lib  # noqa: E402
+
+
+class Refused(Exception):
+    """A refusal is a first-class outcome, not a crash. Nothing was written."""
+
+
+#: Versioned separately from `perry-task/list/*` and `perry-decide/list/*`, the
+#: same reason DESIGN-005 section 4 decision 5 gives: a consumer of one should
+#: not have to re-check its code for a change in a domain it never reads.
+PROPOSE_CONTRACT = "perry-knowledge/propose/1.0"
+#: TASK-205 moves the read side to `1.1`: it gains `semantics`, a plain `1.x`
+#: key addition and the key `schema/knowledge-list-contract.md § The three
+#: rules` already said a meaning change here would be reported in. `propose`
+#: does not move — it is versioned separately and gained nothing.
+LIST_CONTRACT = "perry-knowledge/list/1.1"
+
+#: **Minors where a value's MEANING changed, not just where a key was added.**
+#: Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
+#: per minor that corrected a meaning, oldest first, appended and never
+#: inserted.
+#:
+#: **It is empty, and the empty array is the shipped fact.** Nothing this
+#: payload carries has changed meaning since `1.0`, and inventing an entry to
+#: fill the array would be worse than saying so — `stale` is the field the
+#: contract page names as most likely to need one, and it has not needed one
+#: yet. The key ships anyway, on every response including this one, because
+#: **a consumer checks before it looks**: a key that appears only when there
+#: is something to say is one a consumer cannot check. That is the argument
+#: this page already makes about `contract` on an empty store, applied to the
+#: array beside it.
+LIST_SEMANTICS: list[dict] = []
+
+#: A rung at or below this is the agent attesting its own output. A claim
+#: promoted from one has provenance that bottoms out in "an agent said so",
+#: which is the confident-error store DESIGN-006 section 5.3 exists to prevent.
+#: `propose` declines to fire; `promote` still writes if the user asks for it
+#: outright, because the user declaring is always allowed to override what the
+#: evidence proposed.
+UNVERIFIED_RUNGS = ("V0", "V1")
+
+_LINT = None
+
+
+def lint():
+    """`bin/perry-lint` as a module, with its schema glossary loaded.
+
+    Imported rather than copied so `resolves_somewhere` means exactly the same
+    thing at write time and at lint time. Copying it is how a card gets refused
+    by one and accepted by the other, and then nobody trusts either.
+
+    `load_glossary` is not optional: without it `CARD_REQUIRED` and
+    `CARD_KINDS` are empty lists, and every check that reads them silently
+    passes. Phase A shipped that exact bug for ten minutes.
+    """
+    global _LINT
+    if _LINT is None:
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            "perry_lint", importlib.machinery.SourceFileLoader(
+                "perry_lint", str(PERRY_HOME / "bin" / "perry-lint")))
+        mod = importlib.util.module_from_spec(spec)
+        # See the identical note in `bin/perry-decide`: `dataclasses` resolves
+        # `from __future__ import annotations` strings through `sys.modules`.
+        sys.modules["perry_lint"] = mod
+        spec.loader.exec_module(mod)
+        mod.load_glossary(load_schema())
+        _LINT = mod
+    return _LINT
+
+
+def load_schema() -> dict:
+    return lib.load_schema(Refused)
+
+
+def card_spec() -> dict:
+    spec = next((f for f in (load_schema().get("files") or [])
+                 if f.get("id") == "knowledge-card"), None)
+    if not spec:
+        raise Refused(
+            "schema/state-schema.json declares no `knowledge-card` file — the "
+            "card shape is read from there, never written here, so there is "
+            "nothing to write against")
+    return spec
+
+
+def card_kinds() -> list[str]:
+    return list((card_spec().get("discriminator") or {}).get("values") or [])
+
+
+def required_fields() -> list[str]:
+    """The header fields the schema declares, in schema order."""
+    return [h["name"] for h in (card_spec().get("header_fields") or [])]
+
+
+# ── reading ───────────────────────────────────────────────────────────────
+
+
+def read_cards(state_root: Path) -> list[dict]:
+    """Every card under `knowledge/`, read from the files.
+
+    Cards and digests share `knowledge/*/*.md`; the `Kind:` discriminator tells
+    them apart, and it is declared once in the schema and read here through
+    `perry-lint.card_kind` rather than re-tested.
+    """
+    L = lint()
+    out: list[dict] = []
+    kdir = state_root / "knowledge"
+    stale_days = int((L.SCHEMA_THRESHOLDS.get("knowledge_stale_days")
+                      or {}).get("value") or 90)
+    today = date.today()
+    for md in sorted(kdir.rglob("*.md")) if kdir.is_dir() else []:
+        if md.name == "INDEX.md":
+            continue
+        text = L.strip_comments(md.read_text(errors="replace"))
+        kind = L.card_kind(text)
+        if kind is None:
+            continue
+        rel = md.relative_to(state_root).as_posix()
+        first = next((l for l in text.split("\n") if l.startswith("# ")), "")
+        claim = re.sub(r"^.*?\s+[—–-]\s+", "", first[2:].strip()) if first else ""
+        seen = L.field_value(text, "Last verified") or ""
+        age = None
+        if lib.is_iso_date(seen):
+            age = (today - date.fromisoformat(seen)).days
+        out.append({
+            "path": rel,
+            "topic": md.parent.name,
+            "slug": md.stem,
+            "kind": kind,
+            "claim": claim,
+            "owner_role": L.field_value(text, "Owner role") or "",
+            "source": L.field_value(text, "Source") or "",
+            "last_verified": seen,
+            "invalidated_by": L.field_value(text, "Invalidated by") or "",
+            "stale": bool(age is not None and age > stale_days),
+        })
+    return out
+
+
+def declared_roles(project_root: Path) -> list[str]:
+    """Role cards in `.perry/roles/` (DESIGN-006 phase C), by stem."""
+    rdir = project_root / ".perry" / "roles"
+    return sorted(p.stem for p in rdir.glob("*.md")) if rdir.is_dir() else []
+
+
+def source_cites(card_source: str, wanted: str) -> bool:
+    """Does this card's `Source:` already name the thing being promoted?
+
+    Token-wise rather than substring: a `Source:` cell is `TASK-073 ·
+    evidence/2026-08/x.md`, and a caller passing either half should find it.
+    """
+    def toks(s: str) -> set[str]:
+        return {t.strip("*`()[]<>,;") for t in re.split(r"[\s,;·|]+", s.strip())
+                if t.strip("*`()[]<>,;")}
+    a, b = toks(card_source), toks(wanted)
+    return bool(a & b)
+
+
+# ── writing ───────────────────────────────────────────────────────────────
+
+
+SAFE_NAME = re.compile(r"[a-z0-9][a-z0-9._-]*$")
+
+
+def slugify(s: str) -> str:
+    s = re.sub(r"[^\w\s-]", "", s.lower()).strip()
+    return re.sub(r"[\s_]+", "-", s)[:60]
+
+
+def render_card(fields: dict, claim: str, body: str) -> str:
+    """The card, in `work/state/knowledge_card_TEMPLATE.md`'s exact shape.
+
+    Field order comes from `schema/state-schema.json § files[id=knowledge-card]
+    .header_fields`, so a schema that grows a sixth field grows it here too
+    without an edit.
+    """
+    head = [f"# {fields['topic']}/{fields['slug']} — {claim}", ""]
+    for name in required_fields():
+        head.append(f"- {name}: {fields[name]}")
+    head += ["", body.rstrip(), ""]
+    return "\n".join(head)
+
+
+CARDS_HEADING = "## Cards by topic"
+
+
+def render_cards_section(cards: list[dict], preserved_comment: str) -> str:
+    """The `## Cards by topic` block, rendered from the cards on disk.
+
+    Rendered, never appended to — an index maintained by appending drifts from
+    the files it indexes the first time someone edits or deletes one, and
+    `perry-decide` learned this on `DECISIONS.md` one lane over.
+    """
+    lines = [CARDS_HEADING, ""]
+    if not cards:
+        lines += ["(no cards yet)", ""]
+    else:
+        by_topic: dict[str, list[dict]] = {}
+        for c in cards:
+            by_topic.setdefault(c["topic"], []).append(c)
+        for topic in sorted(by_topic):
+            rows = sorted(by_topic[topic], key=lambda c: c["slug"])
+            lines.append(f"### {topic} ({len(rows)})")
+            for c in rows:
+                tail = (f"(**stale**, verified {c['last_verified'] or '—'})"
+                        if c["stale"] else
+                        f"(verified {c['last_verified'] or '—'}, "
+                        f"owner {c['owner_role'] or '—'})")
+                lines.append(f"- {c['slug']} — {c['claim']} {tail}")
+            lines.append("")
+    if preserved_comment:
+        lines += [preserved_comment.rstrip(), ""]
+    # Exactly one blank line before whatever heading follows. Joining without
+    # this leaves `-->` flush against the next `## `, which is a markdown
+    # renderer's problem, not a reader's — but the file is read by humans in a
+    # diff more often than by a renderer.
+    return "\n".join(lines).rstrip("\n") + "\n\n"
+
+
+def patch_index(state_root: Path, cards: list[dict]) -> dict:
+    """Replace `## Cards by topic` in `knowledge/INDEX.md`, and nothing else.
+
+    Surgical on purpose. The other sections of that index are the digest
+    flow's (`work/reference/digests.md`), and a card writer that re-rendered
+    them would be inventing the digest half of a file it only owns one section
+    of. The `<!-- … -->` format hint inside the section is preserved across the
+    rebuild so the template's guidance survives the first real card.
+
+    **An absent index is not created here.** A cards-only `INDEX.md` would
+    assert "(no digests yet)" about a tree this tool never looked at. The card
+    is written, the omission is reported, and the digest flow's index build is
+    what creates the file.
+    """
+    idx = state_root / "knowledge" / "INDEX.md"
+    if not idx.exists():
+        return {"updated": False, "reason": "absent", "path": str(idx)}
+    text = idx.read_text(errors="replace")
+    m = re.search(rf"(?m)^{re.escape(CARDS_HEADING)}\s*$", text)
+    comment = ""
+    if m:
+        nxt = re.search(r"(?m)^## ", text[m.end():])
+        section = text[m.end():m.end() + nxt.start()] if nxt else text[m.end():]
+        cm = re.search(r"<!--.*?-->", section, re.S)
+        comment = cm.group(0) if cm else ""
+        head, tail = text[:m.start()], (text[m.end() + nxt.start():] if nxt else "")
+        text = head + render_cards_section(cards, comment) + tail
+    else:
+        # The index predates phase A's template. Append the section rather than
+        # refusing: the cards exist and an index that cannot list them is the
+        # thing being fixed.
+        text = text.rstrip("\n") + "\n\n" + render_cards_section(cards, "")
+    text = re.sub(r"(?m)^(>\s*Last updated\s*[:：]\s*).*$",
+                  rf"\g<1>{date.today():%Y-%m-%d}", text, count=1)
+    return {"updated": True, "text": text, "path": str(idx)}
+
+
+write_atomic = lib.write_atomic
+
+
+def project_lock(state_root: Path, timeout: float = 10.0):
+    """The same lock `perry-task` and `perry-decide` take, on the same key.
+
+    One lock per project, not one per lane: this write and a board write touch
+    different files but the same project, and a reader that catches them
+    mid-flight sees a state neither lane intended.
+
+    This copy had **lost the `time.sleep(0.05)`** from its retry loop, so the
+    wait for a held lock was a busy spin at 100% of a core for the full ten
+    seconds. Nothing observable was wrong with the result, which is why four
+    copies of a loop is how it survived.
+    """
+    return lib.project_lock(state_root, timeout, Refused)
+
+
+# ── commands ──────────────────────────────────────────────────────────────
+
+
+def cmd_propose(args, ctx) -> dict:
+    """Should the capture point fire at all, and with what pre-filled.
+
+    Read-only. The three mechanical reasons not to fire are here; the
+    judgement ones ("did this produce a reusable claim") stay in
+    `work/reference/promotion.md`, because a tool cannot answer them and
+    pretending otherwise is how a capture point ends up firing on every close
+    and being dismissed on the one that mattered.
+    """
+    sr, pr = ctx["state_root"], ctx["project_root"]
+    L = lint()
+    src = (args.source or "").strip()
+    roles = declared_roles(pr)
+    today = f"{date.today():%Y-%m-%d}"
+
+    def answer(fires: bool, reason: str, why: str, **extra) -> dict:
+        owner = args.owner_role or (roles[0] if len(roles) == 1 else
+                                    ("—" if not roles else ""))
+        out = {
+            "contract": PROPOSE_CONTRACT,
+            "project_root": str(pr), "state_root": str(sr),
+            "fires": fires, "reason": reason, "why": why,
+            "prefill": {"Kind": args.kind or "knowledge",
+                        "Owner role": owner,
+                        "Source": src,
+                        "Last verified": today},
+            # The two fields no evidence file can supply. They are what the one
+            # question at the capture point is actually about, and they are the
+            # reason the question is a confirm-a-draft rather than a form.
+            "asks": ["claim", "invalidated_by"],
+            "roles_declared": roles,
+        }
+        out.update(extra)
+        return out
+
+    if not src or src in L.UNDECLARED_CELL:
+        return answer(False, "no-source",
+                      "the close wrote no evidence to pre-fill `Source:` from. "
+                      "A card promoted here would cite something the agent "
+                      "chose rather than something the run produced.")
+    if not L.resolves_somewhere(src, sr, pr):
+        return answer(False, "source-unresolvable",
+                      f"`{src}` names no file, task id or `SRC-n` in this "
+                      f"project. A citation that looks checkable and is not is "
+                      f"worse than none.")
+    if (args.rung or "").upper() in UNVERIFIED_RUNGS:
+        return answer(False, "rung-unverified",
+                      f"the close was rung {args.rung.upper()} — the agent "
+                      f"attesting its own artifact. A claim whose provenance "
+                      f"bottoms out there is the confident error the card "
+                      f"schema exists to keep out. Promote it after something "
+                      f"checked it.")
+    existing = [c for c in read_cards(sr) if source_cites(c["source"], src)]
+    if existing:
+        return answer(False, "already-promoted",
+                      f"{existing[0]['path']} already cites this source. "
+                      f"Asking again is the nag that teaches people to dismiss "
+                      f"the question.",
+                      existing=[c["path"] for c in existing])
+    return answer(True, "ready",
+                  "the source resolves and nothing has been promoted from it. "
+                  "Draft the claim and the tripwire from the evidence, show "
+                  "them in ONE question, and write only what the user chose.")
+
+
+def cmd_promote(args, ctx) -> dict:
+    sr, pr = ctx["state_root"], ctx["project_root"]
+    L = lint()
+    kinds = card_kinds()
+
+    kind = (args.kind or "knowledge").strip()
+    if kind not in kinds:
+        raise Refused(
+            f"--kind {kind!r} is not one of {kinds} — the values come from "
+            f"schema/state-schema.json, and a card whose `Kind:` is off the "
+            f"declared set is invisible to every reader that uses it to tell a "
+            f"card from a digest")
+
+    claim = (args.claim or "").strip()
+    if not claim or claim in L.UNDECLARED_CELL:
+        raise Refused(
+            "--claim is required: the title line IS the claim, and one card "
+            "carries exactly one. A card without it is a note nobody can "
+            "verify or invalidate")
+
+    src = (args.source or "").strip()
+    if not src or src in L.UNDECLARED_CELL:
+        raise Refused(
+            "--source is required and is not satisfied by a dash: a card that "
+            "cannot say where its claim came from is refused, not written "
+            "blank. That is `no done without evidence`, extended to the "
+            "knowledge layer — without it the store becomes a farm of "
+            "confident errors that agents then execute against, which is "
+            "strictly worse than no store")
+    if not L.resolves_somewhere(src, sr, pr):
+        raise Refused(
+            f"--source {src!r} resolves to no file, task id or `SRC-n` in "
+            f"{sr} — a claim citing a source nobody can re-open is a claim "
+            f"about the agent's memory. Cite the evidence file the run just "
+            f"wrote, its task id, or a `SRC-n` digest")
+
+    trip = (args.invalidated_by or "").strip()
+    if not trip or trip in L.UNDECLARED_CELL:
+        raise Refused(
+            "--invalidated-by is required: name the observable condition under "
+            "which this stops being true. It is the field people skip and the "
+            "one that matters most — `Last verified` already covers the "
+            "passage of time, so a card without a tripwire goes stale in "
+            "silence, which is the exact failure the card schema exists to "
+            "prevent")
+
+    roles = declared_roles(pr)
+    owner = (args.owner_role or "").strip()
+    if not owner or owner in L.UNDECLARED_CELL:
+        if not roles:
+            owner = "—"          # legal, and only, before roles exist
+        elif len(roles) == 1:
+            owner = roles[0]     # derived: there is exactly one right answer
+        else:
+            raise Refused(
+                f"--owner-role is required on a project that declares roles "
+                f"({', '.join(roles)}). A card nobody owns is a card nobody "
+                f"re-verifies, and the dash is only legal before roles exist")
+    elif roles and owner not in roles:
+        raise Refused(
+            f"--owner-role {owner!r} names no card in .perry/roles/ "
+            f"({', '.join(roles)}) — an owner that does not exist is the same "
+            f"as no owner, with a name on it")
+
+    topic = slugify(args.topic or "")
+    slug = slugify(args.slug or "") or slugify(claim)
+    for label, val in (("--topic", topic), ("--slug", slug)):
+        if not val or not SAFE_NAME.fullmatch(val):
+            raise Refused(
+                f"{label} must be a plain lowercase name — got {val!r}. It "
+                f"becomes a directory or file name under knowledge/")
+
+    path = sr / "knowledge" / topic / f"{slug}.md"
+    if path.exists():
+        raise Refused(
+            f"{path.relative_to(sr)} already exists. A card is a record and is "
+            f"never silently overwritten — edit it in place and bump "
+            f"`Last verified`, or promote under a different slug")
+
+    body = args.body or ""
+    if args.body_file:
+        bf = Path(args.body_file).expanduser()
+        if not bf.exists():
+            raise Refused(f"--body-file {bf} does not exist")
+        body = bf.read_text(errors="replace")
+    body = body.strip() or claim
+
+    fields = {"topic": topic, "slug": slug, "Kind": kind, "Owner role": owner,
+              "Source": src, "Last verified": f"{date.today():%Y-%m-%d}",
+              "Invalidated by": trip}
+    missing = [n for n in required_fields() if n not in fields]
+    if missing:
+        raise Refused(
+            f"the schema declares header fields this tool does not fill: "
+            f"{missing}. Refusing rather than writing a card the linter will "
+            f"immediately report")
+    text = render_card(fields, claim, body)
+
+    result = {"path": str(path.relative_to(sr)), "topic": topic, "slug": slug,
+              "kind": kind, "source": src, "owner_role": owner,
+              "last_verified": fields["Last verified"],
+              "invalidated_by": trip, "claim": claim}
+    if args.dry_run:
+        result["dry_run"] = True
+        result["index"] = {"updated": False, "reason": "dry-run"}
+        return result
+
+    with project_lock(sr):
+        write_atomic(path, text)
+        idx = patch_index(sr, read_cards(sr))
+        if idx.get("updated"):
+            write_atomic(Path(idx["path"]), idx["text"])
+            result["index"] = {"updated": True, "path": idx["path"]}
+        else:
+            result["index"] = {"updated": False, "reason": idx.get("reason"),
+                               "path": idx.get("path")}
+    return result
+
+
+def cmd_list(args, ctx) -> dict:
+    cards = read_cards(ctx["state_root"])
+    if args.topic:
+        cards = [c for c in cards if c["topic"] == slugify(args.topic)]
+    return {"contract": LIST_CONTRACT,
+            # Sorted rather than trusted to writing order — the guard
+            # `bin/perry-task` puts on its own list, kept here so an entry
+            # appended in the wrong place cannot ship. Empty today.
+            "semantics": sorted(
+                LIST_SEMANTICS,
+                key=lambda entry: tuple(int(x)
+                                        for x in entry["version"].split("."))),
+            "project_root": str(ctx["project_root"]),
+            "state_root": str(ctx["state_root"]),
+            "cards": cards, "total": len(cards),
+            "stale": sum(1 for c in cards if c["stale"])}
+
+
+COMMANDS = {"propose": cmd_propose, "promote": cmd_promote, "list": cmd_list}
+
+
+class Args:
+    pass
+
+
+def parse(argv: list[str]) -> Args:
+    a = Args()
+    a.cmd = None
+    for f in ("topic", "slug", "claim", "source", "invalidated_by", "kind",
+              "owner_role", "body", "body_file", "task", "rung", "root"):
+        setattr(a, f, None)
+    a.dry_run = a.as_json = False
+    flags = {"--topic": "topic", "--slug": "slug", "--claim": "claim",
+             "--source": "source", "--invalidated-by": "invalidated_by",
+             "--kind": "kind", "--owner-role": "owner_role", "--body": "body",
+             "--body-file": "body_file", "--task": "task", "--rung": "rung",
+             "--root": "root"}
+    i = 0
+    while i < len(argv):
+        t = argv[i]
+        if t in ("-h", "--help"):
+            print(__doc__.strip())
+            sys.exit(0)
+        elif t == "--dry-run":
+            a.dry_run = True
+        elif t == "--json":
+            a.as_json = True
+        elif t in flags:
+            i += 1
+            setattr(a, flags[t], argv[i] if i < len(argv) else None)
+        elif a.cmd is None:
+            a.cmd = t
+        i += 1
+    return a
+
+
+def main(argv: list[str]) -> int:
+    args = parse(argv)
+    if args.cmd not in COMMANDS:
+        print(f"perry-knowledge: expected one of {' / '.join(COMMANDS)} "
+              f"(try --help)", file=sys.stderr)
+        return 2
+    try:
+        load_schema()
+        project_root = (Path(args.root).expanduser().resolve() if args.root
+                        else Path(os.environ.get("PERRY_PROJECT")
+                                  or Path.cwd()).resolve())
+        state_root = P.resolve_state_root(project_root)
+        result = COMMANDS[args.cmd](args, {"project_root": project_root,
+                                           "state_root": state_root})
+    except Refused as exc:
+        if args.as_json:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False,
+                             indent=2))
+        else:
+            print(f"perry-knowledge: refused — {exc}", file=sys.stderr)
+        return 1
+
+    if args.as_json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "propose":
+        print(f"perry-knowledge: {'ask' if result['fires'] else 'do not ask'} "
+              f"({result['reason']}) — {result['why']}")
+    elif args.cmd == "list":
+        for c in result["cards"]:
+            mark = "stale " if c["stale"] else ""
+            print(f"  {c['path']:44} {mark}{c['last_verified']}  {c['claim'][:44]}")
+        print(f"\n  {result['total']} cards · {result['stale']} stale")
+    else:
+        verb = "would write" if args.dry_run else "wrote"
+        print(f"perry-knowledge: {verb} {result['path']}")
+        if not result["index"]["updated"] and result["index"].get("reason") == "absent":
+            print("  · knowledge/INDEX.md does not exist, so the card is not "
+                  "listed anywhere yet — run the index build in "
+                  "`work/reference/digests.md` to create it")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except Refused as exc:
+        print(f"perry-knowledge: refused — {exc}", file=sys.stderr)
+        sys.exit(1)

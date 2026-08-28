@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""`.perry/config.md` as a store, and the projection of it — ADR-007, TASK-092.
+
+    perry-config build   [--root <p>]              derive the store; write nothing
+    perry-config verify  [--root <p>]              field-compare the store to the file
+    perry-config render  [--root <p>] [--write]    the store → .perry/config.md
+    perry-config write   [--root <p>] --from-file  .perry/config.md → the store
+    perry-config diff    [--root <p>]              render and byte-compare
+
+The store is `.perry/config.jsonl`. It holds the preamble's `- Key: value`
+settings and every row of `## Tracks`. Every prose section — Perry's own
+`## Why the state root is not .`, gimegime-pmo's nine screens of dispatch
+lessons — is LAYOUT: never parsed, never re-rendered, reproduced byte for byte.
+
+**A tension this tool does not resolve.** `SKILL.md` calls the track register
+"a tier-1 file the user owns and edits directly, because a track is
+configuration rather than state". Making the file a rendered projection means a
+hand edit to it becomes reported drift. That may well be right — it is the same
+contract `BOARD.md` now has, and reported is not refused — but it is a change
+to what the user was promised about this particular file, and TASK-092 leaves
+the decision with them rather than making it silently.
+
+Two circularities live here and both are named rather than worked around:
+`perry-conform § gate_mode` reads this file to decide whether writes to it are
+gated, and `viewer/parsers.py § resolve_state_root` reads it to decide where
+every other state file lives. Neither is new — every reader of the config has
+always had them — but a *writer* of the config meets them for the first time.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import perry_md_store as store  # noqa: E402
+
+if __name__ == "__main__":
+    if sys.argv[1:2] and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
+    try:
+        sys.exit(store.main(store.CONFIG, sys.argv[1:]))
+    except store.Refused as exc:
+        print(f"perry-config: refused — {exc}", file=sys.stderr)
+        sys.exit(1)

@@ -38,6 +38,7 @@ payload under `thresholds` so the caller can show the user what it judged by.
 from __future__ import annotations
 
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -49,6 +50,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+from tables import split_row, squash  # noqa: E402
+import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
 
@@ -85,7 +91,24 @@ SKIP_DIRS = {
     "build", "target", ".next", ".nuxt", ".cache", "vendor", "site-packages",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", "coverage", ".tox",
     ".gradle", "Pods", "DerivedData", ".terraform", "bower_components",
+    ".claude", ".agents", ".trae",
 }
+
+
+def is_nested_repo(d: Path) -> bool:
+    """A directory carrying its own `.git` is a different project.
+
+    Skipping by name never finishes: a vendored checkout, a submodule, a
+    sibling repo dropped in by accident, and an agent worktree are all the same
+    shape and only some of them have predictable names. This was found when
+    `perry-diagnose` reported a dangling id that existed in no file of this
+    repo — it was reading a subagent's half-written `bin/perry-task` from a
+    worktree under `.claude/`, so Perry's own diagnostics were non-deterministic
+    for as long as another agent was running.
+
+    `.git` is a directory in a clone and a FILE in a worktree; both count.
+    """
+    return (d / ".git").exists()
 
 CODE_EXT = {
     ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java", ".kt", ".rb",
@@ -217,10 +240,51 @@ def load_sibling(name: str):
     return mod
 
 
+# ── what counts as ONE open decision ──────────────────────────────────────
+# A decision can be counted once only if it has an IDENTITY. `USER-004` has
+# one, so the three files that discuss it are three mentions of ONE decision.
+# A `## User Decisions` row has one too — the document and the row. Prose has
+# none: nothing in "the read-only policy is still undecided" tells you whether
+# it is the same question as the sentence two documents away, so a number
+# taken over prose can only ever count sentences.
+#
+# It counted sentences, and every fix before this one narrowed WHICH sentences:
+# illustrative files, quoted code spans, template-declared `TBD` fields,
+# `## Implementation plan` placeholders, answered `USER-` rows. Five carve-outs
+# for one mistake, and the sixth was already queued — writing an open question
+# down made the number go up, so `perry/` scored worse for recording USER-004
+# than it would have for leaving it in somebody's head. The rule itself was
+# wrong: LOAD-03 now counts REGISTER ROWS, and prose is reported beside the
+# count without ever being added to it.
+#
+# The registers, both of which say who is waiting and for what:
+#   * `BOARD.md § User Input Queue` — a pending `USER-` row;
+#   * a design doc's `## User Decisions` — a row whose `Chosen` cell is empty.
+# The consequence to know about: a project with neither register reports zero
+# open decisions however many `TBD`s its prose carries. That is deliberate —
+# see `scan_decision_mentions`.
+
+#: An indented code block's line. Content inside one is being QUOTED — the
+#: same sentence `lib.blank_code_spans` says about a backtick span, for the
+#: block-level spelling that has no delimiter to scan for.
+#:
+#: **The span half of this used to live here as `` `[^`]*` `` and is now
+#: `lib.blank_code_spans`.** TASK-210 needed the rule for the id scan and found
+#: it already written once, weaker: a regex that cannot see a run of two
+#: backticks reads ``` ``a `b` c`` ``` as an empty span followed by a real one,
+#: so it deletes the wrong halves of the line. Two spellings of "this is a
+#: quotation" is how the id scanner came to honour a fence and not a backtick
+#: in the first place, which is the defect TASK-210 exists to remove.
+INDENTED_CODE = re.compile(r"^\s{4,}\S")
+
 OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
 
 # A `TBD` that a template DECLARES as a legal value is not a decision anybody is
-# waiting on. `state/design_TEMPLATE.md` writes `Implementation owner: <role or
+# waiting on — it is a field whose value happens to be spelled that way. Kept,
+# and now applied to the mention list rather than to the count: a reader who
+# opens `user_load.decision_mention_samples` to see what the project is still
+# arguing about should not find eleven design-doc headers.
+# `state/design_TEMPLATE.md` writes `Implementation owner: <role or
 # "TBD">` in the header of every design doc, so counting it queues three
 # imaginary decisions on the user for every three designs they write — and
 # LOAD-03 exists to measure the real queue, not to inflate it.
@@ -230,6 +294,520 @@ OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your
 DECLARED_TBD = re.compile(
     r"(?:Implementation owner|Deciders?|Sunset|Locked|Superseded by|Supersedes|"
     r"Linked OKR|Drop reason)\s*:\s*(?:TBD|undecided)\b", re.I)
+
+
+
+# A USER- row that has been answered is not a decision waiting on anyone. The
+# first version of this counted every `USER-` id that appeared in a tracking
+# doc, regardless of its Status cell — so a project that answered its questions
+# but had not yet swept the rows kept reporting them as an open backlog, and
+# LOAD-03 measured "USER rows that have ever existed" while claiming to measure
+# "open questions waiting on you". Sweeping answered rows is `triage`'s job and
+# is optional; being counted as blocked for not doing it is not.
+ANSWERED = re.compile(
+    r"\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\b", re.I)
+
+
+#: A design doc's `## 4. User Decisions` — the second register, and the one a
+#: project that keeps its questions in design docs rather than in the queue is
+#: measured by.
+#: `re.M` so the same pattern answers both "does this document have the
+#: section at all" (a `search` over the whole text, to skip the other 290
+#: documents cheaply) and "does this line open it" (a `match`).
+DECISION_SECTION = re.compile(
+    r"^#{1,6}\s*(?:\d+[.)]\s*)?(?:User Decisions|用户决策)\b", re.I | re.M)
+#: The column holding the answer. `\bchosen\b`, not `choice`: `## User
+#: Decisions` also carries an agent-decided table headed
+#: `| Decided | Choice | Why not asked | Revisit if |`, every row of which is
+#: an answer by construction and none of which waits on anybody.
+CHOSEN_COL = re.compile(r"\bchosen\b|选择|选定", re.I)
+#: An answer cell nobody has filled in. The empty-cell vocabulary plus the
+#: decision words, because a `Chosen` cell reading `TBD` and one reading `—`
+#: are the same unanswered row.
+UNRESOLVED_CELL = re.compile(
+    r"^(?:|-|—|–|\?|？|n/a|tbd|undecided|待定|未定)$", re.I)
+#: `|---|:--:|` — the rule under a table header, not a row of the table.
+TABLE_RULE = re.compile(r"^:?-{2,}:?$")
+#: The column carrying the question, for evidence a reader can act on.
+QUESTION_COL = re.compile(r"decision|question|决策|问题", re.I)
+
+
+def decision_label(cell: str) -> str:
+    """A table cell as one readable line of evidence."""
+    s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", cell)
+    s = s.replace("**", "").replace("`", "").strip()
+    return s[:57] + "…" if len(s) > 58 else s
+
+
+def open_user_asks(root: Path, entries: dict, explain,
+                   quoted: set[str] | None = None) -> list[tuple[str, str]]:
+    """Pending `USER-` asks, one entry per ROW: `(id, "file:line")`.
+
+    Rows, not a count, because the id is what makes a decision countable
+    exactly once — three files discussing `USER-004` are three mentions of one
+    row, and only the row carries an identity to deduplicate on.
+
+    Falls back to the id index when no User Input Queue table can be read, so
+    a project that tracks asks somewhere else is not silently reported as
+    having none.
+
+    **A row this project only shows as an example is not a row it is waiting
+    on.** `tests/fixtures/sample-project/BOARD.md` carries a pending
+    `USER-014` because a test needs a board with a pending row on it. That
+    id then reaches `in_tracking_doc` through Perry's own journal and
+    evidence — which discuss the fixture, correctly, in prose — and got
+    counted as one of Perry's own open decisions, against a queue where every
+    `USER-` row is answered. `perry-task` reads `perry/BOARD.md` and reported
+    0; this reported 1; the two registers stopped reconciling.
+
+    The rule is the one `perry-explain § is_illustrative` already carries, and
+    it is called rather than restated: *is this file's job to explain, or to
+    track?* A file that explains is not this project's state, which is the
+    same question asked from the other side. Hard-coding `tests/fixtures/`
+    would have been a guess about the layout of every project this tool runs
+    on; `is_illustrative` decides by directory NAME, relative to the root
+    being diagnosed, so a project that itself lives under `tests/fixtures/`
+    is still counted in full.
+
+    **An id this project only QUOTED is not a row it is waiting on either, and
+    that verdict is `split_dangling`'s — passed in, not recomputed.** The
+    illustrative rule above is about the FILE a row lives in; it says nothing
+    about an id that has no row anywhere and reaches the fallback below purely
+    because some non-illustrative document mentioned it. `USER-900` is that id
+    on this repository: it is a `tests/fixtures/` board row that
+    `TASK-153-result.md:50` quotes back verbatim while reporting what the
+    check said, so `only_an_example` correctly answers "no" — there is no
+    definition point for it to judge — and the fallback counted a quotation as
+    a pending ask. `perry-task` read `perry/BOARD.md` and reported 0; this
+    reported 1; the same two registers stopped reconciling a second time.
+
+    `quoted` is `split_dangling`'s `reported_only` — the ids every one of whose
+    live mentions is a report rather than a reference. **The same predicate,
+    not a second one.** `split_dangling` asks *"is this id a reference that
+    resolves nowhere, or a quotation?"*; the fallback here asks *"is this id a
+    row of this project's queue?"*, and it only ever asks that of an id with no
+    definition point — which is exactly `split_dangling`'s domain. An id
+    nothing refers to is a row of nothing, so the first answer settles the
+    second. Where the two questions do not overlap this changes nothing: an id
+    that IS a row of this board's queue is kept by `where` below whatever
+    `quoted` says, and an id with a definition point is one `split_dangling`
+    never judges and never names here.
+    """
+    quoted = quoted or set()
+    ids = {e["id"] for e in entries.values()
+           if e["id"].startswith("USER-") and e.get("in_tracking_doc")}
+    if not ids:
+        return []
+
+    def only_an_example(i: str) -> bool:
+        """The row itself lives in a file whose job is to explain, not track."""
+        loc = entries[i].get("defined") or ""
+        return bool(loc) and explain.is_illustrative(loc.rsplit(":", 1)[0])
+
+    def not_a_row_of_this_queue(i: str) -> bool:
+        """Shown as an example, or quoted back from a report. Neither is an
+        ask. The second half is read from `split_dangling`'s verdict so the
+        rule that tells quotation from reference has one implementation."""
+        return i in quoted or only_an_example(i)
+
+    def elsewhere(open_ids: set[str]) -> list[tuple[str, str]]:
+        return sorted((i, entries[i].get("defined") or "")
+                      for i in open_ids if not not_a_row_of_this_queue(i))
+
+    board = root / "BOARD.md"
+    if not board.exists():
+        # Same question again: a `fixtures/BOARD.md` sorting ahead of the real
+        # one is a fixture's board, and reading it would hand this project
+        # somebody else's queue.
+        for alt in sorted(root.glob("*/BOARD.md")):
+            if explain.is_illustrative(str(alt.relative_to(root))):
+                continue
+            board = alt
+            break
+    if not board.exists():
+        return elsewhere(ids)
+    try:
+        text = board.read_text(errors="replace")
+    except OSError:
+        return elsewhere(ids)
+    rel = str(board.relative_to(root))
+
+    answered: set[str] = set()
+    where: dict[str, str] = {}
+    seen_table = False
+    in_section = False
+    for n, line in enumerate(text.split("\n"), 1):
+        if line.startswith("## "):
+            in_section = bool(re.match(r"##\s+(User Input Queue|用户输入队列)", line))
+            continue
+        if not in_section or not line.strip().startswith("|"):
+            continue
+        seen_table = True
+        m = re.search(r"\bUSER-\d+\b", line)
+        if not m:
+            continue
+        where.setdefault(m.group(0), f"{rel}:{n}")
+        if ANSWERED.search(line):
+            answered.add(m.group(0))
+    if not seen_table:
+        return elsewhere(ids)
+    # An id that IS a row of this board's queue is this project's row, whatever
+    # `harvest` picked as its definition point — `defined` is first-seen in a
+    # sorted walk, so a fixture that sorts ahead of the real board owns it, and
+    # dropping on that alone would trade one silent miscount for another.
+    own = {i for i in ids if i in where or not not_a_row_of_this_queue(i)}
+    return sorted((i, where.get(i) or (entries[i].get("defined") or ""))
+                  for i in own - answered)
+
+
+def open_design_decisions(root: Path, inventory: dict,
+                          explain) -> list[tuple[str, str]]:
+    """Rows of a `## User Decisions` table whose `Chosen` cell is still empty.
+
+    The register a design doc uses before its questions reach the queue —
+    `ALL rows must be resolved before this doc can move to Status: locked` is
+    the template's own line, so an unfilled row is exactly a decision waiting
+    on a person. It has an identity (the document and the row), so the prose
+    that argues the options out below the table adds nothing to the count
+    however long it runs.
+
+    A table is recognised by the rule line under its header, which is what
+    ends one table and starts the next inside the same section.
+    """
+    out: list[tuple[str, str]] = []
+    for rel in inventory["md"]:
+        if explain.is_illustrative(rel):
+            continue
+        text = read_text(root / rel, cap=200_000)
+        if "|" not in text or not DECISION_SECTION.search(text):
+            continue
+        in_section = False
+        fenced = False
+        chosen_at: int | None = None
+        label_at: int | None = None
+        prev: list[str] = []
+        for n, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            if line.startswith("#"):
+                in_section = bool(DECISION_SECTION.match(line))
+                chosen_at = label_at = None
+                prev = []
+                continue
+            if not in_section or not line.strip().startswith("|"):
+                continue
+            cells = split_row(line)
+            if cells and all(TABLE_RULE.match(c) for c in cells):
+                chosen_at = next(
+                    (i for i, c in enumerate(prev) if CHOSEN_COL.search(c)), None)
+                label_at = next(
+                    (i for i, c in enumerate(prev) if QUESTION_COL.search(c)), None)
+                continue
+            if chosen_at is not None and chosen_at < len(cells):
+                if UNRESOLVED_CELL.match(decision_label(cells[chosen_at])):
+                    at = label_at if (label_at is not None
+                                      and label_at < len(cells)) else 0
+                    out.append((decision_label(cells[at]), f"{rel}:{n}"))
+            prev = cells
+    return out
+
+
+def scan_decision_mentions(root: Path, inventory: dict, explain,
+                           recorded: set[str] | None = None
+                           ) -> tuple[int, list[str]]:
+    """Lines that TALK about an open decision without being a record of one.
+
+    Reported, never counted, and the boundary is deliberate. Prose carries no
+    identity, so a mention cannot be told apart from a repeat of the mention
+    next to it — which is how `perry/` reached seven open questions against a
+    queue holding two, three of the seven being one row discussed in three
+    files. A number that goes up when you write a question down is one that
+    penalises recording, and recording is the behaviour the queue exists to
+    produce.
+
+    The cost, named rather than hidden: a question raised only in prose is a
+    real unrecorded decision and it does NOT reach the count. It reaches this
+    list instead. Recording it as a `USER-` row is what makes it countable,
+    which is the same move the project asks of a human — and it keeps the
+    number reconcilable against `perry-task list --json`'s `asks.open`, which
+    is what makes it worth reading at all.
+
+    `recorded` is the set of `file:line` locations already counted as records,
+    so a `Chosen: TBD` cell is not also reported as prose talking about itself.
+    """
+    recorded = recorded or set()
+    n_mentions = 0
+    samples: list[str] = []
+    # A `TBD` inside `## Implementation plan` is not queued on the user. That
+    # section is a plan and its unknowns are resolved by doing the work — the
+    # common form is a task-id column reading `TBD at handoff`, which waits on
+    # the handoff, not on a person.
+    PLAN_SECTION = re.compile(r"^#{1,3}\s*(?:\d+\.\s*)?Implementation plan\b", re.I)
+    for rel in inventory["md"]:
+        # Same illustrative filter as the ID scan: a skill file explaining that
+        # a decision column starts life as `TBD` is documentation.
+        if explain.is_illustrative(rel):
+            continue
+        in_plan = False
+        fenced = False
+        for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            # **A marker inside a code span or a fence is a quotation.** Four
+            # review documents quote `{'', '-', 'n/a', 'tbd', '无'}` — the
+            # tool's own empty-cell set — while reporting on it. The same shape
+            # as `perry-lint`'s module-docstring false positive: a scanner that
+            # reports prose quoting the thing it looks for.
+            if fenced:
+                continue
+            if line.startswith("#"):
+                in_plan = bool(PLAN_SECTION.match(line))
+            if in_plan:
+                continue
+            if f"{rel}:{n}" in recorded:
+                continue
+            bare = DECLARED_TBD.sub("", line)
+            bare = "" if INDENTED_CODE.match(bare) else lib.blank_code_spans(bare)
+            if OPEN_DECISION.search(bare):
+                n_mentions += 1
+                if len(samples) < 8:
+                    samples.append(f"{rel}:{n}")
+    return n_mentions, samples
+
+
+# ── what counts as a REFERENCE to a code ──────────────────────────────────
+# LOAD-02 asks "can a reader look this code up?", and a REFERENCE is what makes
+# that a fair question: a line that USES an id sends the reader looking for it.
+# A line REPORTING ON A CHECK does not, and this repository proved it. Inside a
+# signed V5 record in `perry/journal/`:
+#
+#     - the dangling-id check reports [] — TASK-107 resolves and REL-00 is gone
+#
+# Recording that the dangling report was empty is what put an id back into it.
+# The check was reading its own output as input, so it could never again report
+# zero once anybody wrote down that it had; and a signed record is append-only,
+# so the line raising the finding is one nobody is permitted to fix. **An
+# instrument that reads its own report is broken, and the repair belongs in the
+# instrument, not in the record.**
+#
+# ── whether LOAD-03's fix transfers, since the shape is the same ──
+# It does not, not literally. `137ffb3` fixed LOAD-03 by counting RECORDS
+# instead of MENTIONS, because a decision has an identity only where a register
+# row gives it one. LOAD-02 already counts one entry per id — `REL-00` was
+# reported once for three mentions — so deduplicating mentions buys it nothing.
+#
+# What does transfer is the move underneath that fix: ask what the number is
+# FOR, and count only what the answer admits. LOAD-03's number is *questions
+# waiting on a person*, so only a row somebody waits on counts. LOAD-02's is
+# *codes a reader cannot look up*, so only a line that asks a reader to look one
+# up counts. Both replace a filter on WHICH PROSE with a rule about what the
+# measurement means — which is why neither adds a sixth carve-out.
+#
+# Four shapes are reports. All four are structural — where the line lives, what
+# mark it carries, or what the document around it is — and none reads English:
+#
+#   * inside a SIGNED RECORD: a `## V5 sign-off` block. Append-only by
+#     contract, and `tests/test_v5_signoff.TestHistoryIsNotRewritten` is there
+#     to say so. A finding nobody may edit away is not actionable.
+#   * inside a QUOTATION: a `>` blockquote. `perry-explain.harvest` already
+#     exempts fenced blocks for exactly this reason — "a fenced block is pasted
+#     output, not a reference" — and a blockquote is that same statement in the
+#     other markdown spelling.
+#   * on a line NAMING A CHECK: one of this checker's own finding codes, or a
+#     `test_…` identifier. Both are identifiers the repository owns, so
+#     `LOAD-02 reports REL-00 dangling` and `adding one DESIGN-900-probe.md
+#     turns test_the_number_reconciles red` announce themselves as reports
+#     without anybody guessing at the sentence.
+#   * in a document that REPORTS ON A CHECK, a mention of an id the project has
+#     ALREADY reported on. The first three ask whether THIS LINE is a report;
+#     the fourth asks whether THIS ID has one. See below — it is the only one
+#     of the four that needs a reason longer than a sentence.
+#
+# **Why the fourth mark exists: a row about this check cannot be closed.**
+# TASK-113 fixed LOAD-02 and measured `dangling: []`. Then it wrote the record
+# that closes a row — and the record has to narrate what the check said, which
+# put `REL-00` and `DESIGN-900` straight back into the count. Every live
+# mention of both is in that one record. So the row could not be closed without
+# writing a record, and writing the record reopened it. That is a defect in the
+# rule, not in the two ids, and no wording of the record fixes it: rewriting a
+# true account until a checker goes quiet is the failure being ended here.
+#
+# The narration is the point. `dangling: []   dangling_in_reports: [...]` in a
+# dispatch record is the check quoted back at itself, and quoting a measurement
+# is not asking a reader to look an id up — which is the only thing LOAD-02's
+# number is for.
+#
+# **Both halves are load-bearing, and each is what keeps the other honest.**
+# The document must name one of this checker's findings or one of its tests
+# somewhere in it, AND the id must be carried by at least one line the first
+# three marks already exempt. Neither half exempts anything alone:
+#
+#   * drop the DOCUMENT half and any id ever named beside a check goes silent
+#     everywhere, so burying one live reference under one report would silence
+#     a true finding — `test_one_live_reference_is_enough_to_keep_an_id_dangling`
+#     is there to say so.
+#   * drop the ID half and every document that discusses a check exempts every
+#     id in it, including a genuine `Blocked on ZZZ-404 until Friday` four
+#     sections down. For this repository that is `perry/evidence/**` under
+#     another name, and a path exemption is what this must not become —
+#     `test_a_record_about_a_check_still_reports_an_id_it_never_reported_on`
+#     holds that line.
+#
+# Scope, stated because it is wider than the other three: the first three marks
+# are scoped to the line, the paragraph and the section; the fourth is scoped
+# to the DOCUMENT, and only for one id at a time. A document is the unit that
+# has a subject, and "the check" is the subject the fourth mark is about.
+#
+# **Why naming a check is safe to exempt, given it sounds broad.** The rule is
+# only ever applied to an id that is ALREADY undefined everywhere, and only
+# when EVERY one of its mentions is a report. `TASK-042 is covered by
+# test_foo` loses nothing, because TASK-042 is defined on the board and was
+# never a candidate. What is left after those two filters is the demonstration
+# id — the `DESIGN-900-probe.md` a review invents to show a check going red —
+# which is exactly what this must not charge the project for.
+#
+# The cost, named rather than hidden: an ordinary paragraph reading `REL-00 is
+# gone`, carrying none of those marks, is still a reference and still counts —
+# and the fourth mark's own cost is that a document reporting on a check stops
+# charging the project for an id the project already reported on, even where
+# that document's prose is an ordinary reference. That is one id per report, it
+# is bounded by an id the project itself put on the record, and it is visible:
+# it lands in `dangling_in_reports`. Widening either of these into a list of
+# absence-words — or into a path — is the carve-out treadmill
+# LOAD-03 rode for five rounds, and this does not start it. Ids exempted here
+# are reported beside the count as `user_load.dangling_in_reports` and never
+# added to it — the same boundary `scan_decision_mentions` draws.
+
+#: The heading opening a signed record. `V5 sign-off` is the spelling
+#: `bin/perry-task.render_signoff` writes; the rest is the same heading in the
+#: other forms a project may reach for.
+SIGNED_RECORD = re.compile(
+    r"^#{1,6}\s*(?:V\d+\s+)?(?:sign[- ]?off|signature|签字|签署)\b", re.I)
+#: A markdown blockquote — someone else's words, quoted.
+QUOTED_LINE = re.compile(r"^\s{0,3}>")
+
+
+#: A check named the way this repository names its checks. `{3,}` so the token
+#: is a function name and not the English word "test" followed by an underscore.
+TEST_NAME = re.compile(r"\btest_[a-z][a-z0-9_]{3,}\b")
+
+
+@functools.lru_cache(maxsize=1)
+def finding_code_re() -> "re.Pattern[str]":
+    """`LOAD-02|DOC-03|…` — this checker's own vocabulary, read from `WHY` so
+    a finding added later is covered without anybody remembering to come back."""
+    prefixes = sorted({fid.rsplit("-", 1)[0] for fid in WHY}, key=len, reverse=True)
+    return re.compile(r"\b(?:%s)-\d+\b" % "|".join(map(re.escape, prefixes)))
+
+
+def names_a_check(line: str) -> bool:
+    return bool(finding_code_re().search(line) or TEST_NAME.search(line))
+
+
+def document_reports_on_a_check(path: Path) -> bool:
+    """The fourth mark's DOCUMENT half: this file names one of this checker's
+    findings or one of its tests somewhere in it, so what it is doing with a
+    code is reporting on a check rather than tracking work.
+
+    Deliberately the same predicate as the third mark, read over the whole
+    file instead of one paragraph — a document is the unit that has a subject,
+    and no second vocabulary is introduced to describe it. On its own this
+    exempts nothing: `split_dangling` also requires the id to be one the
+    project has already reported on.
+    """
+    return any(names_a_check(line) for line in read_text(path).splitlines())
+
+
+def report_lines(path: Path) -> set[int]:
+    """Line numbers in one file that REPORT on a check rather than refer to a
+    code. The first three marks only — they are the three a single file can
+    decide. The fourth needs every mention of an id, so `split_dangling` owns
+    it. See the block above for why each of these three shapes is a report.
+
+    **The check-name mark is scoped to the PARAGRAPH, not the line.** A review
+    naming the check on one line and the id it demonstrated with three lines
+    later is one sentence that markdown happened to wrap; scoping to the line
+    would exempt half of it and charge the project for the other half. A run
+    of non-blank lines is the smallest unit of prose that carries one
+    statement, and it is a structural unit, not a reading of the English.
+    """
+    out: set[int] = set()
+    signed = False
+    para: list[int] = []
+    para_names_check = False
+
+    def flush():
+        nonlocal para, para_names_check
+        if para_names_check:
+            out.update(para)
+        para, para_names_check = [], False
+
+    for n, line in enumerate(read_text(path).splitlines(), 1):
+        if not line.strip():
+            flush()
+            continue
+        if line.startswith("#"):
+            flush()
+            signed = bool(SIGNED_RECORD.match(line))
+            continue
+        if signed or QUOTED_LINE.match(line):
+            out.add(n)
+        para.append(n)
+        para_names_check = para_names_check or names_a_check(line)
+    flush()
+    return out
+
+
+def split_dangling(root: Path, entries: dict, explain) -> tuple[list, list]:
+    """`(dangling, reported_only)`.
+
+    An id survives into `dangling` if ONE mention of it is a live reference —
+    a tracking document, not a report. An id every one of whose mentions is a
+    report is not dangling; it is the dangling check quoted back at itself.
+
+    **Two passes, because the fourth mark is about the id and not the line.**
+    The first three marks can be decided from the file a mention sits in, so
+    `report_lines` decides them. The fourth cannot: whether a mention is the
+    narration of a report depends on whether the id HAS a report, which is
+    known only once every mention has been read. So this reads them all, then
+    judges — and the second pass exempts a mention only when both halves hold,
+    the id already reported on somewhere and this document reporting on a
+    check. See the block above the marks for why neither half stands alone.
+    """
+    dangling, reported_only = [], []
+    cache: dict[str, tuple[set[int], bool]] = {}
+
+    def marks(rel: str) -> tuple[set[int], bool]:
+        if rel not in cache:
+            path = root / rel
+            cache[rel] = (report_lines(path), document_reports_on_a_check(path))
+        return cache[rel]
+
+    for e in entries.values():
+        if e["defined"] or not e.get("in_tracking_doc"):
+            continue
+        # Pass 1 — `(this document reports on a check, this line is a report)`
+        # for every mention the rule is allowed to read.
+        read: list[tuple[bool, bool]] = []
+        for loc in e["mentions"]:
+            rel, _, n = loc.rpartition(":")
+            if not n.isdigit() or explain.is_illustrative(rel):
+                continue
+            lines, about_a_check = marks(rel)
+            read.append((about_a_check, int(n) in lines))
+        # Pass 2 — the id half of the fourth mark, then the verdict.
+        on_the_record = any(is_report for _, is_report in read)
+        live = any(not is_report and not (on_the_record and about_a_check)
+                   for about_a_check, is_report in read)
+        # No mentions at all should be unreachable (an undefined id is known
+        # only through them), but an id nobody can point at must not be
+        # silently dropped by a rule about where its mentions live.
+        (dangling if live or not e["mentions"] else reported_only).append(e["id"])
+    return sorted(dangling), sorted(reported_only)
 
 
 def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> dict:
@@ -250,8 +828,9 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
     # Documentation and templates are full of illustrative IDs — `tag your task
     # like TASK-007` refers to nothing and is not supposed to. Without this,
     # running against Perry's own repo produced 25 findings, 21 of them noise.
-    dangling = sorted(e["id"] for e in entries.values()
-                      if not e["defined"] and e.get("in_tracking_doc"))
+    # And only when a line REFERS to it rather than reporting on this very
+    # check: see `split_dangling` and the block above it.
+    dangling, dangling_in_reports = split_dangling(root, entries, explain)
     untitled = sorted(e["id"] for e in entries.values()
                       if e["defined"] and not e["title"]
                       and e.get("in_tracking_doc"))
@@ -272,33 +851,62 @@ def scan_user_load(root: Path, inventory: dict, docs: dict, is_perry: bool) -> d
         (root / d / "perry-explain").is_file() for d in ("bin", "scripts", "tools")
     )
 
-    # Same illustrative filter as the ID scan: a skill file explaining that a
-    # decision column starts life as `TBD` is documentation, not a decision
-    # anyone is waiting on. Perry's own repo produced 14 of these before the
-    # filter and 0 after.
-    open_decisions = 0
-    samples: list[str] = []
-    for rel in inventory["md"]:
-        if explain.is_illustrative(rel):
-            continue
-        for n, line in enumerate(read_text(root / rel, cap=200_000).splitlines(), 1):
-            if OPEN_DECISION.search(DECLARED_TBD.sub("", line)):
-                open_decisions += 1
-                if len(samples) < 8:
-                    samples.append(f"{rel}:{n}")
-    open_decisions += len([e for e in entries.values()
-                           if e["id"].startswith("USER-")
-                           and e.get("in_tracking_doc")])
+    # One entry per decision RECORD — a pending queue row or an unfilled
+    # `Chosen` cell — so the number does not move when a document discusses a
+    # question it did not open. Prose is measured beside it and never into it.
+    #
+    # **Kept split by register, because the total is not what reconciles.**
+    # `perry-task list --json`'s `asks.open` reads the queue and only the
+    # queue, so `open_decisions == asks.open` holds only while no design doc
+    # has an open row — and `state/design_TEMPLATE.md` REQUIRES such a row
+    # before a doc can lock. A test pinned to the total therefore goes red when
+    # somebody writes a design document, which is the same class of defect as
+    # TASK-113's three: an equality that was true when it was measured, pinned
+    # as though it were an invariant. The invariant is per register, and it is
+    # `open_decisions_by_register` that carries it.
+    #
+    # `dangling_in_reports` is handed to the queue register rather than being
+    # re-derived there. It is the ids whose every live mention is a report, and
+    # `split_dangling` is where that is decided — the same rule serving both
+    # halves of `user_load`, which is what stopped them disagreeing about
+    # `USER-900`. See `open_user_asks` for why the two questions have one
+    # answer where they overlap.
+    queue_records = open_user_asks(root, entries, explain,
+                                   set(dangling_in_reports))
+    design_records = open_design_decisions(root, inventory, explain)
+    records = queue_records + design_records
+    mentions, mention_samples = scan_decision_mentions(
+        root, inventory, explain, {where for _, where in records})
+    samples = [f"{where} — {label}" if where else label
+               for label, where in records]
 
     return {
         "available": True,
         "total_ids": len(entries),
         "dangling": dangling,
+        # Not part of `dangling`. Codes that appear only where a check was
+        # being REPORTED ON — a signed record, a quotation, a line naming one
+        # of this tool's own findings, or a document reporting on a check that
+        # narrates an id the project already reported on. Reported so the
+        # exemption is visible and auditable, never added to the count. See
+        # `split_dangling`.
+        "dangling_in_reports": dangling_in_reports,
         "untitled": untitled,
         "definitions_concentrated": concentrated,
         "has_resolver": has_resolver,
-        "open_decisions": open_decisions,
-        "open_decision_samples": samples,
+        "open_decisions": len(records),
+        # Which register each open decision came from. The queue half is the
+        # one `perry-task list --json`'s `asks.open` also reads, so this is
+        # what a reconciliation check must compare — the total is a sum over
+        # two registers and only one tool reads both.
+        "open_decisions_by_register": {"queue": len(queue_records),
+                                       "design": len(design_records)},
+        "open_decision_samples": samples[:8],
+        # Not part of `open_decisions`. Prose that raises a question nobody
+        # recorded — real, worth reading, and not countable. See
+        # `scan_decision_mentions`.
+        "decision_mentions": mentions,
+        "decision_mention_samples": mention_samples,
     }
 
 
@@ -348,25 +956,20 @@ EXAMPLE_DIR_NAMES = {
 }
 
 
-def resolve_state_root(root: Path) -> Path:
-    """Mirror of viewer/parsers.py § resolve_state_root, kept minimal so this
-    script has no import dependency on the viewer. A state root that escapes
-    the project is ignored rather than honoured."""
-    cfg = root / ".perry" / "config.md"
-    if not cfg.is_file():
-        return root
-    m = re.search(r"^\s*[-*]?\s*State root:\s*(.+?)\s*$", read_text(cfg), re.M | re.I)
-    if not m:
-        return root
-    raw = m.group(1).strip().strip("`")
-    if not raw or raw == ".":
-        return root
-    try:
-        cand = (root / raw).resolve()
-        cand.relative_to(root.resolve())
-    except (ValueError, OSError):
-        return root
-    return cand if cand.is_dir() else root
+# `resolve_state_root` is imported from `lib` — which re-exports
+# `viewer/parsers.py`'s, the one every other tool already calls. The mirror that
+# used to live here called itself "kept minimal so this script has no import
+# dependency on the viewer", and that was no longer true: `split_row` and
+# `squash` are imported from `viewer/tables.py` fourteen lines above.
+#
+# The mirror also **could not read a Chinese config**. It matched `State root:`
+# with an ASCII colon only, while the canonical one accepts `：` as well — so on
+# a project whose `.perry/config.md` declares `State root：docs`, every other
+# tool moved and `perry-diagnose` kept reading the project root. The mirror was
+# stricter in two ways worth naming: it anchored the match to the start of a
+# line, and it returned the project root when the declared path was not a
+# directory. Neither is in the canonical one; both are recorded on the row
+# rather than added here, because they are a change to what every reader does.
 
 
 # ── the walk ──────────────────────────────────────────────────────────────
@@ -377,7 +980,9 @@ def walk(root: Path, max_files: int) -> dict:
     seen = 0
     truncated = False
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".claude-")]
+        dirnames[:] = [d for d in dirnames
+                       if d not in SKIP_DIRS and not d.startswith(".claude-")
+                       and not is_nested_repo(Path(dirpath) / d)]
         rel_dir = Path(dirpath).relative_to(root)
         if str(rel_dir) != ".":
             dirs.add(str(rel_dir))
@@ -985,6 +1590,12 @@ WHY = {
         "write. It will read them as its own state and report them as broken — "
         "so the next check will tell you your own file is malformed. It "
         "isn't; it is just standing in a folder Perry took.",
+    "MODE-01":
+        "You wrote down what kind of work this is, and the board says "
+        "something else. The questions asked at each review are picked from "
+        "that label — so it will keep asking what is aging in review when the "
+        "real question is what came in and never got answered, and the check "
+        "that would have caught something never runs.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -1036,7 +1647,7 @@ def _perry_shaped(path: Path, schema: dict) -> bool:
     if path.name in ("README.md", "INDEX.md"):
         return True
     stem = path.stem
-    if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
+    if lib.perry_named_artifact(stem) or re.match(r"^\d{3}-", stem):
         return True
     if re.match(r"^\d{4}-\d{2}(-\d{2})?$", stem) or re.match(r"^\d{4}-W?\d{2}$", stem):
         return True
@@ -1046,6 +1657,477 @@ def _perry_shaped(path: Path, schema: dict) -> bool:
         return "$PERRY_HOME" in path.read_text(encoding="utf-8", errors="replace")[:2000]
     except OSError:
         return False
+
+
+# ── work modes ────────────────────────────────────────────────────────────
+#
+# DESIGN-003 gave a project four shapes, and `modes/*.md` says what tells them
+# apart: what closes the horizon, and what the spine is. This scanner answers
+# "which of the four does the *observable* work fit" — a different question
+# from "which one did the register declare", and the whole value is in being
+# able to answer the two differently.
+#
+# One rule it may not break: **"cannot tell" is a real answer.** Three of the
+# four modes are recognised by columns and files a project may simply not have,
+# and a scanner that fell back to `project` whenever it saw nothing would
+# announce a verdict on every folder on earth while having measured none of
+# them. `reference/diagnose.md` calls a signal that never clears worse than no
+# check; a verdict that never abstains is that same defect facing the other way.
+#
+# And it never reads the `## Tracks` row it is judging. Scoring a track's own
+# declared `Stages` / `SLA` / `Cycle` cells as evidence would let the
+# declaration confirm itself, and `MODE-01` — the disagreement finding — could
+# then never fire at all.
+
+MODE_NAMES = ("project", "pipeline", "queue", "inquiry")
+
+# Weights, and the rule for a signal two contracts claim.
+#
+# `STRUCTURAL` is a column, a directory or a board section that exactly **one**
+# mode's contract table in `modes/*.md` defines. `CORROBORATING` is a signal
+# that mode owns alone but which a project can carry for other reasons.
+#
+# `SHARED` is the third case, and getting it wrong is what this scanner shipped
+# for a release. Two of the columns it reads are named by two contracts:
+#
+#   `Stage since` — pipeline's *Stage clock* (`modes/pipeline.md` § contract,
+#                   and triage step 1 computes `today − Stage since`) **and**
+#                   inquiry's *Question clock* (`modes/inquiry.md` § contract,
+#                   whose triage step 2 computes the same subtraction).
+#   `Commitment`  — pipeline's *Commitment link* (`modes/pipeline.md` §
+#                   contract) **and** the cell a routed intake row takes in
+#                   `modes/queue.md § triage drains intake first`, carries in
+#                   § Standing commitments, and is named by when it breaches
+#                   SLA in that file's triage step 2.
+#
+# A signal two modes own cannot tell those two apart. It can still tell them
+# apart from the other two, so dropping it would throw away a real fact. It is
+# therefore scored **for every owner** — which makes its contribution to the
+# margin between them exactly zero — and at a **reduced** weight, because a
+# fact that halves the field is not a fact that names a mode.
+#
+# The consequence to hold onto: with these numbers no verdict resting only on
+# shared evidence can reach `high`, and `high` is the only confidence `MODE-01`
+# fires on. An accusation is never assembled out of evidence two modes share.
+STRUCTURAL, CORROBORATING, SHARED = 3, 2, 2
+
+# `high` is that gate, so it takes more than one fact. `HIGH_SCORE` is set
+# above the largest single signal on purpose: **no one signal can reach it**,
+# so a `high` verdict always rests on at least two, and — since two shared
+# signals sum to 4 — on at least one signal exactly one mode owns. `top >= 3`,
+# one weight-3 signal, used to satisfy what `reference/diagnose.md` sells as
+# *"with a clear margin"*, which meant a single column was enough to tell a
+# user their own written declaration was wrong. `HIGH_MARGIN` is the second
+# half: a lead of a whole structural signal over the runner-up, so a mode that
+# merely edges ahead is reported as `medium` and accuses nobody.
+#
+# Both numbers are load-bearing rather than decorative, and
+# `tests/test_diagnose.py` reverts each one on its own to prove it.
+HIGH_SCORE, HIGH_MARGIN = 5, 3
+
+# The default stage vocabularies from `modes/*.md`, minus every member that is
+# ALSO a global `Status` value or another mode's stage. `review` is pipeline's
+# and the status enum's; `in_progress` is queue's and the status enum's. A cell
+# reading either of those distinguishes nothing, so neither is here.
+STAGE_VOCAB = {
+    "pipeline": {"brief", "draft", "approved", "published"},
+    "queue": {"new", "triaged", "resolved"},
+    "inquiry": {"open", "researching", "answered"},
+}
+
+# Board columns, and the modes each one belongs to — read off the four contract
+# tables in `modes/*.md`, which is the source this scanner is derived from.
+#
+#   `Stage since` · `Commitment` — two owners each; see the SHARED note above.
+#   `Arrived` — queue's alone (`modes/queue.md § contract` → Arrival).
+#       `modes/pipeline.md § What this mode does not assume` sends work that
+#       arrives to a second track in queue mode rather than bending pipeline,
+#       so no other contract wants the column.
+#   `Parent` — inquiry's alone (`modes/inquiry.md § contract` → Question tree,
+#       Spine). No other mode has a tree to record.
+COLUMN_SIGNALS = (
+    ("stage since", ("pipeline", "inquiry"), "carry a `Stage since` date"),
+    ("commitment", ("pipeline", "queue"), "name the `Commitment` they discharge"),
+    ("arrived", ("queue",), "carry an `Arrived` date"),
+    ("parent", ("inquiry",), "name a `Parent` question"),
+)
+
+#: **Deleted, not narrowed.** This was `re.compile(r"\b\d{4}-\d{2}-\d{2}\b")`
+#: and every caller `search`ed it, so `2026-09-30 or so` counted as a dated
+#: promise here while `bin/perry-goals` refused the identical value on `--due`.
+#: The commit that anchored the goals copy claimed the property was gone from
+#: the repository; it was gone from one of the two places that had it.
+#: `lib.is_iso_date` is now the only answer. See `lib.ISO_DATE_RE`.
+# Columns read by name. English always resolves; the other languages come from
+# the schema, so this script carries no second copy of that list.
+_FALLBACK_COLUMNS = ("id", "track", "stage", "stage since", "commitment",
+                     "arrived", "parent", "by when", "title", "status")
+
+
+def column_aliases() -> dict[str, set[str]]:
+    """Canonical column name (lowercased) → every spelling a header may use."""
+    out: dict[str, set[str]] = {c: {c} for c in _FALLBACK_COLUMNS}
+    try:
+        schema = json.loads(read_text(PERRY_HOME / "schema" / "state-schema.json"))
+        cols = (schema.get("i18n") or {}).get("columns") or {}
+    except Exception:
+        cols = {}
+    for canon, langs in cols.items():
+        key = str(canon).lower()
+        names = out.setdefault(key, {key})
+        for spellings in (langs or {}).values():
+            names |= {str(v).lower() for v in (spellings or [])}
+    return out
+
+
+def md_sections(text: str):
+    """`## Heading` → its body lines, including a leading preamble section.
+
+    Deliberately its own reader rather than `viewer/parsers.py`'s: `ADR-004`
+    splits the tools in two, sending the steady-state readers strict against
+    Perry's declared shape and keeping `diagnose` *"tolerant, and more so —
+    they must read any shape to propose a migration."* A diagnose that borrowed
+    the strict reader would stop being able to read the projects it exists to
+    diagnose.
+    """
+    heading, body = "", []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            yield heading, body
+            heading, body = line[3:].strip(), []
+        else:
+            body.append(line)
+    yield heading, body
+
+
+def md_table(lines: list[str], aliases: dict[str, set[str]]):
+    """The first readable table in `lines` → (column → index, [row cells]).
+
+    Resolved **by name**, never by position: a project may omit any column, and
+    a positional read then attributes one column's value to another. That exact
+    bug has been found twice in this repo's own parsers.
+    """
+    header: dict[str, int] = {}
+    rows: list[list[str]] = []
+    for line in lines:
+        s = line.strip()
+        if not s.startswith("|"):
+            if rows:
+                break
+            continue
+        if set(s) <= set("|- :"):
+            continue
+        cells = [c.strip("*` ") for c in split_row(s)]
+        # `squash` resolves the header; `cells` keeps the values verbatim.
+        # `.lower()` alone reads `| **Default** rung |` as `default** rung`,
+        # so a project that bolded half a header loses that column entirely —
+        # and `md_table` reads the USER's board and OKR.
+        low = [squash(c) for c in cells]
+        if not header:
+            header = {canon: i for canon, names in aliases.items()
+                      for i, c in enumerate(low) if c in names}
+            if not header:
+                break
+            continue
+        rows.append(cells)
+    return header, rows
+
+
+def _as_dict(header: dict[str, int], cells: list[str]) -> dict[str, str]:
+    return {k: (cells[i] if 0 <= i < len(cells) else "") for k, i in header.items()}
+
+
+def _filled(rows: list[dict], col: str) -> int:
+    return sum(1 for r in rows if not lib.is_blank_cell(r.get(col) or ""))
+
+
+def _award(ev: dict[str, list], owners: tuple[str, ...], weight: int,
+           label: str) -> None:
+    """Score one signal for every mode `modes/*.md` gives it.
+
+    One owner scores at `weight`. More than one scores each of them at `SHARED`
+    — the same number for each, so a shared signal moves both scores together
+    and can never open a margin between its own owners. The label is identical
+    in every mode's evidence list, so a reader of the payload sees the fact
+    once per mode that claims it rather than once, silently attributed.
+    """
+    w = weight if len(owners) == 1 else min(weight, SHARED)
+    for m in owners:
+        ev[m].append((w, label))
+
+
+def _verdict(evidence: dict[str, list]) -> tuple[str | None, str, dict[str, int]]:
+    """Score → (mode or None, confidence, scores).
+
+    `None` is returned twice over, and the two are different facts the payload
+    keeps apart: `none` means nothing distinguishing was found at all, `low`
+    means two modes tied. Neither is a verdict, and neither may be rounded up
+    into one.
+
+    `high` is the fourth answer and the strictest, because `MODE-01` is gated
+    on it — see the `HIGH_SCORE` note. Everything else that scores is `medium`:
+    a mode worth naming in the report, on evidence too thin to contradict a
+    user with.
+    """
+    scores = {m: sum(w for w, _ in evidence[m]) for m in MODE_NAMES}
+    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
+    top, second = ranked[0], ranked[1]
+    if top[1] == 0:
+        return None, "none", scores
+    if top[1] == second[1]:
+        return None, "low", scores
+    if top[1] >= HIGH_SCORE and top[1] - second[1] >= HIGH_MARGIN:
+        return top[0], "high", scores
+    return top[0], "medium", scores
+
+
+def scan_work_modes(root: Path, state_root: Path) -> dict:
+    """Which of DESIGN-003's four shapes each track's work actually fits."""
+    try:
+        state = load_sibling("perry-state")
+        # The STORE first, `.perry/config.md` only when there is no store
+        # (P003-O2-KR1). Both halves matter here: a Perry-managed project's
+        # register is `.perry/config.jsonl` and the table is its projection,
+        # while a FOREIGN project — the ones this tool exists to read — has no
+        # store at all and the table is the register. `declared_tracks` is that
+        # one decision, made once.
+        tracks = state.declared_tracks(root)
+    except Exception:
+        # Reported absent rather than defaulted. A fallback here would make
+        # every project read as one implicit `project` track, and MODE-01 would
+        # go quiet instead of red.
+        return {"available": False, "register_declared": False, "tracks": []}
+
+    aliases = column_aliases()
+    board = read_text(state_root / "BOARD.md")
+    okr = read_text(state_root / "OKR.md")
+
+    rows: list[dict] = []
+    intake_rows = 0
+    for heading, body in md_sections(board):
+        header, cells = md_table(body, aliases)
+        if not header:
+            continue
+        if re.match(r"(?:Intake|收件)\b", heading, re.I):
+            # Counted as its own organ, not as board rows — the `Arrived`
+            # column appears in both and would otherwise be scored twice.
+            intake_rows += len(cells)
+            continue
+        rows += [_as_dict(header, c) for c in cells]
+
+    commitments: list[dict] = []
+    for heading, body in md_sections(okr):
+        if not re.match(r"(?:Commitments|承诺)\b", heading, re.I):
+            continue
+        header, cells = md_table(body, aliases)
+        commitments += [_as_dict(header, c) for c in cells]
+
+    phase_dir = state_root / "phase"
+    phase_files = sorted(phase_dir.glob("[0-9][0-9][0-9]-*.md")) if phase_dir.is_dir() else []
+    has_current = (phase_dir / "CURRENT").is_file()
+    objectives = len(re.findall(r"^#{2,4}\s*(?:Objective|目标)\b", okr, re.M | re.I))
+    ev_dir = state_root / "evidence"
+    answers = sorted(ev_dir.glob("*/*-answer.md")) if ev_dir.is_dir() else []
+    kdir = state_root / "knowledge"
+    digests = 0
+    if kdir.is_dir():
+        for p in sorted(kdir.rglob("*.md")):
+            if re.search(r"^\s*[-*>]?\s*Id\s*:\s*SRC-\d+\b",
+                         read_text(p, cap=4000), re.M):
+                digests += 1
+
+    # Project-wide signals. They can only be attributed when there is exactly
+    # one track to attribute them to — `phase/` and `## Intake` carry no track
+    # column, so on a multi-track project they say nothing about any one track.
+    # Each of these belongs to exactly one contract. `phase/` is project's
+    # horizon and `modes/queue.md § Standing commitments` says in as many words
+    # that Perry's phase machinery is not used by that mode; the objectives
+    # cascade is disclaimed by the other three; `## Intake` is the organ
+    # `modes/queue.md` opens by saying no other mode needs; the answer file and
+    # the SRC- digest are `modes/inquiry.md`'s deliverable and its sources.
+    # **Two kinds of file evidence, and lumping them together was the bug in
+    # both directions.**
+    #
+    # `phase/` and `OKR.md`'s objectives describe the WHOLE REPOSITORY. Handing
+    # them to a declared `ops` track told it the project's objectives were its
+    # own evidence — `project 7 / pipeline 4`, and a `MODE-01` warn telling the
+    # user to change a `Mode` cell that was correct.
+    #
+    # `## Intake`, answer files and `SRC-` digests describe a WORK SHAPE. They
+    # are evidence that somebody in this repo works that way, and withholding
+    # them from a declared queue or inquiry track made it unreadable — which
+    # the first version of this fix did, turning three existing tests red. Those
+    # tests were right.
+    project_wide_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    shape_ev: dict[str, list] = {m: [] for m in MODE_NAMES}
+    file_ev = project_wide_ev
+    if phase_files or has_current:
+        _award(file_ev, ("project",), STRUCTURAL,
+               f"phase/ holds {len(phase_files)} numbered phase file(s)"
+               + (" and a CURRENT pointer" if has_current else ""))
+    if objectives:
+        _award(file_ev, ("project",), CORROBORATING,
+               f"OKR.md declares {objectives} objective(s)")
+    file_ev = shape_ev
+    if intake_rows:
+        _award(file_ev, ("queue",), STRUCTURAL,
+               f"BOARD.md § Intake carries {intake_rows} arrived request(s)")
+    if answers:
+        _award(file_ev, ("inquiry",), STRUCTURAL,
+               f"{len(answers)} answer file(s) under evidence/")
+    if digests:
+        _award(file_ev, ("inquiry",), CORROBORATING,
+               f"{digests} source digest(s) under knowledge/ carrying an SRC- id")
+
+    # **`len(tracks) == 1` was a proxy for "no register exists", and it is
+    # ALSO true when the register declares exactly one track.** In that case
+    # every board row, every commitment row and every project-wide file was
+    # scored as that track's — ignoring the `Track` column this scanner
+    # already reads, and ignoring `schema/state-schema.json`'s own rule that a
+    # blank `Track` means the implicit `main` track.
+    #
+    # A project declaring one `pipeline` track with its ordinary work in
+    # untracked rows scored `project 7 / pipeline 4` and got a `MODE-01` warn
+    # telling the user to change a `Mode` cell that was correct, citing
+    # objectives and rows that are not that track's. `perry-lint` accepts that
+    # shape and no test covered it.
+    #
+    # The declaredness was already computed sixty lines below, for the payload.
+    # Asking the question the proxy was standing in for costs nothing.
+    single = not any(t.get("declared") for t in tracks)
+
+    # **The implicit `main` track was never enumerated.** With a register that
+    # declares only `ops`, rows or commitments carrying no `Track` belong to
+    # `main` by the schema's rule — and `main` was in nobody's list, so their
+    # evidence went to `ops` or nowhere. Added only when such work exists, so a
+    # project whose every record is tracked gains no phantom.
+    untracked_work = any(not (r.get("track") or "").strip() for r in rows) \
+        or any(not (c.get("track") or "").strip() for c in commitments)
+    if not single and untracked_work:
+        # The key is `track`, not `name` — `parse_tracks` returns
+        # `{'track': 'ops', ...}`. Written as `name` first, which would have
+        # matched nothing and injected a record every downstream reader would
+        # have read as an unnamed track. Caught by printing the record rather
+        # than by assuming its shape.
+        if not any((t.get("track") or "").lower() == "main" for t in tracks):
+            tracks = list(tracks) + [{"track": "main", "declared": False,
+                                      "mode": "project", "stage_list": [],
+                                      "stages_declared": False}]
+
+    #: Which track owns evidence that describes the repository rather than a
+    #: work shape. It belongs to an implicit/declared `main` in project mode,
+    #: or to the sole declared track when that track itself is project mode.
+    #: A sole pipeline/queue/inquiry track is not made project-shaped merely
+    #: because no second track was declared.
+    main_project = next(
+        ((t.get("track") or "").lower() for t in tracks
+         if (t.get("track") or "").lower() == "main"
+         and (t.get("mode") or "project").lower() == "project"), "")
+    sole_project = (
+        (tracks[0].get("track") or "").lower()
+        if len(tracks) == 1
+        and (tracks[0].get("mode") or "project").lower() == "project"
+        else "")
+    project_wide = main_project or sole_project
+
+    def record_track(record: dict) -> str:
+        """A blank `Track` cell belongs to the implicit `main` track."""
+        return (record.get("track") or "main").strip().lower()
+
+    def evidence_for(name: str) -> dict[str, list]:
+        # **Project-wide file evidence belongs to the project-wide track.**
+        # `phase/`, `OKR.md`'s objectives and the rest describe the whole
+        # repository, so with no register they are the implicit project track's
+        # — and with a register they are an explicit or implicit project
+        # track's. They never belong to a sole non-project track merely because
+        # it is the only declared candidate.
+        # Shape evidence reaches every track; repository evidence reaches the
+        # project-wide one — the implicit `main` when untracked work exists, or
+        # a sole declared project-mode track. `project_wide` is that question
+        # already answered.
+        ev: dict[str, list] = {m: list(v) for m, v in shape_ev.items()}
+        if name.lower() == project_wide:
+            for mode, items in project_wide_ev.items():
+                ev[mode] = list(items) + ev[mode]
+        mine = [r for r in rows if single or record_track(r) == name.lower()]
+        n = lambda col: _filled(mine, col)  # noqa: E731
+        for col, owners, phrase in COLUMN_SIGNALS:
+            filled = n(col)
+            if filled:
+                _award(ev, owners, STRUCTURAL,
+                       f"{filled} board row(s) {phrase}")
+        seen = {(r.get("stage") or "").strip().lower() for r in mine}
+        for mode, vocab in STAGE_VOCAB.items():
+            hit = sorted(seen & vocab)
+            if hit:
+                _award(ev, (mode,), CORROBORATING,
+                       f"stage vocabulary in use: {', '.join(hit)}")
+        krs = sum(1 for r in mine
+                  if re.search(r"\bkr:\s*\S", " ".join(r.values()), re.I))
+        if krs:
+            _award(ev, ("project",), CORROBORATING,
+                   f"{krs} board row(s) attribute work to a KR")
+        mine_c = [c for c in commitments
+                  if single or record_track(c) == name.lower()]
+        # `OKR.md § Commitments` is the spine of **both** pipeline and queue, so
+        # the table's existence distinguishes nothing. The **columns** do, and
+        # since TASK-091 they do it by name rather than by regex: a dated
+        # promise is one carrying `Due`, and a standing one is one carrying
+        # `By when note` — prose recording how the deadline was worded, whose
+        # real clock lives once in the register's `SLA` (`modes/queue.md §
+        # Standing commitments`).
+        #
+        # `by when` is still read, and only here. This tool diagnoses FOREIGN
+        # projects, which is the one job ADR-007 keeps a parser for; a register
+        # written before the split is exactly what it exists to recognise.
+        def _cell(c: dict, *names: str) -> str:
+            for n in names:
+                v = (c.get(n) or "").strip()
+                if not lib.is_blank_cell(v):
+                    return v
+            return ""
+
+        # **Both counters read the SAME cells**, so every commitment lands in
+        # exactly one of them. `prose` used to read `by when` while `dated`
+        # read `due` OR `by when` — and TASK-091 renamed the schema i18n key
+        # `By when` → `Due`, so a Chinese register's `截止` resolved to `due`,
+        # carried prose, failed the date test, and was counted by NEITHER.
+        # Measured across that commit on one register: a board that scored
+        # `queue` with 1 standing commitment before scored no mode and no
+        # evidence after, while the English one was unchanged. The asymmetry
+        # the commit removed from `bin/perry-goals` had moved here.
+        promise = {id(c): _cell(c, "due", "by when") for c in mine_c}
+        dated = sum(1 for c in mine_c if lib.is_iso_date(promise[id(c)]))
+        prose = sum(1 for c in mine_c
+                    if _cell(c, "by when note")
+                    or (promise[id(c)] and not lib.is_iso_date(promise[id(c)])))
+        if dated:
+            _award(ev, ("pipeline",), STRUCTURAL,
+                   f"{dated} commitment(s) promise a dated `Due`")
+        if prose:
+            _award(ev, ("queue",), CORROBORATING,
+                   f"{prose} standing commitment(s) carrying a `By when note`")
+        return ev
+
+    out = []
+    for t in tracks:
+        ev = evidence_for(t["track"])
+        mode, confidence, scores = _verdict(ev)
+        out.append({
+            "track": t["track"],
+            "declared": bool(t.get("declared")),
+            "declared_mode": t.get("mode") or "project",
+            "mode": mode,
+            "confidence": confidence,
+            "scores": scores,
+            "evidence": {m: [lbl for _, lbl in ev[m]] for m in MODE_NAMES},
+            "scope": "track" if t.get("declared") else "project",
+        })
+    return {
+        "available": True,
+        "register_declared": any(t.get("declared") for t in tracks),
+        "tracks": out,
+    }
 
 
 def finding(fid, severity, title, detail, evidence=None):
@@ -1061,8 +2143,34 @@ def finding(fid, severity, title, detail, evidence=None):
     }
 
 
-def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None) -> list[dict]:
+def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
+                    modes=None) -> list[dict]:
     out = []
+
+    # ── work modes ──
+    # Fires only when the register DECLARED a mode and the evidence points
+    # somewhere else with a clear margin. Three abstentions are deliberate: an
+    # undeclared track (the implicit `main` is a default, not a claim), a
+    # `cannot tell` verdict, and a `medium` one. Each of them is a case where
+    # the report would be telling the user their own declaration is wrong on
+    # thinner evidence than they used to write it.
+    for t in (modes or {}).get("tracks", []):
+        if not (t["declared"] and t["mode"] and t["confidence"] == "high"):
+            continue
+        if t["mode"] == t["declared_mode"]:
+            continue
+        out.append(finding(
+            "MODE-01", "warn",
+            f"track `{t['track']}` is written down as `{t['declared_mode']}` "
+            f"work and looks like `{t['mode']}` work",
+            f"One of the two is wrong and only you can say which. Either "
+            f"change the `Mode` cell for `{t['track']}` in `.perry/config.md` "
+            f"to `{t['mode']}`, or keep the label and fix what is on the board "
+            f"to match it. Do not leave them disagreeing: the label is what "
+            f"picks the review questions, so a wrong one asks about the wrong "
+            f"thing every single time.",
+            t["evidence"].get(t["mode"], [])[:6],
+        ))
 
     # ── namespace ──
     # Stays `warn`, never `error`: a user may knowingly keep one file in a
@@ -1326,7 +2434,7 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None) -> list[dict]
 
 
 def diagnose(root: Path, max_files: int) -> dict:
-    state_root = resolve_state_root(root)
+    state_root = lib.resolve_state_root(root)
     inv = walk(root, max_files)
     ctx = scan_context_load(root, inv)
     tier0_paths = {f["path"] for f in ctx["always_loaded"]}
@@ -1347,7 +2455,8 @@ def diagnose(root: Path, max_files: int) -> dict:
     arch = scan_archetype(inv, docs, root, is_perry, perry_owned)
     load = scan_user_load(root, inv, docs, is_perry)
     ns = scan_namespace(root, state_root, is_perry)
-    findings = derive_findings(ctx, docs, con, trk, arch, inv, load, ns)
+    modes = scan_work_modes(root, state_root)
+    findings = derive_findings(ctx, docs, con, trk, arch, inv, load, ns, modes)
 
     return {
         "schema": "diagnose/1",
@@ -1369,6 +2478,7 @@ def diagnose(root: Path, max_files: int) -> dict:
         "archetype": arch,
         "user_load": load,
         "namespace": ns,
+        "work_modes": modes,
         "findings": findings,
         "counts": {
             "error": sum(1 for f in findings if f["severity"] == "error"),
@@ -1409,6 +2519,24 @@ def render_text(d: dict) -> str:
       f"runnable check: {'yes' if trk['has_check'] else 'NO'}")
     if trk["perry"]["installed"]:
         A(f"   Perry state    : installed (state root {trk['perry']['state_root']})")
+    wm = d.get("work_modes") or {}
+    for t in wm.get("tracks", []):
+        # "cannot tell" is printed as itself. Rounding an abstention up to the
+        # commonest mode is the one thing this line may not do.
+        said = t["mode"] or "cannot tell"
+        scope = t["track"] if t["declared"] else "whole project"
+        declared = f"declared {t['declared_mode']}" if t["declared"] \
+            else "nothing declared"
+        A(f"   Work mode      : {scope} — evidence says {said} "
+          f"({t['confidence']}) · {declared}")
+        for label in (t["evidence"].get(t["mode"]) or [])[:2]:
+            A(f"                    {label}")
+        if not t["mode"]:
+            A("                    " + (
+                "no distinguishing signal — the four modes are told apart by "
+                "what closes the horizon"
+                if t["confidence"] == "none"
+                else "signals point two ways at once; neither is claimed"))
     A("")
     c = d["counts"]
     A(f"   Findings       : {c['error']} error · {c['warn']} warn · {c['info']} info")

@@ -1,6 +1,100 @@
 {
   "schema_version": 2,
   "description": "Structural contract for Perry state files. The single source of truth that SKILL.md prose, state/*_TEMPLATE.md, and viewer/parsers.py must all agree with. Validated by bin/perry-lint (against a project) and by tests/ (against the templates themselves).",
+  "work_modes": {
+    "note": "DESIGN-003 (locked 2026-08-16). A project declares 1..N tracks in `.perry/config.md § Tracks`; each track has a mode, and the mode determines spine, item states, cadence driver, triage questions and default verification rung. Absent a Tracks section there is one implicit track named `main`, mode `project` — which is today's Perry exactly, so nothing here changes an existing project until it opts in.",
+    "default_track": "main",
+    "default_mode": "project",
+    "modes": {
+      "project": {
+        "ends_when": "a goal is met",
+        "unit": "task",
+        "spine": "OKR.md objectives -> phase/<NNN>",
+        "calendar": "advisory",
+        "default_rung": "V3",
+        "default_stages": "",
+        "default_wip": "",
+        "default_sla": "",
+        "default_cycle": "",
+        "no_default": []
+      },
+      "pipeline": {
+        "ends_when": "the item ships",
+        "unit": "deliverable",
+        "spine": "commitments (party / deliverable / due) -> current cycle",
+        "calendar": "binding",
+        "default_rung": "V5",
+        "default_stages": "brief->draft->review->approved->published",
+        "default_wip": "review:3",
+        "default_sla": "",
+        "default_cycle": "",
+        "no_default": [
+          "SLA",
+          "Cycle"
+        ]
+      },
+      "queue": {
+        "ends_when": "never; steady state, reviewed on a period",
+        "unit": "request",
+        "spine": "standing commitments + SLA",
+        "calendar": "binding",
+        "default_rung": "V2",
+        "default_stages": "new->triaged->in_progress->resolved",
+        "default_wip": "",
+        "default_sla": "",
+        "default_cycle": "",
+        "no_default": [
+          "SLA",
+          "Cycle"
+        ]
+      },
+      "inquiry": {
+        "ends_when": "the question is answered or abandoned",
+        "unit": "question",
+        "spine": "question tree -> findings ledger",
+        "calendar": "advisory",
+        "default_rung": "V4",
+        "default_stages": "open->researching->answered",
+        "default_wip": "open:5",
+        "default_sla": "",
+        "default_cycle": "",
+        "no_default": []
+      }
+    },
+    "defaults_note": "Two different absences, and conflating them is a bug. `\"\"` with the column listed in `no_default` means THERE IS NO HONEST DEFAULT and the track must declare it: `SLA` and `Cycle` are commitments a project makes to someone, and inventing one would put words in the user's mouth. `\"\"` otherwise means THIS MODE HAS NO SUCH CONTROL - queue has no WIP cap by design (depth is reported, never enforced) and project mode has no stage vocabulary at all. A track missing a `no_default` column cannot run the triage step that reads it, and triage reports that as a finding rather than skipping silently (V4 re-review round 3, findings 6-7).",
+    "stage_separators": {
+      "note": "Separators `split_stages` accepts in a `## Tracks` § Stages cell. Reading is tolerant: the comma is what a person types first, and a cell it cannot split becomes ONE stage whose name is the whole list — silently, with every stage-based measure in queue, pipeline and inquiry mode then operating on it. Writing stays strict; templates use `->`.",
+      "accepted": [
+        "->",
+        "→",
+        "，",
+        ",",
+        "、"
+      ],
+      "suspect": [
+        "/",
+        ";",
+        "；",
+        "|",
+        "·",
+        " and ",
+        " 和 "
+      ],
+      "suspect_note": "Characters that LOOK like a separator and are not accepted. A Stages cell yielding exactly one stage while containing one of these is reported by `perry-lint`, so an unsupported spelling is named rather than silently collapsed."
+    }
+  },
+  "verification": {
+    "note": "DESIGN-003 section 5.3. Replaces the binary evidence gate with a declared rung per task. Advisory for one release (decision 4), then a hard gate. Two rules govern it, and neither is expressible as a column check: (1) the required rung is a function of CONSEQUENCE, not shape - anything outward-facing, irreversible, or carrying money/legal/safety exposure requires V5 minimum in every mode, overriding the mode default; (2) a V4 claim must cite an acceptance-criteria file and the reviewer must not have seen the reasoning that produced the artifact, or it is V1 wearing a costume.",
+    "rungs": {
+      "V0": "asserted - 'looks done'. Never valid. If the linter sees one, that is a finding, not a low rung.",
+      "V1": "artifact exists - a file at a path. Attested by the agent.",
+      "V2": "structural check - a linter over required sections / schema / format. Attested by a script.",
+      "V3": "reproducible run - command + inputs + output, re-runnable. Attested by a script.",
+      "V4": "rubric review - a fresh-context reviewer scores against written acceptance criteria. Attested by a second agent.",
+      "V5": "human sign-off - name, date, and what they checked. Attested by the user.",
+      "V6": "external confirmation - client accepted / filed / published / merged. Attested by the world."
+    }
+  },
   "enums": {
     "task_status": [
       "not_started",
@@ -23,12 +117,34 @@
       "Review Agent",
       "User + Agent"
     ],
+    "mode": [
+      "project",
+      "pipeline",
+      "queue",
+      "inquiry"
+    ],
+    "verification_rung": [
+      "V0",
+      "V1",
+      "V2",
+      "V3",
+      "V4",
+      "V5",
+      "V6"
+    ],
     "design_status": [
       "draft",
       "in_review",
       "locked",
       "superseded",
       "dropped"
+    ],
+    "decision_status": [
+      "proposed",
+      "active",
+      "superseded",
+      "expired",
+      "archived"
     ],
     "linkage_status": [
       "active",
@@ -160,18 +276,18 @@
     ]
   },
   "i18n": {
-    "description": "Which text in a state file may be written in the project's document language (.perry/config.md \u00a7 Document language) and which may not. Section headings and table column headers are localizable: every reader MUST accept the canonical English form and every alias listed here. Everything in `invariant` stays ASCII/English in every language, because it is matched, joined, or dereferenced by machines. Adding a language means adding its aliases here and widening the `match` regexes in `files[].headings` \u2014 nothing else in the schema changes. A language with no glossary block is still fully supported for prose; its documents keep the English headings.",
+    "description": "Which text in a state file may be written in the project's document language (.perry/config.md § Document language) and which may not. Section headings and table column headers are localizable: every reader MUST accept the canonical English form and every alias listed here. Everything in `invariant` stays ASCII/English in every language, because it is matched, joined, or dereferenced by machines. Adding a language means adding its aliases here and widening the `match` regexes in `files[].headings` — nothing else in the schema changes. A language with no glossary block is still fully supported for prose; its documents keep the English headings.",
     "languages": [
       "en",
       "zh"
     ],
     "invariant": [
       "file and directory names (BOARD.md, phase/, evidence/<YYYY-MM>/)",
-      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P-O1.2, USER-014)",
+      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P<NNN>-O<n>-KR<n>, USER-014)",
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
       "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
-      "priority section names (P0, P1, P2) and architecture section markers (\u00a71\u2026\u00a78)",
+      "priority section names (P0, P1, P2) and architecture section markers (§1…§8)",
       "dates (YYYY-MM-DD), ISO weeks (YYYY-WW), commit SHAs, file paths",
       "command and subcommand names (/perry okr plan-phase)",
       "header field names in .perry/config.md (the file that declares the language cannot be written in it)"
@@ -179,307 +295,547 @@
     "headings": {
       "Mission": {
         "zh": [
-          "\u4f7f\u547d"
+          "使命"
         ]
       },
       "Operating Principles": {
         "zh": [
-          "\u8fd0\u884c\u539f\u5219"
+          "运行原则"
         ]
       },
       "Anti-Goals": {
         "zh": [
-          "\u53cd\u76ee\u6807"
+          "反目标"
         ]
       },
       "Versioning log": {
         "zh": [
-          "\u7248\u672c\u8bb0\u5f55"
+          "版本记录"
         ]
       },
       "Objective": {
         "zh": [
-          "\u76ee\u6807"
+          "目标"
         ]
       },
       "Phase Focus": {
         "zh": [
-          "\u9636\u6bb5\u7126\u70b9"
+          "阶段焦点"
         ]
       },
       "Operating Rules": {
         "zh": [
-          "\u8fd0\u884c\u89c4\u5219"
+          "运行规则"
         ]
       },
       "Cost Ceiling": {
         "zh": [
-          "\u6210\u672c\u4e0a\u9650"
+          "成本上限"
         ]
       },
       "User Commitments": {
         "zh": [
-          "\u7528\u6237\u627f\u8bfa"
+          "用户承诺"
         ]
       },
       "User-Unavailable Degradation": {
         "zh": [
-          "\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7"
+          "用户缺席降级"
         ]
       },
       "Phase Scope Reduction Rule": {
         "zh": [
-          "\u9636\u6bb5\u7f29\u5708\u89c4\u5219",
-          "\u7f29\u5708\u89c4\u5219"
+          "阶段缩圈规则",
+          "缩圈规则"
         ]
       },
       "Definition of Done": {
         "zh": [
-          "\u5b8c\u6210\u5b9a\u4e49"
+          "完成定义"
         ]
       },
       "Not Doing in this phase": {
         "zh": [
-          "\u672c\u9636\u6bb5\u4e0d\u505a"
+          "本阶段不做"
         ]
       },
       "Process Note": {
         "zh": [
-          "\u6d41\u7a0b\u8bf4\u660e"
+          "流程说明"
         ]
       },
       "Cadence": {
         "zh": [
-          "\u4f8b\u884c\u8282\u594f"
+          "例行节奏"
+        ]
+      },
+      "Intake": {
+        "zh": [
+          "收件"
         ]
       },
       "User Input Queue": {
         "zh": [
-          "\u7528\u6237\u8f93\u5165\u961f\u5217"
+          "用户输入队列"
         ]
       },
       "Top risks": {
         "zh": [
-          "\u4e3b\u8981\u98ce\u9669"
+          "主要风险"
         ]
       },
       "Problem": {
         "zh": [
-          "\u95ee\u9898"
+          "问题"
         ]
       },
       "Goals": {
         "zh": [
-          "\u76ee\u6807"
+          "目标"
         ]
       },
       "Non-Goals": {
         "zh": [
-          "\u975e\u76ee\u6807"
+          "非目标"
         ]
       },
       "User Decisions": {
         "zh": [
-          "\u7528\u6237\u51b3\u7b56"
+          "用户决策"
         ]
       },
       "Architecture": {
         "zh": [
-          "\u67b6\u6784"
+          "架构"
         ]
       },
       "Implementation plan": {
         "zh": [
-          "\u5b9e\u65bd\u8ba1\u5212"
+          "实施计划"
         ]
       },
       "Risks & mitigations": {
         "zh": [
-          "\u98ce\u9669\u4e0e\u7f13\u89e3"
+          "风险与缓解"
         ]
       },
       "Active": {
         "zh": [
-          "\u8fdb\u884c\u4e2d"
+          "进行中"
         ]
       },
       "High-stakes operations": {
         "zh": [
-          "\u9ad8\u98ce\u9669\u64cd\u4f5c"
+          "高风险操作"
+        ]
+      },
+      "Files in scope": {
+        "zh": [
+          "涉及文件"
+        ]
+      },
+      "Deliverable": {
+        "zh": [
+          "交付物"
+        ]
+      },
+      "Out of scope": {
+        "zh": [
+          "不在范围"
         ]
       },
       "Phase": {
         "zh": [
-          "\u9636\u6bb5"
+          "阶段"
         ]
       },
       "Cross-monthly carry-forwards": {
         "zh": [
-          "\u8de8\u6708\u5ef6\u7eed\u9879"
+          "跨月延续项"
         ]
       },
       "Recent cross-session work": {
         "zh": [
-          "\u8fd1\u671f\u8de8\u4f1a\u8bdd\u5de5\u4f5c"
+          "近期跨会话工作"
         ]
       },
       "Key external dependencies": {
         "zh": [
-          "\u5173\u952e\u5916\u90e8\u4f9d\u8d56"
+          "关键外部依赖"
         ]
       },
       "Backbone": {
         "zh": [
-          "\u4e3b\u5e72"
+          "主干"
         ]
       },
       "Retro": {
         "zh": [
-          "\u590d\u76d8"
+          "复盘"
         ]
       },
       "Mid-phase check": {
         "zh": [
-          "\u671f\u4e2d\u68c0\u67e5"
+          "期中检查"
         ]
       }
     },
     "fields": {
       "Started": {
         "zh": [
-          "\u542f\u52a8"
+          "启动"
         ]
       },
       "Status": {
         "zh": [
-          "\u72b6\u6001"
+          "状态"
         ]
       },
       "Date": {
         "zh": [
-          "\u65e5\u671f"
+          "日期"
         ]
       }
     },
     "columns": {
       "ID": {
         "zh": [
-          "\u7f16\u53f7"
+          "编号"
         ]
       },
       "Id": {
         "zh": [
-          "\u7f16\u53f7"
+          "编号"
         ]
       },
       "Title": {
         "zh": [
-          "\u6807\u9898"
+          "标题"
         ]
       },
       "Owner": {
         "zh": [
-          "\u8d1f\u8d23\u4eba"
+          "负责人"
         ]
       },
       "Status": {
         "zh": [
-          "\u72b6\u6001"
+          "状态"
         ]
       },
       "Next action": {
         "zh": [
-          "\u4e0b\u4e00\u6b65"
+          "下一步"
         ]
       },
       "Evidence": {
         "zh": [
-          "\u8bc1\u636e"
+          "证据"
+        ]
+      },
+      "Track": {
+        "zh": [
+          "轨道"
+        ]
+      },
+      "Mode": {
+        "zh": [
+          "模式"
+        ]
+      },
+      "Verification": {
+        "zh": [
+          "验证"
+        ]
+      },
+      "Default rung": {
+        "zh": [
+          "默认验证级"
+        ]
+      },
+      "Arrived": {
+        "zh": [
+          "到达"
+        ]
+      },
+      "Request": {
+        "zh": [
+          "请求"
         ]
       },
       "USER-id": {
         "zh": [
-          "\u7528\u6237\u8f93\u5165\u7f16\u53f7"
+          "用户输入编号"
         ]
       },
       "Needed from user": {
         "zh": [
-          "\u9700\u8981\u7528\u6237\u63d0\u4f9b"
+          "需要用户提供"
         ]
       },
       "Blocks": {
         "zh": [
-          "\u963b\u585e"
+          "阻塞"
         ]
       },
       "Idle": {
         "zh": [
-          "\u95f2\u7f6e"
+          "闲置"
         ]
       },
       "Recurring task": {
         "zh": [
-          "\u4f8b\u884c\u4efb\u52a1"
+          "例行任务"
         ]
       },
       "Frequency": {
         "zh": [
-          "\u9891\u7387"
+          "频率"
         ]
       },
       "Next due": {
         "zh": [
-          "\u4e0b\u6b21\u5230\u671f"
+          "下次到期"
         ]
       },
       "Last evidence": {
         "zh": [
-          "\u6700\u8fd1\u8bc1\u636e"
+          "最近证据"
+        ]
+      },
+      "Last run": {
+        "zh": [
+          "上次执行"
         ]
       },
       "Metric / Target": {
         "zh": [
-          "\u6307\u6807 / \u76ee\u6807\u503c"
+          "指标 / 目标值"
         ]
       },
       "Stretch?": {
         "zh": [
-          "\u6311\u6218\u9879?",
-          "\u6311\u6218\u9879\uff1f"
+          "挑战项?",
+          "挑战项？"
         ]
       },
       "Deadline": {
         "zh": [
-          "\u622a\u6b62"
+          "截止"
         ]
       },
       "KR text": {
         "zh": [
-          "KR \u63cf\u8ff0"
+          "KR 描述"
         ]
       },
       "Linked overall KR": {
         "zh": [
-          "\u5173\u8054\u603b\u4f53 KR"
+          "关联总体 KR"
         ]
       },
       "Type": {
         "zh": [
-          "\u7c7b\u578b"
+          "类型"
         ]
       },
       "Date": {
         "zh": [
-          "\u65e5\u671f"
+          "日期"
+        ]
+      },
+      "Stage": {
+        "zh": [
+          "阶段"
+        ]
+      },
+      "Commitment": {
+        "zh": [
+          "承诺"
+        ]
+      },
+      "Depends on": {
+        "zh": [
+          "依赖"
+        ]
+      },
+      "Promise": {
+        "zh": [
+          "承诺内容"
+        ]
+      },
+      "To whom": {
+        "zh": [
+          "承诺对象"
+        ]
+      },
+      "Due": {
+        "zh": [
+          "截止"
+        ]
+      },
+      "By when note": {
+        "zh": [
+          "截止说明"
+        ]
+      },
+      "Discharged by": {
+        "zh": [
+          "由谁完成"
+        ]
+      },
+      "Stages": {
+        "zh": [
+          "阶段序列"
+        ]
+      },
+      "WIP": {
+        "zh": [
+          "在制上限"
+        ]
+      },
+      "SLA": {
+        "zh": [
+          "时限"
+        ]
+      },
+      "Cycle": {
+        "zh": [
+          "周期"
+        ]
+      },
+      "Spine": {
+        "zh": [
+          "主线"
+        ]
+      },
+      "Outcome": {
+        "zh": [
+          "处理结果"
+        ]
+      },
+      "Stage since": {
+        "zh": [
+          "进入阶段"
+        ]
+      },
+      "Parent": {
+        "zh": [
+          "父问题"
+        ]
+      },
+      "Term": {
+        "zh": [
+          "术语"
+        ]
+      },
+      "Shown as": {
+        "zh": [
+          "显示为"
+        ]
+      },
+      "Risk": {
+        "zh": [
+          "风险"
+        ]
+      },
+      "Opened": {
+        "zh": [
+          "提出"
+        ]
+      },
+      "Asked": {
+        "zh": [
+          "提问"
         ]
       }
+    },
+    "blank_cell": {
+      "note": "Values that mean THE CELL SAYS NOTHING. Declared here beside the column translations, for the same reason those are: adding a language must be a schema edit, not a code edit in whichever tool noticed first.\n\nThere were THREE lists in `bin/`, with three different contents — `perry-task` (the only one carrying 无), `perry-diagnose`, and `perry-lint`, whose copy was added by the very commit whose thesis is one-rule-one-implementation. Measured across them: `n/a`, `TBD`, `none`, `?` and `—` were refused by the writer and linted clean, while 无, 待定 and 不适用 were refused by the writer AND reported. Same meaning, two verdicts, split on language — which is TASK-042 criterion 1 verbatim. Found by a V4 inside the check added to close the previous Chinese gap.\n\nMatched case-insensitively with markdown decoration and terminal sentence punctuation stripped. The empty string is always blank and is not listed.",
+      "en": [
+        "—",
+        "-",
+        "–",
+        "n/a",
+        "na",
+        "none",
+        "tbd",
+        "?",
+        "N.A.",
+        "TBA"
+      ],
+      "zh": [
+        "无",
+        "无。",
+        "待定",
+        "不适用",
+        "暂无",
+        "—",
+        "？"
+      ]
     }
+  },
+  "migration": {
+    "description": "Read only by bin/perry-migrate. It does NOT widen what perry-lint accepts, and it is not an exception to i18n.invariant - enum values stay ASCII in every language, and making that true of a file that predates the rule is exactly what the migration is for. This table declares the localized spellings that have been SEEN standing where a canonical enum value belongs, so that resolving one is a lookup in a declared vocabulary rather than a translation performed in code. A spelling that is not listed here is not guessed at: perry-migrate reports the field and leaves the file alone. Extend it when a real project shows a new spelling; never from imagination, because an entry here decides what somebody's file is asserting.",
+    "enum_aliases": {
+      "phase_status": {
+        "进行中": "active",
+        "已评分": "scored"
+      }
+    },
+    "negations_description": "The other half of the same vocabulary. A canonical value standing in a sentence is not the same as one standing alone: `> Status: not yet locked - do not build from this` contains the word `locked`, and reading it as `locked` reverses what the author wrote while preserving every character they typed. perry-migrate drops a candidate whose clause is denied by one of these words, so a value that says only what it is NOT resolves to nothing and is reported rather than guessed. Same discipline as enum_aliases: a denial word is looked up here, never inferred in code. What it cannot see is stated in perry-migrate's enum_candidates - negation carried by grammar rather than by a word.",
+    "negations": [
+      "not",
+      "no",
+      "never",
+      "nor",
+      "cannot",
+      "isn't",
+      "aren't",
+      "wasn't",
+      "weren't",
+      "don't",
+      "doesn't",
+      "didn't",
+      "won't",
+      "hasn't",
+      "haven't",
+      "未",
+      "尚未",
+      "没",
+      "不",
+      "非"
+    ]
   },
   "thresholds": {
     "stale_run_days": {
       "value": 30,
-      "applies_to": ["adoption", "diagnosis"],
+      "applies_to": [
+        "adoption",
+        "diagnosis"
+      ],
       "note": "A pipeline whose stage is non-terminal for this long is reported as a stale run, so the interrupted-run card also nudges the user to retire it. A calibrated default, not a law - long enough that a genuinely paused adoption is not nagged, short enough to catch one that is actually dead. Declared here so perry-lint and the entry card read the same number."
+    },
+    "knowledge_stale_days": {
+      "value": 90,
+      "applies_to": [
+        "knowledge-card"
+      ],
+      "note": "A knowledge card whose `Last verified` is older than this is reported stale by `perry-lint --knowledge`. Calibrated, not a law: long enough that a stable claim is not re-checked every sprint, short enough that a quarter-old claim about someone else's system is looked at before an agent acts on it. `Invalidated by` is the sharper signal — this is the backstop for a tripwire that never fired because nobody was watching the system it names."
+    },
+    "in_progress_idle_hours": {
+      "value": 4,
+      "applies_to": [
+        "task"
+      ],
+      "note": "An open task whose status is `in_progress`, which holds no dispatch slot, and whose last event is older than this is reported by `conformance.in_progress_with_no_live_run`. Calibrated against the number beside it rather than chosen freely: `perry-dispatch-limit` treats a marker as stale after PERRY_DISPATCH_STALE_TTL (default 4h since TASK-160, raised from 1h because the sweep was reaping markers 72 minutes into live runs), and this must be at least that, so the check can never name a row that a run of ordinary length would still be inside. The two are equal, which is the intended relationship and not a near miss: the moment the sweep stops counting a marker is the moment this check is free to speak, with no gap in either direction. Four hours leaves room for a long run that writes no event, and is short enough to catch the case this exists for — two agents starved at the 600s watchdog on 2026-08-20 and their rows sat `in_progress` with nothing holding them."
+    },
+    "review_idle_days": {
+      "value": 3,
+      "applies_to": [
+        "task"
+      ],
+      "note": "An open task in `review` whose last event is older than this is reported by `conformance.review_idle`. `review` waits on a human and no dependency edge can ever contradict it, so nothing else in the payload notices such a row: TASK-100, TASK-111, TASK-127 and TASK-133 all sat there after their PRs had merged. Calibrated, not a law — long enough that a verdict asked for on Friday is not nagged on Monday, short enough that a merged PR is not still waiting a week later."
     }
   },
   "claims": [
@@ -491,33 +847,82 @@
       "note": "the anchor. Holds the State root pointer, so it can never sit behind it."
     },
     {
+      "path": ".perry/events.jsonl",
+      "kind": "file",
+      "owner": "perry",
+      "anchor": "project",
+      "note": "the event log. Perry appends one object per mutating command, so it is territory Perry occupies and a project file of the same name collides with it. Anchored at the project root because that is where `bin/perry-task` writes it - inside the `.perry/` anchor, not behind the State root pointer."
+    },
+    {
       "path": "OKR.md",
       "kind": "file",
-      "owner": "okr",
+      "owner": "goals",
       "anchor": "state"
     },
     {
       "path": "phase/",
       "kind": "dir",
-      "owner": "okr",
+      "owner": "goals",
       "anchor": "state"
     },
     {
       "path": "BOARD.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
+    },
+    {
+      "path": "tasks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the task STORE (ADR-007) - the canonical Task record `BOARD.md` is projected from. Written by every mutating `perry-task` command, so it is territory Perry occupies. State-root relative like the board beside it: `perry/tasks.jsonl` when the state root is `perry/`."
+    },
+    {
+      "path": "okr.jsonl",
+      "kind": "file",
+      "owner": "goals",
+      "anchor": "state",
+      "note": "the OKR STORE (ADR-007, TASK-092) - the canonical KR and version-log record `OKR.md` is projected from. State-root relative like the file beside it: `perry/okr.jsonl` when the state root is `perry/`."
+    },
+    {
+      "path": "risks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the risks STORE (ADR-007, TASK-040) - the canonical Risk record the `Top risks` section of `BOARD.md` is projected from. State-root relative, beside `tasks.jsonl`."
+    },
+    {
+      "path": "intake.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the intake STORE (ADR-007, TASK-196) - the canonical Intake record the `Intake` section of `BOARD.md` is projected from. Keyed on `order`, the row's position, because an intake row has no id and is addressed by position everywhere. Declared before it exists, like `.perry/config.jsonl`; `perry-tasks intake-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
+    },
+    {
+      "path": "asks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the ask STORE (ADR-007, TASK-197) - the canonical record the `User Input Queue` section of `BOARD.md` is projected from. Keyed on the `USER-` id, like `risks.jsonl` and unlike `intake.jsonl`. Five of the section's six columns are stored; `Idle` is NOT, because it is an age derived from `Asked` at read time and a stored age is stale the moment it is written. Declared before it exists, like `intake.jsonl`; `perry-tasks asks-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
+    },
+    {
+      "path": ".perry/config.jsonl",
+      "kind": "file",
+      "owner": "perry",
+      "anchor": "project",
+      "note": "the config STORE (ADR-007, TASK-092). Anchored at the project root, inside the `.perry/` anchor rather than behind the State root pointer, for the same reason `.perry/events.jsonl` is: this is the file that declares where the state root is, so it cannot sit behind that pointer. Declared before it exists, like `incidents/` and `runbook/`; `perry-config write --from-file` is the explicit import that creates it."
     },
     {
       "path": "PROJECT_STATE.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "DECISIONS.md",
       "kind": "file",
-      "owner": "pmo",
+      "owner": "decide",
       "anchor": "state"
     },
     {
@@ -530,69 +935,69 @@
     {
       "path": "architecture/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state",
       "note": "lazy-created: architecture/audit-history/"
     },
     {
       "path": "incidents/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state",
       "note": "lazy-created"
     },
     {
       "path": "decisions/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "decide",
       "anchor": "state"
     },
     {
       "path": "journal/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "evidence/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "weekly/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "handoff/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "knowledge/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "inputs/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "runbook/",
       "kind": "dir",
-      "owner": "pmo",
+      "owner": "work",
       "anchor": "state"
     },
     {
       "path": "design/",
       "kind": "dir",
-      "owner": "design",
+      "owner": "decide",
       "anchor": "state"
     }
   ],
@@ -600,8 +1005,8 @@
     {
       "id": "board",
       "path": "BOARD.md",
-      "template": "pmo/state/BOARD_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/BOARD_TEMPLATE.md",
+      "owner": "work",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -624,17 +1029,17 @@
         },
         {
           "level": 2,
-          "match": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
+          "match": "^Cadence\\b|^例行节奏",
           "label": "## Cadence"
         },
         {
           "level": 2,
-          "match": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
+          "match": "^User Input Queue\\b|^用户输入队列",
           "label": "## User Input Queue"
         },
         {
           "level": 2,
-          "match": "^Top risks\\b|^\u4e3b\u8981\u98ce\u9669",
+          "match": "^Top risks\\b|^主要风险",
           "label": "## Top risks"
         }
       ],
@@ -650,28 +1055,67 @@
             "Evidence"
           ],
           "enum_columns": {
-            "Status": "task_status"
+            "Status": "task_status",
+            "Verification": "verification_rung"
+          },
+          "optional_columns": {
+            "Track": "Which declared track this row belongs to. Absent = the implicit `main` track, mode `project`.",
+            "Verification": "The verification rung this row must reach to close (DESIGN-003 section 5.3). Absent = the track's mode default. Validated only when the column is present, so no pre-DESIGN-003 board is invalidated.",
+            "Stage": "For pipeline-, queue- and inquiry-mode rows: the item's position in its track's declared stage vocabulary. NOT enum-checked here, because the vocabulary is per-track (`.perry/config.md` Tracks -> Stages) rather than global - `Status` stays the global lifecycle enum and the two are orthogonal. Added by the V4 review of TASK-019/020 (finding B1): both mode files declared a stage vocabulary and neither said where a stage is written, so every rule that depended on stage position was uncomputable.",
+            "Arrived": "The date an item entered the system from outside. Carried forward from `BOARD.md` Intake when a queue-mode row is routed, and REQUIRED to survive that move - V4 finding B2: age-since-arrival is what SLA triage measures, and destroying it at routing made the mode's second triage step uncomputable.",
+            "Commitment": "The `Id` of the row in `OKR.md` Commitments that this row discharges - that id and nothing else. Never row position, never Promise text (V4 re-review finding N9).",
+            "Stage since": "The date the row entered its current `Stage`. Mirrors `Arrived`, and exists for the same reason: dwell time is what pipeline triage measures first, and the journal records STATUS changes - so a `draft`->`review` move produces no journal line at all, because this design's own argument is that Status and Stage are orthogonal. V4 re-review finding N1: the Stage column closed B1 and left the clock with no source.",
+            "Parent": "For inquiry-mode rows: the ID of the question this one was split out of. A question tree needs an edge, and BOARD.md has no nesting - so the edge is a cell. Absent = a root question. Written by add-task, read by triage to report which branches are still open.",
+            "Depends on": "The ids this row waits on, comma-separated. `blocked` says a row is stopped and never said on what: `--depends` wrote free text into the journal's definition block, once, at creation, and `status --status blocked --reason` wrote it into prose - so `subcommands.md` triage rule \"the same dependency cited in >= 2 rows\" had no readable input. A cell, because the event log is derived and disposable and the journal cannot be updated. An id here MAY name a closed task - that is what a satisfied dependency looks like - and may name a `DESIGN-`/`ADR-` id no board carries; `perry-task list` reports the ones it cannot resolve rather than refusing them. Absent = this row waits on nothing recorded.",
+            "Role": "Which declared role is accountable for this row (DESIGN-006 section 5.2, decision #4). REQUIRED ONCE THE PROJECT DECLARES ANY ROLE CARD, absent otherwise - `perry-task add` refuses a roleless row on a role-declaring project and does not mention roles at all on one that has none. That asymmetry is Goal 7: a project that never hears of roles behaves exactly as it does today, the same no-op property `modes/project.md` holds for work modes. Resolves against `.perry/roles/*.md`; a value naming no card is reported, never refused at read time."
           }
         },
         {
-          "under": "^User Input Queue\\b|^\u7528\u6237\u8f93\u5165\u961f\u5217",
+          "under": "^Intake\\b|^收件",
+          "note": "Untriaged external requests, for queue-mode tracks (DESIGN-003 decision 3). OPTIONAL: skipped entirely when the section is absent. Lives inside BOARD.md rather than a new INTAKE.md so the refactor claims no new path — BOARD.md is already in claims[]. `triage` drains this section as its first step. `Outcome` is required because triage mandates that every row be routed, dropped WITH A REASON, or deferred WITH A NAMED CONDITION - a table with nowhere to write the reason turns that rule into a suggestion. Empty cells are fine; the column is not.",
+          "columns": [
+            "Arrived",
+            "Request",
+            "Outcome"
+          ]
+        },
+        {
+          "under": "^User Input Queue\\b|^用户输入队列",
           "columns": [
             "USER-id",
             "Needed from user",
             "Blocks",
-            "Idle",
             "Status"
-          ]
+          ],
+          "optional_columns": {
+            "Asked": "YYYY-MM-DD the question was put to the user. Stamped by `perry-task ask`. This is what should be STORED; idle days are computed from it at read time.",
+            "Idle": "Days the request has waited. DERIVED — a stored age is stale the moment it is written, which is why it is optional and why `Asked` exists. Read when present so no existing board breaks; never required."
+          }
         },
         {
-          "under": "^Cadence\\b|^\u4f8b\u884c\u8282\u594f",
+          "under": "^Cadence\\b|^例行节奏",
+          "note": "The recurrence register (DESIGN-003, `modes/queue.md` § Recurrence is a first-class object here). Written by `perry-task cadence-add` / `cadence-done`, read by `perry-state`, which reports rows past `Next due` by age. `Frequency` is NOT enum-checked: `weekly`, `monthly`, `quarterly` and `Nd` are what the tool writes, but `continuous` and `hourly` are live in a real project's register and mean a recurrence with no computable due date. Reading is tolerant and writing is strict — `perry-task` refuses a frequency it cannot schedule from; nothing rejects a cell a project already wrote. `Next due` is likewise free text: `n/a`, `2026-W32` and `**2026-08-31**（…）` are all live, and `bin/perry-state` reports the cells it could not read rather than treating them as never due.",
           "columns": [
             "ID",
             "Recurring task",
             "Owner",
             "Frequency",
-            "Next due",
-            "Last evidence"
+            "Next due"
+          ],
+          "optional_columns": {
+            "Last run": "YYYY-MM-DD the ritual last ran. Stamped by `perry-task cadence-done`. This is the INPUT `Next due` is computed from, and it exists so the due date can be CHECKED rather than trusted: without it, a `Next due` cell asserts a schedule with nothing on the board to derive it from, and an edited `Frequency` silently invalidates it with no way to tell. Same discipline as `Stage since`, `Arrived` and `Asked` — store the event's date, compute the derived value at read time. Absent on a row that has never run, which is not the same as a row that ran long ago.",
+            "Last evidence": "Path to the artifact of the most recent run. Was REQUIRED until TASK-021, and a live register that keeps its evidence links inline in `Next due` carried a `table-columns` error for the whole time — a project penalized for a column it had a reason not to have, exactly as `Idle` was before TASK-039. `perry-task cadence-done` creates the column when it needs to write one, so requiring it up front bought nothing."
+          }
+        },
+        {
+          "under": "^Top risks\\b|^主要风险",
+          "optional": true,
+          "note": "Written by `perry-task risk-add` / `risk-clear` / `risk-migrate` (TASK-040). READING a bullet list is fine and stays fine; WRITING into one is refused — `risk-add` names the count and points at `risk-migrate`, which converts verbatim and only when asked (ADR-004). OPTIONAL IN A SECOND SENSE than Intake: Intake is skipped when the SECTION is absent, and this table is skipped when the section is present but still holds a BULLET LIST. Every Perry project except Perry itself was on bullets the day this landed, and a bullet list is a valid `## Top risks` — readers fall back to it and `perry-lint` must not report a project red for not having migrated. `optional` is what suppresses the `missing-table` warning; without it this one spec would have turned every unmigrated board red. The section replaces a bullet list that had no writer and, for that reason, two defects nothing could fix: a risk struck through with `~~…~~` stayed in every count forever because strikethrough is decoration and not a field, and the reader split the first sentence on whitespace and reported `id: \"Perry\"` / `title: \"is half-adopted: …\"`. `Status` carries the cleared date inline (`cleared YYYY-MM-DD — reason`), exactly as `## User Input Queue`'s `Status` carries the answer and `## Intake`'s `Outcome` carries the outcome. NOT enum-checked: it holds a human's reason, and imposing an enum on a prose column is a mistake this repo made once and reverted. There is deliberately NO `Severity` column — both real projects surveyed write severity inside the sentence (`H · …`, `🔴 …`), so a stored enum would be a column nothing on a real board fills; severity stays derived from the statement.",
+          "columns": [
+            "ID",
+            "Risk",
+            "Opened",
+            "Status"
           ]
         }
       ],
@@ -680,8 +1124,8 @@
     {
       "id": "okr",
       "path": "OKR.md",
-      "template": "okr/state/OKR_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/OKR_TEMPLATE.md",
+      "owner": "goals",
       "tier": 1,
       "cap": 200,
       "cap_kind": "hard",
@@ -689,17 +1133,17 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Mission\\b|^\u4f7f\u547d",
+          "match": "^Mission\\b|^使命",
           "label": "## Mission"
         },
         {
           "level": 2,
-          "match": "^Operating Principles\\b|^\u8fd0\u884c\u539f\u5219",
+          "match": "^Operating Principles\\b|^运行原则",
           "label": "## Operating Principles"
         },
         {
           "level": 2,
-          "match": "^Anti-Goals\\b|^\u53cd\u76ee\u6807",
+          "match": "^Anti-Goals\\b|^反目标",
           "label": "## Anti-Goals"
         },
         {
@@ -709,18 +1153,18 @@
         },
         {
           "level": 2,
-          "match": "^Versioning|^\u7248\u672c\u8bb0\u5f55",
+          "match": "^Versioning|^版本记录",
           "label": "## Versioning log"
         },
         {
           "level": 3,
-          "match": "^(Objective|\u76ee\u6807) \\d+",
-          "label": "### Objective <N> \u2014 <title>"
+          "match": "^(Objective|目标) \\d+",
+          "label": "### Objective <N> — <title>"
         }
       ],
       "tables": [
         {
-          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under": "^(Objective|目标) \\d+",
           "under_level": 3,
           "columns": [
             "Id",
@@ -731,6 +1175,26 @@
           ],
           "id_column": "Id",
           "id_pattern": "^KR-O\\d+\\.\\d+$"
+        },
+        {
+          "under": "^Commitments\\b|^承诺",
+          "note": "Promises to a named party by a date - the spine for pipeline- and queue-mode tracks (DESIGN-003 section 5.5). OPTIONAL: skipped entirely when the section is absent, so no pre-DESIGN-003 OKR.md is invalidated. OWNED BY THE GOALS LANE, like every other section of this file: a commitment to a client is a goal, and DESIGN-003 already frames a KR as the special case where the party is the project itself. The modes disclaim the objectives->KRs cascade, not the goals file. V4 finding B4 is what forced the ownership to be stated: two modes were writing here and no lane had claimed it.\n\nThe clock is TWO columns, not one (ADR-007 decision 3; TASK-091). `Due` is TYPED - an ISO date (2026-09-30) or a declared SLA token (3d, 2w) - and nothing else is accepted, so triage can compare it against today and sort by it without asking a regex a question about prose. `By when note` is PROSE and is NEVER validated: 'within the track SLA', '下周期', whatever the promise was actually worded as. It is stored and rendered verbatim and no regex asks it anything.\n\nThis replaces the single `By when` column, which carried both value spaces and needed one regex (CLOCK_RE) to answer a natural-language question. That regex failed five V4 review rounds in four shapes - the last because \\b does not exist in Chinese, so the English half matched on word boundaries and the Chinese half on bare substrings. It is deleted, not fixed a sixth time. A pre-split register is migrated by `perry-goals commit --migrate`: a bare date or SLA token becomes `Due`, anything else becomes `By when note`, and no cell is dropped.",
+          "columns": [
+            "Id",
+            "Track",
+            "Promise",
+            "To whom",
+            "Due",
+            "Status"
+          ],
+          "optional_columns": {
+            "By when note": "Free prose recording how the deadline was worded to the party it was promised to - 'within the track SLA', 'same business day', '下周期'. PROSE, in the ADR-007 rule-2 sense: it is stored and rendered verbatim and NOTHING validates it, because the bounded half of the old `By when` column now lives in `Due`, and a second reader asking prose a question is the defect ADR-007 exists to remove. Optional: a promise whose deadline needs no words beyond its date leaves it empty.",
+            "Discharged by": "Free prose describing how the promise is satisfied. NOT a list of row IDs: the authoritative link runs the other way - each BOARD.md row's `Commitment` cell carries the `Id` from this table. Row position must never be used as the reference; the goals lane rewrites this file, and a position reference does not dangle when a row is inserted, it silently re-points every board row to the wrong promise (V4 re-review N9)."
+          },
+          "typed_columns": {
+            "Due": "iso-date-or-sla"
+          },
+          "typed_columns_note": "The reader half of 'nothing else is accepted'. That sentence was true of `perry-goals commit` and of nothing else: a hand-written `| ... | 下周期 | active |` under a `Due` header linted clean, so the typed column had a validated writer and an unvalidated file. Reported as `error`, like an off-enum value: `perry-goals commit --migrate` is explicitly exempt from the conformance write gate, so error severity names invalid typed state without blocking its repair."
         }
       ],
       "anchor": "state"
@@ -739,8 +1203,8 @@
       "id": "phase",
       "path": "phase/[0-9][0-9][0-9]-*.md",
       "exclude": "phase/*-linkage.md",
-      "template": "okr/state/phase_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/phase_TEMPLATE.md",
+      "owner": "goals",
       "tier": 1,
       "cap": 300,
       "cap_kind": "hard",
@@ -759,58 +1223,58 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Phase Focus\\b|^\u9636\u6bb5\u7126\u70b9",
+          "match": "^Phase Focus\\b|^阶段焦点",
           "label": "## Phase Focus"
         },
         {
           "level": 2,
-          "match": "^Operating Rules\\b|^\u8fd0\u884c\u89c4\u5219",
+          "match": "^Operating Rules\\b|^运行规则",
           "label": "## Operating Rules"
         },
         {
           "level": 2,
-          "match": "^Cost Ceiling\\b|^\u6210\u672c\u4e0a\u9650",
+          "match": "^Cost Ceiling\\b|^成本上限",
           "label": "## Cost Ceiling"
         },
         {
           "level": 2,
-          "match": "^User Commitments\\b|^\u7528\u6237\u627f\u8bfa",
+          "match": "^User Commitments\\b|^用户承诺",
           "label": "## User Commitments"
         },
         {
           "level": 2,
-          "match": "^User-Unavailable Degradation\\b|^\u7528\u6237\u7f3a\u5e2d\u964d\u7ea7",
+          "match": "^User-Unavailable Degradation\\b|^用户缺席降级",
           "label": "## User-Unavailable Degradation"
         },
         {
           "level": 2,
-          "match": "^Phase Scope Reduction Rule\\b|^\u9636\u6bb5\u7f29\u5708\u89c4\u5219|^\u7f29\u5708\u89c4\u5219",
+          "match": "^Phase Scope Reduction Rule\\b|^阶段缩圈规则|^缩圈规则",
           "label": "## Phase Scope Reduction Rule"
         },
         {
           "level": 2,
-          "match": "^(Objective|\u76ee\u6807) \\d+",
-          "label": "## Objective <N> \u2014 <title>"
+          "match": "^(Objective|目标) \\d+",
+          "label": "## Objective <N> — <title>"
         },
         {
           "level": 2,
-          "match": "^Definition of Done\\b|^\u5b8c\u6210\u5b9a\u4e49",
+          "match": "^Definition of Done\\b|^完成定义",
           "label": "## Definition of Done"
         },
         {
           "level": 2,
-          "match": "^Not Doing in this phase\\b|^\u672c\u9636\u6bb5\u4e0d\u505a",
+          "match": "^Not Doing in this phase\\b|^本阶段不做",
           "label": "## Not Doing in this phase"
         },
         {
           "level": 2,
-          "match": "^Process Note\\b|^\u6d41\u7a0b\u8bf4\u660e",
+          "match": "^Process Note\\b|^流程说明",
           "label": "## Process Note"
         }
       ],
       "tables": [
         {
-          "under": "^(Objective|\u76ee\u6807) \\d+",
+          "under": "^(Objective|目标) \\d+",
           "under_level": 2,
           "columns": [
             "Id",
@@ -819,7 +1283,7 @@
             "Linked overall KR"
           ],
           "id_column": "Id",
-          "id_pattern": "^P-O\\d+\\.\\d+$"
+          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$"
         }
       ],
       "anchor": "state"
@@ -827,15 +1291,15 @@
     {
       "id": "linkage",
       "path": "phase/[0-9][0-9][0-9]-linkage.md",
-      "template": "okr/state/linkage_TEMPLATE.md",
-      "owner": "okr",
+      "template": "goals/state/linkage_TEMPLATE.md",
+      "owner": "goals",
       "tier": 2,
       "required": false,
       "format": "yaml-frontmatter",
       "frontmatter": {
         "spec_key": "linkage",
         "spec_version": 1,
-        "description": "The O\u2192KR\u2192task\u2192agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
+        "description": "The O→KR→task→agent graph. Machine-written by okr, machine-read by Perry (attribution) and by the frontend (the chain view). All-or-nothing: a half-parsed graph would show committed objectives as absent.",
         "fields": {
           "linkage": {
             "type": "integer",
@@ -873,7 +1337,7 @@
                   "id": {
                     "type": "string",
                     "required": true,
-                    "pattern": "^P-O\\d+\\.\\d+$"
+                    "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
                   },
                   "title": {
                     "type": "string",
@@ -887,7 +1351,7 @@
                   "target": {
                     "type": "number",
                     "required": false,
-                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') \u2014 rendering a ceiling as completion is worse than rendering nothing."
+                    "note": "NUMBER ONLY. Omit for prose targets ('<= 15% drawdown') — rendering a ceiling as completion is worse than rendering nothing."
                   },
                   "current": {
                     "type": "number",
@@ -950,7 +1414,7 @@
               "serves": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P-O\\d+\\.\\d+$"
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
               },
               "objective": {
                 "type": "string",
@@ -990,7 +1454,7 @@
       "frontmatter": {
         "spec_key": "adoption",
         "spec_version": 1,
-        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 \u2014 state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
+        "description": "The adoption dossier: everything /perry adopt inferred about an existing project, as candidates that have not touched the project. The ONLY file adoption writes before stage 4 — state files are written by their owning skills through the normal subcommands. Also the durable record of what was rejected, so --recheck does not re-propose it forever.",
         "fields": {
           "adoption": {
             "type": "integer",
@@ -1125,12 +1589,12 @@
               "seed": {
                 "type": "string",
                 "required": false,
-                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc \u2014 in preference order; see reference/adoption.md \u00a7 Clustering"
+                "note": "roadmap_heading | commit_scope | module | issue_label | fs_timeline | misc — in preference order; see reference/adoption.md § Clustering"
               },
               "kr": {
                 "type": "string",
                 "required": false,
-                "pattern": "^P-O\\d+\\.\\d+$",
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
                 "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
               }
             }
@@ -1181,7 +1645,7 @@
                 "type": "string",
                 "required": true,
                 "enum": "candidate_status",
-                "note": "rejected entries are KEPT \u2014 they are the don't-ask-me-again record"
+                "note": "rejected entries are KEPT — they are the don't-ask-me-again record"
               },
               "resolution": {
                 "type": "string",
@@ -1309,8 +1773,8 @@
               "id": {
                 "type": "string",
                 "required": true,
-                "pattern": "^[A-Z]{3}-\\d{2}$",
-                "note": "stable id from bin/perry-diagnose (CTX/DOC/CON/TRK/FIT) or assigned for an interview finding"
+                "pattern": "^[A-Z][A-Z0-9]{1,3}-\\d{2}$",
+                "note": "stable id from bin/perry-diagnose, or assigned for an interview finding. The AUTHORITATIVE list is the finding catalog in reference/diagnose.md; this pattern is only the shape that list is written in, and tests/test_diagnose.py asserts every catalogued id satisfies it rather than restating the prefixes here. It read `^[A-Z]{3}-\\d{2}$` for a release - exactly three letters - which matches none of `LOAD-01`..`LOAD-04`, `NS-01` or `MODE-01`, six ids Perry's own catalog documents and Perry's own diagnose workflow emits. So a project whose diagnosis recorded one of them was told by perry-lint that Perry's output was malformed, which is the finding TASK-048 was opened on. Prefixes run 2-4 characters (`NS`, `CTX`, `LOAD`); the second character may be a digit because a situational interview finding takes the id of the question that produced it (`Q5-01`). Still deliberately narrow: `CON-03b` is NOT a catalogued id and stays a finding."
               },
               "severity": {
                 "type": "string",
@@ -1421,8 +1885,8 @@
       "id": "design",
       "path": "design/*.md",
       "exclude": "design/README.md",
-      "template": "design/state/design_TEMPLATE.md",
-      "owner": "design",
+      "template": "decide/state/design_TEMPLATE.md",
+      "owner": "decide",
       "tier": 2,
       "required": false,
       "header_fields": [
@@ -1432,43 +1896,43 @@
         },
         {
           "name": "Date",
-          "pattern": "\\d{4}-\\d{2}-\\d{2}|\u2014"
+          "pattern": "\\d{4}-\\d{2}-\\d{2}|—"
         }
       ],
       "headings": [
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Problem\\b|^(?:\\d+\\.\\s*)?\u95ee\u9898",
+          "match": "^(?:\\d+\\.\\s*)?Problem\\b|^(?:\\d+\\.\\s*)?问题",
           "label": "## Problem"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Goals\\b|^(?:\\d+\\.\\s*)?\u76ee\u6807",
+          "match": "^(?:\\d+\\.\\s*)?Goals\\b|^(?:\\d+\\.\\s*)?目标",
           "label": "## Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b|^(?:\\d+\\.\\s*)?\u975e\u76ee\u6807",
+          "match": "^(?:\\d+\\.\\s*)?Non-Goals\\b|^(?:\\d+\\.\\s*)?非目标",
           "label": "## Non-Goals"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b|^(?:\\d+\\.\\s*)?\u7528\u6237\u51b3\u7b56",
+          "match": "^(?:\\d+\\.\\s*)?User Decisions\\b|^(?:\\d+\\.\\s*)?用户决策",
           "label": "## User Decisions"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Architecture\\b|^(?:\\d+\\.\\s*)?\u67b6\u6784",
+          "match": "^(?:\\d+\\.\\s*)?Architecture\\b|^(?:\\d+\\.\\s*)?架构",
           "label": "## Architecture"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b|^(?:\\d+\\.\\s*)?\u5b9e\u65bd\u8ba1\u5212",
+          "match": "^(?:\\d+\\.\\s*)?Implementation plan\\b|^(?:\\d+\\.\\s*)?实施计划",
           "label": "## Implementation plan"
         },
         {
           "level": 2,
-          "match": "^(?:\\d+\\.\\s*)?Risks|^(?:\\d+\\.\\s*)?\u98ce\u9669",
+          "match": "^(?:\\d+\\.\\s*)?Risks|^(?:\\d+\\.\\s*)?风险",
           "label": "## Risks & mitigations"
         }
       ],
@@ -1483,8 +1947,8 @@
     {
       "id": "decisions",
       "path": "DECISIONS.md",
-      "template": "pmo/state/DECISIONS_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "decide/state/DECISIONS_TEMPLATE.md",
+      "owner": "decide",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -1492,13 +1956,13 @@
       "headings": [
         {
           "level": 2,
-          "match": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "match": "^Active\\b|^进行中",
           "label": "## Active"
         }
       ],
       "tables": [
         {
-          "under": "^Active\\b|^\u8fdb\u884c\u4e2d",
+          "under": "^Active\\b|^进行中",
           "columns": [
             "ADR",
             "Title",
@@ -1513,8 +1977,8 @@
     {
       "id": "project_state",
       "path": "PROJECT_STATE.md",
-      "template": "pmo/state/PROJECT_STATE_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/PROJECT_STATE_TEMPLATE.md",
+      "owner": "work",
       "tier": 2,
       "cap": 200,
       "cap_kind": "soft",
@@ -1525,7 +1989,7 @@
     {
       "id": "architecture",
       "path": "ARCHITECTURE.md",
-      "template": "pmo/state/ARCHITECTURE_TEMPLATE.md",
+      "template": "work/state/ARCHITECTURE_TEMPLATE.md",
       "owner": "user",
       "tier": 1,
       "cap": 500,
@@ -1534,8 +1998,8 @@
       "headings": [
         {
           "level": 2,
-          "match": "^\u00a7[1-8]\\b",
-          "label": "## \u00a71 \u2026 \u00a78 (eight fixed sections)"
+          "match": "^§[1-8]\\b",
+          "label": "## §1 … §8 (eight fixed sections)"
         }
       ],
       "anchor": "state"
@@ -1544,8 +2008,8 @@
       "id": "runbook",
       "path": "runbook/*.md",
       "exclude": "runbook/INDEX.md",
-      "template": "pmo/state/runbook_TEMPLATE.md",
-      "owner": "pmo",
+      "template": "work/state/runbook_TEMPLATE.md",
+      "owner": "work",
       "tier": 1,
       "cap": 150,
       "cap_kind": "hard",
@@ -1575,7 +2039,47 @@
         {
           "name": "State root",
           "required": false,
-          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves \u2014 it is the anchor that holds this pointer."
+          "note": "relative path from the project root where Perry's state files live; default '.'. Set when the project already uses a directory Perry claims (design/ is the common collision). `.perry/` itself never moves — it is the anchor that holds this pointer."
+        },
+        {
+          "name": "Packs",
+          "required": false,
+          "note": "Comma-separated pack names active in this project, resolved under $PERRY_HOME/packs/<name>/. Absent = software-ops only, which is what every pre-DESIGN-003 project effectively had. A pack supplies defaults - mode, stage vocabulary, rubrics, high-stakes additions, display glossary - never content."
+        },
+        {
+          "name": "Conformance gate",
+          "required": false,
+          "pattern": "advisory|enforce",
+          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.md, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself."
+        }
+      ],
+      "tables": [
+        {
+          "under": "^Tracks\\b|^轨道",
+          "note": "The track register (DESIGN-003 section 5.2). OPTIONAL: this spec is skipped entirely when the section is absent, which is what keeps every pre-DESIGN-003 project valid. Tracks are configuration, not state, which is why they live in a path Perry already claims rather than in a new file. Only Track and Mode are required; the rest are per-mode and absent columns take the mode default.",
+          "columns": [
+            "Track",
+            "Mode"
+          ],
+          "enum_columns": {
+            "Mode": "mode",
+            "Default rung": "verification_rung"
+          },
+          "no_default_by_mode": {
+            "mode_column": "Mode",
+            "id_column": "Track",
+            "source": "work_modes.modes.<mode>.no_default",
+            "severity": "warn",
+            "note": "The enforcement point for `work_modes.defaults_note`, which stated the rule and then left it to be obeyed by hand: a column listed in a mode's `no_default` is a commitment the project makes to somebody, so Perry may not invent one, and a track that never declared it cannot run the triage step that reads it. A queue track with no `SLA` therefore lints clean today while `modes/queue.md`'s breach step, age sort and triage question all measure against a clock that does not exist.\n\nThe list is NOT copied here. It is read out of `work_modes.modes.<mode>.no_default` per row, so a mode that gains or loses a no-default column changes this check and nothing else - two lists of which modes need an `SLA` is the two-implementations-of-one-rule defect ADR-004 is about. An em dash counts as undeclared, because `SKILL.md`'s own example track row writes empty cells that way and a check that only tested for the empty string would pass over every register Perry itself taught people to write.\n\nWARN, not error, deliberately. (a) An error would retroactively invalidate every track register written before this rule existed, which is the DESIGN-003 decision-4 argument. (b) Worse, under the ADR-004 gate a file carrying errors cannot be declared conformant, so one blank cell would escalate into a write refusal on `.perry/config.md` - the whole track register goes read-only because one track has no SLA. Neither is proportionate, and neither is needed, because the hard stops already exist at both ends: `goals/reference/phases.md` REFUSES to write a queue commitment while the track has no `SLA` cell, and `modes/queue.md` has triage REPORT the missing SLA rather than skip the breach step. This finding is the earlier, cheaper notice of the same fact.\n\nThe place the question is FORCED is creation - first-time setup and `/perry adopt` do not write a queue or pipeline row without asking (`modes/queue.md` section 'Declaring a queue track'), because at creation there is no legacy to invalidate and no honest default to fall back on. A default SLA was rejected explicitly: a number Perry invented is one the project never promised, and every triage run afterwards would measure real work against it."
+          },
+          "optional_columns": {
+            "Spine": "Free text: where this track's goals/commitments live.",
+            "Stages": "Ordered stage vocabulary, arrow-separated, e.g. `brief->draft->review->approved->published`. Pipeline, queue and inquiry modes. Absent = the mode's default vocabulary. SEPARATOR: `->` is canonical. `→` (U+2192) is accepted and means the same thing; readers must normalize before splitting. Three spellings were in circulation and nothing normalized, so 'the first stage' and 'the terminal stage' were computed by splitting on a separator the corpus spelled three ways (V4 round 4, finding 11).",
+            "WIP": "Per-stage limits, BY NAME ONLY: `stage:n`, comma-separated, e.g. `review:2,draft:4`. A stage not named has no limit. A positional grammar was considered and dropped - two grammars is one parser too many, and a user following the wrong one would produce a config that lints clean and evaluates to no limits at all. Pipeline default: `review:3`. Inquiry uses `open:n`, default `open:5`. Queue has no WIP control at all (depth is reported, never enforced), so the column is meaningless there.",
+            "SLA": "The single home for turnaround expectations, for both pipeline dwell time and queue response time. V4 finding S7: the two mode files put SLA in two different places for modes the design expects to coexist in one project.",
+            "Cycle": "What bounds the current horizon. Pipeline mode: a cycle boundary (`2026-W34`, `until 2026-09-30`, a campaign name). Queue mode: the review period, which reports rather than closes, and may be recurring (`monthly`, `quarterly`). V4 finding S6 created it for pipeline; re-review finding N8 widened it to the mode that also pointed at it. No default in any mode - see work_modes.defaults_note.",
+            "Default rung": "Overrides the mode default from `work_modes.modes.<mode>.default_rung`."
+          }
         }
       ],
       "anchor": "project"
@@ -1583,18 +2087,135 @@
     {
       "id": "hook",
       "path": ".perry/hook.md",
-      "template": "pmo/state/hook_TEMPLATE.md",
+      "template": "work/state/hook_TEMPLATE.md",
       "owner": "user",
       "tier": 1,
       "required": false,
       "headings": [
         {
           "level": 2,
-          "match": "^High-stakes|^\u9ad8\u98ce\u9669\u64cd\u4f5c",
+          "match": "^High-stakes|^高风险操作",
           "label": "## High-stakes operations"
         }
       ],
       "anchor": "project"
+    },
+    {
+      "id": "knowledge",
+      "path": "knowledge/*/*.md",
+      "template": "work/state/digest_TEMPLATE.md",
+      "owner": "work",
+      "tier": 2,
+      "required": false,
+      "note": "Digests of external sources. The provenance base for inquiry-mode tracks: a finding may cite `[SRC-n]`, and this entry is what guarantees the id exists, is unique, and carries an origin and a date. Added by TASK-023 - `knowledge/` was in claims[] but had no files[] entry, so nothing validated these headers at all.",
+      "header_fields": [
+        {
+          "name": "Id",
+          "pattern": "SRC-\\d+",
+          "note": "Stable citation id. Minted once at digest time and never reused, so a claim citing SRC-7 in a year still resolves to the same source."
+        },
+        {
+          "name": "Source"
+        },
+        {
+          "name": "Received"
+        },
+        {
+          "name": "Status",
+          "pattern": "active|archived|eternal|superseded"
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "knowledge-card",
+      "path": "knowledge/*/*.md",
+      "template": "work/state/knowledge_card_TEMPLATE.md",
+      "owner": "work",
+      "tier": 2,
+      "required": false,
+      "discriminator": {
+        "field": "Kind",
+        "values": [
+          "knowledge",
+          "source-of-truth"
+        ],
+        "note": "A card and a digest share the `knowledge/*/*.md` glob and are told apart by this field, which a digest does not carry. Both checks read it: `--knowledge` skips a file without it, `--provenance` skips a file with it. Without the discriminator each would report every file of the other kind as malformed."
+      },
+      "note": "DESIGN-006 section 5.3. One claim per card. All four provenance fields are mandatory AT WRITE TIME - a card without a source is refused, not written blank. That is the axiom `no done without evidence` extended to the knowledge layer: without it the store becomes a farm of confident errors that agents then execute against, which is strictly worse than no store.",
+      "header_fields": [
+        {
+          "name": "Kind",
+          "pattern": "knowledge|source-of-truth",
+          "note": "What kind of card. `source-of-truth` names an external system, its authoritative access path, and what falsifies it."
+        },
+        {
+          "name": "Owner role",
+          "note": "The role accountable for re-verifying it. `-` is legal only before roles exist (DESIGN-006 phase C); it is not a way to leave a card unowned afterwards."
+        },
+        {
+          "name": "Source",
+          "note": "What produced the claim - a task id, an evidence path, or a `SRC-n` digest. Resolved by the same machinery as LOAD-02; a source that resolves nowhere is a claim about the agent's memory."
+        },
+        {
+          "name": "Last verified",
+          "pattern": "\\d{4}-\\d{2}-\\d{2}",
+          "note": "When a human or a run last confirmed it. Drives staleness against thresholds.knowledge_stale_days."
+        },
+        {
+          "name": "Invalidated by",
+          "note": "The tripwire: the observable condition under which this stops being true. THE FIELD THAT MAKES A CARD REVISABLE rather than accumulating - a card with a `Last verified` and no `Invalidated by` goes stale silently."
+        }
+      ],
+      "anchor": "state"
+    },
+    {
+      "id": "role-card",
+      "path": ".perry/roles/*.md",
+      "template": "work/state/role_card_TEMPLATE.md",
+      "owner": "work",
+      "tier": 1,
+      "required": false,
+      "anchor": "project",
+      "note": "DESIGN-006 section 5.2. A role card is a HIRING CONTRACT the harness instantiates, never a workflow (decision #1). One file per role. A role is warranted only when it has a permission boundary or an acceptance standard distinct from the default - finance and legal that are both 'read files, run nothing, user reviews output' are one role with two knowledge topics, not two roles. OWNER IS `work`, AND THE CARD IS RENDERED OUTPUT, NOT THE DEFINITION - the store `.perry/agents.jsonl` is the truth (DESIGN-007 decision #2 and section 5.3). This owner changed on 2026-08-20 and the change cost exactly what this note used to say it would: `tests/test_ownership.py` refused the lane-owned path while the signed hand-off contract did not list it, and it was right to, so the row moved under a fresh V5 signature on `SKILL.md § The hand-off contract` rather than through a quiet entry in the test's exclusion list. The consequence a reader must know: a HAND EDIT TO A ROLE CARD IS NOW DRIFT, the same behaviour `BOARD.md` has had since ADR-007 decision 2. What did not change: `.perry/hook.md` is still `user`; section 5.2's existence test - a role is warranted only after a real permission or acceptance collision - is still a human judgement, and `packs/` still ships TEMPLATES rather than written cards, so nothing writes a card the project did not ask for.",
+      "header_fields": [
+        {
+          "name": "Accepted by",
+          "note": "Who verifies this role's output. Feeds the close-task gate."
+        },
+        {
+          "name": "Default rung",
+          "pattern": "V[0-6]",
+          "note": "Verification floor for this role's tasks. The STRICTER of mode-rung and role-rung wins (DESIGN-003 section 5.3)."
+        },
+        {
+          "name": "Executors",
+          "note": "`any`, or a restriction. Role is not executor: limits govern executors, and `bin/perry-dispatch-limit` is untouched."
+        }
+      ],
+      "sections": {
+        "closed": true,
+        "allowed": [
+          "Context",
+          "Loads",
+          "May touch",
+          "Must escalate"
+        ],
+        "note": "**A CLOSED SET, and that is the enforcement of decision #1.** The doc's rule is that a role card is a hiring contract and never a workflow, and `## Workflow` is only the first spelling of the violation - `## Steps`, `## Procedure`, `## How to`, `## Process` are the same thing wearing other names, and a guard written against the literal string would be the instance-shaped guard this project has found in every review round. Anything that is not one of the four is reported, so the category is closed rather than blacklisted. The cost, stated: a card cannot carry a `## Notes` or a `## Why this role exists`. That is deliberate - the four blocks each have a mechanical consumer (prompt, injection, pre-flight union, gate), and a fifth would be prose nothing reads.",
+        "workflow_like": [
+          "Workflow",
+          "Steps",
+          "Procedure",
+          "How to",
+          "Process",
+          "Runbook",
+          "Playbook",
+          "Instructions",
+          "流程",
+          "步骤"
+        ],
+        "workflow_note": "Not the check - the check is the closed set above. These get a SHARPER MESSAGE, because a card carrying one is making decision #1's exact mistake and deserves to be told which rule it broke rather than 'unknown section'."
+      }
     }
   ],
   "cross_file": [
@@ -1606,7 +2227,7 @@
     {
       "id": "linkage-objective-agrees",
       "severity": "error",
-      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P-O1.2 -> O1)."
+      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P002-O1-KR2 -> O1)."
     },
     {
       "id": "linkage-kr-exists",
@@ -1629,14 +2250,38 @@
       "description": ".perry/hook.md should declare a high-stakes list; dispatch and autopilot match specs against it."
     },
     {
+      "id": "hook-escalation-not-extractable",
+      "severity": "warn",
+      "description": "A `## High-stakes operations` bullet that yields no scan fragment. The gate matches backticked spans the extractor keeps, so a prose bullet - or one whose only span is below viewer/parsers.py extracts' floor - reads as a rule and enforces nothing. Same question, same predicate and same sentence as role-escalation-not-extractable (viewer/parsers.py unextractable_lines / unextractable_says): the two halves of the escalation union must report alike for the reason escalation_fragments says they must extract alike. Warn and not error, at the same severity as the role card's, because a rule's enforceability must not depend on which of the two files it was written in. SKIPPED ENTIRELY when there is no .perry/hook.md - no bullets means no dead bullets, which is TASK-117's inversion one check over."
+    },
+    {
       "id": "linkage-names-unique",
       "severity": "error",
-      "description": "No two linkage projects may share a name or an alias \u2014 that ambiguity is exactly what the registry exists to prevent."
+      "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."
     },
     {
       "id": "linkage-task-single-kr",
       "severity": "error",
       "description": "A task id may appear under at most one KR's tasks[]; two would make its attribution ambiguous."
+    },
+    {
+      "id": "linkage-task-exists",
+      "severity": "warn",
+      "description": "Every id under a KR's tasks[] must be a record in the task store. Warn and not error for the same reason as linkage-kr-exists: it is the same statement one edge over, and a referent that is absent today can be a row not yet opened rather than a malformed file. SKIPPED ENTIRELY when there is no readable tasks.jsonl - a project with no store has not been adopted (viewer/parsers.py § load_task_store), and reading that as 'every edge dangles' is TASK-117's inversion. An old phase's register IS judged against today's store: a task id is global, unlike a KR id, so there is no per-phase store to judge it against."
     }
-  ]
+  ],
+  "packs": {
+    "note": "DESIGN-003 section 5.6 / 5.7. Packs live in $PERRY_HOME, NOT in the user's project, so they claim nothing and appear in no claims[] entry. `packs/<name>/pack.md` is the manifest.",
+    "manifest": "packs/<name>/pack.md",
+    "sections": {
+      "Glossary": "Optional. A two-column table, `Term | Shown as`, that renames what Perry RENDERS. It is a third axis on the same mechanism as i18n: file names, IDs, enum values, column keys and command names stay invariant, and only the nouns a human reads change. A pack that renamed a file name would break every parser, which is why the glossary cannot reach them."
+    },
+    "invariant": "Everything in i18n.invariant, plus: a glossary may never rename a schema column key, a heading the schema matches on, an enum value, or a path. It renames prose."
+  },
+  "typed_cell_kinds": {
+    "iso-date-or-sla": {
+      "accepts": "an ISO date like `2026-09-30`, or an SLA token like `3d` / `2w`",
+      "note": "The KIND is declared here and the PREDICATE is in `bin/lib § is_iso_date` / `is_sla_token`, which `bin/perry-goals` also validates `--due` with — one value space, one implementation, so the writer's “accepted” and the file check's “valid” cannot drift apart. The prose lives here rather than in the linter for the reason ADR-007 gives generally: the shape is Python's and the words are the declaration's. `tests/test_work_modes.py § test_the_linter_does_not_carry_its_own_copy_of_the_list` enforces exactly that boundary, and caught the first version of this string sitting in `bin/perry-lint`."
+    }
+  }
 }

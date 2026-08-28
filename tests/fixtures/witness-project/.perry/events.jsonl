@@ -1,0 +1,6 @@
+{"ts": "2026-08-01T09:00:00", "event": "add", "id": "WIT-001", "title": "The row nobody is holding", "track": "main", "actor": "agent", "from": "", "to": "not_started"}
+{"ts": "2026-08-01T09:00:05", "event": "add", "id": "WIT-002", "title": "The edge no register carries", "track": "main", "actor": "agent", "from": "", "to": "not_started"}
+{"ts": "2026-08-01T09:00:10", "event": "add", "id": "WIT-003", "title": "The row waiting on a verdict", "track": "main", "actor": "agent", "from": "", "to": "not_started"}
+{"ts": "2026-08-06T11:20:00", "event": "start", "id": "WIT-001", "track": "main", "actor": "agent", "from": "not_started", "to": "in_progress"}
+{"ts": "2026-08-06T11:40:00", "event": "status", "id": "WIT-002", "track": "main", "actor": "agent", "from": "not_started", "to": "blocked"}
+{"ts": "2026-08-06T12:05:00", "event": "status", "id": "WIT-003", "track": "main", "actor": "agent", "from": "in_progress", "to": "review"}

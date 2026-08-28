@@ -3,6 +3,7 @@
 #
 #   bash tests/run            # everything
 #   bash tests/run --lint     # just the schema drift guard (fast)
+#   bash tests/run --serial   # step 2 one module at a time (ordering hunts)
 #
 # What it covers:
 #   1. bin/perry-lint --templates — the shipped templates still match
@@ -32,7 +33,14 @@ if [ "${1:-}" = "--lint" ]; then
 fi
 
 step "2. parser / extractor / linter contract tests"
-python3 -m unittest discover -s tests || fail=1
+# Module-parallel: 34 independent modules, 181s serial → ~75s across 8 workers.
+# `--serial` falls back to plain discover; use it when a failure looks like it
+# might be ordering-dependent, since parallel changes the order modules finish.
+if [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
+  python3 -m unittest discover -s tests || fail=1
+else
+  python3 tests/parallel || fail=1
+fi
 
 step "3. bin/ scripts are syntactically valid and self-documenting"
 for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
@@ -41,7 +49,7 @@ for f in bin/perry-state bin/perry-lint bin/perry-diagnose bin/perry-explain \
   python3 "$f" --help >/dev/null 2>&1 || { echo "  ✗ $f --help failed"; fail=1; }
 done
 for f in bin/perry-detect-host bin/perry-update-check bin/perry-dispatch-limit \
-         bin/perry-codex-preflight bin/perry-viewer; do
+         bin/perry-codex-preflight; do
   bash -n "$f" || { echo "  ✗ $f does not parse"; fail=1; }
 done
 [ "$fail" = 0 ] && echo "  ✓ all bin/ scripts OK"

@@ -1,28 +1,67 @@
 #!/usr/bin/env bash
-# perry-dispatch-limit — track and enforce max concurrent /pmo dispatches.
+# perry-dispatch-limit — track and enforce max concurrent /perry work dispatches.
 #
 # Each in-flight dispatch leaves a marker file at
 #   ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
 #
 # `register` reserves a slot (refuses if at limit). `release` frees it.
-# Stale markers (older than PERRY_DISPATCH_STALE_TTL, default 1h) are
-# auto-cleaned before counting — covers the case where a previous PMO
-# session crashed without releasing.
+# Stale markers (older than PERRY_DISPATCH_STALE_TTL) are auto-cleaned before
+# counting — covers the case where a previous `work` session crashed without
+# releasing. **Every reap says so on stderr** (TASK-160); see `clean_stale`.
 set -e
 
 # ─── Defaults (override via env) ─────────────────────────────
 MAX_CODEX="${PERRY_MAX_DISPATCH_CODEX:-2}"
 MAX_SUBAGENT="${PERRY_MAX_DISPATCH_SUBAGENT:-2}"
+MAX_OPENCODE_SUBAGENT="${PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT:-2}"
 MAX_TOTAL="${PERRY_MAX_DISPATCH_TOTAL:-3}"
-STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-3600}"  # 1 hour
+# ─── Marker lifetime — measured, not chosen (TASK-160) ───────
+#
+# 2026-08-21: this sweep deleted TASK-142's marker 72 minutes into a live run,
+# and `list` then reported 2 of 3 while three agents were working. Real cycles
+# measured the same night: TASK-148 2h15m, TASK-146 55m, TASK-159 55m,
+# TASK-136 55m, TASK-119 45m. The longest real cycle is 8100s — more than
+# double the 3600s TTL this file shipped with — so the cap had not been the cap
+# for a while, and nothing said so.
+#
+# The window the default may sit in is closed at BOTH ends:
+#
+#   lower  8100s   the longest cycle actually measured. At or below it the
+#                  sweep reaps live agents, which is the defect above.
+#   upper 14400s   `thresholds.in_progress_idle_hours` (4h) in
+#                  `schema/state-schema.json`, which is calibrated against
+#                  this number and says so. `conformance`'s
+#                  `in_progress_with_no_live_run` names a row only once
+#                  nothing holds its slot, so the moment this sweep stops
+#                  counting a marker should be the moment that check is free
+#                  to speak. A TTL above the threshold opens a window in which
+#                  a slot is already reaped and the row still cannot be named.
+#
+# Take the top of the window. The two errors are not symmetric any more: too
+# high now costs one loud line below plus a marker `list` prints with its age
+# and a warning, while too low costs the silent over-count this task exists to
+# remove. Equality with the idle threshold is the intended relationship, not a
+# near miss — it leaves no gap in either direction.
+#
+# Moving this number means moving three things together, and
+# `tests/test_stranded_rows.py § TestThresholdsAgree` fails if they drift:
+# here, `bin/perry-task § live_dispatch_ids`, and the schema threshold above.
+LONGEST_MEASURED_CYCLE=8100                     # TASK-148, 2h15m, 2026-08-21
+STALE_TTL="${PERRY_DISPATCH_STALE_TTL:-14400}"  # 4 hours
 
 CACHE_DIR="$HOME/.cache/perry/in-flight"
+LOCK_DIR="$CACHE_DIR/.lock"
+LOCK_WAIT_TIMEOUT=10
+LOCK_UNOWNED_TTL=300
+LOCK_HELD=0
+LOCK_TOKEN=""
+TEMP_MARKER=""
 mkdir -p "$CACHE_DIR"
 
 # ─── Helpers ─────────────────────────────────────────────────
 usage() {
   cat <<'USAGE'
-perry-dispatch-limit — track concurrent /pmo dispatch slots.
+perry-dispatch-limit — track concurrent /perry work dispatch slots.
 
 Usage:
   perry-dispatch-limit register <task-id> <executor>
@@ -36,20 +75,110 @@ Subcommands:
   check      Print current count for <executor>. Exit 0 if room, 1 if at limit.
   list       Print all active markers (after cleaning stale).
 
-Executors: codex, claude-subagent
+Executors: codex, claude-subagent, opencode-subagent
 
 Env overrides (defaults shown):
   PERRY_MAX_DISPATCH_CODEX=2       Max concurrent codex dispatches
   PERRY_MAX_DISPATCH_SUBAGENT=2    Max concurrent claude-subagent dispatches
+  PERRY_MAX_DISPATCH_OPENCODE_SUBAGENT=2
+                                    Max concurrent opencode-subagent dispatches
   PERRY_MAX_DISPATCH_TOTAL=3       Cap across all executors (whichever hits first wins)
-  PERRY_DISPATCH_STALE_TTL=3600    Stale-marker TTL in seconds (default 1h)
+  PERRY_DISPATCH_STALE_TTL=14400   Stale-marker TTL in seconds (default 4h).
+                                    Every reap is announced on stderr.
 
 Cache: ~/.cache/perry/in-flight/<TASK-ID>-<EXECUTOR>.json
 USAGE
 }
 
+# GNU `stat -f` is `--file-system`: it SUCCEEDS and prints a filesystem block,
+# so a `-f %m || -c %Y` chain never reaches its fallback on Linux and hands
+# `$((now - last))` four lines of prose. That was green on every mac and red on
+# every CI run (TASK-138). Two rules, both load-bearing: try the GNU form
+# FIRST — `-c` is rejected outright by BSD stat, so it fails cleanly, which
+# `-f` does not — and accept an answer only if it is all digits, because an
+# exit code is not evidence that the output means what was asked for.
 mtime() {
-  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
+  local v
+  v=$(stat -c %Y "$1" 2>/dev/null) && case "$v" in
+    ""|*[!0-9]*) : ;;
+    *) printf '%s\n' "$v"; return 0 ;;
+  esac
+  v=$(stat -f %m "$1" 2>/dev/null) && case "$v" in
+    ""|*[!0-9]*) : ;;
+    *) printf '%s\n' "$v"; return 0 ;;
+  esac
+  echo 0
+}
+
+release_lock() {
+  local owner
+  [ "$LOCK_HELD" -eq 1 ] || return 0
+  owner=$(cat "$LOCK_DIR/owner" 2>/dev/null || true)
+  if [ -z "$owner" ] || [ "$owner" = "$LOCK_TOKEN" ]; then
+    rm -f "$LOCK_DIR/owner" "$LOCK_DIR/acquired_at" 2>/dev/null || true
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+  [ -z "$TEMP_MARKER" ] || rm -f "$TEMP_MARKER" 2>/dev/null || true
+  LOCK_HELD=0
+}
+
+recover_stale_lock() {
+  local owner owner_pid started now age stale stale_dir
+  [ -d "$LOCK_DIR" ] || return 0
+  owner=$(cat "$LOCK_DIR/owner" 2>/dev/null || true)
+  owner_pid=${owner%%.*}
+  started=$(cat "$LOCK_DIR/acquired_at" 2>/dev/null || mtime "$LOCK_DIR")
+  case "$started" in *[!0-9]*|"") started=0 ;; esac
+  now=$(date +%s)
+  age=$((now - started))
+  stale=0
+  case "$owner_pid" in
+    *[!0-9]*|"")
+      if [ "$age" -gt "$LOCK_UNOWNED_TTL" ]; then
+        stale=1
+      fi
+      ;;
+    *)
+      if ! kill -0 "$owner_pid" 2>/dev/null; then
+        stale=1
+      fi
+      ;;
+  esac
+  [ "$stale" -eq 1 ] || return 0
+
+  # Rename first so cleanup can never remove a lock acquired by another waiter.
+  stale_dir="$CACHE_DIR/.lock.stale.$$.$RANDOM"
+  if mv "$LOCK_DIR" "$stale_dir" 2>/dev/null; then
+    rm -f "$stale_dir/owner" "$stale_dir/acquired_at" 2>/dev/null || true
+    rmdir "$stale_dir" 2>/dev/null || true
+  fi
+}
+
+acquire_lock() {
+  local wait_started now owner_tmp started_tmp
+  wait_started=$(date +%s)
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    recover_stale_lock
+    now=$(date +%s)
+    if [ $((now - wait_started)) -ge "$LOCK_WAIT_TIMEOUT" ]; then
+      echo "Failed to acquire dispatch marker lock after ${LOCK_WAIT_TIMEOUT}s" >&2
+      exit 2
+    fi
+    sleep 0.05
+  done
+
+  LOCK_HELD=1
+  LOCK_TOKEN="$$.$RANDOM.$(date +%s)"
+  trap release_lock EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  owner_tmp="$LOCK_DIR/.owner.$$.$RANDOM"
+  started_tmp="$LOCK_DIR/.started.$$.$RANDOM"
+  printf '%s\n' "$LOCK_TOKEN" > "$owner_tmp"
+  printf '%s\n' "$(date +%s)" > "$started_tmp"
+  mv "$owner_tmp" "$LOCK_DIR/owner"
+  mv "$started_tmp" "$LOCK_DIR/acquired_at"
 }
 
 # Task IDs become filenames + JSON values + glob patterns, so restrict them to
@@ -65,15 +194,25 @@ validate_task_id() {
   esac
 }
 
+# A reap is never silent (TASK-160). The defect above ran for hours precisely
+# because this function could delete a live agent's slot and say nothing: the
+# next `list` simply printed a smaller number, and the next `register` was
+# waved through under a cap that was no longer the cap. The sweep still runs —
+# a crashed agent would otherwise hold a slot forever, and this project has had
+# agents die at a 600s watchdog — but it now reports every slot it takes, so
+# the failure is loud instead of invisible. stderr, not stdout: `check` and
+# `list` have parseable stdout and a warning is not part of their answer.
 clean_stale() {
-  local now last age
+  local now last age name
   now=$(date +%s)
   for f in "$CACHE_DIR"/*.json; do
     [ -e "$f" ] || continue
     last=$(mtime "$f")
     age=$((now - last))
     if [ "$age" -gt "$STALE_TTL" ]; then
+      name=$(basename "$f" .json)
       rm -f "$f"
+      echo "⚠️  Reaped dispatch slot: $name — its marker was $((age / 60))m old, past the $((STALE_TTL / 60))m stale TTL (PERRY_DISPATCH_STALE_TTL=${STALE_TTL}s). If that agent is still running it no longer holds a slot, and the cap is now short by one." >&2
     fi
   done
 }
@@ -106,7 +245,15 @@ list_markers() {
     now=$(date +%s)
     last=$(mtime "$f")
     age=$((now - last))
-    echo "  • $name  (started $((age / 60))m ago)"
+    # The other half of "never silent". Raising the TTL means a crashed agent
+    # holds its slot four times longer than it used to, and this listing is the
+    # only place a human can see that before the reap line prints. A marker
+    # that has outlived every cycle ever measured on this project says so here.
+    if [ "$age" -gt "$LONGEST_MEASURED_CYCLE" ]; then
+      echo "  • $name  (started $((age / 60))m ago — longer than any cycle measured on this project; reaped at $((STALE_TTL / 60))m)"
+    else
+      echo "  • $name  (started $((age / 60))m ago)"
+    fi
   done
 }
 
@@ -114,6 +261,7 @@ max_for_executor() {
   case "$1" in
     codex) echo "$MAX_CODEX" ;;
     claude-subagent) echo "$MAX_SUBAGENT" ;;
+    opencode-subagent) echo "$MAX_OPENCODE_SUBAGENT" ;;
     *) echo "0" ;;
   esac
 }
@@ -131,12 +279,19 @@ case "$cmd" in
       exit 2
     fi
     validate_task_id "$task_id"
-    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
-      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ] && [ "$executor" != "opencode-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent | opencode-subagent)" >&2
       exit 2
     fi
 
+    acquire_lock
     clean_stale
+    for existing in "$CACHE_DIR/${task_id}-"*.json; do
+      [ -e "$existing" ] || continue
+      echo "❌ $task_id already has an active dispatch: $(basename "$existing" .json)" >&2
+      list_markers >&2
+      exit 1
+    done
     max_per=$(max_for_executor "$executor")
     cur_per=$(count_executor "$executor")
     cur_total=$(count_all)
@@ -153,7 +308,8 @@ case "$cmd" in
     fi
 
     marker="$CACHE_DIR/${task_id}-${executor}.json"
-    cat > "$marker" <<EOF
+    TEMP_MARKER="$CACHE_DIR/.${task_id}-${executor}.$$.$RANDOM.tmp"
+    cat > "$TEMP_MARKER" <<EOF
 {
   "task_id": "$task_id",
   "executor": "$executor",
@@ -161,8 +317,10 @@ case "$cmd" in
   "registered_pid": $$
 }
 EOF
-    new_per=$((cur_per + 1))
-    new_total=$((cur_total + 1))
+    mv "$TEMP_MARKER" "$marker"
+    TEMP_MARKER=""
+    new_per=$(count_executor "$executor")
+    new_total=$(count_all)
     echo "🟢 Slot reserved: $task_id ($executor). Now $new_per / $max_per for $executor; $new_total / $MAX_TOTAL total."
     ;;
 
@@ -173,6 +331,7 @@ EOF
       exit 2
     fi
     validate_task_id "$task_id"
+    acquire_lock
     rm -f "$CACHE_DIR"/"${task_id}"-*.json 2>/dev/null
     echo "🟢 Released: $task_id"
     ;;
@@ -183,11 +342,12 @@ EOF
       echo "Usage: check <executor>" >&2
       exit 2
     fi
-    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ]; then
-      echo "Unknown executor: $executor (expected codex | claude-subagent)" >&2
+    if [ "$executor" != "codex" ] && [ "$executor" != "claude-subagent" ] && [ "$executor" != "opencode-subagent" ]; then
+      echo "Unknown executor: $executor (expected codex | claude-subagent | opencode-subagent)" >&2
       exit 2
     fi
 
+    acquire_lock
     clean_stale
     max_per=$(max_for_executor "$executor")
     cur_per=$(count_executor "$executor")
@@ -200,6 +360,7 @@ EOF
     ;;
 
   list)
+    acquire_lock
     clean_stale
     list_markers
     ;;

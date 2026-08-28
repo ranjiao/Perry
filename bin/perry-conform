@@ -1,0 +1,617 @@
+#!/usr/bin/env python3
+"""
+perry-conform — the declared, checkable conformance marker (ADR-004).
+
+`bin/perry-lint`'s `is_adopted()` answers *"does this folder contain any Perry
+file at all"*. It answers that correctly and this tool does not replace it.
+
+ADR-004 needs a different fact, and it is two facts wearing one name:
+
+  1. **the declaration** — the user said this file is Perry's, at shape
+     version N. Recorded in `.perry/conformance.md`. Only ever written by
+     `perry-conform declare` (and by `bin/perry-migrate`, the migration the
+     user asked for, which records `route: migrate`). *Adoption proposes; the
+     user declares.*
+  2. **the shape** — does the file still match `schema/state-schema.json`
+     right now. Computed live, on every call, by `bin/perry-lint`'s own
+     `check_file`. Never cached, never stored.
+
+Keeping them apart is the whole design. A stored verdict would be a cache that
+goes wrong, and a content hash would revoke itself on every legitimate
+`perry-task add`. A stored *decision* plus a live *check* can disagree, and
+that disagreement is a finding — which is exactly what ADR-004 asks for.
+
+Usage:
+  perry-conform status  [--root <project>] [--json]
+  perry-conform check   <file> [--root <project>] [--json]
+  perry-conform declare (<file> ... | --all) [--root <project>] [--dry-run] [--json]
+
+  <file> is the path as `schema/state-schema.json` declares it: relative to the
+  state root for state files (`BOARD.md`, `phase/004-x.md`), relative to the
+  project root for the `.perry/` ones (`.perry/hook.md`). `perry-conform
+  status` lists every key this project has.
+
+Exit codes:
+  0  the request was satisfied
+  1  `check` on a file that is not conformant; `declare` on a file that could
+     not be declared
+  2  bad invocation
+
+No LLM, no external dependencies (stdlib only). `status` and `check` are
+read-only; `declare` writes `.perry/conformance.md` and nothing else.
+"""
+
+from __future__ import annotations
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import re
+import sys
+from dataclasses import dataclass, field
+from datetime import date
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
+
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import parsers as P  # noqa: E402
+from tables import render_row  # noqa: E402
+import lib  # noqa: E402
+
+_LINT = None
+
+
+def lint():
+    """`bin/perry-lint` as a module, loaded once per process.
+
+    This tool must NOT contain a second definition of Perry's shape. The one
+    definition is `schema/state-schema.json`, and the one implementation of
+    "does this file match it" is `perry-lint.check_file`. So the linter is
+    imported rather than imitated, the same way `bin/perry-task` imports
+    `bin/perry-state` rather than re-deriving its rules."""
+    global _LINT
+    if _LINT is None:
+        sys.path.insert(0, str(PERRY_HOME / "bin"))
+        spec = importlib.util.spec_from_loader(
+            "perry_lint", importlib.machinery.SourceFileLoader(
+                "perry_lint", str(PERRY_HOME / "bin" / "perry-lint")))
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault("perry_lint", mod)
+        spec.loader.exec_module(mod)
+        _LINT = mod
+    return _LINT
+
+
+class Refused(Exception):
+    """A refusal is a first-class outcome, not a crash. Nothing was written."""
+
+
+def load_schema() -> dict:
+    """`lib.load_schema`, plus the one thing this tool needs done after it.
+
+    The arming is not part of loading and is why this wrapper exists: without
+    it, a project whose board says `负责人` is reported as missing `Owner`."""
+    schema = lib.load_schema(Refused)
+    lint().load_glossary(schema)
+    return schema
+
+
+def shape_version(schema: dict) -> int:
+    """Perry's shape version — `schema_version`, not a number of its own.
+
+    Deliberately NOT a second counter. `schema/state-schema.json` *is* the
+    definition of Perry's shape; a `conformance_version` beside it would be one
+    rule with two numbers, and the first schema change that forgot to bump both
+    would make every marker a lie."""
+    return int(schema.get("schema_version") or 0)
+
+
+# ── the verdict ───────────────────────────────────────────────────────────
+
+CONFORMANT = "conformant"
+UNDECLARED = "undeclared"
+STALE = "stale"
+DRIFTED = "drifted"
+ABSENT = "absent"
+
+
+@dataclass
+class Verdict:
+    path: str                       # the schema-declared key
+    state: str
+    shape_version: int              # what Perry's shape is now
+    declared_version: int | None = None
+    declared_on: str = ""
+    route: str = ""
+    errors: list = field(default_factory=list)   # perry-lint Findings, errors only
+    record_unreadable: int = 0
+    file: str = ""                  # absolute path, for the message
+
+    @property
+    def ok(self) -> bool:
+        return self.state in (CONFORMANT, ABSENT)
+
+    def as_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "state": self.state,
+            "shape_version": self.shape_version,
+            "declared_version": self.declared_version,
+            "declared_on": self.declared_on,
+            "route": self.route,
+            "errors": len(self.errors),
+            "record_unreadable_rows": self.record_unreadable,
+        }
+
+
+def state_files(project_root: Path, state_root: Path, schema: dict) -> list[tuple[str, Path, dict]]:
+    """Every file the schema claims, as (key, absolute path, spec).
+
+    The enumeration is `perry-lint.iter_targets` — the same globbing, the same
+    `exclude` handling — so "a file perry-lint validates" and "a file that can
+    be declared conformant" cannot come apart."""
+    L = lint()
+    out: list[tuple[str, Path, dict]] = []
+    for spec in schema["files"]:
+        base = project_root if spec.get("anchor") == "project" else state_root
+        for path in L.iter_targets(base, spec):
+            # **Two specs may share one glob.** `knowledge/*/*.md` is matched by
+            # both the digest and the knowledge-card entry, and a card is not a
+            # malformed digest. `spec_claims` is `perry-lint`'s one
+            # implementation of the declared `discriminator`; putting the call
+            # HERE rather than in each caller is what makes lint, conform and
+            # migrate agree — the first version wired it into `perry-lint`
+            # alone and `perry-migrate` immediately started writing the card's
+            # five fields into every digest, `Kind: —` included, on every real
+            # project. Caught by the suite.
+            if not L.spec_claims(spec, L.strip_comments(
+                    path.read_text(errors="replace")), schema):
+                continue
+            out.append((path.relative_to(base).as_posix(), path, spec))
+    return out
+
+
+def spec_for(project_root: Path, state_root: Path, schema: dict,
+             key: str) -> tuple[Path, dict] | None:
+    for k, path, spec in state_files(project_root, state_root, schema):
+        if k == key:
+            return path, spec
+    return None
+
+
+def shape_errors(path: Path, key: str, spec: dict, schema: dict) -> list:
+    """`perry-lint`'s errors for this one file, and only for this one file.
+
+    **Errors, not warnings.** Two reasons, and the second is decisive:
+
+    - warnings in this schema are quality signals, not shape violations —
+      `done-needs-evidence`, `board-declares-no-rungs`, a soft `size-cap`. A
+      board can carry every one of them and still be a board every reader
+      parses correctly, which is the only thing a writer needs to know.
+    - some of them are *time-dependent*. `stale-run` fires when an adoption run
+      has been open 30 days; nothing about the file changed. A declaration that
+      revokes itself when a calendar boundary passes is not a statement about
+      shape.
+
+    **`check_file`, not `check_cross_file`.** ADR-004 § 5 makes conformance
+    per-file so a project can migrate its board and not its risks; a check that
+    spans files cannot be attributed to one of them."""
+    L = lint()
+    findings = L.check_file(path, key, spec, schema["enums"], is_template=False)
+    return [f for f in findings if f.severity == "error"]
+
+
+def verdict(project_root: Path, state_root: Path, key: str,
+            schema: dict | None = None) -> Verdict:
+    """The whole fact about one file: what was declared, and what is true."""
+    schema = schema or load_schema()
+    now = shape_version(schema)
+    record = P.read_conformance(project_root)
+    decl = record.declarations.get(key)
+    v = Verdict(path=key, state=UNDECLARED, shape_version=now,
+                record_unreadable=len(record.unreadable))
+    found = spec_for(project_root, state_root, schema, key)
+    if found is None:
+        v.state = ABSENT
+        return v
+    path, spec = found
+    v.file = str(path)
+    v.errors = shape_errors(path, key, spec, schema)
+    if decl is None:
+        v.state = UNDECLARED
+        return v
+    v.declared_version, v.declared_on, v.route = (
+        decl.shape_version, decl.declared, decl.route)
+    if decl.shape_version != now:
+        v.state = STALE
+    elif v.errors:
+        # Reported, not revoked. The row stays in `.perry/conformance.md`: the
+        # user did declare this file, and a tool that erased the declaration
+        # because the file drifted would be deciding on the user's behalf in
+        # the one place ADR-004 § 4 says it may not.
+        v.state = DRIFTED
+    else:
+        v.state = CONFORMANT
+    return v
+
+
+# ── the gate ──────────────────────────────────────────────────────────────
+
+ADVISORY = "advisory"
+ENFORCE = "enforce"
+
+#: Shipped **enforce** (TASK-047). This shipped `advisory` for one release, on
+#: an argument that named its own expiry condition, and the condition has now
+#: fired. The old text is not preserved here — a comment that explains why the
+#: default is `advisory` is wrong the moment the default is `enforce` — but the
+#: argument it made is, because a reviewer should be able to disagree with the
+#: flip on the same terms it was promised:
+#:
+#: The advisory release was NOT the DESIGN-003 decision-4 argument (a hard gate
+#: would retroactively invalidate work done before the rule existed). That one
+#: does not carry: a missing declaration on a conformant file can be produced in
+#: one second, retroactively, by one command. The argument that carried was
+#: narrower — for the projects that are NOT already Perry-shaped the way forward
+#: is the migration, the migration did not exist, and a refusal that names a
+#: command nobody can run is the wall ADR-004 § 4 forbids. Enforcement was to
+#: flip when TASK-044 gave the non-conformant half of the population a road.
+#:
+#: TASK-044 landed 2026-08-19. `bin/perry-migrate` exists, is dry-runnable,
+#: declares what it migrates with `route: migrate`, and names a restore point.
+#: Both halves of the population now have a road, and `message_for` below names
+#: it in every branch: `perry-conform declare` for a file that already matches,
+#: `perry-migrate` for one that does not.
+#:
+#: **What the flip costs, stated rather than discovered.** Neither of these is a
+#: reason the road is missing; both are reasons a user meets the gate on day one:
+#:
+#:  1. a complete migration does not always reach zero on a real board. Measured
+#:     on a copy of `~/proj/gimegime-pmo`: `BOARD.md` goes 3 errors → 1, and the
+#:     residue is a `Status` cell reading `半解` — a distinction its author drew,
+#:     which migration deliberately will not coerce into `in_progress`. That file
+#:     stays refused until a human edits it and declares it. The refusal says so
+#:     and names both commands; it is a door that needs a hand, not a wall.
+#:  2. a brand-new project has zero shape errors and is still `undeclared`,
+#:     because `SKILL.md § Conformance gate` forbids an agent from declaring on
+#:     the user's behalf — *adoption proposes; the user declares*. So the first
+#:     write on a spotless project asks for one `perry-conform declare BOARD.md`.
+#:
+#: Both are pinned as executable tests in `tests/test_conformance.py § 7`, so
+#: the day either stops being true a test says so instead of this paragraph
+#: quietly going stale.
+#:
+#: The escape hatches are unchanged and are the reason this is reversible per
+#: project rather than per release: `PERRY_CONFORMANCE=advisory` in the
+#: environment, or `- Conformance gate: advisory` in `.perry/config.md`.
+#: Advisory is not "off" and never was — the gate computes the same verdict and
+#: prints the same message, it simply writes anyway. A guard that cannot be made
+#: to fire is not a guard, so both branches stay exercised by the suite.
+DEFAULT_MODE = ENFORCE
+
+
+def gate_mode(project_root: Path) -> str:
+    """`enforce` or `advisory`, most specific wins.
+
+    env `PERRY_CONFORMANCE` beats `.perry/config.md § Conformance gate` beats
+    the shipped default."""
+    env = (os.environ.get("PERRY_CONFORMANCE") or "").strip().lower()
+    if env in (ENFORCE, ADVISORY):
+        return env
+    cfg = Path(project_root) / ".perry" / "config.md"
+    if cfg.exists():
+        m = re.search(r"Conformance gate\s*[:：]\s*([^\n]+)",
+                      cfg.read_text(errors="replace"), re.I)
+        if m and m.group(1).strip().strip("*`  ").lower() in (ENFORCE, ADVISORY):
+            return m.group(1).strip().strip("*`  ").lower()
+    return DEFAULT_MODE
+
+
+@dataclass
+class GateResult:
+    verdict: Verdict
+    mode: str
+    ok: bool
+    message: str
+
+    def as_dict(self) -> dict:
+        d = self.verdict.as_dict()
+        d["gate"] = self.mode
+        d["allowed"] = self.ok
+        return d
+
+
+def _root_flag(root_arg: str | None) -> str:
+    return f" --root {root_arg}" if root_arg else ""
+
+
+def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
+    """The way forward, named. A gate that says "not conformant" and stops is
+    a wall — every branch here ends in a command the reader can run."""
+    r = _root_flag(root_arg)
+    tail = ("" if v.record_unreadable == 0 else
+            f" ({v.record_unreadable} row(s) in .perry/conformance.md could not "
+            f"be read and were not counted as declarations)")
+    if v.state == UNDECLARED and not v.errors:
+        return (
+            f"{v.path} already matches Perry's shape at version {v.shape_version}, "
+            f"but no one has declared it. Perry writes only to declared files "
+            f"(ADR-004: adoption proposes, the user declares). Declare it with:\n"
+            f"    perry-conform declare {v.path}{r}\n"
+            f"Reading is unaffected — `{tool} list` and `perry-state` work "
+            f"either way.{tail}")
+    if v.state == UNDECLARED:
+        # `risk-add`'s refusal is the shape: name the count, name the command,
+        # point at the dry run. Before TASK-044 the only command this could name
+        # was `perry-lint`, which reports the problem and fixes nothing — a wall
+        # with a diagnosis nailed to it. Naming `perry-migrate` is what made the
+        # enforcing default defensible, so this branch and `DEFAULT_MODE` above
+        # are one decision, not two.
+        return (
+            f"{v.path} is not Perry's shape: {len(v.errors)} error(s) against "
+            f"schema/state-schema.json at shape version {v.shape_version}. A "
+            f"project migrates once (ADR-004); until then this file is "
+            f"read-only. See the complete diff, with nothing written:\n"
+            f"    perry-migrate{r}\n"
+            f"then, when it is the diff you want:\n"
+            f"    perry-migrate apply{r}\n"
+            f"which declares every file it migrates, names a restore point, and "
+            f"leaves anything it will not touch byte-identical with the reason. "
+            f"The unfiltered list of findings is `perry-lint{r}`; a file you fix "
+            f"by hand is declared with `perry-conform declare {v.path}{r}`.\n"
+            f"Reading is unaffected — `{tool} list` and `perry-state` work "
+            f"either way.{tail}")
+    if v.state == STALE:
+        return (
+            f"{v.path} was declared conformant at shape version "
+            f"{v.declared_version} on {v.declared_on or '—'}; Perry's shape is "
+            f"now version {v.shape_version}. A version Perry no longer speaks is "
+            f"never silently accepted. Re-declare with:\n"
+            f"    perry-conform declare {v.path}{r}\n"
+            f"which refuses if the file does not match the current shape"
+            + (f" (it currently has {len(v.errors)} error(s))" if v.errors else "")
+            + f".{tail}")
+    if v.state == DRIFTED:
+        return (
+            f"{v.path} was declared conformant at shape version "
+            f"{v.declared_version} on {v.declared_on or '—'} and no longer "
+            f"matches: {len(v.errors)} error(s). The declaration is reported, "
+            f"not revoked — a file can be edited after it was declared, and "
+            f"that is a finding, not a correction. See:\n"
+            f"    perry-lint{r}\n"
+            f"then re-declare with:\n"
+            f"    perry-conform declare {v.path}{r}{tail}")
+    return ""
+
+
+def gate(project_root: Path, state_root: Path, key: str, tool: str,
+         root_arg: str | None = None, schema: dict | None = None) -> GateResult:
+    """The one call every writer makes, about the one file it is about to write.
+
+    `perry-goals` writing `OKR.md` must not care what `BOARD.md` says, so this
+    takes exactly one key and looks at exactly one file (ADR-004 § 5)."""
+    v = verdict(project_root, state_root, key, schema)
+    mode = gate_mode(project_root)
+    msg = "" if v.ok else message_for(v, tool, root_arg)
+    return GateResult(verdict=v, mode=mode,
+                      ok=v.ok or mode != ENFORCE, message=msg)
+
+
+# ── declaring ─────────────────────────────────────────────────────────────
+
+HEADER = [
+    "# Perry conformance",
+    "",
+    "> Written by `perry-conform declare`. Each row records that **the user**",
+    "> declared this file to match Perry's shape at that shape version",
+    "> (ADR-004 § 4). It is a decision, not a verdict: whether the file still",
+    "> matches is re-checked live on every write, and a row that no longer",
+    "> holds is reported rather than deleted.",
+    "",
+    "> Paths are as `schema/state-schema.json` declares them — relative to the",
+    "> state root, except the `.perry/` ones which are relative to the project",
+    "> root. Delete a row to withdraw a declaration.",
+    "",
+    "| File | Shape version | Declared | Route |",
+    "|---|---|---|---|",
+]
+
+
+def render(declarations: dict) -> str:
+    # `render_row`, not an f-string: this file records a project's own paths,
+    # and a path is a value Perry does not choose.
+    rows = [render_row([d.path, str(d.shape_version), d.declared, d.route])
+            for d in sorted(declarations.values(), key=lambda d: d.path)]
+    return "\n".join([*HEADER, *rows, ""])
+
+
+write_atomic = lib.write_atomic
+
+
+def declare(project_root: Path, state_root: Path, keys: list[str],
+            schema: dict, dry_run: bool = False, route: str = "declare") -> dict:
+    """Record the user's declaration for each named file.
+
+    `route` is how the declaration was made — `declare` for this command,
+    `migrate` for `bin/perry-migrate`, which the docstring above always said
+    would be the second caller. It is the record's own column, and it exists so
+    a reader can tell a hand declaration from one a migration made on the
+    user's instruction. **It is not a second record**: the migration calls this
+    function, so the file still has exactly one writer, and the per-file
+    re-check below still runs — a migration cannot record a claim this
+    function would refuse.
+
+    Refuses per file rather than in bulk: a project that can declare its board
+    and not its risks is a *state*, not a failure (ADR-004 § 5), and the rows
+    it could write are written. The exit code still reports that the request
+    was not fully satisfied."""
+    record = P.read_conformance(project_root)
+    now = shape_version(schema)
+    declared, refused = [], []
+    for key in keys:
+        v = verdict(project_root, state_root, key, schema)
+        if v.state == ABSENT:
+            refused.append({"path": key, "reason": "no such file in this project",
+                            "errors": 0})
+            continue
+        if v.errors:
+            refused.append({
+                "path": key, "errors": len(v.errors),
+                "reason": f"{len(v.errors)} error(s) against "
+                          f"schema/state-schema.json — a declaration that the "
+                          f"file matches Perry's shape would be false",
+                "findings": [f.as_dict() for f in v.errors],
+            })
+            continue
+        record.declarations[key] = P.Declaration(
+            path=key, shape_version=now, declared=f"{date.today():%Y-%m-%d}",
+            route=route, line=0)
+        declared.append({"path": key, "shape_version": now})
+    if declared and not dry_run:
+        write_atomic(project_root / P.CONFORMANCE_FILE, render(record.declarations))
+    return {"declared": declared, "refused": refused,
+            "shape_version": now,
+            "record": str(project_root / P.CONFORMANCE_FILE),
+            "dry_run": dry_run}
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────
+
+
+def _roots(root_arg: str | None) -> tuple[Path, Path]:
+    project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                    else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
+    return project_root, P.resolve_state_root(project_root)
+
+
+def main(argv: list[str]) -> int:
+    cmd = None
+    root_arg = None
+    files: list[str] = []
+    as_json = do_all = dry_run = False
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif a == "--root":
+            i += 1
+            root_arg = argv[i] if i < len(argv) else None
+        elif a == "--json":
+            as_json = True
+        elif a == "--all":
+            do_all = True
+        elif a == "--dry-run":
+            dry_run = True
+        elif a.startswith("-"):
+            print(f"perry-conform: unknown argument {a!r} (try --help)",
+                  file=sys.stderr)
+            return 2
+        elif cmd is None:
+            cmd = a
+        else:
+            files.append(a)
+        i += 1
+
+    if cmd not in ("status", "check", "declare"):
+        print("perry-conform: expected one of status / check / declare "
+              "(try --help)", file=sys.stderr)
+        return 2
+
+    try:
+        schema = load_schema()
+        project_root, state_root = _roots(root_arg)
+
+        if cmd == "status":
+            keys = [k for k, _, _ in state_files(project_root, state_root, schema)]
+            verdicts = [verdict(project_root, state_root, k, schema) for k in keys]
+            record = P.read_conformance(project_root)
+            if as_json:
+                print(json.dumps({
+                    "project_root": str(project_root),
+                    "state_root": state_root.relative_to(project_root).as_posix() or ".",
+                    "shape_version": shape_version(schema),
+                    "gate": gate_mode(project_root),
+                    "record": str(record.path),
+                    "record_exists": record.exists,
+                    "unreadable_rows": [
+                        {"line": n, "text": t} for n, t in record.unreadable],
+                    "files": [v.as_dict() for v in verdicts],
+                }, ensure_ascii=False, indent=2))
+            else:
+                rel = state_root.relative_to(project_root).as_posix() or "."
+                print(f"\n🔖 Conformance · {project_root.name} · state root: {rel} "
+                      f"· shape version {shape_version(schema)} "
+                      f"· gate: {gate_mode(project_root)}\n")
+                if not verdicts:
+                    print("   · no files this schema claims exist here — nothing "
+                          "to declare, and nothing is gated")
+                for v in verdicts:
+                    mark = {CONFORMANT: "✓", UNDECLARED: "·",
+                            STALE: "!", DRIFTED: "✗"}.get(v.state, "·")
+                    extra = (f"  ({len(v.errors)} lint error(s))" if v.errors else "")
+                    ver = ("" if v.declared_version is None
+                           else f" @v{v.declared_version}")
+                    print(f"   {mark} {v.path:<44} {v.state}{ver}{extra}")
+                for n, t in record.unreadable:
+                    print(f"   ✗ .perry/conformance.md:{n} unreadable row: {t}")
+                n_ok = sum(1 for v in verdicts if v.state == CONFORMANT)
+                print(f"\n   {n_ok}/{len(verdicts)} declared and matching. "
+                      f"Declare one with `perry-conform declare <file>"
+                      f"{_root_flag(root_arg)}`.\n")
+            return 0
+
+        if cmd == "check":
+            if len(files) != 1:
+                raise Refused("usage: perry-conform check <file>")
+            v = verdict(project_root, state_root, files[0], schema)
+            if as_json:
+                d = v.as_dict()
+                d["gate"] = gate_mode(project_root)
+                d["message"] = message_for(v, "perry-task", root_arg)
+                print(json.dumps(d, ensure_ascii=False, indent=2))
+            else:
+                print(f"perry-conform · {files[0]} · {v.state}")
+                msg = message_for(v, "perry-task", root_arg)
+                if msg:
+                    print("  " + msg.replace("\n", "\n  "))
+            return 0 if v.state == CONFORMANT else 1
+
+        # declare
+        keys = files
+        if do_all:
+            keys = [k for k, _, _ in state_files(project_root, state_root, schema)]
+        if not keys:
+            raise Refused(
+                "name at least one file, or pass --all. Nothing is declared "
+                "implicitly: ADR-004 § 4 makes the declaration the user's act, "
+                "so a tool that stamped it on its own initiative would be the "
+                "violation this marker exists to prevent")
+        result = declare(project_root, state_root, keys, schema, dry_run)
+        if as_json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            verb = "would declare" if dry_run else "declared"
+            for d in result["declared"]:
+                print(f"  ✓ {verb} {d['path']} at shape version {d['shape_version']}")
+            for r in result["refused"]:
+                print(f"  ✗ {r['path']}: {r['reason']}")
+            if result["refused"]:
+                print(f"\n  see them with `perry-lint{_root_flag(root_arg)}`")
+            if result["declared"] and not dry_run:
+                print(f"\n  → {result['record']}")
+        return 1 if result["refused"] else 0
+    except Refused as exc:
+        if as_json:
+            print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
+        else:
+            print(f"perry-conform: refused — {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

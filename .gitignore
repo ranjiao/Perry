@@ -1,6 +1,7 @@
 # Auto-update timestamp written by bin/perry-update-check
 .update-check
 
+
 # macOS
 .DS_Store
 .gstack/
@@ -8,3 +9,15 @@
 # Python bytecode from bin/ + viewer/
 __pycache__/
 *.pyc
+
+# Subagent worktrees — temporary, created by the Agent tool
+.claude/worktrees/
+# `perry/tasks.jsonl` was ignored while it was DERIVED — `perry-tasks build`
+# reconstructed it from BOARD.md plus the event log on every call, so a tracked
+# copy would have been a second spelling of files already in the repo.
+#
+# TASK-089 made it the WRITE TARGET: `perry-task` writes the store and renders
+# the board from it. It is truth now, and an untracked truth is a file that
+# vanishes on a fresh clone while the projection of it stays. Tracked.
+
+opencode.json

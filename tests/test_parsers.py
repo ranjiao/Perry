@@ -10,9 +10,9 @@ Run: python3 -m unittest discover -s tests   (or ./tests/run)
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -42,11 +42,11 @@ def load_bin_module(name: str):
 
 
 class TemplateContract(unittest.TestCase):
-    """The shipped templates must parse. A template the parser can't read is
-    the exact failure that made the viewer show empty panels."""
+    """The shipped `state/*_TEMPLATE.md` files must parse. A template the parser
+    can't read is the exact failure that made a reader show empty panels."""
 
     def test_okr_template_yields_objectives_and_krs(self):
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.objectives, "no objectives parsed from OKR_TEMPLATE")
         for obj in okr.objectives:
             self.assertTrue(obj.krs, f"objective {obj.title!r} parsed with zero KRs")
@@ -58,21 +58,22 @@ class TemplateContract(unittest.TestCase):
     def test_okr_template_ignores_commented_example_version(self):
         """The template parks a `## v2:` example inside an HTML comment. It
         must not shadow v1 as the current version."""
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.version.startswith("v1:"), okr.version)
 
     def test_okr_template_mission_principles_antigoals_versionlog(self):
-        okr = P.parse_okr(read("okr/state/OKR_TEMPLATE.md"))
+        okr = P.parse_okr(read("goals/state/OKR_TEMPLATE.md"))
         self.assertTrue(okr.mission)
         self.assertEqual(len(okr.operating_principles), 5)
         self.assertEqual(len(okr.anti_goals), 4, "horizontal rules must not count as bullets")
         self.assertEqual(okr.version_log[0][0], "v1", "## Versioning log not read")
 
     def test_phase_template_yields_objectives_krs_and_scope_triggers(self):
-        ph = P.parse_phase("001-demo", read("okr/state/phase_TEMPLATE.md"))
+        ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertEqual(len(ph.objectives), 2)
         self.assertEqual([kr.id for kr in ph.krs],
-                         ["P-O1.1", "P-O1.2", "P-O1.3", "P-O2.1"])
+                         ["P{{NNN}}-O1-KR1", "P{{NNN}}-O1-KR2",
+                          "P{{NNN}}-O1-KR3", "P{{NNN}}-O2-KR1"])
         self.assertEqual(len(ph.scope_triggers), 2,
                          "## Phase Scope Reduction Rule not parsed")
         self.assertEqual({t.kind for t in ph.scope_triggers},
@@ -81,18 +82,18 @@ class TemplateContract(unittest.TestCase):
     def test_phase_template_placeholder_status_is_not_a_real_status(self):
         """The template ships `{{armed / disarmed / tripped}}`; reading that as
         a status would report every trigger as tripped."""
-        ph = P.parse_phase("001-demo", read("okr/state/phase_TEMPLATE.md"))
+        ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertTrue(all(t.status == "armed" for t in ph.scope_triggers))
 
     def test_board_template_sections_parse(self):
-        board = P.parse_board(read("pmo/state/BOARD_TEMPLATE.md"))
+        board = P.parse_board(read("work/state/BOARD_TEMPLATE.md"))
         # Empty template rows produce no tasks, but the sections must be found —
         # a renamed heading would silently zero the board.
         self.assertEqual(board.p0, [])
         self.assertEqual(board.user_input_queue, [])
 
     def test_linkage_template_placeholders_are_rejected(self):
-        link = P.parse_linkage(read("okr/state/linkage_TEMPLATE.md"))
+        link = P.parse_linkage(read("goals/state/linkage_TEMPLATE.md"))
         self.assertFalse(link.ok, "unfilled template must not look populated")
         self.assertIn("placeholder", link.error)
 
@@ -135,21 +136,21 @@ class FixtureProject(unittest.TestCase):
         self.assertTrue(link.ok, link.error)
         self.assertEqual(link.phase, "002-release-pipeline")
         self.assertEqual([o.id for o in link.objectives], ["O1", "O2"])
-        self.assertEqual(link.kr_for_task("REL-001"), "P-O1.1")
+        self.assertEqual(link.kr_for_task("REL-001"), "P002-O1-KR1")
         self.assertEqual(link.unlinked, ["REL-009"])
         self.assertEqual({a.id for a in link.agents}, {"Coding Agent", "PMO Agent"})
         rows = {r.project_id: r for r in link.projects}
         self.assertEqual(set(rows), {"REL-001", "REL-002"})
-        self.assertEqual(rows["REL-001"].serves_kr, "P-O1.1")
+        self.assertEqual(rows["REL-001"].serves_kr, "P002-O1-KR1")
         self.assertIn("deploy-hardening", rows["REL-001"].aliases)
 
     def test_prose_target_yields_no_number(self):
         """A KR measured in prose ('flaky runs <= 1%') must carry no numeric
         target — a ceiling drawn as a progress bar misreports a risk limit."""
         krs = {k.id: k for o in self.snap.linkage.objectives for k in o.krs}
-        self.assertEqual(krs["P-O1.1"].target, 3.0)
-        self.assertIsNone(krs["P-O2.1"].target)
-        self.assertEqual(krs["P-O2.1"].metric, "flaky runs <= 1%")
+        self.assertEqual(krs["P002-O1-KR1"].target, 3.0)
+        self.assertIsNone(krs["P002-O2-KR1"].target)
+        self.assertEqual(krs["P002-O2-KR1"].metric, "flaky runs <= 1%")
 
     def test_unlinked_survives_a_round_trip(self):
         """`unlinked` is declared, never inferred — so it has to come back out
@@ -162,11 +163,36 @@ class FixtureProject(unittest.TestCase):
             "---\nlinkage: 1\nunlinked:\n  - A-1\n  - B-2\n---\n")
         self.assertEqual(block.unlinked, ["A-1", "B-2"])
 
+    def test_a_phase_kr_bullet_is_read_in_the_migrated_form(self):
+        """`_RE_KR_BULLET` moved from `P-O` to `P\\d+-O` in TASK-180.
+
+        Nothing held that: reverting the arm left the suite green, because
+        every register and template in this repository writes KRs as a TABLE
+        and the bullet fallback is only reached by a hand-written file. The
+        fallback is still shipped, so it is still pinned — and the old form is
+        pinned as NOT read, which is what "no compatibility" means here."""
+        ph = P.parse_phase("002-demo",
+                           "# Phase #002 — demo\n\n## Objective 1 — o\n\n"
+                           "### Key Results\n\n"
+                           "- P002-O1-KR1: rendered from the store\n"
+                           "- KR-O1.1: the overall family, untouched\n")
+        self.assertEqual([k.id for k in ph.krs],
+                         ["P002-O1-KR1", "KR-O1.1"])
+        self.assertEqual(ph.krs[0].text, "rendered from the store")
+
+    def test_the_pre_migration_kr_bullet_is_not_read(self):
+        """The other half: `P-O1.1` [[old-form]] is not a KR id here."""
+        ph = P.parse_phase("002-demo",
+                           "# Phase #002 — demo\n\n## Objective 1 — o\n\n"
+                           "### Key Results\n\n"
+                           "- P-O1.1: the pre-TASK-180 form\n")  # [[old-form]]
+        self.assertEqual([k.id for k in ph.krs], [])
+
     def test_a_prose_target_is_never_coerced(self):
         """The linter rejects it, but the reader must not invent one either."""
         link = P.parse_linkage(
             '---\nlinkage: 1\nobjectives:\n  - id: O1\n    title: t\n'
-            '    krs:\n      - id: P-O1.1\n        title: t\n'
+            '    krs:\n      - id: P001-O1-KR1\n        title: t\n'
             '        metric: "max drawdown <= 15%"\n        target: "<= 15%"\n---\n')
         self.assertTrue(link.ok, link.error)
         kr = link.objectives[0].krs[0]
@@ -190,6 +216,134 @@ class FixtureProject(unittest.TestCase):
         self.assertNotEqual(title.strip(), "4.2%")
 
 
+class BoardColumnsResolveByName(unittest.TestCase):
+    """The writer places cells by header name; the reader must too.
+
+    `bin/perry-task` maps values onto headers and `check_header` accepts the six
+    required columns **in any order**, so a positional reader disagrees with the
+    writer about what a row means. `_parse_task_table` resolved `Verification`
+    by name — with a comment giving the exact reason ("a board with an extra
+    column would silently rate the wrong cell") — and left the other six
+    positional, so the argument was applied to the one column a review had
+    named and to none of the six it hadn't.
+
+    The damage was silent: on `| ID | Title | Track | Owner | Status | … |`,
+    `owner` read the track and `status` read the owner, so `open` counted zero
+    and every standup number, `verification_distribution` and drift's
+    `stale_done` branch went with it. `perry-lint` calls such a board clean,
+    because column order is not something the schema constrains — which is why
+    this needs a test rather than a linter rule.
+    """
+
+    HEAD = "| ID | Title | Track | Owner | Status | Next action | Evidence |"
+    ROW = ("| TASK-001 | Reordered | build | Coding Agent | in_progress "
+           "| keep going | — |")
+
+    def parse(self, head: str, row: str):
+        section = f"{head}\n|---|---|---|---|---|---|---|\n{row}\n"
+        return P._parse_task_table(section, "P0")
+
+    def test_an_extra_column_before_owner_does_not_shift_every_field(self):
+        t = self.parse(self.HEAD, self.ROW)[0]
+        self.assertEqual(t.owner, "Coding Agent", "owner read the Track cell")
+        self.assertEqual(t.status, "in_progress", "status read the Owner cell")
+        self.assertEqual(t.next_action, "keep going")
+        self.assertEqual(t.evidence, "—")
+
+    def test_the_canonical_order_still_parses(self):
+        t = self.parse(
+            "| ID | Title | Owner | Status | Next action | Evidence |",
+            "| TASK-001 | Plain | Coding Agent | blocked | wait | e.md |")[0]
+        self.assertEqual(
+            (t.owner, t.status, t.next_action, t.evidence),
+            ("Coding Agent", "blocked", "wait", "e.md"))
+
+    def test_an_unrecognized_header_falls_back_to_position(self):
+        """A board whose headers this build cannot resolve must parse exactly
+        as it did before, not become empty."""
+        t = self.parse(
+            "| a | b | c | d | e | f |",
+            "| TASK-001 | Plain | Coding Agent | blocked | wait | e.md |")[0]
+        self.assertEqual((t.owner, t.status), ("Coding Agent", "blocked"))
+
+    def test_a_localized_header_resolves_too(self):
+        t = self.parse(
+            "| 编号 | 标题 | 负责人 | 状态 | 下一步 | 证据 |",
+            "| TASK-001 | 标题内容 | Coding Agent | in_progress | 继续 | — |")[0]
+        self.assertEqual((t.owner, t.status), ("Coding Agent", "in_progress"))
+
+
+class EveryTableResolvesADecoratedHeader(unittest.TestCase):
+    """TASK-050, applied to every table this reader has, not only the one the
+    finding was found on.
+
+    `**Status**` is a header cell someone bolded, not a different column. The
+    reader lowered header cells and left the decoration on, so it resolved
+    nothing and fell back to position — and where the fallback happened to be
+    right the defect was invisible, which is how it survived. The risk table
+    has no fallback, so that is where it finally showed.
+
+    `tests/test_risks.py::TestOneNormalizationForAHeaderCell` holds the task
+    table and the risk table and the reader/writer agreement. These are the
+    three remaining tables, each given a header that is BOTH decorated and
+    reordered — decoration alone is caught by the fallback landing on the right
+    cell by luck, and that is exactly the guard that would not fail.
+    """
+
+    def test_the_cadence_register_resolves_a_decorated_header(self):
+        items = P._parse_cadence(
+            "| **Frequency** | **ID** | **Next due** | **Recurring task** | "
+            "**Owner** |\n"
+            "|---|---|---|---|---|\n"
+            "| weekly | CAD-001 | 2026-09-01 | the Monday close | Coding Agent |\n")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].id, "CAD-001")
+        self.assertEqual(items[0].frequency, "weekly")
+        self.assertEqual(items[0].title, "the Monday close")
+        self.assertEqual(items[0].next_due, "2026-09-01")
+
+    def test_a_decorated_cadence_header_row_is_not_read_as_a_cadence(self):
+        self.assertEqual(P._parse_cadence(
+            "| **ID** | **Recurring task** | **Owner** | **Frequency** | "
+            "**Next due** |\n"
+            "|---|---|---|---|---|\n"
+            "| **ID** | **Recurring task** | **Owner** | **Frequency** | "
+            "**Next due** |\n"), [])
+
+    def test_the_user_input_queue_resolves_a_decorated_header(self):
+        items = P._parse_user_input(
+            "| **Status** | **USER-id** | **Blocks** | **Needed from user** | "
+            "**Asked** |\n"
+            "|---|---|---|---|---|\n"
+            "| open | USER-001 | TASK-003 | which staging default? | 2026-08-01 |\n")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].id, "USER-001")
+        self.assertEqual(items[0].status, "open")
+        self.assertEqual(items[0].blocks, "TASK-003")
+
+    def test_a_decorated_user_input_header_row_is_not_read_as_a_question(self):
+        self.assertEqual(P._parse_user_input(
+            "| **USER-id** | **Needed from user** | **Blocks** | **Idle** | "
+            "**Status** |\n"
+            "|---|---|---|---|---|\n"
+            "| **USER-id** | **Needed from user** | **Blocks** | **Idle** | "
+            "**Status** |\n"), [])
+
+    def test_a_decorated_carry_forward_header_row_is_not_a_carry_forward(self):
+        """`## Cross-monthly carry-forwards` is read positionally and has no
+        header index at all — the only header question it asks is "is this row
+        the header?", and it asked it with `.lower()`."""
+        ps = P.parse_project_state(
+            "# Project state\n\n"
+            "## Cross-monthly carry-forwards\n"
+            "| **ID** | **Origin** | **Description** | **Owner** | **Target** |\n"
+            "|---|---|---|---|---|\n"
+            "| **ID** | **Origin** | **Description** | **Owner** | **Target** |\n"
+            "| CF-001 | 2026-07 | the vendor review | Coding Agent | 2026-09 |\n"
+            "\n## Phase\n")
+        self.assertEqual([c.id for c in ps.carry_forwards], ["CF-001"])
+
+
 class Attribution(unittest.TestCase):
     """reference/okr-linkage.md: resolve by stable ID / exact name / registered
     alias — never by fuzzy name. A near-match is not a match."""
@@ -204,16 +358,16 @@ class Attribution(unittest.TestCase):
     def test_declared_task_edge_resolves(self):
         """Resolution step 1: the graph names the edge outright."""
         self.assertEqual(
-            self.mod.resolve_kr(self._task("REL-002"), self.snap.linkage), "P-O2.1")
+            self.mod.resolve_kr(self._task("REL-002"), self.snap.linkage), "P002-O2-KR1")
 
     def test_exact_project_id_resolves(self):
         self.assertEqual(
-            self.mod.resolve_kr(self._task("REL-001"), self.snap.linkage), "P-O1.1")
+            self.mod.resolve_kr(self._task("REL-001"), self.snap.linkage), "P002-O1-KR1")
 
     def test_registered_alias_resolves(self):
         self.assertEqual(
             self.mod.resolve_kr(self._task("X-1", "deploy-hardening"), self.snap.linkage),
-            "P-O1.1")
+            "P002-O1-KR1")
 
     def test_near_miss_name_does_not_resolve(self):
         """'Deploy script' is not 'Deploy script hardening'. Guessing here is
@@ -300,55 +454,6 @@ class StateExtractor(unittest.TestCase):
             self.assertFalse(json.loads(out.stdout)["installed"])
 
 
-class ViewerTemplates(unittest.TestCase):
-    """Templates read parser attributes by name, so a renamed field breaks them
-    silently. Skipped when jinja2 isn't installed (the viewer is opt-in)."""
-
-    def setUp(self):
-        try:
-            import jinja2  # noqa: F401
-        except ImportError:
-            self.skipTest("jinja2 not installed (viewer is opt-in)")
-
-    def _env(self):
-        import jinja2
-        env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(str(PERRY_HOME / "viewer" / "templates")))
-        # Filters that serve.py registers at runtime. Read them OUT of
-        # serve.py rather than listing them here: a hardcoded list silently
-        # goes stale the moment someone adds a filter, and then this test
-        # reports a working template as broken. That already happened once,
-        # with `strip_md_link`.
-        serve = (PERRY_HOME / "viewer" / "serve.py").read_text()
-        names = re.findall(r'@app\.template_filter\(\s*["\']([\w]+)["\']', serve)
-        self.assertTrue(names, "no template filters found in serve.py — "
-                               "the registration pattern changed")
-        for name in names:
-            env.filters.setdefault(name, lambda v, *a, **k: v)
-        return env
-
-    def test_all_templates_compile(self):
-        import jinja2
-        env = self._env()
-        for path in sorted((PERRY_HOME / "viewer" / "templates").glob("*.html")):
-            with self.subTest(template=path.name):
-                try:
-                    env.get_template(path.name)
-                except jinja2.TemplateSyntaxError as exc:
-                    self.fail(f"{path.name}:{exc.lineno}: {exc}")
-
-    def test_phase_track_renders_a_real_day_number(self):
-        """Regression: the phase-track subtitle used to print the number of
-        scope triggers as the phase day."""
-        env = self._env()
-        snap = P.load_snapshot(FIXTURE)
-        out = env.from_string(
-            "{% import '_macros.html' as m %}{{ m.phase_track(snap) }}"
-        ).render(snap=snap)
-        self.assertIn(f"day {snap.phase.day}", out)
-        self.assertNotIn(f"day {len(snap.phase.scope_triggers)} ", out)
-
-
 class Linter(unittest.TestCase):
     def _run(self, *args):
         return subprocess.run(
@@ -401,8 +506,8 @@ class Linter(unittest.TestCase):
             shutil.copytree(FIXTURE, proj)
             f = proj / "phase" / "002-linkage.md"
             f.write_text(f.read_text().replace(
-                "    serves: P-O2.1\n    objective: O2",
-                "    serves: P-O2.1\n    objective: O1"))
+                "    serves: P002-O2-KR1\n    objective: O2",
+                "    serves: P002-O2-KR1\n    objective: O1"))
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("linkage-objective-agrees", rules)
@@ -491,6 +596,80 @@ class Linter(unittest.TestCase):
             (proj / ".perry" / "config.md").write_text(
                 "# Perry configuration\n\n- State root: ../elsewhere\n")
             self.assertEqual(P.resolve_state_root(proj), proj)
+
+
+class UserInputQueueCountsOnlyWhatIsUnanswered(unittest.TestCase):
+    """`count` was `len(section)` — every row ever added.
+
+    On Perry's own board both rows carried `**answered 2026-08-16: …**` and
+    the dashboard still reported "2 items waiting on you". That is the single
+    number in the whole payload the user is meant to act on, and it was
+    counting work they had already done.
+
+    Second location of a defect fixed once already this session:
+    `perry-diagnose`'s LOAD-03 counted every USER- id regardless of status.
+    """
+
+    BOARD = """# BOARD
+
+## P0
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P1
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## P2
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Idle | Status |
+|---|---|---|---|---|
+| USER-001 | Answered one | TASK-005 | 3d | **answered 2026-08-16: 30 days** |
+| USER-002 | Still waiting | TASK-006 | 9d | pending |
+| USER-003 | Also waiting | — | 1d | — |
+
+## Cadence
+
+| ID | Recurring task | Frequency | Next due | Owner | Last evidence |
+|---|---|---|---|---|---|
+
+## Top risks
+
+- none
+"""
+
+    def payload(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".perry").mkdir()
+            (root / ".perry" / "config.md").write_text(
+                "# Perry configuration\n\n- State root: .\n")
+            (root / "BOARD.md").write_text(self.BOARD)
+            r = subprocess.run(
+                ["python3", str(PERRY_HOME / "bin" / "perry-state"),
+                 "--root", str(root), "--json"], capture_output=True, text=True)
+            return json.loads(r.stdout)
+
+    def test_an_answered_row_is_not_counted(self):
+        q = self.payload()["user_input_queue"]
+        self.assertEqual(q["count"], 2,
+                         "an answered row is still being counted as pending")
+
+    def test_the_oldest_is_chosen_from_the_unanswered_only(self):
+        """Reporting an answered row as the oldest blocker sends the user to
+        re-answer something they already closed."""
+        q = self.payload()["user_input_queue"]
+        self.assertEqual(q["oldest"]["id"], "USER-002")
+
+    def test_a_dash_and_an_empty_status_both_mean_still_waiting(self):
+        """`—` is the board's own way of writing "nothing yet". Treating it as
+        an answer would hide the request entirely."""
+        q = self.payload()["user_input_queue"]
+        self.assertIn("USER-003", [i["id"] for i in q["items"]])
 
 
 if __name__ == "__main__":

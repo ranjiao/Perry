@@ -28,6 +28,9 @@ from __future__ import annotations
 
 import json
 import re
+import sys
+import subprocess
+import pathlib
 import unittest
 from pathlib import Path
 
@@ -57,19 +60,30 @@ class TestClaimsShape(unittest.TestCase):
                 self.assertIn(field, c, f"claim {c.get('path')!r} missing {field}")
             self.assertIn(c["kind"], ("file", "dir"), c["path"])
             self.assertIn(c["anchor"], ("state", "project"), c["path"])
-            self.assertIn(c["owner"], ("perry", "okr", "pmo", "design", "user"), c["path"])
+            self.assertIn(c["owner"], ("perry", "goals", "work", "decide", "user"), c["path"])
             if c["kind"] == "dir":
                 self.assertTrue(c["path"].endswith("/"),
                                 f"{c['path']}: dir claims end in / so prefix matching is unambiguous")
             self.assertNotIn(c["path"], seen, f"{c['path']} claimed twice")
             seen.add(c["path"])
 
-    def test_perry_dir_is_the_only_project_anchored_claim(self):
+    def test_perry_dir_is_the_only_project_anchored_territory(self):
         """`.perry/` holds the State root pointer, so it cannot sit behind it.
         Anything else anchored at the project root would be unmovable too, which
-        would make the escape hatch useless for it."""
+        would make the escape hatch useless for it.
+
+        Read as *one* territory, not one entry. `.perry/events.jsonl` is
+        anchored at the project root because that is where `bin/perry-task`
+        writes it, and it sits INSIDE `.perry/` — it adds no second immovable
+        place, it names a file in the immovable one. A project-anchored claim
+        outside `.perry/` is what this forbids, and that is what is asserted."""
         project = [c["path"] for c in CLAIMS if c["anchor"] == "project"]
-        self.assertEqual(project, [".perry/"])
+        self.assertIn(".perry/", project, "the anchor itself is unclaimed")
+        outside = [p for p in project if not p.startswith(".perry/")]
+        self.assertEqual(
+            outside, [],
+            "a project-anchored claim outside `.perry/` is unmovable, so the "
+            "State root escape hatch cannot reach it")
 
     def test_no_claim_escapes_the_project(self):
         for c in CLAIMS:
@@ -133,12 +147,12 @@ class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):
 
         Catches a new directory added to a skill without a matching claim."""
         # Only the FIRST cell of a row is a project path. Later cells name
-        # Perry's own tree (`pmo/state/…_TEMPLATE.md`, `reference/…`), which is
+        # Perry's own tree (`work/state/…_TEMPLATE.md`, `reference/…`), which is
         # source, not territory claimed in someone else's project.
         first_cell = re.compile(r"^\s*\|([^|]+)\|")
         pattern = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*/)[^`]*`")
         misses = []
-        for skill in ("pmo/SKILL.md", "okr/SKILL.md", "design/SKILL.md"):
+        for skill in ("work/SKILL.md", "goals/SKILL.md", "decide/SKILL.md"):
             text = (PERRY_HOME / skill).read_text()
             section = re.search(r"## State files(.*?)(?:\n## |\Z)", text, re.S)
             if not section:
@@ -153,6 +167,59 @@ class TestClaimsCoverWhatTheSkillsWrite(unittest.TestCase):
         self.assertEqual(misses, [],
                          "paths in a skill's State files table with no claim: "
                          + ", ".join(misses))
+
+
+class TestTheStoreFilesAreClaimed(unittest.TestCase):
+    """TASK-100 — the two files Perry writes on every mutating command.
+
+    `perry/tasks.jsonl` has been the canonical Task record since ADR-007 and
+    `.perry/events.jsonl` is the event log. Both were written into someone
+    else's project and neither was declared, so a project owning either name
+    collided in silence: `--claims` did not list it at setup and the default
+    pass emitted no `NS-01`.
+
+    Neither entry grants a new write — that is the whole argument for adding
+    them. `claims[]` reaches other projects on the next pull, so an entry
+    naming a path Perry does NOT write would be a real widening; these two name
+    paths Perry has always written.
+
+    Named explicitly rather than scraped, on the same reasoning as
+    `UNDECLARED_BEFORE` above: removing one from `claims[]` must fail here
+    loudly instead of silently narrowing the check.
+    """
+
+    # (path, anchor, kind) — the anchor is the load-bearing half. The store is
+    # state-root relative, so `/perry relocate` moves it with `BOARD.md`; the
+    # event log is project-root relative because `bin/perry-task § events_path`
+    # writes it at `<project>/.perry/events.jsonl` and it must not move.
+    STORE_FILES = [
+        ("tasks.jsonl", "state", "file"),
+        (".perry/events.jsonl", "project", "file"),
+    ]
+
+    def test_both_store_files_are_claimed_under_the_right_root(self):
+        by_path = {c["path"]: c for c in CLAIMS}
+        for path, anchor, kind in self.STORE_FILES:
+            with self.subTest(path=path):
+                self.assertIn(path, by_path,
+                              f"{path} is written on every mutating command "
+                              f"but claimed by nobody, so a project that owns "
+                              f"the name gets no NS-01")
+                self.assertEqual(by_path[path]["anchor"], anchor)
+                self.assertEqual(by_path[path]["kind"], kind)
+
+    def test_the_declared_path_is_the_path_the_writer_uses(self):
+        """A claim naming a path Perry does not write is the widening the
+        claim surface is guarded against, so the entries are checked against
+        the writers rather than against prose about them."""
+        store = (PERRY_HOME / "bin" / "perry_store.py").read_text()
+        self.assertIn('Path(state_root) / "tasks.jsonl"', store,
+                      "the store no longer lives at <state root>/tasks.jsonl; "
+                      "the claim now names a path Perry does not write")
+        task = (PERRY_HOME / "bin" / "perry-task").read_text()
+        self.assertIn('project_root / ".perry" / "events.jsonl"', task,
+                      "the event log moved; the claim now names a path Perry "
+                      "does not write")
 
 
 class TestTheCheckIsWiredIn(unittest.TestCase):
@@ -268,6 +335,331 @@ class TestNoProseListSurvives(unittest.TestCase):
                         f"state root. Read schema/state-schema.json claims[] "
                         f"instead — a hand-maintained second copy is what "
                         f"drifted.\n  {line.strip()[:140]}")
+
+
+class TestNoTestFileEndsEarly(unittest.TestCase):
+    """`tests/test_work_modes.py` had `unittest.main()` two thirds of the way
+    down. `python3 -m unittest discover` imported the module and saw all 78
+    tests, but running the file directly — the natural thing to do while
+    iterating on it — executed main() before the remaining classes were
+    defined, ran 48, and printed **OK**.
+
+    A green result over a silently truncated set is the worst thing a suite
+    can report: success for work it never looked at. Found as m-9 in the V4
+    review of TASK-019/020, and `test_task_writer.py` still carries a comment
+    from the first time the same defect was fixed there — which is why this
+    is a guard and not a one-line move.
+    """
+
+    DRIVER = """
+import os, sys, unittest
+
+# The namespace the file's own statements populate. `runpy.run_path` was used
+# here and could not work: the patched `unittest.main` raises during the run,
+# so run_path never returns and the name it would have been assigned to stays
+# empty. The counter then read `{}` and the guard compared 0 to 0 on every
+# input — inert on the exact defect it names. `exec` into a dict we hold means
+# the namespace fills as the file executes, so the count at the entry point is
+# a real count.
+path = sys.argv[1]
+sys.path.insert(0, os.path.dirname(os.path.abspath(path)))
+ns = {"__name__": "__main__", "__file__": path}
+seen = {}
+
+def count():
+    # Record and RETURN — do not abort. Aborting was the second bug in this
+    # driver: `total` is counted after the exec, so an entry point that stops
+    # execution makes total == at_entry by construction and the comparison
+    # holds no matter how much was skipped. Letting the file finish is what
+    # makes the two numbers independent.
+    seen.setdefault("at_entry", len([v for v in ns.values()
+        if isinstance(v, type) and issubclass(v, unittest.TestCase)]))
+
+unittest.main = count
+src = open(path).read()
+try:
+    exec(compile(src, path, "exec"), ns)
+except SystemExit:
+    pass
+total = len([v for v in ns.values()
+    if isinstance(v, type) and issubclass(v, unittest.TestCase)])
+print(seen.get("at_entry", total), total)
+"""
+
+    def files(self):
+        here = pathlib.Path(__file__).parent
+        return [f for f in sorted(here.glob("test_*.py"))
+                if "unittest.main()" in f.read_text()]
+
+    def test_the_entry_point_is_the_last_statement_in_every_test_file(self):
+        for f in self.files():
+            tail = f.read_text().rstrip().split("\n")[-2:]
+            self.assertEqual(
+                ['if __name__ == "__main__":', "    unittest.main()"], tail,
+                f"{f.name}: unittest.main() is not the last statement, so "
+                f"running the file directly skips everything after it")
+
+    def test_every_class_is_defined_before_the_entry_point_runs(self):
+        """The guard above is structural — it checks where the block sits.
+        This checks the consequence: how many TestCases exist at the moment
+        `unittest.main()` is reached. A file could satisfy the first and still
+        truncate, by carrying a second `main()` higher up.
+
+        It does not run the suites. Running them to count them took 80s, which
+        would make the cheapest guard in the repo the slowest; the driver
+        replaces `unittest.main` with a counter, so nothing past import runs.
+        """
+        for f in self.files():
+            r = subprocess.run(
+                [sys.executable, "-c", self.DRIVER, str(f)],
+                capture_output=True, text=True, cwd=f.parent.parent)
+            self.assertEqual(0, r.returncode, r.stderr[-800:])
+            at_entry, total = r.stdout.split()
+            self.assertEqual(
+                total, at_entry,
+                f"{f.name}: the file defines {total} TestCase classes but only "
+                f"{at_entry} existed when unittest.main() ran — running the "
+                f"file directly skips the rest and still reports OK")
+
+
+class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
+    """No tool may reach for the project root to find a state file.
+
+    `bin/perry-goals` shipped passing `project_root` to `load_snapshot`, which
+    takes the **state** root and reads `root / "OKR.md"` directly. On every
+    project whose state root is not `.` it read the wrong directory and
+    reported `okr_present: false` inside a payload that looked entirely
+    well-formed — Perry and aiMark both keep state under `perry/`, and both
+    were reported as having no goals.
+
+    Two shapes in circulation is two code paths a reader can disagree about.
+    The fix is not to remove the option — `gimegime-pmo` is a PMO repo whose
+    whole purpose is Perry state and nesting it would be redundant — but to
+    make one function the only way to find it.
+    """
+
+    STATE_FILES = ("BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md")
+    TOOLS = ("perry-task", "perry-goals", "perry-decide", "perry-state")
+
+    def test_no_tool_joins_a_state_file_onto_the_project_root(self):
+        offenders = []
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            for n, line in enumerate(src.splitlines(), 1):
+                if line.lstrip().startswith("#") or "resolve_state_root" in line:
+                    continue
+                for f in self.STATE_FILES:
+                    if re.search(rf'project_root\s*/\s*["\']{re.escape(f)}', line):
+                        offenders.append(f"bin/{name}:{n}  {line.strip()[:80]}")
+        self.assertFalse(
+            offenders,
+            "a tool built a state-file path from the project root instead of "
+            "the state root:\n    " + "\n    ".join(offenders))
+
+    def test_no_tool_passes_the_project_root_to_load_snapshot(self):
+        """The exact form the bug took. `load_snapshot` takes the state root;
+        the name does not say so, which is what made it easy to get wrong."""
+        offenders = []
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            for n, line in enumerate(src.splitlines(), 1):
+                if "load_snapshot(" in line and "project_root" in line:
+                    offenders.append(f"bin/{name}:{n}  {line.strip()[:80]}")
+        self.assertFalse(
+            offenders,
+            "load_snapshot takes the STATE root:\n    " + "\n    ".join(offenders))
+
+    def test_every_tool_actually_calls_the_resolver(self):
+        """A tool that never resolves cannot honour a declared state root at
+        all — the failure this pair exists to prevent, one step earlier."""
+        for name in self.TOOLS:
+            src = (PERRY_HOME / "bin" / name).read_text()
+            self.assertIn("resolve_state_root", src,
+                          f"bin/{name} never resolves the state root")
+
+
+class TestEveryDeclaredSubcommandHasAProcedure(unittest.TestCase):
+    """`goals/SKILL.md` listed `commit <promise>` with a paragraph of behaviour
+    and pointed at `reference/phases.md`, which had never heard of it. A user
+    who typed it got whatever the agent invented on the spot, and two users got
+    two different things.
+
+    Same defect class as the router naming three directories that did not
+    exist (TASK-027 round 3) and `subcommands.md` citing a restatement
+    `autopilot.md` does not contain (m-10). The index is a promise that a
+    procedure exists somewhere; nothing checked that it did.
+
+    Found as M-7 in the V4 review of TASK-019/020.
+    """
+
+    ROOT = pathlib.Path(__file__).resolve().parent.parent
+    LANES = ("goals", "work", "decide")
+
+    def rows(self, lane):
+        """The index table, and only it.
+
+        A lane SKILL.md holds several tables that look alike — `decide` also
+        has one listing state files, whose rows would parse as subcommands
+        pointing at templates. The index is identified by the row every lane
+        has and no other table does: `help`. Take the contiguous block of
+        table lines containing it.
+        """
+        lines = (self.ROOT / lane / "SKILL.md").read_text().split("\n")
+        blocks, cur = [], []
+        for line in lines:
+            if line.startswith("|"):
+                cur.append(line)
+            else:
+                if cur:
+                    blocks.append(cur)
+                cur = []
+        if cur:
+            blocks.append(cur)
+        index = [b for b in blocks
+                 if any(re.match(r"^\|\s*`help[ `]", l) for l in b)]
+        self.assertEqual(1, len(index),
+                         f"{lane}/SKILL.md: could not identify the index table")
+        out = []
+        for line in index[0]:
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            m = re.match(r"^`([a-z][a-z-]*)[^`]*`$", cells[0])
+            if m:
+                out.append((m.group(1), cells[-1].strip("`")))
+        return out
+
+    def resolve(self, lane, cell):
+        """Every file a reference cell names. `Subcommands` and
+        `(handled here)` mean the lane's own SKILL.md — the reference is a
+        section, not a file. A cell may name more than one file
+        (`` `subcommands.md` + `reporting-format.md` ``); all must exist, and
+        the procedure has to be in one of them."""
+        out = []
+        for ref in re.split(r"[+,]", cell):
+            ref = ref.strip().strip("`").strip()
+            if not ref.endswith(".md"):
+                out.append(self.ROOT / lane / "SKILL.md")
+            elif ref.startswith("$PERRY_HOME/"):
+                out.append(self.ROOT / ref[len("$PERRY_HOME/"):])
+            else:
+                out.append(self.ROOT / lane / ref)
+        return out
+
+    def test_the_index_is_not_empty(self):
+        """A parser that silently matched nothing would make both checks
+        below pass on any input at all."""
+        for lane in self.LANES:
+            self.assertGreaterEqual(
+                len(self.rows(lane)), 8,
+                f"{lane}/SKILL.md: the index parser found almost no rows, so "
+                f"the checks below are grading an empty set")
+
+    def test_every_row_names_a_reference_that_exists(self):
+        for lane in self.LANES:
+            for name, ref in self.rows(lane):
+                for path in self.resolve(lane, ref):
+                    self.assertTrue(
+                        path.exists(),
+                        f"{lane}/SKILL.md: `{name}` points at {path.name}, "
+                        f"which does not exist")
+
+    @staticmethod
+    def _headings_naming_only(body, name, all_names):
+        """Headings that are about `name` and about nothing else in the index.
+
+        The first version of this matched any heading mentioning the name, and
+        `goals/reference/phases.md`'s H1 is
+        `# `plan-phase` / `score-phase` / `snapshot` / `commit` — …`, which
+        satisfied all four of that lane's rows by itself. Deleting the whole
+        `commit` procedure left the suite green.
+
+        A title listing several subcommands is an index, not a procedure. A
+        title naming exactly one is the procedure — several reference pages
+        (`delegate.md`, `dispatch.md`, `autopilot.md`) are a single procedure
+        whose H1 is its only heading, so excluding H1s outright would be wrong.
+        """
+        out = []
+        for line in body.split("\n"):
+            if not line.startswith("#"):
+                continue
+            spans = re.findall(r"`([^`]+)`", line)
+            named = {n for n in all_names
+                     for s in spans
+                     if re.search(rf"(?:^|[\s/]){re.escape(n)}(?:$|[\s<\[])", s)}
+            if named == {name}:
+                out.append(line)
+        return out
+
+    def test_every_row_has_a_procedure_in_the_reference_it_names(self):
+        for lane in self.LANES:
+            rows = self.rows(lane)
+            all_names = {n for n, _ in rows}
+            for name, ref in rows:
+                body = "\n".join(p.read_text() for p in self.resolve(lane, ref)
+                                  if p.exists())
+                self.assertTrue(
+                    self._headings_naming_only(body, name, all_names),
+                    f"{lane}/SKILL.md declares `{name}` and points at {ref}, "
+                    f"but that file has no heading that is about `{name}` and "
+                    f"nothing else — the index promises a procedure nobody "
+                    f"wrote, and each user gets a different one improvised on "
+                    f"the spot. A title listing several subcommands does not "
+                    f"count; that is an index, not a procedure.")
+
+
+class TestTheStageInvariantReachesEveryFileThatMovesARow(unittest.TestCase):
+    """`work/reference/subcommands.md` said the stage invariant "is restated in
+    `reference/dispatch.md` and `reference/autopilot.md` rather than relying on
+    this one". Neither file contained the word `Stage`.
+
+    The sentence was doing real work: reference files are loaded one at a time,
+    so a claim that another file carries the rule is the only thing standing
+    between a dispatch loop and a hand-edited cell. Being false made it worse
+    than absent — it stopped anyone from noticing the gap.
+
+    Found as m-10 in the V4 review of TASK-019/020.
+    """
+
+    ROOT = pathlib.Path(__file__).resolve().parent.parent
+    CLAIMANT = "work/reference/subcommands.md"
+
+    def test_the_files_named_as_restating_it_actually_do(self):
+        """Checks the claim as written: pull the cited paths out of the
+        sentence itself, so renaming a file or moving the restatement breaks
+        this rather than going quiet."""
+        text = (self.ROOT / self.CLAIMANT).read_text()
+        sentences = [s for s in re.split(r"(?<=\.)\s", text)
+                     if "restated in" in s]
+        self.assertTrue(
+            sentences,
+            f"{self.CLAIMANT}: the claim this test grades is gone. If the "
+            f"restatements were dropped on purpose, delete this test with "
+            f"them; if the wording changed, update the match.")
+        for s in sentences:
+            cited = re.findall(r"`(reference/[\w-]+\.md)`", s)
+            self.assertTrue(cited, f"claims a restatement but names no file: {s}")
+            for ref in cited:
+                path = self.ROOT / "work" / ref
+                self.assertTrue(path.exists(), f"{ref} does not exist")
+                self.assertIn(
+                    "Stage since", path.read_text(),
+                    f"{self.CLAIMANT} says {ref} restates the stage "
+                    f"invariant; {ref} does not mention it")
+
+    def test_every_file_that_lands_a_row_carries_the_stage_rule(self):
+        """The claim above is prose. This is the rule underneath it: a
+        procedure that tells the agent to write `Status` on completion is a
+        procedure where the stage moves too, and `Stage` and `Status` are
+        orthogonal — a stage move produces no status change and leaves no
+        trace at all if hand-edited."""
+        for name in ("subcommands.md", "dispatch.md", "autopilot.md"):
+            body = (self.ROOT / "work" / "reference" / name).read_text()
+            if "--status review" not in body:
+                continue
+            self.assertRegex(
+                body, r'perry-task["`]? stage',
+                f"{name} instructs a status write on completion but never "
+                f"names `perry-task stage`, so a pipeline row's dwell clock "
+                f"gets hand-edited or left stale")
 
 
 if __name__ == "__main__":

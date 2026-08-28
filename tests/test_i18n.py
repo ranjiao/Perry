@@ -291,5 +291,43 @@ class InvariantsHoldInTheFixture(unittest.TestCase):
             self.assertIn(p, board)
 
 
+class TestChatProseRule(unittest.TestCase):
+    """The rule added after Perry wrote a session's worth of Chinese that a
+    fifteen-year industry veteran could not read.
+
+    Every other i18n rule was being followed correctly at the time: files were
+    in the document language, IDs and paths stayed English, nothing was
+    half-translated. The gap was that no rule governed *prose in a reply*, so
+    English sentences were written with dictionary substitutions.
+
+    These are pointer checks, not style checks. Prose cannot be linted; a
+    router rule naming a section that does not exist is exactly the defect this
+    repo keeps finding, and that can be.
+    """
+
+    SECTION = "## Writing chat prose in a language that is not English"
+
+    def test_the_section_exists(self):
+        doc = (PERRY_HOME / "reference" / "i18n.md").read_text()
+        self.assertIn(self.SECTION, doc)
+
+    def test_the_router_points_at_it_and_the_pointer_resolves(self):
+        router = (PERRY_HOME / "SKILL.md").read_text()
+        named = "reference/i18n.md § Writing chat prose in a language that is not English"
+        self.assertIn(named, router,
+                      "the style rule does not name the section that owns it")
+        doc = (PERRY_HOME / "reference" / "i18n.md").read_text()
+        self.assertIn(named.split(" § ")[1], doc,
+                      "the router names a section i18n.md does not have")
+
+    def test_the_rule_survives_in_the_router_itself(self):
+        """A rule that lives only in a tier-1 reference is a rule an agent
+        reads after it has already answered. The one-line form has to be where
+        the style rules are."""
+        router = (PERRY_HOME / "SKILL.md").read_text()
+        for fragment in ("stays English", "idiom", "one language end to end"):
+            self.assertIn(fragment, router, f"the router lost {fragment!r}")
+
+
 if __name__ == "__main__":
     unittest.main()

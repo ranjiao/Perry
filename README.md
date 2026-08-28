@@ -4,7 +4,7 @@
 
 **[中文文档 →](README_cn.md)**
 
-Perry is a skill for **Claude Code** and **Codex CLI** that keeps track of your project for you: what you're trying to achieve, what's being worked on right now, what's blocking you, and what was decided and why.
+Perry is one skill for **Claude Code**, **OpenCode**, and **Codex CLI** that keeps track of your project for you: what you're trying to achieve, what's being worked on right now, what's blocking you, and what was decided and why.
 
 You talk to it with **one command: `/perry`**.
 
@@ -27,16 +27,18 @@ It keeps everything in plain markdown files inside your project folder, so you c
 
 Perry is built for **one person or a small team**. It gives you structure without meetings, tickets, or process for its own sake.
 
+It is also not only for software. A content calendar, an operations queue and a research question have different shapes, and Perry knows four of them — see [Four kinds of work](#four-kinds-of-work).
+
 ---
 
 ## Install
 
-`setup` finds whichever agent you have (`claude` and/or `codex`) and installs Perry for it.
+`setup` finds whichever host you have (`claude`, `opencode`, and/or `codex`) and installs the one Perry skill for it.
 
-Paste this into a fresh Claude Code or Codex CLI session:
+Paste this into a fresh Claude Code, OpenCode, or Codex CLI session:
 
 ```
-Install the Perry skill set from https://github.com/ranjiao/Perry.
+Install the Perry skill from https://github.com/ranjiao/Perry.
 
 Steps:
 1. Run: git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup --yes-deps
@@ -52,11 +54,11 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 
 `~/perry` is only a suggestion — any folder works.
 
-**Options:** `setup --claude` or `setup --codex` to force one host, `setup --claude --codex` for both.
+**Options:** `setup --claude`, `setup --opencode`, or `setup --codex` to force hosts; combine flags to install several. Add `--local` for a project-local Claude Code/OpenCode install.
 
 **Update:** `cd ~/perry && git pull` (Perry also reminds you about once a week).
 
-Details, dependencies and Codex differences: **[INSTALL.md](INSTALL.md)**.
+Details, dependencies and host differences: **[INSTALL.md](INSTALL.md)**.
 
 ---
 
@@ -67,10 +69,10 @@ Details, dependencies and Codex differences: **[INSTALL.md](INSTALL.md)**.
 Type `/perry` in your project folder. It will ask two quick questions (what language to write in, and how your repo is laid out), then walk you through:
 
 ```
-/perry okr init              # a short interview → your goals
-/perry okr plan-phase <name> # goals for the current stretch of work
-/perry pmo                   # sets up the task board
-/perry okr plan-week         # proposes 3–5 tasks for this week; you approve
+/perry goals init              # a short interview → your goals
+/perry goals plan-phase <name> # goals for the current stretch of work
+/perry work                    # sets up the task board
+/perry goals plan-week         # proposes 3–5 tasks for this week; you approve
 ```
 
 That's roughly 15 minutes and you're set up.
@@ -85,13 +87,19 @@ Don't start from a blank page — Perry can read what's already there:
 
 It reads your README, roadmap, git history, existing design notes, TODOs and issues, then **proposes** goals, tasks and decisions. Nothing is written until you say yes.
 
+**Adoption is a migration, and it is meant to happen once.** Perry used to adapt at runtime to whatever shape your files were already in, and that tolerance is where its bugs lived — two branches guessing differently about the same table and quietly losing a row between them. So it was traded away on purpose ([ADR-004](perry/decisions/ADR-004-mandatory-migration.md)). The rule now: **a project migrates to Perry's structure in order to use Perry's write features, and a project that will not migrate stays readable rather than drivable.**
+
+Readable is not the consolation prize. `/perry diagnose` runs on any folder at all, and reading an unmigrated project is exactly how you decide whether to migrate it. And the migration owes you four things: the complete diff before anything is written, no lost rows or IDs, a restore point, and no step you did not ask for.
+
 ### Not sure Perry is even what you need
 
 ```
 /perry diagnose
 ```
 
-This looks at how your project is set up for working with AI agents and tells you what's actually wrong — sessions stepping on each other, too many stale markdown files, no way to tell what's done. It works on **any** folder, and "your setup is fine, change nothing" is a perfectly normal answer. It never installs Perry without asking.
+This looks at how your project is set up for working with AI agents and tells you what's actually wrong — sessions stepping on each other, too many stale markdown files, no way to tell what's done. It also names which of the [four kinds of work](#four-kinds-of-work) your project's work actually looks like, from what's on your board rather than from what you called it — and says *cannot tell* when the signals aren't there, instead of guessing.
+
+It works on **any** folder, and "your setup is fine, change nothing" is a perfectly normal answer. It never installs Perry without asking.
 
 ---
 
@@ -103,18 +111,17 @@ Just type `/perry` to see where things stand. From there:
 |---|---|
 | See the whole picture | `/perry` |
 | See what's available | `/perry help` |
-| Plan this week | `/perry okr plan-week` |
-| Add a task | `/perry pmo add-task` |
-| Check what's stuck | `/perry pmo triage` |
-| Mark something done | `/perry pmo close-task <id>` |
-| Give a task to an AI agent | `/perry pmo dispatch <id>` |
-| Write down a decision | `/perry pmo decide <topic>` |
-| Write this week's status | `/perry pmo friday-review` |
-| Save context before you stop | `/perry pmo handoff` |
-| Start a design doc | `/perry design new <name>` |
-| Open a live view in your browser | `/perry pmo viewer` |
+| Plan this week | `/perry goals plan-week` |
+| Add a task | `/perry work add-task` |
+| Check what's stuck | `/perry work triage` |
+| Mark something done | `/perry work close-task <id>` |
+| Give a task to an AI agent | `/perry work dispatch <id>` |
+| Write down a decision | `/perry decide adr <topic>` |
+| Write this week's status | `/perry work friday-review` |
+| Save context before you stop | `/perry work handoff` |
+| Start a design doc | `/perry decide new <name>` |
 
-You can drop the lane name when it's unambiguous — `/perry plan-week` and `/perry okr plan-week` are the same thing.
+You can drop the lane name when it's unambiguous — `/perry plan-week` and `/perry goals plan-week` are the same thing.
 
 ---
 
@@ -122,7 +129,9 @@ You can drop the lane name when it's unambiguous — `/perry plan-week` and `/pe
 
 Everything lives under `/perry`. Inside it there are three areas, so Perry knows which kind of work you mean.
 
-### `okr` — goals
+The lanes used to be called `okr`, `pmo` and `design`. **Those names still work and always will** — `/perry pmo triage` and `/perry work triage` are the same thing — but the current names are the ones below, and they are what `/perry help` prints.
+
+### `goals` — what you're trying to achieve  (alias: `okr`)
 
 Two levels. **Overall goals** (`OKR.md`) are your mission and 1–3 objectives; they change rarely, and old versions stay in the file so you can see how your thinking moved. **The current phase** (`phase/002-release-pipeline.md`) is what you're doing right now.
 
@@ -138,9 +147,9 @@ A phase is **not a month**. It ends when its key results are hit — that might 
 | `revise` / `pivot` | Change the goals (deliberately a bit of work, so pivots are visible) |
 | `dashboard` | Detail per objective |
 
-### `pmo` — getting things done
+### `work` — getting things done  (alias: `pmo`)
 
-The task board, the daily journal, decisions, status reports and handoffs. This is where most of your day happens.
+The task board, the daily journal, status reports and handoffs. This is where most of your day happens.
 
 | Command | Does |
 |---|---|
@@ -150,25 +159,62 @@ The task board, the daily journal, decisions, status reports and handoffs. This 
 | `dispatch <id>` | Send the task to an agent and collect the result automatically |
 | `autopilot` | Dispatch everything that's safe to dispatch while you're away |
 | `digest <file>` | Turn a PDF / spreadsheet / long doc into a short summary Perry can reuse |
-| `decide <topic>` | Record a decision (with context, options and consequences) |
 | `monday-plan` / `midweek-check` / `friday-review` | Weekly rhythm |
 | `mid-phase-review` / `end-phase-retro` | Phase checkpoints |
 | `handoff` | Write a note so tomorrow's session starts informed |
 | `risk` / `nudge` | Review risks; chase things waiting on you |
 | `incident <name>` | Record what broke in production and what you changed |
-| `viewer` | Open a live browser view of the project |
 
-### `design` — decide before you build
+Recording a decision used to live in this lane. It moved to `decide` on 2026-08-16, so that a settled decision and the document that settles it have one owner between them — it is `/perry decide adr <topic>` now, and the old form is gone rather than aliased.
+
+### `decide` — decide before you build  (alias: `design`)
 
 For anything worth thinking through first: multi-part changes, hard-to-undo choices, or anything with several open questions only you can answer. Perry drafts the doc, lists the decisions you need to make, then walks you through them one at a time.
 
 | Command | Does |
 |---|---|
 | `new <name>` | Start a design doc |
-| `decide <id>` | Answer the open questions one by one |
+| `resolve <id>` | Answer the open questions one by one |
+| `adr <topic>` | Record a decision on its own — context, options, consequences |
 | `lock <id>` | Freeze it; Perry proposes the tasks to build it |
 | `revise` / `supersede` / `drop` | Change it later |
 | `status` | Where each doc stands |
+
+---
+
+## Four kinds of work
+
+Not every project is a software sprint, and the question worth asking at a review is different for each kind. Perry has four **modes**. A project that declares nothing gets `project`, which is what everything above describes.
+
+| Mode | Ends when | The spine is | Triage asks first |
+|---|---|---|---|
+| `project` | the goal is met — the phase's key results are largely hit | your objectives in `OKR.md`, and the current `phase/` | is this still the right task? what is marked done with nothing to show for it? |
+| `pipeline` | the item ships, or is explicitly dropped | commitments — each with a date, and someone it was promised to | which item is aging in which stage, and who is waiting on it? |
+| `queue` | it doesn't. It is steady state, reviewed on a period | standing promises, plus a response time to measure them against | what missed its response time, what keeps recurring, what should become a runbook? |
+| `inquiry` | the question is answered — or abandoned, which is a real answer | the open root questions | which branch is still open, and which claim has no source behind it? |
+
+Roughly: writing, content and client deliverables → `pipeline`. Operations, support, admin — anything that *arrives* instead of being planned → `queue`. Research, analysis, meeting and market intelligence → `inquiry`. Building a thing → `project`.
+
+What the mode changes: what closes the horizon, whether the calendar is binding or advisory, what the throttle is (priorities in a project, a per-stage limit in a pipeline, depth and age in a queue, a cap on open questions in an inquiry), what triage asks first, and what Perry pre-selects as the level of proof when you finish an item. Non-`project` modes also give board rows a `Stage` column alongside `Status` — where the item is in *this* track's sequence, as opposed to whether it is blocked or done.
+
+You declare a mode in `.perry/config.md`, in a table called the track register:
+
+```markdown
+## Tracks
+
+| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+| blog | pipeline | commitments | brief→draft→review→approved→published | review:2 | 5d | 2026-W34 | V5 |
+| ops | queue | commitments | new→triaged→in_progress→resolved | — | 1d | monthly | V2 |
+```
+
+One project can run several tracks at once, in different modes — a `pipeline` of client deliverables next to the `queue` that feeds it. A project with no `## Tracks` section has one implicit track called `main` in `project` mode, and behaves exactly as it did before modes existed. That is deliberate: nothing you already have changes because this exists.
+
+`Default rung` is how much proof an item needs before it counts as finished — `V2` a structural check, `V3` a reproducible run, `V4` a fresh reviewer against written criteria, `V5` a named human signing off. Perry pre-selects the mode's default when you close an item; **this release reports, it does not refuse.**
+
+`/perry diagnose` reads your board and tells you which of the four your work actually looks like, and what it read to decide that.
+
+Full rules, one file each: [modes/project.md](modes/project.md) · [modes/pipeline.md](modes/pipeline.md) · [modes/queue.md](modes/queue.md) · [modes/inquiry.md](modes/inquiry.md).
 
 ---
 
@@ -190,20 +236,23 @@ All plain markdown, all yours:
 
 ```
 your-project/
-├── .perry/config.md        your settings (language, layout)
-├── OKR.md                  overall goals
-├── phase/                  the current stretch of work + saved snapshots
-├── BOARD.md                open tasks, right now
-├── journal/                what happened each day
-├── DECISIONS.md            index of decisions
-├── decisions/              one file per decision, with the reasoning
-├── design/                 design docs / RFCs
-├── evidence/               proof that tasks were finished
-├── weekly/                 weekly status reports
-├── handoff/                notes to your next session
-├── inputs/ + knowledge/    documents you gave Perry, and its summaries
-└── ...                     your actual project files
+├── .perry/config.md        your settings (language, layout, tracks)
+├── perry/                  ← everything below lives here by default
+│   ├── OKR.md              overall goals
+│   ├── phase/              the current stretch of work + saved snapshots
+│   ├── BOARD.md            open tasks, right now
+│   ├── journal/            what happened each day
+│   ├── DECISIONS.md        index of decisions
+│   ├── decisions/          one file per decision, with the reasoning
+│   ├── design/             design docs / RFCs
+│   ├── evidence/           proof that tasks were finished
+│   ├── weekly/             weekly status reports
+│   ├── handoff/            notes to your next session
+│   └── inputs/ + knowledge/  documents you gave Perry, and its summaries
+└── ...                     your actual project files, untouched
 ```
+
+**Perry's files go in a `perry/` subfolder by default**, so names like `design/`, `evidence/` and `knowledge/` stay yours. `.perry/` itself stays at the top — it is what marks the folder as a Perry project, so it cannot sit behind the pointer that says where everything else went. If you'd rather have it all at the top level, `/perry relocate .` moves it there — and back, if you change your mind. That is one command either way, and it shows you every `from → to` before it moves anything.
 
 A few more appear only if you use them: `ARCHITECTURE.md` (a system overview you own, that every dispatched agent must respect), `runbook/` (how to operate what you've deployed), `incidents/` (what went wrong in production).
 
@@ -213,10 +262,9 @@ A few more appear only if you use them: `ARCHITECTURE.md` (a system overview you
 
 ## Reading it comfortably
 
-Markdown is great to write and diff, less great to read once there's a lot of it. Two options:
+Markdown is great to write and diff, less great to read once there's a lot of it. Use **[aiMark](https://github.com/ranjiao/aimark)** — point it at your project folder; it renders everything live and understands Perry's structure. Reloads the moment a file changes.
 
-- **[aiMark](https://github.com/ranjiao/aimark)** — point it at your project folder; it renders everything live and understands Perry's structure. Reloads the moment a file changes.
-- **`/perry pmo viewer`** — a zero-setup local page (Today / Board / OKR / Phase / Risks / Architecture). Read-only, runs on your machine, stops with Ctrl-C. First run installs itself; ignore it and you carry no extra dependencies.
+Perry itself stays stdlib Python with no dependencies, and reading is deliberately somebody else's job: it had a local web console of its own until 2026-08, and deleting it is what made that sentence true.
 
 ---
 
@@ -242,21 +290,21 @@ Any language works for prose. Details, and how to switch later: [reference/i18n.
 ## A typical project, start to finish
 
 ```
-/perry okr init                 # set your goals
-/perry okr plan-phase mvp       # goals for this stretch
-/perry okr plan-week            # this week's tasks — you approve them
-/perry                          # every morning: where are we
+/perry goals init                 # set your goals
+/perry goals plan-phase mvp       # goals for this stretch
+/perry goals plan-week            # this week's tasks — you approve them
+/perry                            # every morning: where are we
 
 ... work ...
-/perry pmo dispatch REL-002     # hand a task to an agent
-/perry pmo close-task REL-002   # done, with evidence
-/perry pmo decide caching       # write down why you chose Redis
-/perry pmo friday-review        # this week's status
-/perry pmo handoff              # before you stop
+/perry work dispatch REL-002      # hand a task to an agent
+/perry work close-task REL-002    # done, with evidence
+/perry decide adr caching         # write down why you chose Redis
+/perry work friday-review         # this week's status
+/perry work handoff               # before you stop
 
-/perry pmo end-phase-retro      # key results mostly hit → wrap up
-/perry okr score-phase          # score it
-/perry okr plan-phase beta      # next phase
+/perry work end-phase-retro       # key results mostly hit → wrap up
+/perry goals score-phase          # score it
+/perry goals plan-phase beta      # next phase
 ```
 
 ---
@@ -267,9 +315,11 @@ Any language works for prose. Details, and how to switch later: [reference/i18n.
 
 **Does it work without a git repo?** Yes. Git makes the history nicer but nothing requires it.
 
-**Can I use it for non-code projects?** Yes — research, writing, ops, business planning. `/perry diagnose` even recognises those as different project types.
+**Can I use it for non-code projects?** Yes — research, writing, ops, business planning. Those are not a bolt-on: they are the [four modes](#four-kinds-of-work), each with its own horizon, throttle and triage. `/perry diagnose` recognises them from what's on your board.
 
-**What if my project already has a `design/` folder?** Perry asks. You can put all of its files under a subfolder (`perry/`) and leave your tree untouched.
+**Can Perry drive the board I already have?** Only after `/perry adopt` migrates it. Perry stopped bending at runtime to arbitrary file shapes ([ADR-004](perry/decisions/ADR-004-mandatory-migration.md)) — that flexibility was where its data-losing bugs came from. An unmigrated project stays readable and diagnosable; it is just not driven.
+
+**What if my project already has a `design/` folder?** Nothing collides — Perry's own files live under `perry/` by default, so your `design/` stays yours. Setup checks for the collision before it writes anything, and only asks if you tell it to use the project root instead.
 
 **Can I add my own commands?** Yes. A new lane is a folder with a `SKILL.md` that declares which files it owns and never writes to anyone else's. That single rule is what lets the set grow.
 
@@ -277,8 +327,9 @@ Any language works for prose. Details, and how to switch later: [reference/i18n.
 
 ## More
 
-- **[INSTALL.md](INSTALL.md)** — install details, dependencies, Claude Code vs Codex differences
+- **[INSTALL.md](INSTALL.md)** — install details, dependencies, and host differences
 - **[reference/i18n.md](reference/i18n.md)** — writing in another language
+- **[modes/](modes/)** — the four kinds of work, one file each: what ends them, what the spine is, what triage asks
 - **[reference/diagnose.md](reference/diagnose.md)** — how the project audit works
 - **[reference/adoption.md](reference/adoption.md)** — how adopting an existing project works
 - **[schema/README.md](schema/README.md)** — the file format, if you're building something that reads Perry's files

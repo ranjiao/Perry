@@ -8,17 +8,68 @@ them honest — it checks real files (and, with --templates, Perry's own
 templates) against the one declared schema.
 
 Usage:
-  perry-lint [--root <project_root>] [--templates | --claims] [--json]
+  perry-lint [--root <project_root>] [--templates | --claims | --verification |
+              --provenance | --knowledge | --reviews | --glossary]
+             [--json]
              [--state-root <path>] [--strict] [--quiet]
+
+The default pass also reports `store-drift`: when `<state root>/tasks.jsonl`
+exists, a rendered file whose fields disagree with what the store would produce
+(ADR-007 decision 2 — the board is rendered output, so a hand edit is drift).
+`warn`, on the `NS-01` precedent, and SILENT when there is no store, because
+"no store" and "clean" are different answers.
+
+**The census covers ALL SIX declared stores, one verdict line each, on one
+run** (TASK-209): `tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`,
+`okr.jsonl` and `.perry/config.jsonl`. It covered two for a while — the last
+two printed nothing at all while `perry-okr diff` and `perry-config diff`
+compared both of them clean on the same tree the same day, so a guarantee that
+claims six files was checked on a third of them. Those two reach the SAME
+comparator through `bin/perry_md_store.py` rather than a third and fourth copy
+of it. An absent store is still an absence line and never a clean verdict; six
+lines is not six clean answers.
+
+On an adopted project the default pass also emits `NS-01` (DESIGN-002 decision
+4) when a directory Perry claims holds files Perry did not write — the same
+computation `--claims` performs, so the two can never disagree. It is `warn`,
+and it is the one warning `--strict` does not promote: DESIGN-002 § 9 says a
+collision never sets a non-zero exit, and with no per-path opt-out there would
+otherwise be no way to accept one.
 
   --templates   lint Perry's own state/*_TEMPLATE.md instead of a project.
                 This is the drift guard: a template that stops matching the
-                schema is what silently breaks the viewer and the standup.
+                schema is what silently breaks the standup.
   --claims      report which paths Perry would claim in this folder are already
                 taken by someone else's files. Runs BEFORE adoption, so unlike
                 the default mode it is deliberately NOT gated on is_adopted() —
                 a collision check that only ran on adopted projects would answer
                 the question after the moment it mattered.
+  --verification  advisory pass over every done row's verification rung
+                (DESIGN-003 section 5.3): a missing rung, a rung the cited
+                evidence cannot satisfy, and any row matching the project's
+                own high-stakes list that closed below V5. Never sets a
+                non-zero exit - advisory for one release by decision 4.
+  --glossary    advisory pass over reference/glossary.md: every concept names
+                where it is implemented, that path exists, and no term is
+                defined but unused. Prints the prose-only count, which is the
+                brake on adding concepts that nothing implements.
+  --reviews     advisory pass over V4 VERDICT blocks (work/reference/review.md
+                section 3): every block readable, every FAIL naming a file, every
+                V4 close carrying one, and no row left at `review` after its
+                own verdict already failed it. Prints the block count even at
+                zero findings.
+  --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
+                the four provenance fields present, `Source:` resolving to
+                something a reader can re-open, and staleness against
+                thresholds.knowledge_stale_days. Prints the card count even at
+                zero findings, because zero over zero cards is not a result.
+                Cards and digests share `knowledge/*/*.md` and are told apart
+                by the card's `Kind:`; this skips digests and --provenance
+                skips cards.
+  --provenance  advisory pass over source citations (DESIGN-003 section 5.4):
+                every `SRC-n` cited anywhere resolves to a digest under
+                knowledge/, every digest carries an id, an origin and a
+                fetch date, and no id is reused. Never exits non-zero.
   --state-root  with --claims, test a candidate state root other than the one
                 .perry/config.md declares (or `.` when there is none).
   --json        machine-readable findings
@@ -50,7 +101,10 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 # Frontmatter files are read with the SAME reader Perry uses, so "the linter
 # passed" and "Perry can read it" cannot diverge.
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-import parsers as P  # noqa: E402
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
+import parsers as P
+from tables import split_row, squash  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 
@@ -77,7 +131,26 @@ class Finding:
 
 # ── markdown helpers ──────────────────────────────────────────────────────
 
-KR_ID_RE = r"\bP-O\d+\.\d+\b"
+#: A phase-KR id. **Segment-labelled and project-unique** — DESIGN-007
+#: decision #4, locked 2026-08-19: `P002-O3-KR1` is phase 002, objective 3,
+#: key result 1, and every segment carries its own label rather than relying
+#: on position. Migrated by TASK-180.
+KR_ID_RE = r"\bP\d{3}-O\d+-KR\d+\b"
+
+#: The form this project used before TASK-180: `P-O3.1` [[old-form]], whose
+#: phase lived nowhere in the id. It is kept here to be **rejected**, not to
+#: be read.
+#:
+#: The user's instruction was one-time migration with *no compatibility with
+#: the old form*, and a regex that simply stopped matching would have honoured
+#: the letter and broken the spirit: `check_cross_file` reads a phase file's
+#: KR set with `KR_ID_RE` and then guards every comparison with
+#: `if phase_krs and …`. Handed a file still written in the old form, that set
+#: comes back EMPTY and every linkage check downstream silently passes. A
+#: check that can be handed the old id and do nothing is the compatibility
+#: branch wearing a different hat. So `check_legacy_kr_ids` below turns the
+#: old form into an `error`, and the silence becomes a sentence.
+LEGACY_KR_ID_RE = r"\bP-O\d+\.\d+\b"
 RE_COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
@@ -119,23 +192,49 @@ def section_body(text: str, level: int, matcher: re.Pattern) -> list[tuple[str, 
 
 
 def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
-    """Every markdown table in the section as (header_cells, data_rows)."""
-    out: list[tuple[list[str], list[list[str]]]] = []
+    """Every markdown table in the section as (header_cells, data_rows).
+
+    Rows are split by `viewer/tables.py § split_row` — the same function the
+    writer's `render_row` is the inverse of, and the same one every reader in
+    `viewer/parsers.py` uses. This file used to carry its own
+    naive split on every `|`, which did not honour the escape, so the linter read
+    eight cells where the contract reader read seven on a row `perry-task`
+    itself had written, and reported `bad-enum Verification = '—'` against a
+    correctly-formed row. A checker that reads a file differently from the
+    tool that wrote it does not check that file.
+    """
+    return [(h, [c for c, _ in r]) for h, r in tables_with_lines(section)]
+
+
+def tables_with_lines(
+        section: str) -> list[tuple[list[str], list[tuple[list[str], int]]]]:
+    """`tables()`, with each row's 0-based offset inside `section`.
+
+    **`ragged-row` reported the section heading's line, not the row's** — a
+    row at `BOARD.md:21` was reported at `:15`, so the one finding whose whole
+    job is "go look at this line" sent the reader to a heading. On a board with
+    forty rows under one heading that is not a small imprecision; it is the
+    difference between a pointer and a gesture.
+
+    This is the real implementation and `tables()` is a view of it, rather than
+    a second scanner beside it — the defect this file has been fixing all week.
+    """
+    out: list[tuple[list[str], list[tuple[list[str], int]]]] = []
     prev: list[str] = []
     header: list[str] | None = None
-    rows: list[list[str]] = []
-    for line in section.split("\n"):
+    rows: list[tuple[list[str], int]] = []
+    for n, line in enumerate(section.split("\n")):
         s = line.strip()
         if re.match(r"^\|\s*:?-{2,}", s):
             header = [c.strip() for c in prev]
             rows = []
             continue
         if s.startswith("|"):
-            cells = [c.strip() for c in s.strip("|").split("|")]
+            cells = split_row(s)
             if header is None:
                 prev = cells
             else:
-                rows.append(cells)
+                rows.append((cells, n))
             continue
         if header is not None:
             out.append((header, rows))
@@ -146,8 +245,9 @@ def tables(section: str) -> list[tuple[list[str], list[list[str]]]]:
     return out
 
 
-def norm(s: str) -> str:
-    return re.sub(r"[\s`*]+", " ", s).strip().lower()
+#: `perry-task` defined this character-for-character under the name `squash`.
+#: One rule, one implementation — extracted for TASK-037.
+norm = squash
 
 
 # ── localized column headers ──────────────────────────────────────────────
@@ -162,6 +262,57 @@ def norm(s: str) -> str:
 COLUMN_ALIASES: dict[str, list[str]] = {}
 FIELD_ALIASES: dict[str, list[str]] = {}
 HEADING_ALIASES: dict[str, list[str]] = {}
+
+#: mode -> the columns that mode has no honest default for, read from
+#: `schema/state-schema.json § work_modes.modes.<mode>.no_default`. Read, never
+#: copied: the moment this file carried its own list of which modes need an
+#: `SLA`, the schema's list and the linter's list would be two answers to one
+#: question, which is the defect ADR-004 is about.
+MODE_NO_DEFAULT: dict[str, list[str]] = {}
+
+#: Separators a `## Tracks` § Stages cell may use, and the ones that look like
+#: separators and are not — read from `schema/state-schema.json §
+#: work_modes.stage_separators`, never copied. `bin/perry-state § split_stages`
+#: reads the SAME list, so the splitter and the check below cannot disagree
+#: about what an accepted separator is. Two answers to that question is what
+#: put the `->` / `→` bug in circulation to begin with.
+STAGE_SEPARATORS: dict[str, list[str]] = {}
+
+#: What a user writes in a cell to mean "nothing here". `SKILL.md`'s own
+#: example track row spells an empty cell `—`, so a check that only tested for
+#: the empty string would pass over every register Perry itself taught people
+#: to write. This is the CATEGORY, not the one spelling that bit.
+UNDECLARED_CELL = {"", "—", "–", "-", "n/a", "N/A", "tbd", "TBD", "?", "—/—"}
+
+
+def load_glossary(schema: dict) -> None:
+    """Arm the localization glossary and the declared thresholds.
+
+    Every check below reads these module-level tables, so calling `check_file`
+    without this first silently reports a localized project's own column
+    headers as wrong columns. It used to live inline in `main()`, which meant
+    the only way to reach `check_file` correctly was to be `main()`;
+    `bin/perry-conform` needs the same validation on one file, and a second
+    copy of this loop is exactly the two-implementations-of-one-rule defect
+    ADR-004 is about."""
+    SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
+    for mode, cfg in ((schema.get("work_modes") or {}).get("modes") or {}).items():
+        MODE_NO_DEFAULT[mode] = list((cfg or {}).get("no_default") or [])
+    STAGE_SEPARATORS.update(
+        (schema.get("work_modes") or {}).get("stage_separators") or {})
+    card = next((f for f in (schema.get("files") or [])
+                 if f.get("id") == "knowledge-card"), None) or {}
+    CARD_KINDS[:] = ((card.get("discriminator") or {}).get("values") or [])
+    CARD_REQUIRED[:] = [h["name"] for h in (card.get("header_fields") or [])
+                        if h.get("name") != "Kind"]
+    i18n = schema.get("i18n") or {}
+    for col, per_lang in (i18n.get("columns") or {}).items():
+        COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
+    for fld, per_lang in (i18n.get("fields") or {}).items():
+        FIELD_ALIASES[fld] = [a for aliases in per_lang.values() for a in aliases]
+    for head, per_lang in (i18n.get("headings") or {}).items():
+        HEADING_ALIASES[head] = [a for aliases in per_lang.values() for a in aliases]
 
 
 def accepted(column: str) -> list[str]:
@@ -181,6 +332,15 @@ def column_index(got: list[str], column: str) -> int:
         if alias in got:
             return got.index(alias)
     return -1
+
+
+def canonical_column(header: str) -> str:
+    """A normalized localized header mapped back to its schema column name."""
+    value = norm(header)
+    for column in COLUMN_ALIASES:
+        if value in accepted(column):
+            return norm(column)
+    return value
 
 
 def field_re(name: str) -> str:
@@ -206,6 +366,18 @@ def heading_re(name: str) -> re.Pattern:
 # Filled from schema["thresholds"] in main(). Module-level rather than threaded
 # through two signatures, so every check reads the one declared number.
 SCHEMA_THRESHOLDS: dict = {}
+#: Declared task statuses, filled from the schema by the same loader that
+#: fills the thresholds — never listed here, so it cannot drift from what
+#: `perry-task` writes.
+TASK_STATUSES: set = set()
+
+#: The `Kind:` values that make a `knowledge/*/*.md` file a CARD rather than a
+#: digest, and the fields a card must carry — both read from
+#: `schema/state-schema.json § files[id=knowledge-card]`, never written here.
+#: `Owner role` is in the required list and handled separately in the check,
+#: because an em dash legitimately answers it until roles exist.
+CARD_KINDS: list[str] = []
+CARD_REQUIRED: list[str] = []
 
 
 def _days_since(stamp: str) -> int | None:
@@ -347,7 +519,15 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
         if not isinstance(pr, dict):
             continue
         pid, serves, obj = str(pr.get("id") or ""), str(pr.get("serves") or ""), pr.get("objective")
-        m = re.match(r"^P-(O\d+)\.", serves)
+        # The objective segment of a phase-KR id. **Anchored end to end**,
+        # where the old form could only be prefix-matched: `P002-O3-KR1`
+        # says which phase, which objective and which KR, so there is
+        # nothing left to infer from position. A `serves` still written
+        # `P-O3.1` [[old-form]] no longer matches — and does not slip past
+        # unmentioned:
+        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md`,
+        # linkage files included, and errors on it by name.
+        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
         if m and obj and m.group(1) != str(obj):
             findings.append(Finding("error", rel, "linkage-objective-agrees",
                                     f"{pid}: serves {serves} (which is {m.group(1)}) but "
@@ -365,6 +545,127 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
     return findings
 
 
+def spec_claims(spec: dict, text: str, schema: dict) -> bool:
+    """Does this spec own this file, when two specs share one glob?
+
+    `knowledge/*/*.md` is matched by both the digest spec and the knowledge-card
+    spec. A card is a claim the project made; a digest is a source it read.
+    Without this, the generic checker judged every card against the digest's
+    required fields and reported three `missing-header-field` errors on a
+    perfectly well-formed card — the same collision `--knowledge` and
+    `--provenance` already resolve for themselves, one layer lower and missed.
+
+    The rule is declared, not inferred: a spec carrying a `discriminator` owns a
+    file whose named field holds one of its values, and a spec **sharing that
+    glob without one** owns the files the discriminated spec rejected. Any spec
+    whose glob nothing else matches is unaffected and answers `True`.
+    """
+    disc = spec.get("discriminator")
+    if disc:
+        return field_value(text, disc["field"]) in (disc.get("values") or [])
+    rivals = [f for f in (schema.get("files") or [])
+              if f is not spec and f.get("path") == spec.get("path")
+              and f.get("discriminator")]
+    for r in rivals:
+        d = r["discriminator"]
+        if field_value(text, d["field"]) in (d.get("values") or []):
+            return False
+    return True
+
+
+#: schema `typed_columns` value → the predicate that answers it. Both halves
+#: come from `lib`, which is where `bin/perry-goals` reads them too.
+#:
+#: **The predicate takes the track's MODE**, because the writer's does.
+#: `perry-goals § check_due` refuses an SLA token on a `pipeline` track — that
+#: track's triage compares the cell against today and a token has no day in it
+#: — while the file check was mode-blind. A V4 generated 17,889 values across
+#: four modes and found **398 disagreements**, every one of them an SLA token
+#: in a pipeline register: refused by the writer, clean in the file. A reader
+#: that is laxer than its writer is the same defect as one that is stricter,
+#: and this pair was split to end exactly that.
+TYPED_CELL = {
+    "iso-date-or-sla": lib.due_is_valid,
+}
+#: What each kind ACCEPTS, in words, read from `schema § typed_cell_kinds`.
+#: Not written here: the guard in `tests/test_work_modes.py` forbids this file
+#: from naming a column's vocabulary in code, and it is right to — the words
+#: are the declaration's and only the predicate above is Python's.
+
+
+_TYPED_CELL_KINDS: dict = {}
+
+
+def _accepts(kind: str) -> str:
+    """The declared prose for a typed cell kind, or a plain fallback.
+
+    Read from `schema § typed_cell_kinds` and cached, not written here. The
+    fallback is deliberately shapeless: a kind the schema declares without
+    words should read as under-documented, not as something this file invented
+    a vocabulary for.
+    """
+    if not _TYPED_CELL_KINDS:
+        try:
+            _TYPED_CELL_KINDS.update(
+                json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+                .get("typed_cell_kinds") or {})
+        except (OSError, ValueError):
+            pass
+    return (_TYPED_CELL_KINDS.get(kind) or {}).get("accepts") or f"the {kind} shape"
+
+
+_TRACK_CONTEXTS: dict = {}
+
+
+def _track_context(state_file: Path, cell: str) -> dict:
+    """A track cell → its declared row from `.perry/config.md § Tracks`.
+
+    The root is walked up from the file being linted rather than passed in, so
+    `check_file`'s signature — which `bin/perry-conform` also calls — does not
+    move, and so there is no second answer to "where does this project start".
+
+    An undeclared track reports `{}`, which every predicate treats as the
+    permissive case. A typo in the register must not silently make a column
+    stricter: `perry-lint` already reports an unknown mode as `bad-enum`, and
+    two findings for one typo is how a check gets switched off.
+    """
+    name = squash(cell or "")
+    if not name:
+        return {}
+    root = state_file.resolve().parent
+    for _ in range(5):
+        if (root / ".perry" / "config.md").is_file():
+            break
+        root = root.parent
+    cfg = root / ".perry" / "config.md"
+    key = str(cfg)
+    if key not in _TRACK_CONTEXTS:
+        table: dict = {}
+        try:
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        header: list = []
+        canonical_header: list[str] = []
+        for line in text.split("\n"):
+            if not line.lstrip().startswith("|"):
+                continue
+            cells = [squash(c) for c in split_row(line)]
+            track_i = column_index(cells, "Track")
+            mode_i = column_index(cells, "Mode")
+            if track_i >= 0 and mode_i >= 0:
+                header = cells
+                canonical_header = [canonical_column(cell) for cell in header]
+                continue
+            if not header or set(cells) <= {"", "-", "--", "---", ":---", "---:"}:
+                continue
+            row = dict(zip(canonical_header, cells))
+            if row.get("track"):
+                table[row["track"]] = row
+        _TRACK_CONTEXTS[key] = table
+    return _TRACK_CONTEXTS[key].get(name, {})
+
+
 def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool) -> list[Finding]:
     if spec.get("format") == "yaml-frontmatter":
         return check_frontmatter(path, rel, spec, enums, is_template)
@@ -377,11 +678,31 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     cap = spec.get("cap")
     if cap and len(lines) > cap:
         sev = "error" if spec.get("cap_kind") == "hard" else "warn"
-        findings.append(Finding(
-            sev, rel, "size-cap",
-            f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of {cap}. "
-            "Split the overflow into a sibling file rather than writing past it.",
-        ))
+        # **The prescription is mode-aware, because for one section it was
+        # exactly backwards.** `## Intake` lives inside `BOARD.md` on purpose
+        # (`DESIGN-003` decision 3 chose zero new claimed paths), and
+        # `modes/queue.md` says the resulting pressure on the cap **is the
+        # feature**: "an intake that overflows the board is a project that is
+        # not triaging". Telling that project to split the overflow into a
+        # sibling file is telling it to move the signal somewhere it can grow
+        # unnoticed — the one response the mode rules out.
+        n_intake = intake_rows(raw)
+        if n_intake and n_intake * 2 >= len(lines) - cap:
+            findings.append(Finding(
+                sev, rel, "size-cap",
+                f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of "
+                f"{cap} — and {n_intake} of them are undischarged `## Intake` "
+                f"rows. **Do not split this into a sibling file.** Intake lives "
+                f"in the board so arrival is visible, and an intake that "
+                f"overflows the cap is the signal that the queue is not being "
+                f"drained (`modes/queue.md`). Run triage and route or discharge "
+                f"the rows; the cap comes back on its own."))
+        else:
+            findings.append(Finding(
+                sev, rel, "size-cap",
+                f"{len(lines)} lines, over the tier-{spec.get('tier')} cap of "
+                f"{cap}. Split the overflow into a sibling file rather than "
+                f"writing past it."))
 
     # Some sections are only mandatory once the doc reaches a given status —
     # a design doc in `draft` is allowed to be incomplete; `locked` is not.
@@ -395,7 +716,34 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
     heads = headings(text)
     for req in spec.get("headings", []):
         matcher = re.compile(req["match"])
-        if not any(lvl == req["level"] and matcher.search(t) for lvl, t, _ in heads):
+
+        def present(req=req, matcher=matcher) -> bool:
+            # **The fifth implementation of "where is this section".** Four
+            # were unified on `squash`; this one applied the raw schema regex
+            # to the raw heading, so `## **Top risks**` reported
+            # `missing-section` while every other reader found it.
+            #
+            # It is the dangerous one because **`perry-migrate` acts on lint
+            # findings**: told the section was missing, it appended a second,
+            # empty `## Top risks` above the project's real one. Measured on a
+            # fixture — 1 risk visible before, **0 after**, the recorded risk
+            # orphaned, and `perry-lint` then reporting **0 errors** with the
+            # file **declared conformant**. Migration made a stranger's risks
+            # invisible and certified the result.
+            #
+            # Decoration is stripped and the retry is case-insensitive; the
+            # exact match is tried first so nothing that passed before changes.
+            for lvl, t, _ in heads:
+                if lvl != req["level"]:
+                    continue
+                if matcher.search(t):
+                    return True
+                if matcher.search(undecorate(t)) or re.search(
+                        req["match"], undecorate(t), re.IGNORECASE):
+                    return True
+            return False
+
+        if not present():
             severity = "error" if sections_are_hard else "warn"
             suffix = "" if sections_are_hard else (
                 f" (not yet blocking at {gate['field']}: {doc_status or '—'}; "
@@ -451,11 +799,64 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
             )
 
         for body, start in bodies:
-            for header, rows in tables(body):
+            for header, rows_at in tables_with_lines(body):
+                rows = [r for r, _ in rows_at]
                 got = [norm(c) for c in header]
                 if not got:
                     continue
                 found_any = True
+                # A row that is not as wide as its header. Both directions are
+                # wrong and neither was reported until now: a SHORT row reads
+                # as one whose trailing columns are empty — and empty is legal
+                # for `Evidence`, so nothing downstream objects — while a LONG
+                # row shifts every column after the extra `|`.
+                #
+                # This is the check that was missing when `perry-task add`
+                # wrote raw newlines into three rows of Perry's own board.
+                # Each ended mid-cell with no closing `|`; `perry-lint`
+                # reported `✓ clean`; the next `add` then parsed the truncated
+                # line as the table's last row and inserted into the middle of
+                # the spilled text. Every column read below is index-guarded
+                # (`if ci >= len(row): continue`), which is exactly why a
+                # malformed row passed every one of them in silence.
+                #
+                # Deliberately ABOVE the missing-columns branch, which bails
+                # out with `continue`. Comparing a row's width to its header's
+                # needs no interpretation of what the columns mean, so a table
+                # whose headers Perry does not recognize can still be told its
+                # rows do not line up — and that is precisely the table a
+                # project arriving from outside Perry has.
+                # Iterated WITH the offsets, not matched back to them.
+                # The first version built `{id(row): line}` from a second call
+                # to `tables_with_lines(body)` — different list objects, so no
+                # `id()` ever matched and every finding kept reporting the
+                # heading. It looked like a fix and changed nothing; caught by
+                # running a ragged row through it rather than by reading it.
+                for row, offset in rows_at:
+                    if len(row) == len(header):
+                        continue
+                    if not any(c.strip() for c in row):
+                        continue          # a blank spacer row inside a table
+                    shown = (row[column_index(got, tspec["id_column"])]
+                             if tspec.get("id_column")
+                             and 0 <= column_index(got, tspec["id_column"]) < len(row)
+                             else " | ".join(row)[:60])
+                    findings.append(Finding(
+                        # `start` is `section_body`'s 0-based index of the
+                        # body's first line and `offset` is 0-based within the
+                        # body, so the 1-based line a person opens is
+                        # `start + offset + 1`. Verified with two ragged rows
+                        # at known, different lines rather than one — a single
+                        # sample cannot tell a constant offset from a
+                        # coincidence.
+                        "error", rel, "ragged-row",
+                        line=start + offset + 1,
+                        message=f"row {shown!r} has {len(row)} cell(s) but its "
+                                f"header has {len(header)} — "
+                                + ("the trailing column(s) read as empty"
+                                   if len(row) < len(header)
+                                   else "every column after the extra `|` is shifted"),
+                    ))
                 missing = [c for c in tspec["columns"] if not satisfied(c, got)]
                 if missing:
                     findings.append(Finding(
@@ -480,6 +881,179 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 "error", rel, "bad-enum",
                                 f"{col} = {val!r} is not one of {enums[enum_name]}",
                             ))
+                # **The reader half of a typed column.** `enum_columns`
+                # above says "this cell is one of these words"; this says
+                # "this cell is a value of this shape". The schema declares
+                # both, so a column whose value space is written down in
+                # `state-schema.json` is checked here rather than only in
+                # whichever tool happens to write it.
+                #
+                # It exists because the Commitments table's own note reads
+                # "`Due` is TYPED … and nothing else is accepted", and that
+                # was true of `perry-goals commit` and of nothing else — a
+                # hand-written `| … | 下周期 | active |` under a `Due` header
+                # linted clean. This is an error like an off-enum value.
+                # Migration remains possible because its write path is
+                # explicitly exempt from the conformance gate.
+                for col, kind in (tspec.get("typed_columns") or {}).items():
+                    ci = column_index(got, col)
+                    tci = column_index(got, "Track")
+                    if ci < 0:
+                        continue
+                    ok = TYPED_CELL.get(kind)
+                    if ok is None:
+                        findings.append(Finding(
+                            "warn", rel, "schema-unknown-type",
+                            f"the schema types column `{col}` as {kind!r} and "
+                            f"this lint has no predicate for that, so the "
+                            f"column is unchecked rather than clean"))
+                        continue
+                    for row in rows:
+                        if ci >= len(row):
+                            # A ragged row — fewer cells than the header. It is
+                            # already `ragged-row`'s finding, and indexing it
+                            # here exited the whole lint at rc 2 with an
+                            # `IndexError`. Deleting this line leaves the suite
+                            # green, which is why it has its own test.
+                            continue
+                        val = row[ci]
+                        # `lib.is_blank_cell` strips the decoration; doing it
+                        # here as well produced a THIRD spelling of "strip" —
+                        # `.replace("*", "")` vs `lib`'s end-strip disagreed on
+                        # `2026-**09**-30`, which lint accepted and the writer
+                        # refused.
+                        if lib.is_blank_cell(val):
+                            continue
+                        if is_template and PLACEHOLDER.search(val):
+                            continue
+                        track = {}
+                        if 0 <= tci < len(row):
+                            track = _track_context(path, row[tci])
+                        if not ok(track, val):
+                            classification = (lib.classify_due(track, val)
+                                              if kind == "iso-date-or-sla"
+                                              else lib.DUE_INVALID)
+                            context = ""
+                            mode = str(track.get("mode") or "").lower()
+                            if lib.due_track_missing_clock(track):
+                                context = (" The row's queue track has no "
+                                           "declared clock, so no populated "
+                                           "`Due` is valid.")
+                            elif mode == "pipeline":
+                                context = (" The row's pipeline track requires "
+                                           "a calendar date, not a duration token.")
+                            findings.append(Finding(
+                                "error", rel, "bad-typed-cell",
+                                f"{col} = {val!r} — this column is typed "
+                                f"({_accepts(kind)}) and nothing else "
+                                f"is accepted, so a reader cannot compare or "
+                                f"sort it. Prose about a deadline belongs in "
+                                f"`By when note`, which is never validated: "
+                                f"`perry-goals commit --migrate` moves it."
+                                f"{context}"))
+
+                # A column the row's own mode has no honest default for, left
+                # undeclared.
+                #
+                # `work_modes.defaults_note` already draws the distinction this
+                # reads: an empty `WIP` under `queue` means THIS MODE HAS NO
+                # SUCH CONTROL, while an empty `SLA` under `queue` means NOBODY
+                # HAS SAID YET — and only the second is a finding. The note
+                # stated the rule and left it to be obeyed by hand, so a queue
+                # track with no SLA lints clean, and then `modes/queue.md`'s
+                # breach step, age sort and triage question all measure against
+                # a clock that does not exist.
+                #
+                # Deliberately WARN. The full argument is in the schema; the
+                # short version is that an error would retroactively invalidate
+                # every register written before this rule, and — because a file
+                # carrying errors cannot be declared conformant — would
+                # escalate one blank cell into a write refusal on the whole of
+                # `.perry/config.md`. The question is FORCED at creation
+                # instead, where there is no legacy and no default to fall back
+                # on, and the hard stop already exists at the point of use.
+                nd = tspec.get("no_default_by_mode") or {}
+                mi = column_index(got, nd["mode_column"]) if nd else -1
+                if mi >= 0:
+                    ti = column_index(got, nd.get("id_column") or "")
+                    for row in rows:
+                        if mi >= len(row):
+                            continue
+                        mode = re.split(
+                            r"[\s(（]", row[mi].replace("*", "").strip())[0]
+                        who = (row[ti].replace("*", "").strip()
+                               if 0 <= ti < len(row) else "?")
+                        for col in MODE_NO_DEFAULT.get(mode, []):
+                            k = column_index(got, col)
+                            val = ("" if k < 0 or k >= len(row)
+                                   else row[k].replace("*", "").strip())
+                            if val not in UNDECLARED_CELL \
+                                    and not PLACEHOLDER.search(val):
+                                continue
+                            findings.append(Finding(
+                                "warn", rel, "no-default", line=start,
+                                message=(
+                                    f"track {who!r} is mode {mode!r} and its "
+                                    f"`{col}` is undeclared. {mode} has no "
+                                    f"default `{col}` (schema "
+                                    f"work_modes.modes.{mode}.no_default) "
+                                    f"because it is a commitment the project "
+                                    f"makes to someone, and a number Perry "
+                                    f"invented is one the project never made — "
+                                    f"every triage run afterwards would measure "
+                                    f"real work against it. Declare it in the "
+                                    f"`{col}` cell of `.perry/config.md § "
+                                    f"Tracks`; until then triage reports the gap "
+                                    f"instead of a verdict."),
+                            ))
+
+                # **A Stages cell that did not split is reported by name.**
+                #
+                # `split_stages` accepts the separators in
+                # `schema/state-schema.json § work_modes.stage_separators.
+                # accepted`; a cell using any other one becomes ONE stage whose
+                # name is the whole list, and every stage-based measure in
+                # queue, pipeline and inquiry mode then runs on it. That is
+                # silent today: reproduced on a project reporting 8 errors, and
+                # not one of them named this cell.
+                #
+                # Both halves read the SAME schema list, so the splitter and
+                # this check cannot disagree about what an accepted separator
+                # is — which is the shape that put the `->` / `→` bug in
+                # circulation to begin with.
+                seps = STAGE_SEPARATORS
+                si = column_index(got, "Stages")
+                if si >= 0 and seps.get("suspect"):
+                    # The table's own id column is declared under
+                    # `no_default_by_mode`, not at the table's top level —
+                    # `tspec["id_column"]` is None here, and reading it named
+                    # every track `'?'`.
+                    ti2 = column_index(got, (nd or {}).get("id_column") or "")
+                    for row in rows:
+                        if si >= len(row):
+                            continue
+                        cell = row[si].replace("*", "").strip()
+                        if cell in UNDECLARED_CELL or not cell:
+                            continue
+                        if any(a in cell for a in (seps.get("accepted") or [])):
+                            continue
+                        hit = next((c for c in seps["suspect"] if c in cell), None)
+                        if not hit:
+                            continue
+                        who = (row[ti2].replace("*", "").strip()
+                               if 0 <= ti2 < len(row) else "?")
+                        findings.append(Finding(
+                            "warn", rel, "stage-separator", line=start,
+                            message=(
+                                f"track {who!r} lists its stages with {hit!r}, "
+                                f"which Perry does not split on — the whole "
+                                f"cell becomes ONE stage named "
+                                f"{cell!r}, and WIP, stage age and this mode's "
+                                f"triage question all measure against it. Use "
+                                f"one of "
+                                f"{', '.join(repr(a) for a in seps['accepted'])}."),
+                        ))
+
                 ci = column_index(got, tspec["id_column"]) if tspec.get("id_column") else -1
                 if ci >= 0:
                     pat = re.compile(tspec["id_pattern"])
@@ -495,7 +1069,17 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
                                 f"id {val!r} does not match /{tspec['id_pattern']}/ — "
                                 "attribution resolves on these ids",
                             ))
-        if not found_any and not is_template:
+        # `optional` = this section is allowed to hold something other than a
+        # table. `## Top risks` is the case: it is a bullet list on every
+        # project that has not migrated to the tool-written table, and a bullet
+        # list is a valid `## Top risks` — readers fall back to it. Without
+        # this the table spec added for TASK-040 would have turned every
+        # unmigrated board red for a shape it was never asked to adopt.
+        #
+        # Note this is NOT the same optionality Intake has. Intake is skipped
+        # because `section_body` returns nothing when the SECTION is absent;
+        # here the section is present and merely has no table.
+        if not found_any and not is_template and not tspec.get("optional"):
             findings.append(Finding(
                 "warn", rel, "missing-table",
                 f"no table found under /{tspec['under']}/",
@@ -508,6 +1092,36 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     # `.perry/` is anchored at the project root even when state lives in a
     # subdirectory — it is the pointer, so it cannot sit behind the pointer.
     perry_dir = (project_root or root) / ".perry"
+
+    # The old phase-KR form is REJECTED, not merely unmatched. See the note on
+    # `LEGACY_KR_ID_RE`: every guard below is written `if phase_krs and …`, so
+    # a phase file left in `P-O3.1` [[old-form]] yields an empty KR set and
+    # buys silence
+    # from every check downstream. This is the one place that can tell the
+    # difference between "this phase declares no KRs" and "this phase declares
+    # its KRs in an id form that was migrated away on 2026-08-28", and it says
+    # so out loud.
+    #
+    # Scanned over `phase/*.md` rather than just the CURRENT phase because a
+    # scored phase's register is read too — `check_cross_file` re-derives
+    # `phase_krs` per linkage file from the file's own phase — so an unmigrated
+    # 001 is exactly as silent as an unmigrated 002.
+    _legacy = re.compile(LEGACY_KR_ID_RE)
+    for pf in sorted((root / "phase").glob("*.md")) if (root / "phase").is_dir() else []:
+        for i, line in enumerate(strip_comments(pf.read_text()).split("\n"), 1):
+            hits = _legacy.findall(line)
+            if not hits:
+                continue
+            findings.append(Finding(
+                "error", pf.relative_to(root).as_posix(), "kr-id-legacy-form",
+                f"{', '.join(sorted(set(hits)))} — the pre-TASK-180 phase-KR "
+                f"form, whose phase is not in the id. DESIGN-007 decision #4 "
+                f"(locked 2026-08-19) replaced it with `P{pf.name.split('-', 1)[0]}"
+                f"-O<n>-KR<n>`, and nothing reads the old form any more: left "
+                f"here it is not a KR to any tool, it is prose that looks like "
+                f"one",
+                line=i,
+            ))
 
     # phase/CURRENT resolves
     cur = root / "phase" / "CURRENT"
@@ -527,11 +1141,57 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     phase_krs: set[str] = set()
     if phase_file and phase_file.exists():
         phase_krs = set(re.findall(KR_ID_RE, strip_comments(phase_file.read_text())))
+    # linkage: every TASK the graph names must exist in the task store.
+    #
+    # **`None` is "this project has not been adopted", not "no tasks"** —
+    # `viewer/parsers.py § load_task_store` states that contract and this is
+    # the reader that has to honour it. A guard that read a missing
+    # `tasks.jsonl` as an empty id set would report every edge in every
+    # register as dangling on every project that has not adopted the store,
+    # which is TASK-117's inversion exactly: `check_store_drift` called 175 of
+    # 175 rows drifted when the only thing missing was the event log. So the
+    # whole sweep below is skipped, silently, and nothing is claimed about
+    # edges that were never checkable.
+    #
+    # `load_task_store` also answers `None` for a store it cannot parse, and
+    # that is the right answer here too rather than a coincidence worth
+    # working around: `check_store_drift` already reports `store-unreadable`,
+    # and a second check inventing "and every one of your edges dangles" out
+    # of the same one fact is the noise that finding exists to avoid.
+    #
+    # An EMPTY store is not that case. `[]` is an adopted, empty board, and a
+    # register naming a task on an empty board really is pointing at nothing;
+    # the report is true and the fix is real.
+    #
+    # The store is read once for the whole sweep — every linkage file is
+    # judged against the same set, deliberately; see the note in the loop.
+    store_records = P.load_task_store(root)
+    store_ids: set[str] | None = (
+        None if store_records is None
+        else {str(r.get("id")) for r in store_records
+              if isinstance(r, dict) and r.get("id")})
     for lf in sorted((root / "phase").glob("*-linkage.md")) if (root / "phase").is_dir() else []:
         link = P.parse_linkage(lf.read_text())
         rel = lf.relative_to(root).as_posix()
         if not link.ok:
             continue
+        # **A linkage file belongs to ITS phase, not to the current one.**
+        # This judged every `*-linkage.md` against the CURRENT phase's KR set,
+        # so the moment a phase was scored and the next one opened, the old
+        # phase's registry — which correctly names the KRs it was written for —
+        # was reported as dangling. It fired on the first rollover this project
+        # ever did, on `phase/001-linkage.md`, naming KRs that exist exactly
+        # where they should.
+        #
+        # A guard written when there had only ever been one phase. The file
+        # names its own phase (`<NNN>-linkage.md`), so the right KR set is
+        # derivable with no new state.
+        own = lf.name.split("-", 1)[0]
+        mine = sorted((root / "phase").glob(f"{own}-*.md"))
+        mine = [m for m in mine if not m.name.endswith("-linkage.md")]
+        if mine:
+            phase_krs = set(re.findall(
+                KR_ID_RE, strip_comments(mine[0].read_text())))
         for pr in link.projects:
             if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
                 findings.append(Finding(
@@ -544,6 +1204,62 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                     findings.append(Finding(
                         "warn", rel, "linkage-kr-exists",
                         f"{kr.id} is in the graph but not in the current phase file"))
+                # **The comment above does NOT transfer to task ids, and the
+                # difference is what makes this check simpler than that one.**
+                # A KR id USED TO BE scoped to a phase file rather than
+                # naming one: `P-O1.1`/`001` and `P-O1.1`/`002` [[old-form]]
+                # were different key results, so the only
+                # correct comparand for `001-linkage.md` was phase 001's own
+                # KR set — which is why that guard had to stop reading the
+                # CURRENT phase. Those two ids are `P001-O1-KR1` and
+                # `P002-O1-KR1` now (TASK-180), and the old pair is quoted
+                # rather than migrated because migrating it would delete the
+                # reason this guard exists: re-derived, the sentence becomes
+                # "two ids that differ are different", which explains
+                # nothing. **The guard stays**, and not out of caution — a
+                # register may carry an id for a phase that is not its own,
+                # and comparing against the file's own phase is what catches
+                # that. **A task id is global.** There is one
+                # `tasks.jsonl` for the project, ids are minted across phases
+                # and never re-used, and no per-phase task store exists to
+                # read instead. So every register, current or scored, is
+                # judged against today's store — that is not "the current
+                # phase leaking into an old file", it is the only store there
+                # has ever been.
+                #
+                # The consequence is intended: when TASK-167's removal path
+                # takes a row out, a scored phase's edge to it starts
+                # dangling, and it IS dangling — the register credits that KR
+                # with work no record carries. That is the finding, not a
+                # false positive of one.
+                #
+                # **The comparand is the store and not `BOARD.md`.** A closed
+                # row leaves the board and stays in `tasks.jsonl` (ADR-007;
+                # `viewer/parsers.py § _records_by_group` skips a terminal
+                # status), so resolving against the rendered rows would report
+                # every finished task any register names, on every project.
+                # `perry-diagnose`'s `user_load.dangling` asks the
+                # markdown-mention question instead and does exactly that —
+                # measured on a fixture 2026-08-28, it called a `done` row
+                # dangling while its record sat in the store — which is why
+                # "another tool already notices dangling ids" does not cover
+                # this one.
+                for tid in kr.tasks:
+                    if store_ids is None or not tid or tid in store_ids:
+                        continue
+                    findings.append(Finding(
+                        "warn", rel, "linkage-task-exists",
+                        f"{kr.id} lists task {tid}, which is not a record in "
+                        f"`tasks.jsonl` — the edge points at nothing. It is "
+                        f"still counted: `bin/lib § kr_progress_provenance` "
+                        f"puts {tid} in this KR's `linked_task_completion."
+                        f"total` and files it under `unknown`, so the KR "
+                        f"carries a denominator no row can ever close. Either "
+                        f"the id is a typo or the row is gone. `perry-goals "
+                        f"link` appends an edge and never retracts one, so "
+                        f"this one comes out the way `link_edge`'s own "
+                        f"refusal says a mis-aimed edge comes out: on the "
+                        f"user's confirmation."))
 
     # design: locked docs need an implementation plan
     for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:
@@ -560,7 +1276,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
             findings.append(Finding(
                 "error", rel, "locked-design-has-plan",
                 "Status: locked but the Implementation plan section is empty — "
-                "PMO has nothing to open tasks from",
+                "the work lane has nothing to open tasks from",
             ))
 
     # BOARD: done rows need evidence
@@ -583,22 +1299,2030 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         ))
 
     # hook safety list
-    hook = perry_dir / "hook.md"
-    armed = False
-    if hook.exists():
-        body = section_body(strip_comments(hook.read_text()), 2,
-                            heading_re("High-stakes operations"))
-        armed = bool(body and [
-            b for b in body[0][0].split("\n")
-            if b.strip().startswith("-") and "{{" not in b
-        ])
-    if not armed:
+    #
+    # Read through `P.hook_escalation_lines`, which is what `bin/perry-state`
+    # and the pre-flight union already read. The copy that stood here matched
+    # the heading with `heading_re`, which has no prefix tolerance, while the
+    # shared reader accepts `## High-stakes` — so a hook spelled that way was
+    # armed for the gate and unarmed for the linter. `heading_re`'s own
+    # docstring calls that out as the thing not to do: *"a safety gate the
+    # linter reports as unarmed while `bin/perry-state` reads it as armed is
+    # worse than either answer alone"*. It became load-bearing here, because
+    # the dead-bullet finding below reads the shared list: two readers would
+    # let one run say "nothing is armed" and then quote three armed bullets.
+    hook_lines = P.hook_escalation_lines(perry_dir.parent)
+    if not hook_lines:
         findings.append(Finding(
             "warn", ".perry/hook.md", "hook-high-stakes-armed",
-            "no high-stakes operations list — /pmo dispatch's safety re-validation and "
-            "/pmo autopilot's safety scan have nothing to match against",
+            "no high-stakes operations list — /perry work dispatch's safety re-validation and "
+            "/perry work autopilot's safety scan have nothing to match against",
         ))
+
+    # A HOOK bullet that yields no fragment — the same defect as a role card's,
+    # on the half every project has (TASK-202).
+    #
+    # **Why it lands here and not beside the card's check.** A role card's goes
+    # through `check_role_cards`, which runs only under `--knowledge`, and that
+    # is defensible for cards: they are optional (DESIGN-006 goal 7), a project
+    # with none is never asked for one, and the flag is where a reader goes to
+    # ask about them. The hook has no card, no loop, and no flag — it is read
+    # on every dispatch of every project. So the finding goes in the DEFAULT
+    # pass, three lines under `hook-high-stakes-armed`, because those two
+    # sentences are one thought: that check says the gate is loaded, and this
+    # one says how much of it is blanks. A reader told "armed" and not told
+    # "three of your five rules are inert" has been told the more misleading
+    # half. On `~/proj/gimegime-pmo` that reader was told `armed: true` over a
+    # hook that turned 5 bullets into 3 fragments.
+    #
+    # **Severity: `warn`, the same as the role card's — deliberately not
+    # louder.** The hook's version is worse in consequence: there is no card
+    # to compensate, and TASK-200 caught `max_position` on a role card that was
+    # standing in for exactly this hook. But raising it to `error` would say a
+    # rule's enforceability depends on which file it was written in, which is
+    # the asymmetry this task exists to remove, and it would turn every
+    # existing project's honest prose into a red exit on a run that has not
+    # changed. Reach, not volume, is where the difference belongs: the card's
+    # is behind a flag and this one is not.
+    for bullet in P.unextractable_lines(hook_lines):
+        findings.append(Finding(
+            "warn", ".perry/hook.md", "hook-escalation-not-extractable",
+            P.unextractable_says(bullet, P.HOOK_SECTION)))
     return findings
+
+
+# ── verification ladder (DESIGN-003 § 5.3) ────────────────────────────────
+
+
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+RUNNABLE_RE = re.compile(r"`[^`]+`|\.(?:py|sh|json|md|ya?ml)\b|/")
+
+
+def high_stakes_fragments(perry_dir: Path) -> list[str]:
+    """The scan list: `.perry/hook.md`'s fragments **unioned** with every role's.
+
+    Reused rather than re-declared. The consequence rule — anything
+    outward-facing or irreversible needs V5 regardless of its mode's default —
+    has no field of its own to read, and inventing one would mean asking the
+    user to classify every task twice. The hook already carries the project's
+    own statement of what is dangerous, so that list *is* the consequence
+    signal. A project with an unarmed hook simply gets no consequence checks,
+    which is honest: nothing has told Perry what matters there.
+
+    **A role adds to that list and never replaces it** (DESIGN-006 § 5.2, goal
+    6). `P.escalation_union` is the one implementation — this function does not
+    carry a second copy, because two extractions of one rule is how a scan
+    quietly stops scanning what it used to. With no roles declared the union is
+    the hook's list unchanged, which is Goal 7 at this surface.
+    """
+    project_root = perry_dir.parent if perry_dir.name == ".perry" else perry_dir
+    return P.escalation_union(project_root)["union"]
+
+
+def rung_satisfied(rung: str, evidence: str) -> str | None:
+    """Why this rung is NOT satisfiable from this evidence, or None if it is.
+
+    Deliberately shallow. The linter can tell that a V5 claim carries no date,
+    or that a V4 claim cites no rubric file; it cannot tell whether the reviewer
+    was genuinely fresh-context or whether the human actually read the thing.
+    Checking the checkable and staying quiet about the rest is what keeps this
+    advisory pass from becoming theatre in the other direction.
+    """
+    ev = (evidence or "").strip()
+    if rung == "V0":
+        return ("V0 is 'asserted' — it is the name for what is being refused, "
+                "never a rung a row may carry")
+    if not ev or ev in ("—", "-"):
+        return f"{rung} claimed with no evidence at all"
+    if rung in ("V2", "V3") and not RUNNABLE_RE.search(ev):
+        return (f"{rung} means a check something can re-run; the evidence names "
+                f"no command, script or path")
+    if rung == "V4" and not re.search(r"rubric|criteria|\.md\b", ev, re.I):
+        return ("V4 requires a written acceptance rubric the reviewer scored "
+                "against; the evidence cites none (see DESIGN-003 § 5.3)")
+    if rung == "V5" and not DATE_RE.search(ev):
+        return ("V5 is a human sign-off recording name, date and what was "
+                "checked; the evidence carries no date")
+    return None
+
+
+def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
+    """Advisory pass over every `done` row's verification rung.
+
+    Advisory for one release by DESIGN-003 § 4 decision 4: a hard gate on day
+    one would retroactively invalidate every `done` row in every existing
+    project, since none of them carry a rung. This mode never sets a non-zero
+    exit — branch on the `--json` counts if you want CI to care.
+    """
+    findings: list[Finding] = []
+    board = state_root / "BOARD.md"
+    if not board.exists():
+        return findings
+
+    def judge(where: str, tid: str, title: str, ev: str, rung: str,
+              stakes: list[str]) -> int:
+        """One closure, judged. Called for board rows AND for close events.
+
+        Reading only board rows measured an empty set: `perry-task done`
+        REMOVES the row it closes, so on this repo 29 closures carrying rungs
+        produced "no done rows to rate". The consequence rule below — anything
+        outward-facing or carrying money needs V5 regardless of mode — could
+        therefore never fire on a task the tool had closed, which by then was
+        every task.
+        """
+        if not rung:
+            findings.append(Finding(
+                "warn", where, "no-verification-rung",
+                f"{tid} is done with no verification rung — "
+                f"'evidence exists' does not say what was checked"))
+            return 0
+        why = rung_satisfied(rung, ev)
+        if why:
+            findings.append(Finding("warn", where, "rung-not-satisfied",
+                                    f"{tid}: {why}"))
+        # The id and the title — what the work IS. NOT the evidence path:
+        # that is where the proof lives, not what was done, and matching
+        # fragments inside it made every task high-stakes. Perry's own hook
+        # lists `evidence/` under "destructive filesystem operations —
+        # overwriting a project's own design/, evidence/, …", so once this
+        # check started seeing tool-closed tasks it flagged all 29 of them.
+        # A latent bug that could not fire while the check rated nothing.
+        hay = f"{tid} {title}"
+        # `P.matching_escalations` is the one matcher, for the same reason
+        # `P.escalation_union` is the one extractor: a second copy is how a
+        # scan quietly stops scanning what it used to. The copy that stood
+        # here was `f in hay` — a bare substring — and it read `adopt` out of
+        # "keep what adoption needs". TASK-107.
+        hit = next(iter(P.matching_escalations(hay, stakes)), None)
+        if hit and rung < "V5":
+            findings.append(Finding(
+                "warn", where, "consequence-needs-signoff",
+                f"{tid} matches the project's own high-stakes list "
+                f"({hit!r}) but closed at {rung}; outward-facing or "
+                f"irreversible work needs V5 regardless of mode"))
+        return 1
+    # `seen` is returned alongside the findings so the caller can tell "every
+    # done row is fine" from "there were no done rows" — printing a checkmark
+    # for an empty scan is how a gate quietly stops being one.
+    check_verification.rows_seen = 0
+    text = strip_comments(board.read_text(errors="replace"))
+    stakes = high_stakes_fragments(perry_dir)
+
+    rows_seen = rows_ranked = 0
+    seen_ids: set[str] = set()
+    for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
+        for header, rows in tables(body):
+            got = [norm(c) for c in header]
+            ci_id, ci_st = column_index(got, "ID"), column_index(got, "Status")
+            ci_ev, ci_v = column_index(got, "Evidence"), column_index(got, "Verification")
+            ci_ti = column_index(got, "Title")
+            if ci_st < 0:
+                continue
+            for row in rows:
+                def cell(i):
+                    return row[i].replace("*", "").strip() if 0 <= i < len(row) else ""
+                if cell(ci_st) != "done":
+                    continue
+                rows_seen += 1
+                tid = cell(ci_id) or "(unnamed row)"
+                seen_ids.add(tid)
+                rows_ranked += judge("BOARD.md", tid, cell(ci_ti),
+                                     cell(ci_ev), cell(ci_v), stakes)
+
+    # The closures that have already left the board. `done` removes the row,
+    # so without this pass the check rated only work closed by hand — and on a
+    # project using the tool, that is none of it.
+    log = perry_dir / "events.jsonl"
+    if log.exists():
+        for line in log.read_text(errors="replace").split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if e.get("event") != "done" or not e.get("id"):
+                continue
+            if e["id"] in seen_ids:
+                continue          # still on the board; the row is canonical
+            seen_ids.add(e["id"])
+            rows_seen += 1
+            rows_ranked += judge(".perry/events.jsonl", e["id"],
+                                 e.get("title", ""), e.get("evidence", ""),
+                                 (e.get("rung") or "").strip().upper(), stakes)
+
+    if rows_seen and not rows_ranked:
+        findings.append(Finding(
+            "warn", "BOARD.md", "board-declares-no-rungs",
+            f"{rows_seen} done row(s), none carrying a Verification column — "
+            f"add one to start rating closures (advisory this release)",
+        ))
+    check_verification.rows_seen = rows_seen
+    return findings
+
+
+
+# ── provenance (DESIGN-003 § 5.4) ──────────────────────────────────────────
+
+
+SRC_RE = re.compile(r"\bSRC-(\d+)\b")
+
+
+def field_value(text: str, name: str) -> str | None:
+    """A header field's value, in any accepted language, or None.
+
+    Uses the **existing** `field_re` — which carries the `i18n.fields` aliases —
+    rather than a second matcher. This function shipped with one for about ten
+    minutes: a same-named `field_re` defined 750 lines below the original,
+    silently shadowing it, so every caller of the original got a compiled
+    pattern where it expected an alternation fragment and the default lint died
+    with `multiple repeat at position 30`. One rule, two implementations, in the
+    file whose whole job is finding that — caught by the suite, not by review.
+    """
+    m = re.search(rf"^\s*[->*]*\s*\**\s*{field_re(name)}\s*\**\s*[:：]\s*([^\n]*)$",
+                  text, re.M)
+    return m.group(1).strip().strip("*` ") if m else None
+
+
+def card_kind(text: str) -> str | None:
+    """The `Kind:` of a knowledge card, or None when this is not a card.
+
+    The discriminator between a card and a digest, declared in
+    `schema/state-schema.json § files[id=knowledge-card].discriminator` and
+    read — never copied — by both `--knowledge` and `--provenance`. A digest
+    carries no `Kind`, so `None` means "not mine" to the card check and "mine"
+    to the provenance check, and neither reports the other's files.
+    """
+    v = field_value(text, "Kind")
+    return v if v in CARD_KINDS else None
+
+
+def resolves_somewhere(src: str, state_root: Path, project_root: Path) -> bool:
+    """Can a reader re-open what this `Source:` names?
+
+    Three forms are in circulation and all three are legitimate, so the check
+    is "any token in the cell resolves" rather than a grammar:
+
+    - a **path** — `evidence/2026-08/TASK-001-x.md`, resolved against the state
+      root and then the project root, the same order `evidence_paths` uses;
+    - a **`SRC-n`** — a digest in this tree carrying that id;
+    - a **task id** — any id-shaped token the board or the event log knows.
+
+    Deliberately permissive: this is advisory, and reporting a source that a
+    human can plainly follow would train people to ignore the check. What it
+    catches is the case that matters — a cell naming nothing that exists.
+
+    **`project_root` is passed, never derived from `state_root`.** The first
+    version computed `state_root.parent`, which is right only when the state
+    root is nested. `resolve_state_root` returns the PROJECT root by default —
+    so on every project that has not moved its state, that expression named the
+    directory ABOVE the project, `.perry/events.jsonl` was looked for there,
+    and a card citing the task id of a closed row was reported as dangling. The
+    same wrong idiom was in `check_knowledge`, one screen down.
+    """
+    for tok in re.split(r"[\s,;·|]+", src.strip()):
+        tok = tok.strip("*`()[]<>")
+        if not tok:
+            continue
+        if "/" in tok or tok.endswith(".md"):
+            if (state_root / tok).exists() or (project_root / tok).exists():
+                return True
+            continue
+        if SRC_RE.fullmatch(tok):
+            kdir = state_root / "knowledge"
+            for md in (kdir.rglob("*.md") if kdir.exists() else []):
+                if re.search(r"^>\s*Id\s*[:：]\s*" + re.escape(tok) + r"\b",
+                             strip_comments(md.read_text(errors="replace")), re.M):
+                    return True
+            continue
+        if re.fullmatch(r"[A-Z][A-Z0-9]{1,7}-\d+", tok):
+            for hay in (state_root / "BOARD.md",
+                        project_root / ".perry" / "events.jsonl"):
+                if hay.exists() and tok in hay.read_text(errors="replace"):
+                    return True
+    return False
+
+
+def undecorate(text: str) -> str:
+    """Markdown emphasis and backticks removed, case and spacing kept.
+
+    `squash` lowercases, which would break a schema pattern anchored on a
+    capital. This strips only the decoration a human adds to a heading, so
+    `**Top risks**` and `` `Top risks` `` match the same pattern the plain form
+    does.
+    """
+    return re.sub(r"[`*_]+", "", text).strip()
+
+
+def intake_rows(text: str) -> int:
+    """Undischarged rows under `## Intake`, or 0 when the section is absent.
+
+    Counted here rather than assumed from the line delta: a board can be over
+    its cap for ordinary reasons, and prescribing "run triage" to a project
+    whose intake is empty would be as wrong as prescribing a split to one whose
+    intake is full.
+    """
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines)
+                  if l.startswith("## ") and heading_is_intake(l[3:])), None)
+    if start is None:
+        return 0
+    end = next((i for i in range(start + 1, len(lines))
+                if lines[i].startswith("## ")), len(lines))
+    n = 0
+    for line in lines[start + 1:end]:
+        s = line.strip()
+        if not s.startswith("|") or re.match(r"^\|\s*:?-{2,}", s):
+            continue
+        cells = split_row(s)
+        if not cells or squash(cells[0]) in {"arrived", "到达", ""}:
+            continue
+        # `Outcome` is the last column and holds a drop reason or a routing.
+        if len(cells) < 3 or cells[-1].strip() in UNDECLARED_CELL:
+            n += 1
+    return n
+
+
+def heading_is_intake(head: str) -> bool:
+    return any(squash(head).startswith(squash(a))
+               for a in ["Intake", *HEADING_ALIASES.get("Intake", [])])
+
+
+def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
+    """A role card is a hiring contract, never a workflow.
+
+    `DESIGN-006 § 5.2`, decision #1. Each of the four blocks has a mechanical
+    consumer — `Context` and `May touch` are rendered into the delegation
+    prompt, `Loads` drives knowledge injection, `Must escalate` is **unioned**
+    with the project high-stakes list in the dispatch pre-flight — and a fifth
+    section is prose nothing reads.
+
+    **The check is the closed set, not a blacklist of `## Workflow`.** That
+    heading is only the first spelling; `## Steps`, `## Procedure`, `## How to`
+    are the same violation wearing other names, and a guard written against the
+    literal string is the instance-shaped guard this project has found in every
+    review round. A card carrying a workflow-like heading gets a sharper
+    message, because it made decision #1's exact mistake and deserves to be told
+    which rule it broke.
+
+    Advisory. The refusal belongs at `delegate` (phase D), where a card that
+    cannot be rendered is a run that should not start.
+    """
+    spec = next((f for f in (schema.get("files") or [])
+                 if f.get("id") == "role-card"), None)
+    if not spec:
+        return []
+    sec = spec.get("sections") or {}
+    allowed = set(sec.get("allowed") or [])
+    workflowish = {w.lower() for w in (sec.get("workflow_like") or [])}
+    findings: list[Finding] = []
+    rdir = project_root / ".perry" / "roles"
+    for md in sorted(rdir.glob("*.md")) if rdir.exists() else []:
+        text = strip_comments(md.read_text(errors="replace"))
+        rel = md.relative_to(project_root).as_posix()
+        seen = set()
+        for level, title, line in headings(text):
+            if level != 2:
+                continue
+            seen.add(title)
+            if title in allowed:
+                continue
+            if title.lower() in workflowish:
+                findings.append(Finding(
+                    "warn", rel, "role-card-is-a-workflow", line=line,
+                    message=(
+                        f"`## {title}` — a role card is a **hiring contract the "
+                        f"harness instantiates, never a workflow** (DESIGN-006 "
+                        f"decision #1). What the role *does* belongs in the "
+                        f"task and the lane docs; this file says who it is, "
+                        f"what it may touch, and what it must escalate.")))
+            else:
+                findings.append(Finding(
+                    "warn", rel, "role-card-unknown-section", line=line,
+                    message=(
+                        f"`## {title}` is not one of "
+                        f"{', '.join(sorted(allowed))}. Each of those four has "
+                        f"a mechanical consumer — prompt, injection, "
+                        f"pre-flight union, close gate — and a fifth section is "
+                        f"prose nothing reads.")))
+        for want in sorted(allowed - seen):
+            findings.append(Finding(
+                "warn", rel, "role-card-incomplete", line=1,
+                message=(f"`## {want}` is missing. A card without it cannot be "
+                         f"rendered into a delegation prompt.")))
+
+        # An escalation line that yields NO FRAGMENT enforces nothing.
+        #
+        # The pre-flight scan extracts backticked fragments and matches those.
+        # A line written as plain prose reads like a rule, sits under the
+        # heading that carries the only hard field on the card, and contributes
+        # zero fragments to the union — so the role looks constrained and is
+        # not. This is the `hook_TEMPLATE.md` backtick bug, in the file that
+        # inherited its extraction rule; DESIGN-006 § 7 names it as the same
+        # failure class and this is the same fix.
+        #
+        # **Backticks are not the test; the extractor is.** A backticked span
+        # below `P.extracts`' floor also yields nothing, and asking about
+        # punctuation instead of about fragments is how that line stayed
+        # silent — the same failure class re-entering through its own fix.
+        # TASK-201.
+        #
+        # **The sentence comes from `P.unextractable_says`, not from here.**
+        # It is the same sentence `hook-escalation-not-extractable` says four
+        # hundred lines up and the same one `bin/perry-state` says in the
+        # standup, and it is one function for the reason the extractor is one
+        # function: three copies is how the third went stale, which is exactly
+        # what happened — `perry-state` still told users their line "has no
+        # backticked span" after TASK-201 changed the answer here and left the
+        # other copy alone. TASK-202.
+        card = P.parse_role_card(md.stem, md.read_text(errors="replace"))
+        for bullet in card.escalate_unextractable:
+            findings.append(Finding(
+                "warn", rel, "role-escalation-not-extractable",
+                message=P.unextractable_says(bullet, P.CARD_SECTION)))
+    return findings
+
+
+#: The keys a V4 verdict block must carry. `work/reference/review.md § 3`.
+#: `proof` is required only on a FAIL — a PASS's proof is the `checked:` line.
+VERDICT_KEYS = ("task", "rung", "result", "criteria", "checked", "not-checked")
+
+_VERDICT_BLOCK = re.compile(
+    r"^===\s*VERDICT\s*===\s*$(.*?)^===\s*END VERDICT\s*===\s*$",
+    re.M | re.S)
+
+
+def parse_verdicts(text: str) -> list[tuple[dict, int]]:
+    """Every `=== VERDICT ===` block in a document, with its line number.
+
+    Returns `(fields, line)` pairs. A key repeated inside one block keeps the
+    LAST value, matching how every other `Key: value` block in Perry parses —
+    silently keeping the first would make a corrected verdict read as the
+    uncorrected one.
+
+    Continuation lines (indented under a key) are joined into that key, because
+    `checked:` routinely runs to several lines and a reviewer should not have
+    to fight the parser to write a full sentence.
+    """
+    out: list[tuple[dict, int]] = []
+    for m in _VERDICT_BLOCK.finditer(text):
+        line0 = text[:m.start()].count("\n") + 1
+        fields: dict[str, str] = {}
+        key = None
+        for raw in m.group(1).split("\n"):
+            if not raw.strip():
+                continue
+            kv = re.match(r"^([a-z][a-z-]*)\s*:\s*(.*)$", raw.strip())
+            if kv:
+                key = kv.group(1)
+                fields[key] = kv.group(2).strip()
+            elif key and raw[:1].isspace():
+                fields[key] = (fields[key] + " " + raw.strip()).strip()
+        out.append((fields, line0))
+    return out
+
+
+#: `reference/glossary.md` — one entry per concept, and the `Implemented:` line
+#: is the brake. See that file's own header for why this is a constraint rather
+#: than documentation.
+GLOSSARY_PATH = SCHEMA_PATH.parent.parent / "reference" / "glossary.md"
+
+_GLOSS_ENTRY = re.compile(
+    r"^### (?P<term>.+?)\n(?P<body>.*?)(?=^### |\Z)", re.M | re.S)
+
+
+def parse_glossary(text: str) -> list[dict]:
+    """`### term` + prose + `Implemented:` → one dict per entry, with line no."""
+    out = []
+    for m in _GLOSS_ENTRY.finditer(text):
+        body = m.group("body")
+        impl = re.search(r"^Implemented:\s*(.+?)\s*$", body, re.M)
+        meaning = "\n".join(l for l in body.split("\n")
+                             if l.strip() and not l.startswith("Implemented:"))
+        out.append({
+            "term": m.group("term").strip(),
+            "meaning": meaning.strip(),
+            "implemented": (impl.group(1).strip() if impl else ""),
+            "line": text[:m.start()].count("\n") + 1,
+        })
+    return out
+
+
+def check_glossary(project_root: Path) -> list["Finding"]:
+    """Every concept names where it lives, or declares that it does not.
+
+    **The count of `prose-only` entries is the point.** A vocabulary grows
+    faster than the code it describes — one working session can coin a dozen
+    terms and cite them in the same breath, each obvious to the session that
+    coined it and opaque to the next one and to the human reading the board.
+    Requiring each entry to name a tool, a schema field or a test makes a new
+    concept cost something, and `prose-only` keeps the ones that genuinely are
+    prose visible instead of free.
+
+    Three findings:
+
+    - `glossary-path-missing` — an `Implemented:` naming a file that is not
+      there. The commonest way an entry rots is the code moving out from under
+      it, and an entry pointing at nothing is worse than no entry: it reads as
+      verified.
+    - `glossary-no-implementation` — an entry with neither a path nor
+      `prose-only`. Not an error about the concept; an error about not saying.
+    - `glossary-term-unused` — a term defined here and used nowhere else in the
+      repository. A concept nobody reached for is complexity that was added and
+      never paid off, and removing it is free.
+
+    Advisory and opt-in, like every other `--flag` pass here.
+    """
+    findings: list[Finding] = []
+    if not GLOSSARY_PATH.exists():
+        return findings
+    text = GLOSSARY_PATH.read_text(errors="replace")
+    entries = parse_glossary(text)
+    rel = "reference/glossary.md"
+
+    corpus = []
+    for d in ("bin", "viewer", "reference", "work", "goals", "decide", "modes",
+              "schema", "tests", "packs"):
+        for f in (GLOSSARY_PATH.parent.parent / d).rglob("*"):
+            if f.is_file() and f.suffix in (".md", ".json", ".py", "") \
+                    and "__pycache__" not in f.parts and f != GLOSSARY_PATH:
+                corpus.append(f)
+    blob = "\n".join(f.read_text(errors="replace") for f in corpus)
+
+    prose_only = 0
+    for e in entries:
+        impl = e["implemented"]
+        if not impl:
+            findings.append(Finding(
+                "warn", rel, "glossary-no-implementation",
+                f"`{e['term']}` names neither a path nor `prose-only` — say "
+                f"which", e["line"]))
+        elif impl == "prose-only":
+            prose_only += 1
+        else:
+            path = impl.split(" § ")[0].strip().strip("`")
+            if not (GLOSSARY_PATH.parent.parent / path).exists():
+                findings.append(Finding(
+                    "warn", rel, "glossary-path-missing",
+                    f"`{e['term']}` says it is implemented in {path}, which "
+                    f"does not exist — an entry pointing at nothing reads as "
+                    f"verified", e["line"]))
+        if e["term"] not in blob:
+            findings.append(Finding(
+                "warn", rel, "glossary-term-unused",
+                f"`{e['term']}` is defined here and used nowhere else — a "
+                f"concept nobody reached for is complexity that never paid "
+                f"off", e["line"]))
+
+    check_glossary.entries = len(entries)
+    check_glossary.prose_only = prose_only
+    return findings
+
+
+def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
+    """A V4 verdict that a tool can read, and a row that moved when it arrived.
+
+    `work/reference/review.md` exists because Perry ran ten V4 rounds in one
+    night and they wrote the verdict five different ways — `FAIL`,
+    `**Verdict**`, `> **VERDICT —**`, `> **Verdict:**`, and a decorated section
+    heading. Three carried no line a parser could find at all.
+
+    **A verdict nothing can read is a verdict that gets misfiled, and it was.**
+    Rows sat at `review` after their review had already failed, reported by the
+    user rather than by any check. This is that check.
+
+    Advisory, and opt-in behind `--reviews`, for the same reason
+    `--verification` is: a project that predates the convention has evidence
+    documents written in prose, and promoting those to errors would retroactive
+    -ly condemn every review it ever ran. What it reports is a worklist.
+
+    Four findings, and the fourth is the one that matters:
+
+    - `verdict-malformed` — a block missing a required key, or a `result` that
+      is neither `PASS` nor `FAIL`.
+    - `fail-without-proof` — a FAIL naming no file. A FAIL that cannot point at
+      a line is a suspicion, and it goes back to the reviewer rather than onto
+      the board.
+    - `v4-close-without-verdict` — a row closed at V4 whose evidence contains
+      no verdict block naming it. This is the rung being claimed rather than
+      run.
+    - `fail-verdict-left-at-review` — a FAIL exists and the row is still at
+      `review`. `review` means *out for verification*; a row whose verdict has
+      arrived is no longer there in either direction.
+    """
+    findings: list[Finding] = []
+    seen: dict[str, list[tuple[str, dict, int]]] = {}
+
+    edir = state_root / "evidence"
+    for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
+        rel = md.relative_to(state_root).as_posix()
+        text = strip_comments(md.read_text(errors="replace"))
+        for fields, line in parse_verdicts(text):
+            tid = fields.get("task", "")
+            seen.setdefault(tid, []).append((rel, fields, line))
+
+            missing = [k for k in VERDICT_KEYS if not fields.get(k)]
+            if missing:
+                findings.append(Finding(
+                    "warn", rel, "verdict-malformed",
+                    f"verdict block is missing {', '.join(missing)} — "
+                    f"see work/reference/review.md § 3", line))
+            result = fields.get("result", "")
+            if result and result not in ("PASS", "FAIL"):
+                findings.append(Finding(
+                    "warn", rel, "verdict-malformed",
+                    f"result is {result!r}; the only two values are PASS and "
+                    f"FAIL", line))
+            if result == "FAIL" and not fields.get("proof"):
+                findings.append(Finding(
+                    "warn", rel, "fail-without-proof",
+                    f"{tid or 'this block'} FAILs with no `proof:` naming a "
+                    f"file — a FAIL that cannot point at a line is a "
+                    f"suspicion, not a verdict", line))
+
+    board = state_root / "BOARD.md"
+    if not board.exists():
+        check_reviews.blocks_seen = sum(len(v) for v in seen.values())
+        return findings
+    btext = strip_comments(board.read_text(errors="replace"))
+
+    def verdicts_for(tid: str) -> list[dict]:
+        return [f for _, f, _ in seen.get(tid, [])]
+
+    live: dict[str, str] = {}
+    #: The rung each live row declares, so the symmetric check below can ask
+    #: "is this row even at a rung that needs a round" rather than reporting
+    #: every `review` row on the board.
+    rungs: dict[str, str] = {}
+    for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
+        for header, rows in tables(body):
+            got = [norm(c) for c in header]
+            ci_id = column_index(got, "ID")
+            ci_st = column_index(got, "Status")
+            ci_v = column_index(got, "Verification")
+            ci_ev = column_index(got, "Evidence")
+            if ci_id < 0 or ci_st < 0:
+                continue
+            for row in rows:
+                def cell(i):
+                    return (row[i].replace("*", "").strip()
+                            if 0 <= i < len(row) else "")
+                tid = cell(ci_id)
+                if not tid:
+                    continue
+                live[tid] = cell(ci_st)
+                rungs[tid] = cell(ci_v)
+                if cell(ci_st) == "done" and cell(ci_v).upper() == "V4":
+                    if not any(f.get("result") for f in verdicts_for(tid)):
+                        findings.append(Finding(
+                            "warn", "BOARD.md", "v4-close-without-verdict",
+                            f"{tid} is closed at V4 and no evidence document "
+                            f"carries a verdict block naming it — the rung is "
+                            f"claimed, not run"))
+
+    # `done` REMOVES the row, so a board scan alone measures an empty set on any
+    # project using the tool — the same trap `check_verification` documents.
+    log = project_root / ".perry" / "events.jsonl"
+    if log.exists():
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ev.get("event") != "done":
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            if not tid or str(ev.get("rung") or "").upper() != "V4":
+                continue
+            if not any(f.get("result") for f in verdicts_for(tid)):
+                findings.append(Finding(
+                    "warn", ".perry/events.jsonl", "v4-close-without-verdict",
+                    f"{tid} was closed at V4 and no evidence document carries "
+                    f"a verdict block naming it — the rung is claimed, not "
+                    f"run"))
+
+    # **A row can be at `review` for two opposite reasons**, and the first
+    # version of this check could not tell them apart: the verdict arrived and
+    # nobody moved the row, or the FAIL was acted on and the row was re-sent.
+    # It reported the second as the first the moment its own author fixed a
+    # round and returned the task — which is the correct workflow.
+    #
+    # The event log already distinguishes them and needs no new field. A FAIL
+    # is what moves a row OFF `review`; so if the row has since come BACK, the
+    # verdict has been acted on. Read as: most recent status event sets
+    # `review`, and an earlier one moved it away.
+    resent: set[str] = set()
+    if log.exists():
+        history: dict[str, list[str]] = {}
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            to = str(ev.get("to") or "")
+            # **`field` missing does NOT mean "this is a status event".**
+            # Events written before that key existed carry no `field` at all,
+            # and a `next` event's `to` is the next-action TEXT — so treating
+            # `None` as status made a 900-character prose blob the row's
+            # "current status", and no row ever looked re-sent. Four rows sat
+            # reported as verdict-ignored while they had been acted on.
+            #
+            # The honest test is the VALUE: a status transition ends at one of
+            # the declared statuses, read from the schema rather than listed.
+            if to not in TASK_STATUSES:
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            if tid:
+                history.setdefault(tid, []).append(to)
+        for tid, seq in history.items():
+            if seq[-1] == "review" and "review" in seq[:-1]:
+                resent.add(tid)
+
+    for tid, status in live.items():
+        if status != "review" or tid in resent:
+            continue
+        if any(f.get("result") == "FAIL" for f in verdicts_for(tid)):
+            where = next(r for r, f, _ in seen[tid] if f.get("result") == "FAIL")
+            findings.append(Finding(
+                "warn", "BOARD.md", "fail-verdict-left-at-review",
+                f"{tid} is at `review` and {where} already FAILed it — "
+                f"`review` means out for verification, so a row whose verdict "
+                f"has arrived does not belong there"))
+
+    # **The symmetric half, and it was missing.** The check above reports a
+    # verdict that arrived and was ignored. Nothing reported the opposite: a row
+    # at `review` for which no round was ever dispatched.
+    #
+    # Found on this board. TASK-093 sat at `review` because I moved it there
+    # and never sent the round — and `--reviews` said the board was clean,
+    # because the only shape it knew was a verdict nobody acted on. Two
+    # symmetric failure modes, one covered.
+    #
+    # It reports the AGE rather than judging it: a row sent an hour ago and one
+    # forgotten a week ago are the same state, and only the reader knows which
+    # is which. A threshold here would be the checker guessing.
+    #: When each row last moved TO `review`, so the finding can say how long it
+    #: has sat there. Reported, never judged — a row sent an hour ago and one
+    #: forgotten a week ago are the same STATE, and a threshold here would be
+    #: the checker guessing which.
+    _days_at_review: dict[str, int] = {}
+    if log.exists():
+        from datetime import date as _date, datetime as _dt
+        for raw in log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if str(ev.get("to") or "") != "review":
+                continue
+            tid = str(ev.get("task") or ev.get("id") or "")
+            ts = str(ev.get("ts") or "")[:10]
+            if not tid or not ts:
+                continue
+            try:
+                _days_at_review[tid] = (_date.today() - _dt.strptime(
+                    ts, "%Y-%m-%d").date()).days
+            except ValueError:
+                continue
+
+    for tid, status in live.items():
+        if status != "review" or verdicts_for(tid):
+            continue
+        if (rungs.get(tid) or "").upper() != "V4":
+            continue
+        age = _days_at_review.get(tid)
+        how_long = (f"{age} day(s) ago" if age is not None
+                    else "at an unknown time — no event records the move")
+        findings.append(Finding(
+            "warn", "BOARD.md", "review-with-no-verdict",
+            f"{tid} is at `review` at V4 and no evidence document carries a "
+            f"verdict block naming it. It moved there {how_long}. Either a "
+            f"round is in flight, or one was never sent — `review` is not a "
+            f"resting place, and only you can tell those apart"))
+
+    check_reviews.blocks_seen = sum(len(v) for v in seen.values())
+    return findings
+
+
+def check_knowledge(state_root: Path, project_root: Path) -> list["Finding"]:
+    """Every knowledge card can say where its claim came from and when.
+
+    `DESIGN-006 § 5.3`: all four provenance fields are mandatory, because
+    without them the store becomes a farm of confident errors that agents then
+    execute against — strictly worse than no store. That is the axiom *no
+    `done` without evidence*, extended to the knowledge layer.
+
+    Advisory, like `--verification` and `--provenance`: it reports, it does not
+    refuse. The refusal belongs at the write path (`DESIGN-006` phase B), where
+    the person who knows the answer is still in the room.
+
+    **`cards` is reported even when `violations` is 0.** `KR-O5.1` reads
+    "lint live · 0 violations", and zero violations over zero cards is
+    trivially true — a number that cannot distinguish "provenance is enforced"
+    from "nobody has written a card". The count is what makes the KR mean
+    something.
+    """
+    findings: list[Finding] = []
+    kdir = state_root / "knowledge"
+    stale_days = int((SCHEMA_THRESHOLDS.get("knowledge_stale_days")
+                      or {}).get("value") or 90)
+    today = date.today()
+    # `.perry/` is anchored to the PROJECT root and never moves, so this takes
+    # the project root rather than deriving it — see `resolves_somewhere`.
+    rdir = project_root / ".perry" / "roles"
+    roles_declared = rdir.exists() and any(rdir.glob("*.md"))
+
+    for md in sorted(kdir.rglob("*.md")) if kdir.exists() else []:
+        if md.name == "INDEX.md":
+            continue
+        text = strip_comments(md.read_text(errors="replace"))
+        kind = card_kind(text)
+        if kind is None:
+            continue                      # a digest; `--provenance` owns it
+        rel = md.relative_to(state_root).as_posix()
+
+        for name in CARD_REQUIRED:
+            val = field_value(text, name)
+            if val and val not in UNDECLARED_CELL:
+                continue
+            # `Owner role` is the one field an em dash legitimately answers,
+            # and only until roles exist. Saying so in the finding keeps a
+            # pre-phase-C project from reading this as an error it must fix.
+            if name == "Owner role":
+                # **Silent until the project has roles.** `DESIGN-006 § 5.3`
+                # writes the field as "`finance` — or `—` before roles exist",
+                # so warning today would put a finding on every card in every
+                # project until phase C lands, which is how a check teaches
+                # people to ignore it. Once `.perry/roles/` holds a card there
+                # IS an answer, and leaving it blank means nobody is
+                # accountable for re-verifying the claim.
+                if roles_declared:
+                    findings.append(Finding(
+                        "warn", rel, "card-unowned",
+                        f"`Owner role` is undeclared on a project that has "
+                        f"declared roles — nobody is accountable for "
+                        f"re-verifying this claim."))
+                continue
+            findings.append(Finding(
+                "warn", rel, "card-no-provenance",
+                f"`{name}` is missing or blank. All four provenance fields are "
+                f"mandatory: a card that cannot say where its claim came from, "
+                f"when it was last true, or what would break it is a confident "
+                f"error waiting to be executed against."))
+
+        src = field_value(text, "Source")
+        if src and src not in UNDECLARED_CELL:
+            if not resolves_somewhere(src, state_root, project_root):
+                findings.append(Finding(
+                    "warn", rel, "card-source-dangling",
+                    f"`Source: {src}` resolves to no file, task id or `SRC-n` "
+                    f"in this project — a claim citing a source nobody can "
+                    f"re-open is a claim about the agent's memory."))
+
+        seen = field_value(text, "Last verified")
+        if seen and lib.is_iso_date(seen):
+            age = (today - date.fromisoformat(seen)).days
+            if age > stale_days:
+                trip = field_value(text, "Invalidated by")
+                findings.append(Finding(
+                    "warn", rel, "card-stale",
+                    f"last verified {seen} ({age}d ago, threshold "
+                    f"{stale_days}d)." + (
+                        f" Its tripwire is {trip!r} — check whether that has "
+                        f"happened rather than just re-dating it."
+                        if trip and trip not in UNDECLARED_CELL else
+                        " It names no tripwire, so age is the only signal "
+                        "there is.")))
+    return findings
+
+
+def check_provenance(state_root: Path) -> list["Finding"]:
+    """Every cited source resolves; every source has an origin and a date.
+
+    Outside code, provenance IS the test suite. `modes/inquiry.md` lets a
+    finding carry `[SRC-n]`, and the citation is worth nothing unless the id
+    resolves to a digest that says where the material came from and when it was
+    fetched — a claim citing a source nobody can re-open is a claim about the
+    agent's memory.
+
+    Advisory, like `--verification`: it reports, it does not refuse.
+    """
+    findings: list[Finding] = []
+    kdir = state_root / "knowledge"
+
+    # 1. Build the id → file map, reporting malformed and duplicate ids.
+    defined: dict[str, Path] = {}
+    for md in sorted(kdir.rglob("*.md")) if kdir.exists() else []:
+        if md.name == "INDEX.md":
+            continue
+        text = strip_comments(md.read_text(errors="replace"))
+        rel = md.relative_to(state_root).as_posix()
+        # A knowledge CARD and a digest share this glob. A card is a claim the
+        # project made; a digest is a source it read. Neither is malformed for
+        # not being the other, so each check skips the other's files — the
+        # discriminator is declared once, in the schema, and read by both.
+        if card_kind(text):
+            continue
+        m = re.search(r"^>\s*Id\s*[:：]\s*(\S+)", text, re.M)
+        if not m:
+            findings.append(Finding(
+                "warn", rel, "source-has-no-id",
+                "digest carries no `Id: SRC-<n>` — nothing can cite it",
+            ))
+            continue
+        sid = m.group(1).strip("*` ")
+        if not SRC_RE.fullmatch(sid):
+            findings.append(Finding(
+                "warn", rel, "source-id-malformed",
+                f"`Id: {sid}` is not of the form SRC-<n>",
+            ))
+            continue
+        if sid in defined:
+            findings.append(Finding(
+                "warn", rel, "source-id-reused",
+                f"{sid} is already defined by {defined[sid]} — ids are minted "
+                f"once and never reused, or an old citation silently re-points",
+            ))
+            continue
+        defined[sid] = rel
+        for field, rule in (("Source", "origin"), ("Received", "fetch date")):
+            if not re.search(rf"^>\s*{field}\s*[:：]\s*\S", text, re.M):
+                findings.append(Finding(
+                    "warn", rel, "source-missing-field",
+                    f"{sid} has no `{field}:` — a source with no {rule} cannot "
+                    f"be re-verified, which is what citing it was for",
+                ))
+
+    # 2. Every citation anywhere in the state tree must resolve.
+    cited: dict[str, list[str]] = {}
+    for md in sorted(state_root.rglob("*.md")):
+        if kdir.exists() and kdir in md.parents:
+            continue
+        try:
+            text = strip_comments(md.read_text(errors="replace"))
+        except (UnicodeDecodeError, OSError):
+            continue
+        rel = md.relative_to(state_root).as_posix()
+        for sid in {f"SRC-{n}" for n in SRC_RE.findall(text)}:
+            cited.setdefault(sid, []).append(rel)
+    for sid, where in sorted(cited.items()):
+        if sid not in defined:
+            findings.append(Finding(
+                "warn", where[0], "citation-dangling",
+                f"{sid} is cited in {len(where)} file(s) and defined by no "
+                f"digest under knowledge/",
+            ))
+
+    check_provenance.stats = {"defined": len(defined), "cited": len(cited)}
+    return findings
+
+
+#: How many drifted rows are named one by one before the tail is summarised.
+#: `perry-tasks verify` caps its own mismatch list at ten for the same reason:
+#: a stale store drifts on EVERY row, and a hundred warnings saying one thing
+#: is a check people learn to scroll past.
+DRIFT_ROWS_SHOWN = 10
+
+
+def _rel(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _cell(value) -> str:
+    """One field, as the text a cell would carry.
+
+    `depends_on` is a list in the store and a comma-separated cell in the
+    document, and `None` and `""` are the same absent field written two ways.
+    Comparing them raw would report drift on a store nobody has touched.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
+def _tasks_module():
+    """`bin/perry-tasks`, imported rather than shelled out to.
+
+    Same loader `perry-tasks` itself uses on `perry-task`, and for the same
+    reason: the filename carries a dash, so `import` cannot reach it.
+    """
+    import importlib.machinery
+    import importlib.util
+    path = HERE / "perry-tasks"
+    spec = importlib.util.spec_from_loader(
+        "perry_tasks_mod",
+        importlib.machinery.SourceFileLoader("perry_tasks_mod", str(path)))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _board_line_of(text: str, task_id: str) -> int | None:
+    """The 1-based line THIS ROW is written on, or None if there is no row.
+
+    **The first cell, not any cell.** This matched the id anywhere in the line,
+    so a closed row still named in some open row's `Depends on` cell resolved
+    to that other row's line number — and `check_store_drift` uses this as its
+    predicate for *"the board carries this row"*, so it reported
+    `TASK-088 — the file carries this row and the store has no record of it`
+    pointing at the line where the **TASK-089** row is written, for a TASK-088
+    row that does not exist. Reproduced on the real board and the real store by
+    a V4; three live ids qualified that day, and the set grows with every closed
+    row that has dependents.
+
+    The decoration is stripped the way `Board.find` strips it, because a row
+    struck through or bolded is the same row.
+    """
+    for n, line in enumerate(text.split("\n"), 1):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = split_row(line)
+        if cells and cells[0].replace("*", "").replace("~", "").strip() == task_id:
+            return n
+    return None
+
+
+def _well_typed(on_disk: list[dict], rel_store: str) -> tuple[list[dict], list]:
+    """Split the store into records the checks can compare, and findings.
+
+    **A store is a file a person can open, and every check below indexes,
+    sorts or compares its fields.** Three of them died on a wrong-typed value
+    rather than reporting it: `id` as a list is unhashable and killed the dict
+    build; a store mixing `id: 3` with `id: "TASK-001"` killed `sorted(set(…))`;
+    `order` as `"3"` killed `_order_drift`'s sort. Each exited the WHOLE lint at
+    rc 2 with no findings at all — so a store with one bad line reported the
+    same as a project with no problems, only louder.
+
+    Two V4 rounds found this independently and one of them by a typed sweep
+    (19 fields x 9 JSON shapes), which is the reason this is one function and
+    not three `try:` blocks. TASK-093 enumerated four instances of the category
+    "a guard that crashes instead of reporting"; these were the fifth, sixth and
+    seventh, and they were added *by the fix for the first four*. A patch per
+    crash site would have produced the eighth.
+
+    A bad record is **excluded and named**, not coerced. Coercing `"3"` to `3`
+    would make the lint report clean on a file that no other reader can load —
+    and `bin/perry-task` reads this same file.
+    """
+    good, issues = _tasks_module().perry_store.validate_records(on_disk)
+    findings = []
+    for issue in issues:
+        tid = issue.get("id")
+        who = repr(tid) if tid else f"line {issue['line']}"
+        message = issue["message"]
+        if any(f.get("field") == "id" and f.get("expected") == "non-empty string"
+               for f in issue.get("fields", [])):
+            message = ("has no `id`, so nothing can be said about it and every "
+                       "reader silently skips it")
+        findings.append(Finding(
+            "warn", rel_store, "store-badly-typed",
+            f"{who} — {message}. The record is excluded from the drift "
+            f"comparison, so this row's drift is unknown here rather than "
+            f"absent."))
+    return good, findings
+
+
+def _store_module():
+    """`bin/perry_store.py`, loaded once at import.
+
+    Every field list this file compares against comes from here rather than
+    being spelled out again: writing the names in would be the "N
+    implementations of one rule" defect with N=2, and the copy goes stale the
+    first time a field is added.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "perry_store", Path(__file__).resolve().parent / "perry_store.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _md_store_module():
+    """`bin/perry_md_store.py`, loaded once at import — same reason as above.
+
+    It carries `STORED`, the field list for the record kinds `okr.jsonl` and
+    `.perry/config.jsonl` hold: `kr`, `commitment`, `version`, `setting`,
+    `track`. Without it `looks_like_perry_record` knows two of the four stores
+    Perry claims and reports the other two as files it did not write, against
+    its own claim — which is exactly what TASK-040 fixed for the risks store
+    and what adding the `okr.jsonl` claim reproduced one store over.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "perry_md_store", Path(__file__).resolve().parent / "perry_md_store.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_STORE = _store_module()
+_MD_STORE = _md_store_module()
+_STORED_FIELDS = _STORE.STORED
+#: The risks register's field list (TASK-040). A risk record and a task record
+#: are different shapes, so `looks_like_perry_record` has to know both or it
+#: reports the risks store as a file Perry did not write, against Perry's own
+#: claim, on every project that has one.
+_RISK_STORED_FIELDS = _STORE.RISK_STORED
+#: The intake register's field list (TASK-196). A third shape, and the first
+#: one with NO `id`: an intake row is addressed by position, so the record
+#: keys on `order`. `looks_like_perry_record` has to know that or it reports
+#: the intake store as a file Perry did not write.
+_INTAKE_STORED_FIELDS = _STORE.INTAKE_STORED
+#: The ask register's field list (TASK-197). A fourth shape, id-keyed like the
+#: risks store — `looks_like_perry_record` has to know it or it reports
+#: `asks.jsonl` as a file Perry did not write, against Perry's own claim, on
+#: every project that runs the import.
+_ASK_STORED_FIELDS = _STORE.ASK_STORED
+
+
+def _empty_store_drift_stats() -> dict:
+    """The typed machine-readable state before a store comparison runs.
+
+    **`drifted` is `None` until a comparison produces a number (TASK-117).**
+    It read `0` in all three states this dict describes before one runs — no
+    store, unreadable store, derivation refused — so the payload said
+    `comparison_performed: false` and `drifted: 0` in the same breath, which is
+    the trap this file's own human summary already refuses to print. A count is
+    an assertion that somebody counted; `null` is the only honest value for a
+    census that did not happen. `records` stays an `int` because it is a fact
+    about the store FILE rather than a drift verdict.
+
+    `log_present` says whether `.perry/events.jsonl` — one of the two inputs
+    `check_store_drift`'s derivation needs — was there, so a reader of the
+    payload can tell *why* a present store went uncompared.
+    """
+    return {"store_present": False, "log_present": False,
+            "comparison_performed": False, "records": 0, "drifted": None}
+
+
+def check_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """The rendered file and the store disagree — ADR-007 decision 2.
+
+    Under ADR-007 `BOARD.md` is **rendered output**: the store is what a field
+    means and the document is a projection of it. Decision 2 accepted the cost
+    of that in the user's own words — *a hand edit becomes drift* — and named
+    `perry-state § reconcile_drift` as the precedent for what happens next.
+    That precedent reports; it does not refuse. So does this.
+
+    **Silent finding list when there is no store, but explicit machine state.**
+    "No store" and "clean" are different answers. The former emits no finding
+    because there is no comparison to fail, while `store_drift` in the JSON
+    payload and the human summary say that the comparison was not performed.
+
+    **`warn`, not `error`, deliberately.** ADR-007 makes the store authoritative,
+    so drift never changes Task truth and rendering can restore the projection.
+    `reconcile_drift` establishes the same report-don't-honour posture. More
+    importantly, the conformance gate's own boundary is precise: warnings are
+    quality signals, while errors are shape violations. A drifted Board still
+    has a valid Board shape.
+
+    A prior rationale claimed an `error` here would reach ADR-004's per-file
+    conformance gate and make `BOARD.md` read-only. A V4 round disproved that:
+    `shape_errors` calls `check_file`, while this cross-file check is called from
+    `main()`. The tests preserve the true severity contract without repeating
+    that false mechanism or leaning on NS-01, whose claims boundary is TASK-100.
+
+    **Field-level, and it stays field-level even though the renderer landed.**
+    This said "there is no renderer" and TASK-088 shipped one two commits later
+    — `perry-tasks diff` reports `identical: true` on this project today. A V4
+    round caught the stale note. The comparison is still field-level on purpose:
+    `BOARD.md` carries columns (`By when`, `Notes`) that the stored fields do
+    not cover — so a whole-line byte diff would report every
+    untouched row as drift. What is compared instead is what the store WOULD
+    hold if derived from the file as it stands (`perry-tasks.build()`, the one
+    derivation there is) against what it holds on disk. The renderer's byte diff
+    remains a separate projection check; `build`/`verify` keep the field
+    semantics they have rather than redefining them here.
+
+    **THE DERIVATION NEEDS THE EVENT LOG, AND WITHOUT IT THERE IS NO
+    COMPARISON (TASK-117).** `perry-tasks.build()` reads `BOARD.md` *and*
+    `.perry/events.jsonl` — its own docstring says so, "because `done` removes
+    a row". The log is DERIVED AND DISPOSABLE (DESIGN-004 § 5.3). So when it is
+    gone the LEFT side of this comparison is degraded, and every difference
+    that follows is the log's absence wearing the board's name.
+
+    Measured, not reasoned: on Perry's own board and store with the log moved
+    aside, 175 of 175 records "drifted" — 137 store-only rows the open board
+    cannot re-derive, and 38 differing on `created` **and on nothing else**.
+    `created` is in `perry_store.STORED` and is not in `FIELD_BY_COLUMN`: NO
+    BOARD COLUMN RENDERS IT, so `file=''` there is not a hand edit, it is a
+    field the projection never carried being read as if it had been erased.
+    Putting the log back turned the same board and the same store into 0 of
+    175. Nothing about the two files being compared changed.
+
+    The remedy the finding prints made it worse than noise: `perry-tasks write
+    --from-board` would DISCARD those 137 canonical records and 38 real
+    timestamps, on a board the user never touched. And `perry-task`'s own
+    writer already knows better — `store_records(..., preserve_terminal=True)`
+    carries terminal rows and `created` over FROM THE STORE precisely because
+    "the event log is derived and disposable". The linter was comparing against
+    a derivation the writer itself would refuse to write.
+
+    So a missing log is the state this function already has a name for —
+    `store_drift-uncheckable`, "drift is unknown here rather than absent" — one
+    it could not previously detect, because `build()` degrades silently instead
+    of raising. Reported like the no-store case and for the same reason:
+    **silent finding list, explicit machine state.** 175 warnings that all
+    restate one flag is the "check people learn to ignore" failure
+    `perry-state § reconcile_drift` names in its own docstring, and the
+    `perry-task/list` 1.9 semantics entry records this exact mistake being made
+    once already, one register over, at 17 of 17 rows.
+
+    What is NOT gated on the log: `store-badly-typed`. That is a fact about the
+    store file, it needs no derivation, and losing it here would trade one
+    silent failure for another.
+    """
+    findings: list[Finding] = []
+    check_store_drift.stats = _empty_store_drift_stats()
+    log_present = (project_root / ".perry" / "events.jsonl").exists()
+    check_store_drift.stats["log_present"] = log_present
+
+    store_path = state_root / "tasks.jsonl"
+    if not store_path.exists():
+        return []
+
+    check_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    # **Four reachable store states used to kill the whole lint**, rc 2 and no
+    # `--json` payload: a store written as one JSON array — which is the
+    # ordinary way to get `.jsonl` wrong, `json.dump(records, f)` — a bare
+    # `null` or scalar line, a directory where the file should be, and an
+    # unreadable file. Only `JSONDecodeError` was caught; the first two die
+    # later on `r.get`, and the last two die on the read itself.
+    #
+    # The sibling guard eight lines down states the rule this broke: **one
+    # check may not kill the lint.** Found by a V4 round that went looking for
+    # the case the author had not listed.
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "store-unreadable",
+                        f"`tasks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare the file against. `perry-tasks write "
+                        f"--from-board` re-derives it — which is safe here "
+                        f"only because nothing readable is being discarded")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "store-unreadable",
+                        "`tasks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record; "
+                        "`perry-tasks write --from-board` re-derives it")]
+    check_store_drift.stats["records"] = len(on_disk)
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    board_text = (board_path.read_text(errors="replace")
+                  if board_path.exists() else "")
+
+    # **Validated before the gate below, not after.** A store record's TYPE is
+    # a property of the file; it needs no derivation and no log, so the one
+    # check here that can still run on a project with no log still runs.
+    on_disk, type_findings = _well_typed(on_disk, rel_store)
+    findings.extend(type_findings)
+    stored = {r.get("id"): r for r in on_disk if r.get("id")}
+    check_store_drift.stats["records"] = len(stored)
+
+    if not log_present:
+        # No log, so no derivation, so no comparison — see the docstring. The
+        # stats already say `comparison_performed: False` and `drifted: None`,
+        # and `main()` prints the reason. Nothing here is silence about drift;
+        # it is silence about a question that was never asked.
+        return findings
+
+    try:
+        derived = _tasks_module().build(project_root)
+    except Exception as exc:  # noqa: BLE001 — one check may not kill the lint
+        return findings + [Finding(
+            "warn", rel_board, "store-drift-uncheckable",
+            f"the store could not be derived from the current "
+            f"files ({type(exc).__name__}: {exc}), so drift is "
+            f"unknown here rather than absent")]
+
+    live = {r.get("id"): r for r in derived if r.get("id")}
+    check_store_drift.stats["comparison_performed"] = not type_findings
+
+    rows: list[tuple[str, str, int | None]] = []
+    projected_live: dict[str, dict] = {}
+    for tid in sorted(live):
+        want, got = stored.get(tid), live[tid]
+        line = _board_line_of(board_text, tid)
+        if want is None:
+            # **`build()` includes CLOSED tasks from the event log**, whose
+            # rows `done` removed from the board — 63 of 95 on this project.
+            # Saying "the file carries this row" of a row the file does not
+            # contain was false for two-thirds of what this branch reported,
+            # with `line: null` and a remedy that does not apply. Found by a V4
+            # round; the board is the authority on what the board carries.
+            if line is None:
+                continue
+            rows.append((tid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        if line is None:
+            # Terminal rows deliberately leave the projection. They remain in
+            # the canonical store even if the disposable event log is gone, so
+            # their absence from BOARD.md is not drift. An open stored row,
+            # however, is expected to have a rendered row.
+            if want.get("status") not in ("done", "dropped"):
+                rows.append((tid, "the store holds this open row but the file "
+                                  "renders no row for it", None))
+            continue
+        projected_live[tid] = got
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((tid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for tid in sorted(set(stored) - set(live)):
+        # Terminal status does not by itself prove that a record legitimately
+        # left the projection. Historical `done`/`drop` events are already in
+        # `live` through `build()`, so they were handled by the loop above and
+        # remain excluded. Reaching this set means neither BOARD.md nor the
+        # event log can derive the record; silently excusing it would make a
+        # store-only terminal insertion indistinguishable from real history.
+        rows.append((tid, "the store holds this row and nothing in the file or "
+                          "the event log still derives it", None))
+
+    # **`drifted` is a census, and a census that skipped part of its
+    # population is not a smaller census.** The invariant this pins is one
+    # line — `drifted is None` exactly when `comparison_performed` is false —
+    # so a consumer needs one test and cannot reach a number that means
+    # something else. Excluded badly-typed records leave the rows below true
+    # (they did drift) and the total unknown: "here is what I found" and "here
+    # is how many there are" are different claims.
+    if check_store_drift.stats["comparison_performed"]:
+        check_store_drift.stats["drifted"] = len(rows)
+    for tid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"{tid} — {detail}. Under ADR-007 decision 2 this file is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift: `perry-tasks render --write` puts the file back in "
+            f"line with the store, which is the fix whenever `perry-task` "
+            f"wrote the value — the ordinary case. `perry-tasks write "
+            f"--from-board` runs the other direction and DISCARDS the stored "
+            f"value; it is for a board edited before the store existed.",
+            line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) disagree with "
+            f"`{rel_store}` — at this scale the store is stale rather than the "
+            f"file hand-edited, and `perry-tasks verify` caps at ten too."))
+    findings.extend(_order_drift(stored, projected_live, rel_board, rel_store))
+    return findings
+
+
+def _empty_risk_store_drift_stats() -> dict:
+    """The typed machine-readable state before a risks comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## Top risks` and `risks.jsonl` disagree — ADR-007, TASK-040.
+
+    **The same posture as `check_store_drift` one register over, at the same
+    severity, for the same reason.** ADR-007 decision 2 accepted the cost of a
+    canonical store in the user's own words — *a hand edit becomes drift* — and
+    named `perry-state § reconcile_drift` as the precedent for what happens
+    next. That precedent reports; it does not refuse. So does this, at `warn`:
+    the store is authoritative, so drift never changes what a risk IS, and
+    rendering restores the projection.
+
+    **Silent when there is no store, explicit in the payload.** "No store" and
+    "clean" are different answers. Perry's own project has no `risks.jsonl`
+    today — the file needs a `claims[]` entry before anything may write one —
+    so this check emits nothing here and says `comparison_performed: false`
+    rather than reporting a clean register it never compared.
+
+    **Field-level, like its sibling, and for the opposite reason.** The task
+    check is field-level because `BOARD.md` carries columns the store has no
+    field for. Here every column IS a stored field, so a whole-line comparison
+    would also work — but `cleared` is a stored field with NO column, and a
+    line comparison cannot see it drift at all. Comparing fields is what makes
+    the one value the projection cannot show still checkable.
+    """
+    findings: list[Finding] = []
+    check_risk_store_drift.stats = _empty_risk_store_drift_stats()
+
+    store_path = _STORE.risk_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_risk_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "risk-store-unreadable",
+                        f"`risks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## Top risks` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "risk-store-unreadable",
+                        "`risks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "risk-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    # One check may not kill the lint — the rule its sibling states and broke.
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.risk_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "risk-store-drift-uncheckable",
+                        f"the risks store could not be derived from the "
+                        f"current files ({type(exc).__name__}: {exc}), so "
+                        f"drift is unknown here rather than absent")]
+
+    good, issues = _STORE.validate_risk_records(on_disk)
+    for issue in issues:
+        rid = issue.get("id")
+        who = repr(rid) if rid else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "risk-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["id"]: r for r in good}
+    live = {r["id"]: r for r in derived}
+    check_risk_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[str, str, int | None]] = []
+    board_text = board_path.read_text(errors="replace")
+    for rid in sorted(live):
+        want, got = stored.get(rid), live[rid]
+        line = _board_line_of(board_text, rid)
+        if want is None:
+            rows.append((rid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is a fact about a sequence, not about a row —
+                     # `_order_drift` says why, and the risks register has one
+                     # section, so a moved row is reported once, below.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((rid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for rid in sorted(set(stored) - set(live)):
+        rows.append((rid, "the store holds this risk and `## Top risks` "
+                          "renders no row for it", None))
+
+    check_risk_store_drift.stats["drifted"] = len(rows)
+    for rid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"{rid} — {detail}. Under ADR-007 `## Top risks` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. `perry-tasks risks-render --write` puts the section "
+            f"back in line with the store, which is the fix whenever "
+            f"`perry-task risk-add` / `risk-clear` wrote the value — the "
+            f"ordinary case. `perry-tasks risks-write --from-board` runs the "
+            f"other direction and DISCARDS the stored value.", line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further risk(s) disagree with "
+            f"`{rel_store}`."))
+
+    # Order, once for the section. A record with no `order` at all is skipped
+    # rather than sorted to the front: "not recorded" and "recorded as first"
+    # are different claims (`_order_drift` carries the argument in full).
+    graded = [r for r in live
+              if r in stored and stored[r].get("order") is not None
+              and live[r].get("order") is not None]
+    on_board = sorted(graded, key=lambda r: live[r]["order"])
+    in_store = sorted(graded, key=lambda r: stored[r]["order"])
+    if on_board != in_store:
+        findings.append(Finding(
+            "warn", rel_board, "risk-store-drift",
+            f"`Top risks` — the rows of this section sit in a different order "
+            f"in the file than in `{rel_store}`: file "
+            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
+            f"Row order is recorded, not re-derived, so a row moved by hand is "
+            f"drift like any other cell."))
+    return findings
+
+
+def _empty_intake_store_drift_stats() -> dict:
+    """The typed machine-readable state before an intake comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## Intake` and `intake.jsonl` disagree — ADR-007, TASK-196.
+
+    The same posture, the same `warn`, and silent-with-a-payload when there is
+    no store, as the two checks above. What differs is the KEY, and it is the
+    whole of what makes this register harder: an intake row has no id, so a row
+    is addressed by its POSITION, and the comparison is positional.
+
+    **A row inserted or removed by hand therefore reports every row below it,
+    and that is the truth rather than the amplification `_order_drift`
+    refuses.** For a task, an inserted line moves `order` and moves nothing
+    else — the rows keep their names, so reporting them all would be one edit
+    wearing five findings. Here the position IS the name: a line typed into the
+    middle of `## Intake` really does mean that `perry-task resolve-intake 36`
+    now addresses a different request than it did yesterday. Reporting one row
+    would be reporting one row's worth of a change that moved all of them.
+    `DRIFT_ROWS_SHOWN` caps the output; it does not cap the count.
+    """
+    findings: list[Finding] = []
+    check_intake_store_drift.stats = _empty_intake_store_drift_stats()
+
+    store_path = _STORE.intake_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_intake_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "intake-store-unreadable",
+                        f"`intake.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## Intake` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "intake-store-unreadable",
+                        "`intake.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "intake-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.intake_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "intake-store-drift-uncheckable",
+                        f"the intake store could not be derived from the "
+                        f"current files ({type(exc).__name__}: {exc}), so "
+                        f"drift is unknown here rather than absent")]
+
+    good, issues = _STORE.validate_intake_records(on_disk)
+    for issue in issues:
+        n = issue.get("order")
+        who = f"row {n + 1}" if isinstance(n, int) else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "intake-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["order"]: r for r in good}
+    live = {r["order"]: r for r in derived}
+    check_intake_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[int, str]] = []
+    for n in sorted(live):
+        want, got = stored.get(n), live[n]
+        if want is None:
+            rows.append((n, "the file carries a row at this position and the "
+                            "store has no record of it"))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is the key here, not a field: two records with
+                     # the same key cannot differ on it.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((n, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else "")))
+    for n in sorted(set(stored) - set(live)):
+        rows.append((n, "the store holds a record at this position and "
+                        "`## Intake` renders no row for it"))
+
+    check_intake_store_drift.stats["drifted"] = len(rows)
+    for n, detail in sorted(rows)[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "intake-store-drift",
+            f"row {n + 1} — {detail}. Under ADR-007 `## Intake` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. **The row number is the key**: an inserted or deleted "
+            f"line renumbers every row beneath it, so `perry-task "
+            f"resolve-intake {n + 1}` no longer addresses what it did. "
+            f"`perry-tasks intake-render --write` puts the section back in "
+            f"line with the store; `perry-tasks intake-write --from-board` "
+            f"runs the other direction and DISCARDS the stored values."))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "intake-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further intake row(s) "
+            f"disagree with `{rel_store}`."))
+    return findings
+
+
+def _empty_ask_store_drift_stats() -> dict:
+    """The typed machine-readable state before an ask comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## User Input Queue` and `asks.jsonl` disagree — ADR-007, TASK-197.
+
+    The same posture, the same `warn`, and silent-with-a-payload when there is
+    no store, as the three checks above. The key is the `USER-` id, so this is
+    `check_risk_store_drift`'s comparison rather than the intake one: an
+    inserted line renumbers `order` and renames nothing, so `_order_drift`'s
+    argument applies and the rows keep their own names.
+
+    **`Idle` is not compared and cannot drift, because no stored field claims
+    it.** It is an age derived from `Asked` at read time (`bin/perry-state §
+    idle_days`); a hand edit to that cell changes a number the store never
+    asserted, so reporting it would be this checker inventing a claim to
+    enforce. `Asked` IS compared — the input the age comes from is stored, and
+    editing it moves every age computed from it.
+    """
+    findings: list[Finding] = []
+    check_ask_store_drift.stats = _empty_ask_store_drift_stats()
+
+    store_path = _STORE.ask_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_ask_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "ask-store-unreadable",
+                        f"`asks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## User Input Queue` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "ask-store-unreadable",
+                        "`asks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "ask-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.ask_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "ask-store-drift-uncheckable",
+                        f"the ask store could not be derived from the current "
+                        f"files ({type(exc).__name__}: {exc}), so drift is "
+                        f"unknown here rather than absent")]
+
+    good, issues = _STORE.validate_ask_records(on_disk)
+    for issue in issues:
+        who = issue.get("id") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "ask-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["id"]: r for r in good}
+    live = {r["id"]: r for r in derived}
+    check_ask_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[str, str, int | None]] = []
+    board_text = board_path.read_text(errors="replace")
+    for aid in sorted(live):
+        want, got = stored.get(aid), live[aid]
+        line = _board_line_of(board_text, aid)
+        if want is None:
+            rows.append((aid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is a fact about a sequence, not about a row —
+                     # `_order_drift` says why, and this register has one
+                     # section, so a moved row is reported once, below.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((aid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for aid in sorted(set(stored) - set(live)):
+        rows.append((aid, "the store holds this record and "
+                          "`## User Input Queue` renders no row for it", None))
+
+    check_ask_store_drift.stats["drifted"] = len(rows)
+    for aid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"{aid} — {detail}. Under ADR-007 `## User Input Queue` is "
+            f"rendered output and `{rel_store}` is what the field means, so a "
+            f"hand edit is drift. **`Idle` is not in this comparison**: it is "
+            f"an age derived from `Asked`, no stored field claims it, and "
+            f"editing it changes nothing the store asserts. "
+            f"`perry-tasks asks-render --write` puts the section back in line "
+            f"with the store; `perry-tasks asks-write --from-board` runs the "
+            f"other direction and DISCARDS the stored values.", line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further ask row(s) disagree "
+            f"with `{rel_store}`."))
+
+    # Order, once for the section — `check_risk_store_drift`'s block, for the
+    # register that shares its key. A record with no `order` at all is skipped
+    # rather than sorted to the front.
+    graded = [r for r in live
+              if r in stored and stored[r].get("order") is not None
+              and live[r].get("order") is not None]
+    on_board = sorted(graded, key=lambda r: live[r]["order"])
+    in_store = sorted(graded, key=lambda r: stored[r]["order"])
+    if on_board != in_store:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"`User Input Queue` — the rows of this section sit in a different "
+            f"order in the file than in `{rel_store}`: file "
+            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
+            f"Row order is recorded, not re-derived, so a row moved by hand is "
+            f"drift like any other cell."))
+    return findings
+
+
+#: The two markdown-backed stores, in the order the census prints them, with
+#: the noun each line uses for the register. `bin/perry_md_store.py` already
+#: holds "one implementation, two instances" — `Doc` differs only in its
+#: scanner — so the census names them from that module rather than keeping a
+#: second list that would go stale the day a third document joins.
+_MD_STORE_DOCS = ((_MD_STORE.OKR, "OKR store"),
+                  (_MD_STORE.CONFIG, "config store"))
+
+
+def _empty_md_store_drift_stats() -> dict:
+    """The typed machine-readable state before an `OKR.md`/config comparison.
+
+    Same four keys as the other four registers so a reader of `--json` meets
+    one shape six times rather than six shapes. `drifted` stays `0` rather
+    than `None` here because — unlike `check_store_drift` — this comparison
+    has no second input that can be missing: the left-hand side is the file
+    itself, so "the store is present and the file is not" is uncheckable and
+    says so, and there is no third state where a number would be a lie.
+    """
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def _empty_md_store_drift_stats_all() -> dict:
+    return {doc.name: _empty_md_store_drift_stats()
+            for doc, _label in _MD_STORE_DOCS}
+
+
+def check_md_store_drift(project_root: Path, state_root: Path,
+                         doc) -> list["Finding"]:
+    """`OKR.md` / `.perry/config.md` and their stores disagree — TASK-209.
+
+    **The comparison is not written here.** `perry-okr diff` and
+    `perry-config diff` have compared these two files against their stores
+    since TASK-092, and both ran clean on this project on 2026-08-28 — yet
+    `perry-lint` called neither, so one run of the census covered two of the
+    six declared stores and ADR-007's guarantee was checked for two. What this
+    function adds is the CALL: it loads the store the way those commands do
+    (`load_store` → `validate_records`), renders through `perry_md_store.plan`
+    — the same plan `render`, `diff` and `verify` are all built on — and turns
+    that one report into findings. A third and fourth implementation of the
+    same comparison is the defect ADR-004 and this phase exist to stop, so
+    there isn't one.
+
+    **What counts as a drifted ROW.** `plan`'s report answers in three
+    registers and all three are drift, so all three are counted, by record key:
+    a cell the file and the store disagree on; a line the file carries that the
+    store holds no record for (a hand-edited id or heading moves a row out of
+    the store's reach — `record_key` says why); and a record the store holds
+    that the file renders no line for. `perry-{okr,config} verify` fails on the
+    same three, which is the point of borrowing them.
+
+    **A decorated cell is reported and not counted.** `3 of 3 modes live,
+    honest` over a stored `3 of 3 modes live` renders byte-identically and
+    still carries words the store never asserted, so `plan` counts it under
+    `cells_wearing_decoration` — by COLUMN, with no key to attribute it to a
+    row. Counting it as a row would be inventing an attribution; leaving it
+    silent would be the census reporting clean on a file carrying unstored
+    text. It gets its own finding and the row count stays a row count, which
+    is what `verify` does too.
+    """
+    findings: list[Finding] = []
+    stats = _empty_md_store_drift_stats()
+    if not hasattr(check_md_store_drift, "stats"):
+        check_md_store_drift.stats = _empty_md_store_drift_stats_all()
+    check_md_store_drift.stats[doc.name] = stats
+
+    store_path = doc.store_path(project_root, state_root)
+    if not store_path.exists():
+        # "No store" and "clean" are different answers, and the caller prints
+        # the absence. Silent here, with a payload — the four registers above
+        # return on exactly these terms.
+        return []
+
+    stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    file_path = doc.file_path(project_root, state_root)
+    rel_file = _rel(file_path, project_root)
+
+    try:
+        on_disk = _MD_STORE.load_store(store_path)
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, f"{doc.name}-store-unreadable",
+                        f"`{doc.rel_store}` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `{doc.rel_file}` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, f"{doc.name}-store-unreadable",
+                        f"`{doc.rel_store}` holds something other than one "
+                        f"JSON OBJECT per line — a whole-file array and a "
+                        f"bare scalar both parse and neither is a record")]
+
+    if not file_path.exists():
+        return [Finding("warn", rel_store, f"{doc.name}-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no "
+                        f"`{doc.rel_file}` to project it onto, so drift is "
+                        f"unknown here rather than absent")]
+
+    good, issues = _MD_STORE.validate_records(on_disk)
+    for issue in issues:
+        who = issue.get("key") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, f"{doc.name}-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        report = _MD_STORE.plan(doc, text, good)["report"]
+    except Exception as exc:  # noqa: BLE001
+        return findings + [Finding(
+            "warn", rel_file, f"{doc.name}-store-drift-uncheckable",
+            f"`{doc.rel_file}` could not be projected from `{rel_store}` "
+            f"({type(exc).__name__}: {exc}), so drift is unknown here rather "
+            f"than absent")]
+
+    stats["comparison_performed"] = not issues
+    stats["records"] = len(good)
+
+    #: key → the sentence that says what is wrong with that row. Keyed rather
+    #: than appended so a row whose two cells both drift is ONE drifted row —
+    #: the same rule the four registers above follow.
+    rows: dict[str, str] = {}
+    for cell in report["cells_the_store_and_the_file_disagree_on"]:
+        detail = (f"`{cell['column']}`: file={_cell(cell['file'])!r} "
+                  f"store={_cell(cell['store'])!r}")
+        rows[cell["key"]] = (rows[cell["key"]] + "; " + detail
+                             if cell["key"] in rows else detail)
+    for line in report["lines_verbatim"]:
+        rows.setdefault(line["key"],
+                        f"line {line['line']} — {line['why']}")
+    for key in report["records_not_in_the_file"]:
+        rows.setdefault(key, f"the store holds this record and "
+                             f"`{doc.rel_file}` renders no line for it")
+
+    stats["drifted"] = len(rows)
+    for key in sorted(rows)[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"{key} — {rows[key]}. Under ADR-007 `{doc.rel_file}` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. `perry-{doc.name} render --write` puts the file back "
+            f"in line with the store; `perry-{doc.name} write --from-file` "
+            f"runs the other direction and DISCARDS the stored values."))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) of "
+            f"`{doc.rel_file}` disagree with `{rel_store}`."))
+
+    for column, n in sorted(report["cells_wearing_decoration"].items()):
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-decorated",
+            f"`{column}` — {n} cell(s) render the stored value and then carry "
+            f"further text the store does not hold. The bytes match, so this "
+            f"is not counted as a drifted row; the words are still unstored, "
+            f"and `perry-{doc.name} verify` fails on them too."))
+
+    # Order, once per kind rather than once per row — `_order_drift` carries
+    # the argument in full and `plan` has already done the comparison.
+    for moved in report["records_out_of_stored_order"]:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"`{moved['kind']}` — the rows of this register sit in a "
+            f"different order in the file than in `{rel_store}`: file "
+            f"{' → '.join(moved['in_the_file'][:6])}, store "
+            f"{' → '.join(moved['in_the_store'][:6])}. Row order is recorded, "
+            f"not re-derived, so a row moved by hand is drift like any other "
+            f"cell."))
+    return findings
+
+
+def _order_drift(stored: dict, live: dict, rel_board: str,
+                 rel_store: str) -> list["Finding"]:
+    """`order` compared ONCE PER SECTION, and never per row.
+
+    **`order` is a fact about a sequence, not about a row**, and comparing it
+    like the other nineteen fields amplified one hand edit into a finding for
+    every row beneath it: a line typed into `## P1` shifts the index of all
+    four rows under it, and this check reported five drifted rows for one
+    inserted one. That is the whole-table-diff-burying-the-change objection
+    `order` exists to answer, re-created inside the report about it — found by
+    `test_store_drift § test_a_row_the_store_never_saw_is_reported`, which
+    asserts exactly one finding for exactly one edit.
+
+    So what is compared is the RELATIVE order of the rows both sides carry.
+    An inserted or removed row moves every successor's integer and moves
+    nobody's neighbour, and is already reported once, by id, as the row it is.
+    A row genuinely moved past another changes the sequence and is reported
+    here, once, naming the section rather than the rows.
+
+    A record with no `order` at all — a store written before the field existed
+    — is skipped rather than sorted to the front, because "not recorded" and
+    "recorded as first" are different claims.
+    """
+    out: list[Finding] = []
+    groups = sorted({(r.get("group") or "") for r in live.values()
+                     if r.get("group")})
+    for group in groups:
+        ids = [tid for tid, r in live.items()
+               if (r.get("group") or "") == group
+               and r.get("order") is not None
+               and (stored.get(tid) or {}).get("order") is not None]
+        on_file = sorted(ids, key=lambda t: live[t]["order"])
+        in_store = sorted(ids, key=lambda t: stored[t]["order"])
+        if on_file == in_store:
+            continue
+        out.append(Finding(
+            "warn", rel_board, "store-drift",
+            f"`{group}` — the rows of this section sit in a different order in "
+            f"the file than in `{rel_store}`: file {' → '.join(on_file[:6])}, "
+            f"store {' → '.join(in_store[:6])}. Row order is recorded, not "
+            f"re-derived (ADR-007, TASK-089), so a row moved by hand is drift "
+            f"like any other cell: `perry-task prioritize` moves a row, and "
+            f"`perry-tasks render --write` puts the file back in line."))
+    return out
 
 
 # ── main ──────────────────────────────────────────────────────────────────
@@ -641,15 +3365,26 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
 
     A directory already holding genuine Perry state is a RE-ADOPTION, not a
     collision. Only a parse can tell the two apart, so this reuses the same
-    heading check the default mode runs rather than a second heuristic."""
+    heading check the default mode runs rather than a second heuristic.
+
+    **Two callers, one computation.** `--claims` renders these rows, and the
+    default pass turns the `collision` ones into `NS-01`. DESIGN-002 exists to
+    close a defect that was two lists disagreeing; shipping a second collision
+    check next to this one would reintroduce it one level down. So each row also
+    carries `rel` (the claimed path as the project sees it) and `foreign` (the
+    offending files, which `NS-01` cites as evidence) — machine fields that
+    `--claims` projects away, since its payload is a contract with the setup and
+    adopt flows.
+    """
     claims = schema.get("claims") or []
     rows, collisions = [], 0
     for c in claims:
         base = project_root if c["anchor"] == "project" else state_root
         target = base / c["path"].rstrip("/")
+        rel = _rel(target, project_root)
         if not target.exists():
             rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": None})
+                         "detail": None, "rel": rel, "foreign": []})
             continue
         # Perry-shaped? Anything we would have written is not a collision.
         if c["kind"] == "dir":
@@ -659,16 +3394,75 @@ def check_claims(project_root: Path, schema: dict, state_root: Path) -> tuple[li
         foreign = [f for f in present if not looks_like_perry_state(f, schema, c)]
         if not present:
             rows.append({"path": c["path"], "state": "free", "owner": c["owner"],
-                         "detail": "exists but empty"})
+                         "detail": "exists but empty", "rel": rel, "foreign": []})
         elif foreign:
             collisions += 1
             rows.append({"path": c["path"], "state": "collision", "owner": c["owner"],
                          "detail": f"{len(foreign)} file(s) Perry did not write, "
-                                   f"e.g. {foreign[0].relative_to(project_root)}"})
+                                   f"e.g. {foreign[0].relative_to(project_root)}",
+                         "rel": rel,
+                         "foreign": [_rel(f, project_root) for f in foreign]})
         else:
             rows.append({"path": c["path"], "state": "perry", "owner": c["owner"],
-                         "detail": f"{len(present)} existing Perry file(s)"})
+                         "detail": f"{len(present)} existing Perry file(s)",
+                         "rel": rel, "foreign": []})
     return rows, {"claimed": len(claims), "collisions": collisions}
+
+
+# The keys `--claims` has always published, in the order it published them.
+# `check_claims` rows carry two more for the default pass's `NS-01` evidence;
+# they are projected out at the `--json` boundary so `--claims` stays
+# byte-identical (TASK-086 deliverable 5). Named here rather than spelled inline
+# so the projection is a declaration a reader can check, not a literal to skim.
+CLAIM_ROW_KEYS = ("path", "state", "owner", "detail")
+
+
+def check_ns_collisions(project_root: Path, state_root: Path,
+                        schema: dict) -> list["Finding"]:
+    """`NS-01` — a path Perry claims now holds files Perry did not write.
+
+    DESIGN-002 decision #4, locked 2026-08-16: *lint warns, and names it a
+    collision*. The state root is chosen once, at setup; this is the **after**.
+    A project adopted at `.` that later grows its own `design/proposal.md` used
+    to get that file reported as MALFORMED PERRY STATE — the user's own document
+    called broken, which is exactly what `State root:` exists to prevent,
+    arriving by a route it does not reach. Reporting it as a collision instead
+    is the whole of the fix; nothing here moves a file or changes a verdict on
+    one.
+
+    **`warn`, never `error`.** Decision #2 was taken strictly — there is no
+    per-path opt-out — so a user may knowingly keep one file in a claimed folder
+    and has no way to silence this. A permanent red for a deliberate choice is
+    how a check trains its user to skip it. See `main()` for the matching
+    `--strict` carve-out, which is the same commitment at the exit code.
+
+    **Gated on adoption, unlike `--claims`.** `--claims` answers *where should
+    the state root go* and must run before adoption; this answers *what has
+    encroached on the one I already have*, which is not a question a folder Perry
+    has never touched can be asked. `main()` calls it inside the `adopted`
+    branch for that reason.
+    """
+    rows, _ = check_claims(project_root, schema, state_root)
+    findings: list[Finding] = []
+    for r in rows:
+        if r["state"] != "collision":
+            continue
+        # Evidence is capped the way `bin/perry-diagnose` caps it: a directory
+        # someone else owns can hold hundreds of files, and a finding that
+        # prints all of them is a finding nobody reads.
+        shown = r["foreign"][:10]
+        more = len(r["foreign"]) - len(shown)
+        evidence = ", ".join(shown) + (f", +{more} more" if more else "")
+        findings.append(Finding(
+            "warn", r["rel"], "NS-01",
+            f"`{r['path']}` holds {len(r['foreign'])} file(s) Perry did not "
+            f"write. Perry will read them as its own state and report them as "
+            f"broken, and the next lint run will say your file is malformed. It "
+            f"is not — it is in a folder Perry claimed. Either move Perry's "
+            f"state to its own root — `/perry relocate perry` — or move these "
+            f"files out of `{r['path']}`. Both are reversible; the first is one "
+            f"command. Evidence: {evidence}"))
+    return findings
 
 
 def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
@@ -679,9 +3473,23 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     state as foreign and pushes them to relocate a working project."""
     if path.name in ("README.md", "INDEX.md"):
         return True
+    # The conformance record is Perry's own bookkeeping and deliberately not a
+    # `files[]` entry (it records decisions ABOUT state, not state), so the loop
+    # below cannot see it. Named from `parsers` rather than spelled out here —
+    # one name, one definition.
+    if path.name == Path(P.CONFORMANCE_FILE).name:
+        return True
+    # Perry's two JSONL artifacts — the store and the event log. Every rule
+    # below reads a markdown document: a heading, a `files[]` name, an
+    # `Owner**:` line. A `.jsonl` file has none of them, so without this the
+    # file Perry rewrites on EVERY mutating command is reported as foreign
+    # against Perry's own claim, on every Perry project there is. What
+    # identifies it is the record, not the name.
+    if path.suffix == ".jsonl":
+        return looks_like_perry_record(path)
     stem = path.stem
     # Perry names its own artifacts: DESIGN-001-…, ADR-002-…, 001-slug, dates.
-    if re.match(r"^(DESIGN|ADR|TASK|USER)-\d", stem) or re.match(r"^\d{3}-", stem):
+    if lib.perry_named_artifact(stem) or re.match(r"^\d{3}-", stem):
         return True
     if re.match(r"^\d{4}-\d{2}(-\d{2})?$", stem) or re.match(r"^\d{4}-W?\d{2}$", stem):
         return True
@@ -693,6 +3501,64 @@ def looks_like_perry_state(path: Path, schema: dict, claim: dict) -> bool:
     except OSError:
         return False
     return "Owner**: `perry`" in head or "$PERRY_HOME" in head
+
+
+#: An event as `bin/perry-task § log_event` appends it. `ts` and `event` are on
+#: every line it has ever written; `id` is not, since a lane event carries none.
+_EVENT_FIELDS = ("ts", "event")
+
+
+def looks_like_perry_record(path: Path) -> bool:
+    """Is this JSONL the store or the event log Perry itself wrote?
+
+    Read from the first record rather than the filename. A project that happens
+    to own a `tasks.jsonl` is exactly the collision the claim exists to report,
+    so matching on the name would make the claim self-defeating: every file
+    sitting at the claimed path would be excused, including the user's.
+
+    The store's vocabulary is `perry_store.STORED` — the same tuple
+    `check_store_drift` reads, not a second copy — and a store record is a JSON
+    object with an `id` and no field outside it. An event is `{ts, event, …}`.
+    A project's own JSONL is neither, and is reported.
+
+    Generous in the same direction as the rules above: an unreadable or
+    unparseable file is not claimed as Perry's, because a file Perry wrote
+    parses.
+    """
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                break
+            else:
+                return False        # an empty file tells us nothing
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(rec, dict):
+        return False
+    keys = set(rec)
+    if "id" in keys and (keys <= set(_STORED_FIELDS)
+                         or keys <= set(_RISK_STORED_FIELDS)
+                         or keys <= set(_ASK_STORED_FIELDS)):
+        return True                 # a store — tasks, risks or asks
+    # `intake.jsonl` keys on `order` and carries no `id` at all: the register
+    # has no id column and a row is addressed by position (TASK-196). The
+    # branch above cannot see it, and `order` alone is too weak a signal, so
+    # the whole key set is matched against the tuple.
+    if "order" in keys and "request" in keys \
+            and keys <= set(_INTAKE_STORED_FIELDS):
+        return True                 # a store — intake
+    # `okr.jsonl` and `.perry/config.jsonl` key on `kind`, not on `id`: a
+    # `setting` record carries `key` and a `track` record carries `track`, so
+    # the branch above cannot see them. Same rule, read off the same tuple.
+    kind = rec.get("kind")
+    if isinstance(kind, str) and kind in _MD_STORE.STORED:
+        if keys <= set(_MD_STORE.STORED[kind]):
+            return True             # a store — okr or config
+    return keys.issuperset(_EVENT_FIELDS)
 
 
 def render_claims(project_root: Path, state_root: Path, rows: list, summary: dict,
@@ -714,7 +3580,10 @@ def render_claims(project_root: Path, state_root: Path, rows: list, summary: dic
 
 def main(argv: list[str]) -> int:
     root_arg = None
-    mode_templates = mode_claims = as_json = strict = quiet = False
+    mode_templates = mode_claims = mode_verification = False
+    mode_provenance = mode_knowledge = mode_reviews = False
+    mode_glossary = False
+    as_json = strict = quiet = False
     state_root_arg = None
     i = 0
     while i < len(argv):
@@ -729,6 +3598,16 @@ def main(argv: list[str]) -> int:
             mode_templates = True
         elif a == "--claims":
             mode_claims = True
+        elif a == "--verification":
+            mode_verification = True
+        elif a == "--provenance":
+            mode_provenance = True
+        elif a == "--knowledge":
+            mode_knowledge = True
+        elif a == "--reviews":
+            mode_reviews = True
+        elif a == "--glossary":
+            mode_glossary = True
         elif a == "--state-root":
             i += 1
             state_root_arg = argv[i] if i < len(argv) else None
@@ -749,6 +3628,7 @@ def main(argv: list[str]) -> int:
     schema = json.loads(SCHEMA_PATH.read_text())
     enums = schema["enums"]
     SCHEMA_THRESHOLDS.update(schema.get("thresholds") or {})
+    TASK_STATUSES.update((schema.get("enums") or {}).get("task_status") or ())
 
     if mode_claims:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
@@ -776,7 +3656,7 @@ def main(argv: list[str]) -> int:
                 "claimed": summary["claimed"],
                 "collisions": summary["collisions"],
                 "suggested_state_root": suggested,
-                "paths": rows,
+                "paths": [{k: r[k] for k in CLAIM_ROW_KEYS} for r in rows],
             }, ensure_ascii=False, indent=2))
         elif not quiet:
             render_claims(project_root, state_root, rows, summary, suggested)
@@ -788,18 +3668,177 @@ def main(argv: list[str]) -> int:
         # `collisions` count in --json instead.
         return 0
 
+    if mode_verification:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        findings = check_verification(state_root, project_root / ".perry")
+        scanned = getattr(check_verification, "rows_seen", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "done_rows_scanned": scanned,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --verification · {project_root}")
+            for f in findings:
+                print(f)
+            if findings:
+                tail = f"\n  {len(findings)} advisory finding(s) over {scanned} done row(s)"
+            elif scanned:
+                tail = f"\n  ✓ all {scanned} done row(s) carry a satisfiable rung"
+            else:
+                # Not a pass. Perry's own board moves closed rows out of the
+                # P-sections into `## Done this period`, so an empty scan is the
+                # normal state there — say so rather than printing a checkmark
+                # for having checked nothing.
+                tail = ("\n  · no done rows under P0/P1/P2 to rate "
+                        "(closed rows leave those sections at triage)")
+            print(tail)
+        # Advisory for one release by DESIGN-003 decision 4 — a hard gate now
+        # would retroactively invalidate every `done` row written before rungs
+        # existed. `--strict` does NOT promote these; branch on --json `count`.
+        return 0
+
+
+    if mode_glossary:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        findings = check_glossary(project_root)
+        n = getattr(check_glossary, "entries", 0)
+        po = getattr(check_glossary, "prose_only", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root), "entries": n,
+                "prose_only": po,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --glossary \u00b7 {project_root}")
+            for f in findings:
+                print(f)
+            print(f"\n  {n} term(s) \u00b7 {po} prose-only \u00b7 "
+                  f"{len(findings)} advisory finding(s)")
+        return 0
+
+    if mode_reviews:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        load_glossary(schema)
+        findings = check_reviews(state_root, project_root)
+        blocks = getattr(check_reviews, "blocks_seen", 0)
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "verdict_blocks": blocks,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --reviews \u00b7 {project_root}")
+            for f in findings:
+                print(f)
+            # The block count prints at zero findings, for the reason
+            # `--knowledge` prints its card count: "0 violations" over 0
+            # verdicts is trivially true, and a number that cannot tell "the
+            # convention holds" from "nobody has written one" is not a
+            # measurement.
+            print(f"\n  {blocks} verdict block(s) \u00b7 {len(findings)} "
+                  f"advisory finding(s)" if findings else
+                  f"\n  \u2713 {blocks} verdict block(s), every one readable "
+                  f"and acted on" if blocks else
+                  "\n  \u00b7 no verdict blocks yet \u2014 see "
+                  "work/reference/review.md \u00a7 3")
+        return 0
+
+    if mode_knowledge:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        load_glossary(schema)
+        findings = check_knowledge(state_root, project_root) + check_role_cards(
+            project_root, schema)
+        kdir = state_root / "knowledge"
+        cards = sum(1 for md in (kdir.rglob("*.md") if kdir.exists() else [])
+                    if md.name != "INDEX.md"
+                    and card_kind(strip_comments(md.read_text(errors="replace"))))
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "cards": cards,
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --knowledge · {project_root}")
+            for f in findings:
+                print(f)
+            # **The count is printed even at zero findings.** `KR-O5.1` reads
+            # "0 violations", and zero over zero cards is trivially true — a
+            # number that cannot tell "provenance is enforced" from "nobody has
+            # written a card". Printing both is what makes the KR mean
+            # something.
+            print(f"\n  {cards} card(s) · {len(findings)} advisory finding(s)"
+                  if findings else
+                  f"\n  ✓ {cards} card(s), every provenance field present and "
+                  f"resolving" if cards else
+                  "\n  · no knowledge cards yet — the check is live and has "
+                  "nothing to judge")
+        return 0
+
+    if mode_provenance:
+        project_root = (Path(root_arg).expanduser().resolve() if root_arg
+                        else Path.cwd().resolve())
+        state_root = ((project_root / state_root_arg).resolve() if state_root_arg
+                      else P.resolve_state_root(project_root))
+        # Arms `CARD_KINDS`, without which `card_kind()` is always None and
+        # every knowledge card is reported here as a digest with no id.
+        load_glossary(schema)
+        findings = check_provenance(state_root)
+        stats = getattr(check_provenance, "stats", {"defined": 0, "cited": 0})
+        if as_json:
+            print(json.dumps({
+                "project_root": str(project_root),
+                "sources_defined": stats["defined"],
+                "ids_cited": stats["cited"],
+                "findings": [f.as_dict() for f in findings],
+                "count": len(findings),
+            }, ensure_ascii=False, indent=2))
+        elif not quiet:
+            print(f"perry-lint --provenance · {project_root}")
+            for f in findings:
+                print(f)
+            if findings:
+                print(f"\n  {len(findings)} advisory finding(s)")
+            elif stats["defined"] or stats["cited"]:
+                print(f"\n  ✓ {stats['cited']} cited id(s) all resolve; "
+                      f"{stats['defined']} source(s) carry an origin and a date")
+            else:
+                # Same discipline as --verification: an empty scan is not a pass.
+                print("\n  · no digests under knowledge/ and no citations to check")
+        return 0
+
     # Localized column headers are legal in whatever the project's document
     # language is; the glossary that says which spellings count lives in the
     # schema so every reader (this linter, viewer/parsers.py, aiMark) agrees.
-    i18n = schema.get("i18n") or {}
-    for col, per_lang in (i18n.get("columns") or {}).items():
-        COLUMN_ALIASES[col] = [a for aliases in per_lang.values() for a in aliases]
-    for fld, per_lang in (i18n.get("fields") or {}).items():
-        FIELD_ALIASES[fld] = [a for aliases in per_lang.values() for a in aliases]
-    for head, per_lang in (i18n.get("headings") or {}).items():
-        HEADING_ALIASES[head] = [a for aliases in per_lang.values() for a in aliases]
+    # Loaded HERE and not above the early-returning modes on purpose: that is
+    # where it has always been loaded, and moving it would quietly change what
+    # `--verification` matches on a localized board.
+    load_glossary(schema)
 
     findings: list[Finding] = []
+    check_store_drift.stats = _empty_store_drift_stats()
+    check_risk_store_drift.stats = _empty_risk_store_drift_stats()
+    check_intake_store_drift.stats = _empty_intake_store_drift_stats()
+    check_ask_store_drift.stats = _empty_ask_store_drift_stats()
+    check_md_store_drift.stats = _empty_md_store_drift_stats_all()
 
     if mode_templates:
         root = PERRY_HOME
@@ -843,6 +3882,12 @@ def main(argv: list[str]) -> int:
                                             "required state file not found"))
                 continue
             for path in targets:
+                # Same rule `perry-conform § state_files` applies, so a file
+                # lint validates and a file that can be declared conformant
+                # cannot come apart. One function, two call sites, no copy.
+                if not spec_claims(spec, strip_comments(
+                        path.read_text(errors="replace")), schema):
+                    continue
                 try:
                     rel = path.relative_to(project_root).as_posix()
                 except ValueError:
@@ -850,21 +3895,81 @@ def main(argv: list[str]) -> int:
                 findings.extend(check_file(path, rel, spec, enums, is_template=False))
         if adopted:
             findings.extend(check_cross_file(root, enums, project_root))
+            # DESIGN-002 decision #4: the collision the state root cannot cover
+            # is the one that appears AFTER setup, so the check has to run on
+            # every ordinary lint rather than only behind `--claims`. Same
+            # computation as `--claims`, not a second one.
+            findings.extend(check_ns_collisions(project_root, root, schema))
+            # Costs nothing on a project with no store — it returns before
+            # deriving anything — and that is every project today, which is
+            # why it runs in the default pass rather than behind a flag.
+            findings.extend(check_store_drift(project_root, root))
+            # Same shape, same cost, one register over (TASK-040): it returns
+            # before deriving anything when there is no `risks.jsonl`, which is
+            # every project today.
+            findings.extend(check_risk_store_drift(project_root, root))
+            # And the third register (TASK-196), on the same terms: it
+            # returns before deriving anything when there is no
+            # `intake.jsonl`, which is every project today.
+            findings.extend(check_intake_store_drift(project_root, root))
+            # And the fourth register (TASK-197), on the same terms: it
+            # returns before deriving anything when there is no `asks.jsonl`,
+            # which is every project today.
+            findings.extend(check_ask_store_drift(project_root, root))
+            # And the fifth and sixth (TASK-209), on the same terms and at the
+            # same cost: they return before deriving anything when there is no
+            # `okr.jsonl` / `.perry/config.jsonl`. These two are the reason the
+            # census read two of six — the comparators existed and nothing
+            # called them.
+            for _doc, _label in _MD_STORE_DOCS:
+                findings.extend(
+                    check_md_store_drift(project_root, root, _doc))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
         if not adopted:
             label += " — not a Perry project yet"
+        # The declaration ADR-004 needs is a DIFFERENT fact from anything above:
+        # this loop answers "does the shape hold", and that answers "did the user
+        # say so". Reported as a note rather than as a Finding — a project that
+        # has simply not run `perry-conform declare` yet is not malformed, and
+        # promoting it to a warning would make `--strict` red on every project
+        # in existence for a reason lint cannot fix.
+        declared = P.read_conformance(project_root).declarations
+        conformance_note = {
+            "declared": len(declared),
+            "shape_version": schema.get("schema_version"),
+            "command": "perry-conform status",
+        }
 
     errors = [f for f in findings if f.severity == "error"]
     warns = [f for f in findings if f.severity == "warn"]
 
     if as_json:
-        print(json.dumps({
+        payload = {
             "target": label,
             "errors": len(errors), "warnings": len(warns),
             "findings": [f.as_dict() for f in findings],
-        }, ensure_ascii=False, indent=2))
+        }
+        if not mode_templates:
+            payload["conformance"] = conformance_note
+            payload["store_drift"] = dict(getattr(
+                check_store_drift, "stats", _empty_store_drift_stats()))
+            payload["risk_store_drift"] = dict(getattr(
+                check_risk_store_drift, "stats",
+                _empty_risk_store_drift_stats()))
+            payload["intake_store_drift"] = dict(getattr(
+                check_intake_store_drift, "stats",
+                _empty_intake_store_drift_stats()))
+            payload["ask_store_drift"] = dict(getattr(
+                check_ask_store_drift, "stats",
+                _empty_ask_store_drift_stats()))
+            _md = getattr(check_md_store_drift, "stats",
+                          None) or _empty_md_store_drift_stats_all()
+            for _doc, _label in _MD_STORE_DOCS:
+                payload[f"{_doc.name}_store_drift"] = dict(
+                    _md.get(_doc.name) or _empty_md_store_drift_stats())
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
         if not findings:
@@ -873,10 +3978,125 @@ def main(argv: list[str]) -> int:
             for f in errors + warns:
                 print(f)
             print(f"\n  {len(errors)} error(s), {len(warns)} warning(s)")
+        # **"no store" and "clean" printed byte-identically.** `stats` was
+        # assigned three times and read nowhere — its sibling
+        # `check_provenance.stats` is printed, which is what made the omission
+        # look deliberate. A V4 round caught it. Two different answers must not
+        # look the same, which is the same rule `perry-tasks verify` follows
+        # when it returns rc 2 rather than 0 with no store.
+        _st = getattr(check_store_drift, "stats", None)
+        if _st and not mode_templates:
+            if not _st["store_present"]:
+                print("  · no `tasks.jsonl` — drift against the store is "
+                      "unchecked, not clean")
+            elif not _st["log_present"]:
+                # Named rather than folded into "comparison incomplete": the
+                # user can DO something about a missing log, and a reason is
+                # the difference between a diagnosis and a shrug. The route
+                # out is named too — `perry-tasks verify` compares the six
+                # rendered columns in the board-to-store direction and needs
+                # no log, which is why it reports 0 mismatches on the same
+                # tree this check reported 175 drifted rows on.
+                print(f"  · store: {_st['records']} record(s), but no "
+                      f"`.perry/events.jsonl` — the board-to-store derivation "
+                      f"reads the log, so drift is unchecked, not clean; "
+                      f"`perry-tasks verify` compares the rendered columns "
+                      f"without it")
+            elif not _st["comparison_performed"]:
+                print(f"  · store: {_st['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · store: {_st['records']} record(s), "
+                      f"{_st['drifted']} row(s) drifted")
+        # Printed on its own line rather than folded into the one above: "no
+        # risks store" and "a clean risks store" are different answers, and so
+        # are "no task store" and "no risks store".
+        _rst = getattr(check_risk_store_drift, "stats", None)
+        if _rst and not mode_templates:
+            if not _rst["store_present"]:
+                print("  · no `risks.jsonl` — drift against the risks store "
+                      "is unchecked, not clean")
+            elif not _rst["comparison_performed"]:
+                print(f"  · risks store: {_rst['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · risks store: {_rst['records']} record(s), "
+                      f"{_rst['drifted']} risk(s) drifted")
+        # Its own line for the reason the one above has its own line: "no
+        # intake store" and "a clean intake store" are different answers.
+        _ist = getattr(check_intake_store_drift, "stats", None)
+        if _ist and not mode_templates:
+            if not _ist["store_present"]:
+                print("  · no `intake.jsonl` — drift against the intake store "
+                      "is unchecked, not clean")
+            elif not _ist["comparison_performed"]:
+                print(f"  · intake store: {_ist['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · intake store: {_ist['records']} record(s), "
+                      f"{_ist['drifted']} row(s) drifted")
+        # Its own line for the reason the two above have their own lines: "no
+        # ask store" and "a clean ask store" are different answers.
+        _ast = getattr(check_ask_store_drift, "stats", None)
+        if _ast and not mode_templates:
+            if not _ast["store_present"]:
+                print("  · no `asks.jsonl` — drift against the ask store is "
+                      "unchecked, not clean")
+            elif not _ast["comparison_performed"]:
+                print(f"  · ask store: {_ast['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · ask store: {_ast['records']} record(s), "
+                      f"{_ast['drifted']} ask(s) drifted")
+        # And the fifth and sixth lines, for the same reason the four above
+        # have their own: "no OKR store" and "a clean OKR store" are different
+        # answers, and so are "no OKR store" and "no config store". Six
+        # declared stores, six lines, every run — which is what TASK-209 is
+        # for. Printed from the same `_MD_STORE_DOCS` the checks are driven
+        # from, so a store cannot be checked and then not reported.
+        _mst = getattr(check_md_store_drift, "stats", None)
+        if _mst and not mode_templates:
+            for _doc, _label in _MD_STORE_DOCS:
+                _s = _mst.get(_doc.name)
+                if not _s:
+                    continue
+                _rel_store = Path(_doc.rel_store).as_posix()
+                if not _s["store_present"]:
+                    print(f"  · no `{_rel_store}` — drift against the "
+                          f"{_label} is unchecked, not clean")
+                elif not _s["comparison_performed"]:
+                    print(f"  · {_label}: {_s['records']} valid record(s), "
+                          "comparison incomplete — drift is unchecked, "
+                          "not clean")
+                else:
+                    print(f"  · {_label}: {_s['records']} record(s), "
+                          f"{_s['drifted']} row(s) drifted")
+        if not mode_templates:
+            n = conformance_note["declared"]
+            print(f"  · {n} file(s) declared conformant at shape version "
+                  f"{conformance_note['shape_version']} "
+                  f"(`perry-conform status` for the per-file verdict)")
 
     if errors:
         return 1
-    return 1 if (strict and warns) else 0
+    # **`NS-01` is the one warning `--strict` does not promote.** DESIGN-002 § 9,
+    # appended at lock on 2026-08-16: *"A collision never sets a non-zero exit."*
+    # That sentence was written about `--claims`, and the same argument reaches
+    # here unchanged, because it is an argument about the finding and not about
+    # the mode: decision #2 was taken strictly, so there is no per-path opt-out,
+    # and a user who has deliberately chosen to keep one file in a claimed folder
+    # would otherwise have permanently red CI with no way to accept it. That is
+    # the outcome DESIGN-002 rejects by name, in the same breath that it keeps
+    # `NS-01` at `warn` — a severity that cannot be escaped by a flag is not
+    # really `warn`.
+    #
+    # It does narrow what `--strict` means, from "every warning fails" to "every
+    # warning except this one", so it is stated here rather than left to be
+    # inferred, and `tests/test_ns_collision.py` pins BOTH directions: `NS-01`
+    # alone exits 0 under `--strict`, and any other warning alongside it still
+    # exits 1. The carve-out is one rule wide and stays that way.
+    promotable = [f for f in warns if f.rule != "NS-01"]
+    return 1 if (strict and promotable) else 0
 
 
 if __name__ == "__main__":

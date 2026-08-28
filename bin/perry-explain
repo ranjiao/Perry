@@ -2,7 +2,8 @@
 """
 perry-explain — resolve an ID to what it actually means.
 
-Agent-run projects accumulate stable IDs fast: REL-001, ADR-003, P-O1.2,
+Agent-run projects accumulate stable IDs fast: REL-001, ADR-003,
+P<NNN>-O<n>-KR<n>,
 DESIGN-002, USER-014. They are good for the agent — precise, greppable, stable
 across renames — and they are how a board stays unambiguous. But they are
 write-optimized for the wrong reader. A standup line like
@@ -38,13 +39,54 @@ import re
 import sys
 from pathlib import Path
 
-SKIP_DIRS = {
-    ".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build",
-    "target", ".next", "vendor", "site-packages", ".pytest_cache", ".tox",
-}
+# The one splitter and the one header rule. This file carried its own of each
+# until 2026-08-18 — see the table-row branch below for what that cost.
+PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
+sys.path.insert(0, str(PERRY_HOME / "viewer"))
+from tables import split_row, squash  # noqa: E402
+from parsers import resolve_state_root  # noqa: E402
 
-# REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's KR form P-O1.2
-ID_RE = re.compile(r"\b((?:P-O\d+\.\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import perry_store  # noqa: E402
+import lib  # noqa: E402
+
+# The walk over "the markdown that belongs to this project" moved to `bin/lib`
+# (TASK-158), so that `bin/perry-task`'s write-site advisory can learn a
+# project's id families from the same tree this file resolves ids over — two
+# walks would be two answers to "what counts as this project". Re-exported
+# under their own names: this module is imported by `bin/perry-diagnose` as a
+# resolver, and a caller should not have to know which file a primitive
+# settled in. `bin/perry-diagnose` keeps its OWN, larger `SKIP_DIRS` on
+# purpose; see the note above its walk.
+SKIP_DIRS = lib.SKIP_DIRS
+walk_md = lib.walk_md
+blank_code_spans = lib.blank_code_spans
+
+# REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's phase-KR form
+# P002-O3-KR1 (DESIGN-007 decision #4, migrated by TASK-180).
+#
+# **The specific arm changed; the generic arm did not, and that is the
+# finding.** `P002-O3-KR1` ends in `KR1`, not in digits, so
+# `[A-Z][A-Z0-9]{1,9}-\d{1,4}` cannot reach it however it is read — its two
+# candidate splits are `P002-O3` (the tail is not digits) and `O3-KR1` (same).
+# Widening that arm to end in an optional `-KR\d+` would have made it match
+# ids no project mints, on every repository this tool is ever pointed at, to
+# buy something one three-token literal already buys here. `bin/lib §
+# declared_id_families` has no opinion to defer to either: it learns families
+# from FILENAMES, and `bin/lib § PERRY_CITATION_FAMILIES` records that a KR
+# "lives in a register row … never a filename". So no phase-KR id, old form or
+# new, has ever put a family in that set, and this arm is the only thing that
+# has ever recognised one.
+ID_RE = re.compile(r"\b((?:P\d{3}-O\d+-KR\d+)|(?:[A-Z][A-Z0-9]{1,9}-\d{1,4}))\b")
+
+#: The pre-TASK-180 phase-KR form, held here to be **refused by name**.
+#: Nothing below reads it: `main` does not resolve it, `harvest` does not
+#: define it, `find_ids` does not collect it. It exists so that the refusal
+#: is a sentence rather than a shrug — `P-O1.1` [[old-form]] named two
+#: different KRs and
+#: the tool that cannot tell you that is the tool that let the ambiguity live.
+LEGACY_KR_ID_RE = re.compile(r"^P-O(\d+)\.(\d+)$")
+TASK_ID = re.compile(r"^TASK-\d{1,4}$", re.I)
 
 # Tokens shaped exactly like a project ID that are nothing of the kind. Without
 # this, running against Perry's own repo reported SHA-256 and a `#L12-40` line
@@ -129,12 +171,130 @@ def strip_md(s: str) -> str:
     return s.replace("**", "").replace("`", "").strip()
 
 
-def walk_md(root: Path):
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        for fn in filenames:
-            if fn.lower().endswith((".md", ".markdown")):
-                yield Path(dirpath) / fn
+# Leading decoration a heading may carry before its subject: the `#` marks the
+# HEADING regex already ate, emphasis `strip_md` does not remove, and the
+# separators a numbered or dashed heading opens with.
+HEADING_LEAD = " \t#*_~>—–-:·"
+
+
+def heading_subject(text: str) -> str | None:
+    """The ID a heading DEFINES — the one it opens with — or None.
+
+    A heading does two jobs with one syntax. `## ADR-001 — PMO bootstrap` is
+    where ADR-001 *lives*: it names its subject and then says what that
+    subject is, and the `kind: section` this produces is the whole reason
+    `perry-explain ADR-001` can answer. But a heading is also how a document
+    announces what a passage is *about*, and on 2026-08-21 the PMO wrote one
+    of those into an evidence record in order to **correct** a claim:
+
+        ## Its diagnosis of `REL-00` is wrong, and this is recorded because …
+
+    That made the evidence file `REL-00`'s definition point. `split_dangling`
+    skips defined ids, so `REL-00` left `dangling` and `dangling_in_reports`
+    together — an id dropped silently, which is an exemption nobody can audit,
+    and which `test_perrys_own_repository_reports_the_exemption_it_used` exists
+    to forbid. The heading was reworded and the red cleared, and that fixed
+    nothing: the next person writing an honest section about a finding does it
+    again.
+
+    **The line is grammatical, not editorial: an id that OPENS a heading is
+    being named; an id inside the sentence is being mentioned.** A document
+    that discusses an id is not thereby the place that id lives. Every genuine
+    definition in this repository already has the naming shape —
+    `## ADR-001 — PMO bootstrap`, `### TASK-107 — the dispatch safety gate …`,
+    `# DESIGN-002: Flake scoring` — because a definition has to say what the
+    thing is before it can say anything else about it.
+
+    Two neighbouring lines this deliberately does NOT draw:
+
+    * *Headings never define.* That takes `perry-explain ADR-001` with it, and
+      with it every closed row whose only written record is a journal heading.
+      The rule is right for the documents it was written for; it was only
+      never told where they end.
+    * *Only certain documents may define.* A file-kind allowlist has to be
+      kept in step with each project's own layout, and this script is supposed
+      to work on projects that never heard of Perry. An evidence record may
+      perfectly well define an id — what it must not do is define one by
+      arguing about it.
+
+    Measured on this repository before it was applied: five headings claimed a
+    definition they had no business claiming, and all five are the defect
+    rather than a cost of the fix. `## What does NOT hold, and belongs to
+    TASK-089` was TASK-089's definition point, with the title *"What does NOT
+    hold, and belongs to"* — the hole in that sentence is where the id was cut
+    out. Each of the five has a real id-first definition that now wins.
+    """
+    lead = strip_md(text).lstrip(HEADING_LEAD)
+    m = ID_RE.match(lead)
+    return m.group(1) if m and is_real_id(m.group(1)) else None
+
+
+# What a title may not begin or end on: whitespace, and the separators a
+# heading puts between the id it names and the name itself.
+TITLE_TRIM = " \t—–-:·"
+
+
+def heading_title(text: str, subject: str) -> str:
+    """The human name a heading gives `subject`: the sentence it wrote, minus
+    the subject's OWN id and nothing else's.
+
+    `heading_subject` above draws the line — **an id that OPENS a heading is
+    being named; an id inside the sentence is being mentioned** — and until
+    2026-08-28 this side of the split had never learned it. The title was
+    `ID_RE.sub("", …)` over the whole heading, which strips *every* id,
+    because stripping everything was the cheap way to guarantee the one thing
+    that does have to hold: an id must not appear in its own title. What it
+    cost was the sentence around it:
+
+        TASK-050 — why TASK-094 had to land first  ->  'why  had to land first'
+        TASK-050 supersedes TASK-049               ->  'supersedes'
+
+    The second is the one that matters. A heading whose whole content is a
+    relation between two ids reduced to a single dangling verb, and that verb
+    then *was* the id's name everywhere `perry-explain` is consulted.
+    `reference/user-load.md § The rule: an ID never travels alone` requires
+    every id to carry its human name; `TASK-050 ("supersedes")` satisfies the
+    letter of that and defeats it entirely.
+
+    **So a mentioned id stays, in full form.** It is part of the sentence that
+    names the subject, and it is why that sentence is legible at all. Cutting
+    it out produces exactly what the same file calls the hardest kind of
+    reference to resolve later — prose naming work with nothing left to
+    identify it — committed by the lookup itself rather than by an author.
+    Nothing in `user-load.md` forbids an id inside a title: its rule is about
+    a *bare* id in a user-facing sentence, and its own remedy for one is this
+    script. `Prefer the name in prose, the ID in tables` is advice to whoever
+    writes a heading, not a licence for a reader to rewrite one.
+
+    The considered alternative was to rebuild the title with the mentioned id
+    expanded — `why TASK-094 ("the store cutover") had to land first`. It is
+    worse: the title would be a sentence no document contains, it would depend
+    on harvest order for an id defined later in the walk, and titles flow on
+    into rows, standups and `--json`. `label()` below is where a *rendered*
+    sentence discharges the never-travel-alone obligation, and it is the right
+    place for it: it composes output, this composes a datum.
+
+    Removing only the leading id also removes the hole rather than moving it.
+    Nothing is cut from the middle of the sentence, so there is no double
+    space and no orphaned separator left behind for `TITLE_TRIM` to repair —
+    it only has to clean the join the heading itself wrote.
+
+    `TITLE_TRIM` is the strip set the removed line already used, deliberately
+    unchanged. It leaves the `/` in a heading that names co-subjects —
+    `# TASK-150 / TASK-151 / TASK-152 — result` gives TASK-150 the title
+    `/ TASK-151 / TASK-152 — result`, which was `/  /  — result` before.
+    Eating that `/` too would read as `TASK-151 / TASK-152 — result`, a title
+    that announces someone else as its subject; the slash is what shows the
+    heading covers a set and that this row is one of them.
+    """
+    lead = strip_md(text).lstrip(HEADING_LEAD)
+    m = ID_RE.match(lead)
+    # Only when the heading OPENS with this id is it the naming prefix. A
+    # heading over an id-named file that opens with some *other* id is naming
+    # nothing, and the sentence is left whole.
+    if m and m.group(1) == subject:
+        lead = lead[m.end():]
+    return lead.strip(TITLE_TRIM)
 
 
 def harvest(root: Path) -> dict:
@@ -165,8 +325,10 @@ def harvest(root: Path) -> dict:
                 for ln in lines[:40]:
                     h = HEADING.match(ln)
                     if h:
-                        t = strip_md(h.group(1))
-                        t = ID_RE.sub("", t).strip(" —-–:·")
+                        # The subject is the FILENAME's id, so that is the
+                        # only one this H1 may lose — same rule as the
+                        # heading branch below, and see `heading_title`.
+                        t = heading_title(h.group(1), fname_ids[0])
                         if t:
                             e["title"] = e["title"] or t
                         break
@@ -179,14 +341,57 @@ def harvest(root: Path) -> dict:
         # the same noise the is_illustrative filter was added to remove.
         proposing = False
 
+        # A fenced block is pasted output, not a reference. Evidence files
+        # quote command transcripts constantly, and those transcripts carry
+        # ids from throwaway fixtures and from copies of *other* projects —
+        # `wrote RX-010`, `oldest: CAD-002 @ 224d`. Charging this project for
+        # an id it never minted turns the dangling report into noise, which
+        # `reference/diagnose.md` names as worse than no check at all.
+        #
+        # An inline code span is the same quotation with different
+        # punctuation, and until TASK-210 it was read as prose. The comment
+        # here used to say the opposite — that exempting inline code "would
+        # remove most of what the check reads" — and the measurement says it
+        # does not: of the 336 ids this repository mentions outside a fence,
+        # 308 are written in prose somewhere and 28 appear only inside a
+        # span, nearly all of them this checker's own finding codes quoted
+        # back at it (`CTX-02`, `LOAD-01`, `DOC-03`). Those are the noise the
+        # fence rule exists to drop.
+        #
+        # **A MENTION only, and never a definition.** The blanking is applied
+        # to the mention scan below and to nothing else, because a definition
+        # is a structural position — a heading's opening token, a table's
+        # first cell, a `- id:` key — and the backticks around it are
+        # decoration that `strip_md` already reads through. `reference/
+        # diagnose.md` defines every finding code as `| \`CTX-01\` | error |
+        # … |`; blanking that cell would undefine fourteen codes and report
+        # them dangling, which is the false positive this row came to remove,
+        # arriving from the other side. The fence rule can afford to skip
+        # definitions too because nothing structural survives inside a fence
+        # anyway.
+        fenced = False
+
         for n, raw in enumerate(lines, 1):
-            found = find_ids(raw)
+            if raw.lstrip().startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                continue
+            found = find_ids(blank_code_spans(raw))
 
             # ── table rows: | ID | Title | … |
             m = TABLE_ROW.match(raw)
             if m:
-                cells = [c.strip() for c in m.group(1).split("|")]
-                low = [strip_md(c).lower() for c in cells]
+                # One splitter and one header rule, both shared. This line
+                # carried its own of each: `split("|")` does not honour `\|`,
+                # so a cell quoting a markdown table shifted every column after
+                # it; and `strip_md(c).lower()` is a FOURTH spelling of the
+                # header rule, differing from `squash` on internal whitespace.
+                # Neither was reachable by TASK-067's guard or TASK-050's,
+                # because both were written against a hardcoded file list that
+                # did not name this file.
+                cells = split_row(raw)
+                low = [squash(c) for c in cells]
                 if any(c in ("id", "adr", "#", "task", "design") for c in low[:2]):
                     header_cells = low
                     continue
@@ -226,18 +431,26 @@ def harvest(root: Path) -> dict:
                 header_cells = []
 
             # ── headings: ## ADR-001 — PMO bootstrap
+            #
+            # Only the id the heading OPENS with, and see `heading_subject`
+            # for why: a heading that argues about an id is not that id's
+            # home. An id mentioned inside the sentence falls through to the
+            # mention loop below, which is where a reference belongs.
             h = HEADING.match(raw)
             if h:
                 proposing = bool(PROPOSAL_SECTION.search(strip_md(h.group(1))))
-            if h and found:
-                e = ent(found[0])
+            subject = heading_subject(h.group(1)) if h else None
+            if subject:
+                e = ent(subject)
                 e["defined"] = e["defined"] or f"{rel}:{n}"
                 e["kind"] = e["kind"] or "section"
                 if not e["title"]:
-                    t = ID_RE.sub("", strip_md(h.group(1))).strip(" —-–:·")
+                    # The subject's own id and nothing else's: an id the
+                    # sentence MENTIONS is part of the name, not noise in it.
+                    t = heading_title(h.group(1), subject)
                     e["title"] = t or None
 
-            # ── yaml: - id: P-O1.1  /  title: "…"
+            # ── yaml: - id: P<NNN>-O<n>-KR<n>  /  title: "…"
             ym = YAML_ID.match(raw)
             if ym and ID_RE.fullmatch(ym.group(1)) and is_real_id(ym.group(1)):
                 yaml_pending = ym.group(1)
@@ -275,6 +488,8 @@ def render_one(e: dict) -> str:
         L.append(f'  kind       {e["kind"]}')
     if e.get("status"):
         L.append(f'  status     {e["status"]}')
+    if e.get("summary"):
+        L.append(f'  summary    {e["summary"]}')
     L.append(f'  defined    {e["defined"] or "NOWHERE — this ID is referenced but never defined"}')
     if e["mentions"]:
         L.append(f'  mentioned  {e["mentions"][0]}')
@@ -285,6 +500,166 @@ def render_one(e: dict) -> str:
     else:
         L.append("  mentioned  nowhere else")
     return "\n".join(L)
+
+
+def typed_task_lookup(root: Path, token: str) -> dict | None:
+    """Resolve a Task from its canonical store, or return None if none exists.
+
+    ``None`` is the only state that permits the generic Markdown lookup. Once
+    a project has a Task store, an absent or malformed record is a Task-domain
+    answer rather than an invitation to let an incidental document definition
+    win (ADR-009).
+    """
+    if not TASK_ID.fullmatch(token or ""):
+        return None
+    state_root = resolve_state_root(root)
+    store = perry_store.store_path(state_root)
+    adopted = ((root / ".perry" / "config.md").exists()
+               or (state_root / "BOARD.md").exists()
+               or (state_root / "OKR.md").exists()
+               or (state_root / "phase").is_dir())
+    if not adopted or not store.exists():
+        return None
+    rel = str(store.relative_to(root))
+    try:
+        records = perry_store.load_store(state_root)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return {"state": "invalid", "store": rel, "findings": [{
+            "message": f"{type(exc).__name__}: {exc}",
+        }]}
+    valid, findings = perry_store.validate_records(records)
+    if findings:
+        return {"state": "invalid", "store": rel, "findings": findings}
+    wanted = token.upper()
+    for line, record in enumerate(valid, 1):
+        if record["id"].upper() != wanted:
+            continue
+        entry = {
+            "id": record["id"],
+            "title": record.get("title") or None,
+            "kind": "Task",
+            "status": record.get("status") or None,
+            "defined": f"{rel}:{line}",
+            "mentions": [],
+            "in_tracking_doc": False,
+        }
+        if record.get("summary"):
+            entry["summary"] = record["summary"]
+        return {"state": "found", "store": rel, "entry": entry}
+    return {"state": "missing", "store": rel, "findings": []}
+
+
+def render_typed_task_result(result: dict, token: str, as_json: bool) -> int:
+    state = result["state"]
+    if state == "found":
+        entry = result["entry"]
+        print(json.dumps(entry, indent=2, ensure_ascii=False)
+              if as_json else render_one(entry))
+        return 0
+
+    payload = {
+        "id": token.upper(),
+        "kind": "Task",
+        "found": False,
+        "store": result["store"],
+        "error": ("task-store-invalid" if state == "invalid"
+                  else "not-found-in-task-store"),
+        "findings": result.get("findings", []),
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    elif state == "invalid":
+        print(f"{token.upper()} — canonical Task store is invalid: "
+              f"{result['store']}", file=sys.stderr)
+        for finding in result.get("findings", [])[:8]:
+            print(f"  {finding.get('message', 'invalid Task record')}",
+                  file=sys.stderr)
+    else:
+        print(f"{token.upper()} — not found in canonical Task store "
+              f"{result['store']}.")
+        print("  Markdown lookup was not used because the Task store is "
+              "authoritative.")
+    return 1
+
+
+#: The verification ladder, resolved from the schema rather than restated here.
+#: `schema/state-schema.json § verification` is where the rungs are defined and
+#: the only place they are; a second copy in this file would be the "N
+#: implementations of one rule" defect applied to the vocabulary itself.
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "schema" / "state-schema.json"
+
+
+def rung_entry(token: str) -> dict | None:
+    """`V4` → what a V4 actually is, or None if this is not a rung.
+
+    **This tool's whole premise is that a write-optimized token is opaque to
+    the reader it was written for**, and `V4` is the most-used such token in
+    Perry: it appears in every board's `Verification` column, in four mode
+    files, in every role card and in the review convention. `perry-explain V4`
+    answered *"not found"* — and helpfully offered `V4-1, V4-2, V4-3`, which
+    are id-shaped fragments scraped out of prose.
+
+    So the one vocabulary a fresh agent session most needs, and the one it is
+    least able to infer from a board cell, was the one thing this script could
+    not resolve. Found by a user asking whether a new session would know what
+    `V4` means.
+    """
+    # **A fast path, NOT the correctness guard.** Removing this line changes
+    # no answer — mutation-verified: `V9` and `ADR-001` still resolve correctly
+    # without it, because the `rungs` lookup below is what decides. It is here
+    # so an ordinary id lookup does not read and parse the schema on every
+    # miss. Said explicitly because two things that look like one rule is how
+    # someone later relaxes the lookup on the grounds that "the regex already
+    # validates it".
+    if not re.fullmatch(r"[Vv][0-6]", token or ""):
+        return None
+    try:
+        block = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))["verification"]
+    except (OSError, ValueError, KeyError):
+        return None
+    key = token.upper()
+    text = block.get("rungs", {}).get(key)
+    if not text:
+        return None
+    return {"id": key, "title": text, "defined": True,
+            "kind": "verification rung",
+            "source": "schema/state-schema.json § verification.rungs",
+            "note": block.get("note", ""),
+            "mentions": [], "in_tracking_doc": False}
+
+
+GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "reference" / "glossary.md"
+
+
+def glossary_entry(token: str) -> dict | None:
+    """A concept, resolved from `reference/glossary.md`.
+
+    Same premise as `rung_entry` one level up: a term coined in one working
+    session is opaque to the next one. The glossary is the single definition
+    and this is how a session reaches it without knowing the file exists.
+
+    Matching is case-insensitive and exact on the whole term — a substring
+    match would resolve `track` to `track` and also to nothing useful.
+    """
+    if not token or token.startswith("-"):
+        return None
+    try:
+        text = GLOSSARY_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for m in re.finditer(r"^### (.+?)\n(.*?)(?=^### |\Z)", text, re.M | re.S):
+        if m.group(1).strip().lower() != token.strip().lower():
+            continue
+        body = m.group(2)
+        impl = re.search(r"^Implemented:\s*(.+?)\s*$", body, re.M)
+        meaning = "\n".join(l for l in body.split("\n")
+                             if l.strip() and not l.startswith("Implemented:"))
+        return {"id": m.group(1).strip(), "title": meaning.strip(),
+                "defined": True, "kind": "Perry concept",
+                "source": "reference/glossary.md",
+                "note": impl.group(1).strip() if impl else "",
+                "mentions": [], "in_tracking_doc": False}
+    return None
 
 
 def main(argv: list[str]) -> int:
@@ -313,6 +688,11 @@ def main(argv: list[str]) -> int:
         print(f"perry-explain: not a directory: {root}", file=sys.stderr)
         return 1
     root = root.resolve()
+    if mode == "one" and want:
+        task_result = typed_task_lookup(root, want)
+        if task_result is not None:
+            return render_typed_task_result(task_result, want, as_json)
+
     entries = harvest(root)
 
     if mode == "all":
@@ -345,6 +725,56 @@ def main(argv: list[str]) -> int:
     if not want:
         print(__doc__.strip())
         return 0
+
+    rung = rung_entry(want)
+    if rung:
+        if as_json:
+            print(json.dumps(rung, indent=2, ensure_ascii=False))
+        else:
+            print(f"{rung['id']} — {rung['kind']}\n")
+            print(f"  {rung['title']}\n")
+            print(f"  defined in {rung['source']}")
+            if rung["note"]:
+                print(f"\n  {rung['note']}")
+        return 0
+
+    term = glossary_entry(want)
+    if term:
+        if as_json:
+            print(json.dumps(term, indent=2, ensure_ascii=False))
+        else:
+            print(f"{term['id']} — {term['kind']}\n")
+            for line in term["title"].split("\n"):
+                print(f"  {line}")
+            print(f"\n  defined in {term['source']}")
+            if term["note"]:
+                print(f"  implemented in {term['note']}")
+        return 0
+
+    # The old phase-KR form is REFUSED, not merely missed. Falling through to
+    # the generic "not found" would have been true and useless: the reason
+    # `P-O1.1` [[old-form]] resolves to nothing is not that no such KR exists
+    # but that it
+    # named TWO, in two phases, which is the ambiguity DESIGN-007 decision #4
+    # was locked to end. Naming the migration is history in the record; it
+    # resolves nothing and adds no fallback, which is the line the user drew.
+    legacy = LEGACY_KR_ID_RE.match(want.upper())
+    if legacy:
+        print(f"{want} — the pre-2026-08-28 phase-KR form. Refused: it does "
+              f"not identify one KR.")
+        print(f"  A phase-KR id is now `P<NNN>-O{legacy.group(1)}-"
+              f"KR{legacy.group(2)}` — segment-labelled and project-unique "
+              f"(DESIGN-007 decision #4, locked 2026-08-19; migrated by "
+              f"TASK-180 on 2026-08-28).")
+        print(f"  `{want}` named a different key result in each phase that "
+              f"declared it, which is exactly why the phase is now in the id. "
+              f"Say which phase you mean.")
+        cands = sorted(k for k in entries
+                       if re.fullmatch(rf"P\d{{3}}-O{legacy.group(1)}-"
+                                       rf"KR{legacy.group(2)}", k))
+        if cands:
+            print(f"  Candidates in this project: {', '.join(cands)}")
+        return 1
 
     e = entries.get(want) or entries.get(want.upper())
     if not e:

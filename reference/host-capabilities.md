@@ -1,125 +1,104 @@
 # Host capabilities matrix
 
-Perry runs on two hosts: **Claude Code** (full tool surface) and **Codex CLI** (narrower). All four Perry skills branch on `$HOST` at standup; this file is the single source of truth for what differs. SKILL.md files name the capability and link here; they do not inline per-host fallbacks.
+Perry runs on **Claude Code**, **OpenCode**, and **Codex CLI**. It registers **one** skill, `perry`, on every host; `goals`, `work`, and `decide` are lanes loaded on demand. OpenCode is an explicitly added host adapter after DESIGN-003 decision 8; this support does not reinterpret that older Claude+Codex decision as having already authorized OpenCode.
+
+> **This page is outside the shorthand carve-out.** It owns host translation, so all commands and directories below use the live vocabulary. `tests/test_shipped_vocabulary.py::TestHostCapabilitiesNamesTheOneLiveEntrance` enforces that boundary.
 
 ## Detect once per session
 
-The standup ritual of every Perry skill (`/perry`, `/okr`, `/pmo`, `/design`) sets `$PERRY_HOME` first (derived from the SKILL.md path it just read; see § `$PERRY_HOME` below), then runs:
+After deriving `$PERRY_HOME`, run:
 
 ```
 bash "$PERRY_HOME/bin/perry-detect-host"
 ```
 
-The script prints one of: `claude-code`, `codex-cli`, `unknown`. Remember the result as `$HOST` for the rest of the conversation; do not re-run per subcommand.
+The result is `claude-code`, `opencode`, `codex-cli`, or `unknown`. Remember it as `$HOST`; do not re-run per subcommand. If it is `unknown`, retain the original `claude-code` fallback, mention the ambiguity once, and recommend an override:
 
-If `unknown`, default behavior to `claude-code` (the original target host) but mention the ambiguity to the user once and recommend they set `PERRY_HOST` in their shell profile.
-
-**Manual override (always wins, recommended for both hosts):**
 ```
-export PERRY_HOST=claude-code      # or codex-cli
+export PERRY_HOST=claude-code      # or opencode or codex-cli
 ```
 
-### Auto-detection details (env-var sniffing; re-verify if detection misbehaves on a newer host build)
+Detection priority is deliberate:
 
-The script uses env-var sniffing in this order:
+1. `PERRY_HOST` override, if valid.
+2. A verified Codex runtime sentinel: `CODEX_SANDBOX`, `CODEX_THREAD_ID`, `CODEX_CI`, or `CODEX_MANAGED_BY_NPM`.
+3. `OPENCODE=1` or `OPENCODE_PID`.
+4. Claude sentinels (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `CLAUDE_PROJECT_DIR`).
+5. Parent-process names, walking outward: `opencode`, `codex`, `claude`.
 
-1. **`CODEX_*` first** — `CODEX_SANDBOX`, `CODEX_THREAD_ID`, or any var starting with `CODEX_`. Codex sets these; Claude Code does not.
-2. **`CLAUDE*` second** — `CLAUDECODE=1`, `CLAUDE_CODE_ENTRYPOINT=cli`. Claude Code sets these.
-3. **Parent-process name** — best-effort fallback (`ps -p $PPID -o comm=`). Useful when env vars aren't set; **does not work in Codex's seatbelt sandbox** (process inspection is blocked → `ps` returns empty).
+Codex must beat OpenCode and Claude because `codex exec` inherits its parent's environment. OpenCode must beat Claude because an OpenCode process can inherit Claude variables. `CODEX_HOME` is not a runtime sentinel. Invalid `PERRY_HOST` values produce `unknown`; the override contract never guesses.
 
-**Why CODEX_ before CLAUDE_**: when Claude Code launches `codex exec` (e.g., `/pmo dispatch` with `Executor: codex`), the nested shell inherits `CLAUDECODE=1` from the parent and *also* gets `CODEX_SANDBOX=seatbelt` from Codex itself. The innermost active runtime is Codex, so CODEX_* must win the tie. Standalone Codex sessions don't have CLAUDECODE; standalone Claude Code sessions don't have CODEX_*. The ordering is correct in all four scenarios.
+## `$PERRY_HOME`
 
-**`CODEX_HOME` is NOT auto-set** — it's a user-level pointer to `~/.codex`. The script does not rely on it; the verified sentinels are `CODEX_SANDBOX` and `CODEX_THREAD_ID`.
+The Perry root contains `bin/`, `reference/`, `goals/`, `work/`, `decide/`, and top-level `SKILL.md`.
 
-If a future Codex version stops setting `CODEX_*` vars (or Claude Code starts setting them), the manual `PERRY_HOST` override is the durable contract.
+Default global installs:
 
-## `$PERRY_HOME` — where Perry's bin/ + reference/ live
-
-The perry/ root directory — contains `bin/`, `reference/`, `okr/`, `pmo/`, `design/`, and the top-level `SKILL.md`.
-
-**Default install locations** (host-canonical):
 - Claude Code: `$HOME/.claude/skills/perry`
+- OpenCode: `$HOME/.config/opencode/skills/perry`
 - Codex CLI: `$HOME/.agents/skills/perry`
 
-**Resolution at runtime**:
-1. If `$PERRY_HOME` is set in env → use it (works for any custom install location, e.g., `$HOME/code/perry`).
-2. Otherwise the standup ritual derives it from the path of the SKILL.md the agent just read: parent dir for the top-level `SKILL.md`, grandparent for `okr/SKILL.md` / `pmo/SKILL.md` / `design/SKILL.md`.
-3. The bin scripts (`perry-update-check`, etc.) self-locate via `$0` as a third fallback for command-line invocations outside a Perry session.
-
-Every bin/ invocation in SKILL.md and reference files is written as `bash "$PERRY_HOME/bin/<script>"` — the standup step that sets `$PERRY_HOME` is the precondition.
+Project-local installs are `.claude/skills/perry` for Claude Code and `.opencode/skills/perry` for OpenCode. Codex remains global. Runtime resolution is `$PERRY_HOME`, then the loaded SKILL.md path, then a bin script's own location.
 
 ## Capability matrix
 
-| Capability | claude-code | codex-cli |
-|---|---|---|
-| `AskUserQuestion` button choices | use the tool as documented | fall back to numbered free-text prompt (see below) |
-| `Agent()` tool with `subagent_type` | use it for `claude-subagent` executor | not available — refuse `Executor: claude-subagent` and route to `codex` or manual delegate |
-| `Bash` `run_in_background: true` parameter | pass it on the tool call | not a tool param — wrap in `&` background-shell pattern (see below) |
-| `perry-dispatch-limit` concurrency cap | enforced (cross-task within session) | enforced filesystem-wide, but **advisory only** across separate codex sessions; surface as "local-only on Codex" |
-| Skill discovery | reads `SKILL.md` frontmatter from `~/.claude/skills/<name>/` | reads `SKILL.md` frontmatter from `~/.agents/skills/<name>/` (also `$CWD/.agents/skills/`, `/etc/codex/skills/`). Both hosts use the same SKILL.md files; install paths differ. See `INSTALL.md` |
-| Skill invocation | `/perry`, `/okr`, `/pmo`, `/design` slash commands | `/skills` then pick perry/okr/pmo/design, or `$perry` / `$pmo` / `$okr` / `$design` to mention, or implicit triggering on description match |
-| `ScheduleWakeup` / `/loop` / `/schedule` | available (host-provided) | not available — Perry does not depend on these |
-| Plan mode / `ExitPlanMode` | available | not available — Perry does not depend on these |
+| Capability | claude-code | opencode | codex-cli |
+|---|---|---|---|
+| User choices | `AskUserQuestion` | `question` tool | numbered free-text fallback |
+| Native subagent | `Agent(subagent_type: general-purpose)` for `claude-subagent` | `Task(subagent_type: general)` for `opencode-subagent` | none |
+| Native completion | small may be sync; medium/large may be background | always synchronous; process the result immediately | n/a |
+| Background shell tool parameter | Bash `run_in_background: true` | unavailable; use the no-background-shell-tool fallback | unavailable; use the no-background-shell-tool fallback |
+| Codex executor | available | available | available |
+| Dispatch cap | enforced | enforced | filesystem-wide but completion cleanup is advisory across sessions |
+| Skill discovery | `~/.claude/skills/perry` | `~/.config/opencode/skills/perry` or `.opencode/skills/perry` | `~/.agents/skills/perry` |
+| Skill invocation | `/perry` | invoke `perry`; lanes are arguments to the one skill | `/skills`, pick **perry**, or mention `$perry` |
 
-Anything in the SKILL.md files that mentions one of these capabilities by name is implicitly `claude-code`-shaped; the fallback below applies on Codex.
+The executor enum is `claude-subagent | opencode-subagent | codex | manual`. The host matrix is strict:
 
-## Fallback patterns
+| Host | Allowed automated executors |
+|---|---|
+| `claude-code` | `claude-subagent`, `codex` |
+| `opencode` | `opencode-subagent`, `codex` |
+| `codex-cli` | `codex` |
 
-### `AskUserQuestion` → numbered free-text prompt (codex-cli)
+If a spec pins a native executor for another host, refuse rather than silently reroute. `manual` routes to `/perry work delegate`; it is never registered with `perry-dispatch-limit`. When an auto spec omits `Executor`, offer only executors valid for `$HOST`, plus `manual`.
 
-Whenever a SKILL.md says: *use `AskUserQuestion` (header `X`, options = `A | B (Recommended) | C`)*, on Codex print this in chat instead and wait for the user reply:
+## Prompt rendering
+
+An instruction to use `AskUserQuestion` means the host's native choice UI. Claude Code uses `AskUserQuestion`; OpenCode uses `question` with equivalent labels, options and recommendation. Translate Claude's `multiSelect: true` to OpenCode's `multiple: true` exactly; passing the Claude field name to OpenCode is invalid. Codex prints numbered options and waits for free text:
 
 ```
-[X]
+[Header]
   1) A
-  2) B  ← Recommended
+  2) B  <- Recommended
   3) C
-Reply with a number (1–3), or describe a different choice.
+Reply with a number (1-3), or describe a different choice.
 ```
 
-For `multiSelect: true`, append: *"Reply with comma-separated numbers (e.g. 1,3) or `all` / `none`."*
+For multi-select on Codex, request comma-separated numbers or `all` / `none`. Rendering changes; the selected value and downstream writes do not.
 
-For `Other` follow-ups: take the user's free-text reply verbatim.
+## OpenCode native dispatch
 
-The chosen value is the same; only the rendering differs. All downstream logic (writing to `BOARD.md`, `phase/<NNN>-<slug>.md`, `design/<id>-*.md`, etc.) is unchanged.
+For `Executor: opencode-subagent`, call `Task` with `subagent_type: general`. Pass the same self-contained prompt, architecture preamble, safety constraints, git expectation, and RESULT contract used by other executors. The call is synchronous: when it returns, release the dispatch slot and run verification immediately. Do not promise a later background notification and do not write an "awaiting completion" state after the result already exists.
 
-### `Agent` / `subagent_type` → refuse `claude-subagent` executor (codex-cli)
+Architecture review on OpenCode is another synchronous `Task(subagent_type: general)` call after objective verification. It receives the architecture, diff, and primary compliance block, and its PASS/FAIL is appended exactly like other hosts.
 
-`/pmo dispatch` and `/pmo autopilot` allow `Executor: claude-subagent | codex`. On Codex:
+## No-background-shell-tool fallback
 
-- If the spec pins `Executor: claude-subagent` → refuse the dispatch. Print: *"This spec pins `Executor: claude-subagent`, which only runs under Claude Code. On Codex, switch to `Executor: codex` (edit the spec) or fall back to `/pmo delegate` (manual paste)."* Do not silently re-route.
-- If the spec pins `Executor: codex` → proceed normally; `codex exec` is host-agnostic.
-- If the spec is `Dispatch mode: auto` with `Executor` missing → the standard `AskUserQuestion` for executor choice (see above) is rendered as the numbered free-text prompt; offer only `codex` and `manual` (omit `claude-subagent`).
-
-Autopilot's eligibility scan should treat `Executor: claude-subagent` rows as **Skipped — host mismatch** on Codex, listed in the skip section with that reason.
-
-### `Bash run_in_background: true` → shell `&` (codex-cli)
-
-For `Executor: codex` dispatches (the only async executor on either host), Claude Code uses Bash's `run_in_background: true`. On Codex, run the same command via shell backgrounding:
+OpenCode and Codex do not expose Claude's Bash background parameter. For the asynchronous `codex` executor, use explicit shell backgrounding with logs and a PID where relevant:
 
 ```
 codex exec "<prompt>" > "/tmp/perry-dispatch-<task-id>.log" 2>&1 &
 echo $! > "/tmp/perry-dispatch-<task-id>.pid"
 ```
 
-PMO writes the `🚀 In flight` BOARD line and the journal `## Status changes` line as usual. Completion is detected by the user telling PMO "it finished" (or by re-invoking `/pmo status`, which `tail`s the log file and parses the `=== RESULT ===` block). Codex has no automatic completion notification.
+Poll the RESULT log/process for dispatch completion. Neither host has a Claude background-task notification.
 
-### `perry-dispatch-limit` → advisory on Codex
+## What Perry does not depend on
 
-The script (`bin/perry-dispatch-limit`) writes marker files under `~/.cache/perry/in-flight/`, so it works on any host. The `register` / `release` / `list` / `check` semantics are unchanged. The caveat is observability: a separate Codex session sharing the same cache dir would honor the count, but Codex doesn't notify on completion, so a stale marker is more likely than under Claude Code. The 1h `PERRY_DISPATCH_STALE_TTL` already covers the worst case; just label the in-flight count as advisory in the standup `🚀 In flight` line when `$HOST = codex-cli`.
+- No scheduled wakeup or cron host feature.
+- No plan-mode host feature.
+- No host-provided memory.
+- No network fetch for core project-state behavior.
 
-## What Perry does NOT depend on
-
-For clarity (so future skill additions don't accidentally couple to host features):
-
-- No `ScheduleWakeup` / `CronCreate`. Cadence rituals (`monday-plan`, `friday-review`, etc.) are user-triggered.
-- No `EnterPlanMode` / `ExitPlanMode`. Plan-style flows are explicit chat sequences.
-- No `WebFetch` / `WebSearch`. Perry never reaches the internet.
-- No host-provided memory (Claude Code's `MEMORY.md` system). Perry's persistence is its own state files at the project root.
-
-## Adding a new capability
-
-If a future Perry feature requires a host capability not in the matrix:
-1. Add the row above with `claude-code` and `codex-cli` columns.
-2. If one column is empty, document the fallback inline below.
-3. If neither host can do it, the feature does not belong in Perry.
+When adding another host capability, add a matrix column, define its fallback, and test its detection and installation path.

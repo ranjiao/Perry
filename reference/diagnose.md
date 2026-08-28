@@ -75,6 +75,61 @@ vocabulary. Someone who says "I just open two terminals and hope" needs the
 mechanism spelled out; someone who says "we tried worktrees but merging got
 messy" needs you to skip straight to the integration step. Adjust silently.
 
+### What the scan reports about work mode
+
+A project's **shape** is the first thing an audit should name, because it is
+what every later question is asked in terms of. `DESIGN-003 § 5.1` defines four
+— `project`, `pipeline`, `queue`, `inquiry` — and `modes/*.md` says what tells
+them apart: what closes the horizon, and what the spine is. The scan carries a
+`work_modes` block, one entry per declared track, or one for the project as a
+whole where no `## Tracks` register exists.
+
+Each entry is **two separate facts, and they are not merged**:
+
+| Field | Means |
+|---|---|
+| `declared_mode` + `declared` | what the register says, and whether anybody actually wrote it. `declared: false` is the implicit `main` track — a default, not a claim |
+| `mode` + `confidence` | what the observable work fits. `null` is a real value |
+
+**`null` is "cannot tell", and it is said out loud.** Three of the four modes
+are recognised off columns and files a project may simply not have — `Arrived`,
+`Stage since`, `Parent`, `## Intake`, an answer file. A scanner that fell back
+to `project` whenever it saw none of them would print a verdict for every folder
+on earth having measured none of them, which is the failure this file names one
+heading up wearing the other face: a signal that never clears is worse than no
+check, and so is a verdict that never abstains. The payload keeps two flavours
+of it apart — `confidence: none` means nothing distinguishing was found at all,
+`confidence: low` means two modes tied — and both are reported as *cannot tell*
+rather than rounded up.
+
+**Two of those columns have two owners, and the scan scores them for both.**
+`modes/*.md` is the source the scanner is derived from, and read line by line it
+gives `Stage since` to pipeline (the *stage clock*) **and** to inquiry (the
+*question clock*, whose triage step measures the same subtraction), and
+`Commitment` to pipeline (the *commitment link*) **and** to queue (the cell a
+routed intake row takes, and the promise an SLA breach is named with). A signal
+two modes own cannot tell those two apart — so it is scored for each of them, at
+a reduced weight, which leaves the margin between its own owners at exactly
+zero. It still separates them from the other two modes, which is why it is
+scored at all rather than dropped. The report that follows from this: a board
+whose only mode-ish column is `Stage since` is **cannot tell**, not pipeline.
+That case was a live defect — a correctly-declared `inquiry` track of root
+questions, whose `Parent` cells are legitimately empty and whose stage
+vocabulary is its own, scored `pipeline: 3, inquiry: 0` and was reported as
+mislabelled.
+
+**`high` costs more than one column.** The scan's floor for it is a score no
+single signal can reach, plus a lead of a whole structural signal over the
+runner-up — so a `high` verdict always rests on at least two signals, and on at
+least one that exactly one mode owns. Anything that scores but clears neither
+bar is `medium`: a mode worth naming in the report, on evidence too thin to
+contradict a user with. This matters because `MODE-01` fires on `high` alone.
+
+**Report the mode with the evidence that produced it, never bare.** "Looks like
+`queue` — the board carries eleven rows with an `Arrived` date and `## Intake`
+has four requests waiting" is a claim the user can check and argue with. "Looks
+like `queue`" is one they can only take or leave.
+
 **Say what a number means before you use it.** A threshold stated bare reads as
 arbitrary and invites dismissal. One clause is enough: "roughly 200 lines, which
 is about where models start following instructions unreliably". Then add that it
@@ -417,6 +472,7 @@ in the payload. Use it, or better it — but never present a finding without one
 | `LOAD-03` | warn | Open decisions queued on the user past the threshold. | Triage; decide the reversible ones |
 | `LOAD-04` | info | A code is defined but carries no readable name. | Title it where it's defined |
 | `NS-01` | warn | A directory Perry claims holds files Perry did not write. | Relocate the state root, or move the file |
+| `MODE-01` | warn | A track's **declared** work mode disagrees with what the board shows, with a clear margin. | Correct the `Mode` cell, or correct the work |
 | `FIT-01` | info | Far more process than work. | The subtraction |
 | `FIT-02` | info | Below the minimum viable spine. | The floor, and nothing more |
 
@@ -435,6 +491,18 @@ The two remedies are `/perry relocate <path>` or moving the file; both are
 reversible, and the first is one command. Before adoption the equivalent
 question is answered by `perry-lint --claims`, which asks *where the state root
 should go* rather than *what has encroached on it*.
+
+`MODE-01` is the one finding whose input is a claim the user made rather than a
+measurement of the tree, so the report has to hold both halves at once and say
+which is which. It is described in § What the scan reports about work mode
+below; the short version is that it fires only when the register **declared** a
+mode, the evidence points somewhere else, and the margin is wide. Under any
+other combination the honest output is the mode line, not a finding.
+
+*Wide* is a stated number, not an impression: `confidence: high`, which no
+single column can produce and which no evidence shared between two mode
+contracts can produce on its own. One column used to be enough, and one of the
+columns it counted belonged to the mode being accused.
 
 The `LOAD-*` family measures something different from the rest: not whether the
 project is well-formed, but whether a **human** can still follow it. See
@@ -491,6 +559,8 @@ This prescription is uncomfortable to give and is frequently the right one.
 - **Never exceeds the maintenance ceiling** the user gave in Q6.
 - **Never asserts an archetype** the scan scored `none` and the user did not
   confirm.
+- **Never names a work mode the evidence does not distinguish.** `cannot tell`
+  is printed as itself, and a mode nobody declared is never reported as wrong.
 - **Never treats Perry adoption as the default outcome** — it is one
   prescription among several, and frequently the wrong one.
 - **Never runs the execute stage without a restore point** — or with one it has

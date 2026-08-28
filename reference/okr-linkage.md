@@ -17,7 +17,7 @@ This is a hard gate, the same class as `pmo` "no `done` without evidence" and
 
 ### Why ID, not name
 
-- A KR's ID encodes its Objective: `P-O1.2` **is** part of `O1`. That edge never drifts.
+- A KR's ID encodes its phase AND its Objective: `P002-O1-KR2` **is** phase 002's `O1`. Neither edge drifts, and neither is recovered from position (DESIGN-007 decision #4).
 - A Project has a stable ID; its human-readable **name is a label that may change**.
 - **The link is always the ID. The name is only for humans and is resolved *to* an ID via the graph.** Matching progress reports on names directly is the bug this file exists to kill.
 
@@ -36,11 +36,13 @@ and reports the result: `linked`, `unlinked` (couldn't resolve), and
 
 Render `AskUserQuestion` (header `"KR attribution"`), listing the candidate KRs as
 options with their ID + text, plus "Other → none of these / new Project". Example
-option label: `P-O1.2 · streaming ingest latency`. The user picks the KR; record
+option label: `P<NNN>-O1-KR2 · streaming ingest latency`. The user picks the KR; record
 the result:
-- Add the task to that KR's `tasks[]` — handed to `okr`, which owns `phase/`.
+- Add the task to that KR's `tasks[]` — handed to `okr`, which owns `phase/`
+  and writes it with `bin/perry-goals link <TASK-ID> <KR-ID>`.
 - If the progress arrived under a name not yet in the graph, hand the new
-  **alias** to `okr` to append to the project's `aliases[]` (PMO never writes
+  **alias** to `okr`, whose `bin/perry-goals link --alias <PROJECT-ID>
+  "<name>"` appends it to the project's `aliases[]` (PMO never writes
   `phase/` — same hand-off pattern as `plan-week`).
 
 ### When the user is unavailable
@@ -61,7 +63,7 @@ It is **YAML frontmatter, spec `linkage: 1`** — machine-written, machine-read,
 Perry *and* by the frontend. The full field contract is in
 `$PERRY_HOME/schema/state-schema.json` and explained in
 `$PERRY_HOME/schema/README.md § The linkage contract`. The template is
-`okr/state/linkage_TEMPLATE.md`.
+`goals/state/linkage_TEMPLATE.md`.
 
 ```yaml
 ---
@@ -72,7 +74,7 @@ objectives:
   - id: O1
     title: "Automate the deploy path"
     krs:
-      - id: P-O1.1
+      - id: P<NNN>-O1-KR1
         title: "Deploy script green in staging"
         metric: "3 consecutive green runs"
         target: 3           # numbers only — omit for prose targets
@@ -85,7 +87,7 @@ agents:
     tasks: [REL-001]
 projects:                   # Perry's attribution registry
   - id: REL-001
-    serves: P-O1.1
+    serves: P<NNN>-O1-KR1
     objective: O1
     name: "Deploy script hardening"
     aliases: [deploy-hardening]

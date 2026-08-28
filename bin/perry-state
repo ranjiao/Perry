@@ -2,11 +2,9 @@
 """
 perry-state — the single deterministic read of a Perry project's state.
 
-One extractor, two consumers:
-  - the standup ritual (`/perry`, `/pmo`, `/okr`, `/design`) reads `--json`
-    instead of opening a dozen files, so dashboard numbers are computed, never
-    eyeballed;
-  - `viewer/serve.py` imports the same `parsers.py` this script does.
+One extractor, one consumer: the standup ritual (`/perry`, and its `goals` /
+`work` / `decide` lanes) reads `--json` instead of opening a dozen files, so
+dashboard numbers are computed, never eyeballed.
 
 The frontend (aiMark) does NOT call this script — it parses the same files
 in-process from `schema/state-schema.json`. The schema, not this payload, is
@@ -18,11 +16,20 @@ project has no Perry state at all — `installed: false` says so in the payload.
 
 Usage:
   perry-state [--root <project_root>] [--json | --dashboard] [--section <name>]
+  perry-state [--root <project_root>] --escalation-scan <spec-path>
 
   --json        full state payload (default)
   --dashboard   the standup dashboard rows as plain text, pre-computed
   --section     emit one top-level key only (board / phase / okr / design / …)
   --root        project root; default $PERRY_PROJECT, else walk up from cwd
+
+  --escalation-scan  the dispatch pre-flight gate on ONE spec, computed.
+                Scans `Files in scope` / `Deliverable` / `Out of scope` against
+                `escalation.union` and prints the verdict as a typed field.
+                This mode is a GATE, so it answers in its exit code as well:
+                0 = pass, 3 = refuse, 4 = unarmed (nothing declared to match,
+                which is never a pass — see `work/reference/dispatch.md` step
+                4). The read-only modes above keep exiting 0 regardless.
 
 Attribution rule (reference/okr-linkage.md): a task resolves to a KR only by
 exact Project ID, exact current name, or registered alias. Anything else is
@@ -42,9 +49,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
+sys.path.insert(0, str(PERRY_HOME / "bin"))
+import lib  # noqa: E402
 
 try:
     import parsers as P  # noqa: E402
+    from tables import split_row, squash  # noqa: E402
 except ImportError as exc:  # pragma: no cover - install-shape problem
     print(
         f"perry-state: cannot import viewer/parsers.py from {PERRY_HOME}: {exc}",
@@ -65,6 +75,42 @@ def days_since(value: str) -> int | None:
     except ValueError:
         return None
     return (date.today() - then).days
+
+
+def answered(u) -> bool:
+    """Whether a `## User Input Queue` row has had its answer.
+
+    Module level, and shared, because it has already been written twice: this
+    filter and `perry-diagnose`'s LOAD-03, which counted every `USER-` id
+    regardless of status. `perry-task list` is the third caller — a fourth copy
+    would be the same defect a third time, and this one decides the number the
+    user is supposed to act on ("2 items waiting on you" on a board where both
+    were answered the same day).
+
+    **The rule itself moved to `viewer/parsers.py § ask_is_answered` (TASK-197)
+    and this is the row-shaped wrapper over it.** The ask store is the fourth
+    caller and it lives in `bin/perry_store.py`, which cannot import this file;
+    `parsers.py` is the bottom of the import graph and is the one place both
+    halves already reach — the same move `intake_is_discharged` made one
+    register over, for the same reason. Nothing about the answer changed: this
+    took the cell, and so does that.
+    """
+    return P.ask_is_answered(getattr(u, "status", "") or "")
+
+
+def idle_days(u) -> int:
+    """How long a question has waited, in days. `-1` when nothing says.
+
+    `Asked` is a date and wins: an age computed at read time is right every
+    morning, and the `Idle` cell was a number someone had to retype — which is
+    why both rows on Perry's own board read `—`. The number-out-of-the-cell
+    fallback is for the boards that carry `Idle` and no `Asked`.
+    """
+    d = days_since(getattr(u, "asked", "") or "")
+    if d is not None:
+        return d
+    m = re.search(r"(\d+)", u.idle or "")
+    return int(m.group(1)) if m else -1
 
 
 def parse_config(root: Path) -> dict:
@@ -90,7 +136,930 @@ def parse_config(root: Path) -> dict:
         m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
         if m:
             cfg[key] = m.group(1).strip().strip("*` ")
+    # `declared_tracks`, not the raw table read: `## Tracks` is a projection
+    # of `.perry/config.jsonl` wherever that store exists, and reading the
+    # rendered table here made the dashboard report the projection while the
+    # store beside it said something else. The settings above still come out of
+    # the file — they are a separate row (P003-O2-KR1 counts the track
+    # readings) and `parse_config`'s early return already covers the
+    # no-config-at-all case.
+    cfg["tracks"] = declared_tracks(root)
+    m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
+    names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m else ["software-ops"]
+    cfg["packs"] = load_packs([n for n in names if n and n != "—"])
     return cfg
+
+
+def load_packs(names: list[str]) -> list[dict]:
+    """Active packs and the display glossary each contributes.
+
+    A pack supplies DEFAULTS, never content, and its glossary renames only what
+    Perry renders (DESIGN-003 § 5.7). File names, IDs, enum values and column
+    keys stay invariant — the same split `reference/i18n.md` already draws
+    between document language and the machine contract, applied to a third axis.
+    A pack that could rename a column key would break every parser, so the
+    loader simply never looks at one.
+    """
+    out = []
+    for name in names:
+        manifest = PERRY_HOME / "packs" / name / "pack.md"
+        entry = {"name": name, "present": manifest.exists(), "glossary": {}}
+        if entry["present"]:
+            text = manifest.read_text(errors="replace")
+            body = re.search(r"^##\s+Glossary\b(.*?)(?=^##\s|\Z)", text, re.M | re.S)
+            if body:
+                for line in body.group(1).splitlines():
+                    s = line.strip()
+                    if not s.startswith("|") or set(s) <= set("|- :"):
+                        continue
+                    cells = [c.strip("*` ") for c in split_row(s)]
+                    # `squash` for the HEADER test, never for the values: one
+                    # rule for a header cell, and it is the one every other
+                    # reader uses. `.lower()` alone reads `**Term**` as
+                    # `term**` and files a header row as glossary data.
+                    if len(cells) >= 2 and cells[0] and squash(cells[0]) != "term":
+                        entry["glossary"][cells[0]] = cells[1]
+        out.append(entry)
+    return out
+
+
+# DESIGN-003 § 5.2. A project declares 1..N tracks; each has a mode, and the
+# mode is what the router uses to decide which `modes/<mode>.md` to load. The
+# default below is the whole backward-compatibility story: a project that never
+# heard of tracks reports exactly one, named `main`, mode `project` — which is
+# today's Perry. Callers never have to special-case "no tracks declared",
+# because there is no such state.
+_STAGE_SEPARATORS: tuple[str, ...] | None = None
+
+
+def stage_separators() -> tuple[str, ...]:
+    """Read from `schema/state-schema.json § work_modes.stage_separators`.
+
+    Declared there rather than written here so the linter's "that looks like a
+    separator and is not one" check and this splitter cannot disagree about the
+    set — the shape this project keeps finding.
+    """
+    global _STAGE_SEPARATORS
+    if _STAGE_SEPARATORS is None:
+        try:
+            schema = json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text())
+            seps = ((schema.get("work_modes") or {})
+                    .get("stage_separators") or {}).get("accepted")
+        except (OSError, ValueError):
+            seps = None
+        _STAGE_SEPARATORS = tuple(seps or ("->", "→"))
+    return _STAGE_SEPARATORS
+
+
+def split_stages(cell: str) -> list[str]:
+    """`brief->draft->review` or `brief，draft，review` → the three stages.
+
+    Normalizes every accepted separator onto one before splitting, because
+    several spellings were in circulation — `->` in the schema, `→` in the mode
+    file's example, `→` with spaces in the design — while nothing split the cell
+    at all. "The first stage" and "the terminal stage" are both load-bearing.
+
+    **The comma was added 2026-08-18 and it is the one that mattered.** Only the
+    two arrow forms were accepted, so `new,triaged,resolved` — the separator a
+    person reaches for first, in a `## Tracks` table the user edits **by hand** —
+    parsed as ONE stage whose name is the whole list. A routed row then landed
+    with `Stage: new,triaged,resolved`, `entry_stage` returned it, and every
+    stage-based measure in queue, pipeline and inquiry mode — WIP, stage age,
+    the triage question each mode is *defined* by — operated on a single bogus
+    stage. Entirely silent: `perry-lint` reported 8 errors on the project it was
+    reproduced on and **not one named the cell**, and `perry-state` reported the
+    list as a stage without comment.
+
+    Found by reading the row a drain produced, not by a test.
+    """
+    s = (cell or "").strip()
+    for sep in stage_separators():
+        if sep != "->":
+            s = s.replace(sep, "->")
+    if not s or s == "—":
+        return []
+    return [p.strip() for p in s.split("->") if p.strip()]
+
+
+#: The implicit track every project without a `## Tracks` register reports —
+#: which is most projects, so **this dict is the shape most consumers see.**
+#: Every key the declared branch produces must exist here too, or a reader that
+#: works on a track-declaring project raises `KeyError` on an ordinary one.
+#: `missing_defaults` and `stages_declared` were added to the declared branch
+#: and not here, and the payload shipped that way until a claim written for
+#: aiMark was checked against both shapes instead of one.
+DEFAULT_TRACK = {"track": "main", "mode": "project", "spine": "", "stages": "",
+                 "stage_list": [], "stages_declared": False,
+                 "wip": "", "sla": "", "cycle": "", "default_rung": "",
+                 "missing_defaults": [],
+                 "declared": False}
+#: `stage_counts`, `wip_breaches`, `sla_breaches`, `sla_no_clock` and
+#: `sla_check` are deliberately NOT in the dict above: `wip_report` and
+#: `sla_report` fill them in on every track they are handed, and the implicit
+#: track is one of those — `parse_tracks` returns `[dict(DEFAULT_TRACK)]` and
+#: the same two functions walk it. A static copy here would be a second place
+#: for the shape to live, which is the defect the comment above records.
+
+
+# Column name → payload key, with the Chinese aliases from
+# `schema/state-schema.json § i18n.columns`. Resolved BY NAME, never by
+# position: only `Track` and `Mode` are required, so any of the others may be
+# absent, and a positional read would silently attribute one column's value to
+# another the moment a project omits one. (A V4 review caught exactly this bug
+# in the board-row parser; the same shape was here.)
+#: payload key → the column's English name. The SPELLINGS come from the schema
+#: at load; only this mapping is `perry-state`'s own, because "which payload key
+#: does `Default rung` fill" is a fact about this payload and nothing else.
+_TRACK_KEYS = {
+    "track": "Track", "mode": "Mode", "spine": "Spine", "stages": "Stages",
+    "wip": "WIP", "sla": "SLA", "cycle": "Cycle",
+    "default_rung": "Default rung",
+}
+
+_TRACK_COLUMNS: dict[str, tuple[str, ...]] | None = None
+
+
+def track_columns() -> dict[str, tuple[str, ...]]:
+    """Accepted spellings per payload key, **read from the schema**.
+
+    This was a hand-copy of `schema/state-schema.json § i18n.columns` — and its
+    own comment said so, naming the source and transcribing it anyway. Eight
+    columns, eight Chinese spellings, in a second place that nothing compared
+    against the first. A spelling added to the schema would have reached
+    `perry-lint`, `perry-conform`, `perry-migrate`, `perry-goals` and
+    `perry-diagnose`, all of which read the table, and not this file — so the
+    linter would accept a localized register that the track parser then read as
+    having no columns at all, which is the mode register for every queue,
+    pipeline and inquiry track in the project.
+
+    Falls back to English-only if the schema cannot be read, which is the same
+    behaviour an empty glossary produces and the correct one for a schema that
+    declares none.
+    """
+    global _TRACK_COLUMNS
+    if _TRACK_COLUMNS is None:
+        try:
+            cols = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text())
+                .get("i18n") or {}).get("columns") or {}
+        except (OSError, ValueError):
+            cols = {}
+        _TRACK_COLUMNS = {
+            key: tuple([name.lower()]
+                       + [a.lower() for per in
+                          (cols.get(name) or {}).values() for a in per])
+            for key, name in _TRACK_KEYS.items()}
+    return _TRACK_COLUMNS
+
+
+_NO_DEFAULT: dict[str, list[str]] | None = None
+
+
+def parse_wip(cell: str) -> dict[str, int]:
+    """`review:2, draft:5` → `{"review": 2, "draft": 5}`.
+
+    A limit PER STAGE, which is what `modes/pipeline.md § The mode contract`
+    declares; a bare number is not accepted, because the file says outright
+    that a positional grammar was considered and dropped — *"two grammars is one
+    parser too many"*.
+    """
+    out: dict[str, int] = {}
+    for part in re.split(r"[,;，、]+", cell or ""):
+        stage, _, limit = part.partition(":")
+        stage, limit = stage.strip().lower(), limit.strip()
+        if stage and limit.isdigit():
+            out[stage] = int(limit)
+    return out
+
+
+def wip_report(tracks: list[dict], tasks) -> None:
+    """Per-stage counts, and which stages are at or over their WIP limit.
+
+    **`modes/pipeline.md` calls WIP the mode's central control and then says
+    out loud that it has no check** — *"the checks a future release would build
+    are: WIP overflow, an item in no stage, and a `done` row that never reached
+    the terminal stage. Until then they are rules an agent follows, not rules a
+    script catches."* That concession was honest, and it left the mode's own
+    triage step 2 — "stages at their WIP limit" — doable only by eyeballing a
+    board the triage procedure forbids eyeballing.
+
+    This is the first of the three. It counts live rows per stage per track and
+    names every stage at or over its declared limit. A track that declares no
+    WIP reports counts and no breaches: silence is the right answer where the
+    project made no promise, and inventing a limit is the mistake
+    `no_default` exists to prevent.
+    """
+    live = [t for t in tasks if t.status not in {"done", "dropped"}]
+    for tr in tracks:
+        name = tr.get("track", "")
+        limits = parse_wip(tr.get("wip", ""))
+        counts: dict[str, int] = {}
+        for t in live:
+            if (t.track or "main") != (name or "main"):
+                continue
+            st = (t.stage or "").strip().lower()
+            if st:
+                counts[st] = counts.get(st, 0) + 1
+        tr["stage_counts"] = counts
+        tr["wip_breaches"] = [
+            {"stage": st, "count": counts.get(st, 0), "limit": lim}
+            for st, lim in sorted(limits.items())
+            if counts.get(st, 0) >= lim]
+
+
+#: Why a queue track's breach step could not run. `""` means it ran.
+#:
+#: **Three answers, not two.** `modes/queue.md` says a track without an SLA
+#: "cannot run the breach step, and triage reports that rather than skipping
+#: it" — so *cannot compute* has to be a value the payload carries, distinct
+#: from a computed zero. A track that ran the step and found nothing reports
+#: `runnable: true` with an empty list; a track that could not reports which of
+#: these it was.
+SLA_NOT_A_QUEUE = "not-a-queue-track"
+SLA_MISSING = "no-sla"
+SLA_UNREADABLE = "sla-not-a-duration"
+
+
+def sla_report(tracks: list[dict], tasks) -> None:
+    """`today − Arrived` per row against its track's SLA. Queue mode's step 2.
+
+    **The number this project maintains and never read.** `modes/queue.md`
+    triage step 2 is *"rows whose `today − Arrived` exceeds the track's `SLA`,
+    oldest first, each named with its age and the `Commitment` it breaches"* —
+    both inputs columns, arithmetic rather than judgment. TASK-135 made
+    `Arrived` trustworthy (carried on a queue→queue move, cleared on the way
+    off, on the argument that it "is not provenance, it is a queue's clock")
+    and the clock still had no consumer: the only reader of a track SLA
+    anywhere was `lib § classify_due`, which governs a Commitments `Due` cell.
+
+    Three decisions this inherits rather than makes:
+
+    - **Strictly `>`, so a row exactly its SLA old is NOT breached.** The mode
+      file's own word is *exceeds*, and five calendar days of allowance are not
+      exceeded by a row that has used exactly five. `over_by` on the first
+      breaching day is therefore 1, which is the honest reading of "one day
+      late" and not an off-by-one.
+    - **A row with no `Arrived` is a different finding, and it is never a
+      pass.** It goes in `sla_no_clock` and never in `sla_breaches`. Folding it
+      into "not breached" would silently merge two findings and undo the
+      decision `cmd_route` was changed for — it stopped writing `Arrived` onto
+      pipeline rows *precisely* so `rows_with_no_computable_age` could still see
+      such rows.
+    - **No default SLA.** `schema § work_modes.modes.queue.no_default` says so
+      and `modes/queue.md` argues it at length: a number Perry invented is a
+      promise nobody made, and every triage run afterwards would measure real
+      work against it. So an undeclared SLA is `runnable: false`, never zero
+      breaches.
+
+    A queue track that is **declared and empty** runs the step and reports zero.
+    That is not the same answer as `runnable: false`: the promise exists, the
+    row set is empty, and nothing was guessed to say so.
+    """
+    live = [t for t in tasks if t.status not in {"done", "dropped"}]
+    today = date.today()
+    for tr in tracks:
+        name = tr.get("track", "") or "main"
+        sla = tr.get("sla", "")
+        mode = (tr.get("mode") or "project").strip().lower()
+
+        rows = [t for t in live if (t.track or "main") == name]
+        breaches: list[dict] = []
+        no_clock: list[str] = []
+        reason = ""
+
+        if mode != "queue":
+            # The breach step is queue mode's. A pipeline row does not carry
+            # `Arrived` by design — `cmd_route` clears it on the way off a
+            # queue — so running this there would report every row as clockless.
+            reason = SLA_NOT_A_QUEUE
+        elif lib.is_blank_cell(str(sla or "")):
+            reason = SLA_MISSING
+        elif lib.parse_sla(sla) is None:
+            reason = SLA_UNREADABLE
+        else:
+            for t in sorted(rows, key=lambda r: r.id):
+                arrived = parse_iso(t.arrived)
+                if arrived is None:
+                    no_clock.append(t.id)
+                    continue
+                deadline = lib.sla_deadline(arrived, sla)
+                if deadline is None or today <= deadline:
+                    continue
+                breaches.append({
+                    "id": t.id, "title": t.title,
+                    "arrived": arrived.isoformat(),
+                    "age_days": (today - arrived).days,
+                    "sla": lib.normalize_typed_cell(sla),
+                    "over_by_days": (today - deadline).days,
+                    "commitment": (t.commitment or "").strip(),
+                })
+            # Oldest first, which is the order the mode file asks for and the
+            # order the work should be picked up in. `id` breaks the tie so the
+            # list is stable between two runs on the same board.
+            breaches.sort(key=lambda b: (b["arrived"], b["id"]))
+
+        tr["sla_breaches"] = breaches
+        tr["sla_no_clock"] = no_clock
+        tr["sla_check"] = {
+            "runnable": not reason,
+            "reason": reason,
+            "sla": lib.normalize_typed_cell(str(sla or "")),
+            "rows": len(rows),
+            "measured": len(rows) - len(no_clock) if not reason else 0,
+            "note": sla_note(name, reason, sla),
+        }
+
+
+def sla_note(track: str, reason: str, sla: str) -> str:
+    """One sentence naming the track, for a reader that prints rather than
+    branches. Empty when the step ran — there is nothing to explain."""
+    if reason == SLA_NOT_A_QUEUE:
+        return (f"track '{track}' is not a queue track — the SLA breach step "
+                "is queue mode's and did not run")
+    if reason == SLA_MISSING:
+        return (f"track '{track}' declares no SLA — the breach step cannot "
+                "run, and this is not zero breaches. Declare `SLA` in "
+                "`.perry/config.md § Tracks`, or write `no SLA — best effort` "
+                "there if that is the truth")
+    if reason == SLA_UNREADABLE:
+        return (f"track '{track}' has SLA "
+                f"'{lib.normalize_typed_cell(str(sla or ''))}', which is not a "
+                "duration this build can measure against — the breach step "
+                "cannot run. `5d` and `2w` are the shorthand")
+    return ""
+
+
+def parse_iso(value: str):
+    """One ISO date out of a cell, or `None`. `lib § is_iso_date` is the gate,
+    so a cell this reader accepts is one `perry-lint` and `perry-goals` accept
+    — the shape-only reader that took `2026-02-30` is the defect that pair was
+    split to remove."""
+    text = lib.normalize_typed_cell(value or "")
+    if not lib.is_iso_date(text):
+        return None
+    return date.fromisoformat(text)
+
+
+def default_stages_for(mode: str) -> list[str]:
+    """A mode's default stage vocabulary, from the schema.
+
+    The same `work_modes.modes.<mode>.default_stages` `bin/perry-task §
+    default_stages` reads, so the reader and the writer cannot disagree about
+    where a row is born.
+    """
+    global _DEFAULT_STAGES
+    if _DEFAULT_STAGES is None:
+        try:
+            modes = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text()).get("work_modes") or {}
+            ).get("modes") or {}
+        except (OSError, ValueError):
+            modes = {}
+        _DEFAULT_STAGES = {m: split_stages((c or {}).get("default_stages", ""))
+                           for m, c in modes.items()}
+    return list(_DEFAULT_STAGES.get(mode, []))
+
+
+_DEFAULT_STAGES: dict[str, list[str]] | None = None
+
+
+def no_default_columns(mode: str) -> list[str]:
+    """Columns this mode has no honest default for, from the schema.
+
+    A number Perry invented is one the project never promised, and every triage
+    run afterwards would measure real work against it.
+    """
+    global _NO_DEFAULT
+    if _NO_DEFAULT is None:
+        try:
+            modes = (json.loads(
+                (Path(__file__).resolve().parent.parent / "schema"
+                 / "state-schema.json").read_text()).get("work_modes") or {}
+            ).get("modes") or {}
+        except (OSError, ValueError):
+            modes = {}
+        _NO_DEFAULT = {m: list((c or {}).get("no_default") or [])
+                       for m, c in modes.items()}
+    return _NO_DEFAULT.get(mode, [])
+
+
+def missing_defaults(col, mode: str) -> list[str]:
+    """The no-default columns this track left blank, in schema order."""
+    blank = {"", "—", "–", "-", "n/a", "tbd", "?"}
+    out = []
+    for name in no_default_columns(mode):
+        key = name.lower().replace(" ", "_")
+        if (col(key) or "").strip().lower() in blank:
+            out.append(name)
+    return out
+
+
+def parse_tracks(text: str) -> list[dict]:
+    """`.perry/config.md § Tracks` → one dict per track; never empty."""
+    body = re.search(r"^##\s+(?:Tracks|轨道)\b(.*?)(?=^##\s|\Z)",
+                     text, re.M | re.S)
+    if not body:
+        return [dict(DEFAULT_TRACK)]
+
+    def cells_of(line: str) -> list[str]:
+        return [c.strip("*` ") for c in split_row(line)]
+
+    header: dict[str, int] = {}
+    rows = []
+    for line in body.group(1).splitlines():
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        if set(s) <= set("|- :"):
+            continue
+        cells = cells_of(s)
+        # `squash`, not `.lower()`: a header cell may carry decoration on part
+        # of itself. `| **Default** rung |` lowers to `default** rung` and
+        # matches nothing, so the column silently goes missing and every row
+        # reports no default rung. Values keep their own bytes — `cells`.
+        low = [squash(c) for c in cells]
+        if not header:
+            # First table row is the header — that is what declares the layout.
+            if any(a in low for a in track_columns()["track"]):
+                header = {key: next((low.index(a) for a in aliases if a in low), -1)
+                          for key, aliases in track_columns().items()}
+                continue
+            # A table with no recognizable header cannot be read safely.
+            break
+        if not cells or not cells[0]:
+            continue
+
+        def col(key: str, default: str = "") -> str:
+            i = header.get(key, -1)
+            return cells[i] if 0 <= i < len(cells) else default
+
+        rows.append({
+            "track": col("track"),
+            "mode": (col("mode").lower() or "project"),
+            "spine": col("spine"),
+            "stages": col("stages"),
+            # **Effective**, not merely declared. A track that leaves
+            # `Stages` blank still HAS stages — its mode's default vocabulary,
+            # which is what `bin/perry-task § stages_of` uses to place every row
+            # it creates. Reporting `[]` said the track had no stage vocabulary
+            # while the writer was birthing rows into one: two readers of one
+            # register, two answers, and the mode's own triage step reads this
+            # side. `stages_declared` keeps the other question answerable.
+            "stage_list": (split_stages(col("stages"))
+                           or default_stages_for(col("mode").lower()
+                                                 or "project")),
+            "stages_declared": bool(split_stages(col("stages"))),
+            "wip": col("wip"),
+            "sla": col("sla"),
+            "cycle": col("cycle"),
+            "default_rung": col("default_rung"),
+            # **Which no-default columns this track left undeclared.**
+            #
+            # `modes/pipeline.md`, `modes/queue.md` and the schema all say the
+            # missing-SLA case is reported *by triage*. `perry-lint` reports it
+            # at file level; **triage had nothing to read**, so the claim was
+            # true in three documents and implemented in a fourth place none of
+            # them named. Triage is an agent procedure and the procedure forbids
+            # eyeballing the board, so without a payload field it could not obey
+            # the rule its own mode file states.
+            #
+            # The list of which columns a mode has no honest default for is read
+            # from `work_modes.modes.<mode>.no_default`, never copied — the same
+            # source `perry-lint` reads, so the linter and triage cannot report
+            # different tracks.
+            "missing_defaults": missing_defaults(
+                col, col("mode").lower() or "project"),
+            "declared": True,
+        })
+    return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
+
+
+# ── the track register, read from the store ───────────────────────────────
+#
+# ADR-007 / P003-O2-KR1. `.perry/config.md` is a PROJECTION of
+# `.perry/config.jsonl` wherever that store exists, and four call sites —
+# `parse_config` here, `bin/perry-goals § tracks_of`, `bin/perry-diagnose §
+# scan_work_modes` and `bin/perry-task § main` — read the rendered markdown as
+# truth anyway. Each is now one call to `declared_tracks` below.
+#
+# `parse_tracks` above STAYS and is deliberately still reachable: it is the
+# adoption/migration reader — the only thing that can answer the question for a
+# project whose store does not exist yet, which is every foreign project
+# `perry-diagnose` was written for — and it is what `tests/test_md_store.py`
+# compares the derived store against. What went away is reading the projection
+# while the store it is projected FROM is sitting beside it.
+
+_BLANK_MARKER: str | None = None
+
+
+def blank_marker() -> str:
+    """How this project's files spell "this cell says nothing": `—`.
+
+    Read from `schema/state-schema.json § i18n.blank_cell.en`, first entry,
+    rather than written here — the same list `lib.is_blank_cell` matches
+    against, so the spelling this hands back cannot become one that function
+    would not recognise.
+    """
+    global _BLANK_MARKER
+    if _BLANK_MARKER is None:
+        try:
+            blank = (lib.load_schema().get("i18n") or {}).get("blank_cell") or {}
+            en = [v for v in (blank.get("en") or []) if isinstance(v, str)]
+        except Exception:                                        # noqa: BLE001
+            en = []
+        _BLANK_MARKER = en[0] if en else "—"
+    return _BLANK_MARKER
+
+
+def track_from_record(rec: dict) -> dict:
+    """One `kind: track` store record → the dict `parse_tracks` returns.
+
+    **The blank marker is put back, and that is the whole difference between
+    the two readers.** `perry_md_store § stored_value` normalises a declared
+    blank — `—`, `n/a`, `无` — to the empty string on the way INTO the store,
+    because the marker is layout and the value is "nothing"; `parse_tracks`
+    hands back the cell the project actually wrote. Both spellings are one
+    value to every consumer (each of them routes the cell through
+    `lib.is_blank_cell`: `parse_wip`, `sla_report`, `lib.due_track_missing_clock`,
+    `bin/perry-task § stages_of`), so the payload keeps the marker and
+    `perry-state --json` reports the same bytes it reported when it read the
+    markdown. A reader that emitted `""` here would be a refactor that changed
+    what the dashboard prints, which this row is not.
+
+    `stage_list`, `stages_declared` and `missing_defaults` are computed from
+    the STORED value, never from the marker, so nothing downstream has to know
+    which of the two spellings it was handed.
+    """
+    def col(key: str, default: str = "") -> str:
+        value = rec.get(key, default)
+        return value if isinstance(value, str) else ("" if value is None else str(value))
+
+    mode = col("mode").lower() or "project"
+    stages = col("stages")
+
+    def shown(key: str) -> str:
+        return col(key) or blank_marker()
+
+    return {
+        "track": col("track"),
+        "mode": mode,
+        "spine": shown("spine"),
+        "stages": shown("stages"),
+        "stage_list": split_stages(stages) or default_stages_for(mode),
+        "stages_declared": bool(split_stages(stages)),
+        "wip": shown("wip"),
+        "sla": shown("sla"),
+        "cycle": shown("cycle"),
+        "default_rung": shown("default_rung"),
+        "missing_defaults": missing_defaults(col, mode),
+        "declared": True,
+    }
+
+
+def stored_tracks(project_root: Path) -> list[dict] | None:
+    """`.perry/config.jsonl § kind track`, or `None` when there is no store.
+
+    `None` means "ask the file" and covers three cases, all of which are a
+    project the store cannot answer for: no store on disk (every project that
+    has not migrated, and every foreign project `perry-diagnose` reads), a
+    store that is not readable JSONL, and a store carrying no track record at
+    all — the last being a project whose `.perry/config.md` has no `## Tracks`
+    section, where `[]` would hand the router the empty list `parse_tracks`
+    exists to make impossible.
+
+    A store that is present but malformed falls back rather than raising:
+    `perry-state` is the read-everything tool and exits 0 on a project with no
+    state at all, so it may not be the thing that turns an unreadable store
+    into a crash. `perry-config verify` and `perry-lint` are where a store that
+    disagrees with its projection is reported.
+    """
+    path = project_root / ".perry" / "config.jsonl"
+    if not path.exists():
+        return None
+    try:
+        # Imported here, not at module scope: `perry_md_store` reads the schema
+        # at import time and refuses a bad one, and this file is imported by
+        # every other tool in `bin/` — a schema problem must not turn every
+        # read into an ImportError before the payload can report it.
+        import perry_md_store as md_store  # noqa: PLC0415
+        good, findings = md_store.validate_records(md_store.load_store(path))
+    except Exception:                                            # noqa: BLE001
+        return None
+    if findings:
+        return None
+    rows = [r for r in good
+            if r.get("kind") == "track" and (r.get("track") or "").strip()]
+    if not rows:
+        return None
+    # `order` is the record's position, and a record written before the field
+    # existed sorts after the graded ones rather than at zero — the same rule
+    # `perry_md_store § plan` applies when it reports records out of stored
+    # order.
+    rows.sort(key=lambda r: (r.get("order") is None, r.get("order") or 0))
+    return [track_from_record(r) for r in rows]
+
+
+def declared_tracks(project_root: Path) -> list[dict]:
+    """Every track this project declares. **The store is truth.**
+
+    The one reader every call site goes through, so "which tracks exist" cannot
+    have two answers on a project where `.perry/config.jsonl` and
+    `.perry/config.md` have come apart. Never empty, for the reason
+    `parse_tracks` is never empty: the router has no "no tracks declared"
+    branch.
+    """
+    stored = stored_tracks(project_root)
+    if stored is not None:
+        return stored
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return [dict(DEFAULT_TRACK)]
+    return parse_tracks(cfg.read_text(errors="replace"))
+
+
+def raw_events(project_root: Path) -> list[dict]:
+    """Every event, parsed. One reader, because there were about to be three.
+
+    `reconcile_drift` parsed this file inline and `verification_distribution`
+    needed it too; a second inline copy is how the four "same rule, two
+    implementations" defects in this repo started. A corrupt line is skipped,
+    never fatal — the log is derived and must not be able to break a read.
+    """
+    path = project_root / ".perry" / "events.jsonl"
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def read_event_log(project_root: Path) -> dict:
+    """`.perry/events.jsonl` — the history `BOARD.md` cannot hold.
+
+    DERIVED AND DISPOSABLE (DESIGN-004 § 5.3). Absent, every field below is
+    zero and nothing else in the payload changes: markdown stays canonical, and
+    what is lost is history resolution, not truth. A caller must never need this
+    block to know current state.
+    """
+    path = project_root / ".perry" / "events.jsonl"
+    out = {"present": path.exists(), "total": 0, "by_event": {}, "last": ""}
+    if not path.exists():
+        return out
+    by: dict[str, int] = {}
+    last = ""
+    n = 0
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # a corrupt line is not a reason to lose the rest
+        n += 1
+        by[e.get("event", "?")] = by.get(e.get("event", "?"), 0) + 1
+        last = e.get("ts", "") or last
+    out.update(total=n, by_event=dict(sorted(by.items())), last=last)
+    return out
+
+
+
+def reconcile_drift(project_root: Path, board, events: dict) -> dict:
+    """Does the board agree with the record of how it got that way?
+
+    DESIGN-004 § 5.4. Three conditions, and the first is NOT drift — which is
+    the correction this implementation makes to the spec's wording.
+
+    A board row with no creating event could be a hand-edit, or it could simply
+    predate `perry-task`. Nothing on a row records when it was created, so the
+    two are indistinguishable, and Perry's own board had 29 such rows the day
+    the tool shipped. Reporting them as drift would make the first standup after
+    every upgrade a wall of noise about work that was done correctly under the
+    old rules — and a check people learn to ignore is worse than no check.
+
+    So `unrecorded` is reported as context, with the log's baseline timestamp so
+    a reader can judge it, and `drift` counts only the two conditions that are
+    unambiguous:
+
+      orphaned   — an event opened a task and the board has no row and no close.
+                   The mutation did not land in the markdown.
+      stale_done — a `done` row whose latest event is not its close. The row was
+                   edited after the tool wrote it.
+
+    Reported, never refused (decision 5): a user editing their own markdown is
+    legitimate, and the right response is that Perry notices.
+
+    **UNCHECKED IS `null`, NOT ZERO (TASK-117).** With no event log this
+    returned `checked: false` beside `drift: 0`, `unrecorded: 0` and three
+    empty lists — and every one of those five values is an ASSERTION that
+    somebody looked and found nothing. `checked` is honest; the numbers sitting
+    beside it are the trap, because a consumer that reads a count and not a
+    flag concludes clean. That is the same defect `perry-lint §
+    check_store_drift` states the rule for in its own docstring — *"'No store'
+    and 'clean' are different answers"* — and the same shape as `not_observable`
+    reading zero.
+
+    So when nothing was compared, nothing is reported: every findings-shaped
+    field is `null`. `null` does not assert an absence the way `0` and `[]` do,
+    and a consumer that skipped the flag fails loudly (`None + None`,
+    `for x in None`) instead of rendering a clean board. `baseline` stays `""`
+    because it is not a finding — it is a timestamp that genuinely does not
+    exist here.
+
+    The three list fields are nulled for the same reason as the two counts and
+    not one reason weaker: `len(orphaned)` reads exactly as `drift` does. One
+    predicate — `checked` — governs the whole block, so there is one thing to
+    read rather than five.
+    """
+    out = {"checked": False, "baseline": "", "drift": None,
+           "unrecorded": None, "unrecorded_sample": None,
+           "orphaned": None, "stale_done": None}
+    if not events.get("present"):
+        return out  # no log — a pre-DESIGN-004 project, not a broken one
+    out.update(drift=0, unrecorded=0, unrecorded_sample=[],
+               orphaned=[], stale_done=[])
+
+    path = project_root / ".perry" / "events.jsonl"
+    seq: dict[str, list[dict]] = {}
+    baseline = ""
+    for line in path.read_text(errors="replace").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        tid = e.get("id")
+        if not tid:
+            continue
+        seq.setdefault(tid, []).append(e)
+        ts = e.get("ts", "")
+        baseline = ts if not baseline or (ts and ts < baseline) else baseline
+
+    out["checked"] = True
+    out["baseline"] = baseline
+
+    # Only the rows a writer can reach. `board.all_tasks` also carries
+    # `## Cadence`, and `perry-task` has no cadence subcommand — `Board.find()`
+    # iterates P0/P1/P2 and cannot even locate one. Counting them made
+    # `unrecorded` a number no project could ever drive to zero: every board
+    # that uses `## Cadence` (which the template, the schema headings and
+    # `work/SKILL.md` all prescribe) would show the Drift row at every standup,
+    # forever, describing rows that neither predate the log nor were hand-edited
+    # in any sense the agent can act on. That is precisely the "a check people
+    # learn to ignore is worse than no check" failure this function's docstring
+    # names as its own reason for existing.
+    #
+    # Perry's own board ships an EMPTY cadence placeholder, which the `if t.id`
+    # filter drops — so dogfooding could never surface this and three review
+    # rounds did not. Round 2 fixed the event tuple below and left the row set
+    # describing the world one round earlier.
+    rows = {t.id: t for t in (list(board.p0) + list(board.p1) + list(board.p2))
+            if getattr(t, "id", "")}
+
+    # Two events create a row: `add` raises one directly, `route` promotes one
+    # out of `## Intake`. Recognizing only `add` would report every routed row
+    # as un-tool-written forever — the detector manufacturing the false drift
+    # it exists to catch. Keep this tuple in step with `perry-task`'s writers.
+    creating = ("add", "route")
+
+    for tid, row in rows.items():
+        events_for = seq.get(tid, [])
+        if not any(e.get("event") in creating for e in events_for):
+            out["unrecorded"] += 1
+            if len(out["unrecorded_sample"]) < 5:
+                out["unrecorded_sample"].append(tid)
+            continue
+        if row.status == "done" and events_for[-1].get("event") != "done":
+            out["stale_done"].append(tid)
+
+    for tid, events_for in seq.items():
+        if tid in rows:
+            continue
+        if any(e.get("event") in creating for e in events_for) and \
+           not any(e.get("event") in ("done", "drop") for e in events_for):
+            out["orphaned"].append(tid)
+
+    out["drift"] = len(out["orphaned"]) + len(out["stale_done"])
+    return out
+
+
+def cadence_report(board) -> dict:
+    """`BOARD.md § Cadence` — what recurs, and what is late.
+
+    `work/reference/subcommands.md § triage` has told the agent to surface
+    "Cadence row past its `Next due` … by age" since before there was any way
+    to compute that, and `modes/queue.md` makes overdue recurrences step 5 of
+    queue-mode triage. Both were instructions to eyeball a table, which is the
+    one thing Perry's oldest rule forbids. This is the arithmetic.
+
+    **A cell that cannot be read is reported, never rounded to "fine".** Three
+    of the five rows on one live register carry prose in `Next due`, and two
+    frequencies there (`continuous`, `hourly`) have no period at all. Treating
+    an unreadable cell as "not overdue" would silently exempt exactly the rows
+    most likely to have been abandoned — the same failure as an SLA clock that
+    stops when it cannot parse an arrival date. So:
+
+    - `overdue` — a real date, in the past. Sorted by age, oldest first.
+    - `undated` — the frequency IS periodic, so this row should carry a
+      computable due date, and the cell does not yield one. A finding.
+    - `unreadable_frequency` — the frequency itself is prose this build has no
+      period for. Not necessarily wrong (`ad hoc` spelled some other way), but
+      nothing here can schedule it, and saying so beats guessing.
+
+    A row that is legitimately aperiodic — `continuous`, `hourly` — appears in
+    `items` with `frequency_kind: "aperiodic"` and in none of the three lists.
+    """
+    today = date.today()
+    items, overdue, undated, unreadable = [], [], [], []
+    for c in getattr(board, "cadence_items", []):
+        parsed = P.parse_frequency(c.frequency)
+        kind = parsed[0] if parsed else ""
+        due = P.parse_due(c.next_due)
+        days = (today - due).days if due else None
+        row = {
+            "id": c.id, "title": c.title, "owner": c.owner,
+            "frequency": c.frequency, "frequency_kind": kind,
+            "last_run": c.last_run, "next_due": c.next_due,
+            # The parsed date, beside the raw cell. A consumer that wants to
+            # sort or diff needs the date; one that wants to show the user what
+            # the board says needs the cell. Handing over only the cell is what
+            # made every reader write its own half-parser.
+            "due": due.isoformat() if due else None,
+            # `None` when the row is not late, INCLUDING when it is due today —
+            # a ritual due today is due, not overdue. Written as an explicit
+            # `is not None` test below rather than a truthiness test, because 0
+            # is falsy and a truthy test would keep a `days >= 0` bug invisible:
+            # the payload would carry `days_overdue: 0` and the list would still
+            # look right. A guard that works by accident is one a later edit
+            # removes without anything going red.
+            "days_overdue": days if (days is not None and days > 0) else None,
+            "last_evidence": c.last_evidence,
+        }
+        items.append(row)
+        if row["days_overdue"] is not None:
+            overdue.append(row)
+        elif kind == "period" and due is None:
+            undated.append({"id": c.id, "next_due": c.next_due,
+                            "frequency": c.frequency})
+        if not kind:
+            unreadable.append({"id": c.id, "frequency": c.frequency})
+    overdue.sort(key=lambda r: -r["days_overdue"])
+    return {"count": len(items), "overdue": overdue, "undated": undated,
+            "unreadable_frequency": unreadable, "items": items}
+
+
+def verification_distribution(tasks, events=None) -> dict:
+    """How closures on this project were verified (DESIGN-003 § 5.3).
+
+    `unrated` is reported separately from the rungs rather than folded into
+    V1, because "nobody said" and "someone said an artifact exists" are
+    different claims and collapsing them would flatter the board. It is also
+    the number that should shrink over the advisory release — decision 4 made
+    the rung optional for one cycle precisely so this count can be watched
+    instead of forcing a migration.
+    """
+    # Board rows AND close events. Reading only rows measured an empty set:
+    # `perry-task done` REMOVES the row it closes, so on this repo 29 closures
+    # carrying rungs (28 V3, one V4) reported `closed: 0`. The verification
+    # ladder — the whole of DESIGN-003 § 5.3, including the rule that anything
+    # outward-facing or carrying money needs V5 — was grading nothing the tool
+    # had ever closed, which by then was all of them.
+    #
+    # A row still on the board wins over its event: the board is canonical and
+    # a hand-edited rung is a legitimate correction.
+    rungs: dict[str, str] = {}
+    for e in (events or []):
+        if e.get("event") == "done" and e.get("id"):
+            rungs[e["id"]] = (e.get("rung") or "").strip().upper()
+    for t in tasks:
+        if t.status == "done" and getattr(t, "id", ""):
+            rungs[t.id] = (getattr(t, "verification", "") or "").strip().upper()
+
+    by_rung: dict[str, int] = {}
+    unrated = 0
+    for rung in rungs.values():
+        if re.fullmatch(r"V[0-6]", rung):
+            by_rung[rung] = by_rung.get(rung, 0) + 1
+        else:
+            unrated += 1
+    return {
+        "closed": len(rungs),
+        "by_rung": dict(sorted(by_rung.items())),
+        "unrated": unrated,
+    }
 
 
 def hook_profile(root: Path) -> dict:
@@ -98,17 +1067,181 @@ def hook_profile(root: Path) -> dict:
 
     `/pmo dispatch` pre-flight and `/pmo autopilot`'s safety scan both match
     specs against this list. If it is missing there is nothing to match, so the
-    gate is reported as unarmed rather than silently passing."""
+    gate is reported as unarmed rather than silently passing.
+
+    **`high_stakes_armed` is a weaker claim than it reads as**, which is why
+    `high_stakes_unextractable` sits beside it. Armed says the section has
+    bullets; it does not say the bullets arm anything. `~/proj/gimegime-pmo`
+    reported `armed: true` over a list whose five bullets produced three
+    fragments — a gate two fifths loaded, described by the same word as a full
+    one. The dead bullets are published here rather than left to the linter for
+    the reason `must_escalate.unextractable` is published on a role card: the
+    delegation prompt renders this list, and a prompt that presents an
+    unenforced sentence as a constraint is the failure being fixed. TASK-202.
+    """
     path = root / ".perry" / "hook.md"
-    out = {"present": path.exists(), "high_stakes": [], "high_stakes_armed": False}
+    out = {"present": path.exists(), "high_stakes": [],
+           "high_stakes_armed": False, "high_stakes_unextractable": []}
     if not path.exists():
         return out
-    text = P._strip_comments(path.read_text(errors="replace"))
-    section = P._section(text, "High-stakes operations", "High-stakes", "高风险操作")
-    items = [b for b in P._bullets(section) if "{{" not in b]
+    # `P.hook_escalation_lines` is the one reader — the section spelling, the
+    # `High-stakes` prefix tolerance and the `{{` template filter all live
+    # there, and the copy that stood here was the second of what became three.
+    items = P.hook_escalation_lines(root)
     out["high_stakes"] = items
     out["high_stakes_armed"] = bool(items)
+    out["high_stakes_unextractable"] = P.unextractable_lines(items)
     return out
+
+
+def knowledge_stale_days() -> int:
+    """`thresholds.knowledge_stale_days`, read from the schema (DESIGN-006 § 5.3)."""
+    try:
+        schema = json.loads(
+            (Path(__file__).resolve().parent.parent / "schema" / "state-schema.json").read_text())
+    except (OSError, ValueError):
+        return 90
+    return int(((schema.get("thresholds") or {}).get("knowledge_stale_days")
+                or {}).get("value") or 90)
+
+
+def _card_field(text: str, label: str) -> str:
+    m = re.search(rf"^\s*[-*]?\s*\**\s*{re.escape(label)}\s*\**\s*[:：]\s*([^\n]*)$",
+                  text, re.M)
+    return m.group(1).strip().strip("*` ") if m else ""
+
+
+def subscribed_knowledge(state_root: Path, topics: list[str]) -> list[dict]:
+    """The cards a role subscribes to, **with staleness visible** (§ 5.4).
+
+    A stale card is injected *flagged*, never silently and never dropped. Both
+    of the other options are worse in the same direction: dropping it means the
+    agent works without a claim the project believes, and injecting it
+    unflagged means it works from a claim nobody has checked this quarter and
+    cannot tell. The flag is the whole difference between a knowledge store and
+    a farm of confident errors.
+
+    Archived cards are excluded — `knowledge/archive/` is where an invalidated
+    card goes *with its reason*, and re-injecting it would undo the archiving.
+    """
+    kdir = state_root / "knowledge"
+    if not topics or not kdir.is_dir():
+        return []
+    stale_days = knowledge_stale_days()
+    today = date.today()
+    out: list[dict] = []
+    for topic in topics:
+        tdir = kdir / topic
+        if not tdir.is_dir():
+            # A subscription naming no topic directory. Reported rather than
+            # dropped: a role that believes it loads `ledger-quirks` and loads
+            # nothing is worse off than one that knows the topic is empty.
+            out.append({"topic": topic, "path": None, "missing_topic": True})
+            continue
+        for md in sorted(tdir.rglob("*.md")):
+            if md.name == "INDEX.md" or "archive" in md.parts:
+                continue
+            text = P._strip_comments(md.read_text(errors="replace"))
+            kind = _card_field(text, "Kind")
+            if not kind:
+                continue                     # a digest, not a card
+            seen = _card_field(text, "Last verified")
+            age = None
+            if lib.is_iso_date(seen or ""):
+                age = (today - date.fromisoformat(seen)).days
+            title = next((l.lstrip("# ").strip()
+                          for l in text.split("\n") if l.startswith("# ")), md.stem)
+            out.append({
+                "topic": topic,
+                "path": md.relative_to(state_root).as_posix(),
+                "title": title,
+                "kind": kind,
+                "owner_role": _card_field(text, "Owner role"),
+                "last_verified": seen,
+                "age_days": age,
+                "stale": age is not None and age > stale_days,
+                "invalidated_by": _card_field(text, "Invalidated by"),
+            })
+    return out
+
+
+def roles_profile(project_root: Path, state_root: Path,
+                  tasks=()) -> dict:
+    """`.perry/roles/` — the roster `delegate` renders from (DESIGN-006 § 5.2).
+
+    Four blocks, four consumers, and this payload is where each is handed over:
+    `context` and `may_touch` go into the prompt VERBATIM (advisory — they
+    shape behaviour), `knowledge` is § 5.4's subscription injection with stale
+    flags, `must_escalate.fragments` is what the pre-flight unions in, and
+    `accepted_by` + `default_rung` feed the close gate.
+
+    **Goal 7 lives in the shape of this dict.** With no card declared,
+    `cards` is empty and `escalation.union` is byte-for-byte the hook's own
+    list — every downstream scan behaves exactly as it does today.
+    """
+    cards = P.read_role_cards(project_root)
+    return {
+        # **Versioned as of aiMark's round-3 answer to Q2.** It asked whether
+        # this payload was depended on; the answer was yes, with six fields
+        # named — `declared`, and per card `name`, `path`, `accepted_by`,
+        # `default_rung`, `must_escalate.fragments`, `must_escalate.
+        # unextractable`. A payload a front-end renders and nothing promises is
+        # a promise made by accident, so the six are frozen and the rest is
+        # explicitly not.
+        #
+        # **`1.1`, TASK-205: `semantics` joins it.** That row measured the
+        # payloads carrying no `semantics` array and named three; this is the
+        # fourth, missed because it is a SUBTREE of an unversioned snapshot
+        # rather than its own `list` command. It is versioned all the same,
+        # for the reason above, and a versioned payload with nowhere to report
+        # a meaning change is one whose minor a consumer cannot act on. A
+        # plain key addition, so the minor moves and the array itself carries
+        # no entry for it.
+        "contract": "perry-roles/list/1.1",
+        # **Empty, and that is the answer.** Nothing frozen here has changed
+        # meaning since `1.0`. The key ships anyway, on every response
+        # including an empty roster, for exactly the reason `contract` does
+        # two lines up: a consumer checks before it looks, and a key that
+        # appears only when there is something to say is one it cannot check.
+        # An entry invented to fill it would send a consumer to re-check six
+        # fields that never moved.
+        "semantics": [],
+        "declared": len(cards),
+        "cards": [{
+            "name": c.name,
+            "path": c.path,
+            "accepted_by": c.accepted_by,
+            "default_rung": c.default_rung,
+            "executors": c.executors,
+            "context": c.context,
+            "may_touch": c.may_touch,
+            "loads": {"knowledge": c.loads_knowledge, "pack": c.loads_pack},
+            "must_escalate": {
+                "lines": c.escalate_lines,
+                "fragments": c.escalate_fragments,
+                # Bullets that extract nothing. Carried into the payload and
+                # not just the linter, so a renderer can say so in the prompt
+                # rather than presenting an unenforced line as a constraint.
+                "unextractable": c.escalate_unextractable,
+            },
+            "knowledge": subscribed_knowledge(state_root, c.loads_knowledge),
+            # **`tasks` was dropped at 1.0, by its only consumer's request.**
+            #
+            # It answered the second half of aiMark's phase-D roster ask —
+            # which roles exist and what each holds — computed here rather than
+            # stored, because a roster is a VIEW over roles and rows.
+            #
+            # Its round-3 report retired it: *"keep both, but tasks on the card
+            # is dead weight for us. It's unversioned and open-rows-only; the
+            # reverse edge is under contract and covers closed work."* Both
+            # halves are true. `tasks[].role` is in `perry-task/list`, carries
+            # a compatibility promise this never had, and survives a close
+            # since `role` now travels on the `done` event.
+            #
+            # Two edges over one fact is the defect this file keeps finding,
+            # and the one to drop is the one nobody reads.
+        } for c in cards],
+    }
 
 
 TIER1_CAPS = {
@@ -118,7 +1251,7 @@ TIER1_CAPS = {
 
 
 def tier1_caps(root: Path, phase_rel: str | None) -> list[dict]:
-    """Tier-1 hard caps (pmo/SKILL.md § Two file models). Reported, not enforced
+    """Tier-1 hard caps (work/SKILL.md § Two file models). Reported, not enforced
     — enforcement is the writing skill's job; this is the observation."""
     out = []
     targets = dict(TIER1_CAPS)
@@ -196,10 +1329,51 @@ def encode(obj):
     return obj
 
 
+def encode_risk(r):
+    """One risk, with its age computed rather than stored.
+
+    Same rule as `Asked`/`Idle` on the User Input Queue: the board stores
+    `Opened`, a date, and the number of days is derived at read time — a stored
+    age is stale the morning after it is written. `age_days` is `null` on a
+    bullet, which has no date at all, and that is the honest answer rather than
+    a zero a reader would take for "raised today".
+    """
+    out = encode(r)
+    out["age_days"] = days_since(getattr(r, "opened", "") or "")
+    return out
+
+
+def encode_linkage_objective(obj, *, updated, status_by_id, events,
+                             events_present):
+    """One objective from the register, with each KR's `current` carrying the
+    provenance the register cannot state for itself.
+
+    Same rule as `encode_risk` one function up: the register STORES a number
+    and the thing a reader needs — whether it can still be trusted — is derived
+    at read time, because a stored verdict is stale the morning after it is
+    written. `target` and `current` are untouched; what is added beside them is
+    who asserted `current` and when, whether a linked task has moved since, and
+    a separate count of how many of those tasks are closed.
+
+    **The count is not the number.** `bin/lib § kr_progress_provenance` carries
+    the argument in full; the short version is that "TASK-091 is closed" does
+    not establish that the regex that task deleted now occurs zero times, and
+    only re-running the count does.
+    """
+    out = encode(obj)
+    for encoded, kr in zip(out.get("krs") or [], getattr(obj, "krs", []) or []):
+        encoded.update(lib.kr_progress_provenance(
+            kr.current, kr.tasks, register_updated=updated,
+            status_by_id=status_by_id, events=events,
+            events_present=events_present))
+    return out
+
+
 # ── payload ───────────────────────────────────────────────────────────────
 
 
 TERMINAL_STAGES = {"done", "abandoned"}
+SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 
 
 def stale_run_days() -> int | None:
@@ -212,6 +1386,143 @@ def stale_run_days() -> int | None:
     except (OSError, ValueError):
         return None
     return ((schema.get("thresholds") or {}).get("stale_run_days") or {}).get("value")
+
+
+def recovery_enums() -> dict:
+    """The pipeline vocabulary needed to decide whether resume is safe."""
+    try:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return schema.get("enums") or {}
+
+
+def inspect_dossier(path: Path, pipeline: str) -> tuple[dict, list[str]]:
+    """Read the small frontmatter subset required for safe resume.
+
+    Full YAML/schema conformance remains `perry-lint`'s job. This check only
+    prevents a damaged restore point from disappearing or being offered as a
+    resumable run during startup.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {}, [f"cannot read dossier: {type(exc).__name__}: {exc}"]
+
+    if not lines or lines[0].strip() != "---":
+        return {}, ["missing opening frontmatter delimiter"]
+    closing = next((i for i, line in enumerate(lines[1:], 1)
+                    if line.strip() == "---"), None)
+    if closing is None:
+        return {}, ["missing closing frontmatter delimiter"]
+
+    fm: dict[str, str] = {}
+    for line in lines[1:closing]:
+        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
+        if m:
+            fm[m.group(1)] = m.group(2).strip().strip('"\'')
+
+    discriminator = "adoption" if pipeline == "adopt" else "diagnosis"
+    stage_enum = f"{discriminator}_stage"
+    enums = recovery_enums()
+    errors: list[str] = []
+    if fm.get(discriminator) != "1":
+        errors.append(f"expected {discriminator}: 1")
+
+    stage = (fm.get("stage") or "").strip()
+    stages = enums.get(stage_enum)
+    if not stage:
+        errors.append("missing stage")
+    elif not isinstance(stages, list):
+        errors.append(f"schema enum unavailable: {stage_enum}")
+    elif stage not in stages:
+        errors.append(f"invalid stage: {stage}")
+    else:
+        step = (fm.get("step") or "").strip()
+        enum_by_stage = {
+            ("adopt", "confirm"): "adoption_step_confirm",
+            ("adopt", "commit"): "adoption_step_commit",
+            ("diagnose", "interview"): "diagnosis_step_interview",
+        }
+        step_enum = enum_by_stage.get((pipeline, stage))
+        if step and step_enum:
+            allowed = enums.get(step_enum)
+            if not isinstance(allowed, list):
+                errors.append(f"schema enum unavailable: {step_enum}")
+            elif step not in allowed:
+                errors.append(f"invalid step for {stage}: {step}")
+        if step and pipeline == "diagnose" and stage == "execute" \
+                and re.fullmatch(r"rx-\d+", step) is None:
+            errors.append(f"invalid step for execute: {step}")
+    return fm, errors
+
+
+def dossier_records(perry_root: Path) -> list[dict]:
+    out: list[dict] = []
+    for pipeline, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
+        directory = perry_root / ".perry" / sub
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.glob("*.md")):
+            fm, errors = inspect_dossier(path, pipeline)
+            out.append({
+                "pipeline": pipeline,
+                "path": path.relative_to(perry_root).as_posix(),
+                "file": path,
+                "frontmatter": fm,
+                "errors": errors,
+            })
+    return out
+
+
+def display_path(path: Path, project_root: Path) -> str:
+    try:
+        return path.relative_to(project_root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def scan_recovery(state_root: Path, project_root: Path) -> dict:
+    """Startup hazards that require repair before normal state is trusted."""
+    pending: list[dict] = []
+    marker = state_root / ".perry-task-transaction.json"
+    if marker.exists():
+        error = None
+        phase = None
+        entries = None
+        try:
+            transaction = json.loads(marker.read_text(encoding="utf-8"))
+            if not isinstance(transaction, dict):
+                raise ValueError("expected a JSON object")
+            phase = transaction.get("phase", "commit")
+            raw_entries = transaction.get("entries")
+            entries = len(raw_entries) if isinstance(raw_entries, list) else None
+            if transaction.get("version") != 1:
+                raise ValueError("version must be 1")
+            if not isinstance(raw_entries, list):
+                raise ValueError("entries must be a list")
+            if phase not in {"commit", "rollback"}:
+                raise ValueError("phase must be commit or rollback")
+        except (OSError, ValueError, TypeError) as exc:
+            error = f"{type(exc).__name__}: {exc}"
+        pending.append({
+            "path": display_path(marker, project_root),
+            "valid": error is None,
+            "phase": phase,
+            "entries": entries,
+            "error": error,
+        })
+
+    malformed = [
+        {"pipeline": row["pipeline"], "path": row["path"],
+         "errors": row["errors"]}
+        for row in dossier_records(project_root) if row["errors"]
+    ]
+    return {
+        "blocking": bool(pending or malformed),
+        "pending_transactions": pending,
+        "malformed_dossiers": malformed,
+    }
 
 
 def scan_interrupted(perry_root: Path) -> list[dict]:
@@ -230,59 +1541,36 @@ def scan_interrupted(perry_root: Path) -> list[dict]:
     terminal."""
     out: list[dict] = []
     limit = stale_run_days()
-    for kind, sub in (("adopt", "adoption"), ("diagnose", "diagnose")):
-        d = perry_root / ".perry" / sub
-        if not d.is_dir():
+    for row in dossier_records(perry_root):
+        if row["errors"]:
             continue
-        for f in sorted(d.glob("*.md")):
-            fm = read_frontmatter(f)
-            stage = (fm.get("stage") or "").strip()
-            if not stage or stage in TERMINAL_STAGES:
-                continue
-            out.append({
-                "pipeline": kind,
-                "path": f.relative_to(perry_root).as_posix(),
-                "stage": stage,
-                "step": (fm.get("step") or "").strip() or None,
-                "started": fm.get("started"),
-                "updated": fm.get("updated"),
-                "depth": fm.get("depth"),
-                "lanes": fm.get("lanes"),
-                "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
-                # The card offers "Abandon" on every run; on a stale one it
-                # should lead with it. Computed here so the card never has to
-                # decide what "stale" means.
-                "stale": bool(limit and idle is not None and idle >= limit),
-                "stale_after_days": limit,
-                # What the user has already banked. The card needs both numbers:
-                # they are being asked to spend an hour or throw one away.
-                "declarations": count_list_items(f, "declarations"),
-                "interview_answers": count_list_items(f, "interview"),
-                "candidates_pending": count_status(f, "pending"),
-                "candidates_settled": sum(count_status(f, k) for k in
-                                          ("accepted", "edited", "rejected", "deferred")),
-            })
-    return out
-
-
-def read_frontmatter(path: Path) -> dict:
-    """Top-level `key: value` pairs from a `---` fenced block. Stdlib only."""
-    out: dict = {}
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return out
-    if not lines or lines[0].strip() != "---":
-        return out
-    for line in lines[1:]:
-        if line.strip() == "---":
-            break
-        m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
-        if m:
-            # Strip the quoting YAML allows on scalars. Leaving it on turned
-            # `updated` into `"2026-08-10T…` and silently nulled idle_days,
-            # which is the one number the interrupted-run card needs most.
-            out[m.group(1)] = m.group(2).strip().strip('"\'')
+        kind, f, fm = row["pipeline"], row["file"], row["frontmatter"]
+        stage = (fm.get("stage") or "").strip()
+        if stage in TERMINAL_STAGES:
+            continue
+        out.append({
+            "pipeline": kind,
+            "path": row["path"],
+            "stage": stage,
+            "step": (fm.get("step") or "").strip() or None,
+            "started": fm.get("started"),
+            "updated": fm.get("updated"),
+            "depth": fm.get("depth"),
+            "lanes": fm.get("lanes"),
+            "idle_days": (idle := days_since((fm.get("updated") or "")[:10])),
+            # The card offers "Abandon" on every run; on a stale one it
+            # should lead with it. Computed here so the card never has to
+            # decide what "stale" means.
+            "stale": bool(limit and idle is not None and idle >= limit),
+            "stale_after_days": limit,
+            # What the user has already banked. The card needs both numbers:
+            # they are being asked to spend an hour or throw one away.
+            "declarations": count_list_items(f, "declarations"),
+            "interview_answers": count_list_items(f, "interview"),
+            "candidates_pending": count_status(f, "pending"),
+            "candidates_settled": sum(count_status(f, k) for k in
+                                      ("accepted", "edited", "rejected", "deferred")),
+        })
     return out
 
 
@@ -335,6 +1623,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             # Computed even here — especially here. An abandoned adoption looks
             # exactly like a virgin folder to `installed`, and routing it to
             # First-time setup is the bug this field exists to prevent.
+            "recovery": scan_recovery(root, perry_root),
             "interrupted": scan_interrupted(perry_root),
             "warnings": ["No Perry state found — run /perry for first-time setup."],
         }
@@ -352,6 +1641,19 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     open_states = {"not_started", "in_progress", "blocked", "review"}
     all_tasks = board.all_tasks
 
+    # Per-stage counts and WIP breaches, computed here because this is the first
+    # point that has both the track register and the board's rows. `triage`
+    # step 2 for a pipeline track reads it; without it the step was doable only
+    # by eyeballing a board the procedure forbids eyeballing.
+    _cfg_for_wip = parse_config(perry_root)
+    wip_report(_cfg_for_wip.get("tracks") or [], all_tasks)
+    # Queue mode's triage step 2, on the same two inputs and at the same point,
+    # for the same reason: this is the first place that has both the track
+    # register (which holds the SLA) and the board's rows (which hold
+    # `Arrived`). Until this line the clock TASK-135 made trustworthy had no
+    # consumer at all.
+    sla_report(_cfg_for_wip.get("tracks") or [], all_tasks)
+
     # KR attribution — exact resolution only; the rest are surfaced, not guessed.
     link = snap.linkage
     if link.spec and link.error:
@@ -366,11 +1668,61 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         else:
             unlinked.append({"id": t.id, "title": t.title})
 
-    uiq = board.user_input_queue
-    def idle_days(u):
-        m = re.search(r"(\d+)", u.idle or "")
-        return int(m.group(1)) if m else -1
+    # KR `current` provenance (TASK-120). The register's numbers are
+    # hand-written and nothing re-derives them; these say so, and say when a
+    # linked task has moved since one was asserted. Computed once and used
+    # both by the `linkage` section below and by the roll-up in `attribution`,
+    # so the section and the count cannot disagree.
+    # `perry_root`, not `root`: `.perry/` is anchored at the PROJECT root even
+    # when state lives in a subdirectory, which is the same rule the block at
+    # the top of this function states for config and hook.
+    _events = raw_events(perry_root)
+    _events_present = (perry_root / ".perry" / "events.jsonl").exists()
+    _status_by_id = lib.task_status_index(root, board)
+    linkage_objectives = [
+        encode_linkage_objective(o, updated=link.updated,
+                                 status_by_id=_status_by_id, events=_events,
+                                 events_present=_events_present)
+        for o in link.objectives] if link.ok else []
+    _kr_rows = [k for o in linkage_objectives for k in (o.get("krs") or [])]
+    stale_krs = [k["id"] for k in _kr_rows if k["current_staleness"]["stale"]]
+    kr_currents = {
+        "total": len(_kr_rows),
+        "asserted": sum(1 for k in _kr_rows
+                        if k["current_provenance"]["state"] == "asserted"),
+        "unasserted": sum(1 for k in _kr_rows
+                          if k["current_provenance"]["state"] == "unasserted"),
+        # Not a placeholder for a number nobody filled in: no tool in Perry
+        # re-runs a KR's metric, so this is zero by construction and is emitted
+        # so that a reader treating `current` as measured data is contradicted
+        # by the payload rather than by a docstring.
+        "measured": sum(1 for k in _kr_rows
+                        if k["current_provenance"]["measured"]),
+        "stale": len(stale_krs),
+        "stale_ids": stale_krs,
+    }
+    if stale_krs:
+        warnings.append(
+            f"{len(stale_krs)} KR `current` value(s) were asserted before a "
+            f"linked task moved and can no longer be trusted: "
+            f"{', '.join(stale_krs)} — re-measure the metric and run "
+            f"/perry goals score-phase.")
+
+    # Only what the user still owes an answer to. `len(section)` counted every
+    # row ever added — on Perry's own board both rows were answered on
+    # 2026-08-16 and the dashboard still said "2 items waiting on you", which
+    # is the one number in the whole payload the user is supposed to act on.
+    #
+    # Second location of a defect already fixed once this session:
+    # `perry-diagnose`'s LOAD-03 counted every USER- id regardless of status.
+    # Same shape, different file — which is why this is a shared predicate now
+    # rather than a second inline filter.
+    uiq = [u for u in board.user_input_queue if not answered(u)]
+
     oldest_uiq = max(uiq, key=idle_days) if uiq else None
+    open_risks = snap.open_top_risks
+
+    cadence = cadence_report(board)
 
     locked_designs = [d for d in snap.design if d.status == "locked"]
     pending_handoff = [d for d in locked_designs if d.impl_refs == 0]
@@ -378,7 +1730,7 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     board_path = root / "BOARD.md"
     board_lines = len(board_path.read_text(errors="replace").split("\n")) if board_path.exists() else 0
     if board_lines > 200:
-        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /pmo triage.")
+        warnings.append(f"BOARD.md is {board_lines} lines, over the 200-line cap — run /perry work triage.")
 
     phase_rel = f"phase/{snap.phase.slug}.md" if snap.phase else None
     caps = tier1_caps(root, phase_rel)
@@ -393,33 +1745,85 @@ def build(root: Path, project_root: Path | None = None) -> dict:
         warnings.append("phase/CURRENT points at a phase file that does not exist.")
 
     hook = hook_profile(perry_root)
+    roles = roles_profile(perry_root, root, board.all_tasks)
+    # The dispatch pre-flight scans against THIS, not against `hook.high_stakes`
+    # alone (DESIGN-006 § 5.2, goal 6). `project` is the hook's own list and is
+    # computed identically whether or not roles exist; `roles` is what each card
+    # adds. The union only ever grows — a role can add to what the project
+    # refuses to do unsupervised, and there is no mechanism by which it removes.
+    escalation = P.escalation_union(perry_root)
+    # Both halves of the union, in one loop, saying one sentence.
+    #
+    # The hook half was missing entirely until TASK-202: a role's dead
+    # escalation line has been warned about since TASK-075, while the same
+    # sentence in `.perry/hook.md` — the file EVERY project has, and the one a
+    # roleless project has instead of a card — was read, dropped and never
+    # mentioned. The standup is where it belongs, next to `armed`, because
+    # `armed: true` is the claim it qualifies.
+    #
+    # The card half's wording changed with it. It said the line "has no
+    # backticked span", which TASK-201 made false in the same release that
+    # fixed the linter's copy of it: backticks are not the test, the extractor
+    # is, and a line whose only span is below the floor has a backtick and
+    # arms nothing. `P.unextractable_says` is now the only place that sentence
+    # exists.
+    for bullet in hook["high_stakes_unextractable"]:
+        warnings.append(P.unextractable_says(bullet, P.HOOK_SECTION)
+                        + " Run /perry work lint.")
+    for card in roles["cards"]:
+        for bullet in card["must_escalate"]["unextractable"]:
+            warnings.append(
+                f"role `{card['name']}`: "
+                + P.unextractable_says(bullet, P.CARD_SECTION)
+                + " Run /perry work lint --knowledge.")
     if not hook["high_stakes_armed"]:
         warnings.append(
-            "No high-stakes list in .perry/hook.md — /pmo dispatch and /pmo autopilot "
+            "No high-stakes list in .perry/hook.md — /perry work dispatch and /perry work autopilot "
             "have nothing to match against; the safety scan is unarmed."
         )
 
     sunsets = expired_sunsets(snap.adrs)
     for s in sunsets:
-        warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /pmo decide --expire {s['id']}.")
+        warnings.append(f"{s['id']} sunset criteria passed {s['days_past']}d ago — run /perry decide adr --expire {s['id']}.")
 
     if snap.arch_meta.exists:
         if snap.arch_meta.status.lower().startswith("draft"):
             warnings.append("ARCHITECTURE.md is still Status: draft.")
         rev = days_since(snap.arch_meta.last_reviewed)
         if rev is not None and rev > 180:
-            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /pmo architecture review.")
+            warnings.append(f"ARCHITECTURE.md last reviewed {rev}d ago — run /perry work architecture review.")
 
     payload = {
         "schema": 1,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "installed": True,
+        "recovery": scan_recovery(root, perry_root),
         "interrupted": scan_interrupted(perry_root),
         "project": {
             "root": root.as_posix(),
             "name": snap.project_name,
-            "config": parse_config(perry_root),
+            "config": _cfg_for_wip,
             "hook": hook,
+            # Kept beside `hook` and never folded into it: a reader that sees
+            # only a merged list cannot tell an addition from a substitution,
+            # and neither could a test. `hook.high_stakes` stays exactly what
+            # the project itself declared.
+            "escalation": escalation,
+        },
+        "roles": roles,
+        # **The correlation `triage` asks for, and could not compute.**
+        # `modes/queue.md` puts `## Intake` inside `BOARD.md` on purpose and
+        # says the pressure that creates on the 200-line cap IS the signal —
+        # an intake that overflows is a queue nobody is draining. This payload
+        # carried no intake block at all, so the standup could see the board
+        # was over its cap and not why.
+        "intake": {
+            "rows": len(board.intake),
+            "undischarged": sum(1 for r in board.intake if not r["discharged"]),
+            "oldest_undischarged": next(
+                (r["arrived"] for r in sorted(
+                    (x for x in board.intake if not x["discharged"]),
+                    key=lambda x: x["arrived"] or "9999")), None),
         },
         "okr": {
             "present": bool(snap.okr.version),
@@ -458,6 +1862,17 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "cadence": len(board.cadence),
             "blocked": sum(1 for t in all_tasks if t.status == "blocked"),
             "open": sum(1 for t in all_tasks if t.status in open_states),
+            "verification": verification_distribution(all_tasks,
+                                                      raw_events(project_root)),
+            "events": read_event_log(project_root),
+            # **`board_as_authored`, not `board`.** Every other number on
+            # this payload is store-backed now (TASK-094); drift is the one
+            # question that must be asked of the rendered document, because
+            # the document is what it is checking. Handing it `snap.board`
+            # reported `drift: 0` for a row deleted from `BOARD.md` by hand.
+            # See `viewer/parsers.py § PMOSnapshot.board_as_authored`.
+            "drift": reconcile_drift(project_root, snap.board_as_authored,
+                                     read_event_log(project_root)),
             "tasks": [encode(t) for t in all_tasks],
         },
         "attribution": {
@@ -467,12 +1882,15 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "registry_rows": len(link.projects),
             "registry_present": link.ok,
             "linkage_error": link.error,
+            # How much of the KR roll-up is a measurement. `measured` is zero
+            # by construction — see the comment where it is built.
+            "kr_currents": kr_currents,
         },
         "linkage": None if not link.ok else {
             "spec": link.spec,
             "phase": link.phase,
             "updated": link.updated,
-            "objectives": [encode(o) for o in link.objectives],
+            "objectives": linkage_objectives,
             "unlinked": link.unlinked,
             "agents": [encode(a) for a in link.agents],
             "projects": [encode(p) for p in link.projects],
@@ -481,15 +1899,51 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "count": len(uiq),
             "oldest": None if not oldest_uiq else {
                 "id": oldest_uiq.id,
+                "asked": getattr(oldest_uiq, "asked", "") or "",
+                # The number a reader wants. `idle` is the raw cell and is
+                # empty on any board that stores `Asked` instead — handing that
+                # over would make a 7-day-old blocker look like it has no age.
+                "idle_days": (lambda d: d if d >= 0 else None)(idle_days(oldest_uiq)),
                 "needed": oldest_uiq.needed_from_user,
                 "idle": oldest_uiq.idle,
                 "blocks": oldest_uiq.blocks,
             },
             "items": [encode(u) for u in uiq],
         },
+        "cadence": cadence,
+        # OPEN risks only. `count` used to be `len(snap.top_risks)`, which
+        # counted the cleared ones: a risk struck through on Perry's own board
+        # the day before was still one of the four this number reported, and
+        # `top` could have been it. A risk that is over is not a top risk.
+        #
+        # `source` says whether these came from the `## Top risks` table or from
+        # the bullet list that predates it, because the two carry different
+        # amounts of truth — a bullet has no id and no `Opened`, so `id` and
+        # `age_days` are absent-or-invented there and real in a table. A reader
+        # that cannot tell which it got will trust both equally.
         "risks": {
-            "top": None if not snap.top_risks else encode(snap.top_risks[0]),
-            "count": len(snap.top_risks),
+            "top": None if not open_risks else encode_risk(open_risks[0]),
+            "count": len(open_risks),
+            "cleared": len(snap.top_risks) - len(open_risks),
+            "source": snap.risks_source,
+            "items": [encode_risk(r) for r in open_risks],
+            # **The cleared ones, in full, beside the count and never inside
+            # `items`** (TASK-040). `items` is the live set and stays it. But
+            # `cleared` was a bare integer, so the one field a cleared risk
+            # exists to carry — `cleared_on`, the day it stopped being a risk,
+            # a typed field of the register's record — was emitted by nothing
+            # and readable only by opening the markdown.
+            #
+            # **`perry-task list --json § risks` deliberately does not carry
+            # it.** That payload is a versioned contract whose page is read by
+            # `tests/contract_key_parity.py`, and `items[]` and
+            # `cleared_items[]` are the same eleven keys — so its one risk key
+            # table matched both containers and therefore neither, taking
+            # KR-O2.4 from 0 to 22 in a measured run. This surface carries no
+            # contract page, so the cleared risks are readable here today; the
+            # contract gains them when its page can name them unambiguously.
+            "cleared_items": [encode_risk(r) for r in snap.top_risks
+                              if r.resolved],
         },
         "decisions": {
             "count": len(snap.adrs),
@@ -563,6 +2017,33 @@ def dash(payload: dict) -> str:
         f"📋 Open tasks     : P0={b['p0']['total']} · P1={b['p1']['total']} · "
         f"P2={b['p2']['total']} · blocked={b['blocked']} · BOARD {b['lines']}/{b['cap']} lines"
     )
+    # Omitted entirely when nothing on the board has closed — a distribution
+    # over zero closures is a row that says nothing and costs a line every
+    # standup. It appears the moment there is something to report.
+    v = b.get("verification") or {}
+    if v.get("closed"):
+        parts = [f"{k}={n}" for k, n in (v.get("by_rung") or {}).items()]
+        if v.get("unrated"):
+            parts.append(f"unrated={v['unrated']}")
+        lines.append(
+            f"🔬 Verification   : {' · '.join(parts)} "
+            f"({v['closed']} closure{'s' if v['closed'] != 1 else ''})"
+        )
+    # Drift: shown when there is something unambiguous to act on, or when the
+    # board is largely unrecorded and the reader should know the check is only
+    # covering part of it. Silent when the tool wrote everything — a line that
+    # says "0" every day is a line people stop reading.
+    d = b.get("drift") or {}
+    if d.get("checked") and (d.get("drift") or d.get("unrecorded")):
+        bits = []
+        if d.get("orphaned"):
+            bits.append(f"{len(d['orphaned'])} event(s) with no row")
+        if d.get("stale_done"):
+            bits.append(f"{len(d['stale_done'])} row(s) edited after close")
+        if d.get("unrecorded"):
+            bits.append(f"{d['unrecorded']} row(s) predate the log "
+                        f"(since {d.get('baseline', '')[:10]})")
+        lines.append(f"🔀 Drift         : {' · '.join(bits)}")
     ops = payload["operations"]
     if ops.get("inputs"):
         lines.append(f"📥 Inputs         : {ops['inputs']} undigested (oldest: {ops['inputs_oldest']} @ {ops['inputs_oldest_days']}d)")
@@ -581,6 +2062,30 @@ def dash(payload: dict) -> str:
         f"⏳ User Input Q   : {uiq['count']}"
         + (f" · oldest: {oldest['id']} @ {oldest['idle']}" if oldest else "")
     )
+    # Silent on a project with no register — a line reading "0" every standup
+    # is a line people stop reading. Present the moment there is one, because
+    # the whole point of a recurrence register is that nobody notices when a
+    # ritual quietly stops happening.
+    cad = payload.get("cadence") or {}
+    if cad.get("count"):
+        bits = [f"{cad['count']} registered"]
+        if cad["overdue"]:
+            o = cad["overdue"][0]
+            bits.append(f"{len(cad['overdue'])} overdue "
+                        f"(oldest: {o['id']} @ {o['days_overdue']}d)")
+        if cad["undated"]:
+            bits.append(f"{len(cad['undated'])} with no readable Next due")
+        # The third list, which this line used to drop. A row unreadable on
+        # BOTH axes is in `unreadable_frequency` only — the `undated` branch is
+        # gated on `kind == "period"` — so it appeared nowhere on the human
+        # surface at all. That is the row nothing can schedule and nothing was
+        # saying so about, which is the exact failure this register exists to
+        # catch. `work/reference/subcommands.md § triage` and
+        # `modes/queue.md § triage` step 5 both name all three lists.
+        if cad.get("unreadable_frequency"):
+            bits.append(f"{len(cad['unreadable_frequency'])} with an "
+                        f"unreadable Frequency")
+        lines.append(f"🔁 Cadence        : {' · '.join(bits)}")
     att = payload["attribution"]
     if att["unlinked"]:
         lines.append(f"🔗 Unlinked       : {len(att['unlinked'])} tasks awaiting KR attribution (never guessed; ask the user)")
@@ -620,10 +2125,49 @@ def resolve_root(explicit: str | None) -> Path:
     return cur
 
 
+#: `--escalation-scan`'s exit codes. `unarmed` is NOT folded into `pass`:
+#: `dispatch.md` step 4 requires an explicit go-ahead in chat when nothing is
+#: declared, and `autopilot.md` refuses outright, so the two outcomes have to
+#: be distinguishable without reading the JSON.
+SCAN_EXIT = {"pass": 0, "refuse": 3, "unarmed": 4}
+
+
+def escalation_scan(project_root: Path, spec_arg: str | None) -> int:
+    """The dispatch pre-flight gate on one spec — computed, not eyeballed.
+
+    Step 4 of `work/reference/dispatch.md` used to hand an agent a fragment
+    list and a paragraph of rules and ask it to perform the match. It did, as
+    a substring match, because that is what the hook's own sentence described:
+    on 2026-08-20 `origin` matched "original bytes" and `adopt` matched
+    "adopted project", and two dispatches that touched no remote and ran no
+    adoption stopped for a human. Correcting `matching_escalations` alone would
+    not have changed that, because no code path was performing the match.
+    TASK-107.
+    """
+    if not spec_arg:
+        print("perry-state: --escalation-scan needs a spec path", file=sys.stderr)
+        return 2
+    spec = Path(spec_arg)
+    if not spec.is_file():
+        print(f"perry-state: no spec at {spec_arg!r}", file=sys.stderr)
+        return 2
+
+    union = P.escalation_union(project_root)
+    out = P.scan_spec_escalations(spec.read_text(errors="replace"),
+                                  union["union"])
+    out["spec"] = spec.as_posix()
+    out["fragments_scanned"] = len(union["union"])
+    out["origins"] = {f: union["origins"].get(f, [])
+                      for f in out["refuse"] + out["green_lit"]}
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return SCAN_EXIT[out["verdict"]]
+
+
 def main(argv: list[str]) -> int:
     mode = "json"
     root_arg = None
     section = None
+    spec_arg = None
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -640,6 +2184,10 @@ def main(argv: list[str]) -> int:
         elif arg == "--section":
             i += 1
             section = argv[i] if i < len(argv) else None
+        elif arg == "--escalation-scan":
+            mode = "escalation-scan"
+            i += 1
+            spec_arg = argv[i] if i < len(argv) else None
         else:
             print(f"perry-state: unknown argument {arg!r} (try --help)", file=sys.stderr)
             return 2
@@ -650,9 +2198,39 @@ def main(argv: list[str]) -> int:
     # project already uses a directory name Perry claims. `.perry/` stays at the
     # project root — it holds the pointer, so it can't sit behind it.
     root = P.resolve_state_root(project_root)
-    # parsers.py resolves PROJECT_ROOT at import time from cwd; override it so
-    # --root works regardless of where the script was invoked from.
-    P.PROJECT_ROOT = root
+    # parsers.py resolves BOTH roots at import time by walking up from the cwd,
+    # so on `--root <elsewhere>` they answer for the wrong project entirely.
+    # Overridden here, as a PAIR, each to the root its own name means.
+    #
+    # This line used to be `P.PROJECT_ROOT = root` — the STATE root, assigned to
+    # the global that means the directory `.perry/` is anchored at. On every
+    # project whose state IS its root the two are the same directory and the
+    # inversion is invisible; on a project with `State root: <subdir>` — this
+    # one — it left PROJECT_ROOT pointing at a directory with no `.perry/` in
+    # it. That is not a naming complaint: `--escalation-scan` below was handed
+    # the same wrong root, found zero fragments and reported a clean `unarmed`,
+    # and was fixed at its own call site rather than here (TASK-164).
+    #
+    # Nothing in parsers.py reads either global at call time today —
+    # `load_snapshot`'s `STATE_ROOT` default is bound at def time and every
+    # caller passes a root explicitly — so this is a sync, not a hand-off. It
+    # is kept, and kept paired, because the next reader to appear will read the
+    # name and get the directory the name promises.
+    P.PROJECT_ROOT = project_root
+    P.STATE_ROOT = root
+
+    # Ahead of `build()` on purpose: the gate needs the hook and the role
+    # cards, not the board, the OKR or the journal. A safety check that cannot
+    # answer until every other reader has succeeded is a safety check that
+    # fails open on an unrelated parse error.
+    if mode == "escalation-scan":
+        # `project_root`, NOT `root`: `.perry/` is anchored at the project root
+        # even when state lives in a subdirectory, exactly as `build()` says
+        # two lines into itself. Handing this the state root silently returned
+        # zero fragments and a clean `unarmed` — a gate reporting that it has
+        # nothing to check, from a project whose hook lists thirty things.
+        return escalation_scan(project_root, spec_arg)
+
     payload = build(root, project_root)
 
     if mode == "dashboard":

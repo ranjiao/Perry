@@ -14,7 +14,7 @@ declarations:
     at: "{{YYYY-MM-DD}}T{{HH:MM:SS}}Z"
     content: |
       {{verbatim, multi-line — exactly what the user authored.
-       This is what commit hands to /okr init. Never a re-render.}}
+       This is what commit hands to /perry goals init. Never a re-render.}}
 sources:
   - id: SRC-001
     kind: readme
@@ -30,7 +30,7 @@ clusters:
   - id: CL-01
     name: "{{cluster name — the work, not the source}}"
     seed: commit_scope
-    kr: "{{P-O1.1 once attributed, else omit}}"
+    kr: "{{P<NNN>-O1-KR1 once attributed, else omit}}"
 candidates:
   - id: CAND-001
     kind: task
@@ -80,7 +80,7 @@ candidates:
   candidate is a good idea. A `high`-confidence candidate can still be rejected.
 - **Never delete a rejected candidate.** It is the "don't ask me again" record,
   and it is a large part of why the dossier outlives the adoption run.
-- **Objectives and KRs here are a strawman.** They exist to start the `okr init`
+- **Objectives and KRs here are a strawman.** They exist to start the `/perry goals init`
   interview, never to be written as-is. See `reference/adoption.md § The
   asymmetry`.
 

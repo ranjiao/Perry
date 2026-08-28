@@ -1,0 +1,53 @@
+# Board — {{project name}}
+
+> Live working memory. Current open work only — closed tasks leave this file.
+> History of what happened on a given day: `journal/{{YYYY-MM}}/{{YYYY-MM-DD}}.md`
+> Per-task spec / deliverable / audit: `evidence/{{YYYY-MM}}/{{TASK-ID}}-*.md` (P0/P1 always have a `{{TASK-ID}}-spec.md`)
+> Auto-dispatch a task: `/perry work dispatch {{TASK-ID}}` (requires spec.Dispatch mode = auto)
+>
+> Last updated: {{YYYY-MM-DD}}
+> Hard cap: ≤200 lines. If you're over, run `/perry work triage`.
+
+## P0 (must finish this period)
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
+
+## P1
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
+
+## P2
+
+| ID | Title | Owner | Status | Next action | Evidence |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
+
+## Cadence (recurring; doesn't consume P0 slots)
+
+| ID | Recurring task | Owner | Frequency | Last run | Next due | Last evidence |
+|---|---|---|---|---|---|---|
+|  |  |  |  |  |  |  |
+
+## User Input Queue
+
+| USER-id | Needed from user | Blocks | Idle | Status |
+|---|---|---|---|---|
+|  |  |  |  |  |
+
+## Top risks (one-line; full list in `PROJECT_STATE.md`)
+
+<!-- Written by `perry-task risk-add` / `risk-clear`. The tool mints the `ID`,
+     stamps `Opened` and owns `Status`; `Risk` is your sentence. A cleared row
+     STAYS here — it is the record that the mitigation worked — and simply
+     stops counting. A bullet list is still read, so an older board keeps
+     working — but `risk-add` REFUSES there rather than converting it: a
+     section you wrote is not one this tool rewrites unasked. Run
+     `perry-task risk-migrate` (or `--dry-run --json` first) to convert every
+     bullet verbatim, once, and then add. -->
+
+| ID | Risk | Opened | Status |
+|---|---|---|---|

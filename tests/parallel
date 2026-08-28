@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Run the suite module-by-module across processes. Stdlib only, like everything else.
+
+`python3 -m unittest discover -s tests` runs 34 modules one after another and
+took **181s**; the same 1287 tests across 8 processes take **79s**. The modules
+are already independent — each builds its own project under its own temp dir —
+so the serialisation bought nothing.
+
+**Two guards, because the first version of this runner was wrong in the way
+this repository keeps finding.** It shelled out to `python3 -m unittest
+tests.<name>`, which does *not* put `tests/` on `sys.path`; `test_risks.py`
+imports `PT, Project` from a sibling by bare name, failed to import, and
+reported `Ran 1 test` — the loader's own error placeholder. The run came back
+"1207 tests" against the serial suite's 1287 and I nearly reported it as a
+speedup. **Eighty tests had stopped running and the number was still large
+enough to look right.**
+
+So: it invokes `discover` per module (which sets the path the same way the
+serial run does), and it **fails on any module that contributes zero tests**.
+A module that stops loading is a red, not a smaller total.
+
+    python3 tests/parallel              # everything
+    python3 tests/parallel -j 4         # fewer workers
+    python3 tests/parallel test_migrate # one module, by prefix
+
+Exit status is 0 only if every module ran and every test passed.
+"""
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures as cf
+import os
+import pathlib
+import subprocess
+import sys
+import time
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def run_module(name: str) -> tuple[str, int, int, str]:
+    proc = subprocess.run(
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests",
+         "-p", name],
+        capture_output=True, text=True, cwd=ROOT)
+    ran = sum(int(line.split()[1])
+              for line in proc.stderr.splitlines() if line.startswith("Ran "))
+    return name, proc.returncode, ran, proc.stderr
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("only", nargs="*", help="module name prefixes to run")
+    ap.add_argument("-j", type=int, default=min(8, (os.cpu_count() or 4)),
+                    help="worker processes (default: min(8, cpus))")
+    args = ap.parse_args()
+
+    mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
+    if args.only:
+        mods = [m for m in mods if any(m.startswith(p.removesuffix(".py"))
+                                       for p in args.only)]
+        if not mods:
+            print(f"no test module matches {args.only}", file=sys.stderr)
+            return 2
+
+    t0 = time.time()
+    with cf.ThreadPoolExecutor(max_workers=args.j) as ex:
+        results = sorted(ex.map(run_module, mods))
+
+    failed = [r for r in results if r[1] != 0]
+    empty = [r for r in results if r[1] == 0 and r[2] == 0]
+    total = sum(r[2] for r in results)
+
+    for name, code, ran, err in failed:
+        print(f"\n\033[31m✗ {name}\033[0m")
+        print("\n".join(err.strip().splitlines()[-25:]))
+    for name, _, _, _ in empty:
+        print(f"\n\033[31m✗ {name} ran zero tests\033[0m — it loaded without "
+              f"error and contributed nothing. A module that stops running is "
+              f"a failure, not a smaller total.")
+
+    print(f"\n{len(results)} modules · {total} tests · {time.time() - t0:.1f}s "
+          f"· {args.j} workers")
+    if failed or empty:
+        print(f"\033[31m✗ {len(failed) + len(empty)} module(s) red\033[0m")
+        return 1
+    print("\033[32m✓ all green\033[0m")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -72,7 +72,7 @@ The third row has a second clause that only shows up on a real project: **if the
 source document is already in the repo and readable where it is, do not
 transcribe it.** Copying `design/global-search.md` into `design/DESIGN-001-*.md`
 produces two copies of one document, which is the duplication
-`pmo/SKILL.md § Style rules` forbids outright — and the copy starts rotting
+`work/SKILL.md § Style rules` forbids outright — and the copy starts rotting
 immediately.
 
 Transcribe when Perry's structure adds something the source cannot provide: an
@@ -264,15 +264,15 @@ Write in dependency order, each through its owning subcommand:
 | Candidate kind | Target | Written by |
 |---|---|---|
 | — | `.perry/config.md` | `/perry` setup (language + repo layout) |
-| `objective`, `kr` | `OKR.md` | `/okr init` |
-| `phase`, phase KRs | `phase/001-<slug>.md` + `phase/<NNN>-linkage.md` | `/okr plan-phase` |
-| `design` | `design/<ID>-<slug>.md` | `/design new` |
-| `task` | `BOARD.md` + journal | `/pmo add-task` |
-| — | linkage `tasks[]` edges | `/okr link` (from the cluster→KR map) |
-| `decision` | `decisions/ADR-NNN-*.md` | `/pmo decide` |
-| `knowledge` | `knowledge/<topic>/` | `/pmo digest` |
-| `arch` | `ARCHITECTURE.md` | `/pmo architecture init` |
-| `risk` | `PROJECT_STATE.md § Risks` | `/pmo risk` |
+| `objective`, `kr` | `OKR.md` | `/perry goals init` |
+| `phase`, phase KRs | `phase/001-<slug>.md` + `phase/<NNN>-linkage.md` | `/perry goals plan-phase` |
+| `design` | `design/<ID>-<slug>.md` | `/perry decide new` |
+| `task` | `BOARD.md` + journal | `/perry work add-task` |
+| — | linkage `tasks[]` edges | `/perry goals link` (from the cluster→KR map) |
+| `decision` | `decisions/ADR-NNN-*.md` | `/perry decide adr` |
+| `knowledge` | `knowledge/<topic>/` | `/perry work digest` |
+| `arch` | `ARCHITECTURE.md` | `/perry work architecture init` |
+| `risk` | `PROJECT_STATE.md § Risks` | `/perry work risk` |
 
 **`commit` is resumable and idempotent.** It writes through nine subcommands, and
 a session that dies partway leaves some of them done. Two rules make re-entry
@@ -321,7 +321,7 @@ Output is a drift report, not a write:
 ```
 🔄 Adoption recheck · <project> · <N>d since adoption
 
-   New work not on the board   : 4  (commit scopes: viewer, schema)
+   New work not on the board   : 4  (commit scopes: parsers, schema)
    Board rows with no activity : 2  (TASK-014 idle 23d, no commits touch its paths)
    New docs not digested       : 1  (doc/rendering-pipeline.md)
    Previously rejected, unchanged: 9 (not re-proposed)
@@ -341,7 +341,7 @@ improvised.
 1. **The roadmap file's own headings** — a project that keeps a `TODOS.md` /
    `ROADMAP.md` has usually already grouped its own work, and those groups beat
    anything Perry would derive. Free, authored by the user, and semantic.
-2. **Conventional-commit scopes** — `feat(okr):`, `fix(viewer):`. Only useful when
+2. **Conventional-commit scopes** — `feat(okr):`, `fix(parsers):`. Only useful when
    the project actually uses them consistently; measure before relying on it (on
    the first real adoption test, 11 of 113 commits carried a scope, spread across
    6 scopes — useless as a seed).
@@ -380,7 +380,7 @@ that `schema/README.md § The linkage contract` calls out.
 **So attribution is done per cluster.** After the OKR and phase are confirmed,
 render the accepted clusters against the phase KRs (`AskUserQuestion`, header =
 cluster name, options = candidate KR ids + "none of these → unlinked"). Every task
-in the cluster inherits the edge; the edges are handed to `/okr link`, which owns
+in the cluster inherits the edge; the edges are handed to `/perry goals link`, which owns
 `phase/<NNN>-linkage.md`.
 
 This is ~6 decisions instead of ~40, and every edge is still **declared by the
@@ -429,6 +429,63 @@ If Perry state already exists (a partially adopted project, or one adopted at
   the worse direction: silently dropping real work.
 - Existing state is never overwritten. Adoption only adds.
 
+## Migration — the project that already has state
+
+Adoption converts a project that has *no* Perry state. A different case turns up
+just as often: a project whose `BOARD.md`, `OKR.md` and `design/` already exist,
+written by hand or by an older Perry, in a shape today's readers cannot parse.
+ADR-004 says those files are **read-only until they migrate**, and this is where
+that happens.
+
+**Do not do it by hand, and do not describe it here.** Run it:
+
+```
+python3 "$PERRY_HOME/bin/perry-migrate" --root .          # the complete diff, writes nothing
+python3 "$PERRY_HOME/bin/perry-migrate" apply --root .    # writes, declares, names a restore point
+```
+
+Prose cannot assert that the id set before equals the id set after. The tool
+does — for every file, before it writes it — and refuses the file if it cannot.
+It also holds the rule this file's § "The one rule" states, in the one place it
+is hardest to hold: **the sections it creates are empty**. A project that files
+work under `## Open — 工程线` keeps that heading and every row under it; nothing
+is moved into `## P0`, because nothing in the file says which work is P0 and
+inferring it is exactly what this pipeline forbids.
+
+It asserts a second thing, which took longer to learn: **that the file still
+says what it said.** Every id, cell, character and row count can survive an edit
+that reverses the claim — a two-column legend under `## P0` widened into a task
+table, a `Status: not yet locked` normalized to `locked`, a token spliced into a
+sentence about a vendor contract. So the tool also re-reads its own output with
+`viewer/parsers` and refuses a file whose *records* changed, a line it rewrote
+that is neither a table row nor part of the header block, and a canonical value
+the author's own words — kept beside it — do not say. Each check names what it
+cannot see; `bin/perry-migrate § meaning()` is where that is written down.
+
+What the agent does around it:
+
+1. **Show the dry run.** All of it. It is the artifact the user is agreeing to.
+2. **Read back the files it will not touch**, and why. A file it refuses is
+   left byte-identical — an unresolvable status word, a table Perry does not
+   recognise, a file over its size cap. Each is one hand edit, and after it
+   `perry-migrate apply` finishes the job. "Does not recognise" is a
+   vocabulary test, not a shape one: a table is Perry's when more of the
+   schema's column names are already in its header than are missing from it.
+   `ID`, `Status` and `Owner` are the commonest words in any markdown table,
+   and sharing one of them is a coincidence.
+3. **Read the migrated files.** Not the diff — the files, as a reader. The
+   assertions above exist because three defects in a row passed thirty
+   mutations and were found by somebody opening the file, and each check states
+   its own blind spot precisely so this step still has something to do.
+4. **Never run `apply` without being asked.** ADR-004 § 4: mandatory migration
+   means the tool may refuse without it; it never means the tool may perform it
+   unasked.
+5. **Hand the restore point to the user by name.** `perry-migrate restore
+   <run-id>` puts every byte back, including the declarations the run made.
+
+`perry-migrate` refuses outright on a project with no Perry state — that project
+wants `/perry adopt`, above, which writes Perry's shape in the first place.
+
 ## Post-adoption report
 
 The first standup after adoption is a special case — the user needs to see what
@@ -461,6 +518,9 @@ Then hand off to the normal standup.
   `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Two sources of truth means a board that
   rots within a month.
 - **Never fuzzy-matches** — not for attribution, not for dedupe.
+- **Never migrates existing state as a side effect.** A project whose files
+  predate Perry's shape is converted by `bin/perry-migrate`, on the user's
+  explicit instruction, after they have read the diff — see § Migration.
 - **Never re-asks a question the user already answered.** A banked declaration is
   re-rendered for confirmation, never discarded and re-put.
 - **Never resumes without being asked to.** Detection is automatic; continuation
@@ -469,6 +529,8 @@ Then hand off to the normal standup.
 
 ## See also
 
+- [../bin/perry-migrate](../bin/perry-migrate) — the migration itself, and the
+  five guarantees it holds. § Migration above calls it; it does not restate it.
 - [adoption-sources.md](adoption-sources.md) — the source catalog: detectors, trust
   tiers, what each source may emit, and the depth matrix. Non-code projects are
   handled here, not in this file.
@@ -477,5 +539,5 @@ Then hand off to the normal standup.
 - [input-quality.md](input-quality.md) — runs unchanged on the strawman OKR.
 - [../schema/state-schema.json](../schema/state-schema.json) — the dossier
   contract (`adoption: 1`).
-- [../pmo/reference/bootstrap.md](../pmo/reference/bootstrap.md) — the greenfield
+- [../work/reference/bootstrap.md](../work/reference/bootstrap.md) — the greenfield
   path adoption replaces for existing projects.
