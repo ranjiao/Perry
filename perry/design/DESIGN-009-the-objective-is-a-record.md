@@ -119,7 +119,7 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | What shape is the id | `O-1` sequential minted / `OBJ-<hash>` content-free / reuse the `O<n>` inside KR ids | TBD | — |
+| 1 | What shape is the id | **`O-1` sequential minted** / `OBJ-<hash>` content-free / reuse the `O<n>` inside KR ids | **`O-1` sequential minted** | 2026-08-28 |
 | 2 | Where the id is written back | store only (Recommended) / store + a new `OKR.md` column / store + an HTML comment anchor | TBD | — |
 | 3 | What happens to the five existing Objectives | mint on next `perry-okr write` / mint by an explicit one-off migrate command (Recommended) / user names all five by hand | TBD | — |
 | 4 | Does `krs[].objective` keep carrying the title | keep the title and add `objective_id` (Recommended) / replace the title with the id | TBD | — |
