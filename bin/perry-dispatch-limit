@@ -73,7 +73,9 @@ Subcommands:
   register   Reserve a slot. Exit 0 = reserved; exit 1 = limit hit (stderr lists what's in flight).
   release    Free the slot for <task-id>. Exit 0 always (idempotent).
   check      Print current count for <executor>. Exit 0 if room, 1 if at limit.
-  list       Print all active markers (after cleaning stale).
+  list       Print all active markers (after cleaning stale). BOOKKEEPING, not
+             observation: it reports marker files, and cannot tell whether the
+             agent behind one is still running. See TASK-211.
 
 Executors: codex, claude-subagent, opencode-subagent
 
@@ -230,11 +232,34 @@ count_all() {
   echo "$(echo "$n" | tr -d ' ')"
 }
 
+# **This function reports BOOKKEEPING, and says so** (TASK-211).
+#
+# A marker is a file this tool wrote. Nothing here observes a process, and it
+# cannot: `registered_pid` in the marker is the pid of `perry-dispatch-limit`
+# ITSELF at `register` time, and that process exits within milliseconds — so it
+# is a record of who made the reservation, never a liveness handle. `kill -0`
+# on it says "dead" for every marker ever written, including markers whose
+# agent is alive and working.
+#
+# So the two failure directions are BOTH real and neither is detectable here:
+# an agent killed at a watchdog holds its slot until the stale sweep, and a
+# marker reaped early leaves a live agent holding nothing. Perry has hit both.
+# On 2026-08-28 an ESC killed two agents whose slots stayed reserved, and a
+# slot was reserved for a dispatch call that was never made — 20 minutes of a
+# phantom in-flight row. On 2026-08-29 two rows read "dispatched; awaiting
+# RESULT" while this tool reported 0 in flight and both deliverables were
+# already merged.
+#
+# The deliverable for that row was "list reports observation, or says plainly
+# that it reports bookkeeping and observes no process". Observation is not
+# available at this layer, so it says so — every time, not only when something
+# looks wrong, because the caller cannot tell those apart either.
 list_markers() {
   local n
   n=$(count_all)
   if [ "$n" -eq 0 ]; then
     echo "(no active dispatches)"
+    echo "    note: this is bookkeeping, not observation — it means no marker file exists, not that no agent is running. An agent whose slot was reaped, or that was never registered, is invisible here." >&2
     return
   fi
   echo "$n active dispatch(es):"
@@ -255,6 +280,7 @@ list_markers() {
       echo "  • $name  (started $((age / 60))m ago)"
     fi
   done
+  echo "    note: each line is a marker file, not an observed process. This tool cannot tell whether an agent is still running — see \`list_markers\` for why \`registered_pid\` is not a liveness handle." >&2
 }
 
 max_for_executor() {
@@ -314,6 +340,7 @@ case "$cmd" in
   "task_id": "$task_id",
   "executor": "$executor",
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "_registered_pid_note": "the pid of perry-dispatch-limit at register time, which exits immediately. NOT the agent, and NOT a liveness handle (TASK-211).",
   "registered_pid": $$
 }
 EOF
