@@ -16,6 +16,7 @@
 
 | Arrived | Request | Outcome |
 |---|---|---|
+| 2026-08-28 | running score-phase's own documented procedure adds an NS-01 warning: it writes <date>-<NNN>-<slug>-final.md and <date>-<NNN>-linkage-final.md into phase/snapshots/, and neither name matches the declared pattern — evidence/ (12), handoff/ (4) and knowledge/ (1) have been carrying the same shape all along | — |
 
 ## P0 (must finish this period)
 
