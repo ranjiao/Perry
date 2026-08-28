@@ -4737,7 +4737,17 @@ def cmd_risk_clear(args, ctx) -> dict:
     return {"id": args.id, "cleared": today, **plan}
 
 
-INTAKE_UNSET = {"", "—", "-", "–", "n/a", "tbd", "pending", "none"}
+# **`INTAKE_UNSET` lived here and is gone.** "Is this intake row discharged?"
+# had FOUR implementations in this repository — this file's three and
+# `viewer/parsers.py § _parse_intake` — and they disagreed in both directions:
+# `_NO_DATE` carries `无`, `待定` and `?` and `INTAKE_UNSET` did not, so a cell
+# reading `待定` counted as DISCHARGED for the refusal below and as WAITING for
+# the reader's queue-depth count; `INTAKE_UNSET` carried `n/a` and `pending`
+# and `_NO_DATE` did not, so those two went the other way. TASK-042's round-3
+# V4 review found the set had "no Chinese member at all" and it was left
+# unchanged for want of a caller that had to care. TASK-196 is that caller: a
+# register with a store cannot have five answers to what its own field means.
+# The rule is `parsers.intake_is_discharged` and every one of the four asks it.
 
 
 def check_intake_undischarged(intake: dict, n: str) -> None:
@@ -4754,9 +4764,11 @@ def check_intake_undischarged(intake: dict, n: str) -> None:
     `answer`, `status`, `stage` and `risk-clear` all refuse a repeat
     transition. This was the fourth implementation of "already discharged" and
     the only one that did not.
+
+    The predicate is `parsers.intake_is_discharged` — the one rule, shared with
+    the sweep, with `cmd_list` and with the store (TASK-196).
     """
-    outcome = (intake.get("outcome") or "").strip().strip("*` ").lower()
-    if outcome and outcome not in INTAKE_UNSET:
+    if P.intake_is_discharged(intake.get("outcome") or ""):
         raise Refused(
             f"intake row {n} already has an outcome: "
             f"{intake.get('outcome', '').strip()[:60]!r}. A row takes exactly "
@@ -4787,7 +4799,7 @@ def cmd_intake_sweep(args, ctx) -> dict:
     for idx, cells in rows:
         row = dict(zip(keys, cells))
         outcome = (row.get("outcome") or "").strip()
-        if outcome and outcome.strip("*` ").lower() not in INTAKE_UNSET:
+        if P.intake_is_discharged(outcome):
             discharged.append((idx, row))
     if not discharged:
         raise Refused(
@@ -6021,8 +6033,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
                 "arrived": row.get("arrived", ""),
                 "request": row.get("request", ""),
                 "outcome": outcome,
-                "discharged": bool(outcome)
-                              and outcome.strip("*` ").lower() not in INTAKE_UNSET,
+                "discharged": P.intake_is_discharged(outcome),
                 "age_days": days_between(row.get("arrived", "")),
             })
     except Refused:
@@ -6191,8 +6202,7 @@ def cmd_list(args, ctx) -> dict:
                 intake_rows.append({
                     "n": pos, "arrived": row.get("arrived", ""),
                     "request": row.get("request", ""), "outcome": outcome,
-                    "discharged": bool(outcome)
-                                  and outcome.strip("*` ").lower() not in INTAKE_UNSET,
+                    "discharged": P.intake_is_discharged(outcome),
                     "age_days": days_between(row.get("arrived", "")),
                 })
         except Refused:

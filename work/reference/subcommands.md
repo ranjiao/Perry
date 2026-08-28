@@ -53,6 +53,51 @@ during triage — an intake section that is only ever *drained* and never *fille
 is the failure `modes/queue.md` describes as "a track whose intake is always
 empty while work is clearly happening."
 
+**The section is a projection of a record store** (TASK-196, ADR-007 applied to
+a third register). `bin/perry_store.py` holds the record shape — `order`,
+`arrived`, `request`, `outcome`, `discharged` — and renders it back through the
+same functions the task and risks stores use.
+
+```bash
+"$PERRY_HOME/bin/perry-tasks" intake-build   # derive the records; write nothing
+"$PERRY_HOME/bin/perry-tasks" intake-diff    # render them back and byte-compare
+"$PERRY_HOME/bin/perry-tasks" intake-write --from-board   # the ONE-WAY import
+```
+
+**`order` is the key, and that is the one way this register is unlike the other
+two.** An intake row has no id: `resolve-intake <n>` and `route <n>` take a
+position, and `perry-task/list § intake.rows[].n` publishes one, so `n` is the
+row's ordinal and `n = order + 1`. It is a **cursor, not a name** — `intake-sweep`
+removes discharged rows and every row below them renumbers, exactly as it did
+before the store existed. What the store adds is that this can no longer happen
+unnoticed: a shift the store does not know about is `intake-store-drift` from
+the first moved row on, and a shift it does know about is a sweep, which appends
+an event. Minting a stable `IN-NNN` was considered and rejected — it would put a
+stored identity on rows the board has no column for, and it would change what an
+integer somebody types today addresses.
+
+`discharged` is the field the three columns cannot hold, the way `cleared` is
+for risks: whether a request has left the queue rides inside the `Outcome`
+cell's prose. It is carried across `--from-board` only when the store says
+`True`, because `check_intake_undischarged` makes discharge one-way — a row
+takes exactly one outcome — so `True` is a fact the board cannot un-say while
+`False` is "still waiting", which the cell answers for itself.
+
+**The byte gate is run and, for this register, it cannot fail.** Nothing here
+collapses two lines into one record the way a repeated `RX-001` does one
+register over, so rendering the derived records back is an identity. It is kept
+because it is the declared contract and because it will bite the day a stored
+field stops being a copied cell — but the proof is carried by the report's
+counters, `cells_verbatim` above all. The gate that is *not* a tautology is the
+one beside it: the store's row count and `Board.section_rows`' row count are
+compared row by row before a byte is written, because those are two functions in
+two files and one integer with two meanings is what a register with no id cannot
+survive.
+
+`perry-lint` reports a hand edit as `intake-store-drift`, at `warn`, and is
+silent-with-a-payload when there is no `intake.jsonl`: *no store* and *clean* are
+different answers.
+
 A row still sitting in intake for **more than 14 days** is reported by age. Not "after two triages": `Arrived` is recorded and nothing counts triages, so elapsed time is computable and a triage count is not. And if intake is pushing `BOARD.md` toward the 200-line cap, **say so as a finding** — a project taking on more than it discharges is exactly what that pressure means. Do not raise the cap and do not move the section somewhere it can grow unnoticed; if it recurs, that is a reason to revisit DESIGN-003 § 4 decision 3, not to relax it quietly.
 
 **Read the payload, then walk what it returns — do not open `BOARD.md` and
