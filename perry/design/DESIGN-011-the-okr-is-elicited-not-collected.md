@@ -1,7 +1,7 @@
 # DESIGN-011: The OKR is collected as ten fields where it should be elicited
 
-> Status: draft
-> Date: 2026-08-27 · Locked: —
+> Status: locked
+> Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O1.2 (`perry/OKR.md` v2, Objective 1 — the four work modes are usable, not just declared)
 > Supersedes: —   · Superseded by: —
@@ -98,10 +98,10 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | What routes the question set | track spine per DESIGN-008 (Recommended) / project age / ask the user directly | TBD | — |
-| 2 | How hard the push is | name the gap and offer a rewrite (Recommended) / office-hours' confrontational register / accept the first answer and let the rubric catch it | TBD | — |
-| 3 | Does `plan-phase` get the same treatment | yes, sharing the question bank (Recommended) / init only for now | TBD | — |
-| 4 | Where the premise challenge sits | after the questions, before writing (Recommended) / not adopted | TBD | — |
+| 1 | What routes the question set | **track spine per DESIGN-008** / project age / ask the user directly | **track spine (DESIGN-008)** | 2026-08-28 |
+| 2 | How hard the push is | **name the gap and offer a rewrite** / office-hours' confrontational register / accept the first answer and let the rubric catch it | **name the gap, offer a rewrite, once** | 2026-08-28 |
+| 3 | Does `plan-phase` get the same treatment | **yes, sharing the question bank** / init only for now | **yes, shared bank** | 2026-08-28 |
+| 4 | Where the premise challenge sits | **after the questions, before writing** / not adopted | **after questions, before writing** | 2026-08-28 |
 
 **On decision 1.** DESIGN-008 already split `Mode` into **spine** and **flow**. A
 `project`-spine track decomposes a goal; a `queue`-spine track manages an arrival

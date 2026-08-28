@@ -1,7 +1,7 @@
 # DESIGN-009: An Objective is a title string, and every link to it is a guess
 
-> Status: draft
-> Date: 2026-08-27 · Locked: —
+> Status: locked
+> Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O4.1, KR-O4.2 (`perry/OKR.md` v2, Objective 4 — aiMark manages projects through Perry)
 > Supersedes: —   · Superseded by: —
@@ -120,9 +120,9 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
 | 1 | What shape is the id | **`O-1` sequential minted** / `OBJ-<hash>` content-free / reuse the `O<n>` inside KR ids | **`O-1` sequential minted** | 2026-08-28 |
-| 2 | Where the id is written back | store only (Recommended) / store + a new `OKR.md` column / store + an HTML comment anchor | TBD | — |
-| 3 | What happens to the five existing Objectives | mint on next `perry-okr write` / mint by an explicit one-off migrate command (Recommended) / user names all five by hand | TBD | — |
-| 4 | Does `krs[].objective` keep carrying the title | keep the title and add `objective_id` (Recommended) / replace the title with the id | TBD | — |
+| 2 | Where the id is written back | **store only** / store + a new `OKR.md` column / store + an HTML comment anchor | **store only** | 2026-08-28 |
+| 3 | What happens to the five existing Objectives | mint on next `perry-okr write` / **mint by an explicit one-off migrate command** / user names all five by hand | **explicit one-off migrate command** | 2026-08-28 |
+| 4 | Does `krs[].objective` keep carrying the title | **keep the title and add `objective_id`** / replace the title with the id | **keep title, add `objective_id`** | 2026-08-28 |
 
 **On decision 1.** The `O1` in `KR-O1.1` is tempting and is the trap: it is the
 *ordinal* the contract already refused, arrived at from a different direction. A

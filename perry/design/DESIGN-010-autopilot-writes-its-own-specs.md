@@ -1,7 +1,7 @@
 # DESIGN-010: Autopilot cannot dispatch anything, and the spec is why
 
-> Status: draft
-> Date: 2026-08-27 · Locked: —
+> Status: locked
+> Date: 2026-08-27 · Locked: 2026-08-28
 > Author: Perry maintainer   · Implementation owner: TBD
 > Linked OKR: KR-O5.3, KR-O5.4 (`perry/OKR.md` v2, Objective 5 — Tasks are executed by roles that know things)
 > Supersedes: —   · Superseded by: —
@@ -86,10 +86,10 @@ ALL rows must be resolved before this doc can move to `Status: locked`.
 
 | # | Decision | Options | Chosen | Date |
 |---|---|---|---|---|
-| 1 | Does the scout write a spec file, or a prompt held in memory | write the file (Recommended) / hold it in the run | TBD | — |
+| 1 | Does the scout write a spec file, or a prompt held in memory | **write the file** / hold it in the run | **write the file** | 2026-08-28 |
 | 2 | What a machine-authored spec's `Out of scope` is worth to the gate | **nothing — fail closed on any hit** / same as a human's / green-lights only fragments the row already disclaimed | **nothing — fail closed** | 2026-08-28 |
-| 3 | What the scout does when the row is stale | refuse and report (Recommended) / re-scope it itself / refuse and open a follow-up row | TBD | — |
-| 4 | Is the scout's own output reviewed before build runs | no, the refusal is the review (Recommended) / a second scout must agree | TBD | — |
+| 3 | What the scout does when the row is stale | **refuse and report** / re-scope it itself / refuse and open a follow-up row | **refuse and report** | 2026-08-28 |
+| 4 | Is the scout's own output reviewed before build runs | **no, the refusal is the review** / a second scout must agree | **no — the refusal is the review** | 2026-08-28 |
 
 **Decision 2 is the one that matters.** It is § 5.2.
 

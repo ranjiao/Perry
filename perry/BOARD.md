@@ -85,6 +85,20 @@
 | TASK-177 | OKR setting is a ten-field checklist where it should be an elicitation | Coding Agent | not_started | DESIGN-011 drafted 2026-08-21: design/DESIGN-011-the-okr-is-elicited-not-collected.md. Four User Decisions open. Step 2 is the gate — run the question bank against a project with no OKR.md and run the rubric on the output; goal 3 (the rubric surfaces ZERO issues) is measured there or it is not measured | — | V4 | — | main |  |  |  |  |  |  |
 | TASK-179 | writing about an id costs a dangling entry, and three records tonight paid it | Coding Agent | not_started | FOURTH INSTANCE, added tonight by me: perry/evidence/2026-08/TASK-132-result.md:28 names WIT-404 while describing the witness fixture, and WIT-404 is DELIBERATELY dangling inside that fixture — an id no register carries is the whole point of it. tests/fixtures/ is illustrative so the fixture's own README does not charge the project; my record does. The dangling list is now TASK-007, TASK-9999, USER-900, USER-902, WIT-404 — five ids, every one of them added by a record describing a checker or a fixture | — | V4 | — | main |  |  |  |  |  |  |
 | TASK-180 | migrate every phase-KR id to P<NNN>-O<n>-KR<m>, one-time, no compatibility with the old form | Coding Agent | in_progress | — | — | V3 | — | main |  |  |  |  |  |  |
+| TASK-181 | D009 step 1 — objective rows exist in okr.jsonl, with no id yet | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-182 | D009 step 2 — perry-okr render rebuilds OKR.md byte-for-byte from objective records | Coding Agent | not_started | — | — | V3 | TASK-181 | main |  |  |  |  |  |  |
+| TASK-183 | D009 step 3 — the O-1 mint and the write-back to the store | Coding Agent | not_started | — | — | V3 | TASK-182 | main |  |  |  |  |  |  |
+| TASK-184 | D009 step 4 — okr.objectives[].id is filled from the store and the contract moves to 2.2 | Coding Agent | not_started | — | — | V3 | TASK-183 | main |  |  |  |  |  |  |
+| TASK-185 | D009 step 5 — an Objective id survives a rename and a reorder, proved | Coding Agent | not_started | — | — | V3 | TASK-184 | main |  |  |  |  |  |  |
+| TASK-186 | D010 step 2 — a spec declares its author, and the escalation scan reports it | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-187 | D010 step 3 — a machine-authored spec is fail-closed at the escalation gate | Coding Agent | not_started | — | — | V3 | TASK-186 | main |  |  |  |  |  |  |
+| TASK-188 | D010 step 4 — the scout, run by hand on ten real rows and scored against what the PMO actually decided | Coding Agent | not_started | — | — | V4 | TASK-187 | main |  |  |  |  |  |  |
+| TASK-189 | D010 step 5 — autopilot becomes the two-stage scout-then-build loop | Coding Agent | not_started | — | — | V4 | TASK-188 | main |  |  |  |  |  |  |
+| TASK-190 | D011 step 1 — a question bank for the first-ever-OKR route | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-191 | D011 step 2 — a real transcript, scored by the rubric that stays unchanged | Coding Agent | not_started | — | — | V4 | TASK-190 | main |  |  |  |  |  |  |
+| TASK-192 | D011 step 3 — routing and smart-skip, by track spine | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
+| TASK-193 | D011 step 4 — the escape hatch and the premise challenge | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
+| TASK-194 | D011 step 5 — plan-phase uses the same question bank | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 
 ## P2
 
