@@ -893,6 +893,13 @@
       "note": "the risks STORE (ADR-007, TASK-040) - the canonical Risk record the `Top risks` section of `BOARD.md` is projected from. State-root relative, beside `tasks.jsonl`."
     },
     {
+      "path": "intake.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the intake STORE (ADR-007, TASK-196) - the canonical Intake record the `Intake` section of `BOARD.md` is projected from. Keyed on `order`, the row's position, because an intake row has no id and is addressed by position everywhere. Declared before it exists, like `.perry/config.jsonl`; `perry-tasks intake-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
+    },
+    {
       "path": ".perry/config.jsonl",
       "kind": "file",
       "owner": "perry",

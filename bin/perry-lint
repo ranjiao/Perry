@@ -2391,6 +2391,11 @@ _STORED_FIELDS = _STORE.STORED
 #: reports the risks store as a file Perry did not write, against Perry's own
 #: claim, on every project that has one.
 _RISK_STORED_FIELDS = _STORE.RISK_STORED
+#: The intake register's field list (TASK-196). A third shape, and the first
+#: one with NO `id`: an intake row is addressed by position, so the record
+#: keys on `order`. `looks_like_perry_record` has to know that or it reports
+#: the intake store as a file Perry did not write.
+_INTAKE_STORED_FIELDS = _STORE.INTAKE_STORED
 
 
 def _empty_store_drift_stats() -> dict:
@@ -2786,6 +2791,129 @@ def check_risk_store_drift(project_root: Path, state_root: Path) -> list["Findin
     return findings
 
 
+def _empty_intake_store_drift_stats() -> dict:
+    """The typed machine-readable state before an intake comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## Intake` and `intake.jsonl` disagree — ADR-007, TASK-196.
+
+    The same posture, the same `warn`, and silent-with-a-payload when there is
+    no store, as the two checks above. What differs is the KEY, and it is the
+    whole of what makes this register harder: an intake row has no id, so a row
+    is addressed by its POSITION, and the comparison is positional.
+
+    **A row inserted or removed by hand therefore reports every row below it,
+    and that is the truth rather than the amplification `_order_drift`
+    refuses.** For a task, an inserted line moves `order` and moves nothing
+    else — the rows keep their names, so reporting them all would be one edit
+    wearing five findings. Here the position IS the name: a line typed into the
+    middle of `## Intake` really does mean that `perry-task resolve-intake 36`
+    now addresses a different request than it did yesterday. Reporting one row
+    would be reporting one row's worth of a change that moved all of them.
+    `DRIFT_ROWS_SHOWN` caps the output; it does not cap the count.
+    """
+    findings: list[Finding] = []
+    check_intake_store_drift.stats = _empty_intake_store_drift_stats()
+
+    store_path = _STORE.intake_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_intake_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "intake-store-unreadable",
+                        f"`intake.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## Intake` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "intake-store-unreadable",
+                        "`intake.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "intake-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.intake_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "intake-store-drift-uncheckable",
+                        f"the intake store could not be derived from the "
+                        f"current files ({type(exc).__name__}: {exc}), so "
+                        f"drift is unknown here rather than absent")]
+
+    good, issues = _STORE.validate_intake_records(on_disk)
+    for issue in issues:
+        n = issue.get("order")
+        who = f"row {n + 1}" if isinstance(n, int) else f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "intake-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["order"]: r for r in good}
+    live = {r["order"]: r for r in derived}
+    check_intake_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[int, str]] = []
+    for n in sorted(live):
+        want, got = stored.get(n), live[n]
+        if want is None:
+            rows.append((n, "the file carries a row at this position and the "
+                            "store has no record of it"))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is the key here, not a field: two records with
+                     # the same key cannot differ on it.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((n, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else "")))
+    for n in sorted(set(stored) - set(live)):
+        rows.append((n, "the store holds a record at this position and "
+                        "`## Intake` renders no row for it"))
+
+    check_intake_store_drift.stats["drifted"] = len(rows)
+    for n, detail in sorted(rows)[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "intake-store-drift",
+            f"row {n + 1} — {detail}. Under ADR-007 `## Intake` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. **The row number is the key**: an inserted or deleted "
+            f"line renumbers every row beneath it, so `perry-task "
+            f"resolve-intake {n + 1}` no longer addresses what it did. "
+            f"`perry-tasks intake-render --write` puts the section back in "
+            f"line with the store; `perry-tasks intake-write --from-board` "
+            f"runs the other direction and DISCARDS the stored values."))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "intake-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further intake row(s) "
+            f"disagree with `{rel_store}`."))
+    return findings
+
+
 def _order_drift(stored: dict, live: dict, rel_board: str,
                  rel_store: str) -> list["Finding"]:
     """`order` compared ONCE PER SECTION, and never per row.
@@ -3050,6 +3178,13 @@ def looks_like_perry_record(path: Path) -> bool:
     if "id" in keys and (keys <= set(_STORED_FIELDS)
                          or keys <= set(_RISK_STORED_FIELDS)):
         return True                 # a store — tasks or risks
+    # `intake.jsonl` keys on `order` and carries no `id` at all: the register
+    # has no id column and a row is addressed by position (TASK-196). The
+    # branch above cannot see it, and `order` alone is too weak a signal, so
+    # the whole key set is matched against the tuple.
+    if "order" in keys and "request" in keys \
+            and keys <= set(_INTAKE_STORED_FIELDS):
+        return True                 # a store — intake
     # `okr.jsonl` and `.perry/config.jsonl` key on `kind`, not on `id`: a
     # `setting` record carries `key` and a `track` record carries `track`, so
     # the branch above cannot see them. Same rule, read off the same tuple.
@@ -3335,6 +3470,7 @@ def main(argv: list[str]) -> int:
     findings: list[Finding] = []
     check_store_drift.stats = _empty_store_drift_stats()
     check_risk_store_drift.stats = _empty_risk_store_drift_stats()
+    check_intake_store_drift.stats = _empty_intake_store_drift_stats()
 
     if mode_templates:
         root = PERRY_HOME
@@ -3404,6 +3540,10 @@ def main(argv: list[str]) -> int:
             # before deriving anything when there is no `risks.jsonl`, which is
             # every project today.
             findings.extend(check_risk_store_drift(project_root, root))
+            # And the third register (TASK-196), on the same terms: it
+            # returns before deriving anything when there is no
+            # `intake.jsonl`, which is every project today.
+            findings.extend(check_intake_store_drift(project_root, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -3438,6 +3578,9 @@ def main(argv: list[str]) -> int:
             payload["risk_store_drift"] = dict(getattr(
                 check_risk_store_drift, "stats",
                 _empty_risk_store_drift_stats()))
+            payload["intake_store_drift"] = dict(getattr(
+                check_intake_store_drift, "stats",
+                _empty_intake_store_drift_stats()))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -3491,6 +3634,19 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · risks store: {_rst['records']} record(s), "
                       f"{_rst['drifted']} risk(s) drifted")
+        # Its own line for the reason the one above has its own line: "no
+        # intake store" and "a clean intake store" are different answers.
+        _ist = getattr(check_intake_store_drift, "stats", None)
+        if _ist and not mode_templates:
+            if not _ist["store_present"]:
+                print("  · no `intake.jsonl` — drift against the intake store "
+                      "is unchecked, not clean")
+            elif not _ist["comparison_performed"]:
+                print(f"  · intake store: {_ist['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · intake store: {_ist['records']} record(s), "
+                      f"{_ist['drifted']} row(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "

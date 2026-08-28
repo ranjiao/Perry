@@ -903,6 +903,287 @@ def risk_render(board, records: list[dict], ops) -> tuple[str, dict]:
     return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
+# ── the intake register ───────────────────────────────────────────────────
+#
+# TASK-196. The same four verbs one register over, over `BOARD.md § Intake`,
+# and the record shape and the renderer live here beside the other two for the
+# reason this module's header gives.
+#
+# **THE ONE THING THAT IS NOT LIKE RISKS: an intake row has no id.** A risk is
+# `RX-001` and carries its name in a cell. An intake row is addressed by
+# POSITION — `perry-task resolve-intake 36` takes an integer, `perry-task
+# route 36` takes the same one, and `perry-task/list § intake.rows[].n`
+# publishes it. So this store's key is `order`, the row's position among the
+# register's rows, and the join between a board line and a record is
+# positional everywhere: the renderer, the drift report and the import all ask
+# the same question the same way.
+#
+# **`n` is the ordinal and it stays the ordinal.** `n = order + 1`. The
+# alternative was to mint a stored `IN-NNN`, make `n` mean that name, and gain
+# a key a sweep cannot renumber. It was rejected twice over: it would put a
+# stored identity on rows the board has no column for and no author for, and
+# it would change what an integer somebody types today addresses — a consumer
+# that read `36` yesterday would silently get a different row, which is the
+# one outcome this row was told to prevent.
+#
+# The cost is stated rather than engineered around: **`n` is a cursor, not a
+# name.** `perry-task intake-sweep` removes discharged rows and every row below
+# them renumbers, and that was true before this store existed. What the store
+# adds is that the renumbering can no longer happen unnoticed — a shift the
+# store does not know about is `intake-store-drift` in `bin/perry-lint`, from
+# the first shifted row on, and a shift the store does know about is a sweep,
+# which appends an `intake-sweep` event.
+
+#: Written to the store. Four fields, and `order` is the KEY — see above.
+#:
+#: `discharged` is this register's `cleared`: the one stored field with no
+#: column. `viewer/parsers.py § _parse_intake` derives it from the `Outcome`
+#: cell by a prose heuristic, which is the right reading for a MIGRATION and
+#: the wrong one for a store — under ADR-007 the store is what the field
+#: means, and a hand edit to the prose is drift to be reported, not a value to
+#: absorb.
+INTAKE_STORED = ("order", "arrived", "request", "outcome", "discharged")
+
+#: `norm(header cell)` → the store field that column is rendered from. Three
+#: columns, three fields; `order` and `discharged` are deliberately absent,
+#: the first because the register has no id column and the second because it
+#: has no column at all.
+INTAKE_FIELD_BY_COLUMN = {"arrived": "arrived", "request": "request",
+                          "outcome": "outcome"}
+
+#: The heading the register lives under, canonically. Resolved per language by
+#: `ops.heading_matches` / `parsers.heading_is`, never by this literal.
+INTAKE_SECTION = "Intake"
+
+
+def intake_store_path(state_root: Path) -> Path:
+    return Path(state_root) / "intake.jsonl"
+
+
+def intake_section_shape(board, ops) -> tuple[str, list[dict]]:
+    """How `## Intake` is currently written, and every table under it.
+
+    `absent` | `table` | `prose` | `foreign`. `prose` is this register's
+    `bullets`: a section with no table at all, which `perry-task intake`
+    turns into one by calling `ensure_section`. `foreign` covers the two
+    shapes a writer must not write into — a table with no `Request` column,
+    and a section holding more than one table.
+    """
+    if not board.has_section(INTAKE_SECTION):
+        return "absent", []
+    start, end = board.named_section(INTAKE_SECTION)
+    tables = markdown_tables(board.lines, start, end, ops.norm)
+    if len(tables) == 1 and P.is_intake_register_header(tables[0]["header"]):
+        return "table", tables
+    if tables:
+        return "foreign", tables
+    return "prose", tables
+
+
+def intake_table(board, ops) -> dict | None:
+    """The one table under `## Intake` that IS the register, or None.
+
+    None means "there is nothing here this store can hold" and is never the
+    same answer as "a register with no rows in it" — the distinction
+    `risk_table` states one register up, and which `cmd_intake_render` reads
+    off the FILE rather than off the record count.
+    """
+    shape, tables = intake_section_shape(board, ops)
+    return tables[0] if shape == "table" else None
+
+
+def intake_record(values: dict, order: int,
+                  stored: dict | None = None) -> dict:
+    """One register row → one store record, in `INTAKE_STORED` key order.
+
+    `values` is the row's cells keyed by `ops.norm`ed column, as
+    `markdown_tables` returns them.
+
+    **`discharged` is the one field that is not a cell**, and it is carried
+    from the store when the store says `True` — never when it says `False`.
+    That asymmetry is not a shortcut: `bin/perry-task §
+    check_intake_undischarged` makes discharge a ONE-WAY transition ("a row
+    takes exactly one outcome"), so `True` is a fact the board cannot un-say
+    and `False` is simply "still waiting", which the `Outcome` cell answers
+    for itself. It is the same arrangement `risk_record` gives `cleared`, for
+    the same reason and with the same migration case underneath: on a row the
+    store has never seen, the prose IS the only record there is.
+    """
+    if stored is not None and stored.get("discharged") is True:
+        discharged = True
+    else:
+        discharged = P.intake_is_discharged(values.get("outcome", ""))
+    out: dict = {}
+    for k in INTAKE_STORED:
+        if k == "order":
+            out[k] = order
+        elif k == "discharged":
+            out[k] = discharged
+        else:
+            out[k] = values.get(k, "")
+    return out
+
+
+def intake_records(board, ops, current: list[dict] | None = None) -> list[dict]:
+    """The intake store, derived from `## Intake` as it stands.
+
+    **Every row of the register is a record.** `risk_records` skips a row
+    whose `ID` cell holds no handle, because such a row is layout and minting
+    an id for it would invent data. There is no equivalent here and there must
+    not be one: this register's key IS the position, so skipping a row would
+    renumber every row under it — silently moving the integer a consumer
+    typed, which is the one thing this store exists to make impossible.
+    `markdown_tables` already drops a line with no first cell.
+    """
+    table = intake_table(board, ops)
+    if table is None:
+        return []
+    by_order = {r.get("order"): r for r in (current or [])
+                if isinstance(r.get("order"), int)
+                and not isinstance(r.get("order"), bool)}
+    out: list[dict] = []
+    for n, row in enumerate(table["rows"]):
+        out.append(intake_record(row["values"], n, by_order.get(n)))
+    return out
+
+
+def validate_intake_records(records: list) -> tuple[list[dict], list[dict]]:
+    """Valid intake records, and structured findings for the malformed ones.
+
+    Same shape as `validate_risk_records`, with the key moved: `order` is a
+    unique non-null integer here rather than "an integer or null", because it
+    is what identifies the record. A record with no `order` is not a record
+    whose position went unrecorded — it is a record nothing can address, and
+    `bool` is not an integer even though Python subclasses it from `int`.
+    """
+    good: list[dict] = []
+    findings: list[dict] = []
+    seen: set[int] = set()
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line, "field": None,
+                             "message": "expected one JSON object per line"})
+            continue
+        bad = []
+        for field, value in rec.items():
+            if field not in INTAKE_STORED or field == "order":
+                continue
+            if field == "discharged":
+                ok = isinstance(value, bool)
+                expected = "true or false"
+            else:
+                ok = value is None or isinstance(value, str)
+                expected = "string or null"
+            if not ok:
+                bad.append({"field": field, "actual": type(value).__name__,
+                            "expected": expected})
+        n = rec.get("order")
+        if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+            bad.append({"field": "order", "actual": type(n).__name__,
+                        "expected": "non-negative integer"})
+        elif n in seen:
+            bad.append({"field": "order", "actual": str(n),
+                        "expected": "unique row position"})
+        if bad:
+            findings.append({"line": line,
+                             "order": n if isinstance(n, int)
+                                      and not isinstance(n, bool) else None,
+                             "fields": bad,
+                             "message": "; ".join(
+                                 f"`{b['field']}` is {b['actual']}, expected "
+                                 f"{b['expected']}" for b in bad)})
+            continue
+        seen.add(n)
+        good.append(rec)
+    return good, findings
+
+
+def intake_plan(board, records: list[dict], ops) -> dict:
+    """`## Intake`, split into the lines the store fills and the lines it does not.
+
+    The same split `risk_plan` performs, with the join done by POSITION rather
+    than by an id cell: the k-th row of the register is rendered from the
+    record whose `order` is k. That is the register's own addressing rule and
+    it is asked here exactly once, so the renderer, `bin/perry-lint`'s drift
+    report and `perry-task resolve-intake` cannot come to mean different rows
+    by the same integer.
+
+    `rows_out_of_stored_order` asks the question the positional join leaves
+    over. A board row can never sit out of stored order — its position IS the
+    key — so what can disagree is the STORE with itself: the records as the
+    file lists them against the records as `order` sequences them. A consumer
+    that reads `intake.jsonl` as a list and indexes it would then get a
+    different row from one that honours `order`, which is the same integer
+    going two ways under a different name.
+    """
+    lines = board.lines
+    by_order = {r["order"]: r for r in records
+                if isinstance(r.get("order"), int)
+                and not isinstance(r.get("order"), bool)}
+    rows: dict[int, dict] = {}
+    report = {"register": "absent", "rows_from_store": 0, "rows_verbatim": [],
+              "rows_not_on_board": [], "cells_verbatim": {},
+              "cells_wearing_decoration": {},
+              "cells_the_store_and_board_disagree_on": [],
+              "rows_out_of_stored_order": {}}
+    shape, _tables = intake_section_shape(board, ops)
+    report["register"] = shape
+    table = intake_table(board, ops)
+    if table is None:
+        report["rows_not_on_board"] = sorted(by_order)
+        return {"lines": lines, "rows": rows, "report": report,
+                "records": dict(by_order)}
+
+    header, keys = table["header"], table["keys"]
+    seen: set[int] = set()
+    for n, row in enumerate(table["rows"]):
+        i, cells = row["line"], row["cells"]
+        rec = by_order.get(n)
+        if rec is None:
+            report["rows_verbatim"].append(
+                {"cell": cells[0][:60], "n": n + 1,
+                 "why": "the store holds no record at this position"})
+            continue
+        desc, findings = row_descriptor(lines[i], cells, header, keys,
+                                        INTAKE_FIELD_BY_COLUMN, rec)
+        if desc is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60], "n": n + 1,
+                                            "why": findings[0]["why"]})
+            continue
+        # `render_lines` looks the record up by `key`, so the key is the
+        # position — the same integer, not a second name for it.
+        desc["id"] = desc["key"] = n
+        seen.add(n)
+        for f in findings:
+            if "verbatim" in f:
+                report["cells_verbatim"][f["verbatim"]] = \
+                    report["cells_verbatim"].get(f["verbatim"], 0) + 1
+            elif "decorated" in f:
+                report["cells_wearing_decoration"][f["decorated"]] = \
+                    report["cells_wearing_decoration"].get(f["decorated"], 0) + 1
+            else:
+                report["cells_the_store_and_board_disagree_on"].append(
+                    {"id": n + 1, "n": n + 1, "column": f["column"],
+                     "board": f["file"], "store": f["store"]})
+        rows[i] = desc
+        report["rows_from_store"] += 1
+    report["rows_not_on_board"] = sorted(set(by_order) - seen)
+    in_file = [r["order"] for r in records
+               if isinstance(r.get("order"), int)
+               and not isinstance(r.get("order"), bool)]
+    if in_file != sorted(in_file):
+        report["rows_out_of_stored_order"] = {
+            "in_the_file": in_file[:20], "in_the_store": sorted(in_file)[:20]}
+    return {"lines": lines, "rows": rows, "report": report,
+            "records": dict(by_order)}
+
+
+def intake_render(board, records: list[dict], ops) -> tuple[str, dict]:
+    """`perry/intake.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
+    p = intake_plan(board, records, ops)
+    return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
+
+
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
            "render_line", "render_lines", "row_descriptor", "slot_descriptor",
@@ -910,4 +1191,8 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "RISK_STORED", "RISK_FIELD_BY_COLUMN", "RISK_SECTION",
            "risk_store_path", "risk_section_shape", "risk_table",
            "risk_record", "risk_records", "risk_plan", "risk_render",
-           "validate_risk_records"]
+           "validate_risk_records",
+           "INTAKE_STORED", "INTAKE_FIELD_BY_COLUMN", "INTAKE_SECTION",
+           "intake_store_path", "intake_section_shape", "intake_table",
+           "intake_record", "intake_records", "intake_plan", "intake_render",
+           "validate_intake_records"]

@@ -1320,6 +1320,77 @@ _ANNOTATION = re.compile(r"->|→|[(（\[【<;；\n]")
 _NO_DATE = _APERIODIC | {"—", "–", "-", "tbd", "无", "none", "待定", "?", "??"}
 
 
+# ── the intake register: ONE rule, every caller ───────────────────────────
+#
+# **TASK-196, and it is TASK-040's lesson arriving a second time.** "Is this
+# intake row discharged?" had FOUR implementations when the store was written,
+# and they disagreed in both directions:
+#
+#   `viewer/parsers.py § _parse_intake`   `squash(outcome) not in _NO_DATE`
+#   `bin/perry-task § check_intake_undischarged`   `not in INTAKE_UNSET`
+#   `bin/perry-task § cmd_intake_sweep`            a second copy of the same
+#   `bin/perry-task § cmd_list` (twice)            a third and a fourth
+#
+# `_NO_DATE` holds `无`, `待定`, `?` and the aperiodic spellings and `INTAKE_
+# UNSET` does not, so an outcome cell reading `待定` counted as DISCHARGED for
+# the writer's "already has an outcome" refusal and as WAITING for the
+# reader's queue-depth count. `INTAKE_UNSET` holds `n/a` and `pending` and
+# `_NO_DATE` does not, so those two went the other way. Every one of those
+# cells is one a human types.
+#
+# The store must not be the fifth. The rule is here, in the module every
+# reader of a Perry document already imports, for the reason the risks block
+# above gives: this file is the bottom of the import graph.
+
+#: The register's columns, in the order `bin/perry-task § cmd_intake` writes
+#: them. There is no `ID` column and there never was — an intake row is
+#: addressed by POSITION, which is what `perry-task resolve-intake <n>` takes
+#: and what `perry-task/list § intake.rows[].n` publishes.
+INTAKE_COLUMNS = ["Arrived", "Request", "Outcome"]
+
+#: Every spelling either implementation treated as "no outcome recorded", so
+#: unifying them cannot turn a row that any of the four called WAITING into a
+#: discharged one. Squashed, because the cell is one a human decorates.
+#:
+#: **`_APERIODIC` rides along, deliberately.** `ongoing` and `as needed` are
+#: cadence vocabulary and read oddly in an `Outcome` cell — but `_parse_intake`
+#: has counted them as "still waiting" since it was written, and dropping them
+#: here would silently reclassify such a row as discharged and quietly shorten
+#: the queue depth an over-cap board is judged by. Narrowing this set is a
+#: decision about somebody's board, not a tidy-up.
+INTAKE_UNSET_OUTCOME = frozenset(
+    {squash(s) for s in (_NO_DATE | {"", "n/a", "na", "pending"})})
+
+
+def is_intake_register_header(header: list[str]) -> bool:
+    """Whether this table header declares the request column.
+
+    `Request` is the column that identifies the register — it holds the
+    human's sentence — exactly as `Risk` identifies the risks register one
+    block up. Resolved by NAME through the glossary so `| 到达 | 请求 |`
+    counts, and by `squash` so `| Arrived | **Request** |` counts.
+    """
+    return bool(set(_column_keys("Request")) & {squash(c) for c in header})
+
+
+def intake_is_discharged(outcome: str) -> bool:
+    """Whether an `Outcome` cell says this request has left the queue.
+
+    The ONE rule, called by the reader, by all three writers and by the store.
+    `discharged` is what triage actually asks — a row whose `Outcome` is empty
+    is still waiting, and the count of those is what makes an over-cap board
+    mean *"the queue is not being drained"* rather than *"the board is long"*.
+
+    **Not an enum on the cell.** `resolve-intake` writes
+    `dropped <date> — <reason>` and `route` writes a task id, but the column is
+    free text on any board a human has touched, so the question is asked the
+    only way it can be: is this cell one of the spellings that means "nothing
+    recorded yet".
+    """
+    return squash(outcome or "") not in INTAKE_UNSET_OUTCOME
+
+
+
 def parse_due(cell: str) -> date | None:
     """A `Next due` cell → the date it is late after, or `None`.
 
@@ -1552,6 +1623,11 @@ def _parse_intake(section: str) -> list[dict]:
     is empty is still waiting, and the count of those is what makes an
     over-cap board mean "the queue is not being drained" rather than "the
     board is long".
+
+    The predicate is `intake_is_discharged` above, which the three writers in
+    `bin/perry-task` and `bin/perry_store.py § intake_record` also call. It was
+    spelled out inline here and in four other places, and the copies disagreed
+    — see that function.
     """
     out: list[dict] = []
     header: list[str] = []
@@ -1576,7 +1652,7 @@ def _parse_intake(section: str) -> list[dict]:
             "arrived": (row.get("arrived") or "").strip(),
             "request": (row.get("request") or "").strip(),
             "outcome": outcome,
-            "discharged": bool(outcome) and squash(outcome) not in _NO_DATE,
+            "discharged": intake_is_discharged(outcome),
         })
     return out
 
