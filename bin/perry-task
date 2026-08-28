@@ -2160,6 +2160,30 @@ def replace_canonical_pair(state_root: Path,
                       f"journal were rolled back; nothing was written.") from None
 
 
+#: The board preamble line that says when the file last changed. Matched at the
+#: start of a quote line so a mention of the phrase inside a task row cannot be
+#: mistaken for it.
+LAST_UPDATED_RE = re.compile(r"^(>\s*(?:Last updated|最后更新)\s*[:：]\s*)(.*)$")
+
+
+def stamp_last_updated(board) -> bool:
+    """Rewrite `> Last updated:` to today. Returns whether a line was found.
+
+    A board with no such line is left alone rather than given one: the header
+    is a convention of Perry's own template, not a required section, and
+    inventing it in someone else's board would be this tool writing a line the
+    project never asked for.
+    """
+    today = f"{date.today():%Y-%m-%d}"
+    for i, line in enumerate(board.lines):
+        m = LAST_UPDATED_RE.match(line)
+        if m:
+            if m.group(2).strip() != today:
+                board.lines[i] = m.group(1) + today
+            return True
+    return False
+
+
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "", signoff_block: str = "",
@@ -2314,6 +2338,23 @@ def commit(project_root: Path, state_root: Path, board: Board,
             records.append(target)
     else:
         records = [dict(record) for record in current]
+    # **The `> Last updated:` header is stamped by the WRITER, before the
+    # render** (TASK-215). It read `2026-08-16 (21st pass — …)` on 2026-08-29,
+    # thirteen days stale, on a file re-rendered dozens of times a day — a line
+    # every reader takes at face value and nothing maintained.
+    #
+    # Not in `perry_store.render`, which would be the tidier home and is the
+    # wrong one: `perry-tasks render --byte-compare` and `perry-lint`'s
+    # store-drift check both compare a fresh render against the file on disk,
+    # so a renderer that stamped today's date would report the board as drifted
+    # every morning until somebody wrote to it. "Last updated" means the last
+    # WRITE, and a re-render is not a write — putting it here makes the
+    # sentence true and leaves the drift check quiet.
+    #
+    # The editorial parenthetical goes. A rendered file's header is not a place
+    # for prose nobody re-derives; `journal/` is where "21st pass, 6 tasks"
+    # belongs and already has it.
+    stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
 
