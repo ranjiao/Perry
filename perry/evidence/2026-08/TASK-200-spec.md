@@ -19,6 +19,37 @@ named after: **no non-software role card has ever been written.** All three
 shipped cards — `coding`, `research`, `review` — are software-shaped, and the
 only pack is `software-ops`.
 
+## CORRECTION, 2026-08-28, mid-flight — read this before the section below
+
+The user corrected the premise after dispatch. **`gimegime-pmo` is a hybrid, not
+a non-software project**, and the correction makes the row harder and better.
+
+`.perry/config.md` says `Repo layout: split` — this PMO manages the software
+development of **`~/proj/gimegime`** *and* real investment work, on one board,
+**physically partitioned by declared id prefix**:
+
+```
+IPS-* / ALLOC-* / DUE-*                     投资线  政策 / 配置 / 日期型强制动作
+ARCH-V2 · RW-* · PAPER-N · RES-N · DATA-N
+INFRA-N · BOS-N · TECH-N · CADENCE-*        工程线
+```
+
+**So the question is not "does a finance-shaped card work".** It is:
+
+> **Can one board carry two roles whose escalation boundaries differ in kind?**
+
+- The 工程线 half **already has its role** — those rows read `Owner: Coding
+  Agent`, and `packs/software-ops/roles/coding.md` ships. The card to extract is
+  the 投资线 one; the test is whether the two **coexist**.
+- The asymmetry is concrete: 工程线 escalates on **paths**; 投资线 row
+  `THESIS-2015HK-GAP` (9,320 股, **−41.2%, −$40,819**) escalates on
+  `系统永不下单`, an **action** no file list matches.
+- **`DUE-*` = 日期型强制动作** is a third shape needing its own verdict: an
+  action forced by an external date. `Must escalate` has no vocabulary for a
+  deadline.
+
+**"The two roles cannot coexist under this model" is a winning answer.**
+
 ## The material, which is real and already written
 
 `~/proj/gimegime-pmo` is a quantitative-finance project. **Read it; do not

@@ -102,7 +102,7 @@
 | TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-197 | ## User Input Queue becomes a store — the queue has no store and the board section IS the record | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
-| TASK-200 | draft a finance-shaped role card from gimegime-pmo, and name every field that does not survive the shape change | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-200 | draft a finance-shaped role card from gimegime-pmo, and name every field that does not survive the shape change | Coding Agent | in_progress | CORRECTED 2026-08-28 mid-flight by the user: gimegime-pmo is a HYBRID, not a non-software project. Repo layout: split — it manages the software development of ~/proj/gimegime AND real investment work on one board, physically partitioned by declared id prefix: IPS-/ALLOC-/DUE- = 投资线, ARCH-V2/RW-/PAPER-/RES-/DATA-/INFRA-/TECH- etc = 工程线. So the question is not 'does a finance role card work' but 'can one board carry two roles whose escalation boundaries differ in KIND' — 工程线 escalates on paths, 投资线 escalates on 系统永不下单, an action no file list matches. The 工程线 half already has its role (rows read Owner: Coding Agent). 'They cannot coexist under this model' is a winning answer. | — | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
