@@ -77,7 +77,10 @@ real investment work against ~$3M. The board declares the partition itself:
 **The two lines' rows are different objects.** `BOARD.md:47 THESIS-2015HK-GAP`
 is `9,320 股 · 成本 HKD 83.43 · 现价 49.06 · **−41.2%（−$40,819）**` — the row's
 content *is* a holding. `BOARD.md:81 THESIS-REGISTRY-v0` is `registry
-schema+三件套闸门+kill-signal 监控 wire（kr:P-O1.3）| Coding Agent`.
+schema+三件套闸门+kill-signal 监控 wire（kr:P-O1.3）| Coding Agent`. [[old-form]]
+> The `kr:P-O1.3` above is quoted verbatim from `~/proj/gimegime-pmo`, which
+> TASK-180 did not migrate — that project is outside this repository and its
+> ids are its own. Rewriting a quotation would misreport what its board says.
 
 **And the partition is not clean, which is the load-bearing fact for this row.**
 Three rows sitting *inside* the 投资线 section are owned by `Coding Agent`:

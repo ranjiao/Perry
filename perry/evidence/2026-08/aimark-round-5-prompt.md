@@ -235,7 +235,7 @@ count as a contract violation.
 **`TASK-180` is `in_progress` right now** and it changes **values you key on**:
 
 ```
-P-O<a>.<b>  in phase <NNN>   →   P<NNN>-O<a>-KR<b>       e.g. P-O3.1 → P002-O3-KR1
+P-O<a>.<b>  in phase <NNN>   →   P<NNN>-O<a>-KR<b>          [[old-form]]       e.g. P-O3.1 → P002-O3-KR1
 ```
 
 One-time, all historical data, **no compatibility with the old form** — the
