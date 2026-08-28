@@ -54,7 +54,6 @@
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 | TASK-196, TASK-197, TASK-198 | main |  |  |  |  |  |  |
 | TASK-203 | an ordinary write does not update its store, for either the risks or the intake register — one row, both registers | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-204 | Perry has no writer for a migration event, so TASK-180 hand-wrote JSON into an append-only log | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
-| TASK-205 | semantics ships on 2 of 5 payloads, so CONTRACT_TESTED.goals can never go red | Coding Agent | in_progress | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-206 | a write returns no seq, so a poll cannot tell a stale read from a fresh one | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-207 | no compare-and-set on a write, and the board demonstrably moves between a read and a write | Coding Agent | not_started | — | — | V3 | TASK-206 | main |  |  |  |  |  |  |
 | TASK-208 | perry-diagnose asks 'is this ask answered' with a word search over free prose, and disagrees with the store in both directions | Coding Agent | not_started | — | — | V3 | TASK-179 | main |  |  |  |  |  |  |
