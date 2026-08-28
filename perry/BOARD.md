@@ -70,6 +70,8 @@
 | TASK-157 | plan-phase still authors the KR block by hand in a file documented as machine-written | Coding Agent | not_started | Promoted to P1 on 2026-08-28 for breaching the intake track's 5d SLA. The row arrived from intake carrying a title and nothing else — no summary, deliverable or verification — so the first step is to investigate the defect and write evidence/2026-08/TASK-157-spec.md, which subcommands.md:708 requires of every P0/P1 row. | — | V3 | — | intake | triaged |  | 2026-08-21 |  |  |  |
 | TASK-229 | no store and clean are different answers, and that has been measured for two of six stores | Coding Agent | not_started | — | evidence/2026-08/TASK-229-spec.md | V3 | TASK-209 | main |  |  |  |  |  |  |
 | TASK-219 | retro-cites-phase-scores — a cross_file check that the retro cites the scores rather than re-deriving them | Coding Agent | not_started | — | evidence/2026-08/TASK-219-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-230 | the full suite takes eleven minutes, and that cost has started changing behaviour | Coding Agent | not_started | — | evidence/2026-08/TASK-230-spec.md | V3 | — | main |  |  |  |  |  |  |
+| TASK-231 | a measured KR number has no way into the register that does not break one of its two rules | Coding Agent | not_started | — | evidence/2026-08/TASK-231-spec.md | V3 | TASK-155 | main |  |  |  |  |  |  |
 
 ## P2
 
