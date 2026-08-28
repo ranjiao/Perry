@@ -1184,6 +1184,336 @@ def intake_render(board, records: list[dict], ops) -> tuple[str, dict]:
     return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
 
 
+# ── the ask register ──────────────────────────────────────────────────────
+#
+# TASK-197, and the four verbs are the risks four again. **This register has
+# ids**, so unlike intake it keys on `id` and the join is by name everywhere —
+# `perry-task answer USER-016` reaches its row through `find_section_row`, a
+# name lookup, and `perry-explain` resolves `USER-` handles out of prose. A
+# store that renumbered them would break both, so nothing here renumbers
+# anything: `order` records where a row sits and never decides which row it is.
+#
+# **WHICH COLUMNS ARE STORED IS THE WHOLE OF THIS ROW, AND `Idle` IS THE
+# ANSWER.** The register as Perry's own board writes it has six columns —
+# `USER-id | Needed from user | Blocks | Idle | Status | Asked` — and one of
+# them is an AGE:
+#
+#   `USER-id`           STORED. Minted by `perry-task ask` through
+#                       `mint_user_id`; nothing else in the record determines
+#                       it and nothing recomputes it.
+#   `Needed from user`  STORED. The human's question. It is the sentence, the
+#                       way `Risk` and `Request` are.
+#   `Blocks`            STORED — **checked rather than assumed.** `blocks` on
+#                       a TASK is DERIVED, the inverse of `depends_on`, so the
+#                       same reading was tried here and it does not hold: on
+#                       Perry's own board only two of seven rows have an
+#                       inverse edge in `tasks.jsonl` (`TASK-114 ← USER-015`,
+#                       `TASK-040 ← USER-016`). The other five name `TASK-005`,
+#                       `TASK-038`, `TASK-079` and two `—`, and no task
+#                       declares them. Deriving this column would blank five of
+#                       seven cells on the first render. `schema/
+#                       task-list-contract.md § asks` says the same thing in
+#                       one line: *"the cell verbatim — free text, often a task
+#                       id"*. **Often is not always, and a store may not round
+#                       often up.**
+#   `Idle`              **NOT STORED.** It is `today − Asked` and nothing else.
+#                       `bin/perry-state § idle_days` already computes it at
+#                       read time and falls back to the cell's digits only for
+#                       the boards that carry `Idle` and no `Asked`;
+#                       `perry-task ask` has stamped `Asked` and left `Idle`
+#                       alone since TASK-039, whose docstring records the cost
+#                       of the other choice — **both rows on Perry's own board
+#                       carried `Idle: —`**, the one field the queue exists
+#                       for, unfilled, because a human had to type a number
+#                       that is wrong the next morning. A live project deleted
+#                       the column outright for the same reason.
+#                       **A store that carries a derived age is wrong the
+#                       moment it is written**, and it is wrong in the worst
+#                       available direction: silently, once a day, forever.
+#                       The column is therefore LAYOUT here. It is absent from
+#                       `ASK_FIELD_BY_COLUMN`, so `row_descriptor` renders the
+#                       cell verbatim and counts it in `cells_verbatim` — the
+#                       board keeps its `Idle` text byte for byte and the store
+#                       makes no claim about it.
+#   `Status`           STORED. Free prose: `pending`, or `answered <date>:
+#                      <what was decided>`. Never an enum — `## User Input
+#                      Queue` is a section humans write.
+#   `Asked`            STORED. A DATE, and the INPUT the age is derived from.
+#                      Storing the input and deriving the age is the whole
+#                      distinction this register turns on.
+#
+# `answered` is the one stored field with no column, this register's `cleared`
+# and `discharged` — see `ASK_STORED`. `order` is the risks `order`.
+
+#: Written to the ask store, in a fixed key order so two writes of the same
+#: state produce the same bytes. The names are the ones
+#: `schema/task-list-contract.md § asks` already publishes (`id`, `needed`,
+#: `blocks`, `asked`, `status`), so a consumer reading the payload and a
+#: consumer reading the store are not learning two vocabularies for one row.
+#:
+#: **`answered` has no column, on purpose**, and it is this register's
+#: `cleared`/`discharged`: whether the question has come back rides inside the
+#: `Status` cell's prose, and it is the field the register is actually queried
+#: for — `asks.items` is *"the unanswered asks"*, `asks.open` is its length,
+#: and `bin/perry-task § dependency_satisfied` lets a task start on it. A
+#: record has room for it, so it is typed here and stays a rendered detail of
+#: `Status` there.
+#:
+#: Carried across `--from-board` **only when the store says `True`**, the
+#: asymmetry `risk_record` and `intake_record` both state: `perry-task answer`
+#: refuses a second answer (*"{id} is already answered"*), so answering is a
+#: ONE-WAY transition — `True` is a fact the board cannot un-say, and `False`
+#: is *"still on the user"*, which the `Status` cell answers for itself.
+#:
+#: **`idle` is deliberately not here.** See the block above; it is the row.
+ASK_STORED = ("id", "needed", "blocks", "asked", "status", "answered", "order")
+
+#: `norm(header cell)` → the store field that column is rendered from. FIVE of
+#: the six columns, and `idle` is the missing one — an age is derived at read
+#: time and a column with no entry here renders verbatim and is COUNTED as
+#: verbatim, which is the honest projection of "the store makes no claim about
+#: this cell".
+ASK_FIELD_BY_COLUMN = {"user-id": "id", "needed from user": "needed",
+                       "blocks": "blocks", "asked": "asked",
+                       "status": "status"}
+
+#: The heading the register lives under, canonically. Resolved per language by
+#: `ops.heading_matches` / `parsers.heading_is`, never by this literal.
+ASK_SECTION = "User Input Queue"
+
+
+def ask_store_path(state_root: Path) -> Path:
+    return Path(state_root) / "asks.jsonl"
+
+
+def ask_section_shape(board, ops) -> tuple[str, list[dict]]:
+    """How `## User Input Queue` is currently written, and every table under it.
+
+    `absent` | `table` | `prose` | `foreign`, the four `intake_section_shape`
+    reports and for the same reasons. `foreign` covers a table with no
+    `Needed from user` column — a legend, an index — and a section holding more
+    than one table.
+    """
+    if not board.has_section(ASK_SECTION):
+        return "absent", []
+    start, end = board.named_section(ASK_SECTION)
+    tables = markdown_tables(board.lines, start, end, ops.norm)
+    if len(tables) == 1 and P.is_user_register_header(tables[0]["header"]):
+        return "table", tables
+    if tables:
+        return "foreign", tables
+    return "prose", tables
+
+
+def ask_table(board, ops) -> dict | None:
+    """The one table under `## User Input Queue` that IS the register, or None.
+
+    None means "there is nothing here this store can hold" and is never the
+    same answer as "a register with no rows in it" — the distinction
+    `risk_table` states, which `cmd_ask_render` reads off the FILE rather than
+    off the record count.
+    """
+    shape, tables = ask_section_shape(board, ops)
+    return tables[0] if shape == "table" else None
+
+
+def ask_record(values: dict, order: int | None,
+               stored: dict | None = None) -> dict:
+    """One register row → one store record, in `ASK_STORED` key order.
+
+    `values` is the row's cells keyed by `ops.norm`ed column, as
+    `markdown_tables` returns them.
+
+    **`answered` is the one field that is not a cell**, and it is carried from
+    the store when the store says `True` — never when it says `False`, for the
+    reason `ASK_STORED` gives. On a row the store has never seen, the `Status`
+    prose IS the only record there is, and the predicate that reads it is
+    `parsers.ask_is_answered`, the rule `bin/perry-state § answered` and
+    `perry-task`'s dependency edge already call. A second opinion about whether
+    a question came back would decide whether somebody is told to start work.
+
+    **`idle` is not read, not defaulted and not stamped.** A record that
+    carried today's age would be wrong tomorrow; `bin/perry-state § idle_days`
+    computes it from `asked`.
+    """
+    status = values.get("status", "")
+    if stored is not None and stored.get("answered") is True:
+        answered = True
+    else:
+        answered = P.ask_is_answered(status)
+    out: dict = {}
+    for k in ASK_STORED:
+        if k == "order":
+            out[k] = order
+        elif k == "answered":
+            out[k] = answered
+        elif k == "needed":
+            out[k] = values.get("needed from user", "")
+        else:
+            out[k] = values.get(k, "")
+    return out
+
+
+def ask_records(board, ops, current: list[dict] | None = None) -> list[dict]:
+    """The ask store, derived from `## User Input Queue` as it stands.
+
+    Rows whose `USER-id` cell holds no handle are not records — they are
+    layout, and `ask_plan` reports them as verbatim rather than minting an id
+    for them. That is the `risk_records` rule and it is the right one HERE and
+    the wrong one one register over: intake keys on position, so skipping a row
+    there would renumber everything under it. Here the key is the id, so
+    skipping a layout row moves nothing.
+    """
+    table = ask_table(board, ops)
+    if table is None:
+        return []
+    by_id = {r.get("id"): r for r in (current or []) if r.get("id")}
+    out: list[dict] = []
+    seen: set[str] = set()
+    # **Position among the rows the STORE holds**, not among the lines — the
+    # rule `board_order` and `risk_records` both state.
+    n = 0
+    for row in table["rows"]:
+        rid = ops.strip_handle(row["values"].get("user-id", ""))
+        if not rid or rid in seen:
+            continue
+        seen.add(rid)
+        values = dict(row["values"])
+        values["id"] = rid
+        out.append(ask_record(values, n, by_id.get(rid)))
+        n += 1
+    return out
+
+
+def validate_ask_records(records: list) -> tuple[list[dict], list[dict]]:
+    """Valid ask records, and structured findings for the malformed ones.
+
+    `validate_risk_records`' rules — one JSON object per line, `id` a unique
+    non-empty string, `order` an integer or null, everything else a string or
+    null — plus `answered`, which must be a `bool`. A string `"true"` in that
+    field is the shape that would read as answered under `if rec["answered"]`
+    and take a row off the needs-you list on nothing but its truthiness.
+    """
+    good: list[dict] = []
+    findings: list[dict] = []
+    seen: set[str] = set()
+    for line, rec in enumerate(records, 1):
+        if not isinstance(rec, dict):
+            findings.append({"line": line, "field": None,
+                             "message": "expected one JSON object per line"})
+            continue
+        bad = []
+        for field, value in rec.items():
+            if field not in ASK_STORED:
+                continue
+            if field == "order":
+                ok = value is None or (isinstance(value, int)
+                                       and not isinstance(value, bool))
+                expected = "integer or null"
+            elif field == "answered":
+                ok = isinstance(value, bool)
+                expected = "true or false"
+            else:
+                ok = value is None or isinstance(value, str)
+                expected = "string or null"
+            if not ok:
+                bad.append({"field": field, "actual": type(value).__name__,
+                            "expected": expected})
+        rid = rec.get("id")
+        if not isinstance(rid, str) or not rid.strip():
+            bad.append({"field": "id", "actual": type(rid).__name__,
+                        "expected": "non-empty string"})
+        elif rid in seen:
+            bad.append({"field": "id", "actual": rid,
+                        "expected": "unique ask id"})
+        if bad:
+            findings.append({"line": line,
+                             "id": rid if isinstance(rid, str) else None,
+                             "fields": bad,
+                             "message": "; ".join(
+                                 f"`{b['field']}` is {b['actual']}, expected "
+                                 f"{b['expected']}" for b in bad)})
+            continue
+        seen.add(rid)
+        good.append(rec)
+    return good, findings
+
+
+def ask_plan(board, records: list[dict], ops) -> dict:
+    """`## User Input Queue`, split into the lines the store fills and the rest.
+
+    `risk_plan`'s split, joined by the `USER-id` cell. **The `Idle` column
+    lands in `cells_verbatim` on every row and that is the design**, not a
+    shortfall: `ASK_FIELD_BY_COLUMN` names no field for it, `row_descriptor`
+    emits `{"lit": …}`, and the counter says out loud that one column of this
+    section is passing through untouched. An uncounted fallback is how a
+    renderer passes `cmp` while reproducing nothing — so the count is the
+    receipt for the decision rather than a hole in it.
+    """
+    lines = board.lines
+    by_id = {r["id"]: r for r in records}
+    rows: dict[int, dict] = {}
+    report = {"register": "absent", "rows_from_store": 0, "rows_verbatim": [],
+              "rows_not_on_board": [], "cells_verbatim": {},
+              "cells_wearing_decoration": {},
+              "cells_the_store_and_board_disagree_on": [],
+              "rows_out_of_stored_order": {}}
+    shape, _tables = ask_section_shape(board, ops)
+    report["register"] = shape
+    table = ask_table(board, ops)
+    if table is None:
+        report["rows_not_on_board"] = sorted(by_id)
+        return {"lines": lines, "rows": rows, "report": report,
+                "records": dict(by_id)}
+
+    header, keys = table["header"], table["keys"]
+    in_line_order: list[str] = []
+    seen: set[str] = set()
+    for row in table["rows"]:
+        i, cells = row["line"], row["cells"]
+        rid = ops.strip_handle(row["values"].get("user-id", ""))
+        rec = by_id.get(rid) if rid else None
+        if rec is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60]})
+            continue
+        desc, findings = row_descriptor(lines[i], cells, header, keys,
+                                        ASK_FIELD_BY_COLUMN, rec)
+        if desc is None:
+            report["rows_verbatim"].append({"cell": cells[0][:60],
+                                            "why": findings[0]["why"]})
+            continue
+        desc["id"] = desc["key"] = rid
+        seen.add(rid)
+        in_line_order.append(rid)
+        for f in findings:
+            if "verbatim" in f:
+                report["cells_verbatim"][f["verbatim"]] = \
+                    report["cells_verbatim"].get(f["verbatim"], 0) + 1
+            elif "decorated" in f:
+                report["cells_wearing_decoration"][f["decorated"]] = \
+                    report["cells_wearing_decoration"].get(f["decorated"], 0) + 1
+            else:
+                report["cells_the_store_and_board_disagree_on"].append(
+                    {"id": rid, "column": f["column"],
+                     "board": f["file"], "store": f["store"]})
+        rows[i] = desc
+        report["rows_from_store"] += 1
+    report["rows_not_on_board"] = sorted(set(by_id) - seen)
+    graded = [r for r in in_line_order if by_id[r].get("order") is not None]
+    if graded != sorted(graded, key=lambda r: by_id[r]["order"]):
+        report["rows_out_of_stored_order"] = {
+            "on_the_board": graded,
+            "in_the_store": sorted(graded, key=lambda r: by_id[r]["order"])}
+    return {"lines": lines, "rows": rows, "report": report,
+            "records": dict(by_id)}
+
+
+def ask_render(board, records: list[dict], ops) -> tuple[str, dict]:
+    """`perry/asks.jsonl` → the text of `BOARD.md`. Byte-for-byte is the bar."""
+    p = ask_plan(board, records, ops)
+    return render_lines(p["lines"], p["rows"], p["records"]), p["report"]
+
+
 __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "describe_cell", "load_store", "plan", "record", "render",
            "render_line", "render_lines", "row_descriptor", "slot_descriptor",
@@ -1195,4 +1525,8 @@ __all__ = ["STORED", "FIELD_BY_COLUMN", "board_order", "cell_text",
            "INTAKE_STORED", "INTAKE_FIELD_BY_COLUMN", "INTAKE_SECTION",
            "intake_store_path", "intake_section_shape", "intake_table",
            "intake_record", "intake_records", "intake_plan", "intake_render",
-           "validate_intake_records"]
+           "validate_intake_records",
+           "ASK_STORED", "ASK_FIELD_BY_COLUMN", "ASK_SECTION",
+           "ask_store_path", "ask_section_shape", "ask_table",
+           "ask_record", "ask_records", "ask_plan", "ask_render",
+           "validate_ask_records"]

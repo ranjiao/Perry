@@ -31,6 +31,20 @@ The intake register has **no id column**, so its store is keyed on `order` —
 the row's position, the same integer `perry-task resolve-intake <n>` takes.
 `bin/perry_store.py § the intake register` carries that decision and its cost.
 
+And four more reach the **ask register** — ADR-007 a fourth time,
+`perry/asks.jsonl` against `BOARD.md § User Input Queue` (TASK-197):
+
+    perry-tasks asks-build  [--root <p>]    derive the ask store; write nothing
+    perry-tasks asks-render [--root <p>] [--write]  the store → the section
+    perry-tasks asks-write  [--root <p>] --from-board  the section → the store
+    perry-tasks asks-diff   [--root <p>]    render and byte-compare with the file
+
+**Five of that register's six columns are stored and `Idle` is not.** `Idle` is
+an AGE — `today − Asked` — and `bin/perry-state § idle_days` already computes
+it at read time; a store that carried it would be wrong the morning after it
+was written, which is why a live project deleted the column outright.
+`bin/perry_store.py § the ask register` carries the per-column verdict.
+
 `risks-diff` is the gate the migration has to pass **before** a field the
 register could not express is added to it: rendering the derived records back
 over the section reproduces it byte for byte, or the store has already lost
@@ -944,6 +958,295 @@ def cmd_intake_write(root: Path, argv: list[str]) -> int:
     return 0
 
 
+# ── the ask register ──────────────────────────────────────────────────────
+#
+# TASK-197, and the four verbs are the risks four with one word changed —
+# literally the risks four, because this register HAS ids and intake's
+# positional machinery is the part that does not carry over. `perry-task
+# answer USER-016` finds its row by name through `find_section_row`, so there
+# is no `n` gate here and no need for one: nothing this store does can make an
+# integer mean a different row, because no consumer holds an integer.
+
+
+def ask_board(root: Path):
+    """The board, and `bin/perry-task` as `ops`."""
+    mod = _task_module()
+    return mod.Board(P.resolve_state_root(root) / "BOARD.md"), mod
+
+
+def load_ask_store(root: Path) -> tuple[list[dict], Path]:
+    """The ask store as it is ON DISK — never the one just derived."""
+    path = perry_store.ask_store_path(P.resolve_state_root(root))
+    if not path.exists():
+        return [], path
+    return [json.loads(l) for l in path.read_text(encoding="utf-8")
+            .split("\n") if l.strip()], path
+
+
+#: What `asks-write` refuses when the claim is not there, and why. The same
+#: live guard `RISK_STORE_UNDECLARED` and `INTAKE_STORE_UNDECLARED` are, for
+#: the same reason: a canonical record file in the user's state root is
+#: declared in `schema/state-schema.json § claims` with an owner and an anchor,
+#: and that declaration is the user's to give rather than the change's to mint.
+ASK_STORE_UNDECLARED = (
+    "perry-tasks: refusing to write `asks.jsonl`.\n\n"
+    "  The ask register's record shape, its renderer and its drift report are "
+    "implemented and tested, and `asks-diff` proves the projection round-trips "
+    "byte for byte. What is missing is the DECLARATION: a canonical record "
+    "file in the state root is declared in `schema/state-schema.json § claims` "
+    "with an owner and an anchor, the way `tasks.jsonl` is, and writing one "
+    "that is not declared puts a file Perry does not admit to owning into the "
+    "user's project.\n\n"
+    "  That declaration is the user's to give. Until it lands, "
+    "`perry-tasks asks-build` derives the records and `asks-diff` checks the "
+    "projection, both without writing anything.")
+
+
+def ask_store_is_declared() -> bool:
+    """Does `schema/state-schema.json § claims` carry `asks.jsonl`?
+
+    Read from the schema at every call, so the refusal cannot outlive the
+    condition it reports, and a schema this tool cannot read is treated as NOT
+    declaring it — "I cannot see it" is not "it is there".
+    """
+    try:
+        claims = lib.load_schema(RuntimeError).get("claims", [])
+    except Exception:
+        return False
+    return any(isinstance(c, dict) and c.get("path") == "asks.jsonl"
+               for c in claims)
+
+
+def cmd_ask_render(root: Path, byte_compare: bool,
+                   write_board: bool = False) -> int:
+    """Render `## User Input Queue` from the ask store, or byte-compare the two.
+
+    **From the store on disk when there is one, and from the section when there
+    is not** — `source: "board"` in the payload for the second, which is the
+    migration gate. Read off the FILE and never off the record count: an empty
+    store is a store.
+    """
+    board, ops = ask_board(root)
+    try:
+        records, store_path = load_ask_store(root)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"identical": False, "store_valid": False,
+                          "store_findings": [{"message":
+                              f"ask store is not readable JSONL "
+                              f"({type(exc).__name__}: {exc})"}]},
+                         ensure_ascii=False, indent=2),
+              file=sys.stdout if byte_compare else sys.stderr)
+        return 2
+    source = "store" if store_path.exists() else "board"
+    if records:
+        records, findings = perry_store.validate_ask_records(records)
+        if findings:
+            print(json.dumps({"identical": False, "store_valid": False,
+                              "store_findings": findings},
+                             ensure_ascii=False, indent=2),
+                  file=sys.stdout if byte_compare else sys.stderr)
+            return 2
+    elif source == "board":
+        if write_board:
+            print(json.dumps({
+                "store": str(store_path), "exists": store_path.exists(),
+                "note": "no ask store on disk, so there is nothing to render "
+                        "`## User Input Queue` FROM — rendering it from "
+                        "records derived out of that same section would write "
+                        "the file back over itself and report success. "
+                        "`perry-tasks asks-diff` is the storeless check.",
+            }, ensure_ascii=False, indent=2), file=sys.stderr)
+            return 2
+        records = perry_store.ask_records(board, ops)
+    text, report = perry_store.ask_render(board, records, ops)
+    report["source"] = source
+    report["store"] = str(store_path)
+    if not byte_compare:
+        if write_board:
+            state_root = P.resolve_state_root(root)
+            lib.write_atomic(state_root / "BOARD.md", text)
+            print(f"perry-tasks: rendered {state_root / 'BOARD.md'} "
+                  f"§ User Input Queue from {len(records)} ask record(s)")
+            return 0
+        sys.stdout.write(text)
+        return 0
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    report["identical"] = text == live
+    if not report["identical"]:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        report["first_difference"] = {
+            "line": n + 1,
+            "file": (a[n] if n < len(a) else "<past end of file>")[:400],
+            "rendered": (b[n] if n < len(b) else "<past end of render>")[:400],
+        }
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if report["identical"] else 1
+
+
+#: Why `## User Input Queue` cannot be imported, per shape `ask_section_shape`
+#: reports. **Refuse rather than guess**, one answer each.
+#:
+#: `prose` is the one that would otherwise pass the byte gate and be wrong, for
+#: the reason `bullets` is two registers over: `ask_records` returns `[]`,
+#: rendering `[]` changes no line, so `cmp` is clean — and an empty store would
+#: be written over a section holding real questions and reported as a success.
+ASK_SECTION_UNIMPORTABLE = {
+    "absent": (
+        "there is no `## User Input Queue` section on this board, so there is "
+        "no register to import. `perry-task ask --needed \"…\"` creates the "
+        "section and its table."),
+    "prose": (
+        "`## User Input Queue` holds no table — a heading with prose under it, "
+        "or an empty section. The records this would write are not a "
+        "projection of it, they are `[]`, and writing them would report "
+        "success over a section somebody keeps open questions in. "
+        "`perry-task ask --needed \"…\"` writes the table, after which this "
+        "import has something to read."),
+    "foreign": (
+        "`## User Input Queue` holds a table this tool must not treat as the "
+        "register — either it has no `Needed from user` column or the section "
+        "holds more than one table. Which one is the register is a question "
+        "about somebody's document, and guessing it writes one table's cells "
+        "into another table's store."),
+}
+
+
+def cmd_asks_write(root: Path, argv: list[str]) -> int:
+    """`BOARD.md § User Input Queue` → `perry/asks.jsonl`. The ONE-WAY IMPORT.
+
+    `cmd_risks_write` carries the argument in full and every word of it holds
+    here: `--from-board` is the consent and there is no other behaviour; four
+    things are checked before a byte is written and each is a refusal that
+    writes nothing (ADR-004) — the CLAIM, the SHAPE, the BYTES, and that the
+    store is READABLE BACK; and **the import appends no event**, because it
+    asks nobody anything and answers nothing, and every event it could append
+    would carry today's timestamp for a question put weeks ago.
+
+    `answered` is carried across from the store on disk, and only when it is
+    `True` — the asymmetry `ask_record` states. It is the one stored field the
+    register has no column for.
+
+    **THE BYTE GATE IS LOAD-BEARING HERE, AND THAT WAS MEASURED RATHER THAN
+    INHERITED.** TASK-196 found the same gate was a tautology for intake and
+    said so; the argument it turned on is that intake rows have no id, so
+    nothing collapses. **A `USER-` row has an id**, so the risks class is back:
+    `ask_records` collapses a repeated `USER-001` into ONE record while
+    `ask_plan` renders BOTH lines from it, and the second line comes back
+    carrying the first row's question, blocker, date and status. Measured on
+    eleven inputs — a duplicate id, an escaped pipe, a ragged short row, a
+    ragged long row, a missing trailing pipe, a blank first cell, an indented
+    line, a struck-out id, the five-column shape, an `Idle` cell with a real
+    number in it, and a `Notes` column no stored field claims — **ten render
+    byte-identical either way and the duplicate id does not.** So the gate
+    catches exactly one class here, that class is real, and it is the class a
+    register whose key is its id dies of.
+
+    **The gate intake needed is the one this register does not.** Intake built
+    a row-count check against `Board.section_rows` because its key is the row's
+    POSITION and `resolve-intake <n>` addresses rows by integer. Nothing
+    addresses an ask by position: `perry-task answer USER-016` goes through
+    `find_section_row`, a name lookup, and `perry-explain` resolves `USER-`
+    handles out of prose. `order` here records where a row sits and never
+    decides which row it is, so a renumbering cannot change what any consumer's
+    handle points at. A count gate would be the tautology in this register.
+    """
+    dest = perry_store.ask_store_path(P.resolve_state_root(root))
+
+    if "--from-board" not in argv:
+        print("perry-tasks: refusing section-to-store import without "
+              "`--from-board`. `asks.jsonl` is authoritative once it exists; "
+              "use `perry-tasks asks-render --write` for store-to-section "
+              "recovery, or explicitly run `perry-tasks asks-write "
+              "--from-board` to derive the store from "
+              "`BOARD.md § User Input Queue`.", file=sys.stderr)
+        return 1
+
+    if not ask_store_is_declared():
+        print(ASK_STORE_UNDECLARED, file=sys.stderr)
+        return 1
+
+    board, ops = ask_board(root)
+    shape, _tables = perry_store.ask_section_shape(board, ops)
+    if shape != "table":
+        print(f"perry-tasks: refusing to write {dest} — "
+              f"{ASK_SECTION_UNIMPORTABLE[shape]}\n\n"
+              f"  Nothing was written.", file=sys.stderr)
+        return 1
+
+    try:
+        on_disk, _path = load_ask_store(root)
+    except (OSError, ValueError) as exc:
+        print(f"perry-tasks: {dest} exists but cannot be read "
+              f"({type(exc).__name__}: {exc}). Refusing to overwrite a store "
+              f"this tool cannot compare against; move it aside and re-run.",
+              file=sys.stderr)
+        return 2
+    _valid, malformed = perry_store.validate_ask_records(on_disk)
+    if malformed:
+        print(json.dumps({"refused": f"{dest} is malformed; refusing to "
+                          f"overwrite a store that cannot be safely compared",
+                          "store_findings": malformed},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 2
+
+    records = perry_store.ask_records(board, ops, on_disk)
+
+    # The byte gate, run BEFORE the write rather than reported after it.
+    text, report = perry_store.ask_render(board, records, ops)
+    live = (P.resolve_state_root(root) / "BOARD.md").read_text(encoding="utf-8")
+    if text != live:
+        a, b = live.split("\n"), text.split("\n")
+        n = next((i for i in range(max(len(a), len(b)))
+                  if (a[i:i + 1] or [None]) != (b[i:i + 1] or [None])), 0)
+        print(f"perry-tasks: refusing to write {dest}.\n\n"
+              f"  The records derived from `## User Input Queue` do not render "
+              f"that section back byte for byte, so the store would not be a "
+              f"projection of it — it would be a different register wearing "
+              f"its name. A migration that cannot reproduce what it replaces "
+              f"has not understood it.\n\n"
+              f"  The usual cause is a REPEATED `USER-` id: two lines, one "
+              f"record, and the second line rendered from the first row's "
+              f"cells. Give the duplicate its own id and re-run.\n",
+              file=sys.stderr)
+        for d in report["cells_the_store_and_board_disagree_on"][:10]:
+            print(f"    {d['id']} · column {d['column']}: "
+                  f"board={d['board']!r} → would render {d['store']!r}",
+                  file=sys.stderr)
+        for r in report["rows_verbatim"][:10]:
+            print(f"    row {r['cell']!r}: the store holds no record for it"
+                  + (f" ({r['why']})" if r.get("why") else ""),
+                  file=sys.stderr)
+        print(f"\n  First differing line is {n + 1}:\n"
+              f"    board:    {(a[n] if n < len(a) else '<past end of file>')[:200]}\n"
+              f"    rendered: {(b[n] if n < len(b) else '<past end of render>')[:200]}\n"
+              f"\n  Nothing was written.", file=sys.stderr)
+        return 1
+
+    _valid, bad = perry_store.validate_ask_records(records)
+    if bad:
+        print(json.dumps({"refused": "`## User Input Queue` produces a store "
+                          "this tool could not read back; nothing was written",
+                          "store_findings": bad},
+                         ensure_ascii=False, indent=2), file=sys.stderr)
+        return 1
+
+    losses = _would_discard(on_disk, records)
+    if losses:
+        print(f"perry-tasks: {len(losses)} stored value(s) replaced by what "
+              f"`## User Input Queue` says — `--from-board` is that "
+              f"instruction:", file=sys.stderr)
+        for line in losses[:10]:
+            print(f"    {line}", file=sys.stderr)
+        if len(losses) > 10:
+            print(f"    … and {len(losses) - 10} more", file=sys.stderr)
+
+    lib.write_atomic(dest, perry_store.store_text(records))
+    print(f"perry-tasks: wrote {dest} ({len(records)} ask record(s))")
+    return 0
+
+
 def main(argv: list[str], _locked: bool = False) -> int:
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -957,10 +1260,12 @@ def main(argv: list[str], _locked: bool = False) -> int:
     if cmd not in ("build", "verify", "write", "render", "diff",
                    "risks-build", "risks-render", "risks-write", "risks-diff",
                    "intake-build", "intake-render", "intake-write",
-                   "intake-diff"):
+                   "intake-diff",
+                   "asks-build", "asks-render", "asks-write", "asks-diff"):
         print(f"perry-tasks: expected build / verify / write / render / diff, "
-              f"risks-build / risks-render / risks-write / risks-diff "
-              f"or intake-build / intake-render / intake-write / intake-diff, "
+              f"risks-build / risks-render / risks-write / risks-diff, "
+              f"intake-build / intake-render / intake-write / intake-diff "
+              f"or asks-build / asks-render / asks-write / asks-diff, "
               f"got {cmd!r}", file=sys.stderr)
         return 2
 
@@ -1013,6 +1318,30 @@ def main(argv: list[str], _locked: bool = False) -> int:
 
     if cmd == "intake-write":
         return cmd_intake_write(root, argv)
+
+    if cmd in ("asks-render", "asks-diff"):
+        return cmd_ask_render(root, byte_compare=cmd == "asks-diff",
+                              write_board="--write" in argv)
+
+    if cmd == "asks-build":
+        board, ops = ask_board(root)
+        records = perry_store.ask_records(board, ops)
+        shape, _tables = perry_store.ask_section_shape(board, ops)
+        print(json.dumps({"records": len(records),
+                          "stored_fields": len(perry_store.ASK_STORED),
+                          "register": shape,
+                          # The needs-you count, which is the number this
+                          # register exists to produce. `asks.open` in
+                          # `perry-task/list` is the same figure by the same
+                          # predicate.
+                          "unanswered": sum(1 for r in records
+                                            if not r["answered"]),
+                          "sample": records[0] if records else None},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    if cmd == "asks-write":
+        return cmd_asks_write(root, argv)
 
     if cmd in ("render", "diff"):
         # **Not `build(root)`.** These two read the store from disk for the

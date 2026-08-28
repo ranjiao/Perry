@@ -2396,6 +2396,11 @@ _RISK_STORED_FIELDS = _STORE.RISK_STORED
 #: keys on `order`. `looks_like_perry_record` has to know that or it reports
 #: the intake store as a file Perry did not write.
 _INTAKE_STORED_FIELDS = _STORE.INTAKE_STORED
+#: The ask register's field list (TASK-197). A fourth shape, id-keyed like the
+#: risks store — `looks_like_perry_record` has to know it or it reports
+#: `asks.jsonl` as a file Perry did not write, against Perry's own claim, on
+#: every project that runs the import.
+_ASK_STORED_FIELDS = _STORE.ASK_STORED
 
 
 def _empty_store_drift_stats() -> dict:
@@ -2914,6 +2919,146 @@ def check_intake_store_drift(project_root: Path, state_root: Path) -> list["Find
     return findings
 
 
+def _empty_ask_store_drift_stats() -> dict:
+    """The typed machine-readable state before an ask comparison runs."""
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding"]:
+    """`## User Input Queue` and `asks.jsonl` disagree — ADR-007, TASK-197.
+
+    The same posture, the same `warn`, and silent-with-a-payload when there is
+    no store, as the three checks above. The key is the `USER-` id, so this is
+    `check_risk_store_drift`'s comparison rather than the intake one: an
+    inserted line renumbers `order` and renames nothing, so `_order_drift`'s
+    argument applies and the rows keep their own names.
+
+    **`Idle` is not compared and cannot drift, because no stored field claims
+    it.** It is an age derived from `Asked` at read time (`bin/perry-state §
+    idle_days`); a hand edit to that cell changes a number the store never
+    asserted, so reporting it would be this checker inventing a claim to
+    enforce. `Asked` IS compared — the input the age comes from is stored, and
+    editing it moves every age computed from it.
+    """
+    findings: list[Finding] = []
+    check_ask_store_drift.stats = _empty_ask_store_drift_stats()
+
+    store_path = _STORE.ask_store_path(state_root)
+    if not store_path.exists():
+        return []
+
+    check_ask_store_drift.stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    try:
+        on_disk = [json.loads(line) for line in
+                   store_path.read_text(errors="replace").split("\n")
+                   if line.strip()]
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, "ask-store-unreadable",
+                        f"`asks.jsonl` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `## User Input Queue` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, "ask-store-unreadable",
+                        "`asks.jsonl` holds something other than one JSON "
+                        "OBJECT per line — a whole-file array and a bare "
+                        "scalar both parse and neither is a record")]
+
+    board_path = state_root / "BOARD.md"
+    rel_board = _rel(board_path, project_root)
+    if not board_path.exists():
+        return [Finding("warn", rel_store, "ask-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no `BOARD.md` to "
+                        f"project it onto, so drift is unknown here rather "
+                        f"than absent")]
+
+    try:
+        tasks_mod = _tasks_module()
+        ops = tasks_mod._task_module()
+        board = ops.Board(board_path)
+        derived = _STORE.ask_records(board, ops, on_disk)
+    except Exception as exc:  # noqa: BLE001
+        return [Finding("warn", rel_board, "ask-store-drift-uncheckable",
+                        f"the ask store could not be derived from the current "
+                        f"files ({type(exc).__name__}: {exc}), so drift is "
+                        f"unknown here rather than absent")]
+
+    good, issues = _STORE.validate_ask_records(on_disk)
+    for issue in issues:
+        who = issue.get("id") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, "ask-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    stored = {r["id"]: r for r in good}
+    live = {r["id"]: r for r in derived}
+    check_ask_store_drift.stats.update({
+        "comparison_performed": not issues, "records": len(stored)})
+
+    rows: list[tuple[str, str, int | None]] = []
+    board_text = board_path.read_text(errors="replace")
+    for aid in sorted(live):
+        want, got = stored.get(aid), live[aid]
+        line = _board_line_of(board_text, aid)
+        if want is None:
+            rows.append((aid, "the file carries this row and the store has no "
+                              "record of it", line))
+            continue
+        differing = [f"`{k}`: file={_cell(got.get(k))!r} "
+                     f"store={_cell(want.get(k))!r}"
+                     for k in sorted(set(want) | set(got))
+                     # `order` is a fact about a sequence, not about a row —
+                     # `_order_drift` says why, and this register has one
+                     # section, so a moved row is reported once, below.
+                     if k != "order" and _cell(got.get(k)) != _cell(want.get(k))]
+        if differing:
+            rows.append((aid, "; ".join(differing[:3])
+                         + (f"; and {len(differing) - 3} more field(s)"
+                            if len(differing) > 3 else ""), line))
+    for aid in sorted(set(stored) - set(live)):
+        rows.append((aid, "the store holds this record and "
+                          "`## User Input Queue` renders no row for it", None))
+
+    check_ask_store_drift.stats["drifted"] = len(rows)
+    for aid, detail, line in rows[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"{aid} — {detail}. Under ADR-007 `## User Input Queue` is "
+            f"rendered output and `{rel_store}` is what the field means, so a "
+            f"hand edit is drift. **`Idle` is not in this comparison**: it is "
+            f"an age derived from `Asked`, no stored field claims it, and "
+            f"editing it changes nothing the store asserts. "
+            f"`perry-tasks asks-render --write` puts the section back in line "
+            f"with the store; `perry-tasks asks-write --from-board` runs the "
+            f"other direction and DISCARDS the stored values.", line))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further ask row(s) disagree "
+            f"with `{rel_store}`."))
+
+    # Order, once for the section — `check_risk_store_drift`'s block, for the
+    # register that shares its key. A record with no `order` at all is skipped
+    # rather than sorted to the front.
+    graded = [r for r in live
+              if r in stored and stored[r].get("order") is not None
+              and live[r].get("order") is not None]
+    on_board = sorted(graded, key=lambda r: live[r]["order"])
+    in_store = sorted(graded, key=lambda r: stored[r]["order"])
+    if on_board != in_store:
+        findings.append(Finding(
+            "warn", rel_board, "ask-store-drift",
+            f"`User Input Queue` — the rows of this section sit in a different "
+            f"order in the file than in `{rel_store}`: file "
+            f"{' → '.join(on_board[:6])}, store {' → '.join(in_store[:6])}. "
+            f"Row order is recorded, not re-derived, so a row moved by hand is "
+            f"drift like any other cell."))
+    return findings
+
+
 def _order_drift(stored: dict, live: dict, rel_board: str,
                  rel_store: str) -> list["Finding"]:
     """`order` compared ONCE PER SECTION, and never per row.
@@ -3176,8 +3321,9 @@ def looks_like_perry_record(path: Path) -> bool:
         return False
     keys = set(rec)
     if "id" in keys and (keys <= set(_STORED_FIELDS)
-                         or keys <= set(_RISK_STORED_FIELDS)):
-        return True                 # a store — tasks or risks
+                         or keys <= set(_RISK_STORED_FIELDS)
+                         or keys <= set(_ASK_STORED_FIELDS)):
+        return True                 # a store — tasks, risks or asks
     # `intake.jsonl` keys on `order` and carries no `id` at all: the register
     # has no id column and a row is addressed by position (TASK-196). The
     # branch above cannot see it, and `order` alone is too weak a signal, so
@@ -3471,6 +3617,7 @@ def main(argv: list[str]) -> int:
     check_store_drift.stats = _empty_store_drift_stats()
     check_risk_store_drift.stats = _empty_risk_store_drift_stats()
     check_intake_store_drift.stats = _empty_intake_store_drift_stats()
+    check_ask_store_drift.stats = _empty_ask_store_drift_stats()
 
     if mode_templates:
         root = PERRY_HOME
@@ -3544,6 +3691,10 @@ def main(argv: list[str]) -> int:
             # returns before deriving anything when there is no
             # `intake.jsonl`, which is every project today.
             findings.extend(check_intake_store_drift(project_root, root))
+            # And the fourth register (TASK-197), on the same terms: it
+            # returns before deriving anything when there is no `asks.jsonl`,
+            # which is every project today.
+            findings.extend(check_ask_store_drift(project_root, root))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -3581,6 +3732,9 @@ def main(argv: list[str]) -> int:
             payload["intake_store_drift"] = dict(getattr(
                 check_intake_store_drift, "stats",
                 _empty_intake_store_drift_stats()))
+            payload["ask_store_drift"] = dict(getattr(
+                check_ask_store_drift, "stats",
+                _empty_ask_store_drift_stats()))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -3647,6 +3801,19 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · intake store: {_ist['records']} record(s), "
                       f"{_ist['drifted']} row(s) drifted")
+        # Its own line for the reason the two above have their own lines: "no
+        # ask store" and "a clean ask store" are different answers.
+        _ast = getattr(check_ask_store_drift, "stats", None)
+        if _ast and not mode_templates:
+            if not _ast["store_present"]:
+                print("  · no `asks.jsonl` — drift against the ask store is "
+                      "unchecked, not clean")
+            elif not _ast["comparison_performed"]:
+                print(f"  · ask store: {_ast['records']} valid record(s), "
+                      "comparison incomplete — drift is unchecked, not clean")
+            else:
+                print(f"  · ask store: {_ast['records']} record(s), "
+                      f"{_ast['drifted']} ask(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "

@@ -900,6 +900,13 @@
       "note": "the intake STORE (ADR-007, TASK-196) - the canonical Intake record the `Intake` section of `BOARD.md` is projected from. Keyed on `order`, the row's position, because an intake row has no id and is addressed by position everywhere. Declared before it exists, like `.perry/config.jsonl`; `perry-tasks intake-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
     },
     {
+      "path": "asks.jsonl",
+      "kind": "file",
+      "owner": "work",
+      "anchor": "state",
+      "note": "the ask STORE (ADR-007, TASK-197) - the canonical record the `User Input Queue` section of `BOARD.md` is projected from. Keyed on the `USER-` id, like `risks.jsonl` and unlike `intake.jsonl`. Five of the section's six columns are stored; `Idle` is NOT, because it is an age derived from `Asked` at read time and a stored age is stale the moment it is written. Declared before it exists, like `intake.jsonl`; `perry-tasks asks-write --from-board` is the explicit import that creates it. State-root relative, beside `tasks.jsonl`."
+    },
+    {
       "path": ".perry/config.jsonl",
       "kind": "file",
       "owner": "perry",
