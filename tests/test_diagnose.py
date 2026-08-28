@@ -1414,18 +1414,31 @@ class TestAFencedBlockIsOutputNotAReference(unittest.TestCase):
     learns to ignore, which `reference/diagnose.md` names as worse than no
     check at all.
 
-    Only fences are exempt, never inline code: ``see `TASK-042` `` is how Perry
-    is supposed to cite a real row.
+    **TASK-210 gave the sibling syntax the same rule, and this class holds
+    both spellings in one fixture on purpose.** The comment in `harvest` used
+    to say the opposite — that inline code must stay readable because
+    ``see `TASK-042` `` is how Perry cites a row — and the corpus says
+    otherwise: of the 336 ids this repository mentions outside a fence, 308
+    are written in prose somewhere, and the 28 that live only inside a span
+    are nearly all this checker's own finding codes quoted back at it. The
+    entry that named the row was `Z0-9`, a fragment of the id regex
+    ``[A-Z][A-Z0-9]{1,9}-\\d{1,4}`` picked out of a code span eight lines
+    below the same regex inside a fence, which was correctly ignored.
+
+    A test that pins one spelling pins the wrong half, so every case here is
+    written twice.
     """
 
     DOC = """# Notes
 
-The row we are waiting on is `TASK-901`.
+The row we are waiting on is TASK-901.
 
 ```
 perry-task: wrote ZZZ-404 (risk-add) → board + journal + event
 oldest: ZZZ-405 @ 224d
 ```
+
+Quoted the same way, inline: `perry-task: wrote ZZZ-406 (risk-add)`.
 """
 
     def harvest(self, text):
@@ -1445,6 +1458,14 @@ oldest: ZZZ-405 @ 224d
                 f"{tracked} appears only in pasted output and was counted as "
                 f"a reference this project owes a definition for")
 
+    def test_an_id_only_inside_a_code_span_is_not_reported_either(self):
+        """The same quotation, punctuated the other way."""
+        e = self.harvest(self.DOC)
+        self.assertNotIn(
+            "ZZZ-406", e,
+            "an id quoted in a code span was read as a citation, which is "
+            "how a regex character class became a dangling id")
+
     def test_an_id_in_prose_is_still_counted(self):
         """The exemption must not swallow the check it lives in."""
         e = self.harvest(self.DOC)
@@ -1453,9 +1474,143 @@ oldest: ZZZ-405 @ 224d
 
     def test_an_unclosed_fence_does_not_swallow_the_rest_of_the_file(self):
         """A single stray ``` would otherwise exempt every line after it."""
-        e = self.harvest("# Notes\n\n```\nZZZ-404\n```\n\nWaiting on `TASK-902`.\n")
+        e = self.harvest("# Notes\n\n```\nZZZ-404\n```\n\nWaiting on TASK-902.\n")
         self.assertTrue(e.get("TASK-902", {}).get("in_tracking_doc"),
                         "a stray fence swallowed every line after it")
+
+    def test_an_unclosed_backtick_does_not_swallow_the_rest_of_the_line(self):
+        """The span half of the same worry, and it is the commoner typo.
+
+        An opener with no closing run is not a span — it is a backtick
+        somebody typed in a sentence. Treating it as one would blind the
+        check to everything after it, which is the fence bug in miniature.
+        """
+        e = self.harvest("# Notes\n\nA stray ` and then TASK-903 is real.\n")
+        self.assertTrue(e.get("TASK-903", {}).get("in_tracking_doc"),
+                        "an unmatched backtick swallowed the rest of the line")
+
+    def test_a_span_that_closes_swallows_only_up_to_its_closer(self):
+        """The other side of the same rule: the text after a CLOSED span is
+        prose again, and an id there still counts."""
+        e = self.harvest("# Notes\n\nQuoting `ZZZ-407` before TASK-904.\n")
+        self.assertNotIn("ZZZ-407", e)
+        self.assertTrue(e.get("TASK-904", {}).get("in_tracking_doc"))
+
+    def test_a_longer_run_of_backticks_is_one_span_and_not_three(self):
+        """``a `b` c`` is legal markdown: a run of two opens, and only a run
+        of exactly two closes. Reading the inner single backticks as
+        delimiters would leave the halves of the span exposed as prose —
+        which is what `perry-diagnose`'s old `` `[^`]*` `` did."""
+        e = self.harvest("# Notes\n\nThe form ``ZZZ-408 `and` ZZZ-409`` is quoted.\n")
+        self.assertNotIn("ZZZ-408", e)
+        self.assertNotIn("ZZZ-409", e)
+
+    def test_the_span_rule_does_not_undefine_a_code_written_in_backticks(self):
+        """**Mentions only.** `reference/diagnose.md` defines every finding
+        code as ``| `CTX-01` | error | … |``, and a heading may name its
+        subject the same way. Blanking those would undefine fourteen codes and
+        report them dangling — the false positive this rule came to remove,
+        arriving from the other side. A definition is a structural position
+        and the backticks around it are decoration `strip_md` already reads
+        through.
+        """
+        e = self.harvest(
+            "# Codes\n\n"
+            "| ID | Severity |\n|---|---|\n| `ZZZ-410` | warn |\n\n"
+            "## `ZZZ-411` — a section that names its subject\n")
+        self.assertEqual(e["ZZZ-410"]["defined"], "notes.md:5")
+        self.assertEqual(e["ZZZ-410"]["title"], "warn")
+        self.assertEqual(e["ZZZ-411"]["defined"], "notes.md:7")
+        self.assertEqual(e["ZZZ-411"]["kind"], "section")
+
+    def test_an_id_only_in_a_code_span_is_reachable_only_if_defined(self):
+        """The case this rule could get wrong, stated as a consequence rather
+        than hidden.
+
+        An id whose every appearance is a code span is not dangling — and if
+        nothing defines it, it is not in the id set at all, so
+        `perry-explain` cannot resolve it either. That is the same trade the
+        fence rule already made, and it is safe for the same reason: an id
+        the project really minted has a DEFINITION POINT — a filename, a
+        heading, a register row — and definitions are untouched here. What is
+        lost is a citation that exists nowhere but inside a quotation, which
+        is what a quotation means.
+        """
+        e = self.harvest("# Notes\n\nQuoting `ZZZ-412` and nothing else.\n")
+        self.assertNotIn("ZZZ-412", e)
+        e = self.harvest("# Notes\n\n## ZZZ-413 — a real row\n\n"
+                         "Quoted afterwards as `ZZZ-413`.\n")
+        self.assertEqual(e["ZZZ-413"]["defined"], "notes.md:3")
+        self.assertEqual(e["ZZZ-413"]["mentions"], [])
+
+
+class TestTheQuotationRuleHasOneImplementation(unittest.TestCase):
+    """`lib.blank_code_spans` and nothing beside it.
+
+    TASK-202's finding was that the asymmetry it removed was never in the
+    extractor — the shared function existed and the callers disagreed about
+    reaching it. The same shape was here: `perry-explain` decided "this is a
+    quotation" with a fence test and `perry-diagnose` decided it again with
+    `` CODE_SPAN = `[^`]*` ``, and neither could see what the other saw. One
+    body, both callers.
+    """
+
+    def test_the_blanker_is_the_only_span_scanner_in_bin(self):
+        import re as _re
+        home = pathlib.Path(__file__).resolve().parent.parent
+        offenders = []
+        for path in sorted((home / "bin").rglob("*")):
+            if not path.is_file() or "__pycache__" in path.parts:
+                continue
+            if path == home / "bin" / "lib" / "__init__.py":
+                continue
+            for n, line in enumerate(
+                    path.read_text(errors="replace").split("\n"), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if _re.search(r"`\[\^`\]\*`|`\[^`\]", line):
+                    offenders.append(f"{path.relative_to(home)}:{n}")
+        self.assertEqual(offenders, [], "a second code-span scanner — import "
+                                        "`lib.blank_code_spans` instead")
+
+    @staticmethod
+    def _lib():
+        # `perry-explain` puts `bin/` on the path as a side effect of loading,
+        # which is how every other reader here reaches the shared module.
+        load_bin_module("perry-explain")
+        import lib
+        return lib
+
+    def test_both_readers_reach_it(self):
+        explain = load_bin_module("perry-explain")
+        self.assertIs(explain.blank_code_spans, self._lib().blank_code_spans)
+        source = (pathlib.Path(__file__).resolve().parent.parent
+                  / "bin" / "perry-diagnose").read_text()
+        self.assertIn("lib.blank_code_spans(", source)
+
+    def test_the_hard_cases_directly(self):
+        blank = self._lib().blank_code_spans
+        # A run of n closes only on a run of exactly n — a SHORTER run inside
+        # it is content…
+        self.assertEqual(blank("x ``a `b` c`` y"), "x             y")
+        # …and a LONGER one does not close it either. This is the half a
+        # `>=` gets wrong while still passing the case above, and it is the
+        # difference between an unmatched backtick staying prose and a
+        # backtick swallowing the sentence that follows it.
+        self.assertEqual(blank("`ZZZ-414 ``x``"), "`ZZZ-414      ")
+        # An opener with no closer is not a span; the text stays prose.
+        self.assertEqual(blank("x ` a b c"), "x ` a b c")
+        # …and the scan resumes AFTER the unmatched run rather than re-reading
+        # it, so a later closed span on the same line is still found. The run
+        # of two here never closes; the run of one after it does.
+        self.assertEqual(blank("``x `y` z"), "``x     z")
+        # A lone backtick pairs with the NEXT single-backtick run, which is
+        # CommonMark and not a fallback: the span here is "` a `", and `b` is
+        # left outside it holding the stray closer.
+        self.assertEqual(blank("` a `b` c"), "     b` c")
+        # Length is preserved, so nothing is joined across a removed span.
+        for s in ("`a`b`c`", "no spans here", "``", "`", "a `b` `c` d"):
+            self.assertEqual(len(blank(s)), len(s), s)
 
 
 class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
@@ -1573,13 +1728,37 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         demonstrate it with. `perry/evidence/…/TASK-108-dispatch…md` does
         exactly that — "adding one ordinary `DESIGN-900-probe.md` … turns the
         test red" — and charging the project for `DESIGN-900` is the same
-        defect as `REL-00`, one document over."""
+        defect as `REL-00`, one document over.
+
+        **Written in bare prose since TASK-210.** The record it is modelled on
+        wrote the probe filename in backticks, and that spelling now never
+        reaches this rule — the code-span skip drops the id before
+        `split_dangling` sees it, and the check's answer is the same either
+        way. This test owns the report mark, so it puts the id where the
+        report mark is what decides; the code-span path is pinned one class up
+        and again immediately below.
+        """
+        load = self.load({"notes/review.md":
+                          "# Review\n\nDemonstrated rather than argued: "
+                          "adding one ordinary ZZZ-404-probe.md turns "
+                          "test_the_number_reconciles_with_the_queue red.\n"})
+        self.assertEqual(load["dangling"], [])
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
+    def test_the_same_demonstration_in_backticks_never_reaches_the_mark(self):
+        """The verdict a reader sees is identical; the route is shorter.
+
+        Both rules exist to answer "is this a citation or a quotation", and
+        when both apply the cheaper one answers first. What must NOT differ
+        is the finding: no LOAD-02, nothing in `dangling`.
+        """
         load = self.load({"notes/review.md":
                           "# Review\n\nDemonstrated rather than argued: "
                           "adding one ordinary `ZZZ-404-probe.md` turns "
                           "test_the_number_reconciles_with_the_queue red.\n"})
         self.assertEqual(load["dangling"], [])
-        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+        self.assertEqual(load["dangling_in_reports"], [],
+                         "the id reached split_dangling despite being quoted")
 
     def test_the_check_name_mark_covers_the_paragraph_not_only_the_line(self):
         """A review names the check in one sentence and the id it demonstrated
@@ -1592,7 +1771,7 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         load = self.load({"notes/review.md":
                           "# Review\n\n1. **test_the_number_reconciles pins a\n"
                           "   coincidence.** Demonstrated rather than argued:\n"
-                          "   adding one ordinary `ZZZ-404-probe.md` with an\n"
+                          "   adding one ordinary ZZZ-404-probe.md with an\n"
                           "   unfilled row turns it red.\n\n"
                           "We are still blocked on ZZZ-405.\n"})
         self.assertEqual(load["dangling"], ["ZZZ-405"],

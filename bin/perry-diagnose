@@ -264,8 +264,18 @@ def load_sibling(name: str):
 # open decisions however many `TBD`s its prose carries. That is deliberate —
 # see `scan_decision_mentions`.
 
-#: An inline code span or a fenced line. Content inside one is being QUOTED.
-CODE_SPAN = re.compile(r"`[^`]*`|^\s{4,}\S.*$", re.M)
+#: An indented code block's line. Content inside one is being QUOTED — the
+#: same sentence `lib.blank_code_spans` says about a backtick span, for the
+#: block-level spelling that has no delimiter to scan for.
+#:
+#: **The span half of this used to live here as `` `[^`]*` `` and is now
+#: `lib.blank_code_spans`.** TASK-210 needed the rule for the id scan and found
+#: it already written once, weaker: a regex that cannot see a run of two
+#: backticks reads ``` ``a `b` c`` ``` as an empty span followed by a real one,
+#: so it deletes the wrong halves of the line. Two spellings of "this is a
+#: quotation" is how the id scanner came to honour a fence and not a backtick
+#: in the first place, which is the defect TASK-210 exists to remove.
+INDENTED_CODE = re.compile(r"^\s{4,}\S")
 
 OPEN_DECISION = re.compile(r"\bTBD\b|\bundecided\b|\(decide\)|\bawaiting (?:your )?(?:input|decision)\b", re.I)
 
@@ -560,7 +570,8 @@ def scan_decision_mentions(root: Path, inventory: dict, explain,
                 continue
             if f"{rel}:{n}" in recorded:
                 continue
-            bare = CODE_SPAN.sub("", DECLARED_TBD.sub("", line))
+            bare = DECLARED_TBD.sub("", line)
+            bare = "" if INDENTED_CODE.match(bare) else lib.blank_code_spans(bare)
             if OPEN_DECISION.search(bare):
                 n_mentions += 1
                 if len(samples) < 8:

@@ -60,6 +60,7 @@ import lib  # noqa: E402
 # purpose; see the note above its walk.
 SKIP_DIRS = lib.SKIP_DIRS
 walk_md = lib.walk_md
+blank_code_spans = lib.blank_code_spans
 
 # REL-001, ADR-003, USER-014, CTX-01, RX-4 … and Perry's phase-KR form
 # P002-O3-KR1 (DESIGN-007 decision #4, migrated by TASK-180).
@@ -347,9 +348,27 @@ def harvest(root: Path) -> dict:
         # an id it never minted turns the dangling report into noise, which
         # `reference/diagnose.md` names as worse than no check at all.
         #
-        # Only fences are exempt, not inline code: `see \`TASK-042\`` is how
-        # Perry is supposed to cite a real row, and exempting that would
-        # remove most of what the check reads.
+        # An inline code span is the same quotation with different
+        # punctuation, and until TASK-210 it was read as prose. The comment
+        # here used to say the opposite — that exempting inline code "would
+        # remove most of what the check reads" — and the measurement says it
+        # does not: of the 336 ids this repository mentions outside a fence,
+        # 308 are written in prose somewhere and 28 appear only inside a
+        # span, nearly all of them this checker's own finding codes quoted
+        # back at it (`CTX-02`, `LOAD-01`, `DOC-03`). Those are the noise the
+        # fence rule exists to drop.
+        #
+        # **A MENTION only, and never a definition.** The blanking is applied
+        # to the mention scan below and to nothing else, because a definition
+        # is a structural position — a heading's opening token, a table's
+        # first cell, a `- id:` key — and the backticks around it are
+        # decoration that `strip_md` already reads through. `reference/
+        # diagnose.md` defines every finding code as `| \`CTX-01\` | error |
+        # … |`; blanking that cell would undefine fourteen codes and report
+        # them dangling, which is the false positive this row came to remove,
+        # arriving from the other side. The fence rule can afford to skip
+        # definitions too because nothing structural survives inside a fence
+        # anyway.
         fenced = False
 
         for n, raw in enumerate(lines, 1):
@@ -358,7 +377,7 @@ def harvest(root: Path) -> dict:
                 continue
             if fenced:
                 continue
-            found = find_ids(raw)
+            found = find_ids(blank_code_spans(raw))
 
             # ── table rows: | ID | Title | … |
             m = TABLE_ROW.match(raw)

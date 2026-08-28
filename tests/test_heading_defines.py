@@ -46,6 +46,24 @@ OFFENDING_HEADING = (
     "because it matters"
 )
 
+#: The same heading with the id in bare prose.
+#:
+#: **Both spellings are needed since TASK-210, and they no longer agree.** The
+#: rule this module pins is grammatical — where in the sentence the id sits —
+#: and it is unchanged for either. What changed is one layer down: an id
+#: inside a code span is a quotation and is not collected as a mention at all,
+#: so the verbatim heading above now yields no `REL-00` entry whatsoever,
+#: while this one yields the undefined-but-reachable entry the class was
+#: written to require. The definition half is tested with the verbatim
+#: heading, because that half is this module's subject; the mention half is
+#: tested with this one, because with the verbatim heading there is no longer
+#: a mention to be had, and `TheQuotationRuleAlsoAppliesInAHeading` below
+#: pins that rather than hiding it.
+OFFENDING_HEADING_IN_PROSE = (
+    "## Its diagnosis of REL-00 is wrong, and this is recorded "
+    "because it matters"
+)
+
 
 def load_explain():
     """Import `bin/perry-explain` as a module (no .py suffix to infer from)."""
@@ -88,26 +106,32 @@ class ADiscussionHeadingDoesNotDefine(ProjectFixture):
         self.write("notes/finding.md",
                    "# Finding\n\n"
                    f"{OFFENDING_HEADING}\n\n"
-                   "The real source is a literal bare `REL-00`.\n")
+                   "The real source is a literal bare REL-00.\n")
         entry = self.harvest()["REL-00"]
         self.assertIsNone(
             entry["defined"],
             "a heading arguing about REL-00 was read as REL-00's home")
         self.assertIsNone(entry["kind"])
+        self.assertEqual([m.rsplit(":", 1)[1] for m in entry["mentions"]],
+                         ["5"],
+                         "the definition point moved to the argument heading, "
+                         "or the bare prose line stopped counting")
 
     def test_the_heading_is_still_counted_as_a_mention(self):
         """Not defining is only half of it. An id whose only appearance is a
         heading about it must still be REACHABLE — otherwise the dangling
         check loses it a second way, which is the same silence in a new place.
         """
-        self.write("notes/finding.md", f"# Finding\n\n{OFFENDING_HEADING}\n")
+        self.write("notes/finding.md",
+                   f"# Finding\n\n{OFFENDING_HEADING_IN_PROSE}\n")
         entry = self.harvest()["REL-00"]
         self.assertTrue(entry["in_tracking_doc"])
         self.assertEqual([m.rsplit(":", 1)[1] for m in entry["mentions"]],
                          ["3"], "the heading line is not in the mention list")
 
     def test_the_dangling_report_names_it(self):
-        self.write("notes/finding.md", f"# Finding\n\n{OFFENDING_HEADING}\n")
+        self.write("notes/finding.md",
+                   f"# Finding\n\n{OFFENDING_HEADING_IN_PROSE}\n")
         result = self.explain("--dangling")
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("REL-00", result.stdout)
@@ -247,7 +271,12 @@ class RevertingTheRuleSeparatesTheTwoCases(ProjectFixture):
         return mod
 
     def test_case_one_reddens_under_the_old_rule(self):
-        self.write("notes/finding.md", f"# Finding\n\n{OFFENDING_HEADING}\n")
+        # The prose spelling, so that the mutation under test is the only
+        # thing deciding. With the id in a code span the entry has no
+        # mentions to be reachable through, and this would be measuring
+        # TASK-210's rule instead of this module's.
+        self.write("notes/finding.md",
+                   f"# Finding\n\n{OFFENDING_HEADING_IN_PROSE}\n")
         self.assertIsNone(self.harvest()["REL-00"]["defined"],
                           "case 1 is not green before the mutation")
         self.assertEqual(self.harvest(self.reverted())["REL-00"]["defined"],
@@ -306,6 +335,49 @@ class HeadingSubject(unittest.TestCase):
         """`is_real_id` is not bypassed by being first: `SHA-256 collisions`
         is a heading about a hash, not a definition of `SHA-256`."""
         self.assertIsNone(self.mod.heading_subject("SHA-256 collisions"))
+
+
+# ── 4 · where this rule now meets TASK-210's ──────────────────────────────
+class TheQuotationRuleAlsoAppliesInAHeading(ProjectFixture):
+    """The verbatim heading, and the consequence stated rather than hidden.
+
+    TASK-210 stopped the id scan reading inline code spans as prose, and the
+    heading this module exists for writes its id in one. So the record that
+    caused the original bug now produces **no `REL-00` entry at all** — not
+    defined, and not reachable either.
+
+    That is the trade the fence rule already made, extended to the same
+    content in different punctuation, and it is safe for the same reason it
+    is safe there: an id the project really minted has a definition point —
+    a filename, a heading that NAMES it, a register row — and TASK-210 leaves
+    every definition shape alone. It is written down here because the class
+    above asks for reachability in so many words, and the answer for this one
+    spelling is now no.
+
+    The two rules also never disagree about the finding. Both say "this is a
+    quotation, not a citation"; LOAD-02 stays silent either way.
+    """
+
+    def test_the_verbatim_heading_yields_no_entry_at_all(self):
+        self.write("notes/finding.md", f"# Finding\n\n{OFFENDING_HEADING}\n")
+        self.assertNotIn("REL-00", self.harvest())
+
+    def test_and_therefore_reports_nothing(self):
+        self.write("notes/finding.md", f"# Finding\n\n{OFFENDING_HEADING}\n")
+        result = self.explain("--dangling")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_a_heading_that_NAMES_its_subject_in_backticks_still_defines(self):
+        """The half that must not move. Blanking a code span before the
+        definition branches would undefine every finding code in
+        `reference/diagnose.md`, whose glossary rows are written
+        ``| `CTX-01` | error | … |`` — the same false positive arriving from
+        the other side."""
+        self.write("DECISIONS.md", "# Decisions\n\n## `REL-00` — Release freeze\n")
+        entry = self.harvest()["REL-00"]
+        self.assertEqual(entry["defined"], "DECISIONS.md:3")
+        self.assertEqual(entry["kind"], "section")
+        self.assertEqual(entry["title"], "Release freeze")
 
 
 if __name__ == "__main__":
