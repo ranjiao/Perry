@@ -2,7 +2,7 @@
 
 > **Owner**: `goals` lane (only writer). `work` reads this every standup.
 > **Started**: 2026-08-19
-> **Status**: scored
+> **Status**: active
 > **Source**: `decisions/ADR-007-fields-are-typed-prose-is-not.md`, decided 2026-08-19
 
 ## Phase Focus
@@ -130,106 +130,3 @@ are re-expressed here against the shapes that will actually exist.
 ## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->
 
 ## Retro — phase scored     <!-- filled by `okr score-phase` when the phase closes -->
-
-> Scored 2026-08-28 · started 2026-08-19 · phase day 9
-> Snapshots: `phase/snapshots/2026-08-28-002-fields-are-typed-final.md` and
-> `phase/snapshots/2026-08-28-002-linkage-final.md`
-
-### Scores
-
-| KR | metric | status | score |
-|---|---|---|---|
-| `P002-O1-KR1` | 1 of 1 | achieved | 1.00 |
-| `P002-O1-KR2` | 2 of 2 | achieved | 1.00 |
-| `P002-O1-KR3` | 1 of 3 rendered files report through `perry-lint` | **partial** | 0.33 |
-| `P002-O2-KR1` | `grep -c CLOCK_RE bin/` = 0 | achieved | 1.00 |
-| `P002-O2-KR2` | 0 readers resolve a header cell for the three stores | achieved | 1.00 |
-| `P002-O2-KR3` | 3,320 → 1,048 parser lines (target 0) | **partial** | 0.68 |
-| `P002-O3-KR1` | 0 lane procedures hand-edit a rendered file | achieved | 1.00 |
-| `P002-O3-KR2` | 0 breaking contract changes; `perry-task/list/1.18` | achieved | 1.00 |
-
-**Objective 1: 0.78 · Objective 2: 0.89 · Objective 3: 1.00 · phase mean 0.89**
-
-### Definition of Done — 4 of 5
-
-1. ✅ `grep -c CLOCK_RE bin/` = 0
-2. ✅ `test_one_header_rule.py` passes; nothing left to check on the three stores
-3. ✅ a hand edit to `BOARD.md` produced 2 rows drifted, measured 2026-08-28
-4. ✅ `perry-task/list/1.18`, contract invariance green
-5. ❌ **gimegime-pmo and PolyForge migrate at V5** — **carried to phase 003**
-
-**Item 5 is carried, not waived.** The user decided on 2026-08-28 that the
-target project's current state is not suitable for migration and that the
-features land first. **So this phase's argument — that the abstraction survives
-contact with a real project — was not tested.** Every one of the other four
-items was measured on Perry itself, and Perry is the only project that grew up
-under these rules from the start. `TASK-097` stays open and carries forward.
-
-### What went well
-
-**All five stores `claims[]` declares now exist**, three of them created on the
-final day: `.perry/config.jsonl`, `perry/risks.jsonl`, and the intake and ask
-stores built but not yet imported. The migration direction the phase was named
-for is real rather than declared.
-
-**The mutation-proof habit became the norm and it repeatedly found the gap.**
-Three separate rows reported that a mutation site reddened *nothing* on the
-first pass — including one where the check the agent had just written to make a
-rejection real was itself unfalsifiable. Each added tests rather than counting
-the pass.
-
-**A precedent was measured rather than inherited, three times.** The byte-for-
-byte render gate is load-bearing for risks and for asks, and a **tautology** for
-intake — six malformed inputs came back byte-identical either way, so a
-row-count gate was built instead. Same precedent, opposite conclusions, each
-measured.
-
-### What underperformed
-
-**`P002-O1-KR3` at 0.33** is the honest one. Its metric said "reported" without
-saying by what, and the phase ran nine days before anyone edited a cell in each
-of the three files to find out. `perry-lint` — the tool the KR names — reports
-one of three. `TASK-209` carries it.
-
-**`P002-O2-KR3`'s target was probably wrong from the start.** Driving parser
-lines to 0 would delete the adoption reader, which `TASK-094` proved must stay.
-68% is real progress against a number that could not have been reached.
-
-### Lessons for phase 003
-
-1. **Counting implementations by grepping a name is the defect that cost most.**
-   It recurred roughly ten times: a call site located once where there were two
-   or three, once *over*-counted, and once a whole second reporter missed because
-   a spec's file list named one of two. Grep the expression, or the call, never
-   the name.
-2. **A locked decision that gets no task row does not ship.** DESIGN-007's plan
-   went **5-for-5** on steps that had rows and **0-for-9** on steps that did not.
-   That is the mechanism, not a coincidence — and it is why the twelve decisions
-   locked on the final day were each given a row in the same action.
-3. **A check that reads the project living around it as its expected value** is
-   still arriving. It was found in a fixture whose comment claimed the opposite,
-   in a corpus that ran on one machine, and in an assertion that encoded a moment
-   rather than its rule.
-4. **A gate whose green is a tautology is worse than no gate**, because it reads
-   as a guarantee. Measure whether a gate can fail before trusting its pass.
-
-### Carry-overs proposed
-
-| row | why |
-|---|---|
-| **`TASK-097`** | DoD item 5. The phase's own argument, untested. |
-| **`TASK-050`** | Open under `P002-O2-KR2`; measures wider than that KR's metric. |
-| **`TASK-095`, `TASK-099`** | Open under `P002-O2-KR3`; the parser reduction. |
-| **`TASK-209`** | `P002-O1-KR3`'s real subject — the drift census covers one store of five. |
-
-### Unlinked at scoring
-
-**43 open rows resolve to no KR**, against 3 that do. They are **not averaged
-into any KR score**, per `okr-linkage.md`'s rule that attribution is resolved by
-id or asked for, never guessed.
-
-This is the phase's largest single signal and it is not a bookkeeping lapse:
-the phase declared 13 tasks and the board ran 47. **Phase 003 should either
-declare KRs the live work actually serves, or the linkage step has to become
-part of `add`.**
-
