@@ -1,0 +1,9 @@
+{"kind": "setting", "key": "document_language", "label": "Document language", "value": "English", "order": 0}
+{"kind": "setting", "key": "chat_language", "label": "Chat language", "value": "中文", "order": 1}
+{"kind": "setting", "key": "repo_layout", "label": "Repo layout", "value": "single", "order": 2}
+{"kind": "setting", "key": "state_root", "label": "State root", "value": "perry", "order": 3}
+{"kind": "setting", "key": "pmo_repo_path", "label": "PMO repo path", "value": "/Users/bytedance/proj/Perry", "order": 4}
+{"kind": "setting", "key": "code_repo_path", "label": "Code repo path", "value": "", "order": 5}
+{"kind": "setting", "key": "last_updated", "label": "Last updated", "value": "2026-08-16", "order": 6}
+{"kind": "track", "track": "main", "mode": "project", "spine": "phase/", "stages": "", "wip": "", "sla": "", "cycle": "", "default_rung": "V3", "order": 0}
+{"kind": "track", "track": "intake", "mode": "queue", "spine": "standing", "stages": "new→triaged→in_progress→resolved", "wip": "6", "sla": "5d", "cycle": "weekly", "default_rung": "V3", "order": 1}
