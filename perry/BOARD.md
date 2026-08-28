@@ -70,6 +70,9 @@
 | 2026-08-28 | DUE-* 日期型强制动作 is unrepresentable by the escalation union in principle: the union fires on a dispatch, and the danger is a dispatch that never happens | — |
 | 2026-08-28 | test_host_support flakes under suite contention — third occurrence tonight, merge-check refused to attribute it once and TASK-147's sweep excluded it; it passes 3/3 alone every time | — |
 | 2026-08-28 | perry-explain resolves P002-O1-KR1 and P002-O2-KR2 to a table row in TASK-120-spec.md, not to the linkage register — perry/evidence/ walks before perry/phase/ and harvest takes the first definition; 14 of 16 resolve correctly | — |
+| 2026-08-28 | green_lit does not de-duplicate across touches sections while refuse does | — |
+| 2026-08-28 | a heading with a numbering prefix (## §8. Executor 交付物, which gimegime-pmo uses) does not resolve — _section matches by prefix, so it is equally true of English; a decision rather than a patch | — |
+| 2026-08-28 | 下单 still fires on 系统永不下单 — a boundary-free script cannot express polarity, named in the code rather than hidden | — |
 
 ## P0 (must finish this period)
 
@@ -77,7 +80,6 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TASK-050 | One normalization for a header cell, not two | Coding Agent | not_started | unblocks on PR #20; re-scope to the adoption reader (parse_board/parse_okr with no store, parse_tracks, read_conformance, parse_phase/parse_decisions) — the fifth hardening round should be a mutation harness, not another regex | — | V4 | TASK-094 | main |  |  |
 | TASK-067 | The writer can destroy the table it writes to, and perry-lint cannot see it | Coding Agent | blocked | unblocks on PR #20 but does not become empty: perry-decide still writes DECISIONS.md, perry-goals still writes OKR.md § Commitments in place, perry-migrate still rewrites a stranger files, and ragged-row is still the only catch | evidence/2026-08/TASK-067-finding.md | V4 | TASK-094, TASK-095 | main |  |  |
-| TASK-201 | the escalation gate is half-internationalised and drops short fragments silently | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 
 ## P1
 
@@ -106,9 +108,10 @@
 | TASK-192 | D011 step 3 — routing and smart-skip, by track spine | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-193 | D011 step 4 — the escape hatch and the premise challenge | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-194 | D011 step 5 — plan-phase uses the same question bank | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
-| TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | in_progress | — | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-197 | ## User Input Queue becomes a store — the queue has no store and the board section IS the record | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-202 | the hook side of the escalation union has no not-extractable check at all — only role cards get one | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
