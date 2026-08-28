@@ -371,7 +371,25 @@ def columns_for(values: dict) -> list[str]:
             if key not in REQUIRED_KEYS]
 
 
-ABSENT = {"", "—", "-", "–", "n/a", "na", "tbd", "无", "none"}
+#: **Retired: the fourth copy of the blank-cell list** (TASK-213).
+#:
+#: This set was `{"", "—", "-", "–", "n/a", "na", "tbd", "无", "none"}` and the
+#: three readers below matched a cell against it with `.lower() in ABSENT`.
+#: `lib.is_blank_cell` is the one rule, reading the spellings out of
+#: `schema/state-schema.json § i18n.blank_cell`, and it is a strict SUPERSET —
+#: measured 2026-08-29 across the whole probe set, every value `ABSENT` called
+#: absent `is_blank_cell` also calls absent, so nothing any caller treated as
+#: empty became present.
+#:
+#: What it missed, and why that mattered here: `待定`, `不适用` and `暂无` — the
+#: declared Chinese spellings — plus every decorated or padded form (`**—**`,
+#: `` `n/a` ``, `" — "`). So on a Chinese board `Depends on: 待定` parsed as a
+#: real dependency id, and `depends_on_resolved` reported a task waiting on a
+#: row that does not exist and never will.
+#:
+#: Kept as a name so a reader who greps for it lands on this comment rather
+#: than on nothing.
+ABSENT_RETIRED_SEE_LIB_IS_BLANK_CELL = True
 
 
 def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[list[str], list[str]]:
@@ -393,7 +411,7 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
     separately so they can be reported rather than rendered as dead links.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return [], []
     spans = re.findall(r"`([^`]+)`", raw)
     if not spans:
@@ -403,7 +421,7 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
         # `path § Section` and `path (12 tests)` are both in circulation; the
         # path is the head of the span.
         cand = re.split(r"\s+§|\s+\(", s.strip())[0].strip().rstrip(",.")
-        if not cand or cand.lower() in ABSENT:
+        if not cand or lib.is_blank_cell(cand):
             continue
         for root in (state_root, project_root):
             p = (root / cand)
@@ -480,7 +498,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
     by `tests/test_evidence_relation.py`.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return []
     out: list[dict] = []
 
@@ -489,7 +507,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
         # Section` and `path (12 tests)` both put the path at the head, and two
         # copies of that rule is how a reader and a writer of one column drift.
         cand = re.split(r"\s+§|\s+\(", text.strip())[0].strip().rstrip(",.")
-        if not cand or cand.lower() in ABSENT:
+        if not cand or lib.is_blank_cell(cand):
             out.append({"text": text.strip(), "path": "", "kind": "note"})
             return
         for root in (state_root, project_root):
@@ -516,7 +534,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
                 span(part)
                 continue
             text = part.strip().strip(EVIDENCE_SEPARATORS).strip()
-            if text and text.lower() not in ABSENT:
+            if text and not lib.is_blank_cell(text):
                 out.append({"text": text, "path": "", "kind": "note"})
     else:
         for piece in re.split(r"[" + EVIDENCE_SEPARATORS + r"]", raw):
@@ -572,12 +590,12 @@ def parse_depends(cell: str) -> list[str]:
     named "—". They are what `add` writes when nobody passed `--depends`.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return []
     out: list[str] = []
     for tok in _DEPENDS_SPLIT.split(raw):
         tok = strip_handle(tok).strip(",.;:")
-        if not tok or tok.lower() in ABSENT or tok in out:
+        if not tok or lib.is_blank_cell(tok) or tok in out:
             continue
         out.append(tok)
     return out
