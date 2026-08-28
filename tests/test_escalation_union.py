@@ -269,5 +269,146 @@ class TestAProseLineEnforcesNothing(Base):
             self.assertTrue(frags, f"{name} declares no extractable escalation")
 
 
+class TestTheFloorIsMeasuredPerScript(Base):
+    """`P.extracts` — the judgement call of TASK-201, pinned from both sides.
+
+    The floor was a flat `len(frag) > 2`, which is a statement about ASCII
+    wearing the clothes of a statement about length. It contradicted
+    `_ESC_WORD`, which is written ASCII-only *on purpose* so that a CJK
+    fragment reaches the matcher unguarded (ADR-007's fifth round) — a CJK
+    fragment that never becomes a fragment never reaches anything. TASK-200
+    measured 18 of 20 Chinese trading verbs discarded that way.
+
+    Both halves are asserted because either alone is trivially satisfiable by
+    breaking the other: drop the floor entirely and half two passes while
+    `sh`, `go` and `*` start matching ordinary prose; keep it flat and half one
+    fails on every two-character Chinese word there is.
+    """
+
+    def test_half_one_two_character_ascii_noise_still_does_not_extract(self):
+        """`go` guarded at both edges still matches the English word "go".
+        A gate that cries wolf on ordinary prose gets waved through — TASK-107
+        is the whole reason this half of the floor is kept."""
+        for noise in ("sh", "rm", "go", "db", "-f", "ci"):
+            with self.subTest(fragment=noise):
+                self.assertFalse(P.extracts(noise))
+                self.assertEqual(P.escalation_fragments([f"- never `{noise}`"]),
+                                 [])
+
+    def test_half_two_a_two_character_cjk_word_extracts(self):
+        """Two characters is the ordinary word in Chinese, not an abbreviation
+        of one. A floor of three there is not a noise filter, it is a refusal
+        to arm on an entire domain vocabulary."""
+        for word in ("下单", "平仓", "建仓", "清仓"):
+            with self.subTest(fragment=word):
+                self.assertTrue(P.extracts(word))
+                self.assertEqual(
+                    P.escalation_fragments([f"- 任何 `{word}` 动作"]), [word])
+
+    def test_one_character_is_never_enough_in_either_script(self):
+        """ASCII: punctuation. CJK: a morpheme inside a large share of the
+        compounds around it, with no boundary available to guard it — the same
+        matches-everywhere shape reached from the other side."""
+        for c in ("*", "/", "-", "买", "股"):
+            with self.subTest(fragment=c):
+                self.assertFalse(P.extracts(c))
+
+    def test_the_ascii_half_is_unchanged(self):
+        """Nothing that extracted before may stop extracting: that direction
+        of the change would silently NARROW a live gate."""
+        for frag in ("prod", "rm -rf", "origin", "design/", "~/.claude/skills",
+                     "--force-with-lease", "$perry_home"):
+            with self.subTest(fragment=frag):
+                self.assertTrue(P.extracts(frag))
+
+    def test_a_span_with_any_non_ascii_character_is_measured_as_non_ascii(self):
+        self.assertTrue(P.extracts("a股"))
+        self.assertTrue(P.extracts("下单"))
+
+    def test_a_cjk_term_reaches_the_union_and_trips_the_scan(self):
+        """End to end, because `extracts` returning True is not a gate. The
+        fragment has to survive extraction, union and matching — the last of
+        which is where `_ESC_WORD` deliberately leaves it unguarded."""
+        root = self.project(hook="# Hook\n\n## High-stakes operations\n\n"
+                                 "- 下单类操作 — `下单`、`平仓`\n")
+        u = P.escalation_union(root)
+        self.assertEqual(u["union"], ["下单", "平仓"])
+        self.assertEqual(
+            P.matching_escalations("本任务会在实盘 下单 一次", u["union"]),
+            ["下单"])
+
+    def test_every_extracted_fragment_can_still_match_itself(self):
+        """A fragment that cannot match its own spelling is dead, and a dead
+        fragment is invisible — the gate reports clean. Asserted across the
+        floor's new admissions specifically."""
+        for frag in ("下单", "平仓", "a股", "prod"):
+            with self.subTest(fragment=frag):
+                self.assertEqual(P.matching_escalations(frag, [frag]), [frag])
+
+
+class TestALineThatYieldsNoFragmentIsReportedToo(Base):
+    """Backticks are not the test; the extractor is. TASK-201.
+
+    `escalate_unextractable` asked "does this line contain a backtick", which
+    answers the right question only if every backticked span becomes a
+    fragment. It does not — `P.extracts` has a floor — so a line whose only
+    span is below it read as a rule, contributed nothing to the union and
+    warned about nothing. That is DESIGN-006 § 7's failure class arriving
+    through the hole its own fix left open, and it is the reason this is asked
+    of the extractor now.
+
+    `schema/roles-list-contract.md § must_escalate.unextractable` already said
+    "bullets that yielded no fragment": the code, not the contract, was the
+    deviation.
+    """
+
+    #: A line that HAS a backtick and yields nothing.
+    SHORT = CARD.replace(f"- any outbound `{ROLE_TERM}` or `invoice`",
+                         "- never shell out through `sh`")
+    #: The same shape in Chinese — which now yields a fragment, so it must NOT
+    #: be reported. Pins the fix against "warn about everything".
+    CJK = CARD.replace(f"- any outbound `{ROLE_TERM}` or `invoice`",
+                       "- 任何 `下单` 动作")
+
+    def rules(self, root: Path) -> list[dict]:
+        r = subprocess.run(
+            [sys.executable, str(LINT), "--knowledge", "--root", str(root),
+             "--json"], capture_output=True, text=True)
+        return json.loads(r.stdout)["findings"]
+
+    def test_the_warning_fires_on_a_backticked_span_below_the_floor(self):
+        """**The warning, not the union.** The union being short is the
+        symptom; the line being presented as a constraint it is not is the
+        defect, and only the warning says so."""
+        found = self.rules(self.project(cards={"finance.md": self.SHORT}))
+        self.assertEqual([f["rule"] for f in found],
+                         ["role-escalation-not-extractable"])
+        self.assertIn("never shell out through `sh`", found[0]["message"])
+        self.assertIn("enforces nothing", found[0]["message"])
+
+    def test_the_payload_carries_it_too(self):
+        """`must_escalate.unextractable` is frozen at `perry-roles/list/1.0`
+        so a renderer can say the line is unenforced rather than presenting it
+        as a constraint. A warning only the linter sees does not reach the
+        delegation prompt."""
+        card = P.parse_role_card("finance", self.SHORT)
+        self.assertEqual(card.escalate_fragments, [])
+        self.assertEqual(card.escalate_unextractable,
+                         ["never shell out through `sh`"])
+
+    def test_and_it_really_does_contribute_nothing(self):
+        u = P.escalation_union(self.project(cards={"finance.md": self.SHORT}))
+        self.assertEqual(u["roles"], {"finance": []})
+        self.assertEqual(u["union"], u["project"])
+
+    def test_a_line_that_does_yield_a_fragment_is_not_reported(self):
+        """The other half. A fix that reported every line would satisfy the
+        test above and destroy the signal — and `下单` is precisely the line
+        that used to be dropped AND unreported."""
+        root = self.project(cards={"finance.md": self.CJK})
+        self.assertEqual(self.rules(root), [])
+        self.assertEqual(P.escalation_union(root)["roles"], {"finance": ["下单"]})
+
+
 if __name__ == "__main__":
     unittest.main()

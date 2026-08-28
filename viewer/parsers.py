@@ -3129,10 +3129,74 @@ def _load_ops_counts(root: Path) -> OpsCounts:
 
 
 #: The extraction rule, in one place: only **backticked spans** count, and only
-#: those longer than two characters. Prose does not extract — which is exactly
-#: the `hook_TEMPLATE.md` backtick bug, and the reason a `Must escalate` line
-#: with zero backticks is a lint warning rather than a silent no-op.
+#: those long enough to carry a meaning (`extracts` below). Prose does not
+#: extract — which is exactly the `hook_TEMPLATE.md` backtick bug, and the
+#: reason a `Must escalate` line that yields no fragment is a lint warning
+#: rather than a silent no-op.
 _BACKTICKED = re.compile(r"`([^`]+)`")
+
+
+def extracts(frag: str) -> bool:
+    """Is this backticked span long enough to be a scan fragment?
+
+    **The floor is measured per script, because the matcher is.** It used to be
+    a flat `len(frag) > 2`, and that number is an ASCII assumption which
+    directly contradicted `_ESC_WORD` two hundred lines below: that class is
+    written ASCII-only *on purpose*, so that a CJK fragment matches unguarded
+    and a hook's Chinese half is not silently weaker than its English half
+    (ADR-007's fifth `CLOCK_RE` round, `下周期` vs `next cycle`). A flat floor
+    of 2 characters undid it from the other end — the CJK fragment never
+    reached the matcher to be unguarded, because it never became a fragment.
+    TASK-200 measured the size of that hole: **18 of 20** Chinese trading verbs
+    a real finance role would escalate on, `下单` and `平仓` among them,
+    extracted to nothing and warned about nothing.
+
+    So the two decisions now say the same thing — ASCII and CJK are different
+    measures — instead of contradicting each other:
+
+    - **Pure ASCII: still `len > 2`.** One or two ASCII characters is a flag,
+      a punctuation mark or a two-letter word: `sh`, `rm`, `go`, `-f`, `*`.
+      Those are noise, and the edge guard cannot save them — `go` guarded at
+      both edges still matches the English word "go" in any spec that uses it.
+      A gate that cries wolf on ordinary prose gets waved through, which is
+      TASK-107's whole finding, so this half of the floor is kept unchanged.
+    - **Anything with a non-ASCII character: `len > 1`.** Two characters is the
+      ordinary *word* in Chinese, not an abbreviation of one — `下单`, `平仓`,
+      `建仓` are as whole as `deploy` is. A floor of three there is not a noise
+      filter, it is a blanket refusal to arm on an entire domain vocabulary.
+
+    A single character is never enough in either script. In ASCII it is
+    punctuation; in CJK it is a morpheme that occurs inside a large share of
+    the compounds around it, and there is no boundary available to guard it
+    with — the same "matches everywhere" shape, arrived at from the other side.
+
+    What this does NOT fix, and is not this function's to fix: a CJK fragment
+    still matches inside a longer compound and still cannot express polarity,
+    so `下单` fires on `系统永不下单` ("the system never places orders"). That
+    is a property of a boundary-free script, named in TASK-200 § 11 and left
+    standing here rather than papered over with a floor that hides the token
+    altogether.
+    """
+    frag = (frag or "").strip()
+    return len(frag) > (2 if frag.isascii() else 1)
+
+
+def line_fragments(line: str) -> list[str]:
+    """Every scan fragment ONE escalation bullet yields, in order.
+
+    Split out of `escalation_fragments` so that "did this line contribute
+    anything" is answerable — `escalate_unextractable` asks exactly that, and
+    used to ask "does this line contain a backtick" instead, which is a
+    different question with the same answer only in ASCII.
+    """
+    if "{{" in line:                         # an unfilled template placeholder
+        return []
+    out: list[str] = []
+    for frag in _BACKTICKED.findall(line):
+        frag = frag.strip().lower()
+        if extracts(frag) and frag not in out:
+            out.append(frag)
+    return out
 
 
 def escalation_fragments(lines: list[str]) -> list[str]:
@@ -3145,11 +3209,8 @@ def escalation_fragments(lines: list[str]) -> list[str]:
     """
     out: list[str] = []
     for line in lines:
-        if "{{" in line:                     # an unfilled template placeholder
-            continue
-        for frag in _BACKTICKED.findall(line):
-            frag = frag.strip().lower()
-            if len(frag) > 2 and frag not in out:
+        for frag in line_fragments(line):
+            if frag not in out:
                 out.append(frag)
     return out
 
@@ -3235,8 +3296,18 @@ def parse_role_card(name: str, text: str) -> RoleCard:
     card.escalate_lines = [b for b in _bullets(_section(text, "Must escalate"))
                            if "{{" not in b]
     card.escalate_fragments = escalation_fragments(card.escalate_lines)
+    # **Asked of the extractor, not of the punctuation.** This read
+    # `not _BACKTICKED.search(b)` — "does the line contain a backtick" — which
+    # answers the right question only when every backticked span becomes a
+    # fragment. It does not: `extracts` has a floor, and a line whose only
+    # span is below it looks constrained, reads as a rule, contributes nothing
+    # and warned about nothing. That is `hook_TEMPLATE.md`'s failure class
+    # (DESIGN-006 § 7) arriving through the hole its own fix left open.
+    # `schema/roles-list-contract.md § must_escalate.unextractable` already
+    # said "bullets that yielded no fragment"; the code, not the contract, was
+    # the deviation.
     card.escalate_unextractable = [b for b in card.escalate_lines
-                                   if not _BACKTICKED.search(b)]
+                                   if not line_fragments(b)]
     return card
 
 
@@ -3362,6 +3433,18 @@ def matching_escalations(haystack: str, fragments: list[str]) -> list[str]:
 #: The three spec sections `work/reference/dispatch.md` pre-flight step 4 reads,
 #: split by what a hit in each one MEANS. The first two say "the task touches
 #: this"; the third says "the task has written down that it does not".
+#:
+#: **These are canonical names, resolved through `alias()` below — never
+#: matched literally.** They read literally for eleven days anyway, because the
+#: glossary carried no `zh` spelling for any of the three while the hook
+#: heading on the other side of the same gate (`High-stakes operations` →
+#: `高风险操作`) had one. Half a gate internationalised is worse than none of
+#: it: a spec written in the project's own declared document language found no
+#: sections, matched nothing, and scanned `pass` with a fully armed union —
+#: TASK-200 measured three real specs through it, one of them containing a term
+#: its role card escalates on. The fix was three glossary entries, not a second
+#: table here; a second translation table is the defect this repository pays
+#: for most. TASK-201.
 ESCALATION_TOUCHES = ("Files in scope", "Deliverable")
 ESCALATION_DISCLAIMS = "Out of scope"
 

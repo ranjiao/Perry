@@ -429,6 +429,21 @@
           "高风险操作"
         ]
       },
+      "Files in scope": {
+        "zh": [
+          "涉及文件"
+        ]
+      },
+      "Deliverable": {
+        "zh": [
+          "交付物"
+        ]
+      },
+      "Out of scope": {
+        "zh": [
+          "不在范围"
+        ]
+      },
       "Phase": {
         "zh": [
           "阶段"

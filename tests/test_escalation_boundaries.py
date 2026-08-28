@@ -339,5 +339,121 @@ class TestTheGateAnswersInItsExitCode(unittest.TestCase):
         self.assertEqual(code, 3)
 
 
+class TestTheScanReadsASpecInTheProjectsOwnLanguage(unittest.TestCase):
+    """Both sides of the gate are internationalised, or neither is. TASK-201.
+
+    `High-stakes operations` — the hook heading this gate reads — has carried
+    `高风险操作` since the glossary shipped. The three headings the same gate
+    reads on the *spec* side carried nothing. So a Chinese project armed a full
+    union out of its hook and then presented the scan with no sections at all:
+    every `_section` came back empty, nothing matched, and the verdict was
+    `pass` at exit 0 with the matching term sitting in the Deliverable in plain
+    sight. TASK-200 measured three real `~/proj/gimegime-pmo` specs through it —
+    three `pass` verdicts, one of them containing a term its own role card
+    escalates on.
+
+    **The scan needed no code change**: it already resolved every heading
+    through `alias()`. The defect was three missing glossary rows, which is the
+    only place it could be fixed without shipping a second translation table.
+
+    The tests below are the two halves that have to hold together: the Chinese
+    spelling is read (or a Chinese project has no gate), and the English one
+    still is (or the glossary replaced rather than added).
+    """
+
+    HOOK = ("# Hook — 示例项目\n\n## 高风险操作\n\n"
+            "- 生产部署 — `production`、`deploy`\n")
+
+    #: The same spec, said twice. Only the three headings differ.
+    SPEC_ZH = ("# TASK-999 — 示例规格\n\n"
+               "## 涉及文件\n\n- `viewer/parsers.py`\n\n"
+               "## 交付物\n\n- 把结果推到 `production` 环境\n\n"
+               "## 不在范围\n\n- 其他一概不做\n")
+    SPEC_EN = ("# TASK-999 — a spec\n\n"
+               "## Files in scope\n\n- `viewer/parsers.py`\n\n"
+               "## Deliverable\n\n- push the result to `production`\n\n"
+               "## Out of scope\n\n- everything else\n")
+
+    def scan(self, spec_text: str) -> tuple[int, dict]:
+        """Through the real `--root` seam, on a throwaway Chinese project."""
+        root = Path(tempfile.mkdtemp())
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n- Document language: 中文\n"
+            "- State root: .\n", encoding="utf-8")
+        (root / ".perry" / "hook.md").write_text(self.HOOK, encoding="utf-8")
+        spec = root / "spec.md"
+        spec.write_text(spec_text, encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, str(STATE), "--root", str(root),
+             "--escalation-scan", str(spec)], capture_output=True, text=True)
+        return r.returncode, (json.loads(r.stdout) if r.stdout.strip() else {})
+
+    def test_the_glossary_carries_every_heading_this_gate_reads(self):
+        """Structural, and stated for EVERY declared language rather than for
+        `zh`: adding a language without these three re-opens the hole exactly
+        as `zh` had it, and the behavioural test below would keep passing
+        because it only knows about Chinese."""
+        gloss = json.loads(
+            (PERRY_HOME / "schema" / "state-schema.json").read_text(
+                encoding="utf-8"))["i18n"]
+        langs = set(gloss["languages"]) - {"en"}
+        for canonical in (*P.ESCALATION_TOUCHES, P.ESCALATION_DISCLAIMS,
+                          "High-stakes operations"):
+            entry = gloss["headings"].get(canonical) or {}
+            self.assertEqual(
+                set(entry), langs,
+                f"`{canonical}` is a heading the escalation gate reads and has "
+                f"no spelling in {sorted(langs - set(entry))} — a spec written "
+                f"in that language presents this gate with no sections, and it "
+                f"reports `pass`")
+
+    def test_a_chinese_deliverable_hit_refuses(self):
+        """The measured before/after. Without the glossary rows this same
+        fixture returned `pass` at exit 0 with `touches: {}`."""
+        code, out = self.scan(self.SPEC_ZH)
+        self.assertEqual(out["touches"], {"Deliverable": ["production"]})
+        self.assertEqual(out["refuse"], ["production"])
+        self.assertEqual((code, out["verdict"]), (3, "refuse"))
+
+    def test_a_chinese_files_in_scope_hit_refuses(self):
+        code, out = self.scan("## 涉及文件\n\n- 改 `deploy` 脚本\n")
+        self.assertEqual(out["touches"], {"Files in scope": ["deploy"]})
+        self.assertEqual((code, out["verdict"]), (3, "refuse"))
+
+    def test_a_chinese_out_of_scope_green_lights_the_same_way(self):
+        """The disclaim side has to translate too. Half-translating this one
+        would refuse specs that had said in writing they do not do the thing —
+        the crying-wolf failure this file's header is about."""
+        code, out = self.scan("## 交付物\n\n- 读 `production` 的配置\n\n"
+                              "## 不在范围\n\n- 部署到 `production`\n")
+        self.assertEqual(out["green_lit"], ["production"])
+        self.assertEqual((code, out["verdict"]), (0, "pass"))
+
+    def test_the_english_headings_still_work_in_a_chinese_project(self):
+        """`alias()` adds spellings; it never replaces the canonical one. A
+        project mid-translation has both in the tree."""
+        code, out = self.scan(self.SPEC_EN)
+        self.assertEqual(out["refuse"], ["production"])
+        self.assertEqual((code, out["verdict"]), (3, "refuse"))
+
+    def test_the_scan_carries_no_second_translation_table(self):
+        """The fix had one shape available that would have worked and been
+        wrong: a Chinese literal next to the English one in here. Two glossaries
+        is the defect this repository pays for most — `squash`, `heading_re`,
+        the three-answers-in-one-call round DESIGN's `heading_is` came from."""
+        src = (PERRY_HOME / "viewer" / "parsers.py").read_text(encoding="utf-8")
+        start = src.index("def scan_spec_escalations")
+        body = "\n".join(
+            ln for ln in src[start:src.index("\n# ── Top-level snapshot",
+                                             start)].splitlines()
+            if not ln.strip().startswith("#"))
+        self.assertNotRegex(
+            body, r"[一-鿿]",
+            "scan_spec_escalations spells a localized heading itself — it "
+            "must resolve through alias() so the glossary stays the one place")
+        self.assertIn('alias("headings"', body)
+
+
 if __name__ == "__main__":
     unittest.main()
