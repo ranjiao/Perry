@@ -83,13 +83,28 @@ def _is_python(p) -> bool:
 #: create. That is the same hole its sibling guard had just been fixed for, one
 #: file over. (2) `viewer/` was a hardcoded ONE-FILE list, in the package where
 #: the rule lives. Both are why this now walks the tree.
-READERS = sorted(
-    p for d in ("bin", "viewer")
-    for p in (PERRY_HOME / d).rglob("*")
-    if p.is_file()
-    and "__pycache__" not in p.parts
-    and p != PERRY_HOME / "viewer" / "tables.py"
-    and _is_python(p))
+def readers_under(root) -> list:
+    """Every Python reader under `root`, minus the file that DEFINES the rule.
+
+    Parameterised on `root` rather than closing over `PERRY_HOME` so
+    `tests/test_header_rule_harness.py` can run this exact enumeration against
+    a planted COPY of the tree. Four rounds of this row were spent with a
+    reviewer planting a reader BY HAND and finding a blind spot the regex
+    below did not cover; a scan that cannot be pointed at a copy is a scan
+    that can only ever be tested that way. Same reason `squash` is one
+    function: the second copy is where the divergence lives.
+    """
+    root = Path(root)
+    return sorted(
+        p for d in ("bin", "viewer")
+        for p in (root / d).rglob("*")
+        if p.is_file()
+        and "__pycache__" not in p.parts
+        and p != root / "viewer" / "tables.py"
+        and _is_python(p))
+
+
+READERS = readers_under(PERRY_HOME)
 
 #: A HEADER cell resolved by a rule other than `squash`. The shape that makes
 #: it a header rather than a value: the result is a **list built over a row's
@@ -111,9 +126,34 @@ READERS = sorted(
 #: guard stayed green while three other tests went red. A parenthesised
 #: comprehension is how the real call site is written, so the blind spot was
 #: aimed at exactly the line the module exists to watch.
+#: **(5) It knew `split_row(` and not the PRIVATE splitter.** Found by
+#: `tests/test_header_rule_harness.py` on its first run — not by a fifth
+#: reviewer — and it is the same shape as round 3's: a file carrying its own
+#: splitter AND its own header rule never mentions `split_row`, which is
+#: exactly what `bin/perry-explain` was. The complement test's comment says
+#: `.split("|")` IS the private splitter, in those words, and this pattern
+#: had never been taught it. One alternation, closing a shape already known to
+#: bite — the harness stays the deliverable, and this is a fix it produced.
 SECOND_RULE = re.compile(
     r"=\s*[(\[\s]*\[[^\]]*?\.lower\(\)[^\]]*?\bfor\b\s+\w+\s+in\s+"
-    r"(?:cells|cols|columns|header|hdr|split_row\()")
+    r"""(?:cells|cols|columns|header|hdr|split_row\(|[\w.]+\.split\(\s*['"]\|['"])""")
+
+
+def second_rule_offenders(root) -> list[str]:
+    """Every line under `root` that resolves a header cell by a second rule.
+
+    The scan itself, lifted out of the test that used to hold it so the
+    harness can point it at a planted copy. Returns `file:line: source`.
+    """
+    offenders = []
+    for p in readers_under(root):
+        src = p.read_text(encoding="utf-8", errors="replace")
+        for n, line in enumerate(src.split("\n"), 1):
+            if line.lstrip().startswith("#"):
+                continue              # a comment quoting the old rule is fine
+            if SECOND_RULE.search(line):
+                offenders.append(f"{p.name}:{n}: {line.strip()}")
+    return offenders
 
 
 class TestOneRuleForAHeaderCell(unittest.TestCase):
@@ -126,14 +166,7 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertEqual(squash("Default  rung"), "default rung")
 
     def test_no_reader_resolves_a_header_cell_by_a_second_rule(self):
-        offenders = []
-        for p in READERS:
-            src = p.read_text(encoding="utf-8", errors="replace")
-            for n, line in enumerate(src.split("\n"), 1):
-                if line.lstrip().startswith("#"):
-                    continue          # a comment quoting the old rule is fine
-                if SECOND_RULE.search(line):
-                    offenders.append(f"{p.name}:{n}: {line.strip()}")
+        offenders = second_rule_offenders(PERRY_HOME)
         self.assertEqual(offenders, [], "header cells resolved by a second rule:\n"
                                         + "\n".join(offenders))
 
