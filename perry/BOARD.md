@@ -74,6 +74,8 @@
 | 2026-08-28 | a heading with a numbering prefix (## §8. Executor 交付物, which gimegime-pmo uses) does not resolve — _section matches by prefix, so it is equally true of English; a decision rather than a patch | — |
 | 2026-08-28 | 下单 still fires on 系统永不下单 — a boundary-free script cannot express polarity, named in the code rather than hidden | — |
 | 2026-08-28 | events contract says not to re-sort because second-precision ties are real, which reads as a rounding problem — the real reason is a deliberately backdated stamp twelve hours out of log order | — |
+| 2026-08-28 | perry-dispatch-limit exits 0 and prints usage on an unknown subcommand, so every 'acquire' this session was a silent no-op — the subcommand is 'register'; the concurrency cap was enforced by nothing but the caller's own counting | — |
+| 2026-08-28 | BOARD.md's Last updated header reads 2026-08-16 while the board is re-rendered dozens of times a day — perry-state reports it as board.last_updated and nothing refreshes it | — |
 
 ## P0 (must finish this period)
 
