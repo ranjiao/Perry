@@ -77,6 +77,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TASK-050 | One normalization for a header cell, not two | Coding Agent | not_started | unblocks on PR #20; re-scope to the adoption reader (parse_board/parse_okr with no store, parse_tracks, read_conformance, parse_phase/parse_decisions) — the fifth hardening round should be a mutation harness, not another regex | — | V4 | TASK-094 | main |  |  |
 | TASK-067 | The writer can destroy the table it writes to, and perry-lint cannot see it | Coding Agent | blocked | unblocks on PR #20 but does not become empty: perry-decide still writes DECISIONS.md, perry-goals still writes OKR.md § Commitments in place, perry-migrate still rewrites a stranger files, and ragged-row is still the only catch | evidence/2026-08/TASK-067-finding.md | V4 | TASK-094, TASK-095 | main |  |  |
+| TASK-201 | the escalation gate is half-internationalised and drops short fragments silently | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 
 ## P1
 
