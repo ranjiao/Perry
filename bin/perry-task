@@ -6685,7 +6685,33 @@ def main(argv: list[str]) -> int:
         cfg_store = project_root / ".perry" / "config.jsonl"
         config = {"tracks": []}
         if cfg_store.exists() or cfg_path.exists():
-            config = {"tracks": perry_state().declared_tracks(project_root)}
+            _ps = perry_state()
+            tracks, source = _ps.declared_tracks_detail(project_root)
+            # **A writer does not act on a projection while the store it is
+            # projected FROM sits there unusable** (TASK-095, V4 round 1).
+            # `perry-state` may fall back and warn — it is the read-everything
+            # tool and must exit 0 on a broken project. This is the write path:
+            # `--track`, every row's `mode`, and the stage/SLA columns a write
+            # stamps all come off this register, and the reviewer's fixture
+            # showed a truncated trailing line silently deleting `intake` from
+            # it. Writing a row against a register that is missing a track is
+            # not recoverable by re-running the command.
+            #
+            # A READ is still allowed through, for the same reason
+            # `perry-state` is: refusing `list` would make a corrupt store
+            # un-diagnosable with the tool the user has in their hand.
+            if source in _ps.TRACKS_STORE_UNUSABLE \
+                    and args.cmd not in READ_ONLY_COMMANDS:
+                raise Refused(
+                    f"the track register cannot be read from the store: "
+                    f"{_ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § "
+                    f"Tracks` is a PROJECTION of that store, so writing "
+                    f"against it would stamp a register that may be missing a "
+                    f"track entirely. Nothing was written. Repair the store — "
+                    f"`perry-lint` and `perry-config diff` name the "
+                    f"disagreement — or remove it to fall back to the file "
+                    f"deliberately.")
+            config = {"tracks": tracks}
         # ADR-004. Taken before the lock and before any command runs: a refusal
         # must mean nothing was written, and a dry run must preview the refusal
         # rather than the write it would not be allowed to perform.

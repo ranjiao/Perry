@@ -143,7 +143,12 @@ def parse_config(root: Path) -> dict:
     # the file — they are a separate row (P003-O2-KR1 counts the track
     # readings) and `parse_config`'s early return already covers the
     # no-config-at-all case.
-    cfg["tracks"] = declared_tracks(root)
+    # **`tracks_source` travels with `tracks`.** A reader handed a list with no
+    # provenance cannot tell the store's answer from the projection's, which is
+    # the state the V4 round 1 review reproduced: a store holding `main` and
+    # `intake` plus one truncated line reported only `main`, and the payload
+    # looked like an ordinary single-track project. It says so now.
+    cfg["tracks"], cfg["tracks_source"] = declared_tracks_detail(root)
     m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
     names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m else ["software-ops"]
     cfg["packs"] = load_packs([n for n in names if n and n != "—"])
@@ -720,26 +725,68 @@ def track_from_record(rec: dict) -> dict:
     }
 
 
-def stored_tracks(project_root: Path) -> list[dict] | None:
-    """`.perry/config.jsonl § kind track`, or `None` when there is no store.
+#: Why `stored_tracks` could not answer from the store. **`absent` is one thing
+#: and the other three are another**, and collapsing them is what the V4 round 1
+#: review failed TASK-095 for.
+#:
+#: `absent` is the adoption/migration path `P003-O2-KR1` excludes by name: there
+#: is no store, so the rendered `## Tracks` table is the only register there is
+#: and reading it is correct. The other three all occur with
+#: `.perry/config.jsonl` PRESENT ON DISK, and reading the projection there is
+#: exactly the condition that KR counts — the reviewer reproduced it with a
+#: store holding valid `main` and `intake` records plus one truncated trailing
+#: line, the shape an interrupted write leaves: `intake` vanished from all four
+#: call sites at once and the payload looked like an ordinary single-track
+#: project.
+TRACKS_FROM_STORE = "store"
+TRACKS_STORE_ABSENT = "absent"
+TRACKS_STORE_UNREADABLE = "unreadable"
+TRACKS_STORE_INVALID = "invalid"
+TRACKS_STORE_NO_TRACK_RECORD = "no-track-record"
 
-    `None` means "ask the file" and covers three cases, all of which are a
-    project the store cannot answer for: no store on disk (every project that
-    has not migrated, and every foreign project `perry-diagnose` reads), a
-    store that is not readable JSONL, and a store carrying no track record at
-    all — the last being a project whose `.perry/config.md` has no `## Tracks`
-    section, where `[]` would hand the router the empty list `parse_tracks`
-    exists to make impossible.
+#: The three that mean "a store is sitting right there and cannot be used".
+TRACKS_STORE_UNUSABLE = frozenset({
+    TRACKS_STORE_UNREADABLE, TRACKS_STORE_INVALID,
+    TRACKS_STORE_NO_TRACK_RECORD})
 
-    A store that is present but malformed falls back rather than raising:
-    `perry-state` is the read-everything tool and exits 0 on a project with no
-    state at all, so it may not be the thing that turns an unreadable store
-    into a crash. `perry-config verify` and `perry-lint` are where a store that
-    disagrees with its projection is reported.
+#: What to tell a human for each. Written once so the payload warning, the
+#: writers' refusals and the diagnosis cannot describe the same state three
+#: ways — the "N implementations of one rule" defect this repo keeps paying for.
+TRACKS_STORE_WHY = {
+    TRACKS_STORE_UNREADABLE:
+        "`.perry/config.jsonl` exists but could not be read as JSONL",
+    TRACKS_STORE_INVALID:
+        "`.perry/config.jsonl` exists but holds records that do not validate",
+    TRACKS_STORE_NO_TRACK_RECORD:
+        "`.perry/config.jsonl` exists but carries no `kind: track` record",
+}
+
+
+def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
+    """`(rows, source)` — the track register from `.perry/config.jsonl`.
+
+    **The second element is the whole point of this function's signature.** It
+    used to return a bare `None` for four different situations and the caller
+    could not tell them apart, so `declared_tracks` read the rendered markdown
+    in all four. One of those is right and three are wrong:
+
+    | `source` | store on disk | reading `## Tracks` is |
+    |---|---|---|
+    | `store` | yes, usable | not reached |
+    | `absent` | no | **correct** — the adoption path, excluded by the KR |
+    | `unreadable` | yes | the counted condition |
+    | `invalid` | yes | the counted condition |
+    | `no-track-record` | yes | the counted condition |
+
+    A malformed store still does not raise from here: `perry-state` is the
+    read-everything tool and exits 0 on a project with no state at all, so it
+    may not be the thing that turns an unreadable store into a crash. What
+    changed is that the caller is now TOLD, and each caller decides — the
+    payload warns and labels its answer, the writers refuse.
     """
     path = project_root / ".perry" / "config.jsonl"
     if not path.exists():
-        return None
+        return None, TRACKS_STORE_ABSENT
     try:
         # Imported here, not at module scope: `perry_md_store` reads the schema
         # at import time and refuses a bad one, and this file is imported by
@@ -748,19 +795,36 @@ def stored_tracks(project_root: Path) -> list[dict] | None:
         import perry_md_store as md_store  # noqa: PLC0415
         good, findings = md_store.validate_records(md_store.load_store(path))
     except Exception:                                            # noqa: BLE001
-        return None
+        return None, TRACKS_STORE_UNREADABLE
     if findings:
-        return None
+        return None, TRACKS_STORE_INVALID
     rows = [r for r in good
             if r.get("kind") == "track" and (r.get("track") or "").strip()]
     if not rows:
-        return None
+        return None, TRACKS_STORE_NO_TRACK_RECORD
     # `order` is the record's position, and a record written before the field
     # existed sorts after the graded ones rather than at zero — the same rule
     # `perry_md_store § plan` applies when it reports records out of stored
     # order.
     rows.sort(key=lambda r: (r.get("order") is None, r.get("order") or 0))
-    return [track_from_record(r) for r in rows]
+    return [track_from_record(r) for r in rows], TRACKS_FROM_STORE
+
+
+def declared_tracks_detail(project_root: Path) -> tuple[list[dict], str]:
+    """`(tracks, source)`. Every caller that can act on the difference uses this.
+
+    `source` is `store` when the register came from the store, `absent` when
+    there is legitimately no store, and one of `TRACKS_STORE_UNUSABLE` when a
+    store is present and could not be used — in which case the tracks returned
+    are the PROJECTION's and the caller must not treat them as truth.
+    """
+    stored, source = stored_tracks(project_root)
+    if stored is not None:
+        return stored, source
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return [dict(DEFAULT_TRACK)], source
+    return parse_tracks(cfg.read_text(errors="replace")), source
 
 
 def declared_tracks(project_root: Path) -> list[dict]:
@@ -771,14 +835,14 @@ def declared_tracks(project_root: Path) -> list[dict]:
     `.perry/config.md` have come apart. Never empty, for the reason
     `parse_tracks` is never empty: the router has no "no tracks declared"
     branch.
+
+    Kept as the plain-list entry point for readers that genuinely cannot act on
+    the difference. **Anything that can, uses `declared_tracks_detail`** — a
+    caller that silently takes the projection here is the defect the V4 round 1
+    review found, and `tests/test_track_register_source.py` is what stops it
+    coming back unnoticed.
     """
-    stored = stored_tracks(project_root)
-    if stored is not None:
-        return stored
-    cfg = project_root / ".perry" / "config.md"
-    if not cfg.exists():
-        return [dict(DEFAULT_TRACK)]
-    return parse_tracks(cfg.read_text(errors="replace"))
+    return declared_tracks_detail(project_root)[0]
 
 
 def raw_events(project_root: Path) -> list[dict]:
@@ -1653,6 +1717,22 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # `Arrived`). Until this line the clock TASK-135 made trustworthy had no
     # consumer at all.
     sla_report(_cfg_for_wip.get("tracks") or [], all_tasks)
+
+    # **A store that is present and unusable is a WARNING, not a silent
+    # fallback** (TASK-095, V4 round 1 finding 1). The register reported above
+    # came out of `.perry/config.md` while `.perry/config.jsonl` sat beside it,
+    # so every track the store declares and the table does not has just
+    # disappeared from the dashboard, from `--track` validation and from the
+    # queue reports — which is what happened to `intake` on the reviewer's
+    # fixture, with nothing in the payload to say so.
+    _tracks_source = (_cfg_for_wip or {}).get("tracks_source")
+    if _tracks_source in TRACKS_STORE_UNUSABLE:
+        warnings.append(
+            f"the track register was read from `.perry/config.md`, not from "
+            f"the store: {TRACKS_STORE_WHY[_tracks_source]}. Any track the "
+            f"store declares and the table does not is missing from this "
+            f"payload — run `perry-lint` and `perry-config diff` before "
+            f"trusting `project.config.tracks[]`.")
 
     # KR attribution — exact resolution only; the rest are surfaced, not guessed.
     link = snap.linkage

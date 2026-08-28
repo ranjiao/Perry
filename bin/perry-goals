@@ -2111,7 +2111,24 @@ def tracks_of(project_root: Path) -> list[dict]:
     perry = project_root / ".perry"
     if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
         return []
-    return perry_state().declared_tracks(project_root)
+    ps = perry_state()
+    tracks, source = ps.declared_tracks_detail(project_root)
+    # **The store is present and unusable → refuse, do not fall back.**
+    # TASK-095's V4 round 1 review: three of `stored_tracks`' four `None`
+    # conditions occur with `.perry/config.jsonl` on disk, and reading the
+    # projection in those states is the condition `P003-O2-KR1` counts. This
+    # lane writes `phase/` and the linkage register off the track list, so a
+    # register quietly missing a track lands in a file the user reads as
+    # authoritative.
+    if source in ps.TRACKS_STORE_UNUSABLE:
+        raise Refused(
+            f"the track register cannot be read from the store: "
+            f"{ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § Tracks` is a "
+            f"PROJECTION of that store and is not authoritative while the "
+            f"store exists. Nothing was written. Repair the store — "
+            f"`perry-lint` and `perry-config diff` name the disagreement — or "
+            f"remove it to fall back to the file deliberately.")
+    return tracks
 
 
 def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:
