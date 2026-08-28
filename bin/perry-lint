@@ -1668,7 +1668,7 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
                 message=(f"`## {want}` is missing. A card without it cannot be "
                          f"rendered into a delegation prompt.")))
 
-        # An escalation line with no backticked span enforces NOTHING.
+        # An escalation line that yields NO FRAGMENT enforces nothing.
         #
         # The pre-flight scan extracts backticked fragments and matches those.
         # A line written as plain prose reads like a rule, sits under the
@@ -1677,15 +1677,22 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
         # not. This is the `hook_TEMPLATE.md` backtick bug, in the file that
         # inherited its extraction rule; DESIGN-006 § 7 names it as the same
         # failure class and this is the same fix.
+        #
+        # **Backticks are not the test; the extractor is.** A backticked span
+        # below `P.extracts`' floor also yields nothing, and asking about
+        # punctuation instead of about fragments is how that line stayed
+        # silent — the same failure class re-entering through its own fix.
+        # TASK-201.
         card = P.parse_role_card(md.stem, md.read_text(errors="replace"))
         for bullet in card.escalate_unextractable:
             findings.append(Finding(
                 "warn", rel, "role-escalation-not-extractable",
                 message=(
-                    f"`Must escalate` line {bullet!r} has no backticked span, "
+                    f"`Must escalate` line {bullet!r} yields no scan fragment, "
                     f"so it contributes nothing to the pre-flight scan. The "
-                    f"union matches `backticked` fragments only: a prose line "
-                    f"here reads as a rule and enforces nothing.")))
+                    f"union matches `backticked` spans the extractor keeps: a "
+                    f"prose line — or a span too short to carry a meaning — "
+                    f"reads as a rule here and enforces nothing.")))
     return findings
 
 
