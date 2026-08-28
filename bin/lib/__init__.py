@@ -919,6 +919,62 @@ def walk_md(root: Path):
                 yield Path(dirpath) / fn
 
 
+def blank_code_spans(text: str) -> str:
+    """One line of markdown with every inline code span blanked to spaces.
+
+    The sibling of the fence skip in `bin/perry-explain § harvest`: a fenced
+    block is quoted material and so is a code span, and the scanner honoured
+    one spelling and not the other. `see \\`TASK-042\\`` and its fenced twin
+    are the same sentence with different punctuation.
+
+    **Spaces, not deletion, and the length is preserved.** A caller that
+    reports a position on the line reports the same position it would have
+    without this, and no two tokens are joined by removing what sat between
+    them.
+
+    **Code span rules, from CommonMark, and both hard cases:**
+
+    * A run of *n* backticks opens a span, and the next run of *exactly* n
+      closes it. So ``\\`\\`a \\`b\\` c\\`\\``` is one span with a literal
+      backtick pair inside it, blanked whole — a shorter run inside a longer
+      one is content, not a delimiter.
+    * A run with no matching closer is **not a span at all**. The backtick
+      stays, the text around it stays prose, and scanning continues after the
+      run. An unbalanced backtick is ordinary in prose, and the alternative —
+      treating the rest of the line as code — would silently blind a reader
+      to everything after somebody's typo.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] != "`":
+            i += 1
+            continue
+        opener = i
+        while i < n and text[i] == "`":
+            i += 1
+        run = i - opener
+        close, k = -1, i
+        while k < n:
+            if text[k] != "`":
+                k += 1
+                continue
+            end = k
+            while end < n and text[end] == "`":
+                end += 1
+            if end - k == run:
+                close = k
+                break
+            k = end
+        if close < 0:
+            # Unmatched. `i` already sits past the run, so the search resumes
+            # after it rather than re-reading the same backticks forever.
+            continue
+        out[opener:close + run] = " " * (close + run - opener)
+        i = close + run
+    return "".join(out)
+
+
 def declared_id_families(root: Path) -> set[str]:
     """The id families THIS project uses, read off the project.
 
