@@ -6770,18 +6770,18 @@ def main(argv: list[str]) -> int:
             # round 3 refusal told the user a track was "not declared in
             # `.perry/config.md § Tracks`" while pointing at a table that
             # declares it on line 14.
-            _lost = _ps.defaulted_over_a_declaring_table(project_root, source)
+            _lost = _ps.tracks_missing_from_the_register(
+                project_root, tracks, source)
             if _lost and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(
-                    f"the track register was DEFAULTED to `main`: "
-                    f"`.perry/config.jsonl` is readable and carries no "
-                    f"`kind: track` record, while `.perry/config.md § Tracks` "
-                    f"declares {', '.join(sorted(_lost))}. The store is the "
-                    f"register and it does not know about "
-                    f"{'them' if len(_lost) > 1 else 'it'}, so a write now "
-                    f"would stamp a truncated list. Nothing was written. "
-                    f"`perry-config write --from-file` rebuilds the store from "
-                    f"the table; `perry-lint` reports the same disagreement.")
+                    f"the track register does not carry "
+                    f"{', '.join(sorted(_lost))}, which "
+                    f"`.perry/config.md § Tracks` declares. The store is the "
+                    f"register, so a write now would stamp a truncated list "
+                    f"and lose that track's mode, stages, WIP and SLA. "
+                    f"Nothing was written. `perry-config write --from-file` "
+                    f"rebuilds the store from the table; `perry-lint` reports "
+                    f"the same disagreement as `config-store-drift`.")
             if source in _ps.TRACKS_STORE_UNUSABLE \
                     and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(

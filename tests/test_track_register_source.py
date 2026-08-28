@@ -332,26 +332,66 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
             self.detail(self.project(SETTING_ONLY, md_declares=False))[1],
             PS.TRACKS_FROM_STORE)
 
+    DEFAULTED = [dict(PS.DEFAULT_TRACK)]
+
     def test_a_complete_default_loses_nothing(self):
-        self.assertEqual(PS.defaulted_over_a_declaring_table(
+        self.assertEqual(PS.tracks_missing_from_the_register(
             self.project(SETTING_ONLY, md_declares=False),
-            PS.TRACKS_STORE_DEFAULT), [])
+            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), [])
 
-    def test_a_defaulted_answer_over_a_declaring_table_names_what_it_lost(self):
-        self.assertEqual(PS.defaulted_over_a_declaring_table(
-            self.project(SETTING_ONLY, md_declares_two=True),
-            PS.TRACKS_STORE_DEFAULT), ["intake"])
+    def test_a_table_that_DECLARES_main_is_not_a_complete_default(self):
+        """**Round 4's FAIL.** The predicate filtered on the NAME `main`, so a
+        table DECLARING `| main | queue | … | 4 | 3d | … | V2 |` beside a
+        trackless store looked identical to no table at all — and every one of
+        those settings vanished in silence with an allowed write, while
+        `perry-lint` reported `config-store-drift · track/main`.
 
-    def test_the_predicate_is_empty_for_every_other_source(self):
-        """It must not fire on `store`, `absent`, `unreadable` or `invalid` —
-        each of those has its own handling and a second one would double-report.
+        `parse_tracks` carries `declared` on every row; the register's `main`
+        is `DEFAULT_TRACK`, whose `declared` is False. Comparing on the RECORD
+        rather than the name is what separates them.
         """
+        self.assertEqual(PS.tracks_missing_from_the_register(
+            self.project(SETTING_ONLY, md_declares=True),
+            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), ["main"])
+
+    def test_it_names_every_declared_track_the_register_lacks(self):
+        self.assertEqual(sorted(PS.tracks_missing_from_the_register(
+            self.project(SETTING_ONLY, md_declares_two=True),
+            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT)), ["intake", "main"])
+
+    def test_the_mirror_case_is_the_same_drift_and_gets_the_same_answer(self):
+        """**Round 4's third defect.** The question used to be asked only of
+        `store-default`, so a store with ZERO track records beside a
+        two-track table warned and refused, while a store with ONE record
+        (`main`) beside the SAME table was silent and wrote — `intake` gone
+        either way, and `perry-lint` reporting `config-store-drift ·
+        track/intake` on both. *"The rule that decides is 'did the store happen
+        to contain zero track records', which is not a fact about the user's
+        situation."*
+        """
+        carries_main = [dict(PS.DEFAULT_TRACK, declared=True)]
+        self.assertEqual(PS.tracks_missing_from_the_register(
+            self.project(SETTING_ONLY, md_declares_two=True),
+            carries_main, PS.TRACKS_FROM_STORE), ["intake"])
+
+    def test_the_predicate_is_empty_where_a_register_did_not_answer(self):
+        """`absent` is the adoption path — there is nothing to compare — and
+        the two unusable sources are already refused on their own terms, so a
+        second finding would double-report."""
         d = self.project(SETTING_ONLY, md_declares_two=True)
-        for source in (PS.TRACKS_FROM_STORE, PS.TRACKS_STORE_ABSENT,
-                       PS.TRACKS_STORE_UNREADABLE, PS.TRACKS_STORE_INVALID):
+        for source in (PS.TRACKS_STORE_ABSENT, PS.TRACKS_STORE_UNREADABLE,
+                       PS.TRACKS_STORE_INVALID):
             with self.subTest(source):
-                self.assertEqual(
-                    PS.defaulted_over_a_declaring_table(d, source), [])
+                self.assertEqual(PS.tracks_missing_from_the_register(
+                    d, self.DEFAULTED, source), [])
+
+    def test_the_retired_name_raises_rather_than_answering_narrowly(self):
+        """A caller passing only `(root, source)` cannot ask the widened
+        question. Answering it narrowly under the old name is the shape this
+        row keeps being failed for."""
+        with self.assertRaises(TypeError):
+            PS.defaulted_over_a_declaring_table(
+                self.project(SETTING_ONLY), PS.TRACKS_STORE_DEFAULT)
 
 
 class TestThePayloadSaysWhichAnswerItGave(Fixture):
@@ -442,11 +482,21 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
     def test_a_write_is_fine_with_a_trackless_store(self):
-        """The round 2 regression at the write path, where it actually bit."""
+        """The round 2 regression at the write path, where it actually bit.
+
+        **`md_declares=False`, and the round 4 review failed this row because
+        it was not.** The round 2 regression bit on projects with NO
+        `## Tracks` section; this guard was built with the fixture default,
+        which WRITES a table declaring `main`, so it asserted an allowed write
+        on a project whose table declares a track the register does not carry —
+        pinning the very defect that round caused, under a docstring naming a
+        different one.
+        """
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        out = self.run_task(self.project(setting + "\n"), "intake",
-                            "--title", "a request")
+        out = self.run_task(
+            self.project(setting + "\n", md_declares=False),
+            "intake", "--title", "a request")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
 
@@ -482,9 +532,14 @@ class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
         out = self.run_task(d, "add", "--title", "t",
                             "--deliverable", "d", "--verification", "v")
         blob = out.stdout + out.stderr
-        self.assertIn("config.jsonl", blob)
+        self.assertIn("the track register does not carry", blob)
         self.assertIn("intake", blob, "the message must name what was lost")
+        # Round 3's message read "track 'intake' is not declared in
+        # `.perry/config.md § Tracks`" while pointing at a table that declares
+        # it on line 14. The register is what does not carry it; the table is
+        # the thing that DOES declare it, and the wording must not swap them.
         self.assertNotIn("is not declared in", blob)
+        self.assertIn("`.perry/config.md § Tracks` declares", blob)
 
     def test_a_read_is_still_allowed(self):
         d = self.project(SETTING_ONLY, md_declares_two=True)
@@ -560,10 +615,12 @@ class TestTheGoalsLaneRefusesToo(Fixture):
         self.assertNotIn("track register", out.stdout + out.stderr)
 
     def test_goals_is_fine_with_a_trackless_store(self):
+        """`md_declares=False` — see the note on the `perry-task` twin."""
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        out = self.run_goals(self.project(setting + "\n"),
-                             *self.REACHES_REGISTER)
+        out = self.run_goals(
+            self.project(setting + "\n", md_declares=False),
+            *self.REACHES_REGISTER)
         self.assertNotIn("track register", out.stdout + out.stderr)
 
 

@@ -876,37 +876,86 @@ def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
 
 
 def tracks_the_projection_declares(project_root: Path) -> list[str]:
-    """Track names `.perry/config.md § Tracks` declares, `[]` when it declares none.
+    """Track names `.perry/config.md § Tracks` **declares**, `[]` when none.
 
-    Used only to tell a COMPLETE `store-default` answer from a DRIFTING one.
-    `parse_tracks` never returns empty — it hands back the implicit `main` when
-    there is no section — so "declares none" is the one-element `main` case,
-    which is exactly what DESIGN-003 says an absent section means.
+    **`declared`, not the name.** This filtered on `n != "main"` and the V4
+    round 4 review failed the row for it: `parse_tracks` returns a one-element
+    `main` for two different reasons and the string cannot tell them apart —
+    the section is ABSENT, so `main` was synthesised, or the table DECLARES a
+    row named `main` carrying its own mode, spine, stages, WIP, SLA and rung.
+    A table declaring `| main | queue | standing | new→triaged→done | 4 | 3d |
+    weekly | V2 |` beside a trackless store lost every one of those settings in
+    silence, with an allowed write, while `perry-lint` reported the same
+    `config-store-drift · track/main` it reports for the case this file
+    refuses on.
+
+    `parse_tracks` already carries the flag on every row it returns. Reading it
+    is not a second implementation of the comparison — it is asking the parser
+    what it parsed.
     """
     cfg = project_root / ".perry" / "config.md"
     if not cfg.exists():
         return []
-    names = [t.get("track", "") for t
-             in parse_tracks(cfg.read_text(errors="replace"))]
-    named = [n for n in names if n and n != DEFAULT_TRACK["track"]]
-    return named
+    return [t.get("track", "") for t
+            in parse_tracks(cfg.read_text(errors="replace"))
+            if t.get("declared") and t.get("track")]
+
+
+#: Sources for which a register ANSWERED and can therefore be compared against
+#: the table beside it. `absent` is the adoption path — there is nothing to
+#: compare — and the two unusable sources are already refused on their own
+#: terms, so a second finding about them would double-report.
+TRACKS_ANSWERED = frozenset({TRACKS_FROM_STORE, TRACKS_STORE_DEFAULT})
+
+
+def tracks_missing_from_the_register(project_root: Path, tracks: list[dict],
+                                     source: str) -> list[str]:
+    """Track names the TABLE declares that the REGISTER did not return.
+
+    **One question, asked once, for every source where a store answered.** The
+    previous version asked it only of `store-default`, and the V4 round 4
+    review showed that split one drift two ways: a store with ZERO track
+    records beside a table declaring `main` and `intake` warned and refused,
+    while a store with ONE record (`main`) beside the same table was silent and
+    wrote — `intake` gone from the payload either way, and `perry-lint`
+    reporting `config-store-drift · track/intake` on both. *"The rule that
+    decides is 'did the store happen to contain zero track records', which is
+    not a fact about the user's situation."*
+
+    So the comparison is a set difference on names, which is the shape
+    `perry-lint` reports per row, and it covers `store` and `store-default`
+    alike. That also removes the asymmetry's cause rather than its symptom:
+    there is no longer a branch where the question goes unasked.
+    """
+    if source not in TRACKS_ANSWERED:
+        return []
+    # **A name present on both sides is not enough.** The register's `main` is
+    # either a RECORD (`declared: True`, from `track_from_record`) or the
+    # synthesised `DEFAULT_TRACK` (`declared: False`). On a table declaring
+    # `| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |`
+    # beside a trackless store, both sides say "main" and everything the row
+    # actually carries — mode, spine, stages, WIP, SLA, rung — is gone. A set
+    # difference on names reports nothing there, which is how the first attempt
+    # at this fix still lost states 8, 9 and 13.
+    #
+    # So the register "carries" a track only when it carries a RECORD for it.
+    have = {t.get("track", "") for t in tracks if t.get("declared")}
+    return [n for n in tracks_the_projection_declares(project_root)
+            if n not in have]
 
 
 def defaulted_over_a_declaring_table(project_root: Path, source: str) -> list[str]:
-    """Track names lost to a `store-default` answer, `[]` when nothing is lost.
+    """Kept as the name round 4's callers used; `tracks` is the missing half.
 
-    The one predicate that separates the two `store-default` situations, so the
-    payload's warning, the writers' refusals and any future reader cannot
-    disagree about which is which — the same reason `TRACKS_STORE_WHY` is one
-    wording for three callers.
-
-    Empty for every source except `store-default`: `store` answered from
-    records, `absent` is the adoption path, and the two unusable sources have
-    their own handling.
+    Retained rather than deleted because a caller passing only `(root, source)`
+    cannot ask the widened question — it needs the register's own answer — and
+    a silently narrower result under the old name is exactly the shape this row
+    keeps being failed for. It raises instead.
     """
-    if source != TRACKS_STORE_DEFAULT:
-        return []
-    return tracks_the_projection_declares(project_root)
+    raise TypeError(
+        "defaulted_over_a_declaring_table was replaced by "
+        "tracks_missing_from_the_register(project_root, tracks, source), "
+        "which also needs the register's answer — see its docstring")
 
 
 def declared_tracks_detail(project_root: Path) -> tuple[list[dict], str]:
@@ -1836,15 +1885,16 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # dashboard, from `sla_report`, from `wip_report` and from `--track`
     # validation. Round 3 did exactly that, and it was worse than either of its
     # predecessors.
-    if _tracks_source == TRACKS_STORE_DEFAULT:
-        _missing = tracks_the_projection_declares(perry_root)
+    if _tracks_source in TRACKS_ANSWERED:
+        _missing = tracks_missing_from_the_register(
+            perry_root, (_cfg_for_wip or {}).get("tracks") or [], _tracks_source)
         if _missing:
             warnings.append(
-                f"the track register was DEFAULTED to `main`: "
-                f"`.perry/config.jsonl` is readable and carries no "
-                f"`kind: track` record, while `.perry/config.md § Tracks` "
-                f"declares {', '.join(sorted(_missing))}. Those tracks and "
-                f"their WIP/SLA settings are missing from this payload. "
+                f"the track register does not carry "
+                f"{', '.join(sorted(_missing))}, which "
+                f"`.perry/config.md § Tracks` declares. "
+                f"{'Those tracks and their' if len(_missing) > 1 else 'That track and its'} "
+                f"mode, stages, WIP and SLA are missing from this payload. "
                 f"`perry-lint` reports the same disagreement as "
                 f"`config-store-drift`; `perry-config write --from-file` "
                 f"rebuilds the store from the table.")

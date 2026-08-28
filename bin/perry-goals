@@ -2164,16 +2164,14 @@ def tracks_of(project_root: Path) -> list[dict]:
     # State 7 — the store defaulted while the table declares more. Drift, not
     # an answer; this lane writes `phase/` and the linkage register off the
     # track list. See `bin/perry-task § main` for the full reasoning.
-    lost = ps.defaulted_over_a_declaring_table(project_root, source)
+    lost = ps.tracks_missing_from_the_register(project_root, tracks, source)
     if lost:
         raise Refused(
-            f"the track register was DEFAULTED to `main`: "
-            f"`.perry/config.jsonl` is readable and carries no `kind: track` "
-            f"record, while `.perry/config.md § Tracks` declares "
-            f"{', '.join(sorted(lost))}. The store is the register and it does "
-            f"not know about {'them' if len(lost) > 1 else 'it'}. Nothing was "
-            f"written. `perry-config write --from-file` rebuilds the store "
-            f"from the table.")
+            f"the track register does not carry {', '.join(sorted(lost))}, "
+            f"which `.perry/config.md § Tracks` declares. The store is the "
+            f"register. Nothing was written. `perry-config write --from-file` "
+            f"rebuilds the store from the table; `perry-lint` reports the same "
+            f"disagreement as `config-store-drift`.")
     if source in ps.TRACKS_STORE_UNUSABLE:
         raise Refused(
             f"the track register cannot be read from the store: "
