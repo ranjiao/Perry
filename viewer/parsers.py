@@ -1544,15 +1544,109 @@ def _cadence_as_task(c: Cadence) -> Task:
     )
 
 
+#: The register's columns, in the order `perry-task ask` writes them. `Idle` is
+#: NOT among them and never was: `cmd_ask` stamps `Asked`, a date, and the age
+#: is computed at read time by `bin/perry-state § idle_days`.
+USER_COLUMNS = ["USER-id", "Needed from user", "Blocks", "Asked", "Status"]
+
+
+def is_user_register_header(header: list[str]) -> bool:
+    """Whether this table header declares the question column.
+
+    `Needed from user` is the column that identifies the register — it holds
+    the human's sentence — exactly as `Risk` and `Request` identify the two
+    registers above. Resolved by NAME through the glossary so
+    `| 用户输入编号 | 需要用户提供 |` counts, and by `squash` so
+    `| USER-id | **Needed from user** |` counts.
+
+    **Not `USER-id`.** A table under this heading with an id column and no
+    question column is a legend or an index, and the sentence is what a row of
+    this register is for — the same reading `is_risk_register_header` gives one
+    block up, taken here for the same reason rather than by analogy.
+    """
+    return bool(set(_column_keys("Needed from user"))
+                & {squash(c) for c in header})
+
+
+#: A `Status` cell that means "this question is still on the user". Matched as a
+#: PREFIX on the cleaned cell and never as an enum, for the reason
+#: `_RE_CLEARED` is: `perry-task ask` writes `pending` and `answer` writes
+#: `answered <date>: <text>`, but the column is free text on any board a human
+#: has touched.
+_ASK_STILL_OPEN = ("pending", "waiting", "open", "—", "-")
+
+
+def ask_is_answered(status_cell: str) -> bool:
+    """Whether a `## User Input Queue` row has had its answer.
+
+    **The rule, in the file both `bin/` and `viewer/` already import.** It was
+    written in `bin/perry-state § answered`, whose own docstring records that
+    it had already been written twice and that a third copy would decide the
+    number the user is told to act on ("2 items waiting on you" on a board
+    where both were answered the same day). The store is the fourth caller, and
+    a store that re-spelled it would be that defect wearing a record file —
+    exactly what `intake_is_discharged` was moved here to prevent one register
+    over.
+
+    An empty cell is NOT answered: a row with nothing in `Status` is a question
+    nobody has come back to, and reading blank as closed is the direction that
+    silently shortens the needs-you list.
+
+    **A FIFTH READING EXISTS AND THIS DID NOT UNIFY IT.** `bin/perry-diagnose`
+    asks the same question with its own regex at `bin/perry-diagnose:298` —
+    `\\b(answered|resolved|closed|done|decided|已回答|已解决|已决定)\\b`, a
+    substring search anywhere in the row rather than a prefix on the cell — and
+    the two disagree in BOTH directions. Measured on eight real `Status`
+    spellings, four disagree: `dropped 2026-08-20 — folded into TASK-190` and
+    `withdrawn 2026-08-20` are answered here and open there, while
+    `pending — will be resolved by TASK-9` and `open — the RFC decided against
+    it` are open here and answered there. That is `intake_is_discharged`'s
+    defect one register over, exactly: same cell, two readings, opposite signs,
+    and the number it decides is "open questions waiting on you".
+
+    It is NOT fixed here, and the reason is stated rather than left implicit:
+    changing it moves `LOAD-03` counts on somebody's board, `test_diagnose` is
+    the suite's one red module today, and a semantic change to a checker under
+    a red test is the edit nobody can review. **A finding with no row does not
+    get fixed** — so this one has a row, and this paragraph is it.
+
+    **Byte-identical to what `answered` did, deliberately** — `.strip("*` ")`
+    rather than `undecorate_cell`, even though the latter also drops `~` and
+    would read `~~pending~~` as still open instead of as answered. Moving a
+    rule and changing it in the same edit is how a move becomes unreviewable;
+    widening it is a decision about somebody's board and belongs to a row that
+    says so.
+    """
+    s = (status_cell or "").strip().strip("*` ").lower()
+    return bool(s) and not s.startswith(_ASK_STILL_OPEN)
+
+
 def _parse_user_input(section: str) -> list[UserInput]:
     """Columns resolved by NAME — see `schema/README.md § Columns resolve by name`.
 
     This read them positionally, assuming cell 3 of a five-column row was
-    `Idle`. Three real shapes are in circulation: five columns with `Idle`
-    (Perry's own board), four without it (a live project dropped the column
-    because a stored age is stale the moment it is written), and five with
-    `Asked` instead. Under the positional rule the third of those puts a date
-    into `idle` and reports every request as having waited zero days.
+    `Idle`. **Four real shapes are in circulation**, and the fourth is the one
+    this file's own project writes:
+
+      six with `Idle` AND `Asked`   Perry's own board since 2026-08-19, when
+                                    `perry-task ask` first ran on it and
+                                    `ensure_section_columns` appended `Asked`
+                                    beside the `Idle` column already there.
+      five with `Idle`              what Perry's board was when this docstring
+                                    was written on 2026-08-17, two days
+                                    earlier. **The parenthetical that used to
+                                    say "Perry's own board" here was stale from
+                                    the commit after the one that wrote it** —
+                                    stale against the writer TASK-039 shipped
+                                    in the same change.
+      four with neither            a live project dropped `Idle` because a
+                                    stored age is stale the moment it is
+                                    written.
+      five with `Asked` instead    what `cmd_ask` creates from scratch, and
+                                    `USER_COLUMNS` above.
+
+    Under the positional rule the last of those puts a date into `idle` and
+    reports every request as having waited zero days.
 
     Third location of this defect. The first two were `_parse_task_table` and
     the writer/reader split it caused.

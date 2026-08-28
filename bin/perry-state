@@ -86,9 +86,16 @@ def answered(u) -> bool:
     would be the same defect a third time, and this one decides the number the
     user is supposed to act on ("2 items waiting on you" on a board where both
     were answered the same day).
+
+    **The rule itself moved to `viewer/parsers.py § ask_is_answered` (TASK-197)
+    and this is the row-shaped wrapper over it.** The ask store is the fourth
+    caller and it lives in `bin/perry_store.py`, which cannot import this file;
+    `parsers.py` is the bottom of the import graph and is the one place both
+    halves already reach — the same move `intake_is_discharged` made one
+    register over, for the same reason. Nothing about the answer changed: this
+    took the cell, and so does that.
     """
-    s = (u.status or "").strip().strip("*` ").lower()
-    return bool(s) and not s.startswith(("pending", "waiting", "open", "—", "-"))
+    return P.ask_is_answered(getattr(u, "status", "") or "")
 
 
 def idle_days(u) -> int:
