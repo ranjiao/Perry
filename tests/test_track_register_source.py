@@ -58,6 +58,8 @@ sys.path.insert(0, str(ROOT / "bin"))
 
 STATE = ROOT / "bin" / "perry-state"
 TASK = ROOT / "bin" / "perry-task"
+GOALS = ROOT / "bin" / "perry-goals"
+DIAGNOSE = ROOT / "bin" / "perry-diagnose"
 
 
 def _state_module():
@@ -123,6 +125,12 @@ class Fixture(unittest.TestCase):
         (d / ".perry").mkdir()
         (d / ".perry" / "config.md").write_text(CONFIG_MD)
         (d / "BOARD.md").write_text(BOARD)
+        # `perry-goals commit` refuses before it reaches the track register
+        # without one, and a refusal for the wrong reason is a test that passes
+        # while measuring nothing — the trap this whole module was written
+        # after.
+        shutil.copy(ROOT / "tests" / "fixtures" / "sample-project" / "OKR.md",
+                    d / "OKR.md")
         if store is not None:
             (d / ".perry" / "config.jsonl").write_text(store)
         return d
@@ -187,16 +195,62 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         self.assertEqual(source, PS.TRACKS_STORE_INVALID)
         self.assertEqual([t["track"] for t in tracks], ["main"])
 
-    def test_an_empty_store_is_unusable_not_absent(self):
-        source = self.detail(self.project(""))[1]
-        self.assertIn(source, PS.TRACKS_STORE_UNUSABLE)
+    def test_an_empty_store_is_unusable_but_a_settings_only_store_is_not(self):
+        """The distinction the round 2 review drew, asserted as a pair.
 
-    def test_a_store_with_no_track_record_is_unusable(self):
+        A file that parsed to ZERO records has answered nothing — an
+        interrupted write produces one and `perry-config write --from-file`
+        never does. A store carrying settings and no track record HAS answered:
+        DESIGN-003 says that means one implicit `main`. Collapsing the two is
+        the same class of error as round 1's, one level down.
+        """
+        self.assertIn(self.detail(self.project(""))[1],
+                      PS.TRACKS_STORE_UNUSABLE)
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        source = self.detail(self.project(setting + "\n"))[1]
-        self.assertEqual(source, PS.TRACKS_STORE_NO_TRACK_RECORD)
-        self.assertIn(source, PS.TRACKS_STORE_UNUSABLE)
+        self.assertEqual(self.detail(self.project(setting + "\n"))[1],
+                         PS.TRACKS_FROM_STORE)
+
+    def test_a_store_with_no_track_record_HAS_ANSWERED(self):
+        """**The round 2 regression, asserted in the direction that failed.**
+
+        A store that validates and carries no `kind: track` record is not
+        broken. `schema/state-schema.json § work_modes.note` (DESIGN-003,
+        locked 2026-08-16) defines the state: *"Absent a Tracks section there
+        is one implicit track named `main`, mode `project`"*, and marks the
+        section *"OPTIONAL … which is what keeps every pre-DESIGN-003 project
+        valid."*
+
+        Round 2 filed it under `TRACKS_STORE_UNUSABLE` and hung a permanent
+        write refusal off that bucket. Three of this repo's six `config.md`
+        files have no `## Tracks` section, so on each of them
+        `perry-config write --from-file` produced a settings-only store and
+        every subsequent write was refused — pointing the user at two commands
+        that report the store as `drift_count: 0, byte_identical: true`.
+        """
+        setting = json.dumps({"kind": "setting", "key": "language",
+                              "value": "English", "order": 0})
+        tracks, source = self.detail(self.project(setting + "\n"))
+        self.assertEqual(source, PS.TRACKS_FROM_STORE)
+        self.assertNotIn(source, PS.TRACKS_STORE_UNUSABLE)
+        self.assertEqual([t["track"] for t in tracks], ["main"],
+                         "DESIGN-003 specifies one implicit `main`")
+
+    def test_the_register_is_never_empty(self):
+        """`declared_tracks`' documented invariant, which nothing asserted.
+
+        Round 2's review found that returning `[]` with a truthful source label
+        was green across 2811 tests, so the docstring's *"Never empty, for the
+        reason `parse_tracks` is never empty: the router has no 'no tracks
+        declared' branch"* was a claim with no guard under it.
+        """
+        setting = json.dumps({"kind": "setting", "key": "language",
+                              "value": "English", "order": 0})
+        for store in (None, "", GOOD_STORE, setting + "\n",
+                      GOOD_STORE + '{"kind": "track", "track": "hal'):
+            with self.subTest(repr((store or "")[:24])):
+                self.assertTrue(self.detail(self.project(store))[0],
+                                "the router has no empty-register branch")
 
     def test_every_unusable_source_has_a_sentence_for_a_human(self):
         """One wording, so three callers cannot describe one state three ways."""
@@ -291,6 +345,80 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         out = self.run_task(self.project(GOOD_STORE), "intake",
                             "--title", "a request")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    def test_a_write_is_fine_with_a_trackless_store(self):
+        """The round 2 regression at the write path, where it actually bit."""
+        setting = json.dumps({"kind": "setting", "key": "language",
+                              "value": "English", "order": 0})
+        out = self.run_task(self.project(setting + "\n"), "intake",
+                            "--title", "a request")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+
+class TestTheGoalsLaneRefusesToo(Fixture):
+    """**The guard round 2 shipped with no test at all.**
+
+    Its review deleted `bin/perry-goals`' eight-line refusal and the full
+    2811-test suite stayed green: the module exercised `perry-state` and
+    `perry-task` and never invoked `perry-goals`, while the commit message
+    claimed it covered "both callers". That is round 1's finding 6 reproduced
+    inside round 2's own fix, which is why this class exists.
+    """
+
+    def run_goals(self, d: pathlib.Path, *argv):
+        return subprocess.run(
+            [sys.executable, str(GOALS), *argv, "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+
+    #: `list` does not read the track register; `commit` does (bin/perry-goals
+    #: :3120). Using a command that never reaches `tracks_of` would make this
+    #: whole class green on a deleted guard, which is the failure it exists for.
+    REACHES_REGISTER = ("commit", "--track", "main", "--promise", "p",
+                        "--to", "someone", "--due", "2026-09-30")
+
+    def test_goals_refuses_when_the_store_is_present_and_unusable(self):
+        d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
+        out = self.run_goals(d, *self.REACHES_REGISTER)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("track register", out.stdout + out.stderr)
+
+    def test_goals_is_fine_with_no_store(self):
+        """`absent` is the adoption path and must never reach the refusal."""
+        out = self.run_goals(self.project(None), *self.REACHES_REGISTER)
+        self.assertNotIn("track register", out.stdout + out.stderr)
+
+    def test_goals_is_fine_with_a_trackless_store(self):
+        setting = json.dumps({"kind": "setting", "key": "language",
+                              "value": "English", "order": 0})
+        out = self.run_goals(self.project(setting + "\n"),
+                             *self.REACHES_REGISTER)
+        self.assertNotIn("track register", out.stdout + out.stderr)
+
+
+class TestDiagnoseSaysWhichRegisterItRead(Fixture):
+    """The FOURTH call site, which round 2's own design note never mentioned.
+
+    Its review measured this reporting `tracks: ['main']` on a store declaring
+    `main` AND `intake`, with `register_declared: True` and empty stderr —
+    round 1's finding 1, unchanged, at the site nobody counted.
+    """
+
+    def work_modes(self, d: pathlib.Path) -> dict:
+        proc = subprocess.run(
+            [sys.executable, str(DIAGNOSE), "--root", str(d), "--json"],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.returncode, 0, proc.stderr[:400])
+        return json.loads(proc.stdout).get("work_modes", {})
+
+    def test_it_labels_a_healthy_store(self):
+        self.assertEqual(self.work_modes(self.project(GOOD_STORE))
+                         .get("tracks_source"), "store")
+
+    def test_it_labels_the_projection_fallback(self):
+        wm = self.work_modes(
+            self.project(GOOD_STORE + '{"kind": "track", "track": "hal'))
+        self.assertIn(wm.get("tracks_source"), PS.TRACKS_STORE_UNUSABLE,
+                      "diagnose read the projection and did not say so")
 
 
 if __name__ == "__main__":

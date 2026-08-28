@@ -742,12 +742,33 @@ TRACKS_FROM_STORE = "store"
 TRACKS_STORE_ABSENT = "absent"
 TRACKS_STORE_UNREADABLE = "unreadable"
 TRACKS_STORE_INVALID = "invalid"
+#: **Retired as a failure mode, kept as a name.** A store that validates and
+#: carries no `kind: track` record is `TRACKS_FROM_STORE` now, answering
+#: `main` — see `stored_tracks`. The constant stays so that a project or a
+#: reader still referring to the old spelling gets a name that resolves rather
+#: than an AttributeError, and so this comment is where the question is
+#: answered.
 TRACKS_STORE_NO_TRACK_RECORD = "no-track-record"
 
-#: The three that mean "a store is sitting right there and cannot be used".
+#: The two that mean "a store is sitting right there and cannot be used".
+#
+# **`no-track-record` is NOT one of them, and putting it here was a regression**
+# the V4 round 2 review caught. `schema/state-schema.json § work_modes.note`
+# (DESIGN-003, locked 2026-08-16) defines that state as valid and DETERMINED:
+# *"Absent a Tracks section there is one implicit track named `main`, mode
+# `project` — which is today's Perry exactly, so nothing here changes an
+# existing project until it opts in"*, and the `^Tracks` entry marks the
+# section *"OPTIONAL: skipped entirely when the section is absent, which is
+# what keeps every pre-DESIGN-003 project valid."*
+#
+# A store that validates and declares zero tracks has ANSWERED. Treating the
+# answer as a malfunction hung a permanent write refusal on every project of
+# that shape — three of this repo's six `config.md` files — telling the user to
+# repair a store `perry-config verify` reports as `drift_count: 0,
+# byte_identical: true`. Round 1 failed this row for collapsing four situations
+# into one answer; this collapsed two.
 TRACKS_STORE_UNUSABLE = frozenset({
-    TRACKS_STORE_UNREADABLE, TRACKS_STORE_INVALID,
-    TRACKS_STORE_NO_TRACK_RECORD})
+    TRACKS_STORE_UNREADABLE, TRACKS_STORE_INVALID})
 
 #: What to tell a human for each. Written once so the payload warning, the
 #: writers' refusals and the diagnosis cannot describe the same state three
@@ -757,8 +778,6 @@ TRACKS_STORE_WHY = {
         "`.perry/config.jsonl` exists but could not be read as JSONL",
     TRACKS_STORE_INVALID:
         "`.perry/config.jsonl` exists but holds records that do not validate",
-    TRACKS_STORE_NO_TRACK_RECORD:
-        "`.perry/config.jsonl` exists but carries no `kind: track` record",
 }
 
 
@@ -798,10 +817,28 @@ def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
         return None, TRACKS_STORE_UNREADABLE
     if findings:
         return None, TRACKS_STORE_INVALID
+    if not good:
+        # **An EMPTY store is broken; a settings-only store is not.** The two
+        # used to land on the same branch, which is the collapse the round 2
+        # review named one level down from round 1's. A file that parsed to
+        # zero records has not answered anything — `perry-config write
+        # --from-file` never produces one, and an interrupted write can.
+        return None, TRACKS_STORE_INVALID
     rows = [r for r in good
             if r.get("kind") == "track" and (r.get("track") or "").strip()]
     if not rows:
-        return None, TRACKS_STORE_NO_TRACK_RECORD
+        # **The store answered: one implicit `main`.** Not a fallback to the
+        # markdown and not a refusal — DESIGN-003 specifies this exact answer
+        # for a project with no `## Tracks` section, and `perry-config write
+        # --from-file` produces a settings-only store from such a config every
+        # time. Returning it as `source: store` is what removes the last
+        # markdown read on this branch AND removes the refusal, instead of
+        # trading one for the other.
+        #
+        # An EMPTY or malformed store does not reach here: it exits above
+        # through `unreadable`/`invalid`. This branch is reached only by a
+        # store that parsed and validated.
+        return [dict(DEFAULT_TRACK)], TRACKS_FROM_STORE
     # `order` is the record's position, and a record written before the field
     # existed sorts after the graded ones rather than at zero — the same rule
     # `perry_md_store § plan` applies when it reports records out of stored
