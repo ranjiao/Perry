@@ -6759,6 +6759,29 @@ def main(argv: list[str]) -> int:
             # A READ is still allowed through, for the same reason
             # `perry-state` is: refusing `list` would make a corrupt store
             # un-diagnosable with the tool the user has in their hand.
+            # **State 7: the store answered by DEFAULT while the table
+            # declares tracks it does not carry.** That is drift, not an
+            # answer, and a write against a register provably missing a
+            # declared track stamps `Track`, `Stage` and `Arrived` off a
+            # truncated list. Round 2 refused here and was right to; round 3
+            # allowed it and lost `intake` and its SLA in silence.
+            #
+            # The message names the STORE as the register that answered — the
+            # round 3 refusal told the user a track was "not declared in
+            # `.perry/config.md § Tracks`" while pointing at a table that
+            # declares it on line 14.
+            _lost = _ps.defaulted_over_a_declaring_table(project_root, source)
+            if _lost and args.cmd not in READ_ONLY_COMMANDS:
+                raise Refused(
+                    f"the track register was DEFAULTED to `main`: "
+                    f"`.perry/config.jsonl` is readable and carries no "
+                    f"`kind: track` record, while `.perry/config.md § Tracks` "
+                    f"declares {', '.join(sorted(_lost))}. The store is the "
+                    f"register and it does not know about "
+                    f"{'them' if len(_lost) > 1 else 'it'}, so a write now "
+                    f"would stamp a truncated list. Nothing was written. "
+                    f"`perry-config write --from-file` rebuilds the store from "
+                    f"the table; `perry-lint` reports the same disagreement.")
             if source in _ps.TRACKS_STORE_UNUSABLE \
                     and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(

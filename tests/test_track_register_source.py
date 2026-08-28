@@ -90,6 +90,12 @@ CONFIG_MD = ("""# Perry configuration
 | main | project | phase/ | — | — | — | — | V3 |
 """)
 
+#: The same config with a SECOND declared track. Needed because the divergence
+#: this module measures is "the table declares something the store does not",
+#: and a one-row table has nothing to lose.
+CONFIG_MD_TWO = CONFIG_MD + (
+    "| intake | queue | standing | new→done | 6 | 5d | weekly | V3 |\n")
+
 BOARD = (
     "# Board — track source fixture\n\n> Last updated: 2026-08-29\n\n"
     "## P0 (must finish this period)\n\n"
@@ -119,11 +125,31 @@ GOOD_STORE = track_record("main", "project", 0) + "\n" \
 
 class Fixture(unittest.TestCase):
 
-    def project(self, store: str | None) -> pathlib.Path:
+    def project(self, store: str | None, *, md_declares: bool = True,
+                md_declares_two: bool = False) -> pathlib.Path:
+        """The `.perry/config.md` half of the fixture, in three shapes.
+
+        `md_declares=True` (default) writes a `## Tracks` table declaring ONLY
+        `main`, while `GOOD_STORE` declares `main` AND `intake` — that
+        divergence is the instrument every assertion about "did it read the
+        store or the projection" rests on, and it must not be disturbed.
+
+        `md_declares=False` writes no `## Tracks` section at all. That is the
+        shape three of this repo's six config files have.
+
+        `md_declares_two=True` writes a table declaring `main` AND `intake`,
+        which is the ONLY shape where a `store-default` answer loses something
+        — the distinction round 3 failed on. It is opt-in for the same reason
+        the default is one track: turning it on globally would make the store
+        and the table agree and quietly disarm the other twenty tests.
+        """
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-track-source-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / ".perry").mkdir()
-        (d / ".perry" / "config.md").write_text(CONFIG_MD)
+        (d / ".perry" / "config.md").write_text(
+            CONFIG_MD_TWO if md_declares_two else
+            CONFIG_MD if md_declares else
+            CONFIG_MD.split("## Tracks")[0])
         (d / "BOARD.md").write_text(BOARD)
         # `perry-goals commit` refuses before it reaches the track register
         # without one, and a refusal for the wrong reason is a test that passes
@@ -208,8 +234,9 @@ class TestTheFourSituationsAreDistinguished(Fixture):
                       PS.TRACKS_STORE_UNUSABLE)
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        self.assertEqual(self.detail(self.project(setting + "\n"))[1],
-                         PS.TRACKS_FROM_STORE)
+        self.assertEqual(
+            self.detail(self.project(setting + "\n", md_declares=False))[1],
+            PS.TRACKS_STORE_DEFAULT)
 
     def test_a_store_with_no_track_record_HAS_ANSWERED(self):
         """**The round 2 regression, asserted in the direction that failed.**
@@ -230,8 +257,11 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         """
         setting = json.dumps({"kind": "setting", "key": "language",
                               "value": "English", "order": 0})
-        tracks, source = self.detail(self.project(setting + "\n"))
-        self.assertEqual(source, PS.TRACKS_FROM_STORE)
+        tracks, source = self.detail(
+            self.project(setting + "\n", md_declares=False))
+        self.assertEqual(source, PS.TRACKS_STORE_DEFAULT,
+                         "round 4: the answer came from DEFAULT_TRACK, not "
+                         "from a record, and the label must say so")
         self.assertNotIn(source, PS.TRACKS_STORE_UNUSABLE)
         self.assertEqual([t["track"] for t in tracks], ["main"],
                          "DESIGN-003 specifies one implicit `main`")
@@ -257,6 +287,71 @@ class TestTheFourSituationsAreDistinguished(Fixture):
         for source in PS.TRACKS_STORE_UNUSABLE:
             self.assertIn(source, PS.TRACKS_STORE_WHY)
             self.assertIn("config.jsonl", PS.TRACKS_STORE_WHY[source])
+
+
+SETTING_ONLY = json.dumps({"kind": "setting", "key": "language",
+                           "value": "English", "order": 0}) + "\n"
+
+
+class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
+    """**Round 3's FAIL, and the third `two situations, one answer` in a row.**
+
+    Round 1 collapsed four `None`s into one. Round 2 collapsed `no-track-record`
+    into "unusable" and hard-blocked three of this repo's own fixtures. Round 3
+    split that out and then collapsed the two `store-default` situations:
+
+    - the store declares no track and `## Tracks` declares none either — a
+      COMPLETE answer, DESIGN-003's implicit `main`, and silence is correct;
+    - the store declares no track while `## Tracks` declares `main` AND
+      `intake` — **drift**, which `perry-lint` reports as `config-store-drift`.
+
+    Round 3 answered both with `[main]`, `source: "store"`, no warning, and an
+    allowed write. On the second it lost a declared track and its 5d SLA from
+    the dashboard, from `sla_report`, from `wip_report` and from `--track`
+    validation, and then refused `add --track intake` with a message pointing
+    at the very table that declares it. That was **worse than `45a355d`**,
+    which returned both tracks, **and worse than round 2**, which refused
+    loudly.
+
+    `source` is `store-default` now, not `store` — the list comes from a
+    constant in `bin/perry-state`, and labelling that `store` asserted a
+    provenance the answer did not have. The label was load-bearing: the payload
+    warning and both writers' refusals are keyed on it.
+    """
+
+    def test_a_complete_default_is_labelled_store_default(self):
+        tracks, source = self.detail(
+            self.project(SETTING_ONLY, md_declares=False))
+        self.assertEqual(source, PS.TRACKS_STORE_DEFAULT)
+        self.assertEqual([t["track"] for t in tracks], ["main"])
+        self.assertNotIn(source, PS.TRACKS_STORE_UNUSABLE)
+
+    def test_it_is_not_labelled_store_because_no_record_answered(self):
+        """`store` would assert a provenance the answer does not have."""
+        self.assertNotEqual(
+            self.detail(self.project(SETTING_ONLY, md_declares=False))[1],
+            PS.TRACKS_FROM_STORE)
+
+    def test_a_complete_default_loses_nothing(self):
+        self.assertEqual(PS.defaulted_over_a_declaring_table(
+            self.project(SETTING_ONLY, md_declares=False),
+            PS.TRACKS_STORE_DEFAULT), [])
+
+    def test_a_defaulted_answer_over_a_declaring_table_names_what_it_lost(self):
+        self.assertEqual(PS.defaulted_over_a_declaring_table(
+            self.project(SETTING_ONLY, md_declares_two=True),
+            PS.TRACKS_STORE_DEFAULT), ["intake"])
+
+    def test_the_predicate_is_empty_for_every_other_source(self):
+        """It must not fire on `store`, `absent`, `unreadable` or `invalid` —
+        each of those has its own handling and a second one would double-report.
+        """
+        d = self.project(SETTING_ONLY, md_declares_two=True)
+        for source in (PS.TRACKS_FROM_STORE, PS.TRACKS_STORE_ABSENT,
+                       PS.TRACKS_STORE_UNREADABLE, PS.TRACKS_STORE_INVALID):
+            with self.subTest(source):
+                self.assertEqual(
+                    PS.defaulted_over_a_declaring_table(d, source), [])
 
 
 class TestThePayloadSaysWhichAnswerItGave(Fixture):
@@ -353,6 +448,83 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         out = self.run_task(self.project(setting + "\n"), "intake",
                             "--title", "a request")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+
+class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
+    """State 7 at the write path, which is where round 3 did the damage.
+
+    Round 2 refused here and the reviewer called it *"correctly, loudly"*.
+    Round 3 allowed the write against a register provably missing a declared
+    track — and then refused `--track intake` with a message pointing at the
+    very table that declares it on line 14.
+
+    The refusal now names the STORE as the register that answered.
+    """
+
+    def run_task(self, d: pathlib.Path, *argv):
+        return subprocess.run(
+            [sys.executable, str(TASK), *argv, "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+
+    def test_a_write_is_refused_and_nothing_is_written(self):
+        d = self.project(SETTING_ONLY, md_declares_two=True)
+        out = self.run_task(d, "add", "--title", "t",
+                            "--deliverable", "d", "--verification", "v")
+        self.assertNotEqual(out.returncode, 0)
+        self.assertFalse((d / "tasks.jsonl").exists(),
+                         "the refusal must mean NOTHING was written")
+
+    def test_the_message_names_the_store_not_the_table(self):
+        """Round 3's message told the user a track was "not declared in
+        `.perry/config.md § Tracks`" while pointing at a table that declares
+        it. The store is the register that answered; say so."""
+        d = self.project(SETTING_ONLY, md_declares_two=True)
+        out = self.run_task(d, "add", "--title", "t",
+                            "--deliverable", "d", "--verification", "v")
+        blob = out.stdout + out.stderr
+        self.assertIn("config.jsonl", blob)
+        self.assertIn("intake", blob, "the message must name what was lost")
+        self.assertNotIn("is not declared in", blob)
+
+    def test_a_read_is_still_allowed(self):
+        d = self.project(SETTING_ONLY, md_declares_two=True)
+        self.assertEqual(self.run_task(d, "list", "--json").returncode, 0)
+
+    def test_a_COMPLETE_default_still_writes(self):
+        """The other half. Three of this repo's six config files are this
+        shape, and round 2 hard-blocked every one of them."""
+        out = self.run_task(
+            self.project(SETTING_ONLY, md_declares=False),
+            "add", "--title", "t", "--deliverable", "d",
+            "--verification", "v")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+
+class TestABlankTrackNameIsNotSilentlyADefault(Fixture):
+    """The gap round 3's reviewer found unguarded.
+
+    `stored_tracks` filters on `(r.get("track") or "").strip()`. A store
+    carrying one `kind: track` record whose name is blank validates, survives
+    validation, leaves `rows` empty, and lands on the default branch — the
+    store HAS a track record and the code reports it as a store with none.
+
+    Not reachable through the importer (a `## Tracks` row with an empty first
+    cell is dropped), so it is a hand-edit or partial-write shape. It was
+    GREEN: dropping the filter entirely passed all 23 tests.
+    """
+
+    BLANK = json.dumps({"kind": "track", "track": "", "mode": "project",
+                        "order": 0}) + "\n"
+
+    def test_the_filter_is_load_bearing(self):
+        """With the filter, a blank-named record is not a track and the answer
+        defaults. Without it, the record would be treated as a real track with
+        an empty name, and every consumer keyed on the name would see `''`."""
+        tracks, source = self.detail(self.project(self.BLANK))
+        self.assertEqual(source, PS.TRACKS_STORE_DEFAULT)
+        self.assertEqual([t["track"] for t in tracks], ["main"])
+        self.assertNotIn("", [t["track"] for t in tracks],
+                         "a blank-named record became a track")
 
 
 class TestTheGoalsLaneRefusesToo(Fixture):
