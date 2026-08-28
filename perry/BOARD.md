@@ -74,7 +74,7 @@
 
 | ID | Title | Owner | Status | Next action | Evidence | Verification | Depends on | Track | Stage | Stage since | Arrived | Parent | Commitment | Role |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | Run the finance-shaped role end to end on a copy of gimegime-pmo, then write the extraction report. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076 | main |  |  |  |  |  |  |
+| TASK-077 | DESIGN-006 F — a finance-shaped role runs one real task end to end | Coding Agent | not_started | DECIDED 2026-08-28 by the user: draft the card first, do not run it yet. Two corrections to this row's own record: (1) the Kind: source-of-truth card type F asks for is ALREADY BUILT — state-schema.json:2112, knowledge-list-contract.md:71, perry-knowledge --kind — decision #6 confirmed 2026-08-17 and it landed with phase A; (2) gimegime-pmo has NOT been migrated to the store (no tasks.jsonl; BOARD.md/OKR.md/DECISIONS.md at the project root), so running there today exercises the legacy markdown shape, which is TASK-097's subject. What actually blocks F is that no non-software role card has ever been written — all three shipped cards are software-shaped and the only pack is software-ops. Card first via TASK-200; the run and the V5 signature stay with the user. | evidence/2026-08/TASK-077-context.md | V5 | TASK-073, TASK-075, TASK-076, TASK-200 | main |  |  |  |  |  |  |
 | TASK-095 | Remove the parser for the three stores; keep what adoption needs | Coding Agent | not_started | — | — | V4 | TASK-094 | main |  |  |  |  |  |  |
 | TASK-097 | Migrate the two real projects to the store, at V5 | Coding Agent | not_started | — | — | V5 | TASK-092 | main |  |  |  |  |  |  |
 | TASK-099 | Sweep bin/, viewer/ and tests/ for document handling that ADR-007 made dead | Coding Agent | not_started | — | — | V4 | TASK-095 | main |  |  |  |  |  |  |
@@ -102,6 +102,7 @@
 | TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-197 | ## User Input Queue becomes a store — the queue has no store and the board section IS the record | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-200 | draft a finance-shaped role card from gimegime-pmo, and name every field that does not survive the shape change | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
