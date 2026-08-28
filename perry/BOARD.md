@@ -108,10 +108,10 @@
 | TASK-192 | D011 step 3 — routing and smart-skip, by track spine | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-193 | D011 step 4 — the escape hatch and the premise challenge | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-194 | D011 step 5 — plan-phase uses the same question bank | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
-| TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | in_progress | — | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-197 | ## User Input Queue becomes a store — the queue has no store and the board section IS the record | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-202 | the hook side of the escalation union has no not-extractable check at all — only role cards get one | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
+| TASK-203 | an ordinary write does not update its store, for either the risks or the intake register — one row, both registers | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 
 ## P2
 
