@@ -118,8 +118,17 @@ class Project:
         # Armed, so the fixture carries no lint finding of its own and a test
         # that measures "did being undeclared add a finding" is measuring that
         # and not the hook warning every bare project starts with.
+        #
+        # **The fragments are backticked, and were not.** This line read
+        # `- anything that spends money` — a bullet, so `hook-high-stakes-armed`
+        # stayed quiet, and zero fragments, so the gate it silenced was empty.
+        # TASK-202's check found it here, in this repository's own fixtures,
+        # the first time it ran: written by someone satisfying "armed" who
+        # believed a bullet was a rule. That is the whole defect, and the
+        # fixture now models a hook that actually arms something.
         (self.root / ".perry" / "hook.md").write_text(
-            "# Hook\n\n## High-stakes operations\n\n- anything that spends money\n")
+            "# Hook\n\n## High-stakes operations\n\n"
+            "- anything that spends money — `invoice`, `billing`\n")
 
     def run(self, tool: Path, *argv, enforce: bool | None = None,
             json_out: bool = True) -> tuple[int, dict | str, str]:

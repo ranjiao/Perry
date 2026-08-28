@@ -113,10 +113,19 @@ Copy the union into the prompt's safety-constraints block, and state the
 escalation rule in the imperative: *stop and ask before doing any of these.*
 
 Only **backticked spans** extract. An escalation line written as prose reads
-like a rule and contributes nothing to the scan — `perry-lint --knowledge`
-reports it as `role-escalation-not-extractable`, and `must_escalate.unextractable`
-carries the offending lines so this prompt can say the line is unenforced rather
-than present it as a constraint.
+like a rule and contributes nothing to the scan — **on either side of the
+union, and both are reported**:
+
+| Where the line is | Reported as | Payload key |
+|---|---|---|
+| a role card's `## Must escalate` | `role-escalation-not-extractable`, `perry-lint --knowledge` | `roles.cards[].must_escalate.unextractable` |
+| `.perry/hook.md § High-stakes operations` | `hook-escalation-not-extractable`, **`perry-lint` with no flag**, and a standup warning | `hook.high_stakes_unextractable` |
+
+Both carry the offending lines so this prompt can say the line is unenforced
+rather than present it as a constraint. The hook half needs no flag because
+every project has a hook and role cards are optional (goal 7) — and because
+`hook.high_stakes_armed` only says the section has bullets, not that the
+bullets arm anything (TASK-202).
 
 ## Required fields in the rendered prompt
 

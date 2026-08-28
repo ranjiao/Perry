@@ -3291,17 +3291,88 @@ def escalation_fragments(lines: list[str]) -> list[str]:
     return out
 
 
+def unextractable_lines(lines: list[str]) -> list[str]:
+    """The bullets that contribute NOTHING — the complement of the function above.
+
+    **One predicate, both halves of the union, for the reason
+    `escalation_fragments` gives one paragraph up.** That docstring says the
+    two sides must EXTRACT the same way or "a term a role declares would mean
+    something other than the same term in the hook". The same argument decides
+    reporting: if only one side is asked which of its bullets died, then
+    whether a rule is *known* to be unenforceable depends on which file it was
+    written in — and the file every project has was the side not asked.
+    TASK-202 measured a real project whose hook turned **5 bullets into 3
+    fragments**, three of them silent, while the same three sentences on a role
+    card would each have been warned about.
+
+    Note the asymmetry this replaces was not in the extractor: `line_fragments`
+    was already shared. It was in *who called it*. A shared extractor with one
+    caller is how a check comes to cover half of what it describes.
+    """
+    return [line for line in lines if not line_fragments(line)]
+
+
+def unextractable_says(bullet: str, where: str) -> str:
+    """The sentence a reader is told, for either half. One text, three surfaces.
+
+    `bin/perry-lint` says it about a role card and about the hook, and
+    `bin/perry-state` says it in the standup. Three copies is how the fourth
+    one goes stale: `perry-state` still said *"has no backticked span"* after
+    TASK-201 proved that sentence false — backticks are not the test, the
+    extractor is, and a line whose only span is below `extracts`' floor has a
+    backtick and yields nothing. The copy nobody edited kept telling the user
+    to look for the thing that was not the problem.
+
+    `where` names the section, because that is the only part that legitimately
+    differs between the two halves.
+    """
+    return (f"{where} line {bullet!r} yields no scan fragment, so it "
+            f"contributes nothing to the pre-flight scan. The union matches "
+            f"`backticked` spans the extractor keeps: a prose line — or a span "
+            f"too short to carry a meaning — reads as a rule and enforces "
+            f"nothing.")
+
+
+#: How the two halves name themselves in that sentence.
+HOOK_SECTION = "`.perry/hook.md § High-stakes operations`"
+CARD_SECTION = "`Must escalate`"
+
+
 def hook_escalation_lines(project_root: Path) -> list[str]:
     """The `## High-stakes operations` bullets from `.perry/hook.md`."""
     path = Path(project_root) / ".perry" / "hook.md"
     if not path.exists():
         return []
     text = _strip_comments(path.read_text(errors="replace"))
-    # `"High-stakes"` is a prefix tolerance `bin/perry-state` already accepts;
-    # spelled the same way here so both read the same section.
+    # `"High-stakes"` is a PREFIX tolerance, not an alias the schema declares —
+    # saying so is the difference between reading the table and quietly
+    # extending it. It is spelled here and nowhere else: `bin/perry-state` and
+    # `bin/perry-lint` both had their own copy of this read, and the linter's
+    # was spelled without the tolerance, so a hook headed `## High-stakes` was
+    # armed for the gate and unarmed for the linter (TASK-202).
     body = _section(text, *alias("headings", "High-stakes operations"),
                     "High-stakes")
     return [b for b in _bullets(body) if "{{" not in b]
+
+
+def hook_escalation_unextractable(project_root: Path) -> list[str]:
+    """The hook bullets that enforce nothing. `[]` when there is no hook at all.
+
+    **Absence is not failure**, and this is where that inversion would land if
+    it were going to: a project with no `.perry/hook.md` has no bullets, so it
+    has no dead ones, and every caller here reports zero rather than N.
+    `hook_escalation_lines` already returns `[]` for a missing file — the
+    property is inherited rather than re-implemented, because TASK-117 and
+    TASK-156 were both a second place that decided the same thing differently.
+    Whether an unarmed hook deserves a word at all is a DIFFERENT check, and
+    `hook-high-stakes-armed` has been making that call since long before this.
+
+    This is the one-call form, for a caller that has a project root and wants
+    the answer. `bin/perry-lint` and `bin/perry-state` already hold the bullets
+    when they ask — they read the section for other reasons — so they call
+    `unextractable_lines` on what they have rather than reading the file twice.
+    """
+    return unextractable_lines(hook_escalation_lines(project_root))
 
 
 @dataclass
@@ -3382,8 +3453,11 @@ def parse_role_card(name: str, text: str) -> RoleCard:
     # `schema/roles-list-contract.md § must_escalate.unextractable` already
     # said "bullets that yielded no fragment"; the code, not the contract, was
     # the deviation.
-    card.escalate_unextractable = [b for b in card.escalate_lines
-                                   if not line_fragments(b)]
+    # Through `unextractable_lines`, which the hook half now asks too. The
+    # comprehension that stood here was correct and was the ONLY caller —
+    # which is exactly how the hook, the half every project has, went
+    # unchecked for as long as this check has existed (TASK-202).
+    card.escalate_unextractable = unextractable_lines(card.escalate_lines)
     return card
 
 
@@ -3415,8 +3489,17 @@ def escalation_union(project_root: Path) -> dict:
     `project` is computed the same way whether or not roles exist. That is the
     whole safety property: declaring a role can only ever ADD to what the
     project refuses to do unsupervised.
+
+    `unextractable` is the same shape as the two halves above and carries what
+    each side wrote down and did NOT arm: `{"hook": [...], "roles": {name:
+    [...]}}`. It is here rather than only in the two reporters because the
+    number that matters is *bullets minus fragments*, and until TASK-202 no
+    single value in this payload could be compared with the hook's own list to
+    produce it. A gate reporting `armed: true` over three dead sentences out of
+    five is worse than one reporting `armed: false`: the second is honest.
     """
-    project = escalation_fragments(hook_escalation_lines(project_root))
+    hook_lines = hook_escalation_lines(project_root)
+    project = escalation_fragments(hook_lines)
     cards = read_role_cards(project_root)
     roles = {c.name: list(c.escalate_fragments) for c in cards}
 
@@ -3436,6 +3519,10 @@ def escalation_union(project_root: Path) -> dict:
         "union": union,
         "origins": origins,
         "armed": bool(union),
+        "unextractable": {
+            "hook": unextractable_lines(hook_lines),
+            "roles": {c.name: list(c.escalate_unextractable) for c in cards},
+        },
     }
 
 

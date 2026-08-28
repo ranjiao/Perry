@@ -1289,21 +1289,54 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         ))
 
     # hook safety list
-    hook = perry_dir / "hook.md"
-    armed = False
-    if hook.exists():
-        body = section_body(strip_comments(hook.read_text()), 2,
-                            heading_re("High-stakes operations"))
-        armed = bool(body and [
-            b for b in body[0][0].split("\n")
-            if b.strip().startswith("-") and "{{" not in b
-        ])
-    if not armed:
+    #
+    # Read through `P.hook_escalation_lines`, which is what `bin/perry-state`
+    # and the pre-flight union already read. The copy that stood here matched
+    # the heading with `heading_re`, which has no prefix tolerance, while the
+    # shared reader accepts `## High-stakes` — so a hook spelled that way was
+    # armed for the gate and unarmed for the linter. `heading_re`'s own
+    # docstring calls that out as the thing not to do: *"a safety gate the
+    # linter reports as unarmed while `bin/perry-state` reads it as armed is
+    # worse than either answer alone"*. It became load-bearing here, because
+    # the dead-bullet finding below reads the shared list: two readers would
+    # let one run say "nothing is armed" and then quote three armed bullets.
+    hook_lines = P.hook_escalation_lines(perry_dir.parent)
+    if not hook_lines:
         findings.append(Finding(
             "warn", ".perry/hook.md", "hook-high-stakes-armed",
             "no high-stakes operations list — /perry work dispatch's safety re-validation and "
             "/perry work autopilot's safety scan have nothing to match against",
         ))
+
+    # A HOOK bullet that yields no fragment — the same defect as a role card's,
+    # on the half every project has (TASK-202).
+    #
+    # **Why it lands here and not beside the card's check.** A role card's goes
+    # through `check_role_cards`, which runs only under `--knowledge`, and that
+    # is defensible for cards: they are optional (DESIGN-006 goal 7), a project
+    # with none is never asked for one, and the flag is where a reader goes to
+    # ask about them. The hook has no card, no loop, and no flag — it is read
+    # on every dispatch of every project. So the finding goes in the DEFAULT
+    # pass, three lines under `hook-high-stakes-armed`, because those two
+    # sentences are one thought: that check says the gate is loaded, and this
+    # one says how much of it is blanks. A reader told "armed" and not told
+    # "three of your five rules are inert" has been told the more misleading
+    # half. On `~/proj/gimegime-pmo` that reader was told `armed: true` over a
+    # hook that turned 5 bullets into 3 fragments.
+    #
+    # **Severity: `warn`, the same as the role card's — deliberately not
+    # louder.** The hook's version is worse in consequence: there is no card
+    # to compensate, and TASK-200 caught `max_position` on a role card that was
+    # standing in for exactly this hook. But raising it to `error` would say a
+    # rule's enforceability depends on which file it was written in, which is
+    # the asymmetry this task exists to remove, and it would turn every
+    # existing project's honest prose into a red exit on a run that has not
+    # changed. Reach, not volume, is where the difference belongs: the card's
+    # is behind a flag and this one is not.
+    for bullet in P.unextractable_lines(hook_lines):
+        findings.append(Finding(
+            "warn", ".perry/hook.md", "hook-escalation-not-extractable",
+            P.unextractable_says(bullet, P.HOOK_SECTION)))
     return findings
 
 
@@ -1683,16 +1716,20 @@ def check_role_cards(project_root: Path, schema: dict) -> list["Finding"]:
         # punctuation instead of about fragments is how that line stayed
         # silent — the same failure class re-entering through its own fix.
         # TASK-201.
+        #
+        # **The sentence comes from `P.unextractable_says`, not from here.**
+        # It is the same sentence `hook-escalation-not-extractable` says four
+        # hundred lines up and the same one `bin/perry-state` says in the
+        # standup, and it is one function for the reason the extractor is one
+        # function: three copies is how the third went stale, which is exactly
+        # what happened — `perry-state` still told users their line "has no
+        # backticked span" after TASK-201 changed the answer here and left the
+        # other copy alone. TASK-202.
         card = P.parse_role_card(md.stem, md.read_text(errors="replace"))
         for bullet in card.escalate_unextractable:
             findings.append(Finding(
                 "warn", rel, "role-escalation-not-extractable",
-                message=(
-                    f"`Must escalate` line {bullet!r} yields no scan fragment, "
-                    f"so it contributes nothing to the pre-flight scan. The "
-                    f"union matches `backticked` spans the extractor keeps: a "
-                    f"prose line — or a span too short to carry a meaning — "
-                    f"reads as a rule here and enforces nothing.")))
+                message=P.unextractable_says(bullet, P.CARD_SECTION)))
     return findings
 
 

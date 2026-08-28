@@ -410,5 +410,310 @@ class TestALineThatYieldsNoFragmentIsReportedToo(Base):
         self.assertEqual(P.escalation_union(root)["roles"], {"finance": ["下单"]})
 
 
+class TestTheHookHalfIsCheckedToo(Base):
+    """The same question, asked of the half every project has. TASK-202.
+
+    Everything above this class about a dead escalation line was asked only of
+    a `RoleCard`. Role cards are optional — DESIGN-006 goal 7 says a project
+    with none is never asked for one — so the check covered the half a project
+    may not have and skipped the half it always has. `.perry/hook.md` was read
+    by the same extractor, dropped the same lines, and said nothing.
+
+    **The trap this class is written around.** Perry's own hook is clean: 8
+    bullets, 35 fragments, none dead. A test asserting *"this repository's hook
+    has no dead bullets"* passes today, passes with the whole check deleted,
+    and measures nothing — the defect class TASK-156 paid for. So every
+    assertion below is made against a hook this test wrote, through
+    `perry-lint --root` and `perry-state --root`, and the one test that does
+    read a shipped file asserts the shipped DEFAULTS arm (`work/state/
+    hook_TEMPLATE.md`), which is falsifiable by a bad edit to that file.
+    """
+
+    #: `~/proj/gimegime-pmo`'s shape, measured on 2026-08-28: **5 bullets, 3
+    #: fragments, 3 bullets contributing nothing** — on a project that trades
+    #: real money. The first bullet names `max_daily_loss` and `max_position`
+    #: in prose; TASK-200 caught `max_position` on that project's ROLE CARD,
+    #: which is to say the optional half was compensating for the mandatory
+    #: half's blindness.
+    DEAD = """# Hook — trading
+
+## High-stakes operations
+
+- Any change to risk-gate parameters (kill switch behavior, max_daily_loss, max_position)
+- Adding a new paid data source or LLM provider
+- Increasing the monthly cost ceiling above the current cap
+- Flipping `phase=paper` to `phase=live`
+- Editing `.env` or any credential file
+"""
+
+    RULE = "hook-escalation-not-extractable"
+
+    def lint(self, root: Path, *flags: str) -> list[dict]:
+        r = subprocess.run(
+            [sys.executable, str(LINT), "--root", str(root), "--json", *flags],
+            capture_output=True, text=True)
+        return json.loads(r.stdout)["findings"]
+
+    def hook_findings(self, root: Path) -> list[dict]:
+        return [f for f in self.lint(root) if f["rule"] == self.RULE]
+
+    def state(self, root: Path) -> dict:
+        r = subprocess.run(
+            [sys.executable, str(STATE), "--root", str(root), "--json"],
+            capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout)
+
+    # ── the measured case ────────────────────────────────────────────────
+
+    def test_five_bullets_three_fragments_three_findings(self):
+        """The motivating case, reproduced rather than described.
+
+        Before this task the same fixture produced **zero** findings from every
+        surface Perry has: the linter's default pass, its `--knowledge` pass,
+        and the standup. The union was short and nothing said why."""
+        root = self.project(hook=self.DEAD)
+        self.assertEqual(len(P.hook_escalation_lines(root)), 5)
+        self.assertEqual(P.escalation_union(root)["project"],
+                         ["phase=paper", "phase=live", ".env"])
+        found = self.hook_findings(root)
+        self.assertEqual(len(found), 3)
+        self.assertTrue(any("max_position" in f["message"] for f in found),
+                        "the bullet naming the risk-gate parameters is the one "
+                        "that must be reported, and it is the one TASK-200 "
+                        "found a role card compensating for")
+
+    def test_armed_is_true_over_a_hook_that_arms_nothing(self):
+        """**The reason this is P1.** `high_stakes_armed` says the section has
+        bullets, not that the bullets arm anything, and it is the only thing
+        any surface said about a hook. A gate reporting `armed: true` over five
+        sentences that produce nothing is worse than one reporting `false`:
+        the second is honest."""
+        prose = "# Hook\n\n## High-stakes operations\n\n" + "".join(
+            f"- rule number {n} written as ordinary prose\n" for n in range(1, 6))
+        root = self.project(hook=prose)
+        proj = self.state(root)["project"]
+        self.assertTrue(proj["hook"]["high_stakes_armed"])
+        self.assertFalse(proj["escalation"]["armed"])
+        self.assertEqual(len(self.hook_findings(root)), 5)
+
+    # ── the inversion: absence is not failure (TASK-117, TASK-156) ────────
+
+    def test_a_project_with_no_hook_file_gets_zero_findings_not_n(self):
+        """No hook means no bullets, which means no DEAD bullets. Zero, and
+        `hook-high-stakes-armed` says the one thing there is to say — once,
+        not once per rule the project never wrote."""
+        root = self.project(hook=None)
+        self.assertFalse((root / ".perry" / "hook.md").exists())
+        self.assertEqual(P.hook_escalation_unextractable(root), [])
+        self.assertEqual(self.hook_findings(root), [])
+        self.assertEqual(
+            self.state(root)["project"]["hook"]["high_stakes_unextractable"],
+            [])
+        self.assertEqual(
+            [f["rule"] for f in self.lint(root) if f["rule"].startswith("hook-")],
+            ["hook-high-stakes-armed"])
+
+    def test_a_hook_with_an_empty_high_stakes_section_is_the_same(self):
+        """The other spelling of absence. An empty section is unarmed — one
+        sentence — and not a finding per bullet it does not have."""
+        root = self.project(hook="# Hook\n\n## High-stakes operations\n\n"
+                                 "Nothing declared yet.\n")
+        self.assertEqual(self.hook_findings(root), [])
+        self.assertEqual(
+            [f["rule"] for f in self.lint(root) if f["rule"].startswith("hook-")],
+            ["hook-high-stakes-armed"])
+
+    # ── the other half: it must not cry wolf ─────────────────────────────
+
+    def test_a_hook_bullet_that_extracts_is_not_reported(self):
+        """A fix that reported every bullet would satisfy the tests above and
+        destroy the signal. TASK-107: a gate that cries wolf gets waved
+        through."""
+        root = self.project()      # the default fixture hook, all extractable
+        self.assertEqual(self.hook_findings(root), [])
+
+    def test_a_cjk_hook_bullet_extracts_and_is_not_reported(self):
+        """`下单` became a fragment at TASK-201 and must therefore NOT be
+        reported here — the two halves of that fix have to agree, or a project
+        writing its hook in Chinese gets warned about every armed line."""
+        root = self.project(hook="# Hook\n\n## High-stakes operations\n\n"
+                                 "- 任何 `下单` 或 `平仓` 动作\n")
+        self.assertEqual(self.hook_findings(root), [])
+        self.assertEqual(P.escalation_union(root)["union"], ["下单", "平仓"])
+
+    def test_a_backticked_hook_span_below_the_floor_is_reported(self):
+        """Backticks are not the test; the extractor is (TASK-201, on the card
+        half). `sh` has a backtick, is below `P.extracts`' ASCII floor, and
+        arms nothing — so the line reads as a rule and enforces none."""
+        root = self.project(hook="# Hook\n\n## High-stakes operations\n\n"
+                                 "- never shell out through `sh`\n")
+        found = self.hook_findings(root)
+        self.assertEqual(len(found), 1)
+        self.assertIn("never shell out through `sh`", found[0]["message"])
+        self.assertEqual(P.escalation_union(root)["union"], [])
+
+    # ── the two halves are one check ─────────────────────────────────────
+
+    def test_the_same_line_is_dead_or_alive_in_both_files(self):
+        """**The unification, asserted behaviourally.** `escalation_fragments`
+        says the two sides must EXTRACT alike or "a term a role declares would
+        mean something other than the same term in the hook". The same argument
+        binds REPORTING: a corpus of lines, each written once into a hook and
+        once into a card, must be judged identically by both surfaces.
+
+        This is the test a future divergence dies on, and it does not care
+        which function either side calls."""
+        corpus = [
+            ("anything that moves money out of the company", True),
+            ("never shell out through `sh`", True),
+            ("Any change to risk-gate parameters (max_position)", True),
+            ("any outbound `wire-transfer`", False),
+            ("任何 `下单` 动作", False),
+            ("production `deploy` of any kind", False),
+        ]
+        for line, dead in corpus:
+            with self.subTest(line=line):
+                root = self.project(
+                    hook=f"# Hook\n\n## High-stakes operations\n\n- {line}\n",
+                    cards={"finance.md": CARD.replace(
+                        f"- any outbound `{ROLE_TERM}` or `invoice`",
+                        f"- {line}")})
+                card = P.parse_role_card(
+                    "finance",
+                    (root / ".perry" / "roles" / "finance.md").read_text())
+                self.assertEqual(bool(card.escalate_unextractable), dead)
+                self.assertEqual(bool(P.hook_escalation_unextractable(root)),
+                                 dead)
+                self.assertEqual(
+                    bool(self.hook_findings(root)), dead,
+                    "the linter disagrees with the extractor about this line")
+
+    def test_both_halves_say_the_same_sentence(self):
+        """One text, differing only in which section it names. Three copies of
+        it existed and the third had gone stale — `bin/perry-state` was still
+        telling users the line "has no backticked span" after TASK-201 proved
+        that is not the test."""
+        line = "anything that moves money out of the company"
+        root = self.project(
+            hook=f"# Hook\n\n## High-stakes operations\n\n- {line}\n",
+            cards={"finance.md": CARD.replace(
+                f"- any outbound `{ROLE_TERM}` or `invoice`", f"- {line}")})
+        hook_msg = self.hook_findings(root)[0]["message"]
+        card_msg = next(f["message"] for f in self.lint(root, "--knowledge")
+                        if f["rule"] == "role-escalation-not-extractable")
+        self.assertEqual(hook_msg.replace(P.HOOK_SECTION, "§", 1),
+                         card_msg.replace(P.CARD_SECTION, "§", 1))
+        for msg in (hook_msg, card_msg):
+            self.assertIn("enforces nothing", msg)
+            self.assertNotIn("has no backticked span", msg)
+
+    def test_neither_tool_carries_its_own_copy_of_the_sentence(self):
+        """Structural guard, in the shape `test_the_linter_does_not_carry_its
+        _own_extraction` uses one class up: the reporters must reach for the
+        shared text, not re-type it."""
+        for tool in (LINT, STATE):
+            src = tool.read_text(encoding="utf-8")
+            with self.subTest(tool=tool.name):
+                self.assertIn("P.unextractable_says", src)
+                self.assertNotIn("has no backticked span", src)
+
+    # ── where it surfaces, and how loudly ────────────────────────────────
+
+    def test_the_hook_finding_needs_no_flag(self):
+        """**Placement, pinned.** A role card's finding is behind
+        `--knowledge`, which is defensible for an optional file a reader goes
+        looking for. The hook is read on every dispatch of every project, so
+        its finding is in the DEFAULT pass, beside `hook-high-stakes-armed` —
+        the claim it qualifies."""
+        root = self.project(hook=self.DEAD)
+        self.assertEqual(len(self.hook_findings(root)), 3)   # no flags at all
+        # And the card half still reaches its own reader.
+        with_card = self.project(hook=self.DEAD, cards={
+            "finance.md": CARD.replace(f"- any outbound `{ROLE_TERM}` or `invoice`",
+                                       "- anything that moves money")})
+        self.assertIn("role-escalation-not-extractable",
+                      [f["rule"] for f in self.lint(with_card, "--knowledge")])
+
+    def test_the_severity_is_the_card_s_and_the_registry_agrees(self):
+        """**Severity, argued in the code and pinned here.** Equal to the role
+        card's on purpose: a louder hook finding would say a rule's
+        enforceability depends on which file it was written in, which is the
+        asymmetry this task removes. The difference in consequence is carried
+        by REACH — no flag — not by volume.
+
+        The schema registry and the emitter must agree, for the reason
+        `test_linkage_task_exists` gives: the page that tells a reader what a
+        code means must describe the tool that exists."""
+        root = self.project(hook=self.DEAD)
+        self.assertEqual({f["severity"] for f in self.hook_findings(root)},
+                         {"warn"})
+        schema = json.loads((PERRY_HOME / "schema" / "state-schema.json")
+                            .read_text(encoding="utf-8"))
+        entry = next(r for r in schema["cross_file"] if r["id"] == self.RULE)
+        self.assertEqual(entry["severity"], "warn")
+
+    def test_the_standup_says_it_too(self):
+        """The linter is a run you choose; the standup is the one every session
+        starts with. `perry-state` already warned about a role card's dead
+        line — it is where the hook's belongs."""
+        warns = self.state(self.project(hook=self.DEAD))["warnings"]
+        dead = [w for w in warns if "yields no scan fragment" in w]
+        self.assertEqual(len(dead), 3)
+        self.assertTrue(all("Run /perry work lint." in w for w in dead))
+
+    def test_the_payload_carries_both_halves(self):
+        """`escalation.unextractable` is the same shape as the two halves it
+        sits beside, so *bullets minus fragments* is computable from the
+        payload rather than only from a log line."""
+        root = self.project(hook=self.DEAD, cards={
+            "finance.md": CARD.replace(f"- any outbound `{ROLE_TERM}` or `invoice`",
+                                       "- anything that moves money")})
+        u = P.escalation_union(root)
+        self.assertEqual(len(u["unextractable"]["hook"]), 3)
+        self.assertEqual(u["unextractable"]["roles"],
+                         {"finance": ["anything that moves money"]})
+        self.assertEqual(
+            self.state(root)["project"]["hook"]["high_stakes_unextractable"],
+            u["unextractable"]["hook"])
+
+    def test_the_linter_and_the_gate_read_the_same_hook_section(self):
+        """`## High-stakes` — the prefix spelling `P._section` accepts.
+
+        The linter kept its own copy of this read, matched with `heading_re`,
+        which has no prefix tolerance. A hook headed this way was therefore
+        **armed for the pre-flight scan and unarmed for the linter**: the tool
+        that refuses dispatches matched four rules while the tool that reports
+        on the file said there were none. `heading_re`'s own docstring names
+        that as the thing not to do.
+
+        Left alone it would have become incoherent output rather than merely
+        inconsistent: one run saying "no high-stakes list" and then quoting
+        that list's dead bullets."""
+        root = self.project(hook="# Hook\n\n## High-stakes\n\n"
+                                 "- never touch `prod` unattended\n"
+                                 "- anything that spends money\n")
+        self.assertEqual(P.escalation_union(root)["union"], ["prod"])
+        self.assertTrue(
+            self.state(root)["project"]["hook"]["high_stakes_armed"])
+        rules = [f["rule"] for f in self.lint(root)]
+        self.assertNotIn("hook-high-stakes-armed", rules,
+                         "the linter reads this hook as unarmed while the "
+                         "pre-flight gate matches against it")
+        self.assertEqual(len(self.hook_findings(root)), 1)
+
+    def test_the_shipped_default_hook_arms_every_line_it_writes(self):
+        """The one assertion here that reads a shipped file, and it is
+        falsifiable: `work/state/hook_TEMPLATE.md` is what a new project
+        starts from, so a prose bullet added there would warn on every project
+        Perry ever bootstraps — which is how DESIGN-006 § 7's original bug
+        shipped in the first place."""
+        tpl = (PERRY_HOME / "work" / "state" / "hook_TEMPLATE.md").read_text(
+            encoding="utf-8")
+        root = self.project(hook=tpl)
+        self.assertTrue(P.hook_escalation_lines(root))
+        self.assertEqual(self.hook_findings(root), [])
+
+
 if __name__ == "__main__":
     unittest.main()
