@@ -19,6 +19,16 @@ exists, a rendered file whose fields disagree with what the store would produce
 `warn`, on the `NS-01` precedent, and SILENT when there is no store, because
 "no store" and "clean" are different answers.
 
+**The census covers ALL SIX declared stores, one verdict line each, on one
+run** (TASK-209): `tasks.jsonl`, `risks.jsonl`, `intake.jsonl`, `asks.jsonl`,
+`okr.jsonl` and `.perry/config.jsonl`. It covered two for a while — the last
+two printed nothing at all while `perry-okr diff` and `perry-config diff`
+compared both of them clean on the same tree the same day, so a guarantee that
+claims six files was checked on a third of them. Those two reach the SAME
+comparator through `bin/perry_md_store.py` rather than a third and fourth copy
+of it. An absent store is still an absence line and never a clean verdict; six
+lines is not six clean answers.
+
 On an adopted project the default pass also emits `NS-01` (DESIGN-002 decision
 4) when a directory Perry claims holds files Perry did not write — the same
 computation `--claims` performs, so the two can never disagree. It is `warn`,
@@ -3096,6 +3106,179 @@ def check_ask_store_drift(project_root: Path, state_root: Path) -> list["Finding
     return findings
 
 
+#: The two markdown-backed stores, in the order the census prints them, with
+#: the noun each line uses for the register. `bin/perry_md_store.py` already
+#: holds "one implementation, two instances" — `Doc` differs only in its
+#: scanner — so the census names them from that module rather than keeping a
+#: second list that would go stale the day a third document joins.
+_MD_STORE_DOCS = ((_MD_STORE.OKR, "OKR store"),
+                  (_MD_STORE.CONFIG, "config store"))
+
+
+def _empty_md_store_drift_stats() -> dict:
+    """The typed machine-readable state before an `OKR.md`/config comparison.
+
+    Same four keys as the other four registers so a reader of `--json` meets
+    one shape six times rather than six shapes. `drifted` stays `0` rather
+    than `None` here because — unlike `check_store_drift` — this comparison
+    has no second input that can be missing: the left-hand side is the file
+    itself, so "the store is present and the file is not" is uncheckable and
+    says so, and there is no third state where a number would be a lie.
+    """
+    return {"store_present": False, "comparison_performed": False,
+            "records": 0, "drifted": 0}
+
+
+def _empty_md_store_drift_stats_all() -> dict:
+    return {doc.name: _empty_md_store_drift_stats()
+            for doc, _label in _MD_STORE_DOCS}
+
+
+def check_md_store_drift(project_root: Path, state_root: Path,
+                         doc) -> list["Finding"]:
+    """`OKR.md` / `.perry/config.md` and their stores disagree — TASK-209.
+
+    **The comparison is not written here.** `perry-okr diff` and
+    `perry-config diff` have compared these two files against their stores
+    since TASK-092, and both ran clean on this project on 2026-08-28 — yet
+    `perry-lint` called neither, so one run of the census covered two of the
+    six declared stores and ADR-007's guarantee was checked for two. What this
+    function adds is the CALL: it loads the store the way those commands do
+    (`load_store` → `validate_records`), renders through `perry_md_store.plan`
+    — the same plan `render`, `diff` and `verify` are all built on — and turns
+    that one report into findings. A third and fourth implementation of the
+    same comparison is the defect ADR-004 and this phase exist to stop, so
+    there isn't one.
+
+    **What counts as a drifted ROW.** `plan`'s report answers in three
+    registers and all three are drift, so all three are counted, by record key:
+    a cell the file and the store disagree on; a line the file carries that the
+    store holds no record for (a hand-edited id or heading moves a row out of
+    the store's reach — `record_key` says why); and a record the store holds
+    that the file renders no line for. `perry-{okr,config} verify` fails on the
+    same three, which is the point of borrowing them.
+
+    **A decorated cell is reported and not counted.** `3 of 3 modes live,
+    honest` over a stored `3 of 3 modes live` renders byte-identically and
+    still carries words the store never asserted, so `plan` counts it under
+    `cells_wearing_decoration` — by COLUMN, with no key to attribute it to a
+    row. Counting it as a row would be inventing an attribution; leaving it
+    silent would be the census reporting clean on a file carrying unstored
+    text. It gets its own finding and the row count stays a row count, which
+    is what `verify` does too.
+    """
+    findings: list[Finding] = []
+    stats = _empty_md_store_drift_stats()
+    if not hasattr(check_md_store_drift, "stats"):
+        check_md_store_drift.stats = _empty_md_store_drift_stats_all()
+    check_md_store_drift.stats[doc.name] = stats
+
+    store_path = doc.store_path(project_root, state_root)
+    if not store_path.exists():
+        # "No store" and "clean" are different answers, and the caller prints
+        # the absence. Silent here, with a payload — the four registers above
+        # return on exactly these terms.
+        return []
+
+    stats["store_present"] = True
+    rel_store = _rel(store_path, project_root)
+    file_path = doc.file_path(project_root, state_root)
+    rel_file = _rel(file_path, project_root)
+
+    try:
+        on_disk = _MD_STORE.load_store(store_path)
+    except (OSError, ValueError) as exc:
+        return [Finding("warn", rel_store, f"{doc.name}-store-unreadable",
+                        f"`{doc.rel_store}` is not readable as JSONL "
+                        f"({type(exc).__name__}: {exc}) — there is nothing to "
+                        f"compare `{doc.rel_file}` against")]
+    if not all(isinstance(r, dict) for r in on_disk):
+        return [Finding("warn", rel_store, f"{doc.name}-store-unreadable",
+                        f"`{doc.rel_store}` holds something other than one "
+                        f"JSON OBJECT per line — a whole-file array and a "
+                        f"bare scalar both parse and neither is a record")]
+
+    if not file_path.exists():
+        return [Finding("warn", rel_store, f"{doc.name}-store-drift-uncheckable",
+                        f"`{rel_store}` exists and there is no "
+                        f"`{doc.rel_file}` to project it onto, so drift is "
+                        f"unknown here rather than absent")]
+
+    good, issues = _MD_STORE.validate_records(on_disk)
+    for issue in issues:
+        who = issue.get("key") or f"line {issue['line']}"
+        findings.append(Finding(
+            "warn", rel_store, f"{doc.name}-store-badly-typed",
+            f"{who} — {issue['message']}. The record is excluded from the "
+            f"drift comparison, so this row's drift is unknown here rather "
+            f"than absent."))
+
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        report = _MD_STORE.plan(doc, text, good)["report"]
+    except Exception as exc:  # noqa: BLE001
+        return findings + [Finding(
+            "warn", rel_file, f"{doc.name}-store-drift-uncheckable",
+            f"`{doc.rel_file}` could not be projected from `{rel_store}` "
+            f"({type(exc).__name__}: {exc}), so drift is unknown here rather "
+            f"than absent")]
+
+    stats["comparison_performed"] = not issues
+    stats["records"] = len(good)
+
+    #: key → the sentence that says what is wrong with that row. Keyed rather
+    #: than appended so a row whose two cells both drift is ONE drifted row —
+    #: the same rule the four registers above follow.
+    rows: dict[str, str] = {}
+    for cell in report["cells_the_store_and_the_file_disagree_on"]:
+        detail = (f"`{cell['column']}`: file={_cell(cell['file'])!r} "
+                  f"store={_cell(cell['store'])!r}")
+        rows[cell["key"]] = (rows[cell["key"]] + "; " + detail
+                             if cell["key"] in rows else detail)
+    for line in report["lines_verbatim"]:
+        rows.setdefault(line["key"],
+                        f"line {line['line']} — {line['why']}")
+    for key in report["records_not_in_the_file"]:
+        rows.setdefault(key, f"the store holds this record and "
+                             f"`{doc.rel_file}` renders no line for it")
+
+    stats["drifted"] = len(rows)
+    for key in sorted(rows)[:DRIFT_ROWS_SHOWN]:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"{key} — {rows[key]}. Under ADR-007 `{doc.rel_file}` is rendered "
+            f"output and `{rel_store}` is what the field means, so a hand edit "
+            f"is drift. `perry-{doc.name} render --write` puts the file back "
+            f"in line with the store; `perry-{doc.name} write --from-file` "
+            f"runs the other direction and DISCARDS the stored values."))
+    if len(rows) > DRIFT_ROWS_SHOWN:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"and {len(rows) - DRIFT_ROWS_SHOWN} further row(s) of "
+            f"`{doc.rel_file}` disagree with `{rel_store}`."))
+
+    for column, n in sorted(report["cells_wearing_decoration"].items()):
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-decorated",
+            f"`{column}` — {n} cell(s) render the stored value and then carry "
+            f"further text the store does not hold. The bytes match, so this "
+            f"is not counted as a drifted row; the words are still unstored, "
+            f"and `perry-{doc.name} verify` fails on them too."))
+
+    # Order, once per kind rather than once per row — `_order_drift` carries
+    # the argument in full and `plan` has already done the comparison.
+    for moved in report["records_out_of_stored_order"]:
+        findings.append(Finding(
+            "warn", rel_file, f"{doc.name}-store-drift",
+            f"`{moved['kind']}` — the rows of this register sit in a "
+            f"different order in the file than in `{rel_store}`: file "
+            f"{' → '.join(moved['in_the_file'][:6])}, store "
+            f"{' → '.join(moved['in_the_store'][:6])}. Row order is recorded, "
+            f"not re-derived, so a row moved by hand is drift like any other "
+            f"cell."))
+    return findings
+
+
 def _order_drift(stored: dict, live: dict, rel_board: str,
                  rel_store: str) -> list["Finding"]:
     """`order` compared ONCE PER SECTION, and never per row.
@@ -3655,6 +3838,7 @@ def main(argv: list[str]) -> int:
     check_risk_store_drift.stats = _empty_risk_store_drift_stats()
     check_intake_store_drift.stats = _empty_intake_store_drift_stats()
     check_ask_store_drift.stats = _empty_ask_store_drift_stats()
+    check_md_store_drift.stats = _empty_md_store_drift_stats_all()
 
     if mode_templates:
         root = PERRY_HOME
@@ -3732,6 +3916,14 @@ def main(argv: list[str]) -> int:
             # returns before deriving anything when there is no `asks.jsonl`,
             # which is every project today.
             findings.extend(check_ask_store_drift(project_root, root))
+            # And the fifth and sixth (TASK-209), on the same terms and at the
+            # same cost: they return before deriving anything when there is no
+            # `okr.jsonl` / `.perry/config.jsonl`. These two are the reason the
+            # census read two of six — the comparators existed and nothing
+            # called them.
+            for _doc, _label in _MD_STORE_DOCS:
+                findings.extend(
+                    check_md_store_drift(project_root, root, _doc))
         label = str(project_root)
         if root != project_root:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
@@ -3772,6 +3964,11 @@ def main(argv: list[str]) -> int:
             payload["ask_store_drift"] = dict(getattr(
                 check_ask_store_drift, "stats",
                 _empty_ask_store_drift_stats()))
+            _md = getattr(check_md_store_drift, "stats",
+                          None) or _empty_md_store_drift_stats_all()
+            for _doc, _label in _MD_STORE_DOCS:
+                payload[f"{_doc.name}_store_drift"] = dict(
+                    _md.get(_doc.name) or _empty_md_store_drift_stats())
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     elif not quiet:
         print(f"perry-lint · {label}")
@@ -3851,6 +4048,29 @@ def main(argv: list[str]) -> int:
             else:
                 print(f"  · ask store: {_ast['records']} record(s), "
                       f"{_ast['drifted']} ask(s) drifted")
+        # And the fifth and sixth lines, for the same reason the four above
+        # have their own: "no OKR store" and "a clean OKR store" are different
+        # answers, and so are "no OKR store" and "no config store". Six
+        # declared stores, six lines, every run — which is what TASK-209 is
+        # for. Printed from the same `_MD_STORE_DOCS` the checks are driven
+        # from, so a store cannot be checked and then not reported.
+        _mst = getattr(check_md_store_drift, "stats", None)
+        if _mst and not mode_templates:
+            for _doc, _label in _MD_STORE_DOCS:
+                _s = _mst.get(_doc.name)
+                if not _s:
+                    continue
+                _rel_store = Path(_doc.rel_store).as_posix()
+                if not _s["store_present"]:
+                    print(f"  · no `{_rel_store}` — drift against the "
+                          f"{_label} is unchecked, not clean")
+                elif not _s["comparison_performed"]:
+                    print(f"  · {_label}: {_s['records']} valid record(s), "
+                          "comparison incomplete — drift is unchecked, "
+                          "not clean")
+                else:
+                    print(f"  · {_label}: {_s['records']} record(s), "
+                          f"{_s['drifted']} row(s) drifted")
         if not mode_templates:
             n = conformance_note["declared"]
             print(f"  · {n} file(s) declared conformant at shape version "
