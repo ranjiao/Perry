@@ -493,9 +493,9 @@ class TestAHeadingMayNameTheCollectionsItServes(unittest.TestCase):
 #: `mutate` is the text to remove from the page — a real declaration on the
 #: real page, not a marker put there for the test.
 WITNESSED = (
-    ("perry-decide/list/1.0", "decide-list-contract.md", "expired_sunsets",
+    ("perry-decide/list/1.1", "decide-list-contract.md", "expired_sunsets",
      "expired_sunsets[].sunset", ', "sunset": "2026-06-30"'),
-    ("perry-goals/list/2.2", "goals-list-contract.md",
+    ("perry-goals/list/2.3", "goals-list-contract.md",
      "krs[].current_staleness.moved_tasks",
      "krs[].current_staleness.moved_tasks[].at",
      ',\n                           "at": "2026-08-21T09:10:00Z"'),

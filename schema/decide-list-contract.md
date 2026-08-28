@@ -1,6 +1,6 @@
 # `perry-decide list --json` — the decisions contract
 
-> Contract: **`perry-decide/list/1.0`**
+> Contract: **`perry-decide/list/1.1`**
 > Locked by `tests/test_decide_writer.py § TestListContract`.
 > DESIGN-005 § 6 step 1.
 
@@ -31,7 +31,8 @@ listable at all.**
 
 ```jsonc
 {
-  "contract":        "perry-decide/list/1.0",
+  "contract":        "perry-decide/list/1.1",
+  "semantics":       [],                    // meaning changes, oldest minor first
   "project_root":    "/abs/path",
   "state_root":      "/abs/path",
   "conformance":     { /* below */ },
@@ -41,6 +42,29 @@ listable at all.**
   "expired_sunsets": [ {"id": "ADR-002", "title": "…", "sunset": "2026-06-30"} ]
 }
 ```
+
+### `semantics` — empty, and that is the answer
+
+**The minors under which a value already in this payload started meaning
+something else, oldest minor first.** Rule 2 of `schema/task-list-contract.md
+§ The three rules` promises `1.x` only adds keys; what it does not cover is a
+key that stays and starts returning something else, and that is what this array
+reports.
+
+**It is `[]` here because nothing in this payload has ever changed meaning.**
+`1.0` and `1.1` are the only versions a consumer can have read against, `1.1`
+added this key and moved no value, and there is nothing to say. An entry
+invented to fill the array would be worse than the empty one: a consumer that
+walked it would go and check three fields that never moved.
+
+The key is nevertheless present on **every** response, including this one and
+including a project with no `DECISIONS.md` at all — **a consumer checks before
+it looks**, and a key that appears only when there is something to say is one a
+consumer cannot check. Same argument as `contract` on an empty store, same
+shape as `perry-task/list § semantics[]` for the day there is an entry: an
+object with `version`, `fields` and `note`, documented there rather than
+duplicated here, because a second copy of an entry shape is a second thing to
+keep true.
 
 ### A decision
 
@@ -121,3 +145,11 @@ as one of three cases that must refuse; a numbered step in
 `decide/reference/decisions.md` instructed it anyway, and the instruction was
 the bug. `perry-decide` writes `DECISIONS.md` and `decisions/` and nothing else,
 and `tests/test_decide_writer.py § TestLaneOwnership` asserts it.
+
+## Changelog
+
+| Version | Date | Change |
+|---|---|---|
+| `1.0` | 2026-08-17 | first published. DESIGN-005 § 6 step 1. |
+| `1.0` | 2026-08-21 | **unchanged.** `enums.decision_status` gained `proposed`. No key added, removed or retyped — see *Adding a status is not a break* above. |
+| `1.1` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, `[]` today. Until now this payload had no place to report a value whose meaning moved, so a consumer holding `perry-decide/list/1.0` could read the minor and learn nothing from it. `perry-events/list/1.1` added the same key on the same reading. |

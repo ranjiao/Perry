@@ -257,9 +257,10 @@ class TestReadingStaysTolerant(unittest.TestCase):
         p.run("status", "ADR-001", "--status", "proposed")
         _, out = p.run("list")
         self.assertEqual(
-            set(out), {"contract", "project_root", "state_root", "conformance",
-                       "decisions", "active", "total", "expired_sunsets"})
-        self.assertEqual(out["contract"], "perry-decide/list/1.0")
+            set(out), {"contract", "semantics", "project_root", "state_root",
+                       "conformance", "decisions", "active", "total",
+                       "expired_sunsets"})
+        self.assertEqual(out["contract"], "perry-decide/list/1.1")
         self.assertEqual(
             set(out["conformance"]),
             {"index_present", "indexed_without_file", "filed_without_index_row",

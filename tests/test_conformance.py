@@ -397,15 +397,22 @@ class TestReadingIsNotGated(unittest.TestCase):
             {"project_root", "state_root", "contract", "semantics", "tasks",
              "open", "closed", "events", "untitled", "conformance", "intake",
              "risks", "asks", "drift"}),
-        "perry-decide/list/1.0": (
+        #
+        # Both lines below were edited deliberately by TASK-205, on the same
+        # terms: each payload gains `semantics` and states so in its version
+        # string in the same edit. `perry-decide/list` carries it EMPTY, which
+        # is the shipped fact and not a placeholder — a consumer checks before
+        # it looks, so the key is asserted here by presence, not by content.
+        "perry-decide/list/1.1": (
             DECIDE, ("list",),
-            {"project_root", "state_root", "contract", "decisions", "active",
-             "total", "expired_sunsets", "conformance"}),
-        "perry-goals/list/2.2": (
+            {"project_root", "state_root", "contract", "semantics",
+             "decisions", "active", "total", "expired_sunsets",
+             "conformance"}),
+        "perry-goals/list/2.3": (
             GOALS, ("list",),
-            {"project_root", "state_root", "contract", "okr", "phase", "krs",
-             "linkage", "counts", "conformance", "unlinked_task_ids",
-             "answered_by"}),
+            {"project_root", "state_root", "contract", "semantics", "okr",
+             "phase", "krs", "linkage", "counts", "conformance",
+             "unlinked_task_ids", "answered_by"}),
     }
 
     def test_every_read_command_answers_on_an_undeclared_project(self):

@@ -77,7 +77,24 @@ class Refused(Exception):
 # Versioned separately from `perry-task/list/*` on purpose — DESIGN-005 § 4
 # decision 5. Tying them together would force a consumer to re-check its code
 # for a change in a domain it does not read.
-LIST_CONTRACT = "perry-decide/list/1.0"
+# TASK-205 moves it to `1.1`: the payload gains `semantics`, which is a plain
+# `1.x` key addition and is the key any future meaning change is reported in.
+# `perry-events/list/1.1` added it on exactly the same reading.
+LIST_CONTRACT = "perry-decide/list/1.1"
+
+# **Minors where a value's MEANING changed, not just where a key was added.**
+# Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
+# per minor that corrected a meaning, oldest first, appended and never
+# inserted.
+#
+# **It is empty, and the empty array is the shipped fact.** No value this
+# payload carries has ever changed meaning — `1.0` is still the only version
+# a consumer can have read against — and inventing an entry to fill the array
+# would be worse than saying so. The key is present anyway, on every response
+# including this one, because **a consumer checks before it looks**: a key
+# that appears only when there is something to say is one a consumer cannot
+# check, which is the same argument that puts `contract` on an empty store.
+LIST_SEMANTICS: list[dict] = []
 
 ADR_RE = re.compile(r"\bADR-(\d+)\b")
 
@@ -515,6 +532,13 @@ def cmd_list(args, ctx) -> dict:
                if a["status"] == "active" and re.match(r"\d{4}-\d{2}-\d{2}", a["sunset"] or "")
                and a["sunset"][:10] < today]
     return {"contract": LIST_CONTRACT,
+            # Sorted rather than trusted to writing order — the guard
+            # `bin/perry-task` puts on its own list, kept here so an entry
+            # appended in the wrong place cannot ship. Empty today.
+            "semantics": sorted(
+                LIST_SEMANTICS,
+                key=lambda entry: tuple(int(x)
+                                        for x in entry["version"].split("."))),
             "project_root": str(ctx["project_root"]),
             "state_root": str(sr),
             "conformance": conformance,

@@ -1,6 +1,6 @@
 # `perry-goals list --json` — the goals contract
 
-> Contract: **`perry-goals/list/2.2`**
+> Contract: **`perry-goals/list/2.3`**
 > Locked by `tests/test_goals_contract.py`.
 > DESIGN-005 § 6 step 2.
 
@@ -33,7 +33,8 @@ Perry's tests cannot reach.
 
 ```jsonc
 {
-  "contract":     "perry-goals/list/2.2",
+  "contract":     "perry-goals/list/2.3",
+  "semantics":    [ /* below */ ],         // meaning changes, oldest minor first
   "project_root": "/abs/path",
   "state_root":   "/abs/path",
   "conformance":  { /* below */ },
@@ -64,6 +65,31 @@ Perry's tests cannot reach.
   "counts":       { "objectives": 3, "krs": 12, "stretch": 1 }
 }
 ```
+
+### `semantics[]` — the entry, key by key
+
+**The minors under which a value already in this payload started meaning
+something else**, oldest minor first. Rule 2 says `2.x` only adds keys, that is
+true and unbroken, and it is not the whole risk: `2.2` added no key and changed
+what three timestamps say. A consumer records the minor it read against and
+reports every entry newer than that — a slice, which it is only while the array
+is sorted, so this is ordered and nothing is inserted into the middle of it.
+
+It is **not the Changelog**. The Changelog below records every shipped minor,
+including the ones that only added keys; this array carries only the strictly
+smaller set a working consumer has to act on. `2.1` added four keys and is
+therefore absent by design: a consumer sitting on `2.0` has never seen those
+keys, and telling it their meaning moved would be a false alarm.
+
+The array is **always present**, `[]` included, for the same reason `contract`
+is — a consumer checks before it looks. Same shape as
+`perry-task/list § semantics[]`, on purpose.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | the minor the change shipped in, `"2.2"`. A string, not a number: `2.10` sorts below `2.9` numerically and above it correctly. Compare it as a pair of ints, or as the string against a same-shaped string — never as a float |
+| `fields` | array | the payload paths whose meaning moved, as strings, in this payload's own dotted notation — `"krs[].current_staleness.since"`. Paths to read against, not keys to look up at the top level |
+| `note` | string | prose, always populated: what the value used to mean, what it means now, and what a consumer that hardcoded the old meaning does wrong. Meant to be shown, not branched on |
 
 ### A KR
 
@@ -287,6 +313,7 @@ and `goals/reference/phases.md § commit <promise>`.
 | `2.1` | 2026-08-21 | **additive, TASK-120.** Four keys added, none removed or retyped: `krs[].current_provenance`, `krs[].current_staleness`, `krs[].linked_task_completion` and `conformance.krs_with_stale_current`. `current` itself is unchanged in type and in value; what changed is that the payload now says it is an author's assertion rather than a measurement, and says when a linked task has moved since. |
 | `2.1` | 2026-08-21 | **unchanged by TASK-131.** The payload sketch now carries `okr.objectives[].id` and the whole of `phase.objectives[]`, and *The phase* gained an `objectives` row. All five paths have shipped since `1.0`; only the page moved, so the version does not. Why the objective entry is a list rather than a key table is stated where it is written. |
 | `2.2` | 2026-08-28 | **no key added, one value's meaning changed, TASK-144.** `current_provenance.asserted_at`, `current_staleness.since` and `moved_tasks[].at` are now UTC and carry a `Z`; `at` in particular is no longer the local text the event log holds. Before this the register's UTC and the log's local wall clock were compared as text, and staleness answered wrongly inside the machine's offset in one direction or the other. The minor moves for the same reason `perry-task/events/1.1` moved: no key changed and the same key returns something different. |
+| `2.3` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, the array documented above. A consumer could read this payload's minor and had nowhere to find out what a minor had changed, so `CONTRACT_TESTED` against `2.2` could never go red — the same gap `perry-task/list` closed at `1.7` and `perry-events/list` at `1.1`. Adding the key changed no value, so the array itself carries no `2.3` entry; it carries `2.2`. |
 | `2.0` | 2026-08-19 | **unchanged by TASK-091.** `OKR.md § Commitments` split `By when` into a typed `Due` and a prose `By when note`, and this payload does not carry that register — so no key here was added, removed or retyped, and `tests/test_contract_invariance.py` is right to see nothing. The columns are documented under *Not here* for consumers that parse the markdown. |
 
 **Why the writer did not move the minor.** `OKR.md § Commitments` now has a

@@ -1495,11 +1495,12 @@ class TestTheReadContractDidNotMove(unittest.TestCase):
     Shipping a writer is not a read-contract change, and this says so where it
     can fail. TASK-120 moved it to `2.1` — additively, four keys, none removed
     or retyped — which is the other half of the same rule: a payload that gains
-    a key states that it did.
+    a key states that it did. TASK-205 moved it to `2.3` on the same terms:
+    one key, `semantics`, and the version string edited in the same commit.
     """
 
     def test_the_version_is_unchanged(self):
-        self.assertEqual("perry-goals/list/2.2", G.LIST_CONTRACT)
+        self.assertEqual("perry-goals/list/2.3", G.LIST_CONTRACT)
 
     def test_the_contract_document_agrees(self):
         doc = (ROOT / "schema" / "goals-list-contract.md").read_text()

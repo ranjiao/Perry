@@ -203,7 +203,13 @@ class TestGoal7NoRolesChangesNothing(Base):
             # `contract` is present even on an empty roster: a consumer checks
         # the version BEFORE it looks at the data, so a payload that carries
         # one only when it has cards is a payload a consumer cannot check.
-        self.assertEqual(got, {"contract": "perry-roles/list/1.0",
+        # `semantics` is `1.1`, TASK-205, and it is EMPTY. It sits inside this
+        # exact-equality assertion for the same reason `contract` does: an
+        # empty roster is the case where a key that only appears when it has
+        # something to say would be missing, so this is where dropping it has
+        # to fail.
+        self.assertEqual(got, {"contract": "perry-roles/list/1.1",
+                               "semantics": [],
                                "declared": 0, "cards": []}, roles_dir)
 
     def test_the_preflight_scans_exactly_the_hook_list_and_nothing_else(self):
@@ -311,7 +317,7 @@ class TestTheRolesPayloadIsVersioned(unittest.TestCase):
             (root / ".perry" / "config.md").write_text("State root: .\n")
             (root / "BOARD.md").write_text("# Board\n")
             self.assertEqual(self.payload(root)["contract"],
-                             "perry-roles/list/1.0")
+                             "perry-roles/list/1.1")
 
     def test_the_six_frozen_fields_are_all_there(self):
         with tempfile.TemporaryDirectory() as td:

@@ -1,4 +1,4 @@
-# `perry-state --json § roles` — `perry-roles/list/1.0`
+# `perry-state --json § roles` — `perry-roles/list/1.1`
 
 The roster a front-end renders: which roles a project declares, and what each
 one is allowed to do. Read-only, computed on every call, stored nowhere.
@@ -17,7 +17,8 @@ it would freeze fields nobody reads.
 
 ```jsonc
 "roles": {
-  "contract": "perry-roles/list/1.0",   // check this before anything else
+  "contract": "perry-roles/list/1.1",   // check this before anything else
+  "semantics": [],                       // meaning changes, oldest minor first
   "declared": 2,                         // number of cards in `.perry/roles/`
   "cards": [ /* below */ ]
 }
@@ -26,6 +27,16 @@ it would freeze fields nobody reads.
 `contract` is present **before** the data and on an empty roster, because a
 consumer checks the version before it looks at anything — a payload that
 carries one only when it has cards is one a consumer cannot check.
+
+`semantics` is there on the same terms, and for the same reason it is `[]`.
+**Nothing frozen here has changed meaning since `1.0`**, so the honest answer
+is an empty array — and an entry invented to fill it would send a consumer to
+re-check six fields that never moved. What the empty array buys is that the
+question *"has a value moved under me?"* is one a consumer can **ask**: an
+array that appeared only when the answer was yes could never be checked, and
+a version handle nothing can act on is a comment rather than a guard. The
+entry shape, for the day there is one, is `perry-task/list § semantics[]` —
+`version`, `fields`, `note`.
 
 ## A card — the six frozen fields
 
@@ -63,9 +74,10 @@ If it returns, it returns with a version and a reader.
 2. **`1.x` → `1.y` only adds keys.** A removal or a retype is a major bump.
 3. **Check both halves of `contract`.** The major says whether you can parse
    it; the minor says whether a value still means what it meant. Same rule, and
-   the same worked example, as `schema/task-list-contract.md § The three rules`
-   — which is where a `semantics` array would appear if a value here ever
-   changes meaning.
+   the same worked example, as `schema/task-list-contract.md § The three rules`.
+   Since `1.1` the second question is answerable **from the payload**: walk
+   `semantics` for every entry newer than the minor you read against. It is
+   empty today, which is a fact rather than a placeholder — see above.
 
 ## Changelog
 
@@ -73,3 +85,20 @@ If it returns, it returns with a version and a reader.
 
 First version. Six fields frozen at a consumer's request; `cards[].tasks`
 removed at the same consumer's request.
+
+### 1.1 — 2026-08-28 (TASK-205)
+
+**Additive.** One key added, none removed or retyped: `semantics`, `[]` today.
+Rule 3 promised that the minor answers *"does a value still mean what it
+meant"*, and this payload carried nowhere to read that answer from — so the
+promise could not be kept and nothing could report it broken.
+
+**This page was not in TASK-205's stated scope, and the measurement that opened
+that row listed five payloads.** There are six: this one is a versioned subtree
+of an unversioned snapshot rather than its own `list` command, which is how it
+was missed. Shipping the other five and leaving this one would have left
+exactly the quiet re-opening the row exists to prevent — the test that holds
+this is `tests/test_semantics_on_every_payload.py`, and it counts payloads
+against `schema/*-contract.md` rather than against a list somebody kept.
+
+Nothing about a card changed, and the six frozen fields are frozen as before.
