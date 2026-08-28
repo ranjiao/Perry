@@ -441,7 +441,7 @@ class TestIdsResolve(unittest.TestCase):
     def test_resolves_ids_from_every_shape_perry_writes(self):
         for wanted in ("REL-002",       # board table row
                        "ADR-001",       # decisions table + ID-named file
-                       "P-O1.2",        # linkage YAML
+                       "P002-O1-KR2",        # linkage YAML
                        "DESIGN-001"):   # design doc
             with self.subTest(id=wanted):
                 r = self.explain(FIXTURE, wanted, "--json")
@@ -453,7 +453,7 @@ class TestIdsResolve(unittest.TestCase):
         r = self.explain(FIXTURE, "--all", "--json")
         rows = json.loads(r.stdout)
         ids = {x["id"] for x in rows}
-        self.assertTrue({"REL-001", "ADR-002", "USER-014", "P-O1.1"} <= ids, ids)
+        self.assertTrue({"REL-001", "ADR-002", "USER-014", "P002-O1-KR1"} <= ids, ids)
 
     def test_dangling_ids_are_reported_and_gate(self):
         """The fixture's phase doc names REL-003, which is on no board."""

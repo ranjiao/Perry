@@ -38,8 +38,8 @@ before`.
 
 ```
 perry-goals: refused — 'shared name' does not resolve to exactly one KR — it
-matches 2 by name or alias: P-O1.1 (project PROJ-A "shared name", active);
-P-O1.2 (project PROJ-B "another name", active). Attribution resolves by declared
+matches 2 by name or alias: P002-O1-KR1 (project PROJ-A "shared name", active);
+P002-O1-KR2 (project PROJ-B "another name", active). Attribution resolves by declared
 edge, then exact Project id, then registered alias, and never by resemblance
 (reference/okr-linkage.md § The one rule). Ask the user which KR TASK-500 serves
 and re-run with that KR id. Nothing was written

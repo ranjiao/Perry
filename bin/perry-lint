@@ -121,7 +121,26 @@ class Finding:
 
 # ── markdown helpers ──────────────────────────────────────────────────────
 
-KR_ID_RE = r"\bP-O\d+\.\d+\b"
+#: A phase-KR id. **Segment-labelled and project-unique** — DESIGN-007
+#: decision #4, locked 2026-08-19: `P002-O3-KR1` is phase 002, objective 3,
+#: key result 1, and every segment carries its own label rather than relying
+#: on position. Migrated by TASK-180.
+KR_ID_RE = r"\bP\d{3}-O\d+-KR\d+\b"
+
+#: The form this project used before TASK-180: `P-O3.1` [[old-form]], whose
+#: phase lived nowhere in the id. It is kept here to be **rejected**, not to
+#: be read.
+#:
+#: The user's instruction was one-time migration with *no compatibility with
+#: the old form*, and a regex that simply stopped matching would have honoured
+#: the letter and broken the spirit: `check_cross_file` reads a phase file's
+#: KR set with `KR_ID_RE` and then guards every comparison with
+#: `if phase_krs and …`. Handed a file still written in the old form, that set
+#: comes back EMPTY and every linkage check downstream silently passes. A
+#: check that can be handed the old id and do nothing is the compatibility
+#: branch wearing a different hat. So `check_legacy_kr_ids` below turns the
+#: old form into an `error`, and the silence becomes a sentence.
+LEGACY_KR_ID_RE = r"\bP-O\d+\.\d+\b"
 RE_COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 
@@ -490,7 +509,15 @@ def check_frontmatter(path: Path, rel: str, spec: dict, enums: dict,
         if not isinstance(pr, dict):
             continue
         pid, serves, obj = str(pr.get("id") or ""), str(pr.get("serves") or ""), pr.get("objective")
-        m = re.match(r"^P-(O\d+)\.", serves)
+        # The objective segment of a phase-KR id. **Anchored end to end**,
+        # where the old form could only be prefix-matched: `P002-O3-KR1`
+        # says which phase, which objective and which KR, so there is
+        # nothing left to infer from position. A `serves` still written
+        # `P-O3.1` [[old-form]] no longer matches — and does not slip past
+        # unmentioned:
+        # `check_cross_file § kr-id-legacy-form` reads every `phase/*.md`,
+        # linkage files included, and errors on it by name.
+        m = re.match(r"^P\d{3}-(O\d+)-KR\d+$", serves)
         if m and obj and m.group(1) != str(obj):
             findings.append(Finding("error", rel, "linkage-objective-agrees",
                                     f"{pid}: serves {serves} (which is {m.group(1)}) but "
@@ -1056,6 +1083,36 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     # subdirectory — it is the pointer, so it cannot sit behind the pointer.
     perry_dir = (project_root or root) / ".perry"
 
+    # The old phase-KR form is REJECTED, not merely unmatched. See the note on
+    # `LEGACY_KR_ID_RE`: every guard below is written `if phase_krs and …`, so
+    # a phase file left in `P-O3.1` [[old-form]] yields an empty KR set and
+    # buys silence
+    # from every check downstream. This is the one place that can tell the
+    # difference between "this phase declares no KRs" and "this phase declares
+    # its KRs in an id form that was migrated away on 2026-08-28", and it says
+    # so out loud.
+    #
+    # Scanned over `phase/*.md` rather than just the CURRENT phase because a
+    # scored phase's register is read too — `check_cross_file` re-derives
+    # `phase_krs` per linkage file from the file's own phase — so an unmigrated
+    # 001 is exactly as silent as an unmigrated 002.
+    _legacy = re.compile(LEGACY_KR_ID_RE)
+    for pf in sorted((root / "phase").glob("*.md")) if (root / "phase").is_dir() else []:
+        for i, line in enumerate(strip_comments(pf.read_text()).split("\n"), 1):
+            hits = _legacy.findall(line)
+            if not hits:
+                continue
+            findings.append(Finding(
+                "error", pf.relative_to(root).as_posix(), "kr-id-legacy-form",
+                f"{', '.join(sorted(set(hits)))} — the pre-TASK-180 phase-KR "
+                f"form, whose phase is not in the id. DESIGN-007 decision #4 "
+                f"(locked 2026-08-19) replaced it with `P{pf.name.split('-', 1)[0]}"
+                f"-O<n>-KR<n>`, and nothing reads the old form any more: left "
+                f"here it is not a KR to any tool, it is prose that looks like "
+                f"one",
+                line=i,
+            ))
+
     # phase/CURRENT resolves
     cur = root / "phase" / "CURRENT"
     phase_file = None
@@ -1139,11 +1196,20 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         f"{kr.id} is in the graph but not in the current phase file"))
                 # **The comment above does NOT transfer to task ids, and the
                 # difference is what makes this check simpler than that one.**
-                # A KR id is scoped to a phase file: `P-O1.1` in `001` and
-                # `P-O1.1` in `002` are different key results, so the only
-                # correct comparand for `001-linkage.md` is phase 001's own KR
-                # set — which is why that guard had to stop reading the
-                # CURRENT phase. **A task id is global.** There is one
+                # A KR id USED TO BE scoped to a phase file rather than
+                # naming one: `P-O1.1`/`001` and `P-O1.1`/`002` [[old-form]]
+                # were different key results, so the only
+                # correct comparand for `001-linkage.md` was phase 001's own
+                # KR set — which is why that guard had to stop reading the
+                # CURRENT phase. Those two ids are `P001-O1-KR1` and
+                # `P002-O1-KR1` now (TASK-180), and the old pair is quoted
+                # rather than migrated because migrating it would delete the
+                # reason this guard exists: re-derived, the sentence becomes
+                # "two ids that differ are different", which explains
+                # nothing. **The guard stays**, and not out of caution — a
+                # register may carry an id for a phase that is not its own,
+                # and comparing against the file's own phase is what catches
+                # that. **A task id is global.** There is one
                 # `tasks.jsonl` for the project, ids are minted across phases
                 # and never re-used, and no per-phase task store exists to
                 # read instead. So every register, current or scored, is

@@ -54,7 +54,7 @@ SECOND_PROJECT_BOARD = """# Board — Fixture
 
 | ID | Title | Owner | Status | Next action |
 |---|---|---|---|---|
-| **USER-G1** | **P0** Gate 1 RM 问询（kr:P-O2.1）| User | not_started | 发 draft v2 |
+| **USER-G1** | **P0** Gate 1 RM 问询（kr:P001-O2-KR1）| User | not_started | 发 draft v2 |
 | ~~**ALLOC-01**~~ | ✅ 部分解 —— IPS-01 一直存在 | Coding Agent | **迁移 done，占比目标 not_started** | 归档 |
 | DUOL-TRIGGER1 | 表格引用 `\\| ID \\| Risk \\|` 在正文里 | User | in_progress | 复核 |
 
@@ -175,12 +175,12 @@ class TestTheBytesMatch(unittest.TestCase):
         """Each one on its own line, so a failure names which shape broke.
 
         Every one of these is a byte a `render_row` round trip moves: it pads
-        `（kr:P-O2.1）|` to `（kr:P-O2.1） |`, and `strip_handle` has already
+        `（kr:P001-O2-KR1）|` to `（kr:P001-O2-KR1） |`, and `strip_handle` has already
         thrown the `~~**` away before the store sees the id."""
         d = Project.fixture(self, SECOND_PROJECT_BOARD)
         got = self.rendered(d).decode()
         for shape in ("| ~~**ALLOC-01**~~ |",
-                      "（kr:P-O2.1）| User |",
+                      "（kr:P001-O2-KR1）| User |",
                       "**迁移 done，占比目标 not_started**",
                       "`\\| ID \\| Risk \\|`",
                       "| 2 待核项 |"):

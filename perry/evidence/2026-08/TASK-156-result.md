@@ -16,7 +16,7 @@ about the task id.
 Measured, and pinned as an executable test rather than a sentence:
 
 ```
-perry-goals link TASK-999 P-O1.1   (store holds neither)
+perry-goals link TASK-999 P002-O1-KR1   (store holds neither)
   → returns 0
   → appends the edge
   → bumps `updated`
@@ -75,7 +75,7 @@ has its own test.
 
 **3 · An old phase IS judged against today's store**, and `perry-lint:1082`'s
 reasoning does **not** transfer. The distinction is exact: a **KR id is
-phase-scoped** — `P-O1.1` names different KRs in `001` and `002` — which is
+phase-scoped** — `P-O1.1` [[old-form]] named different KRs in `001` and `002` — which is
 precisely why that guard had to re-derive its comparand per file. A **task id is
 global**: one `tasks.jsonl`, ids minted across phases, no per-phase store to
 prefer.

@@ -26,7 +26,7 @@ touches `bin/lib`**, so the viewer still shows the bare number. On this
 repository that means it renders:
 
 ```
-P-O1.1   current 0.0 / target 1.0        → reads as 0% progress
+P002-O1-KR1   current 0.0 / target 1.0        → reads as 0% progress
 ```
 
 while the payload says: **asserted, never measured, and all four of its linked
@@ -47,8 +47,8 @@ guard that fails when a rule is stated twice.
 
 ## Verification — V3
 
-1. **The two KRs that made this a row.** `P-O1.1` renders as an assertion
-   contradicted by four closed tasks, not as 0% progress. `P-O2.2` — `current 0`
+1. **The two KRs that made this a row.** `P002-O1-KR1` renders as an assertion
+   contradicted by four closed tasks, not as 0% progress. `P002-O2-KR2` — `current 0`
    against `target 0` — does not render as met while 0 of its 2 linked tasks are
    closed.
 2. **A stale assertion is visibly marked**, on a fixture whose linked task moved

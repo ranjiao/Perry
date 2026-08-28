@@ -77,7 +77,7 @@ def phase_file(number: str, title: str, started: str, status: str) -> str:
         f"## Phase Scope Reduction Rule\n\n- **Phase-day trigger**: none.\n\n"
         f"## Objective 1 — {title}\n\n### Key Results\n\n"
         f"| Id | KR text | Metric / Target | Linked overall KR |\n"
-        f"|---|---|---|---|\n| P-O1.1 | {title} work | 1 | — |\n\n"
+        f"|---|---|---|---|\n| P{number}-O1-KR1 | {title} work | 1 | — |\n\n"
         f"## Definition of Done\n\n### Must-Have (failure = phase missed)\n\n"
         f"- [ ] The KR above is met\n\n"
         f"## Not Doing in this phase\n\n- Anything else.\n\n"
@@ -118,7 +118,8 @@ HOOK = (
 )
 
 
-def register(tasks: list[str], own_phase: str, kr: str = "P-O1.1") -> str:
+def register(tasks: list[str], own_phase: str,
+             kr: str = "P{phase}-O1-KR1") -> str:
     """A linkage register, authored by hand.
 
     Written directly rather than through `perry-goals link` for the reason
@@ -155,7 +156,7 @@ class Fixture(unittest.TestCase):
                 store: list[str] | None = ("TASK-100", "TASK-101"),
                 linkage: dict[str, list[str]] | None = None,
                 store_text: str | None = None,
-                kr: str = "P-O1.1") -> pathlib.Path:
+                kr: str = "P{phase}-O1-KR1") -> pathlib.Path:
         d = pathlib.Path(tempfile.mkdtemp(prefix="perry-linkage-task-"))
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         (d / "phase").mkdir()
@@ -169,9 +170,13 @@ class Fixture(unittest.TestCase):
         (d / "phase" / "002-new.md").write_text(
             phase_file("002", "new", "2026-08-19", "active"))
         for name, tasks in (linkage or {"002": ["TASK-100"]}).items():
+            # `{phase}` is filled from the register's OWN phase. One
+            # literal used to serve both registers; a phase-KR id now names
+            # its phase, so a fixture that shared one across two phases
+            # would be writing an edge to the other phase's KR.
             (d / "phase" / f"{name}-linkage.md").write_text(
                 register(tasks, {"001": "001-old"}.get(name, "002-new"),
-                         kr=kr))
+                         kr=kr.format(phase=name)))
         if store_text is not None:
             (d / "tasks.jsonl").write_text(store_text)
         elif store is not None:
@@ -203,7 +208,7 @@ class TestADanglingEdgeIsReported(Fixture):
         rows = self.dangling(payload)
         self.assertEqual(len(rows), 1, rows)
         self.assertIn("TASK-404", rows[0]["message"])
-        self.assertIn("P-O1.1", rows[0]["message"],
+        self.assertIn("P002-O1-KR1", rows[0]["message"],
                       "the finding does not name the KR the edge hangs on")
         self.assertEqual(rows[0]["file"], "phase/002-linkage.md")
 
@@ -335,7 +340,7 @@ class TestNoStoreIsSilent(Fixture):
         file at all.
         """
         d = self.project(store=None, linkage={"002": ["TASK-404"]},
-                         kr="P-O9.9")
+                         kr="P{phase}-O9-KR9")
         _, payload = self.lint(d)
         self.assertEqual(self.dangling(payload), [])
         self.assertIn("linkage-kr-exists", self.rules(payload))
@@ -370,9 +375,15 @@ class TestAnOldPhaseIsJudgedAgainstTodaysStore(Fixture):
     belongs to ITS phase: judging `001-linkage.md` against the CURRENT phase's
     KR set reported correct edges as dangling on this project's first rollover.
 
-    That reasoning does not transfer. A **KR id is phase-scoped** — `P-O1.1`
-    names a different key result in phase 001 and phase 002, which is precisely
-    why the comparand had to be re-derived per file. A **task id is global**:
+    That reasoning does not transfer. A **KR id was phase-scoped without
+    saying so** — `P-O1.1` [[old-form]] named a different key result in phase
+    001 and phase 002, which is precisely why the comparand had to be
+    re-derived per file. TASK-180 put the phase in the id (`P001-O1-KR1` vs
+    `P002-O1-KR1`), and the old pair is quoted here rather than migrated
+    because migrated it stops being an example of anything. The guard is
+    unchanged and still earns its place: a register may name a KR belonging
+    to a phase that is not its own, and that is now a visible error rather
+    than an invisible coincidence. A **task id is global**:
     one `tasks.jsonl` for the project, ids minted across phases and never
     re-used, and no per-phase task store exists to prefer. So today's store is
     not "the current phase leaking into an old file" — it is the only store
@@ -416,7 +427,8 @@ class TestTheShippedWriterCanProduceThisState(Fixture):
     cannot resolve" — and the code disagrees. `link_edge` resolves and
     validates the **KR** half of the pair (`resolve_target`, then a second
     check that the graph carries that KR) and asks nothing at all about the
-    task id: `link TASK-999 P-O1.1` on a store holding neither returns 0,
+    task id: `link TASK-999 P002-O1-KR1` on a store holding neither returns
+    0,
     appends the edge, bumps `updated`, and signs off with `↪ validate:
     perry-lint --root .` — which, before this row, had nothing to say about it.
 
@@ -436,7 +448,7 @@ class TestTheShippedWriterCanProduceThisState(Fixture):
             CONFIG + "- Conformance gate: advisory\n")
         proc = subprocess.run(
             [sys.executable, str(ROOT / "bin" / "perry-goals"), "link",
-             "TASK-999", "P-O1.1", "--root", str(d)],
+             "TASK-999", "P002-O1-KR1", "--root", str(d)],
             capture_output=True, text=True, cwd=ROOT)
         if proc.returncode != 0:
             self.skipTest(f"perry-goals link now refuses an unresolvable "

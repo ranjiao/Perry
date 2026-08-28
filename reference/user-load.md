@@ -97,7 +97,7 @@ line is from Perry's own test fixture:
 
 To the agent that is complete. To the person it was written for, `USER-014` is
 a dead end — they must go searching their own project to find out what they are
-blocked on. Perry generates `REL-`, `ADR-`, `DESIGN-`, `P-O1.2`, `USER-`,
+blocked on. Perry generates `REL-`, `ADR-`, `DESIGN-`, `P<NNN>-O<n>-KR<n>`, `USER-`,
 `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers. That is a private vocabulary,
 issued to someone who never agreed to learn it.
 

@@ -12,7 +12,7 @@
 
 - **Owner**: Coding Agent
 - **Priority**: P1
-- **Attribution**: P-O2.2
+- **Attribution**: P002-O2-KR2
 - **Unblocks**: TASK-050 (P0), TASK-067 (P0), TASK-095 → TASK-099
 
 ## Why this is a deletion and not a fix

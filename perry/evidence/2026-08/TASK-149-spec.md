@@ -70,7 +70,7 @@ working.
 2. **The definitions that must survive**, each proved separately:
    `## ADR-001 — PMO bootstrap` still defines `ADR-001` with `kind: section`
    and title `PMO bootstrap`; a board row still defines its `TASK-*`; a linkage
-   `- id: P-O1.1` still defines that KR.
+   `- id: P001-O1-KR1` still defines that KR.
 3. **`perry-explain <id>` still resolves** each of those three, with its title —
    the user-facing behaviour the heading rule exists for.
 4. **Reverting your rule reddens case 1 and not case 2.** If one change moves

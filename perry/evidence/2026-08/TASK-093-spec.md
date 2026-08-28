@@ -8,14 +8,14 @@
 > Executor: coding agent (repository-local lint behavior, fixtures, and mutations)
 > Estimated cycle: medium
 > Subjective verification: (none)
-> Touches architecture: ADR-007 decision 2; phase 002 P-O1.3
+> Touches architecture: ADR-007 decision 2; phase 002 P002-O1-KR3
 > Deployed: no
 
 ## Schema
 
 - **Owner**: Coding Agent
 - **Priority**: P1
-- **Attribution**: P-O1.3
+- **Attribution**: P002-O1-KR3
 
 ### Deliverable
 

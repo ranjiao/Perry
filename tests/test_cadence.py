@@ -735,7 +735,7 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
     written for — was reported as pointing at KRs that do not exist.
 
     It fired on this project's first rollover ever, on `phase/001-linkage.md`,
-    naming `P-O1.4` — a KR that exists exactly where it should. A guard written
+    naming `P001-O1-KR4` — a KR that exists exactly where it should. A guard written
     when there had only ever been one phase.
 
     The file names its own phase (`<NNN>-linkage.md`), so the right KR set is
@@ -756,15 +756,15 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
             "# Phase #001 — old\n\n> **Started**: 2026-08-01\n"
             "> **Status**: scored\n\n## Objective 1 — a\n\n"
             "| Id | KR text | Metric / Target | Linked overall KR |\n"
-            "|---|---|---|---|\n| P-O1.1 | old work | 1 | — |\n")
+            "|---|---|---|---|\n| P001-O1-KR1 | old work | 1 | — |\n")
         (d / "phase" / "002-new.md").write_text(
             "# Phase #002 — new\n\n> **Started**: 2026-08-19\n"
             "> **Status**: active\n\n## Objective 1 — b\n\n"
             "| Id | KR text | Metric / Target | Linked overall KR |\n"
-            "|---|---|---|---|\n| P-O1.9 | new work | 1 | — |\n")
+            "|---|---|---|---|\n| P002-O1-KR9 | new work | 1 | — |\n")
         (d / "phase" / "001-linkage.md").write_text(
             '---\nlinkage: 1\nphase: "001-old"\nobjectives:\n  - id: O1\n'
-            '    title: "a"\n    krs:\n      - id: P-O1.1\n'
+            '    title: "a"\n    krs:\n      - id: P001-O1-KR1\n'
             '        title: "old work"\n        metric: "1"\n        target: 1\n'
             '        current: 1\n        stretch: false\n        tasks: []\n---\n')
         return d
@@ -782,13 +782,54 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         self.assertNotIn("linkage-kr-exists",
                          self.rules(self.project("002-new")))
 
+    def test_the_pre_migration_id_form_is_an_error_not_a_silence(self):
+        """TASK-180. `KR_ID_RE` no longer matching the old form is not enough.
+
+        Every KR guard in `check_cross_file` is written `if phase_krs and …`,
+        so a phase file left in `P-O1.1` [[old-form]] yields an EMPTY KR set
+        and buys
+        silence from all of them — the compatibility branch the user ruled out,
+        wearing a different hat. `kr-id-legacy-form` is what turns that silence
+        into a sentence, and this is what holds it: deleting the check left
+        every other module in the suite green.
+        """
+        d = self.project("002-new")
+        for name in ("001-old.md", "001-linkage.md"):
+            f = d / "phase" / name
+            f.write_text(f.read_text().replace("P001-O1-KR1",
+                                               "P-O1.1"))  # [[old-form]]
+        rules = self.rules(d)
+        self.assertIn("kr-id-legacy-form", rules)
+        self.assertNotIn("kr-id-legacy-form", self.rules(self.project("002-new")),
+                         "a migrated project must be silent about the old form")
+
+    def test_the_legacy_form_finding_is_an_error_and_names_the_new_shape(self):
+        import json
+        import subprocess
+        import sys
+        d = self.project("002-new")
+        f = d / "phase" / "001-linkage.md"
+        f.write_text(f.read_text().replace("P001-O1-KR1",
+                                           "P-O1.1"))  # [[old-form]]
+        proc = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
+             "--root", str(d), "--json"], capture_output=True, text=True)
+        hits = [x for x in json.loads(proc.stdout)["findings"]
+                if x["rule"] == "kr-id-legacy-form"]
+        self.assertEqual(len(hits), 1, hits)
+        self.assertEqual(hits[0]["severity"], "error")
+        self.assertEqual(hits[0]["file"], "phase/001-linkage.md")
+        self.assertIn("P-O1.1", hits[0]["message"])  # [[old-form]] echoed back
+        self.assertIn("P001-O<n>-KR<n>", hits[0]["message"],
+                      "the finding does not say what to write instead")
+
     def test_a_genuinely_wrong_kr_is_still_reported(self):
         """The guard has to keep working, or moving the KR set just turns it
         off. A registry naming a KR its OWN phase does not have is a real
         finding."""
         d = self.project("002-new")
         p = d / "phase" / "001-linkage.md"
-        p.write_text(p.read_text().replace("P-O1.1", "P-O9.9"))
+        p.write_text(p.read_text().replace("P001-O1-KR1", "P001-O9-KR9"))
         self.assertIn("linkage-kr-exists", self.rules(d))
 
 

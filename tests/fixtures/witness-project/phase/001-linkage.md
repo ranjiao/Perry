@@ -13,7 +13,7 @@ objectives:
         current: 2
         stretch: false
         tasks: ["WIT-001", "WIT-002"]
-      - id: P-O1.1
+      - id: P001-O1-KR1
         title: "Collections a live board leaves empty"
         metric: "4 of 4 non-empty (baseline 0 of 4)"
         target: 4

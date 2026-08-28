@@ -457,18 +457,18 @@ def resolve_state_root(project_root: Path) -> Path:
 # readings on Perry's own register on 2026-08-21 were wrong in OPPOSITE
 # directions and neither payload could say so:
 #
-#   P-O1.1  target 1, current 0  → read as 0% while all four linked tasks
-#                                  were closed and the board WAS rendered
-#                                  from the store;
-#   P-O2.2  target 0, current 0  → read as MET while TASK-094 had measured
-#                                  13 row splits and 87 header resolutions
-#                                  still reaching `BOARD.md`.
+#   P002-O1-KR1  target 1, current 0  → read as 0% while all four linked
+#                                       tasks were closed and the board WAS
+#                                       rendered from the store;
+#   P002-O2-KR2  target 0, current 0  → read as MET while TASK-094 had
+#                                       measured 13 row splits and 87 header
+#                                       resolutions still reaching `BOARD.md`.
 #
 # Six of the register's eight phase KRs have `target: 0`, so any KR whose
 # `current` is left at the template's `0` reads as met the day it is written.
 #
 # **The line this code does not cross.** It never computes `current`. A KR's
-# metric is typically a count of something in the repository — P-O2.1's is "0
+# metric is typically a count of something in the repository — P002-O2-KR1's is "0
 # occurrences of the regex TASK-091 deleted" — and "the linked task is closed"
 # does not establish that the count is zero; only re-running the count does.
 # `perry/OKR.md § Operating Principles` opens with that rule, and the phase's
@@ -476,7 +476,7 @@ def resolve_state_root(project_root: Path) -> Path:
 # does not name the symbol. So the linked-task tally below is emitted
 # BESIDE `current`, under its own name, as a count of tasks and never as a
 # fraction: a reader may put the two side by side and conclude the number is
-# suspect, which is exactly the P-O1.1 reading, but nothing here draws that
+# suspect, which is exactly the P002-O1-KR1 reading, but nothing here draws that
 # conclusion for them.
 
 #: `schema/state-schema.json § enums.task_status`, restated rather than read so

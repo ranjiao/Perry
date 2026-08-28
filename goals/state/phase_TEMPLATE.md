@@ -66,9 +66,9 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O1.1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.1 |
-| P-O1.2 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.2 |
-| P-O1.3 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O2.1 |
+| P{{NNN}}-O1-KR1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.1 |
+| P{{NNN}}-O1-KR2 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.2 |
+| P{{NNN}}-O1-KR3 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O2.1 |
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -94,7 +94,7 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 | Id | KR text | Metric / Target | Linked overall KR |
 |----|---------|-----------------|---------------------|
-| P-O2.1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O3.1 |
+| P{{NNN}}-O2-KR1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O3.1 |
 
 ### Projects
 
@@ -112,9 +112,9 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 | ISO week | Focus | Target KRs to advance | TASK-IDs (filled by `plan-week`) |
 |----------|-------|------------------------|------------------------------------|
-| {{YYYY-W{{n1}}}} | {{week 1 focus}}        | P-O1.1, P-O2.1 | — |
-| {{YYYY-W{{n2}}}} | {{week 2 focus}}        | P-O1.1, P-O1.2 | — |
-| {{YYYY-W{{n3}}}} | {{week 3 focus + mid-phase review}} | P-O1.2 | — |
+| {{YYYY-W{{n1}}}} | {{week 1 focus}}        | P{{NNN}}-O1-KR1, P{{NNN}}-O2-KR1 | — |
+| {{YYYY-W{{n2}}}} | {{week 2 focus}}        | P{{NNN}}-O1-KR1, P{{NNN}}-O1-KR2 | — |
+| {{YYYY-W{{n3}}}} | {{week 3 focus + mid-phase review}} | P{{NNN}}-O1-KR2 | — |
 | {{YYYY-W{{n4}}}} | {{week 4 focus / score-phase}} | retro + carry-over | — |
 
 ---

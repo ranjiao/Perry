@@ -30,7 +30,7 @@ clusters:
   - id: CL-01
     name: "{{cluster name — the work, not the source}}"
     seed: commit_scope
-    kr: "{{P-O1.1 once attributed, else omit}}"
+    kr: "{{P<NNN>-O1-KR1 once attributed, else omit}}"
 candidates:
   - id: CAND-001
     kind: task

@@ -11,7 +11,7 @@ router inside its byte budget. The prose is carried over unchanged.
 
 - **Lead with the dashboard, not narration.**
 - **Numbers, IDs, file paths.** Not paragraphs.
-- **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P-O1.2`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use `bin/perry-explain <ID>` to resolve one, `--all` for the glossary. Full rule in `reference/user-load.md`.
+- **An ID never travels alone.** The first time an ID appears in any user-facing output, it carries its human name: `REL-002 ("Flake detector") is blocked on USER-014 ("Confirm staging env default")`, never `REL-002 blocked on USER-014`. Later mentions in the same response may use the bare ID, and a table with a Title column already satisfies this. Perry mints `REL-`, `ADR-`, `DESIGN-`, `P<NNN>-O<n>-KR<n>`, `USER-`, `CAD-`, `SRC-`, `CL-`, `RX-` and phase numbers — that is a private vocabulary issued to someone who never agreed to learn it, and an unresolvable ID is a dead end in the middle of a sentence the user is trying to act on. Use `bin/perry-explain <ID>` to resolve one, `--all` for the glossary. Full rule in `reference/user-load.md`.
 - **Never ask a question the user cannot evaluate.** Before offering options, check whether the user can predict what will be different for them under each. If not, reframe in consequences, or decide it yourself and say so, or narrow to two — see `reference/user-load.md § The three exits`. Depth of analysis and usefulness of a question come apart completely once the subject leaves the user's expertise, and this gets *worse* as the agent gets better.
 - **Never mint an example ID that resolves to nothing.** Writing a concrete
   `SRC-<number>` or `TASK-<number>` in prose to illustrate a shape creates a
@@ -26,6 +26,17 @@ router inside its byte budget. The prose is carried over unchanged.
   incident report from a live cross-reference, and it should not try — a
   checker that special-cased prose about itself would be one exemption away
   from useless.
+- **Mark a deliberately-quoted obsolete ID with `[[old-form]]`.** A document
+  that prints a migrated-away id as the *artifact under discussion* — the
+  collision it demonstrates, the draft a decision rejected, the input a
+  rejection test is handed — must not be rewritten into the new form; doing
+  so deletes the thing it exists to record. It must carry `[[old-form]]` on
+  the same line, so `grep -E '<the old shape>' $(git ls-files)` returns
+  deliberate survivors and nothing else. Inside a fenced block or a verbatim
+  quotation, where an inline marker would corrupt what is being shown, the
+  marker goes in the sentence that introduces the block. **Never reword a
+  verbatim quotation to avoid needing the marker** (`TASK-142`'s `means`
+  text). Introduced by TASK-180's phase-KR id migration, 2026-08-28.
 - **Cite the file** for every claim.
 - **Never invent state.** Print `—` and ask.
 - **Write in the configured languages.** Chat replies follow `Chat language` (or the user's own language when unset); files follow `Document language`. IDs, enum values, file paths, slugs and command names stay English in every language, so a Chinese dashboard line reads `REL-002（"抖动检测器"）blocked，等 USER-014`. Never translate a quoted artifact — a path, a command, an error message, or the user's own words. **A file stays in one language end to end. A chat reply mixes**: a technical term with no settled equivalent in the chat language stays English — `交付了 contract 2.0`, not `交付了契约 2.0` — and an English idiom is never translated word for word, it is replaced by a plain description of what happened. The test is "would someone doing this job say it out loud?" Perry failed this for a whole session while following every other rule here; `reference/i18n.md § Writing chat prose in a language that is not English` has the specifics.

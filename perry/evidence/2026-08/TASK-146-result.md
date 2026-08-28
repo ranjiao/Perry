@@ -10,7 +10,7 @@
 
 TASK-120's finding #3 said the viewer *"renders the chain view from
 `viewer/parsers.py`"*. **Measured: it renders no KR `current` anywhere.**
-`P-O1.1` appears on zero pages, `PMOSnapshot.linkage` is parsed and **no
+`P002-O1-KR1` appears on zero pages, `PMOSnapshot.linkage` is parsed and **no
 template has ever read it** — `grep -rn linkage viewer/templates/` is empty.
 Confirmed independently by the PMO.
 
@@ -41,13 +41,13 @@ answered all three in one place and is a published contract. Cost: `/phase`
 ## What the card actually says, on this repository
 
 ```
-P-O1.1  current 0.0 · target 1.0 · metric 1 of 1 (baseline: the markdown is canonical)
+P002-O1-KR1  current 0.0 · target 1.0 · metric 1 of 1 (baseline: the markdown is canonical)
         asserted by the author, not measured · source linkage-register ·
         dated 2026-08-20T20:32:00 (the register's own timestamp, not this KR's)
         no linked task has changed state since 2026-08-20T20:32:00
         linked tasks 4 · closed 4 · open 0
 
-P-O2.2  current 0.0 · target 0.0 · metric 0 (baseline 5 live copies across 4 rounds)
+P002-O2-KR2  current 0.0 · target 0.0 · metric 0 (baseline 5 live copies across 4 rounds)
         asserted by the author, not measured · source linkage-register
         linked tasks 2 · closed 0 · open 2
 ```
@@ -65,7 +65,7 @@ behind a plausible date.
 ## Item 3, asserted both ways
 
 ```
-P-O1.3  current not asserted · target not asserted · metric reported
+P002-O1-KR3  current not asserted · target not asserted · metric reported
         the register gives this KR no `current`, and nothing here supplies one
         `current` was never asserted, so there is nothing to go stale
 ```

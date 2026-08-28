@@ -72,7 +72,8 @@ class TemplateContract(unittest.TestCase):
         ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertEqual(len(ph.objectives), 2)
         self.assertEqual([kr.id for kr in ph.krs],
-                         ["P-O1.1", "P-O1.2", "P-O1.3", "P-O2.1"])
+                         ["P{{NNN}}-O1-KR1", "P{{NNN}}-O1-KR2",
+                          "P{{NNN}}-O1-KR3", "P{{NNN}}-O2-KR1"])
         self.assertEqual(len(ph.scope_triggers), 2,
                          "## Phase Scope Reduction Rule not parsed")
         self.assertEqual({t.kind for t in ph.scope_triggers},
@@ -135,21 +136,21 @@ class FixtureProject(unittest.TestCase):
         self.assertTrue(link.ok, link.error)
         self.assertEqual(link.phase, "002-release-pipeline")
         self.assertEqual([o.id for o in link.objectives], ["O1", "O2"])
-        self.assertEqual(link.kr_for_task("REL-001"), "P-O1.1")
+        self.assertEqual(link.kr_for_task("REL-001"), "P002-O1-KR1")
         self.assertEqual(link.unlinked, ["REL-009"])
         self.assertEqual({a.id for a in link.agents}, {"Coding Agent", "PMO Agent"})
         rows = {r.project_id: r for r in link.projects}
         self.assertEqual(set(rows), {"REL-001", "REL-002"})
-        self.assertEqual(rows["REL-001"].serves_kr, "P-O1.1")
+        self.assertEqual(rows["REL-001"].serves_kr, "P002-O1-KR1")
         self.assertIn("deploy-hardening", rows["REL-001"].aliases)
 
     def test_prose_target_yields_no_number(self):
         """A KR measured in prose ('flaky runs <= 1%') must carry no numeric
         target — a ceiling drawn as a progress bar misreports a risk limit."""
         krs = {k.id: k for o in self.snap.linkage.objectives for k in o.krs}
-        self.assertEqual(krs["P-O1.1"].target, 3.0)
-        self.assertIsNone(krs["P-O2.1"].target)
-        self.assertEqual(krs["P-O2.1"].metric, "flaky runs <= 1%")
+        self.assertEqual(krs["P002-O1-KR1"].target, 3.0)
+        self.assertIsNone(krs["P002-O2-KR1"].target)
+        self.assertEqual(krs["P002-O2-KR1"].metric, "flaky runs <= 1%")
 
     def test_unlinked_survives_a_round_trip(self):
         """`unlinked` is declared, never inferred — so it has to come back out
@@ -162,11 +163,36 @@ class FixtureProject(unittest.TestCase):
             "---\nlinkage: 1\nunlinked:\n  - A-1\n  - B-2\n---\n")
         self.assertEqual(block.unlinked, ["A-1", "B-2"])
 
+    def test_a_phase_kr_bullet_is_read_in_the_migrated_form(self):
+        """`_RE_KR_BULLET` moved from `P-O` to `P\\d+-O` in TASK-180.
+
+        Nothing held that: reverting the arm left the suite green, because
+        every register and template in this repository writes KRs as a TABLE
+        and the bullet fallback is only reached by a hand-written file. The
+        fallback is still shipped, so it is still pinned — and the old form is
+        pinned as NOT read, which is what "no compatibility" means here."""
+        ph = P.parse_phase("002-demo",
+                           "# Phase #002 — demo\n\n## Objective 1 — o\n\n"
+                           "### Key Results\n\n"
+                           "- P002-O1-KR1: rendered from the store\n"
+                           "- KR-O1.1: the overall family, untouched\n")
+        self.assertEqual([k.id for k in ph.krs],
+                         ["P002-O1-KR1", "KR-O1.1"])
+        self.assertEqual(ph.krs[0].text, "rendered from the store")
+
+    def test_the_pre_migration_kr_bullet_is_not_read(self):
+        """The other half: `P-O1.1` [[old-form]] is not a KR id here."""
+        ph = P.parse_phase("002-demo",
+                           "# Phase #002 — demo\n\n## Objective 1 — o\n\n"
+                           "### Key Results\n\n"
+                           "- P-O1.1: the pre-TASK-180 form\n")  # [[old-form]]
+        self.assertEqual([k.id for k in ph.krs], [])
+
     def test_a_prose_target_is_never_coerced(self):
         """The linter rejects it, but the reader must not invent one either."""
         link = P.parse_linkage(
             '---\nlinkage: 1\nobjectives:\n  - id: O1\n    title: t\n'
-            '    krs:\n      - id: P-O1.1\n        title: t\n'
+            '    krs:\n      - id: P001-O1-KR1\n        title: t\n'
             '        metric: "max drawdown <= 15%"\n        target: "<= 15%"\n---\n')
         self.assertTrue(link.ok, link.error)
         kr = link.objectives[0].krs[0]
@@ -332,16 +358,16 @@ class Attribution(unittest.TestCase):
     def test_declared_task_edge_resolves(self):
         """Resolution step 1: the graph names the edge outright."""
         self.assertEqual(
-            self.mod.resolve_kr(self._task("REL-002"), self.snap.linkage), "P-O2.1")
+            self.mod.resolve_kr(self._task("REL-002"), self.snap.linkage), "P002-O2-KR1")
 
     def test_exact_project_id_resolves(self):
         self.assertEqual(
-            self.mod.resolve_kr(self._task("REL-001"), self.snap.linkage), "P-O1.1")
+            self.mod.resolve_kr(self._task("REL-001"), self.snap.linkage), "P002-O1-KR1")
 
     def test_registered_alias_resolves(self):
         self.assertEqual(
             self.mod.resolve_kr(self._task("X-1", "deploy-hardening"), self.snap.linkage),
-            "P-O1.1")
+            "P002-O1-KR1")
 
     def test_near_miss_name_does_not_resolve(self):
         """'Deploy script' is not 'Deploy script hardening'. Guessing here is
@@ -480,8 +506,8 @@ class Linter(unittest.TestCase):
             shutil.copytree(FIXTURE, proj)
             f = proj / "phase" / "002-linkage.md"
             f.write_text(f.read_text().replace(
-                "    serves: P-O2.1\n    objective: O2",
-                "    serves: P-O2.1\n    objective: O1"))
+                "    serves: P002-O2-KR1\n    objective: O2",
+                "    serves: P002-O2-KR1\n    objective: O1"))
             res = self._run("--root", str(proj), "--json")
             rules = {f["rule"] for f in json.loads(res.stdout)["findings"]}
             self.assertIn("linkage-objective-agrees", rules)

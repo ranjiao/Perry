@@ -179,8 +179,8 @@ class TheLinkageDefinitionStillWorks(ProjectFixture):
     def test_a_linkage_entry_defines_its_kr(self):
         self.write("linkage.md",
                    "# Linkage\n\n```\nnot this one\n```\n\n"
-                   "- id: P-O1.1\n  title: Every row carries a KR\n")
-        entry = self.harvest()["P-O1.1"]
+                   "- id: P001-O1-KR1\n  title: Every row carries a KR\n")
+        entry = self.harvest()["P001-O1-KR1"]
         self.assertEqual(entry["defined"], "linkage.md:7")
         self.assertEqual(entry["kind"], "linkage entry")
         self.assertEqual(entry["title"], "Every row carries a KR")
@@ -197,12 +197,12 @@ class ExplainStillResolvesAllThree(ProjectFixture):
                    "|---|---|---|---|\n"
                    "| TASK-042 | Split the register | Coding Agent | doing |\n")
         self.write("linkage.md",
-                   "# Linkage\n\n- id: P-O1.1\n  title: Every row carries a KR\n")
+                   "# Linkage\n\n- id: P001-O1-KR1\n  title: Every row carries a KR\n")
 
     def test_each_id_resolves_with_its_title(self):
         for token, title, kind in (("ADR-001", "PMO bootstrap", "section"),
                                    ("TASK-042", "Split the register", "row"),
-                                   ("P-O1.1", "Every row carries a KR",
+                                   ("P001-O1-KR1", "Every row carries a KR",
                                     "linkage entry")):
             with self.subTest(token=token):
                 human = self.explain(token)
@@ -263,9 +263,9 @@ class RevertingTheRuleSeparatesTheTwoCases(ProjectFixture):
                    "|---|---|---|---|\n"
                    "| TASK-042 | Split the register | Coding Agent | doing |\n")
         self.write("linkage.md",
-                   "# Linkage\n\n- id: P-O1.1\n  title: Every row carries a KR\n")
+                   "# Linkage\n\n- id: P001-O1-KR1\n  title: Every row carries a KR\n")
         now, before = self.harvest(), self.harvest(self.reverted())
-        for token in ("ADR-001", "TASK-042", "P-O1.1"):
+        for token in ("ADR-001", "TASK-042", "P001-O1-KR1"):
             with self.subTest(token=token):
                 self.assertEqual(
                     (now[token]["defined"], now[token]["kind"],

@@ -308,7 +308,7 @@ class TestItRefusesALiveReference(PurgeCase):
         phase.mkdir(exist_ok=True)
         (phase / "001-linkage.md").write_text(
             "---\nlinkage: 1\nobjectives:\n  - id: O1\n    krs:\n"
-            "      - id: P-O1.1\n        title: \"a key result\"\n"
+            "      - id: P001-O1-KR1\n        title: \"a key result\"\n"
             f"        tasks: [\"{tid}\"]\n---\n")
         code, out = self.purge(p, tid)
         self.assertEqual(code, 1)

@@ -6,7 +6,7 @@ objectives:
   - id: O1
     title: "{{phase objective 1 title}}"
     krs:
-      - id: P-O1.1
+      - id: P{{NNN}}-O1-KR1
         title: "{{kr text}}"
         metric: "{{metric as written in the phase file}}"
         # `target` is a NUMBER or absent — omit it for a prose target
@@ -22,7 +22,7 @@ objectives:
         # `unasserted` rather than as zero.
         stretch: false
         tasks: []
-      - id: P-O1.2
+      - id: P{{NNN}}-O1-KR2
         title: "{{kr text}}"
         metric: "{{metric}}"
         stretch: false
@@ -30,7 +30,7 @@ objectives:
   - id: O2
     title: "{{phase objective 2 title}}"
     krs:
-      - id: P-O2.1
+      - id: P{{NNN}}-O2-KR1
         title: "{{kr text}}"
         metric: "{{metric}}"
         stretch: false
@@ -39,7 +39,7 @@ unlinked: []
 agents: []
 projects:
   - id: "{{PROJ-001}}"
-    serves: P-O1.1
+    serves: P{{NNN}}-O1-KR1
     objective: O1
     name: "{{project name}}"
     aliases: []
@@ -71,7 +71,7 @@ projects:
 ## Rules (do not violate)
 
 - A Project **serves** exactly one KR. If it genuinely serves two, split it into two Projects.
-- A project's `objective` must agree with its `serves` KR id (`P-O1.2` → `O1`).
+- A project's `objective` must agree with its `serves` KR id (`P{{NNN}}-O1-KR2` → `O1`).
 - Add an **alias** only after the user confirms two names are the same Project.
 - A KR may legitimately carry zero tasks — that is a completeness signal worth showing, not an error.
 - Work seen in execution that no Project claims goes in `unlinked[]`, and is resolved by

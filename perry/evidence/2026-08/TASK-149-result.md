@@ -48,7 +48,7 @@ old title is where the id was cut out. `dangling` stays `[]`; `untitled` stays
 
 `## ADR-001 — PMO bootstrap` → `DECISIONS.md:3`, kind `section`, title *PMO
 bootstrap*. A board row → kind `row`, title carried, status carried. A linkage
-`- id: P-O1.1` → kind `linkage entry`, title from the following line. Item 3
+`- id: P001-O1-KR1` → kind `linkage entry`, title from the following line. Item 3
 drives the CLI for all three, human and `--json`.
 
 ## Item 4 — reverting moves one side only, and it is a test
@@ -59,7 +59,7 @@ the pre-TASK-149 rule:
 - **reddens case 1** — `REL-00` goes from `defined=None` to
   `defined=notes/finding.md:3`. Asserted **in both directions**, so if the
   mutation ever stops biting, the test says so.
-- **does not redden case 2** — ADR-001, TASK-042 and P-O1.1 are byte-identical
+- **does not redden case 2** — ADR-001, TASK-042 and P001-O1-KR1 are byte-identical
   under both rules. *A heading that names its subject satisfies the old rule and
   the new one alike.* The two cases are separable; no bigger finding.
 

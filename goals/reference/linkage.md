@@ -109,7 +109,7 @@ make a number look complete.
 "$PERRY_HOME/bin/perry-goals" link --root . --project <PROJECT-ID> <KR-ID> "<name>"
 ```
 
-Appends to `projects[]` with `objective` derived from the KR id (`P-O1.2` → `O1`;
+Appends to `projects[]` with `objective` derived from the KR id (`P<NNN>-O1-KR2` → `O1`;
 they must agree or the linter refuses) and `status: active`. The tool also checks
 that derivation against the objective the KR actually sits under in the graph,
 and refuses when the two disagree rather than picking one. Flip `status` to

@@ -86,7 +86,7 @@ time the user hears about a thin Non-Goals.
 | 4.2 | **Deliverable is an artifact, not an activity** | "Work on the migration" | "`migrations/007_*.sql` merged + rollback tested" |
 | 4.3 | **Single owner from the Owner model** — not "team" / unassigned | "Owner: someone" | "Owner: Coding Agent" |
 | 4.4 | **Priority is justified** — P0 must plausibly block a Must-Have | everything P0 | P0 only if it blocks a DoD Must-Have; else P1/P2 |
-| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P-O1.2` |
+| 4.5 | **Linked to a KR** (from `plan-week`) — orphan tasks are scope creep | no `kr:` tag | `kr:P<NNN>-O1-KR2` |
 
 ---
 

@@ -66,7 +66,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 −3. **Set `$PERRY_HOME`** — if unset in env, derive from this SKILL.md's path: it's the perry/ root dir (the grandparent of `goals/SKILL.md`).
 −2. **Detect host** — `bash "$PERRY_HOME/bin/perry-detect-host"`. Remember as `$HOST` (`claude-code` | `opencode` | `codex-cli`) and read `$PERRY_HOME/reference/host-capabilities.md` once. All later references to `AskUserQuestion` follow that matrix (OpenCode = `question`; Codex = numbered free text; same chosen value and writes).
 −1. **Run the weekly auto-update check** — `bash "$PERRY_HOME/bin/perry-update-check"`. Throttled to once per 7 days; surface any output verbatim.
-0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P-O1.2`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
+0. **Read `.perry/config.md`** if present, for document language, chat language and repo layout. `OKR.md` and every phase file are written in `Document language`; the snapshot, the TL;DR and every `AskUserQuestion` are rendered in `Chat language` (mirror the user when unset). The two may differ. Headings and column headers localize through the glossary in `schema/state-schema.json § i18n`; KR ids (`KR-O1.2`, `P<NNN>-O<n>-KR<n>`), phase slugs, dates and enum values stay English in every language. Contract: `$PERRY_HOME/reference/i18n.md`.
 1. **Read `.perry/hook.md`** if present (project-specific hook).
 2. **Compute the state — one call**: `"$PERRY_HOME/bin/perry-state" --json`. Deterministic, read-only, stdlib-only. It resolves the current phase via `phase/CURRENT`, parses `OKR.md` and the phase file, reads `phase/<NNN>-linkage.md`, cross-checks `BOARD.md`, and returns objectives, KR ids, phase day, scope-reduction triggers, cost-ceiling lines, `attribution.linked` / `attribution.unlinked`, and tier-1 cap overruns. **Every number in the snapshot comes from this payload** — never count by eye; a field the payload doesn't carry prints `—`. On non-zero exit, say so in one line and read `OKR.md` + the phase file directly.
 3. **Read the source text** only when the conversation is about its content — the phase narrative, an Objective's wording, an Operating Principle. The payload answers "how many / how far / what's unlinked" without loading it.
@@ -93,7 +93,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
 
    🧭 Operating Rules in force this phase: <count>
    🚫 Anti-Goals (overall): <count>   ·   Not Doing this phase: <count>
-   📈 Tasks linked  : <n tasks tagged kr:P-O1.* / total open tasks>
+   📈 Tasks linked  : <n tasks tagged kr:P<NNN>-O1-* / total open tasks>
    🔗 Unlinked      : <n> tasks awaiting KR attribution (oldest <days>d)   (omit if 0; never rolled into KR progress)
    ⚠ Phase scope-reduction trigger: <armed | disarmed | tripped>   (trigger condition: phase day N | KR-progress <X%>)
    📅 Phase day <N>   ·   last snapshot <M>d ago (heartbeat <H>d)
@@ -108,7 +108,7 @@ Always run before any subcommand. If `OKR.md` is missing, jump to Bootstrap.
    - **Heartbeat prompt** (auto): if days-since-last-snapshot ≥ `phase_heartbeat_days` (read from `.perry/config.md`, default 14) → "It's been <N>d since the last snapshot — run `/okr snapshot` to preserve the current state."
    - Other 1–2 suggestions based on what's missing/behind:
      - "no current phase → run `/okr plan-phase <slug>`"
-     - "KR-P-O1.2 at 30% with 80% of phase commits hit → consider `score-phase` carrying it forward"
+     - "KR P<NNN>-O<n>-KR<n> at 30% with 80% of phase commits hit → consider `score-phase` carrying it forward"
      - "scope-reduction trigger tripped (phase day ≥ N and USER-XXX still open) → apply scope cut"
 
 6. Then ask: **"What do you want to do?"**

@@ -283,7 +283,7 @@
     ],
     "invariant": [
       "file and directory names (BOARD.md, phase/, evidence/<YYYY-MM>/)",
-      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P-O1.2, USER-014)",
+      "ID prefixes and ID bodies (REL-002, ADR-001, DESIGN-001, KR-O1.2, P<NNN>-O<n>-KR<n>, USER-014)",
       "enum values (not_started, in_progress, blocked, review, done, dropped, single, split, ...)",
       "header field names in .perry/config.md and .perry/hook.md",
       "YAML frontmatter keys and values in phase/<NNN>-linkage.md",
@@ -1254,7 +1254,7 @@
             "Linked overall KR"
           ],
           "id_column": "Id",
-          "id_pattern": "^P-O\\d+\\.\\d+$"
+          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$"
         }
       ],
       "anchor": "state"
@@ -1308,7 +1308,7 @@
                   "id": {
                     "type": "string",
                     "required": true,
-                    "pattern": "^P-O\\d+\\.\\d+$"
+                    "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
                   },
                   "title": {
                     "type": "string",
@@ -1385,7 +1385,7 @@
               "serves": {
                 "type": "string",
                 "required": true,
-                "pattern": "^P-O\\d+\\.\\d+$"
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$"
               },
               "objective": {
                 "type": "string",
@@ -1565,7 +1565,7 @@
               "kr": {
                 "type": "string",
                 "required": false,
-                "pattern": "^P-O\\d+\\.\\d+$",
+                "pattern": "^P\\d{3}-O\\d+-KR\\d+$",
                 "note": "result of the cluster->KR pass. Absent = not yet attributed. Every task in the cluster inherits this edge; it is DECLARED by the user, never matched by name."
               }
             }
@@ -2198,7 +2198,7 @@
     {
       "id": "linkage-objective-agrees",
       "severity": "error",
-      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P-O1.2 -> O1)."
+      "description": "Each linkage row's Objective must match the Objective encoded in its Serves KR id (P002-O1-KR2 -> O1)."
     },
     {
       "id": "linkage-kr-exists",

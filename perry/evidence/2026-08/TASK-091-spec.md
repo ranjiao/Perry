@@ -9,14 +9,14 @@
 > Executor: coding agent (repository-local code, fixtures, and mutations)
 > Estimated cycle: large
 > Subjective verification: (none)
-> Touches architecture: ADR-007 rules 1 and 2; phase 002 P-O2.1
+> Touches architecture: ADR-007 rules 1 and 2; phase 002 P002-O2-KR1
 > Deployed: no
 
 ## Schema
 
 - **Owner**: Coding Agent
 - **Priority**: P0
-- **Attribution**: P-O2.1
+- **Attribution**: P002-O2-KR1
 
 ### Deliverable
 

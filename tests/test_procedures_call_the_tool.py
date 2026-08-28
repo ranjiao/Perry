@@ -525,7 +525,7 @@ def scan(
 
 
 class ProceduresCallTheTool(unittest.TestCase):
-    """ADR-007 rule 3 over every loadable procedure, target 0 (`P-O3.1`)."""
+    """ADR-007 rule 3 over every loadable procedure, target 0 (`P002-O3-KR1`)."""
 
     def scan_text(self, text: str, name: str = "page.md"):
         with tempfile.TemporaryDirectory() as tmp:

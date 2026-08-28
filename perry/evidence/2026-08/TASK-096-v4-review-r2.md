@@ -330,7 +330,7 @@ they cover.
 `perry/phase/002-fields-are-typed.md:78` reads:
 
 ```
-| P-O3.1 | Lane procedures that hand-edit a rendered file (baseline: unmeasured) | 0 | — |
+| P002-O3-KR1 | Lane procedures that hand-edit a rendered file (baseline: unmeasured) | 0 | — |
 ```
 
 The metric is over **lane procedures**, and `work/SKILL.md:31-33` lists
@@ -354,11 +354,11 @@ the violation either — its title and `next_action` (`—`) are about the guard
 corpus, so the one agreed-live instance of the defect class this task exists to
 remove is recorded only in prose on a row that is about to be closed.
 
-Also noted, not scored: **`P-O3.1` is a duplicate id.**
+Also noted, not scored: **`P-O3.1` [[old-form]] is a duplicate id.**
 `perry/phase/001-work-modes-live.md:144` uses it for *"A state file can declare
 it is Perry-shaped…"*, marked **achieved** at :246. Two phases, one id, two
 unrelated KRs. That predates TASK-096; it is worth a row of its own because
-`P-O3.1` now appears in a test docstring and an evidence file with no phase
+`P-O3.1` [[old-form]] now appears in a test docstring and an evidence file with no phase
 qualifier.
 
 ---
@@ -462,7 +462,7 @@ not-checked: whether the "19 across 26 pages" baseline in the module docstring
          they still stand); goals/ and decide/ page prose beyond what scan()
          reports; no write-side tool was run; nothing was checked on Windows
          paths or under a non-English `Document language`; TASK-101's own
-         scope beyond its row; and whether the duplicate `P-O3.1` id across
+         scope beyond its row; and whether the duplicate `P-O3.1` [[old-form]] id across
          phase 001 and 002 breaks any linkage check.
 proof: tests/test_procedures_call_the_tool.py:353 — mutating `section =
        lines[0]` to `section = section + lines[0]` leaves ALL SEVEN tests

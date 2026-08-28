@@ -181,11 +181,11 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
 7. **Objectives** — 2–4 phase Objectives. For each:
    - Title (as `## Objective <N> — <title>`)
    - Goal (1–2 sentences)
-   - 3–5 Key Results in a `### Key Results` table, ids matching `P-O<n>.<m>`:
+   - 3–5 Key Results in a `### Key Results` table, ids matching `P<NNN>-O<n>-KR<m>`:
      ```
      | Id | KR text | Metric / Target | Linked overall KR |
      |----|---------|-----------------|---------------------|
-     | P-O1.1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
+     | P<NNN>-O1-KR1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
      ```
    - Linked Projects: each Project has Owner / User role / Deliverable / Verification — these become PMO task seeds with TASK-IDs.
 8. **Definition of Done** — split into **Must-Have** (failure = phase missed) and **Nice-to-Have** (failure allowed but explained in retro).
@@ -218,7 +218,7 @@ Close out a phase. Default: the current phase (read from `phase/CURRENT`). Cross
 
 Attribute each done task to its KR **by ID through `phase/<NNN>-linkage.md`**, per `$PERRY_HOME/reference/okr-linkage.md`; any task that does not resolve to exactly one KR is listed under a `## Unlinked at scoring` note and **not** averaged into any KR score — surface it and ask rather than guessing which KR it belonged to. `"$PERRY_HOME/bin/perry-state" --section attribution` lists exactly these.
 
-1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"P-O1.2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
+1. For each phase KR: final metric, status from {`achieved`, `partial`, `missed`, `dropped`}, evidence path. **Use `AskUserQuestion`** with one question per KR (header = the KR id, e.g., `"P<NNN>-O1-KR2"`); options = the 4-status set; recommended option pre-selected based on observed metric vs target.
 2. Compute KR score 0.0–1.0 (overshot caps at 1.0; record stretch overshoot separately).
 3. Aggregate to Objective score (mean of KRs).
 4. Write **Retro** section in `phase/<NNN>-<slug>.md`:
