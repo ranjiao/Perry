@@ -917,21 +917,30 @@ def hook_profile(root: Path) -> dict:
 
     `/pmo dispatch` pre-flight and `/pmo autopilot`'s safety scan both match
     specs against this list. If it is missing there is nothing to match, so the
-    gate is reported as unarmed rather than silently passing."""
+    gate is reported as unarmed rather than silently passing.
+
+    **`high_stakes_armed` is a weaker claim than it reads as**, which is why
+    `high_stakes_unextractable` sits beside it. Armed says the section has
+    bullets; it does not say the bullets arm anything. `~/proj/gimegime-pmo`
+    reported `armed: true` over a list whose five bullets produced three
+    fragments — a gate two fifths loaded, described by the same word as a full
+    one. The dead bullets are published here rather than left to the linter for
+    the reason `must_escalate.unextractable` is published on a role card: the
+    delegation prompt renders this list, and a prompt that presents an
+    unenforced sentence as a constraint is the failure being fixed. TASK-202.
+    """
     path = root / ".perry" / "hook.md"
-    out = {"present": path.exists(), "high_stakes": [], "high_stakes_armed": False}
+    out = {"present": path.exists(), "high_stakes": [],
+           "high_stakes_armed": False, "high_stakes_unextractable": []}
     if not path.exists():
         return out
-    text = P._strip_comments(path.read_text(errors="replace"))
-    # Spellings from the schema, not written here. `"High-stakes"` stays as a
-    # literal because it is a PREFIX this file accepts and the schema does not
-    # declare — a tolerance, not an alias, and saying so is the difference
-    # between reading the table and quietly extending it.
-    section = P._section(text, *P.alias("headings", "High-stakes operations"),
-                         "High-stakes")
-    items = [b for b in P._bullets(section) if "{{" not in b]
+    # `P.hook_escalation_lines` is the one reader — the section spelling, the
+    # `High-stakes` prefix tolerance and the `{{` template filter all live
+    # there, and the copy that stood here was the second of what became three.
+    items = P.hook_escalation_lines(root)
     out["high_stakes"] = items
     out["high_stakes_armed"] = bool(items)
+    out["high_stakes_unextractable"] = P.unextractable_lines(items)
     return out
 
 
@@ -1576,12 +1585,30 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # adds. The union only ever grows — a role can add to what the project
     # refuses to do unsupervised, and there is no mechanism by which it removes.
     escalation = P.escalation_union(perry_root)
+    # Both halves of the union, in one loop, saying one sentence.
+    #
+    # The hook half was missing entirely until TASK-202: a role's dead
+    # escalation line has been warned about since TASK-075, while the same
+    # sentence in `.perry/hook.md` — the file EVERY project has, and the one a
+    # roleless project has instead of a card — was read, dropped and never
+    # mentioned. The standup is where it belongs, next to `armed`, because
+    # `armed: true` is the claim it qualifies.
+    #
+    # The card half's wording changed with it. It said the line "has no
+    # backticked span", which TASK-201 made false in the same release that
+    # fixed the linter's copy of it: backticks are not the test, the extractor
+    # is, and a line whose only span is below the floor has a backtick and
+    # arms nothing. `P.unextractable_says` is now the only place that sentence
+    # exists.
+    for bullet in hook["high_stakes_unextractable"]:
+        warnings.append(P.unextractable_says(bullet, P.HOOK_SECTION)
+                        + " Run /perry work lint.")
     for card in roles["cards"]:
         for bullet in card["must_escalate"]["unextractable"]:
             warnings.append(
-                f"role `{card['name']}` escalation line {bullet!r} has no "
-                f"backticked span — the pre-flight scan matches fragments, so "
-                f"that line enforces nothing. Run /perry work lint --knowledge.")
+                f"role `{card['name']}`: "
+                + P.unextractable_says(bullet, P.CARD_SECTION)
+                + " Run /perry work lint --knowledge.")
     if not hook["high_stakes_armed"]:
         warnings.append(
             "No high-stakes list in .perry/hook.md — /perry work dispatch and /perry work autopilot "

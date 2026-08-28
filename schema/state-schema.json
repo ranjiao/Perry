@@ -2250,6 +2250,11 @@
       "description": ".perry/hook.md should declare a high-stakes list; dispatch and autopilot match specs against it."
     },
     {
+      "id": "hook-escalation-not-extractable",
+      "severity": "warn",
+      "description": "A `## High-stakes operations` bullet that yields no scan fragment. The gate matches backticked spans the extractor keeps, so a prose bullet - or one whose only span is below viewer/parsers.py extracts' floor - reads as a rule and enforces nothing. Same question, same predicate and same sentence as role-escalation-not-extractable (viewer/parsers.py unextractable_lines / unextractable_says): the two halves of the escalation union must report alike for the reason escalation_fragments says they must extract alike. Warn and not error, at the same severity as the role card's, because a rule's enforceability must not depend on which of the two files it was written in. SKIPPED ENTIRELY when there is no .perry/hook.md - no bullets means no dead bullets, which is TASK-117's inversion one check over."
+    },
+    {
       "id": "linkage-names-unique",
       "severity": "error",
       "description": "No two linkage projects may share a name or an alias — that ambiguity is exactly what the registry exists to prevent."

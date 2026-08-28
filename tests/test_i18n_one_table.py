@@ -139,11 +139,27 @@ class TestWhatIsStillHandCarried(unittest.TestCase):
     def test_the_alias_reader_is_one_function_not_one_per_tool(self):
         """`bin/perry-state` briefly grew its own `heading_spellings` while
         this row was being fixed — a second implementation of `alias()`,
-        added by the fix for having two implementations. It calls
-        `parsers.alias` now."""
+        added by the fix for having two implementations.
+
+        **This assertion changed shape at TASK-202, and the property got
+        stronger, not weaker.** `hook_profile` held this file's only direct
+        `P.alias("headings", …)` call, inside its own copy of the hook-section
+        read; that whole read moved into `P.hook_escalation_lines`, which the
+        linter and the pre-flight union were already using. So `bin/perry-state`
+        now resolves no heading spelling at all rather than resolving them
+        correctly — one fewer place that could get it wrong.
+
+        The behaviour this stands in for is asserted for real in
+        `test_i18n.py`, where the ZH fixture's Chinese `## 高风险操作` heading
+        must come back armed from this tool. That is the test that fails if the
+        spelling stops being resolved; this one only says WHERE it is resolved.
+        """
         st = (PERRY_HOME / "bin" / "perry-state").read_text(encoding="utf-8")
         self.assertNotIn("def heading_spellings", st)
-        self.assertIn('P.alias("headings"', st)
+        self.assertIn("P.hook_escalation_lines(", st)
+        self.assertIn('alias("headings"',
+                      (PERRY_HOME / "viewer" / "parsers.py").read_text(
+                          encoding="utf-8"))
 
 
 if __name__ == "__main__":
