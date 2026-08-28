@@ -76,6 +76,7 @@
 | 2026-08-28 | events contract says not to re-sort because second-precision ties are real, which reads as a rounding problem — the real reason is a deliberately backdated stamp twelve hours out of log order | — |
 | 2026-08-28 | perry-dispatch-limit exits 0 and prints usage on an unknown subcommand, so every 'acquire' this session was a silent no-op — the subcommand is 'register'; the concurrency cap was enforced by nothing but the caller's own counting | — |
 | 2026-08-28 | BOARD.md's Last updated header reads 2026-08-16 while the board is re-rendered dozens of times a day — perry-state reports it as board.last_updated and nothing refreshes it | — |
+| 2026-08-28 | tests/test_migrate.py:155's HOOK constant carries the same unarmed bullet test_conformance.py had — green today because that suite does not run the new check | — |
 
 ## P0 (must finish this period)
 
@@ -112,7 +113,6 @@
 | TASK-193 | D011 step 4 — the escape hatch and the premise challenge | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-194 | D011 step 5 — plan-phase uses the same question bank | Coding Agent | not_started | — | — | V3 | TASK-191 | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
-| TASK-202 | the hook side of the escalation union has no not-extractable check at all — only role cards get one | Coding Agent | in_progress | — | — | V3 | — | main |  |  |  |  |  |  |
 | TASK-203 | an ordinary write does not update its store, for either the risks or the intake register — one row, both registers | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-204 | Perry has no writer for a migration event, so TASK-180 hand-wrote JSON into an append-only log | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-205 | semantics ships on 2 of 5 payloads, so CONTRACT_TESTED.goals can never go red | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
