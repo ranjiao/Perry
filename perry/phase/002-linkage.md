@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "002-fields-are-typed"
-updated: "2026-08-21T10:04:08Z"
+updated: "2026-08-28T16:20:00Z"
 objectives:
   - id: O1
     title: "The three stores are stores"
@@ -17,17 +17,16 @@ objectives:
         title: "`OKR.md` and `.perry/config.md` likewise"
         metric: "2 of 2 (baseline 0 of 2)"
         target: 2
-        current: 1
+        current: 2
         stretch: false
         tasks: ["TASK-092"]
       - id: P002-O1-KR3
         title: "A hand edit to a rendered file is reported rather than honoured, at the severity the user picks"
-        metric: "reported (baseline: it is honoured)"
+        metric: "3 of 3 rendered files report a hand edit through `perry-lint`. Measured 2026-08-28 by changing one real cell in each and reading the drift count: BOARD.md → 2 rows drifted; OKR.md → 0; .perry/config.md → 0. Both misses ARE caught by `perry-okr diff` and `perry-config diff`, so the edit is not honoured — but a user running the tool this KR names sees nothing. TASK-209 is the row."
+        target: 3
+        current: 1
         stretch: false
         tasks: ["TASK-093"]
-  - id: O2
-    title: "The defect classes cannot be expressed"
-    krs:
       - id: P002-O2-KR1
         title: "`CLOCK_RE` deleted and `By when` split into `due` + `by_when_note`"
         metric: "0 occurrences of `CLOCK_RE` (baseline: one column, five failed review rounds)"
@@ -37,7 +36,7 @@ objectives:
         tasks: ["TASK-091"]
       - id: P002-O2-KR2
         title: "Readers that resolve a header cell for the three stores"
-        metric: "0 (baseline 5 live copies across 4 rounds)"
+        metric: "0 (baseline 5 live copies across 4 rounds). Re-measured 2026-08-28: parse_board's four header/split calls all sit behind `tasks is None` guards — verified per call site by TASK-094, including the transitive one through backbone_chunk — and parse_okr has none at all. The 0 stands. TASK-050 stays open under this KR and measures something WIDER than this metric: two normalizations existing for any register, plus perry-lint's own heading_is_intake. The KR being met does not close it."
         target: 0
         current: 0
         stretch: false
