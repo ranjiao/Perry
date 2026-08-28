@@ -62,6 +62,13 @@
 | 2026-08-28 | the id scanner excludes fenced blocks but not inline code spans, so a regex in backticks becomes a dangling id — Z0-9 is on today's list and is not an id; fix the false positives before TASK-179's decision is made | — |
 | 2026-08-28 | DESIGN-007 decision #4 (KR ids become P002-O3-KR1, locked 2026-08-19) was never implemented — zero traces in code, old form still hardcoded in perry-lint:124 and perry-explain:64, and perry-lint:1122 recovers the phase from the filename precisely because the id does not carry it | — |
 | 2026-08-28 | a locked decision that gets no task row does not ship — DESIGN-007's plan went 5-for-5 with rows and 0-for-9 without; decide lock is documented to hand implementation tasks to work and did not | — |
+| 2026-08-28 | escalation scan: Files in scope / Deliverable / Out of scope have NO zh alias while High-stakes operations does, so a Chinese-headed spec scans clean — half the pair is internationalised, and gimegime-pmo's document language is 中文 | — |
+| 2026-08-28 | escalate_unextractable flags a line with no backtick, not a line that produced no fragment — so a backticked 2-char token like 下单 is silently dropped by the len>2 floor and raises no warning; 18 of 20 Chinese trading verbs affected | — |
+| 2026-08-28 | escalation_fragments' len>2 floor is an ASCII assumption: it drops 2-character CJK tokens that are whole words, while _ESC_WORD was deliberately written ASCII-only so CJK WOULD match | — |
+| 2026-08-28 | bin/perry-state:1954 scans the FLAT role union and never reads the row's Role: — correct by accident and load-bearing, since narrowing it to the row's own role would break the cross-role seam catch; pin it with a test before someone optimises it | — |
+| 2026-08-28 | tasks[].role is typed as one string but a seam row needs two — a coding-owned row whose subject is a live risk cap is accountable to both roles | — |
+| 2026-08-28 | DUE-* 日期型强制动作 is unrepresentable by the escalation union in principle: the union fires on a dispatch, and the danger is a dispatch that never happens | — |
+| 2026-08-28 | test_host_support flakes under suite contention — third occurrence tonight, merge-check refused to attribute it once and TASK-147's sweep excluded it; it passes 3/3 alone every time | — |
 
 ## P0 (must finish this period)
 
@@ -102,7 +109,6 @@
 | TASK-196 | ## Intake becomes a store — 46 rows live only in BOARD.md | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-197 | ## User Input Queue becomes a store — the queue has no store and the board section IS the record | Coding Agent | not_started | — | — | V3 |  | main |  |  |  |  |  |  |
 | TASK-199 | BOARD.md carries two truth models in one file and nothing marks the boundary | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
-| TASK-200 | draft a finance-shaped role card from gimegime-pmo, and name every field that does not survive the shape change | Coding Agent | in_progress | CORRECTED 2026-08-28 mid-flight by the user: gimegime-pmo is a HYBRID, not a non-software project. Repo layout: split — it manages the software development of ~/proj/gimegime AND real investment work on one board, physically partitioned by declared id prefix: IPS-/ALLOC-/DUE- = 投资线, ARCH-V2/RW-/PAPER-/RES-/DATA-/INFRA-/TECH- etc = 工程线. So the question is not 'does a finance role card work' but 'can one board carry two roles whose escalation boundaries differ in KIND' — 工程线 escalates on paths, 投资线 escalates on 系统永不下单, an action no file list matches. The 工程线 half already has its role (rows read Owner: Coding Agent). 'They cannot coexist under this model' is a winning answer. | — | V3 | — | main |  |  |  |  |  |  |
 
 ## P2
 
