@@ -2096,10 +2096,22 @@ def is_sla_token(value: str) -> bool:
 
 
 def tracks_of(project_root: Path) -> list[dict]:
-    cfg = project_root / ".perry" / "config.md"
-    if not cfg.exists():
+    """The declared tracks — from the STORE, `.perry/config.jsonl`.
+
+    `bin/perry-state § declared_tracks` is the one reader (P003-O2-KR1): this
+    used to parse `.perry/config.md § Tracks` directly, which is a projection
+    of that store wherever it exists, so a register the store and the file
+    disagreed about had two answers depending on which tool asked.
+
+    The empty list stays the answer for a project with no config at all — it is
+    what `track_named` turns into "this project declares no tracks", and
+    `declared_tracks`' implicit `main` would instead accept every `--track main`
+    on a project that never configured Perry.
+    """
+    perry = project_root / ".perry"
+    if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
         return []
-    return perry_state().parse_tracks(cfg.read_text(errors="replace"))
+    return perry_state().declared_tracks(project_root)
 
 
 def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:

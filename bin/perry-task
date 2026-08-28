@@ -6674,10 +6674,18 @@ def main(argv: list[str]) -> int:
         project_root = (Path(args.root).expanduser().resolve() if args.root
                         else Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve())
         state_root = P.resolve_state_root(project_root)
+        # The track register comes out of the STORE, `.perry/config.jsonl`,
+        # with `.perry/config.md § Tracks` as the fallback for a project that
+        # has no store yet (P003-O2-KR1). `bin/perry-state § declared_tracks`
+        # is the one reader; reading the rendered table here made `--track` and
+        # every row's `mode` answer from the projection while the store beside
+        # it said something else. The empty list still means "no config at all",
+        # which is what `track_of` reports as "this project declares no tracks".
         cfg_path = project_root / ".perry" / "config.md"
+        cfg_store = project_root / ".perry" / "config.jsonl"
         config = {"tracks": []}
-        if cfg_path.exists():
-            config = {"tracks": perry_state().parse_tracks(cfg_path.read_text())}
+        if cfg_store.exists() or cfg_path.exists():
+            config = {"tracks": perry_state().declared_tracks(project_root)}
         # ADR-004. Taken before the lock and before any command runs: a refusal
         # must mean nothing was written, and a dry run must preview the refusal
         # rather than the write it would not be allowed to perform.
