@@ -1885,7 +1885,13 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     """Which of DESIGN-003's four shapes each track's work actually fits."""
     try:
         state = load_sibling("perry-state")
-        tracks = state.parse_tracks(read_text(root / ".perry" / "config.md"))
+        # The STORE first, `.perry/config.md` only when there is no store
+        # (P003-O2-KR1). Both halves matter here: a Perry-managed project's
+        # register is `.perry/config.jsonl` and the table is its projection,
+        # while a FOREIGN project — the ones this tool exists to read — has no
+        # store at all and the table is the register. `declared_tracks` is that
+        # one decision, made once.
+        tracks = state.declared_tracks(root)
     except Exception:
         # Reported absent rather than defaulted. A fallback here would make
         # every project read as one implicit `project` track, and MODE-01 would

@@ -899,7 +899,7 @@ The first line of every PMO session after a handoff exists is: "Read `handoff/<l
 ### `rollover`
 Runs when a phase has been scored via `okr score-phase` and the user is ready to start the next phase. With the BOARD/journal split, rollover is mostly informational — `BOARD.md` is already current; previous phase's journal entries are intact. Steps:
 
-1. Confirm `evidence/<YYYY-MM>/retro.md` exists (the phase score from OKR). If not, prompt to run `okr score-phase` first.
+1. Confirm `evidence/<YYYY-MM>/retro.md` exists — **this lane's own file, written by `end-phase-retro`**, not by `okr score-phase`, which hands over a summary and does not write `evidence/` (`goals/reference/phases.md` step 5). If it is absent, prompt to run `end-phase-retro`; prompting for `score-phase` cannot produce it.
 2. **Calendar-month directories** — `journal/<YYYY-MM>/` and `evidence/<YYYY-MM>/` are calendar-bound; create new month dirs only if the calendar month rolled (most rollovers do NOT need this — phases can span multiple calendar months OR fit inside one).
 3. **`BOARD.md` is left alone.** Open carry-forward tasks already live there; no "carry forward" step is needed because the board never had a phase boundary in the first place. If a row's task ID encodes a date or phase prefix, leave it untouched — it's the canonical handle.
 4. For each unresolved task on BOARD: **use `AskUserQuestion`** (header = TASK-ID, options = `Carry forward (Recommended) | Drop with reason`). Batch up to 4 per call. For "Drop with reason", follow up with a free-text prompt for the reason, then run `perry-task drop <ID> --reason "<reason>"` — the reason the user just gave, verbatim, not a paraphrase.

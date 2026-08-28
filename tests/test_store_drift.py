@@ -670,5 +670,296 @@ class TestTheTwoToolsAgreeAboutWhetherAComparisonHappened(Fixture):
         self.assertIn("perry-tasks verify", text)
 
 
+
+
+#: The census line each declared store prints, whichever branch it takes.
+#: Keyed by the claim path in `schema/state-schema.json` so a SEVENTH store
+#: claimed and not wired into `perry-lint` fails
+#: `test_every_declared_store_has_a_line` rather than quietly reading five of
+#: seven — which is the failure TASK-209 was opened for, at six.
+CENSUS_LINES = {
+    "tasks.jsonl": ("· store:", "no `tasks.jsonl`"),
+    "risks.jsonl": ("· risks store:", "no `risks.jsonl`"),
+    "intake.jsonl": ("· intake store:", "no `intake.jsonl`"),
+    "asks.jsonl": ("· ask store:", "no `asks.jsonl`"),
+    "okr.jsonl": ("· OKR store:", "no `okr.jsonl`"),
+    ".perry/config.jsonl": ("· config store:", "no `.perry/config.jsonl`"),
+}
+
+#: The event log is claimed and is NOT one of the six: it is append-only
+#: history, not a store any file is projected from, so there is nothing to
+#: compare it against and no verdict to print. Named here rather than left out
+#: silently, because "not covered" and "not a store" are the two answers this
+#: whole suite exists to keep apart.
+NOT_A_PROJECTION_STORE = {".perry/events.jsonl"}
+
+
+def declared_stores() -> set[str]:
+    schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
+    return {c["path"] for c in schema.get("claims", [])
+            if c["path"].endswith(".jsonl")} - NOT_A_PROJECTION_STORE
+
+
+class TestTheCensusCoversEveryDeclaredStore(Fixture):
+    """One run, one verdict per declared store — TASK-209.
+
+    The census read TWO of six. `okr.jsonl` and `.perry/config.jsonl` printed
+    NOTHING AT ALL — not a count, not an absence line — while `perry-okr diff`
+    and `perry-config diff` compared both of them clean on this project on the
+    same day. `grep perry-okr bin/perry-lint` returned nothing: the comparators
+    existed and the census called neither, so ADR-007's guarantee was checked
+    for a third of what claims it.
+    """
+
+    def census_lines(self, text: str) -> list[str]:
+        return [l.strip() for l in text.split("\n")
+                if "drifted" in l or "unchecked, not clean" in l]
+
+    def test_every_declared_store_has_a_line(self):
+        d = self.project()
+        self.store(d)
+        _, text = self.lint_text(d)
+        for path in sorted(declared_stores()):
+            with self.subTest(path):
+                self.assertIn(path, CENSUS_LINES,
+                              f"`{path}` is a declared store with no census "
+                              f"line — the census covers less than it claims")
+                verdict, absence = CENSUS_LINES[path]
+                self.assertTrue(verdict in text or absence in text,
+                                f"one run of perry-lint says nothing about "
+                                f"`{path}`:\n{text}")
+
+    def test_the_count_is_six_and_not_two(self):
+        """The KR's own number. Six declared stores, six lines, one run."""
+        d = self.project()
+        self.store(d)
+        _, text = self.lint_text(d)
+        self.assertEqual(len(self.census_lines(text)), len(declared_stores()),
+                         self.census_lines(text))
+
+    def test_the_json_carries_one_block_per_store(self):
+        d = self.project()
+        self.store(d)
+        _, payload = self.lint(d)
+        blocks = {k: v for k, v in payload.items()
+                  if k.endswith("store_drift") or k == "store_drift"}
+        self.assertEqual(len(blocks), len(declared_stores()), sorted(blocks))
+        for name, block in blocks.items():
+            with self.subTest(name):
+                self.assertIn("store_present", block)
+                self.assertIn("comparison_performed", block)
+                self.assertIn("records", block)
+                self.assertIn("drifted", block)
+
+
+class MarkdownStore(Fixture):
+    """`OKR.md`/`okr.jsonl` and `.perry/config.md`/`.perry/config.jsonl`.
+
+    Both stores ship in this repository, so `self.project()` inherits them —
+    unlike `tasks.jsonl`, which the fixture strips.
+    """
+
+    def edit_a_cell(self, d: pathlib.Path, rel: str, pattern: str,
+                    replacement: str) -> None:
+        path = d / rel
+        text = path.read_text()
+        self.assertIn(pattern, text, f"the fixture {rel} carries no such cell")
+        path.write_text(text.replace(pattern, replacement, 1))
+
+    def rows(self, payload: dict, name: str) -> list[dict]:
+        return [f for f in payload["findings"]
+                if f["rule"] == f"{name}-store-drift"]
+
+
+class TestAHandEditToEitherMarkdownStoreIsDrift(MarkdownStore):
+    """The MUTATION half of V4: a census that cannot be shown to fail for a
+    store is not covering it. One real cell per file, edited by hand."""
+
+    def test_an_edited_okr_cell_is_reported(self):
+        d = self.project()
+        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
+                         "| 2 of 3 modes live |")
+        code, payload = self.lint(d)
+        rows = self.rows(payload, "okr")
+        self.assertEqual(len(rows), 1, rows)
+        self.assertEqual(payload["okr_store_drift"]["drifted"], 1)
+        self.assertEqual(rows[0]["file"], "perry/OKR.md")
+        self.assertIn("2 of 3 modes live", rows[0]["message"])
+        self.assertIn("3 of 3 modes live", rows[0]["message"])
+        # The route out, in the store's own tool rather than in the abstract.
+        self.assertIn("perry-okr render --write", rows[0]["message"])
+        self.assertEqual(code, 0, "drift is warn, never error")
+
+    def test_an_edited_config_cell_is_reported(self):
+        d = self.project()
+        self.edit_a_cell(d, ".perry/config.md", "- Repo layout: single",
+                         "- Repo layout: split")
+        _, payload = self.lint(d)
+        rows = self.rows(payload, "config")
+        self.assertEqual(len(rows), 1, rows)
+        self.assertEqual(payload["config_store_drift"]["drifted"], 1)
+        self.assertEqual(rows[0]["file"], ".perry/config.md")
+        self.assertIn("split", rows[0]["message"])
+        self.assertIn("perry-config render --write", rows[0]["message"])
+
+    def test_an_edited_track_row_is_reported(self):
+        """The table half of the config store — the settings above it are
+        `- Key: value` slots and take a different descriptor."""
+        d = self.project()
+        self.edit_a_cell(d, ".perry/config.md",
+                         "| intake | queue |", "| intake | pipeline |")
+        _, payload = self.lint(d)
+        rows = self.rows(payload, "config")
+        self.assertEqual(payload["config_store_drift"]["drifted"], 1, rows)
+        self.assertIn("track/intake", rows[0]["message"])
+
+    def test_the_human_census_goes_red(self):
+        """`--json` is not what a user reads. The `·` line has to move too."""
+        d = self.project()
+        _, before = self.lint_text(d)
+        self.assertIn("· OKR store:", before)
+        self.assertIn("0 row(s) drifted", before)
+        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
+                         "| 2 of 3 modes live |")
+        _, after = self.lint_text(d)
+        self.assertIn("1 row(s) drifted", after)
+        self.assertIn("[okr-store-drift]", after)
+
+    def test_untouched_files_are_clean(self):
+        d = self.project()
+        _, payload = self.lint(d)
+        for name in ("okr", "config"):
+            with self.subTest(name):
+                block = payload[f"{name}_store_drift"]
+                self.assertTrue(block["store_present"])
+                self.assertTrue(block["comparison_performed"])
+                self.assertEqual(block["drifted"], 0)
+                self.assertGreater(block["records"], 0)
+                self.assertEqual(self.rows(payload, name), [])
+
+
+class TestARemovedMarkdownStoreIsUncheckedNotClean(MarkdownStore):
+    """"No store" and "clean" are different answers, and reaching six by
+    collapsing them would be reporting a number instead of a verdict."""
+
+    def test_no_okr_store_reports_unchecked(self):
+        d = self.project()
+        (d / "perry" / "okr.jsonl").unlink()
+        _, payload = self.lint(d)
+        self.assertEqual(payload["okr_store_drift"],
+                         {"store_present": False, "comparison_performed": False,
+                          "records": 0, "drifted": 0})
+        self.assertEqual(self.rows(payload, "okr"), [],
+                         "a missing store is not a finding")
+        _, text = self.lint_text(d)
+        self.assertIn("no `okr.jsonl`", text)
+        self.assertIn("unchecked, not clean", text)
+        self.assertNotIn("· OKR store:", text)
+
+    def test_no_config_store_reports_unchecked(self):
+        d = self.project()
+        (d / ".perry" / "config.jsonl").unlink()
+        _, payload = self.lint(d)
+        self.assertFalse(payload["config_store_drift"]["store_present"])
+        self.assertFalse(payload["config_store_drift"]["comparison_performed"])
+        _, text = self.lint_text(d)
+        self.assertIn("no `.perry/config.jsonl`", text)
+        self.assertNotIn("· config store:", text)
+
+    def test_a_store_with_no_file_to_project_onto_is_uncheckable(self):
+        """The other direction, and the third answer: the store is there and
+        the file is gone, so there is nothing to compare — which is neither
+        clean nor drifted."""
+        d = self.project()
+        (d / "perry" / "OKR.md").unlink()
+        _, payload = self.lint(d)
+        self.assertTrue(payload["okr_store_drift"]["store_present"])
+        self.assertFalse(payload["okr_store_drift"]["comparison_performed"])
+        rules = [f["rule"] for f in payload["findings"]]
+        self.assertIn("okr-store-drift-uncheckable", rules, rules)
+
+
+class TestTheMarkdownCensusReusesTheExistingComparator(MarkdownStore):
+    """The deliverable's other half: not a third and fourth implementation.
+
+    ADR-004's defect is N implementations of one rule, and `perry-okr` and
+    `perry-config` are the SAME implementation already — one `Doc`, two
+    instances. The check has to reach that module rather than re-derive a
+    KR table for itself, so this pins the two observable consequences: the
+    verdicts agree with the tool, and the linter names no store the module
+    does not.
+    """
+
+    def diff(self, d: pathlib.Path, tool: str) -> int:
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / tool), "verify",
+             "--root", str(d)], capture_output=True, text=True, cwd=ROOT)
+        return proc.returncode
+
+    def test_lint_and_the_tool_agree_on_a_clean_tree(self):
+        d = self.project()
+        _, payload = self.lint(d)
+        for name, tool in (("okr", "perry-okr"), ("config", "perry-config")):
+            with self.subTest(name):
+                self.assertEqual(payload[f"{name}_store_drift"]["drifted"], 0)
+                self.assertEqual(self.diff(d, tool), 0,
+                                 f"{tool} verify disagrees with perry-lint")
+
+    def test_lint_and_the_tool_agree_on_an_edited_tree(self):
+        d = self.project()
+        self.edit_a_cell(d, "perry/OKR.md", "| 3 of 3 modes live |",
+                         "| 2 of 3 modes live |")
+        _, payload = self.lint(d)
+        self.assertEqual(payload["okr_store_drift"]["drifted"], 1)
+        self.assertEqual(self.diff(d, "perry-okr"), 1,
+                         "perry-okr verify calls the same edit clean")
+
+    def test_the_store_list_comes_from_the_module(self):
+        """`_MD_STORE_DOCS` is read off `perry_md_store`, so a third document
+        joining that module cannot be silently uncovered here."""
+        source = (ROOT / "bin" / "perry-lint").read_text()
+        self.assertIn("_MD_STORE.OKR", source)
+        self.assertIn("_MD_STORE.CONFIG", source)
+        for spelled in ("scan_okr", "KR_COLUMNS", "TRACK_COLUMNS"):
+            self.assertNotIn(spelled, source,
+                             f"perry-lint spells `{spelled}` itself — that is "
+                             f"the second implementation ADR-004 forbids")
+
+
+class TestABadlyTypedMarkdownStoreIsExcludedNotIgnored(MarkdownStore):
+    def test_a_malformed_record_is_named_and_stops_the_count(self):
+        d = self.project()
+        path = d / "perry" / "okr.jsonl"
+        lines = [l for l in path.read_text().split("\n") if l.strip()]
+        first = json.loads(lines[0])
+        first["order"] = "3"          # a string where an integer is declared
+        path.write_text("\n".join([json.dumps(first, ensure_ascii=False),
+                                   *lines[1:]]) + "\n")
+        _, payload = self.lint(d)
+        rules = [f["rule"] for f in payload["findings"]]
+        self.assertIn("okr-store-badly-typed", rules, rules)
+        self.assertFalse(payload["okr_store_drift"]["comparison_performed"],
+                         "a partial census must not report a clean number")
+        _, text = self.lint_text(d)
+        self.assertIn("comparison incomplete", text)
+        self.assertIn("unchecked, not clean", text)
+
+    def test_an_unreadable_store_is_present_but_not_compared(self):
+        d = self.project()
+        (d / ".perry" / "config.jsonl").write_text("{not json\n")
+        _, payload = self.lint(d)
+        rules = [f["rule"] for f in payload["findings"]]
+        self.assertIn("config-store-unreadable", rules, rules)
+        self.assertTrue(payload["config_store_drift"]["store_present"])
+        self.assertFalse(payload["config_store_drift"]["comparison_performed"])
+
+    def test_a_whole_file_array_is_reported(self):
+        d = self.project()
+        (d / ".perry" / "config.jsonl").write_text('[{"kind": "setting"}]\n')
+        _, payload = self.lint(d)
+        self.assertIn("config-store-unreadable",
+                      [f["rule"] for f in payload["findings"]])
+
+
 if __name__ == "__main__":
     unittest.main()

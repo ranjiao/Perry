@@ -136,7 +136,14 @@ def parse_config(root: Path) -> dict:
         m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
         if m:
             cfg[key] = m.group(1).strip().strip("*` ")
-    cfg["tracks"] = parse_tracks(text)
+    # `declared_tracks`, not the raw table read: `## Tracks` is a projection
+    # of `.perry/config.jsonl` wherever that store exists, and reading the
+    # rendered table here made the dashboard report the projection while the
+    # store beside it said something else. The settings above still come out of
+    # the file — they are a separate row (P003-O2-KR1 counts the track
+    # readings) and `parse_config`'s early return already covers the
+    # no-config-at-all case.
+    cfg["tracks"] = declared_tracks(root)
     m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
     names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m else ["software-ops"]
     cfg["packs"] = load_packs([n for n in names if n and n != "—"])
@@ -629,6 +636,149 @@ def parse_tracks(text: str) -> list[dict]:
             "declared": True,
         })
     return [r for r in rows if r["track"]] or [dict(DEFAULT_TRACK)]
+
+
+# ── the track register, read from the store ───────────────────────────────
+#
+# ADR-007 / P003-O2-KR1. `.perry/config.md` is a PROJECTION of
+# `.perry/config.jsonl` wherever that store exists, and four call sites —
+# `parse_config` here, `bin/perry-goals § tracks_of`, `bin/perry-diagnose §
+# scan_work_modes` and `bin/perry-task § main` — read the rendered markdown as
+# truth anyway. Each is now one call to `declared_tracks` below.
+#
+# `parse_tracks` above STAYS and is deliberately still reachable: it is the
+# adoption/migration reader — the only thing that can answer the question for a
+# project whose store does not exist yet, which is every foreign project
+# `perry-diagnose` was written for — and it is what `tests/test_md_store.py`
+# compares the derived store against. What went away is reading the projection
+# while the store it is projected FROM is sitting beside it.
+
+_BLANK_MARKER: str | None = None
+
+
+def blank_marker() -> str:
+    """How this project's files spell "this cell says nothing": `—`.
+
+    Read from `schema/state-schema.json § i18n.blank_cell.en`, first entry,
+    rather than written here — the same list `lib.is_blank_cell` matches
+    against, so the spelling this hands back cannot become one that function
+    would not recognise.
+    """
+    global _BLANK_MARKER
+    if _BLANK_MARKER is None:
+        try:
+            blank = (lib.load_schema().get("i18n") or {}).get("blank_cell") or {}
+            en = [v for v in (blank.get("en") or []) if isinstance(v, str)]
+        except Exception:                                        # noqa: BLE001
+            en = []
+        _BLANK_MARKER = en[0] if en else "—"
+    return _BLANK_MARKER
+
+
+def track_from_record(rec: dict) -> dict:
+    """One `kind: track` store record → the dict `parse_tracks` returns.
+
+    **The blank marker is put back, and that is the whole difference between
+    the two readers.** `perry_md_store § stored_value` normalises a declared
+    blank — `—`, `n/a`, `无` — to the empty string on the way INTO the store,
+    because the marker is layout and the value is "nothing"; `parse_tracks`
+    hands back the cell the project actually wrote. Both spellings are one
+    value to every consumer (each of them routes the cell through
+    `lib.is_blank_cell`: `parse_wip`, `sla_report`, `lib.due_track_missing_clock`,
+    `bin/perry-task § stages_of`), so the payload keeps the marker and
+    `perry-state --json` reports the same bytes it reported when it read the
+    markdown. A reader that emitted `""` here would be a refactor that changed
+    what the dashboard prints, which this row is not.
+
+    `stage_list`, `stages_declared` and `missing_defaults` are computed from
+    the STORED value, never from the marker, so nothing downstream has to know
+    which of the two spellings it was handed.
+    """
+    def col(key: str, default: str = "") -> str:
+        value = rec.get(key, default)
+        return value if isinstance(value, str) else ("" if value is None else str(value))
+
+    mode = col("mode").lower() or "project"
+    stages = col("stages")
+
+    def shown(key: str) -> str:
+        return col(key) or blank_marker()
+
+    return {
+        "track": col("track"),
+        "mode": mode,
+        "spine": shown("spine"),
+        "stages": shown("stages"),
+        "stage_list": split_stages(stages) or default_stages_for(mode),
+        "stages_declared": bool(split_stages(stages)),
+        "wip": shown("wip"),
+        "sla": shown("sla"),
+        "cycle": shown("cycle"),
+        "default_rung": shown("default_rung"),
+        "missing_defaults": missing_defaults(col, mode),
+        "declared": True,
+    }
+
+
+def stored_tracks(project_root: Path) -> list[dict] | None:
+    """`.perry/config.jsonl § kind track`, or `None` when there is no store.
+
+    `None` means "ask the file" and covers three cases, all of which are a
+    project the store cannot answer for: no store on disk (every project that
+    has not migrated, and every foreign project `perry-diagnose` reads), a
+    store that is not readable JSONL, and a store carrying no track record at
+    all — the last being a project whose `.perry/config.md` has no `## Tracks`
+    section, where `[]` would hand the router the empty list `parse_tracks`
+    exists to make impossible.
+
+    A store that is present but malformed falls back rather than raising:
+    `perry-state` is the read-everything tool and exits 0 on a project with no
+    state at all, so it may not be the thing that turns an unreadable store
+    into a crash. `perry-config verify` and `perry-lint` are where a store that
+    disagrees with its projection is reported.
+    """
+    path = project_root / ".perry" / "config.jsonl"
+    if not path.exists():
+        return None
+    try:
+        # Imported here, not at module scope: `perry_md_store` reads the schema
+        # at import time and refuses a bad one, and this file is imported by
+        # every other tool in `bin/` — a schema problem must not turn every
+        # read into an ImportError before the payload can report it.
+        import perry_md_store as md_store  # noqa: PLC0415
+        good, findings = md_store.validate_records(md_store.load_store(path))
+    except Exception:                                            # noqa: BLE001
+        return None
+    if findings:
+        return None
+    rows = [r for r in good
+            if r.get("kind") == "track" and (r.get("track") or "").strip()]
+    if not rows:
+        return None
+    # `order` is the record's position, and a record written before the field
+    # existed sorts after the graded ones rather than at zero — the same rule
+    # `perry_md_store § plan` applies when it reports records out of stored
+    # order.
+    rows.sort(key=lambda r: (r.get("order") is None, r.get("order") or 0))
+    return [track_from_record(r) for r in rows]
+
+
+def declared_tracks(project_root: Path) -> list[dict]:
+    """Every track this project declares. **The store is truth.**
+
+    The one reader every call site goes through, so "which tracks exist" cannot
+    have two answers on a project where `.perry/config.jsonl` and
+    `.perry/config.md` have come apart. Never empty, for the reason
+    `parse_tracks` is never empty: the router has no "no tracks declared"
+    branch.
+    """
+    stored = stored_tracks(project_root)
+    if stored is not None:
+        return stored
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return [dict(DEFAULT_TRACK)]
+    return parse_tracks(cfg.read_text(errors="replace"))
 
 
 def raw_events(project_root: Path) -> list[dict]:

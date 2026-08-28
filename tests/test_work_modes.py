@@ -449,6 +449,137 @@ class TestTrackParsing(unittest.TestCase):
         self.assertEqual(got[0]["mode"], "queue")
 
 
+def load_bin_module(name: str):
+    """Import an extensionless script from `bin/` as a module."""
+    import importlib.util
+    loader = importlib.machinery.SourceFileLoader(
+        name.replace("-", "_"), str(PERRY_HOME / "bin" / name))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+#: The store the fixture below declares, and the table it declares. They
+#: DISAGREE on purpose: the store carries a second track, `intake`, in queue
+#: mode with a 5d SLA, and the rendered table carries only `main`. Every
+#: assertion in the class is "which of the two did this tool believe".
+_STORE_TRACKS = (
+    '{"kind": "track", "track": "main", "mode": "project", "spine": "phase/",'
+    ' "stages": "", "wip": "", "sla": "", "cycle": "", "default_rung": "V3",'
+    ' "order": 0}\n'
+    '{"kind": "track", "track": "intake", "mode": "queue", "spine": "standing",'
+    ' "stages": "new→triaged→resolved", "wip": "4", "sla": "5d",'
+    ' "cycle": "weekly", "default_rung": "V2", "order": 1}\n'
+)
+_TABLE_TRACKS = (
+    "\n## Tracks\n\n"
+    "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
+    "|---|---|---|---|---|---|---|---|\n"
+    "| main | project | phase/ | — | — | — | — | V3 |\n"
+)
+
+
+class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
+    """`.perry/config.jsonl` is the register; `## Tracks` is its projection.
+
+    ADR-007 made `.perry/config.md` a rendered projection of
+    `.perry/config.jsonl`, and four call sites went on reading the rendering as
+    truth: `bin/perry-state § parse_config`, `bin/perry-goals § tracks_of`,
+    `bin/perry-diagnose § scan_work_modes` and `bin/perry-task § main`
+    (P003-O2-KR1). Nothing could see the difference, because on every project
+    in the repo the two agree — so the fixture here makes them disagree, which
+    is the only state in which the question "which one did you read" has an
+    observable answer.
+
+    **This is the gate the row's mutation step points at.** Point any one of
+    the four back at `.perry/config.md` and the corresponding test below goes
+    red: the store's `intake` track disappears, `main` reverts to the table's
+    `project` mode, and `perry-task` refuses a track the project really does
+    declare.
+
+    The last two tests pin the two properties that make the conversion safe
+    rather than merely done: a project with no store still reads its table (the
+    adoption/migration path, which is every foreign project `perry-diagnose`
+    exists for), and a blank cell still reports the blank marker the table
+    wrote, so the payload `perry-state --json` hands the dashboard does not
+    move.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="perry-track-store-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = Path(self.tmp) / "project"
+        shutil.copytree(PERRY_HOME / "tests" / "fixtures" / "sample-project",
+                        self.root)
+        cfg = self.root / ".perry" / "config.md"
+        cfg.write_text(cfg.read_text() + _TABLE_TRACKS + GATE_OFF)
+        (self.root / ".perry" / "config.jsonl").write_text(_STORE_TRACKS)
+
+    def declared(self, tracks) -> list[tuple[str, str]]:
+        return [(t["track"], t["mode"]) for t in tracks]
+
+    def test_perry_state_reports_the_register_the_store_holds(self):
+        state = load_bin_module("perry-state")
+        got = state.parse_config(self.root)["tracks"]
+        self.assertEqual(self.declared(got),
+                         [("main", "project"), ("intake", "queue")])
+        self.assertEqual(got[1]["sla"], "5d")
+
+    def test_perry_goals_reports_the_register_the_store_holds(self):
+        goals = load_bin_module("perry-goals")
+        self.assertEqual(self.declared(goals.tracks_of(self.root)),
+                         [("main", "project"), ("intake", "queue")])
+
+    def test_perry_diagnose_reports_the_register_the_store_holds(self):
+        diagnose = load_bin_module("perry-diagnose")
+        scan = diagnose.scan_work_modes(self.root, self.root)
+        self.assertTrue(scan["available"])
+        self.assertEqual([(t["track"], t["declared_mode"])
+                          for t in scan["tracks"]],
+                         [("main", "project"), ("intake", "queue")])
+
+    def test_perry_task_accepts_a_track_only_the_store_declares(self):
+        """A refusal here is the projection winning over the register.
+
+        `--dry-run`, so the assertion is about which register the writer
+        resolved `--track` against and nothing is written. The stage the row
+        would be born into comes from the same record, which is why it is
+        asserted too: reading the table would give `intake` no mode at all.
+        """
+        r = subprocess.run(
+            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "add",
+             "--root", str(self.root), "--title", "probe",
+             "--deliverable", "d", "--verification", "v",
+             "--track", "intake", "--dry-run", "--json"],
+            capture_output=True, text=True)
+        payload = json.loads(r.stdout)
+        self.assertNotIn("refused", payload,
+                         f"perry-task refused a track the store declares: "
+                         f"{payload.get('refused')}")
+        self.assertIn("| intake | triaged |", payload["row"])
+
+    def test_a_project_with_no_store_still_reads_its_table(self):
+        """The adoption/migration path — `parse_tracks` is why it survives."""
+        (self.root / ".perry" / "config.jsonl").unlink()
+        state = load_bin_module("perry-state")
+        self.assertEqual(self.declared(state.parse_config(self.root)["tracks"]),
+                         [("main", "project")])
+
+    def test_a_blank_stored_cell_still_reports_the_blank_marker(self):
+        """The store holds `""` where the table wrote `—`, and they are one
+        value — every consumer of these cells routes it through
+        `lib.is_blank_cell`. The payload keeps the marker so that converting
+        the reader does not change what the dashboard prints."""
+        state = load_bin_module("perry-state")
+        main = state.parse_config(self.root)["tracks"][0]
+        self.assertEqual(
+            [main["stages"], main["wip"], main["sla"], main["cycle"]],
+            ["—", "—", "—", "—"])
+        self.assertEqual(main["stage_list"], [])
+        self.assertFalse(main["stages_declared"])
+
+
 class TestVerificationLint(unittest.TestCase):
     """`perry-lint --verification` — advisory, but it must actually fire.
 
