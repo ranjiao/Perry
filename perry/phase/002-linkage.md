@@ -27,6 +27,9 @@ objectives:
         current: 1
         stretch: false
         tasks: ["TASK-093"]
+  - id: O2
+    title: "The defect classes cannot be expressed"
+    krs:
       - id: P002-O2-KR1
         title: "`CLOCK_RE` deleted and `By when` split into `due` + `by_when_note`"
         metric: "0 occurrences of `CLOCK_RE` (baseline: one column, five failed review rounds)"
@@ -80,3 +83,24 @@ projects: []
 > tasks from `BOARD.md` is forbidden by `goals/reference/linkage.md` — it would
 > report the entire un-triaged backlog as drift the day the graph is written.
 > Edges are added one at a time, each on a resolution the user confirmed.
+
+## Correction — 2026-08-28
+
+`P002-O2-KR1`, `P002-O2-KR2` and `P002-O2-KR3` were nested under `- id: O1`,
+and no `- id: O2` objective existed in this graph at all. Repaired on
+2026-08-28 during `plan-phase 003`; the objective title is taken verbatim from
+`phase/002-fields-are-typed.md § Objective 2`.
+
+**No score changes.** The retro had already computed the objective means from
+the correct grouping — O1 = mean(1.00, 1.00, 0.33) = 0.78, O2 = mean(1.00,
+1.00, 0.68) = 0.89 — so the retro and this graph disagreed, and the retro was
+right. Only the graph moved.
+
+`perry-lint` did not catch this and still would not. `linkage-kr-exists` fires
+only when a KR id is absent from the phase file, and all three were present.
+Mutation-proven on 2026-08-28 by nesting a real KR id under the wrong
+objective: 0 errors, 0 warnings. Filed as intake.
+
+The snapshot `phase/snapshots/2026-08-28-002-linkage-final.md` is left as it
+was — it records what the graph said at scoring time, which is the point of a
+snapshot.

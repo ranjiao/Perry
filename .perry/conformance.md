@@ -24,7 +24,15 @@
 | design/DESIGN-005-state-and-contracts.md | 2 | 2026-08-20 | declare |
 | design/DESIGN-006-roles-and-knowledge.md | 2 | 2026-08-20 | declare |
 | design/DESIGN-007-the-entity-model.md | 2 | 2026-08-20 | declare |
+| design/DESIGN-008-track-axes.md | 2 | 2026-08-28 | declare |
+| design/DESIGN-009-the-objective-is-a-record.md | 2 | 2026-08-28 | declare |
+| design/DESIGN-010-autopilot-writes-its-own-specs.md | 2 | 2026-08-28 | declare |
+| design/DESIGN-011-the-okr-is-elicited-not-collected.md | 2 | 2026-08-28 | declare |
+| knowledge/goals/linkage-graph-before-first-add.md | 2 | 2026-08-28 | declare |
 | knowledge/toolchain/pycache-staleness.md | 2 | 2026-08-20 | declare |
 | phase/001-linkage.md | 2 | 2026-08-20 | declare |
 | phase/001-work-modes-live.md | 2 | 2026-08-20 | declare |
 | phase/002-fields-are-typed.md | 2 | 2026-08-20 | declare |
+| phase/002-linkage.md | 2 | 2026-08-28 | declare |
+| phase/003-linkage.md | 2 | 2026-08-28 | declare |
+| phase/003-storage-code.md | 2 | 2026-08-28 | declare |
