@@ -72,3 +72,14 @@ Each mutation restored from a byte copy and the suite re-checked green.
   it no longer says "reference page", because it no longer reads only those.
 - Offender lines report the path relative to `$PERRY_HOME`, so a `SKILL.md`
   offender is not mislabelled `<lane>/reference/SKILL.md`.
+
+## Suite, both runners
+
+| runner | result |
+|---|---|
+| `bash tests/run` | 3 modules red / 5 failures |
+| `python3 -m unittest discover -s tests` | 2786 tests / 8 failures |
+
+Identical sets to `45a355d`, and the test count matches base exactly because
+this change adds no test file — it widens one that already existed. This change
+adds no failure under either runner.
