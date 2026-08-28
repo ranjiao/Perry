@@ -97,7 +97,27 @@ class Refused(Exception):
 #: same reason DESIGN-005 section 4 decision 5 gives: a consumer of one should
 #: not have to re-check its code for a change in a domain it never reads.
 PROPOSE_CONTRACT = "perry-knowledge/propose/1.0"
-LIST_CONTRACT = "perry-knowledge/list/1.0"
+#: TASK-205 moves the read side to `1.1`: it gains `semantics`, a plain `1.x`
+#: key addition and the key `schema/knowledge-list-contract.md § The three
+#: rules` already said a meaning change here would be reported in. `propose`
+#: does not move — it is versioned separately and gained nothing.
+LIST_CONTRACT = "perry-knowledge/list/1.1"
+
+#: **Minors where a value's MEANING changed, not just where a key was added.**
+#: Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
+#: per minor that corrected a meaning, oldest first, appended and never
+#: inserted.
+#:
+#: **It is empty, and the empty array is the shipped fact.** Nothing this
+#: payload carries has changed meaning since `1.0`, and inventing an entry to
+#: fill the array would be worse than saying so — `stale` is the field the
+#: contract page names as most likely to need one, and it has not needed one
+#: yet. The key ships anyway, on every response including this one, because
+#: **a consumer checks before it looks**: a key that appears only when there
+#: is something to say is one a consumer cannot check. That is the argument
+#: this page already makes about `contract` on an empty store, applied to the
+#: array beside it.
+LIST_SEMANTICS: list[dict] = []
 
 #: A rung at or below this is the agent attesting its own output. A claim
 #: promoted from one has provenance that bottoms out in "an agent said so",
@@ -533,6 +553,13 @@ def cmd_list(args, ctx) -> dict:
     if args.topic:
         cards = [c for c in cards if c["topic"] == slugify(args.topic)]
     return {"contract": LIST_CONTRACT,
+            # Sorted rather than trusted to writing order — the guard
+            # `bin/perry-task` puts on its own list, kept here so an entry
+            # appended in the wrong place cannot ship. Empty today.
+            "semantics": sorted(
+                LIST_SEMANTICS,
+                key=lambda entry: tuple(int(x)
+                                        for x in entry["version"].split("."))),
             "project_root": str(ctx["project_root"]),
             "state_root": str(ctx["state_root"]),
             "cards": cards, "total": len(cards),

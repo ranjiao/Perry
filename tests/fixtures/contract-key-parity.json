@@ -1,15 +1,15 @@
 {
   "contract_files_discovered": 6,
   "contracts": {
-    "perry-decide/list/1.0": {
+    "perry-decide/list/1.1": {
       "collections_the_witness_filled": [
         "expired_sunsets"
       ],
       "command": "perry-decide list --json",
-      "contract": "perry-decide/list/1.0",
-      "documented": 27,
+      "contract": "perry-decide/list/1.1",
+      "documented": 28,
       "documented_not_emitted": [],
-      "emitted": 24,
+      "emitted": 25,
       "emitted_not_documented": [],
       "file": "schema/decide-list-contract.md",
       "named_no_such_collection": [],
@@ -39,15 +39,15 @@
       "unparsed_sketches": [],
       "witness": ""
     },
-    "perry-goals/list/2.2": {
+    "perry-goals/list/2.3": {
       "collections_the_witness_filled": [
         "krs[].current_staleness.moved_tasks"
       ],
       "command": "perry-goals list --json",
-      "contract": "perry-goals/list/2.2",
-      "documented": 82,
+      "contract": "perry-goals/list/2.3",
+      "documented": 86,
       "documented_not_emitted": [],
-      "emitted": 78,
+      "emitted": 82,
       "emitted_not_documented": [],
       "file": "schema/goals-list-contract.md",
       "named_no_such_collection": [],
@@ -62,13 +62,13 @@
       "unparsed_sketches": [],
       "witness": "tests/fixtures/witness-project"
     },
-    "perry-knowledge/list/1.0": {
+    "perry-knowledge/list/1.1": {
       "collections_the_witness_filled": [],
       "command": "perry-knowledge list --json",
-      "contract": "perry-knowledge/list/1.0",
-      "documented": 16,
+      "contract": "perry-knowledge/list/1.1",
+      "documented": 17,
       "documented_not_emitted": [],
-      "emitted": 16,
+      "emitted": 17,
       "emitted_not_documented": [],
       "file": "schema/knowledge-list-contract.md",
       "named_no_such_collection": [],
@@ -76,15 +76,15 @@
       "observed_in_witness": {},
       "unassigned": [],
       "unparsed_sketches": [],
-      "witness": ""
+      "witness": "tests/fixtures/witness-project"
     },
-    "perry-roles/list/1.0": {
+    "perry-roles/list/1.1": {
       "collections_the_witness_filled": [],
       "command": "perry-state --json \u00a7 roles",
-      "contract": "perry-roles/list/1.0",
-      "documented": 4,
+      "contract": "perry-roles/list/1.1",
+      "documented": 5,
       "documented_not_emitted": [],
-      "emitted": 4,
+      "emitted": 5,
       "emitted_not_documented": [],
       "file": "schema/roles-list-contract.md",
       "named_no_such_collection": [],

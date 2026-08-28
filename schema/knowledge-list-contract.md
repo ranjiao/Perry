@@ -1,4 +1,4 @@
-# `perry-knowledge list --json` — `perry-knowledge/list/1.0`
+# `perry-knowledge list --json` — `perry-knowledge/list/1.1`
 
 The read side of the knowledge card store: every card under `knowledge/`, the
 five provenance fields each one carries, and whether it is past its
@@ -18,7 +18,8 @@ sides together.
 
 ```jsonc
 {
-  "contract": "perry-knowledge/list/1.0",  // check this before anything else
+  "contract": "perry-knowledge/list/1.1",  // check this before anything else
+  "semantics": [],                         // meaning changes, oldest minor first
   "project_root": "/abs/path/to/project",  // absolute, as resolved
   "state_root": "/abs/path/to/project/perry",
   "cards": [ /* below */ ],
@@ -34,7 +35,8 @@ cards is one a consumer cannot check.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `contract` | string | `perry-knowledge/list/1.0`. Always present, always first |
+| `contract` | string | `perry-knowledge/list/1.1`. Always present, always first |
+| `semantics` | array | the minors under which a value already in this payload started meaning something else, oldest minor first. **`[]` today, and always present** — see below |
 | `project_root` | string | the resolved project root, absolute. `.perry/` is anchored here |
 | `state_root` | string | where Perry's state lives, absolute — `project_root` unless `.perry/config.md` declares a `State root:`. **`cards[].path` is relative to this**, not to `project_root` |
 | `cards` | array | the cards, one object each, sorted by file path. `[]` when the project has no `knowledge/` directory at all — never a missing key and never `null` |
@@ -45,6 +47,27 @@ cards is one a consumer cannot check.
 `total == len(cards)` and `stale == len([c for c in cards if c["stale"]])`
 hold on every response including a filtered one. A consumer never has to
 choose between trusting the count and counting the array.
+
+## `semantics` — empty, and that is the answer
+
+Rule 3 below used to say this was *"where a `semantics` array would appear if a
+value here ever changes meaning"*. It appears now, before there is anything to
+put in it, and that is the point rather than an oversight.
+
+**Nothing in this payload has changed meaning.** `1.0` and `1.1` are the only
+versions a consumer can have read against; `1.1` added this key and moved no
+value. `stale` is still the field most likely to need an entry one day, and it
+has not needed one yet. **An entry invented to fill the array would be worse
+than the empty array** — a consumer that walked it would go and re-check a
+predicate that never moved.
+
+The key ships on **every** response all the same, including a store with no
+`knowledge/` directory at all. It is the argument this page already makes two
+paragraphs up about `contract`: **a consumer checks before it looks**, and a
+key that appears only when there is something to say is one a consumer cannot
+check. The entry shape, for the day there is one, is
+`perry-task/list § semantics[]` — `version`, `fields`, `note` — documented
+there rather than copied here.
 
 ## A card
 
@@ -171,9 +194,11 @@ more.
 2. **`1.x` → `1.y` only adds keys.** A removal or a retype is a major bump.
 3. **Check both halves of `contract`.** The major says whether you can parse
    it; the minor says whether a value still means what it meant. Same rule, and
-   the same worked example, as `schema/task-list-contract.md § The three rules`
-   — which is where a `semantics` array would appear if a value here ever
-   changes meaning. `stale` is the field most likely to need one.
+   the same worked example, as `schema/task-list-contract.md § The three rules`.
+   Since `1.1` the answer to the second question is **in the payload**: walk
+   `semantics` for every entry newer than the minor you read against. It is
+   empty today — see the section above for why that is a fact rather than a
+   placeholder. `stale` is the field most likely to fill it.
 
 ## Changelog
 
@@ -182,3 +207,12 @@ more.
 First contract page. The payload itself is unchanged: `perry-knowledge/list/1.0`
 shipped with the store and this page describes it as found, key for key, against
 the live payload rather than against the source.
+
+### 1.1 — 2026-08-28 (TASK-205)
+
+**Additive.** One key added, none removed or retyped: top-level `semantics`,
+`[]` today. Rule 3 promised a consumer that the minor answers *"does a value
+still mean what it meant"*, and until now this payload carried nowhere to read
+that answer from — so the promise could not be kept and nothing could ever
+report it broken. `perry-events/list/1.1` added the same key on the same
+reading. No card field changed, and `stale` is computed exactly as before.

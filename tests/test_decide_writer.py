@@ -232,12 +232,16 @@ class TestReadingIsTolerant(unittest.TestCase):
 
 
 class TestListContract(unittest.TestCase):
-    """`perry-decide/list/1.0`. Versioned separately from the task contract on
+    """`perry-decide/list/1.1`. Versioned separately from the task contract on
     purpose (DESIGN-005 § 4 decision 5) — tying them together would force a
     consumer to re-check its code for a change in a domain it does not read."""
 
-    TOP = {"contract", "project_root", "state_root", "conformance",
-           "decisions", "active", "total", "expired_sunsets"}
+    # `semantics` is `1.1`, TASK-205, and it is EMPTY on this payload. It
+    # belongs in this set for exactly that reason: the shape is exact, so a
+    # key that shipped empty is asserted the same way a populated one is, and
+    # a future edit that drops it "because it says nothing" fails here.
+    TOP = {"contract", "semantics", "project_root", "state_root",
+           "conformance", "decisions", "active", "total", "expired_sunsets"}
     ITEM = {"id", "title", "type", "status", "date", "deciders", "supersedes",
             "superseded_by", "sunset", "path", "lines"}
     CONF = {"index_present", "indexed_without_file", "filed_without_index_row",

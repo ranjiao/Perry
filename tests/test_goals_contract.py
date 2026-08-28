@@ -1,4 +1,4 @@
-"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.2`.
+"""`bin/perry-goals list --json` — DESIGN-005 step 2, `perry-goals/list/2.3`.
 
 The third read contract, and the last one a front-end needs before it can show
 a whole project without opening a markdown file.
@@ -37,8 +37,11 @@ def run(root: Path, *argv) -> tuple[int, dict | str]:
 
 class TestShape(unittest.TestCase):
 
-    TOP = {"contract", "project_root", "state_root", "conformance",
-           "okr", "phase", "krs", "linkage", "counts",
+    # `semantics` is `2.3`, TASK-205. Asserted here by PRESENCE in the key
+    # set, which is the whole assertion this payload needs: the array's
+    # contents are held by `tests/test_semantics_on_every_payload.py`.
+    TOP = {"contract", "semantics", "project_root", "state_root",
+           "conformance", "okr", "phase", "krs", "linkage", "counts",
            "answered_by", "unlinked_task_ids"}
     KR = {"id", "level", "objective", "title", "metric", "qualifier",
           "linked_to", "stretch", "target", "current", "due", "task_ids",
@@ -284,7 +287,12 @@ class TestContractDocAgrees(unittest.TestCase):
             "operating_principles", "anti_goals", "objectives", "number",
             "slug", "status", "started", "day", "kr_total", "cost_ceiling",
             "updated", "error", "phase", "name", "answered_by",
-            "unlinked_task_ids"}
+            "unlinked_task_ids",
+            # `2.3`, TASK-205: `semantics` and the keys of an entry in it.
+            # They are emitted — one level down, like the `2.1` blocks — and
+            # this scan compares whole key names, so they belong here rather
+            # than in `phantom`. (`version` is already above, for `okr`.)
+            "semantics", "fields", "note"}
         # The `2.1` blocks' own children (`current_provenance.state` and the
         # rest) are documented as dotted paths, which this scan deliberately
         # does not match — it compares WHOLE keys against the payload's top

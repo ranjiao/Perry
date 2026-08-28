@@ -1038,7 +1038,24 @@ def roles_profile(project_root: Path, state_root: Path,
         # unextractable`. A payload a front-end renders and nothing promises is
         # a promise made by accident, so the six are frozen and the rest is
         # explicitly not.
-        "contract": "perry-roles/list/1.0",
+        #
+        # **`1.1`, TASK-205: `semantics` joins it.** That row measured the
+        # payloads carrying no `semantics` array and named three; this is the
+        # fourth, missed because it is a SUBTREE of an unversioned snapshot
+        # rather than its own `list` command. It is versioned all the same,
+        # for the reason above, and a versioned payload with nowhere to report
+        # a meaning change is one whose minor a consumer cannot act on. A
+        # plain key addition, so the minor moves and the array itself carries
+        # no entry for it.
+        "contract": "perry-roles/list/1.1",
+        # **Empty, and that is the answer.** Nothing frozen here has changed
+        # meaning since `1.0`. The key ships anyway, on every response
+        # including an empty roster, for exactly the reason `contract` does
+        # two lines up: a consumer checks before it looks, and a key that
+        # appears only when there is something to say is one it cannot check.
+        # An entry invented to fill it would send a consumer to re-check six
+        # fields that never moved.
+        "semantics": [],
         "declared": len(cards),
         "cards": [{
             "name": c.name,

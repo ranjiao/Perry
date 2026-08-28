@@ -509,7 +509,44 @@ class Okr:
 # compared against the register's UTC as though the two were one clock. Same
 # keys, different values, which is exactly the case `perry-task/events/1.1`
 # moved its own minor for. A consumer rendering `at` sees the change.
-LIST_CONTRACT = "perry-goals/list/2.2"
+#
+# TASK-205 moves it to `2.3`, and the move is a plain key addition: this
+# payload now carries `semantics`, the array below. Nothing already emitted
+# changed, so `LIST_SEMANTICS` gains no entry for `2.3` itself —
+# `perry-events/list/1.1` added the same key under the same reading.
+LIST_CONTRACT = "perry-goals/list/2.3"
+
+# **Minors where a value's MEANING changed, not just where a key was added.**
+#
+# The same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`, and the
+# same reason: rule 2 promises `2.x` only adds keys, that promise is unbroken,
+# and it does not cover a value that starts returning something different
+# under a key that did not move. A consumer records the minor it read against
+# and reports every entry newer than that, which is why the list is **ordered
+# oldest first** — a slice, not a search. Append; never insert where it reads
+# well. `bin/perry-task` shipped 1.5, 1.9, 1.7 once, and a test caught it.
+#
+# **`2.1` is deliberately not here.** It added four keys and moved no existing
+# value. An entry for it would tell a consumer still sitting on `2.0` that a
+# field it has never seen changed meaning, which is a false alarm rather than
+# a warning — the call `perry-task` made for its own `1.15` and `1.17`, both
+# recorded as decisions in `tests/`.
+LIST_SEMANTICS = [
+    {"version": "2.2",
+     "fields": ["krs[].current_provenance.asserted_at",
+                "krs[].current_staleness.since",
+                "krs[].current_staleness.moved_tasks[].at"],
+     "note": "All three are UTC now and carry a `Z`. `at` in particular used "
+             "to be the event log's LOCAL text, and it was compared against "
+             "the register's UTC as though the two were one clock — so "
+             "`current_staleness.stale` answered wrongly inside the machine's "
+             "offset, in one direction or the other, on every project not "
+             "running at UTC+0. No key was added, removed or retyped; the "
+             "same three keys return a different string. A consumer that "
+             "parsed these as naive local timestamps, or that compared one of "
+             "them against a clock of its own, was correct before 2.2 and is "
+             "not now."},
+]
 
 #: `list` only reads, and reading is never gated (ADR-004). Every other
 #: subcommand writes `OKR.md`, which is the one file this lane gates on — one
@@ -1020,6 +1057,14 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     # carries the edges this file can state from the register alone.
     return {
         "contract": LIST_CONTRACT,
+        # Sorted here rather than trusted to writing order, the same guard
+        # `bin/perry-task` puts on its own list: it is consumed as
+        # "everything newer than the minor I tested against", which is a
+        # slice only while the array is sorted.
+        "semantics": sorted(
+            LIST_SEMANTICS,
+            key=lambda entry: tuple(int(x)
+                                    for x in entry["version"].split("."))),
         "project_root": str(project_root),
         "state_root": str(state_root),
         "conformance": conformance,
