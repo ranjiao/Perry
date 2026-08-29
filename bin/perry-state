@@ -2019,7 +2019,11 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     perry_root = project_root or root
     installed = (
         any((root / f).exists() for f in ("BOARD.md", "OKR.md"))
-        or (perry_root / ".perry" / "config.md").exists()
+        # Either register counts. A project configured by the store alone read
+        # as never configured here until TASK-233 round 2 — the file this row
+        # is about kept its own `.perry/config.md`-exists test after the other
+        # four were converted, and the reviewer found it.
+        or P.configured(perry_root)
         # A bare `design/` is not evidence: plenty of projects have one that has
         # nothing to do with Perry. Require a doc named the way `design` writes.
         or bool(list((root / "design").glob("DESIGN-*.md")) if (root / "design").is_dir() else [])
@@ -2603,8 +2607,13 @@ def resolve_root(explicit: str | None) -> Path:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
     for d in [cur, *cur.parents]:
+        # Byte-for-byte the walk in `bin/perry-lint § main` and
+        # `parsers § _resolve_project_root`, and it kept its own copy of the
+        # markdown test when those two were converted (TASK-233 round 2). With
+        # the projection deleted this walked past a configured project and fell
+        # through to the CWD, and `build` then said "No Perry state found".
         if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
-                or (d / ".perry" / "config.md").exists()):
+                or P.configured(d)):
             return d
     return cur
 

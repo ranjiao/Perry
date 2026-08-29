@@ -378,12 +378,20 @@ def declared_state_root(project_root: Path) -> tuple[str, str]:
 def configured(project_root: Path) -> bool:
     """Has this project been configured at all? **Either register counts.**
 
-    The one predicate behind "is there a `.perry/config.md`", which four call
-    sites asked directly and which stopped being the right question when the
-    file became a projection (TASK-233): a project whose markdown has been
-    deleted, or that was cloned before `perry-config render --write` put it
-    back, is configured and its store says so. `bin/perry-goals § tracks_of`
-    already asked it the wide way; these are the rest.
+    The one predicate behind "is there a `.perry/config.md`", which stopped
+    being the right question when the file became a projection (TASK-233): a
+    project whose markdown has been deleted, or that was cloned before
+    `perry-config render --write` put it back, is configured and its store says
+    so. `bin/perry-goals § tracks_of` already asked it the wide way.
+
+    **Six call sites ask it here; that is not all of them.** Round 1 converted
+    four — `bin/perry-lint § is_adopted` and its project-root walk,
+    `bin/perry-explain`, `parsers § _resolve_project_root` — and claimed they
+    were the rest. They were not: `bin/perry-state § build` and its own copy of
+    the walk kept the markdown test, in the file the row is about, and the V4
+    reviewer reproduced both. Round 2 converted those two.
+    `bin/perry-diagnose § scan_tracking` and `§ diagnose` still ask it the
+    narrow way and are NOT converted — see `TASK-233-result.md § 4`.
 
     It answers about `.perry/` only. Every caller ORs it with the state files
     it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per

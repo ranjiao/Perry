@@ -31,6 +31,7 @@ Run: python3 tests/parallel test_config_store_readers
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -148,6 +149,19 @@ class Fixture(unittest.TestCase):
         # for the wrong reason.
         (d / "from-the-store").mkdir()
         (d / "from-the-markdown").mkdir()
+        return d
+
+    def bare(self, *, markdown, store) -> pathlib.Path:
+        """A `.perry/` and nothing else — no `BOARD.md`, no `OKR.md`.
+
+        The other halves of every caller's OR-chain are removed on purpose: a
+        fixture carrying a `BOARD.md` answers `True` whatever this predicate
+        does, which is how a guard over an OR-chain passes while measuring
+        nothing.
+        """
+        d = self.project(markdown=markdown, store=store)
+        for name in ("BOARD.md", "OKR.md"):
+            (d / name).unlink(missing_ok=True)
         return d
 
 
@@ -349,26 +363,19 @@ class TestTheStateRootReadsTheStore(Fixture):
 class TestAStoreAloneIsAConfiguredProject(Fixture):
     """"Is there a `.perry/config.md`" stopped being "is this configured".
 
-    Four call sites asked it directly — `bin/perry-lint § is_adopted` and its
-    project-root walk, `bin/perry-explain`, and `parsers § project_root` — and
-    each is one `P.configured` call now. A project whose markdown was deleted,
-    or that was cloned before `perry-config render --write` put it back, is
-    configured: its store says so, and `bin/perry-goals § tracks_of` had
-    already been asking it the wide way.
+    Six call sites asked it directly and each is one `P.configured` call now:
+    `bin/perry-lint § is_adopted` and its project-root walk, `bin/perry-explain`,
+    `parsers § _resolve_project_root` (round 1), and `bin/perry-state § build`
+    and `§ resolve_root` (round 2 — see `TestPerryStateAsksItToo`, which round 1
+    did not have and whose absence is why the result could claim four were
+    "the rest"). A project whose markdown was deleted, or that was cloned before
+    `perry-config render --write` put it back, is configured: its store says so,
+    and `bin/perry-goals § tracks_of` had already been asking it the wide way.
+
+    Not all of them. `bin/perry-diagnose § scan_tracking` and `§ diagnose` still
+    ask the narrow way and are out of scope here; `TASK-233-result.md § 4` names
+    them rather than claiming a sweep that was not run.
     """
-
-    def bare(self, *, markdown, store) -> pathlib.Path:
-        """A `.perry/` and nothing else — no `BOARD.md`, no `OKR.md`.
-
-        The other halves of every caller's OR-chain are removed on purpose: a
-        fixture carrying a `BOARD.md` answers `True` whatever this predicate
-        does, which is how a guard over an OR-chain passes while measuring
-        nothing.
-        """
-        d = self.project(markdown=markdown, store=store)
-        for name in ("BOARD.md", "OKR.md"):
-            (d / name).unlink(missing_ok=True)
-        return d
 
     def test_a_store_with_no_markdown_is_configured(self):
         self.assertTrue(P.configured(self.bare(markdown=None, store=None)))
@@ -388,6 +395,138 @@ class TestAStoreAloneIsAConfiguredProject(Fixture):
         lint = load_bin_module("perry-lint")
         d = self.bare(markdown=None, store=None)
         self.assertTrue(lint.is_adopted(d, d))
+
+
+def run_state(*args, cwd: pathlib.Path) -> dict:
+    """`bin/perry-state --json`, out of process, from a chosen directory.
+
+    Out of process on purpose: both assertions below are about what the shipped
+    entry point does, and `resolve_root`'s walk reads `Path.cwd()`, which an
+    in-process call cannot move without mutating the runner's own cwd.
+    `PERRY_PROJECT` is stripped because it short-circuits the walk — a runner
+    that happens to export it would turn the walk test green while measuring
+    nothing.
+    """
+    env = dict(os.environ)
+    env.pop("PERRY_PROJECT", None)
+    env["PERRY_HOME"] = str(ROOT)
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "bin" / "perry-state"), "--json", *args],
+        capture_output=True, text=True, cwd=str(cwd), env=env)
+    if out.returncode != 0:
+        raise AssertionError(
+            f"perry-state exited {out.returncode}\n{out.stdout}\n{out.stderr}")
+    return json.loads(out.stdout)
+
+
+class TestPerryStateAsksItToo(Fixture):
+    """The two sites in `bin/perry-state` that round 1 missed. TASK-233 round 2.
+
+    Round 1's result said the four converted sites "were the rest". They were
+    not: the file the spec names first kept its own `.perry/config.md`-exists
+    test in **two** places, and the V4 review reproduced both. They fail
+    differently, so they get one test each — a single test covering both would
+    stay green with either one reverted.
+
+        bin/perry-state § resolve_root  the project-root walk, byte-for-byte
+                                        the one converted in `perry-lint § main`
+                                        and `parsers § _resolve_project_root`.
+                                        Needs cwd BELOW the project root; from
+                                        the root itself the walk's `cwd`
+                                        fallback hides it.
+        bin/perry-state § build         the `installed` gate. Needs `--root`, so
+                                        the walk is out of the way, and a
+                                        project with no `BOARD.md` / `OKR.md` /
+                                        `design/DESIGN-*.md`, so the gate's
+                                        other disjuncts do not answer for it.
+
+    Both fixtures delete `.perry/config.md` and keep the store, which is the
+    state the deliverable is about: a project whose projection was deleted, or
+    that was cloned before `perry-config render --write` put it back.
+    """
+
+    def test_the_walk_finds_a_store_only_project_from_a_subdirectory(self):
+        """`bin/perry-state § resolve_root`, with no `--root`.
+
+        The fixture's state root is `from-the-store/`, and `BOARD.md` is put
+        THERE rather than at the project root — deliberately. A `BOARD.md` at
+        the project root satisfies the walk's first disjunct and the test would
+        pass with this site reverted; at the state root it satisfies `build`'s
+        `installed` gate instead, which keeps this test measuring the walk and
+        only the walk.
+        """
+        d = self.project(markdown=None)
+        (d / "from-the-store" / "BOARD.md").write_text(
+            "# Board\n", encoding="utf-8")
+        (d / "subdir").mkdir()
+
+        payload = run_state(cwd=d / "subdir")
+
+        self.assertTrue(
+            payload["installed"],
+            "the walk fell through to the CWD and reported "
+            "'No Perry state found' on a configured project")
+        self.assertEqual(
+            payload["project"]["root"], (d / "from-the-store").as_posix(),
+            "the walk stopped somewhere other than this project's state root")
+
+    def test_the_installed_gate_counts_a_store_only_project_as_installed(self):
+        """`bin/perry-state § build`, with `--root` given.
+
+        No `BOARD.md`, no `OKR.md`, no `design/DESIGN-*.md`: the store is the
+        only evidence of configuration in the tree, which is the whole question.
+        Reverted, this project reports `installed: false` and the first-time
+        setup warning while the same project configured by the markdown alone
+        reports `true`.
+        """
+        d = self.bare(markdown=None, store=None)
+
+        payload = run_state("--root", str(d), cwd=ROOT)
+
+        self.assertTrue(payload["installed"],
+                        "a store-configured project reads as never configured")
+        self.assertNotIn(
+            "No Perry state found — run /perry for first-time setup.",
+            payload.get("warnings") or [],
+            "the exact string this row was filed to remove, still printed")
+
+    def test_the_markdown_alone_still_counts(self):
+        """The control. Neither site may become "store only"."""
+        d = self.bare(markdown=MD_SAYS, store=False)
+        self.assertTrue(run_state("--root", str(d), cwd=ROOT)["installed"])
+
+
+class TestAStoreThatDeclaresNoSettingsSaysSo(Fixture):
+    """`store-default` is a documented reason value; this is its guard.
+
+    The V4 reviewer's mutation X4 collapsed
+    `CONFIG_FROM_STORE if out else CONFIG_STORE_DEFAULT` to `CONFIG_FROM_STORE`
+    and all 38 tests stayed green. `parsers.py` documents the two as different
+    answers and `parse_config`'s docstring names `store-default` as one of the
+    five values `settings_source` can take, so a usable store carrying zero
+    setting records reporting `store` would be a payload field lying about
+    which question it answered — quietly, since both words are otherwise
+    truthful.
+    """
+
+    def test_a_store_with_no_setting_records_says_store_default(self):
+        d = self.project(markdown=None, store=store_text(STORE_TRACKS))
+        values, why = P.config_store_settings(d)
+        self.assertEqual(values, {})
+        self.assertEqual(why, P.CONFIG_STORE_DEFAULT)
+
+    def test_a_store_with_setting_records_says_store(self):
+        values, why = P.config_store_settings(self.project(markdown=None))
+        self.assertEqual(values["document_language"], "English")
+        self.assertEqual(why, P.CONFIG_FROM_STORE)
+
+    def test_the_distinction_reaches_the_payload(self):
+        """`settings_source` is where a reader actually sees it."""
+        d = self.project(markdown=None, store=store_text(STORE_TRACKS))
+        self.assertEqual(PS.parse_config(d)["settings_source"],
+                         P.CONFIG_STORE_DEFAULT)
+        self.assertEqual(PS.parse_config(self.project())["settings_source"],
+                         P.CONFIG_FROM_STORE)
 
 
 class TestTheTwoNamesForOneReason(unittest.TestCase):
