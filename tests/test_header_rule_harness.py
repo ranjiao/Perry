@@ -74,6 +74,15 @@ PERRY_HOME = Path(__file__).resolve().parent.parent
 
 SHEBANG = "#!/usr/bin/env python3\n"
 
+#: The entries planted with **no first line at all** — the two whose whole
+#: subject is round 4's hole *"a file whose first line is a docstring, a `# -*-
+#: coding:` line, or a licence header is invisible"*. Round 9's reviewer
+#: measured that `_plant` was prepending a shebang to them, so neither could
+#: discriminate the hole it names; R9-6 reddening `D21` and not `D20` is that
+#: measurement. Two paths, and `TestTheCorpusIsAuditable §
+#: test_the_no_shebang_entries_are_planted_without_one` asserts the bytes.
+NO_SHEBANG = frozenset({"bin/probe-d20", "bin/probe-s12"})
+
 #: Directories a planted copy does not need. `perry/` is 4 MB of evidence
 #: markdown and holds no reader; `tests/` is this file.
 NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry"}
@@ -290,6 +299,80 @@ DRIFT = [
      'from tables import squash as norm, split_row\n'
      'def read(line):\n'
      '    return sorted(split_row(line), key=norm)\n'),
+
+    ("D25 a BARE ALIAS of the rule, `fold = squash`",
+     "round 9 review, the FAIL: ESCAPED B `fold = squash` (ONE character "
+     "simpler than D10, which is caught) — a one-line rebinding of `squash` "
+     "to any name other than `norm` maps the one rule across a header row "
+     "with every guard this row ships reporting nothing",
+     "bin/perry-probe-d25",
+     'from tables import squash, split_row\n'
+     'fold = squash\n'
+     'def read(line):\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
+
+    ("D26 an IMPORT ALIAS onto an untrusted name",
+     "round 9 review, the FAIL: ESCAPED E `from tables import squash as fold` "
+     "— corpus entry `D06` is `from tables import squash as norm`, aliasing "
+     "that happens to land on a name already in `BLESSED`; the case where the "
+     "alias lands anywhere else is the one that is neither planted nor handled",
+     "bin/perry-probe-d26",
+     'from tables import squash as fold, split_row\n'
+     'def read(line):\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
+
+    ("D27 an ALIAS through the module object, `fold = tables.squash`",
+     "round 9 review, the FAIL: ESCAPED F `import tables; fold = tables.squash`",
+     "bin/perry-probe-d27",
+     'import tables\n'
+     'from tables import split_row\n'
+     'fold = tables.squash\n'
+     'def read(line):\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
+
+    ("D28 a bare alias applied to ONE CELL",
+     "round 9 review, the FAIL: ESCAPED C `fold = squash`, SCALAR on a cell — "
+     "the scalar half of the same escape, which the round 9 probe planted "
+     "separately because the two halves of the net are separate",
+     "bin/perry-probe-d28",
+     'from tables import squash, split_row\n'
+     'fold = squash\n'
+     'def read(line):\n'
+     '    cells = split_row(line)\n'
+     '    return fold(cells[0]) == "id"\n'),
+
+    ("D29 the repository's OWN idiom, renamed",
+     "round 9 review, the FAIL: ESCAPED G the repo's OWN idiom, renamed — "
+     "`bin/perry-lint:250` is literally `norm = squash`; `norm` happens to be "
+     "in `BLESSED`, so that one site is seen and the same line written with "
+     "any other name is not",
+     "bin/perry-probe-d29",
+     'from tables import squash, split_row\n'
+     'keyof = squash\n'
+     'def read(line):\n'
+     '    return [keyof(c) for c in split_row(line)]\n'),
+
+    ("D30 a CHAIN of aliases",
+     "round 9 review, the FAIL: it is small to fix — resolve module-level "
+     "`NAME = <blessed>` bindings into the blessed set; a resolver that does "
+     "not run to a fixpoint closes the one-step case and not this one",
+     "bin/perry-probe-d30",
+     'from tables import squash, split_row\n'
+     'a = squash\n'
+     'fold = a\n'
+     'def read(line):\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
+
+    ("D31 an alias bound INSIDE the reader",
+     "round 9 review, the FAIL: `_RowLocals` resolves a fold reached through "
+     "a `def` wrapper and through a name-bound `lambda` ... but nothing "
+     "resolves a plain rebinding — and a rebinding is not obliged to sit at "
+     "module level",
+     "bin/perry-probe-d31",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    fold = squash\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
 
     ("D24 a dict-ASSIGNMENT header index",
      "round 7 Finding 2: escapes include ... a dict-assignment header index",
@@ -751,9 +834,22 @@ def _hits(root: Path, where: str) -> list[str]:
 
 
 def _plant(root: Path, where: str, body: str) -> Path:
+    """Write one corpus body to its path, with a shebang unless the entry's
+    whole subject is not having one.
+
+    **Round 9 review, smaller results:** *"`_plant` writes `SHEBANG + body`
+    unconditionally, so `D20 no suffix and NO SHEBANG` — and `S12`, same label
+    — are planted WITH `#!/usr/bin/env python3`. The entry cannot discriminate
+    the round 4 hole it names."* Its proof is mutation R9-6: putting round 8's
+    `is_python` back (`if p.suffix: return False`) reddens `D21` and **not**
+    `D20`, because under that rule a suffix-less file with a shebang is still
+    seen. Keyed on the PATH, which
+    `test_no_two_entries_are_planted_at_the_same_path` already guarantees is
+    unique, so the exception cannot silently spread to a second entry.
+    """
     target = root / where
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(SHEBANG + body)
+    target.write_text(body if where in NO_SHEBANG else SHEBANG + body)
     return target
 
 
@@ -814,6 +910,49 @@ class TestTheCorpusIsAuditable(unittest.TestCase):
         paths = [e[2] for e in self.all_entries()]
         dupes = sorted({p for p in paths if paths.count(p) > 1})
         self.assertEqual(dupes, [], f"paths re-used: {dupes}")
+
+    def test_the_no_shebang_entries_are_planted_without_one(self):
+        """**Round 9's D20 finding, closed by assertion rather than by
+        comment.** Two entries — `D20` and `S12` — exist to discriminate round
+        4's hole *"a file whose first line is a docstring, a `# -*- coding:`
+        line, or a licence header is invisible"*, and `_plant` was prepending
+        `#!/usr/bin/env python3` to both, so neither could. The reviewer's own
+        proof was that mutation R9-6 (round 8's `is_python`) reddens `D21` and
+        not `D20`.
+
+        This asserts the bytes on disk, not the intent: every `NO_SHEBANG`
+        path is a real corpus path, every entry whose label says NO SHEBANG is
+        in the set, and what lands on disk starts with the body.
+        """
+        by_path = {e[2]: e for e in self.all_entries()}
+        for where in sorted(NO_SHEBANG):
+            with self.subTest(where):
+                self.assertIn(where, by_path,
+                              f"{where} is exempted from the shebang and is "
+                              f"not a corpus path")
+        claimed = {e[2] for e in self.all_entries()
+                   if "NO SHEBANG" in e[0].upper()}
+        self.assertEqual(claimed, set(NO_SHEBANG),
+                         "an entry whose label says NO SHEBANG is planted "
+                         "with one, or vice versa")
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            for where in sorted(NO_SHEBANG):
+                with self.subTest(where):
+                    target = _plant(root, where, by_path[where][3])
+                    try:
+                        text = target.read_text()
+                        self.assertFalse(
+                            text.startswith("#!"),
+                            f"{where} is planted WITH a shebang, so it cannot "
+                            f"discriminate the hole it names")
+                        self.assertEqual(text, by_path[where][3])
+                        self.assertEqual(Path(where).suffix, "")
+                    finally:
+                        target.unlink(missing_ok=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_the_denominator_is_at_least_round_8s_honest_one(self):
         """Round 8's reviewer put the honest denominator at *"30 of at least

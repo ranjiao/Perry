@@ -21,8 +21,10 @@ Run: python3 -m unittest discover -s tests
 
 from __future__ import annotations
 
+import contextlib
 import importlib.machinery
 import importlib.util
+import io
 import shutil
 import sys
 import tempfile
@@ -73,6 +75,7 @@ WATCHED = [
     "header_keys",             # bin/perry-task
     "markdown_tables",         # bin/perry_store.py
     "fix_tables",              # bin/perry-migrate
+    "cmd_intake_write",        # bin/perry-tasks
 ]
 
 CONFIG = (
@@ -116,6 +119,38 @@ MIGRATE_LINES = ["## Commitments", "", "| ID | Promise | **Due** |",
                  "|---|---|---|", "| C-1 | do it | 2026-02-01 |", ""]
 MIGRATE_SPEC = {"tables": [{"under": "Commitments", "under_level": 2,
                             "columns": ["ID", "Promise", "Due"]}]}
+
+#: **`bin/perry-tasks`, and it is here because round 9 declared it a limit and
+#: round 9's reviewer walked through it.** § 6.2 of the round 9 result named
+#: `bin/perry-tasks` as *"the one converted reader still not driven"*, and the
+#: reviewer planted its escape there for exactly that reason: `_fold = squash`
+#: plus `keys = [ops.norm(_fold(c)) for c in _hdr]` replacing the
+#: `header_index(...)` call, with `offenders_by_symbol` returning `[]` and the
+#: whole suite at its three pre-existing failures.
+#:
+#: The static half cannot see that site even with aliases resolved, and the
+#: reason is not the alias: `_hdr` comes from
+#: `perry_store.intake_table(board, ops)["header"]` — a row produced in ANOTHER
+#: MODULE and carried through a dict key. `_RowLocals` is file-local by
+#: construction and resolving that would be the interprocedural widening the
+#: amendment rejects by name. So the reader is DRIVEN instead, which is the
+#: half of the design that is blind to spelling altogether.
+#:
+#: `cmd_intake_write` writes a store, so it runs against a throwaway root; the
+#: `**Arrived**` header is what makes the fold visible to
+#: `folds_of_a_header_cell`.
+INTAKE_BOARD = (
+    "# Board — T\n\n"
+    "## Intake\n\n"
+    "| **Arrived** | Request | Outcome |\n|---|---|---|\n"
+    "| 2026-01-01 | do a thing | — |\n\n"
+    "## Work\n\n"
+    "| ID | **Title** | Owner | Status | Track | Stage |\n"
+    "|---|---|---|---|---|---|\n"
+    "| TASK-001 | ship it | me | open | ops | new |\n")
+
+INTAKE_CONFIG = ("# Perry configuration\n\n- Document language: English\n"
+                 "- Repo layout: single\n- State root: .\n")
 
 CONFORMANCE = ("# Conformance\n\n"
                "| **File** | Shape version | Declared | Route |\n"
@@ -250,6 +285,31 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         perry_md_store.scan_okr(OKR)
         load("perry-migrate").fix_tables(
             MIGRATE_LINES, MIGRATE_SPEC, {}, [], [])
+        self.drive_intake_write()
+
+    def drive_intake_write(self):
+        """`bin/perry-tasks intake-write --from-board`, in process.
+
+        The subprocess the rest of the suite uses would be invisible to the
+        watch — a patch on `tables.squash` in THIS interpreter says nothing
+        about another one — so the command function is called directly, on a
+        throwaway root it is allowed to write into.
+        """
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / ".perry").mkdir()
+        (root / ".perry" / "config.md").write_text(INTAKE_CONFIG,
+                                                   encoding="utf-8")
+        (root / "BOARD.md").write_text(INTAKE_BOARD, encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = load("perry-tasks").cmd_intake_write(root, ["--from-board"])
+        self.assertEqual(rc, 0,
+                         f"the intake import refused, so this reader was not "
+                         f"driven and the watch measured nothing about it: "
+                         f"{err.getvalue()[:400]}")
+        self.assertTrue((root / "intake.jsonl").exists(),
+                        "the import returned 0 and wrote no store")
 
     def test_every_fold_of_a_header_cell_came_from_header_index(self):
         with Watch() as w:
@@ -302,6 +362,42 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
                     f"`{reader}` is named as a watched reader and folded no "
                     f"decorated header cell in this workload — either drive it "
                     f"or stop claiming it. Recorded: {sorted(seen)}")
+
+    def test_the_rebinding_loop_watches_a_readers_own_reference(self):
+        """**Round 9 review, smaller results: a guard that survives its own
+        deletion.** `Watch.__enter__`'s rebinding loop carries the comment
+        *"Rebind every one of them, or the patch watches nothing and the test
+        is vacuous"*, and the reviewer replaced `for attr in ("squash",
+        "norm"):` with `for attr in ():` and **all 7 tests in this module
+        stayed green**, `test_the_watch_is_not_vacuous` included. A guard that
+        can be deleted with the suite unchanged is not a guard.
+
+        It is kept rather than deleted because what it protects is real and is
+        exactly what this row forbids: a reader holding its own reference to
+        the rule and calling it directly, without going through
+        `header_index`. Nothing does that today — which is why the loop is
+        silent today — so the protection has to be exercised deliberately.
+        `bin/perry-lint:250` is `norm = squash`, the repository's own idiom
+        for holding that reference, and it is the module used here.
+        """
+        lint = load("perry-lint")
+        self.assertIs(lint.norm, tables.squash,
+                      "`bin/perry-lint` no longer holds its own reference to "
+                      "the rule; pick another reader that does, or delete the "
+                      "rebinding loop this test exists for")
+        real = tables.squash
+        with Watch() as w:
+            self.assertIsNot(
+                lint.norm, real,
+                "the rebinding loop left a reader's own reference pointing at "
+                "the UNWATCHED function, so a fold made through it would be "
+                "invisible to every assertion in this module")
+            lint.norm("**Title**")
+        self.assertIn(
+            "**Title**", [arg for _stack, arg in w.calls],
+            "a decorated header cell was folded through a reader's own "
+            "reference and the watch did not see it")
+        self.assertIs(lint.norm, real, "`__exit__` left the reader patched")
 
     def test_the_decorated_header_still_resolves(self):
         """Behaviour, not accounting. A guard satisfied by a rename is not one."""
