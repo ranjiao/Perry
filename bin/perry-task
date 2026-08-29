@@ -2208,7 +2208,11 @@ def declared_removal(event: dict) -> int:
     rule = SHRINK_ALLOWANCE.get(event.get("event") or "")
     if rule is None:
         return 0
-    if isinstance(rule, int) and not isinstance(rule, bool):
+    # `rule` is a literal in this file, so it needs no guard beyond its type —
+    # and a guard nothing can reach is a guard nothing tests. `count` below is
+    # the opposite case: it arrives on the EVENT, from the command, which is
+    # exactly the input a bound must not trust.
+    if isinstance(rule, int):
         return rule
     count = event.get(rule)
     if not isinstance(count, int) or isinstance(count, bool) or count < 0:
