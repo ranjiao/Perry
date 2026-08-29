@@ -7,8 +7,9 @@
 > **This document supersedes `TASK-050-round9-result.md` for everything it
 > restates.** Round 9's result is NOT retracted — its review ruled its core
 > correct — so it stays in place as the record of what round 9 did, with a
-> pointer here and one factual correction made in place (§ 4.3). There is one
-> result of record and it is this one.
+> pointer here and two corrections made in place — the `ROW_NAMES` count (§ 4.3)
+> and § 6.2's `bin/perry-tasks` limit, now closed (§ 4.1). There is one result
+> of record and it is this one.
 
 Round 9's review was a FAIL and mostly a vindication. It ruled for the round on
 the question the round turned on — **0 of 41 on `SECOND_RULE` is ACCEPTABLE
