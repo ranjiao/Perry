@@ -1,5 +1,29 @@
 # TASK-203 — round 4 RESULT: one invariant, and the two places it is thinner than it looks
 
+> **SUPERSEDED IN PART by `TASK-203-round5-result.md`, which is the current
+> document for this row.** Round 4 FAILED its V4 review
+> (`TASK-203-round4-v4-review.md`) on a fifth door that was not in the
+> invariant but in the exemption around it: `SHRINK_ALLOWED` granted its
+> permission by command name and **without a bound**, so a listed command could
+> shrink a canonical store by any amount, including a shrink it did not
+> perform. Two places in this document are wrong because of that and are not
+> edited in place, so that the record of what round 4 believed survives:
+>
+> * **§ 1's code block** shows `SHRINK_ALLOWED = frozenset({…})` and
+>   `if after >= before or event_name in SHRINK_ALLOWED`. That is no longer the
+>   rule. It is now `SHRINK_ALLOWANCE`, a map from each removal command to the
+>   count it declares removing, and `if before - after <= declared_removal(event)`.
+> * **§ 6 finding 2's conclusion** — that `resolve-intake` holds a permission it
+>   never exercises and the allowance "is simply unused" — is false. The
+>   reviewer used it to destroy 24 canonical records on this repository's own
+>   intake data at exit code 0. The FINDING was right; only the conclusion drawn
+>   from it was wrong, and § 2 of the round 5 RESULT is that finding enforced as
+>   a bound.
+>
+> The rest of this document — the four doors, the twelve mutations, the four
+> round-3 fixes, the two converted tests, the baselines — was verified by the
+> round-4 reviewer and still stands.
+
 > Branch `coding/task-203-round4`, forked from `main` at `6c0d041`.
 > Written against `perry/evidence/2026-08/TASK-203-spec.md § Amendment
 > 2026-08-29 — USER-906, option B`, which binds.
