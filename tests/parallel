@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run the suite module-by-module across processes. Stdlib only, like everything else.
 
-`python3 -m unittest discover -s tests` runs 34 modules one after another and
-took **181s**; the same 1287 tests across 8 processes take **79s**. The modules
-are already independent — each builds its own project under its own temp dir —
-so the serialisation bought nothing.
+`python3 -m unittest discover -s tests` runs the modules one after another and
+took **181s** when there were 34 of them; the same 1287 tests across 8 processes
+took **79s**. The modules are already independent — each builds its own project
+under its own temp dir — so the serialisation bought nothing.
 
 **Two guards, because the first version of this runner was wrong in the way
 this repository keeps finding.** It shelled out to `python3 -m unittest
@@ -22,38 +22,155 @@ A module that stops loading is a red, not a smaller total.
     python3 tests/parallel              # everything
     python3 tests/parallel -j 4         # fewer workers
     python3 tests/parallel test_migrate # one module, by prefix
+    python3 tests/parallel --times      # + the ranked per-module wall times
+    python3 tests/parallel --ids F      # + every test id and its outcome, to F
+    python3 tests/parallel --record     # refresh tests/durations.json
 
 Exit status is 0 only if every module ran and every test passed.
+
+## TASK-230: the clock, and the one rule that keeps it from lying
+
+The suite reached 98 modules / 2882 tests and a routine full run stopped being
+a nuisance and started producing wrong outcomes: on 2026-08-28 two dispatches
+were killed by a 600-second no-progress watchdog **at the moment they kicked
+off the suite**, and their finished work had to be recovered by hand.
+
+Three things changed here, and the third is the only one that could ever have
+altered a verdict, so it is the one with a guard on it.
+
+**1. Longest module first, and it is the whole speedup.** With 98 modules and
+one worker pool the makespan is `max(longest module, total / workers)` only if
+the long modules START early. Alphabetical order does not know which those are,
+and on this suite it is close to worst case: the three most expensive modules —
+`test_task_writer` (322s), `test_store_is_canonical` (234s), `test_store_drift`
+(282s) — sit at alphabetical positions **90, 84 and 83 of 98**, so eight
+workers spend the run on short modules and then draw a five-minute one with
+nothing left to overlap it with. Measured on the 2026-08-29 tree: **446.3s
+alphabetical → 322.1s longest-first at 8 workers, a 124-second saving**, which
+is the theoretical floor for this module set exactly.
+
+`tests/durations.json` records what each module cost last time and the pool is
+fed in descending order of it. Modules with no recorded time sort **first**: an
+unknown module is assumed slow, because the cost of guessing wrong that way is
+a slightly worse schedule and the cost of guessing wrong the other way is the
+new module landing last — the very pathology above.
+
+**2. The worker count is deliberately NOT raised, and that is a measurement.**
+`min(8, cpu_count())` looks like a leftover from when there were 34 modules,
+and raising it to 14 on this 14-core machine was the obvious change. Simulating
+the measured module times says it buys **nothing**: once the schedule is
+longest-first the makespan is 322.1s at 8, 12, 14 and 16 workers alike, because
+the binding constraint is no longer how many modules run at once — it is
+`test_task_writer.py` running alone for 322 seconds. More workers past that
+point buy zero seconds and cost real contention, and this suite has a
+concurrency test (`test_host_support.TestOpenCodeDispatchLimit`) that is
+already known to flake under it. **A faster-looking suite that flakes is a
+worse gate than a slow one**, so the number stays where it is until the floor
+moves.
+
+**3. `--ids` writes the pass/fail SET, not just its size.** The zero-test guard
+catches a module that stopped loading. It does not catch a module that loaded
+and ran *fewer* tests than it used to — which is the same failure wearing a
+smaller hat. Diffing the id set between two runs catches both, and it is what
+a change to this runner has to be verified against.
+
+**The rule the schedule obeys: a hint may reorder the work, never select it.**
+`tests/durations.json` is a **sort key over the glob's own result** and is used
+nowhere else. A stale entry, a missing entry, an entry for a module that no
+longer exists, or the whole file being absent or corrupt changes the ORDER the
+modules run in and cannot change WHICH modules run. That is asserted directly
+in `tests/test_parallel_runner.py`, because a scheduling file that can silently
+drop a module is exactly the "the number was still large enough to look right"
+defect this runner already has one scar from.
 """
 
 from __future__ import annotations
 
 import argparse
 import concurrent.futures as cf
+import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+DURATIONS = ROOT / "tests" / "durations.json"
+
+#: `test_x (test_mod.Class.test_x)` opens a record; the outcome may land on
+#: that line or, when the test has a docstring, on a following one.
+_ID = re.compile(r"^(\w+) \(([\w.]+)\)")
+_OUTCOME = re.compile(
+    r" \.\.\. (ok|FAIL|ERROR|skipped .*|expected failure|unexpected success)$")
 
 
-def run_module(name: str) -> tuple[str, int, int, str]:
+def load_durations() -> dict[str, float]:
+    """Last run's per-module wall times. Any problem reading it is not an error.
+
+    This file is a scheduling hint. It is read defensively on purpose: the
+    worst a missing or malformed one may do is cost a worse ORDER, and a
+    runner that refuses to run because its stopwatch is unreadable has turned
+    an optimisation into an outage.
+    """
+    try:
+        raw = json.loads(DURATIONS.read_text())
+        return {k: float(v) for k, v in raw.items() if isinstance(k, str)}
+    except Exception:
+        return {}
+
+
+def schedule(mods: list[str], durations: dict[str, float]) -> list[str]:
+    """Longest first; unknown modules first of all.
+
+    `mods` is returned permuted and otherwise untouched — same length, same
+    membership. Nothing in here may filter, and `tests/test_parallel_runner.py`
+    holds that line.
+    """
+    return sorted(mods, key=lambda m: (-durations.get(m, float("inf")), m))
+
+
+def parse_ids(stderr: str) -> list[tuple[str, str]]:
+    """(test id, outcome) pairs out of `unittest -v` output."""
+    out: list[tuple[str, str]] = []
+    pending: str | None = None
+    for line in stderr.splitlines():
+        m = _ID.match(line)
+        if m:
+            pending = m.group(2)
+        o = _OUTCOME.search(line)
+        if o and pending:
+            out.append((pending, o.group(1).split()[0]))
+            pending = None
+    return out
+
+
+def run_module(name: str) -> dict:
+    t = time.time()
     proc = subprocess.run(
         [sys.executable, "-m", "unittest", "discover", "-s", "tests",
-         "-p", name],
+         "-p", name, "-v"],
         capture_output=True, text=True, cwd=ROOT)
     ran = sum(int(line.split()[1])
               for line in proc.stderr.splitlines() if line.startswith("Ran "))
-    return name, proc.returncode, ran, proc.stderr
+    return {"mod": name, "rc": proc.returncode, "ran": ran,
+            "sec": time.time() - t, "err": proc.stderr,
+            "ids": parse_ids(proc.stderr)}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("only", nargs="*", help="module name prefixes to run")
     ap.add_argument("-j", type=int, default=min(8, (os.cpu_count() or 4)),
-                    help="worker processes (default: min(8, cpus))")
+                    help="worker processes (default: min(8, cpus); see the "
+                         "module docstring for why this is not cpu_count)")
+    ap.add_argument("--times", action="store_true",
+                    help="print the ranked per-module wall times")
+    ap.add_argument("--ids", metavar="FILE",
+                    help="write every test id and its outcome to FILE")
+    ap.add_argument("--record", action="store_true",
+                    help="refresh tests/durations.json from this run")
     args = ap.parse_args()
 
     mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
@@ -66,21 +183,39 @@ def main() -> int:
 
     t0 = time.time()
     with cf.ThreadPoolExecutor(max_workers=args.j) as ex:
-        results = sorted(ex.map(run_module, mods))
+        results = list(ex.map(run_module, schedule(mods, load_durations())))
+    results.sort(key=lambda r: r["mod"])
+    wall = time.time() - t0
 
-    failed = [r for r in results if r[1] != 0]
-    empty = [r for r in results if r[1] == 0 and r[2] == 0]
-    total = sum(r[2] for r in results)
+    failed = [r for r in results if r["rc"] != 0]
+    empty = [r for r in results if r["rc"] == 0 and r["ran"] == 0]
+    total = sum(r["ran"] for r in results)
 
-    for name, code, ran, err in failed:
-        print(f"\n\033[31m✗ {name}\033[0m")
-        print("\n".join(err.strip().splitlines()[-25:]))
-    for name, _, _, _ in empty:
-        print(f"\n\033[31m✗ {name} ran zero tests\033[0m — it loaded without "
-              f"error and contributed nothing. A module that stops running is "
-              f"a failure, not a smaller total.")
+    for r in failed:
+        print(f"\n\033[31m✗ {r['mod']}\033[0m")
+        print("\n".join(r["err"].strip().splitlines()[-25:]))
+    for r in empty:
+        print(f"\n\033[31m✗ {r['mod']} ran zero tests\033[0m — it loaded "
+              f"without error and contributed nothing. A module that stops "
+              f"running is a failure, not a smaller total.")
 
-    print(f"\n{len(results)} modules · {total} tests · {time.time() - t0:.1f}s "
+    if args.times:
+        print("\n  seconds  tests  module")
+        for r in sorted(results, key=lambda r: -r["sec"]):
+            print(f"  {r['sec']:7.2f}  {r['ran']:5d}  {r['mod']}")
+
+    if args.ids:
+        pathlib.Path(args.ids).write_text("".join(
+            f"{i}\t{o}\n" for r in results for i, o in sorted(r["ids"])))
+
+    if args.record and not args.only:
+        DURATIONS.write_text(json.dumps(
+            {r["mod"]: round(r["sec"], 2) for r in sorted(
+                results, key=lambda r: r["mod"])}, indent=1) + "\n")
+        print(f"recorded {len(results)} module times to "
+              f"{DURATIONS.relative_to(ROOT)}")
+
+    print(f"\n{len(results)} modules · {total} tests · {wall:.1f}s "
           f"· {args.j} workers")
     if failed or empty:
         print(f"\033[31m✗ {len(failed) + len(empty)} module(s) red\033[0m")
