@@ -231,6 +231,41 @@ class _RowLocals:
                     and isinstance(node.targets[0], ast.Name) \
                     and isinstance(node.value, ast.Lambda):
                 self.by_name.setdefault(node.targets[0].id, node.value)
+        #: `local name -> the BLESSED name it IS`. **Round 9's finding, and it
+        #: is the corollary of deleting the shape net**: with the net gone the
+        #: whole static claim rests here, and here recognised the rule by the
+        #: FUNCTION'S NAME rather than by the symbol. A `def` wrapper and a
+        #: name-bound `lambda` were both resolved — the two HARDER
+        #: indirections — and the one-liner was not:
+        #:
+        #:     CAUGHT  fold = lambda s: squash(s)     ESCAPED  fold = squash
+        #:     CAUGHT  def fold(s): return squash(s)  ESCAPED  from tables
+        #:                                                     import squash as fold
+        #:                                            ESCAPED  fold = tables.squash
+        #:
+        #: and the escaping form is **this repository's own idiom**:
+        #: `bin/perry-lint:250` is literally `norm = squash`, seen today only
+        #: because `norm` happens to be in `BLESSED`. The round 9 reviewer
+        #: planted `_fold = squash` into `bin/perry-tasks` — the one converted
+        #: reader the runtime watch does not drive — and `offenders_by_symbol`
+        #: returned `[]` with the whole suite at its three pre-existing
+        #: failures.
+        #:
+        #: This is not a list of names: a name is here because a binding in
+        #: THIS FILE put the blessed function object in it, and for no other
+        #: reason. File-wide rather than per-function, matching `by_name`:
+        #: an import binds at module level and is called from every function
+        #: in the file.
+        self.aliases: dict[str, str] = {}
+        self._resolve_aliases(tree)
+        #: The two frozensets `offenders_by_symbol` actually asks, per file:
+        #: the blessed names plus everything this file bound to one, and the
+        #: RULE names plus everything this file bound to one of those. An
+        #: alias of `header_index` is blessed but is not the rule, exactly as
+        #: `header_index` itself is.
+        self.blessed = frozenset(BLESSED | set(self.aliases))
+        self.rule = frozenset(
+            THE_RULE | {n for n, t in self.aliases.items() if t in THE_RULE})
         #: names holding a ROW (an iterable of cells)
         self.scope: dict[object, set[str]] = {None: set()}
         #: names holding ONE CELL of a row — `for c in split_row(l)`, `h[0]`
@@ -259,6 +294,55 @@ class _RowLocals:
             self._pass()
             if all(self.scope[k] == before[0][k] for k in self.scope) \
                     and all(self.cells[k] == before[1][k] for k in self.cells):
+                break
+
+    def _alias_target(self, value) -> str | None:
+        """The BLESSED name this expression IS, or `None`.
+
+        `squash` -> `squash`; `tables.squash` / `ops.norm` -> the attribute,
+        which is how the rule already travels between this repository's
+        modules; a name already resolved as an alias -> what it resolves to,
+        so `a = squash; fold = a` closes on the second pass.
+        """
+        if isinstance(value, ast.Name):
+            name = value.id
+        elif isinstance(value, ast.Attribute):
+            name = value.attr
+        else:
+            return None                # a call, a lambda, a subscript: not an alias
+        if name in BLESSED:
+            return name
+        return self.aliases.get(name)
+
+    def _resolve_aliases(self, tree: ast.AST) -> None:
+        """Every name this file binds directly to the one rule.
+
+        Three shapes, which are the three the round 9 review planted and
+        measured escaping — `fold = squash`, `from tables import squash as
+        fold`, `fold = tables.squash`. Run to a fixpoint so a chain resolves;
+        four passes is far past any chain a reader would write.
+
+        Deliberately NOT resolved, and recorded as a limit rather than
+        widened: a rebinding through a container (`FOLDS["k"] = squash`), a
+        function that RETURNS the rule (`def picker(): return squash`), and a
+        binding made in another module. The first two are a second-rule shape
+        by another road; the third is a type checker's job and this walk is
+        file-local by construction.
+        """
+        for _ in range(4):
+            before = dict(self.aliases)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    for a in node.names:
+                        if a.asname and a.name in BLESSED:
+                            self.aliases.setdefault(a.asname, a.name)
+                    continue
+                if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                        and isinstance(node.targets[0], ast.Name):
+                    target = self._alias_target(node.value)
+                    if target and node.targets[0].id != target:
+                        self.aliases.setdefault(node.targets[0].id, target)
+            if self.aliases == before:
                 break
 
     def of(self, node) -> object:
@@ -422,26 +506,30 @@ class _RowLocals:
         return False
 
 
-def _blessed_calls(node: ast.AST) -> list[str]:
+def _blessed_calls(node: ast.AST, blessed=BLESSED) -> list[str]:
     """Every BLESSED name applied in this expression, as a mapping function.
 
     `squash(c)` -> ['squash'];  `map(norm, cells)` -> ['norm'].
     A bare `ast.Name` counts only where it is being USED AS the mapping
     function, which is what `_mapping_sites` hands over as the element
     expression.
+
+    `blessed` is the file's own set — `BLESSED` plus every name this file
+    BOUND to one of them (`_RowLocals.blessed`). Round 9 asked `BLESSED`
+    directly and `fold = squash` walked past.
     """
     found: list[str] = []
-    if isinstance(node, ast.Name) and node.id in BLESSED:
+    if isinstance(node, ast.Name) and node.id in blessed:
         found.append(node.id)                    # `map(norm, cells)`
-    if isinstance(node, ast.Attribute) and node.attr in BLESSED:
+    if isinstance(node, ast.Attribute) and node.attr in blessed:
         found.append(node.attr)                  # `map(ops.norm, cells)`
     if isinstance(node, ast.Lambda):
-        found.extend(_blessed_calls(node.body))
+        found.extend(_blessed_calls(node.body, blessed))
     for sub in ast.walk(node):
         if isinstance(sub, ast.Call):
-            if isinstance(sub.func, ast.Attribute) and sub.func.attr in BLESSED:
+            if isinstance(sub.func, ast.Attribute) and sub.func.attr in blessed:
                 found.append(sub.func.attr)
-            elif isinstance(sub.func, ast.Name) and sub.func.id in BLESSED:
+            elif isinstance(sub.func, ast.Name) and sub.func.id in blessed:
                 found.append(sub.func.id)
     return found
 
@@ -493,7 +581,7 @@ def offenders_by_symbol(root) -> list[str]:
         for node in ast.walk(tree):
             # (a) the rule MAPPED across a row.
             for elt, source in _mapping_sites(node):
-                if rows.source(source) and _blessed_calls(elt):
+                if rows.source(source) and _blessed_calls(elt, rows.blessed):
                     hit(node)
             # (b) a loop over a row that accumulates a blessed fold.
             if isinstance(node, (ast.For, ast.AsyncFor)) and rows.source(node.iter):
@@ -503,15 +591,16 @@ def offenders_by_symbol(root) -> list[str]:
                             and sub.func.attr in {"append", "add", "update",
                                                   "insert", "setdefault"} \
                             and sub.args:
-                        if any(_blessed_calls(a) for a in sub.args):
+                        if any(_blessed_calls(a, rows.blessed) for a in sub.args):
                             hit(node)
                     elif isinstance(sub, ast.AugAssign) \
-                            and _blessed_calls(sub.value):
+                            and _blessed_calls(sub.value, rows.blessed):
                         hit(node)
                     elif isinstance(sub, ast.Assign) and any(
                             isinstance(t, ast.Subscript) for t in sub.targets):
-                        if _blessed_calls(sub.value) or any(
-                                _blessed_calls(t.slice) for t in sub.targets
+                        if _blessed_calls(sub.value, rows.blessed) or any(
+                                _blessed_calls(t.slice, rows.blessed)
+                                for t in sub.targets
                                 if isinstance(t, ast.Subscript)):
                             hit(node)
             # (c) the rule applied to ONE CELL of a row — the scalar half.
@@ -519,6 +608,6 @@ def offenders_by_symbol(root) -> list[str]:
                 name = (node.func.id if isinstance(node.func, ast.Name)
                         else node.func.attr if isinstance(node.func, ast.Attribute)
                         else None)
-                if name in THE_RULE and rows.cell(node.args[0]):
+                if name in rows.rule and rows.cell(node.args[0]):
                     hit(node)
     return sorted(set(out))
