@@ -1,7 +1,9 @@
 # TASK-050 round 11 — result
 
 > Branch `coding/task-050-header-index`, forked from `main` at `6c0d041` and
-> merged with `main` by the PMO at `4c2f07a`. Written against
+> merged with `main` by the PMO at `4c2f07a`. **PASSED V4 review; corrected
+> after it in three places, all marked `[review correction N]` below and all
+> re-measured rather than edited.** Written against
 > `perry/evidence/2026-08/TASK-050-spec.md § Amendment 2026-08-29 — USER-904,
 > option C`, which binds.
 >
@@ -34,7 +36,7 @@ and on the rule behind it:
 and a `WATCHED` list that no longer survives its own deletion.** No production
 code changed: `git diff --stat 4c2f07a..HEAD -- bin/ viewer/ schema/ templates/
 packs/ modes/` is empty. The code diff is the same three files under `tests/` —
-762 insertions, 15 deletions.
+863 insertions, 15 deletions.
 
 ---
 
@@ -57,13 +59,15 @@ packs/ modes/` is empty. The code diff is the same three files under `tests/` �
    removing `cmd_intake_write` — now reddens a named test, and so does
    converting a reader, driving it, and not listing it. `WATCHED` was short by
    eight and one of the eight was already being driven (§ 3).
-6. **The corpus plants the shape.** Nine new `DRIFT` entries and two new
-   `CLEAN` controls: `DRIFT` 33 → 42, `CLEAN` 12 → 14 (§ 4).
-7. **Twenty-three mutations, all red; eighteen survival probes over the
-   round's own new machinery, of which ten came back green and are DELETED**
-   rather than kept, and an eleventh green one that was a corpus gap (§ 5,
-   § 1.5).
-8. **R10-2's count is corrected to eight**, as the review said (§ 8).
+6. **The corpus plants the shape.** Fourteen new `DRIFT` entries and two new
+   `CLEAN` controls: `DRIFT` 33 → 47, `CLEAN` 12 → 14 (§ 4).
+7. **Twenty-seven mutations, all red, nine of them single-entry** (§ 5).
+8. **The machinery was swept for branches that survive their own deletion —
+   first by hand (18 probes, 10 deleted) and then MECHANICALLY from the diff
+   (128 candidates, 20 green, none a detection branch)** (§ 1.5).
+9. **R10-2's count is corrected to eight**, as the round 10 review said (§ 8),
+   and the round 11 review's three corrections are applied and re-measured
+   (§ 2.3, § 5, § 1.5).
 
 ---
 
@@ -170,6 +174,16 @@ The shape list, one plant at a time into copies, controls included:
 
 ### 1.5 Ten branches DELETED because nothing measured them
 
+**[review correction 3] The first draft of this section described a sweep of
+eighteen HAND-CHOSEN probes. The review found two branches it never reached —
+the `YieldFrom` step and `ast.Set` in the literal branch — and said the right
+thing about it: a claim that a sweep found everything is a completeness claim.
+So the sweep was rebuilt to take its candidates from `git diff` instead of from
+me.** What follows is the hand sweep (which did real work and is kept, because
+the ten deletions came out of it) and then the mechanical one that replaced it.
+
+### The hand sweep — eighteen probes, ten deleted
+
 Eighteen survival probes were run over the new machinery, each neutralised
 alone. **Ten came back green** — the whole corpus stayed caught **and** the
 live census stayed at 76 sites / 27 static-blind / no offenders — so they were
@@ -191,6 +205,70 @@ index into one, which is how `bin/perry_md_store.py:468` and `:543` and
 (R11-12) now reddens `D42` and only `D42`. The remaining seven probes were red
 from the start and are R11-9, R11-10, R11-11, R11-13, R11-14, R11-16 and R11-17
 in § 5 — seven red, ten deleted, one corpus entry, eighteen in all.
+
+### The mechanical sweep — 128 candidates, taken from the diff
+
+The candidate list is every `if`/`elif` test, every conditional expression and
+every simple statement whose line `git diff -U0 4c2f07a..HEAD --
+tests/header_rule.py` reports as new or changed: **337 lines, 128 candidates.**
+Each mutant is built on the AST and written back with `ast.unparse`, so a
+multi-line condition or a continuation line cannot break the syntax the way a
+text-anchored edit can — and a **control run unparses the tree without mutating
+anything** and stays green, so the round trip itself is not doing the work.
+
+Each candidate is probed against the corpus, and every candidate that comes
+back clean there is probed again against the **runtime** half, so *green* means
+"the whole corpus is still caught AND
+`test_the_uncovered_remainder_is_the_measured_one` is unmoved".
+
+```
+candidates                                        128
+RED in the corpus                                  60
+RED in the watch                                   26
+UNNEUTRALISABLE (the module cannot run without it)  22
+GREEN                                              20
+```
+
+The first run of it found **four more unpinned DETECTION branches** on top of
+the review's two. Each is now planted with the live shape it is for, and each
+is a single-entry mutation in § 5:
+
+| entry | branch it pins | the live shape |
+|---|---|---|
+| `D43` | the `YieldFrom` step | `yield from` re-yields, so it must NOT add an element level |
+| `D44` | `_rpaths_of` by ATTRIBUTE name | `Board.task_tables()`, minus the cross-module root |
+| `D45` | `_bind_element` on a COMPREHENSION generator | the same list of tables walked by a comprehension |
+| `D46` | the `cell()` half of the tuple unpack | `i, cells = row["line"], row["cells"]` |
+| `D47` | the SUBSCRIPT half of the carried write | `spec["header"] = header`, `D24`'s sibling |
+
+`ast.Set` was **deleted** rather than planted: a row is a list, a list is not
+hashable, so a row cannot be an element of a set literal — it survived its own
+deletion because it is unreachable.
+
+**Twenty green mutants remain, and none of them is a detection branch.** They
+are named here rather than counted, because "none is a detection branch" is a
+claim and this is what it rests on:
+
+| green | what it is | why a planting corpus cannot pin it |
+|---|---|---|
+| L418 L419 | `if self.of(node) is not f: continue` in the `yield` loop | an owner filter; only bites on a `yield` inside a nested function |
+| L499 L500 | `if not isinstance(t, ast.Name): continue` | a target-shape guard |
+| L506 L509 L512 L513 L514 | the `bound` flag and its `continue` | round 9's guard against the generic fall-through marking `_` a row |
+| L584 | `_bind_element`'s target guard | same |
+| L609 | `_rpaths_of`'s `isinstance(node, ast.Call)` guard | same |
+| L694 L695 L696 | `source()`'s default-scope normalisation and its `_source_direct` short-circuit | `_paths` calls `_source_direct` itself, and the scalar half catches these bodies independently — defence in depth, the same reason R11-1 does not redden `D38` |
+| L848 L852 L853 L856 | `header_sites`'s `Path(root)`, its two `warnings` filters and its `continue` on an unparseable file | plumbing copied from `offenders_by_symbol` |
+| L877 L878 | the census's ATTRIBUTE half | dead on this tree: all seventeen live carried sites are subscripts. A stated limit of the MEASUREMENT (§ 7.14) |
+
+Two of the twenty — L695 and L418 — were re-verified by hand with
+text-anchored mutations rather than AST ones, because a sweep that disagrees
+with a hand check is a broken sweep. Both agreed.
+
+**What this sweep still does not claim.** It mutates whole `if` tests, not
+individual conjuncts of an `and`; it does not mutate constants, operators or
+f-string contents; and it covers `tests/header_rule.py` only —
+`tests/test_header_index_is_the_only_fold.py`'s new code is probed by the six
+targeted mutations R11-18…R11-23 and by nothing else.
 
 ---
 
@@ -254,10 +332,34 @@ convert  bin/perry-task        task_projection_row
 convert  bin/perry_store.py    plan
 ```
 
-Five need a context object (`ctx`, a `records` list, a `Board` from another
-module) and three need a whole project on disk rather than a document. Each is
-rooted in a call into another module, which is the interprocedural step
-`tests/header_rule.py` is file-local against by construction.
+**[review correction 1] They are open for TWO different reasons, and the first
+draft of this section gave one reason for all eight. It was wrong for three.**
+
+- **Five are rooted in a call into ANOTHER MODULE** — `_cmd_list_from_board`,
+  `task_projection_row`, `perry_md_store § plan` and `perry_store § plan`
+  (both its sites). Each reaches its row through `perry_store.markdown_tables`,
+  `perry_store.intake_table` or a `Board` defined elsewhere.
+  `tests/header_rule.py` is file-local by construction, so these need the
+  interprocedural step the amendment rejects.
+- **Three are NOT.** The `bin/perry-lint` sites reach their row through
+  `tables()`, which is defined at `bin/perry-lint:194`, on top of
+  `tables_with_lines()` at `:209` — **both in the same file**. What they
+  escape through is that **`_paths` has no comprehension branch**:
+  `tables()` is `[(h, [c for c, _ in r]) for h, r in tables_with_lines(...)]`,
+  and a path does not travel through a comprehension's element expression.
+
+  Reproduced here on a synthetic file with **no cross-module call anywhere**:
+  the `bin/perry-lint` shape ESCAPED, and the identical file with the
+  comprehension unrolled into an explicit loop was CAUGHT.
+
+**The consequence, said plainly: the honest target for the next round is 5,
+not 0.** Three of these eight are closable by the same file-local machinery
+this round already built — one more `_paths` case for a comprehension, with
+its own corpus entry and its own mutation — and the remaining five are the
+cross-module limit.
+
+This is the same species of error as round 10's, one rung smaller: *which*
+sites and *how many* were right, *why* was wrong for three of them.
 
 ### 2.4 Reconciliation with the reviewer's twelve
 
@@ -305,7 +407,8 @@ Round 10's review:
 > *"No `DRIFT` entry carries a row through a dict or an attribute … That is the
 > sentence round 9 wrote about `fold = squash`, with a different noun."*
 
-Nine new `DRIFT` entries, each quoting the review line it comes from:
+Fourteen new `DRIFT` entries, each quoting the review line it comes from.
+Nine answer round 10's charge:
 
 | entry | shape |
 |---|---|
@@ -318,6 +421,16 @@ Nine new `DRIFT` entries, each quoting the review line it comes from:
 | `D39` | a table handed over by `yield` |
 | `D40` | a dict-carried row, SCALAR on one cell |
 | `D41` | a dict-carried row folded through `ops.norm` |
+
+Five more came out of the mechanical sweep and the round 11 review (§ 1.5):
+
+| entry | shape |
+|---|---|
+| `D43` | a table RE-YIELDED by `yield from` |
+| `D44` | a table reached through a METHOD of a file-local class |
+| `D45` | a table bound by a COMPREHENSION generator |
+| `D46` | a tuple unpack whose element is one CELL |
+| `D47` | a row written INTO a dict, then folded out of it |
 
 Two new `CLEAN` controls, which are the reason the entries above are not a key-
 name allowlist:
@@ -334,7 +447,7 @@ both sides.
 **The three fractions, computed:**
 
 ```
-DRIFT       caught  : 42 of 42
+DRIFT       caught  : 47 of 47
 CLEAN       flagged : 0 of 14
 SECOND_RULE caught  : 0 of 41 (+2 the reviews do not name)
 ```
@@ -343,41 +456,60 @@ SECOND_RULE caught  : 0 of 41 (+2 the reviews do not name)
 
 ---
 
-## 5. Mutations — twenty-three, all red
+## 5. Mutations — twenty-seven, all red
 
 Each anchored by LINE, asserted against the exact old text before replacing,
 run in a **fresh interpreter**, with `__pycache__` cleared and the clock walked
 past the next whole second on **both** sides, and restored from the WHOLE
 original text with the md5 verified. Every restore printed `MATCHES`.
 
-| # | mutation | reddens |
-|---|---|---|
-| R11-1 | `source()` no longer consults `_paths` | D34 D35 D36 D37 D39 D40 D41 |
-| R11-2 | a dict literal carries nothing | D34 D35 D36 D38 D39 D40 D41 |
-| R11-3 | an attribute carries nothing | **D37 only** |
-| R11-4 | `yield` is not a producer | **D39 only** |
-| R11-5 | `out.append(...)` fills nothing | **D38 only** |
-| R11-6 | a tuple UNPACK carries no paths | **D38 only** |
-| R11-7 | a tuple LOOP target carries no paths | **D39 only** |
-| R11-8 | the path fixpoint runs once | D37 D38 |
-| R11-9 | an attribute ASSIGNMENT carries nothing | **D37 only** |
-| R11-10 | `self.header = …` never reaches the class | **D37 only** |
-| R11-11 | a plain name carries no paths | D34 D35 D37 D38 D40 D41 |
-| R11-12 | a loop target carries no paths | **D42 only** |
-| R11-13 | a list/tuple literal carries nothing | D36 D38 D39 |
-| R11-14 | no tuple POSITION on a literal | D38 D39 |
-| R11-15 | an `elem` subscript yields nothing | D36 D38 |
-| R11-16 | a call carries nothing from its callee | D35 D36 D37 D38 D39 |
-| R11-17 | an IfExp carries nothing | **D38 only** |
-| R11-18 | delete `cmd_intake_write` from `WATCHED` | `test_watched_is_exactly_…` |
-| R11-19 | convert-and-forget `is_intake_register_header` | `test_watched_is_exactly_…` |
-| R11-20 | stop driving the carried-row readers | `…_the_measured_one`, `test_watched_is_exactly_…`, `…_actually_folds_one` |
-| R11-21 | drop one entry from `UNCOVERED` | `test_the_uncovered_remainder_is_the_measured_one` |
-| R11-22 | `Reach` records nothing | `test_the_uncovered_remainder_is_the_measured_one` |
-| R11-23 | call every carried site static | `test_the_uncovered_remainder_is_the_measured_one` |
+**[review correction 2] The first draft of this table was measured before
+`D42` existed and omitted it from five rows — `R11-5` reddens `D38` AND `D42`,
+not `D38` alone. That is the second time on this row that a mutation table has
+been published against a corpus older than itself**: round 10's table predated
+`D32`/`D33` and its reviewer found the same thing about `R10-2`. Both times the
+error was safe-direction (the guard is broader than advertised) and both times
+it was found by someone else. **The table below is re-measured in full against
+the 47-entry corpus, in one run, after the last entry was added** — which is
+the process change, not the numbers.
 
-**Nine single-entry mutations**, which is the precision the round claims. **No
-mutation flagged a `CLEAN` entry.** The fixpoint keeps earning its place
+| # | mutation (anchor) | reddens |
+|---|---|---|
+| R11-1 | `header_rule.py:698` `source()` no longer consults `_paths` | D34 D35 D36 D37 D39 D40 D41 D42 D43 D44 D45 D46 D47 |
+| R11-2 | `:631` a dict literal carries nothing | D34 D35 D36 D38 D39 D40 D41 D42 D43 D44 D45 D46 |
+| R11-3 | `:659` an attribute carries nothing | **D37 only** |
+| R11-4 | `:415` `yield` is not a producer | D39 D43 |
+| R11-5 | `:470` `out.append(...)` fills nothing | D38 D42 D43 D44 D45 |
+| R11-6 | `:501` a tuple UNPACK carries no paths | **D38 only** |
+| R11-7 | `:575` a tuple LOOP target carries no paths | **D39 only** |
+| R11-8 | `:327` the path fixpoint runs once | D37 D38 D42 D43 D44 D45 |
+| R11-9 | `:530` a carried WRITE carries nothing | D37 D47 |
+| R11-10 | `:532` `self.header = …` never reaches the class | **D37 only** |
+| R11-11 | `:538` a plain name carries no paths | D34 D35 D37 D38 D40 D41 D46 |
+| R11-12 | `:586` a loop target carries no paths | D42 D43 D44 D45 |
+| R11-13 | `:639` a list/tuple literal carries nothing | D36 D38 D39 |
+| R11-14 | `:643` no tuple POSITION on a literal | D38 D39 |
+| R11-15 | `:654` an `elem` subscript yields nothing | D36 D38 |
+| R11-16 | `:666` a call carries nothing from its callee | D35 D36 D37 D38 D39 D42 D43 D44 D45 |
+| R11-17 | `:667` an IfExp carries nothing | **D38 only** |
+| R11-24 | `:420` `yield from` adds an element level | **D43 only** |
+| R11-25 | `:520` a SUBSCRIPT write carries nothing | **D47 only** |
+| R11-26 | `:454` a comprehension generator binds no table | **D45 only** |
+| R11-27 | `:504` a tuple unpack has no `cell()` half | **D46 only** |
+| R11-18 | `…only_fold.py:100` delete `cmd_intake_write` from `WATCHED` | `test_watched_is_exactly_…` |
+| R11-19 | `:84` convert-and-forget `is_intake_register_header` | `test_watched_is_exactly_…` |
+| R11-20 | `:435` stop driving the carried-row readers | `…_the_measured_one`, `test_watched_is_exactly_…`, `…_actually_folds_one` |
+| R11-21 | `:126` drop one entry from `UNCOVERED` | `test_the_uncovered_remainder_is_the_measured_one` |
+| R11-22 | `:270` `Reach` records nothing | `test_the_uncovered_remainder_is_the_measured_one` |
+| R11-23 | `header_rule.py:881` call every carried site static | `test_the_uncovered_remainder_is_the_measured_one` |
+
+**Twenty-seven mutations, all red, nine of them single-entry.** **No mutation
+flagged a `CLEAN` entry.** The anchor is given for every row so the next
+reviewer can replay them: the round 11 reviewer could not verify 9 of the 23 in
+the first draft of this table, because the table named the mutation and not the
+line it was made at, and substituted an exhaustive plant sweep and a
+twelve-branch hunt of its own. That substitution is what found corrections 1
+and 3. The fixpoint keeps earning its place
 (R11-8 → two entries). R11-1 does not redden `D38` because the tuple-unpack
 branch writes into `self.scope` directly rather than through `source()`, which
 is defence in depth and is reported rather than tidied.
@@ -401,16 +533,17 @@ unmutated tree: both report 0 escaped, 0 flagged.
 | `bash tests/run` | `4c2f07a`, the merged tree this round started from | 102 | **3034** | 3 |
 | `bash tests/run` | `9d00f1b`, this round's code tip | 102 | **3036** | 3 |
 | `bash tests/run` | `9d00f1b`, a second run after restoring § 9's four files | 102 | **3036** | 3 |
-| `python3 -m unittest … test_header_index_is_the_only_fold.py` | `9d00f1b` | — | 10 | 0 |
-| `python3 -m unittest … test_one_header_rule.py` | `9d00f1b` | — | 13 | 0 |
-| `python3 -m unittest … test_row_integrity.py` | `9d00f1b` | — | 33 | 0 |
-| `python3 -m unittest … test_header_rule_harness.py` | `9d00f1b` | — | 13 | 0 |
+| `bash tests/run` | `3210248`, the tip after the three review corrections | 102 | **3036** | 3 |
+| `python3 -m unittest … test_header_index_is_the_only_fold.py` | `3210248` | — | 10 | 0 |
+| `python3 -m unittest … test_one_header_rule.py` | `3210248` | — | 13 | 0 |
+| `python3 -m unittest … test_row_integrity.py` | `3210248` | — | 33 | 0 |
+| `python3 -m unittest … test_header_rule_harness.py` | `3210248` | — | 13 | 0 |
 
 3034 → 3036 is this round's two new tests, both in
 `test_header_index_is_the_only_fold.py` (8 → 10). The count on `4c2f07a`
 matches the PMO's and the round 10 reviewer's measurement of that tree exactly.
 
-The three failures are the same three names in all three runs, unchanged:
+The three failures are the same three names in all four runs, unchanged:
 
 - `test_diagnose.DecisionsAreCountedPerRecordNotPerMention.test_the_queue_register_reconciles_with_the_queue_on_this_repository`
 - `test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`
@@ -420,8 +553,8 @@ Two of them are data-dependent on board state and one on a row's Next action
 prose, so this count is stated for these two trees and not carried forward.
 
 `offenders_by_symbol` on the live tree, best of three in one process:
-**1.83s** against round 10's **1.47s**. `test_header_rule_harness` is 147s
-against round 10's 156s.
+**1.83s** against round 10's **1.48s**, best of three in one process each.
+`test_header_rule_harness` is 152s against round 10's 156s.
 
 ---
 
@@ -440,9 +573,18 @@ one that changed is limit 1.
    are each rooted in a call into `perry_store` or into a `Board` defined in
    another module. `_RowLocals` is file-local by construction; cross-module
    dataflow is a type checker's job.
-2. **The remainder neither half covers is 8**, listed by name in § 2.3 and
+2. **`_paths` has no comprehension branch, and that is a FILE-LOCAL hole.** A
+   path does not travel through a comprehension's element expression, so
+   `tables()` at `bin/perry-lint:194` —
+   `[(h, [c for c, _ in r]) for h, r in tables_with_lines(section)]`, both
+   functions in that same file — hands its header row on invisibly. **Three of
+   the eight uncovered sites are this and not limit 1**, and they are closable
+   by the machinery this round already built. Found by the round 11 review;
+   `_bind_element` IS called for a comprehension's generators (`D45`), so it is
+   specifically `_paths` that stops at the element expression.
+3. **The remainder neither half covers is 8**, listed by name in § 2.3 and
    recomputed by a named test. It is not zero and this round does not claim it
-   is.
+   is — and **five of the eight, not eight, are the cross-module limit.**
 3. **The `carried` half of the census is a SPELLING**, `CARRIED_KEYS =
    ("header", "headers", "hdr")`. It is used only to COUNT, never by
    `offenders_by_symbol`, and it is documented as such at its definition — but
@@ -472,22 +614,58 @@ one that changed is limit 1.
 8. **`viewer/parsers.py § parse_decisions`** is still a live instance of the
    scalar second-rule class and still dead code. Agreed out of scope.
 9. **The write side, localized headers and non-Python readers are not audited.**
-10. **Ten branches were deleted for being unmeasured** (§ 1.5). Each was dead on
-    this tree; a future reader that writes `d.setdefault("header", row)` or
-    `tables[1:]` would escape until someone plants it. That is a deliberate
-    trade — an unmeasured half is what failed round 8 — and it is stated here
-    so the next round can widen it *with* an entry rather than without one.
+10. **Eleven branches were deleted for being unmeasured** (§ 1.5) — the ten the
+    hand sweep found plus `ast.Set`. Each was dead on this tree; a future reader
+    that writes `d.setdefault("header", row)` or `tables[1:]` would escape until
+    someone plants it. That is a deliberate trade — an unmeasured half is what
+    failed round 8 — and it is stated here so the next round can widen it *with*
+    an entry rather than without one.
 11. **`test_the_row_splitter_half_is_owned_by_criterion_3` still asserts half
     its docstring**: it checks `SPLIT_RE` and not that the scan covers `bin/`
     and `viewer/`. Carried from round 10.
 12. **No reader was driven end-to-end from `argv`.** Round 8's four-CLI
     byte-identical differential is carried, not re-measured.
 13. **`bash tests/run` writes Perry state into the repository it runs in**
-    (§ 9). Observed, not investigated, and outside this row.
+    (§ 9). Observed, reproduced under control, confirmed independently by the
+    round 11 reviewer in its own export, and filed as `TASK-249`. Not this row.
+14. **The census's `carried` half has an ATTRIBUTE branch that is unexercised.**
+    All seventeen live carried sites are subscripts, so neutralising the
+    attribute branch of `header_sites` moves nothing (§ 1.5). It is kept so the
+    census does not silently under-report the day one appears, and it is named
+    here because an unexercised branch of the MEASUREMENT is exactly the kind of
+    thing this row has been failed for leaving unsaid.
+15. **The mechanical sweep is bounded and says so** (§ 1.5, last paragraph): it
+    mutates whole `if` tests rather than individual conjuncts, does not mutate
+    constants or operators, and covers `tests/header_rule.py` only.
 
 ---
 
-## 8. Corrections to round 10's result
+## 7a. What the round 11 review verified independently
+
+Recorded because it is stronger evidence than anything this document could
+produce about itself, and because the next round should not re-run it:
+
+- **The census's static verdict was validated EXHAUSTIVELY**, by planting at
+  **all 76 sites one at a time**: `offenders_by_symbol` agreed with the
+  `static` flag **76 of 76**.
+- **The remainder reproduces on the reviewer's own `sys.settrace`** — 8 by
+  function entry and 8 by line execution, the same eight members — and round
+  10's **20** reproduces exactly.
+- **The reconciliation with the round 10 reviewer's twelve was checked**: 13
+  carried sites in 12 names.
+- **"Provenance, not a key-name list" survived adversarial testing**: a dict
+  keyed `zulu` holding a row is CAUGHT, a key literally named `header` holding
+  non-row values is silent, and `CARRIED_KEYS` is never read by
+  `offenders_by_symbol`.
+- **Nine of the 23 mutations in this document's first draft could not be
+  verified from it**, because the table named each mutation and not the line it
+  was made at. The reviewer substituted the exhaustive plant sweep and a
+  twelve-branch hunt of its own — which is what produced corrections 1 and 3.
+  § 5 now carries the anchor for every row.
+
+---
+
+## 8. Corrections to round 10's result, and to this one
 
 - **R10-2 reddens EIGHT corpus entries, not the six § 3.1 lists.** `D32` and
   `D33` are also alias-resolution dependents; the table predated them. The
@@ -510,10 +688,15 @@ one that changed is limit 1.
    `is_intake_register_header` — was already being driven. The list claimed
    fewer readers than the module actually watched, which is the mirror image of
    round 8's finding that it claimed more.
-2. **Ten branches of this round's own first draft survived their own
-   deletion** and are deleted (§ 1.5). Reported because the sweep that found
-   them is the same instrument the reviewers use, turned on the round's own
-   work before it was submitted.
+2. **Eleven branches of this round's own first draft survived their own
+   deletion** and are deleted, and **five more were unpinned detection branches
+   that are now planted** (§ 1.5). The hand sweep found ten of the eleven; the
+   round 11 review found `ast.Set` and the `YieldFrom` step that the hand sweep
+   never reached, and the mechanical sweep built in answer to that found four
+   more. The lesson is not "sweep harder" — it is that **a candidate list a
+   human writes is a claim about their own code, and this row has been failed
+   three times for claims wider than their measurement.** The candidate list now
+   comes from `git diff`.
 3. **`bash tests/run` writes Perry state into the repository it runs in, and
    it is reproducible.** After this session's baseline run, `git status` in the
    worktree showed four tracked files modified — `.perry/events.jsonl`,
@@ -528,6 +711,10 @@ one that changed is limit 1.
    again with the same one-row sweep and a new timestamp**. The no-op second
    run is the sweep being idempotent — after the first one there is nothing
    left to discharge — not the write being a one-off.
+
+   **Independently confirmed by the round 11 reviewer**, which saw three
+   tracked files move after `bash tests/run` in its own export — a third
+   observation of the same behaviour. Filed as `TASK-249`.
 
    Restored again afterwards; the four md5s match their committed bytes and
    nothing from them is in this branch. Which test does it was not

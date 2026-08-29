@@ -112,12 +112,26 @@ WATCHED = [
 #: (so a `squash` planted on it is watched). What is left is this list, and
 #: `test_the_uncovered_remainder_is_the_measured_one` recomputes it.
 #:
-#: All eight are rooted in a call into ANOTHER MODULE —
+#: **They are open for TWO reasons, and the round 11 review corrected this
+#: comment for giving one reason for all eight.**
+#:
+#: FIVE are rooted in a call into ANOTHER MODULE —
 #: `perry_store.markdown_tables`, `perry_store.intake_table`,
 #: `board.task_tables()` — which is the interprocedural step
-#: `tests/header_rule.py` is file-local by construction against, and the
-#: three `bin/perry-lint` checks need a whole project on disk rather than a
-#: document. They are named here instead of being called empty.
+#: `tests/header_rule.py` is file-local by construction against.
+#:
+#: THREE — the `bin/perry-lint` checks — are NOT. `tables()` is defined at
+#: `bin/perry-lint:194` on top of `tables_with_lines()` at `:209`, both in
+#: that same file. They escape because **`_paths` has no comprehension
+#: branch**: `tables()` is
+#: `[(h, [c for c, _ in r]) for h, r in tables_with_lines(...)]`, and a path
+#: does not travel through a comprehension's element expression. Verified on
+#: a synthetic file with no cross-module call anywhere: the shape escaped,
+#: and the same file with the comprehension unrolled was caught.
+#:
+#: **So the honest target for the next round is FIVE, not zero.** Three of
+#: these are closable by the file-local machinery this round already built.
+#: They are named here instead of being called empty.
 UNCOVERED = [
     ("carried", "bin/perry-task", "_cmd_list_from_board"),
     ("carried", "bin/perry_md_store.py", "plan"),
