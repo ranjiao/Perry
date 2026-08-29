@@ -215,6 +215,31 @@ class TestTheIdParserSeesEveryOutcome(unittest.TestCase):
         self.assertEqual(P.parse_ids(text),
                          [("test_m.C.test_a", "ok"), ("test_m.C.test_b", "FAIL")])
 
+    def test_a_module_whose_ids_do_not_add_up_is_named(self):
+        """The guard that turns a silent undercount into a refusal.
+
+        Without this the failure is invisible by construction: `--ids` writes
+        whatever the parser found, and a set short by fourteen looks exactly
+        like a set that is right.
+        """
+        results = [{"mod": "test_a.py", "ran": 3, "ids": [1, 2, 3]},
+                   {"mod": "test_b.py", "ran": 9, "ids": [1, 2]}]
+        self.assertEqual([r["mod"] for r in P.unaccounted(results)],
+                         ["test_b.py"])
+
+    def test_a_module_that_adds_up_is_not_named(self):
+        self.assertEqual(
+            P.unaccounted([{"mod": "test_a.py", "ran": 2, "ids": [1, 2]}]), [])
+
+    def test_more_ids_than_tests_is_also_a_mismatch(self):
+        """Over-counting is not the safe direction of the same bug — it means
+        the parser invented an id, and a set with a test in it that did not run
+        is as wrong as one missing a test that did."""
+        self.assertEqual(
+            [r["mod"] for r in
+             P.unaccounted([{"mod": "test_a.py", "ran": 1, "ids": [1, 2]}])],
+            ["test_a.py"])
+
     def test_every_test_in_the_live_suites_noisiest_module_is_accounted_for(self):
         """The property, run against a real module rather than a fixture.
 

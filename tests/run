@@ -33,7 +33,9 @@ if [ "${1:-}" = "--lint" ]; then
 fi
 
 step "2. parser / extractor / linter contract tests"
-# Module-parallel: 34 independent modules, 181s serial → ~75s across 8 workers.
+# Module-parallel: 99 independent modules. Measured 2026-08-30, same machine,
+# same hour: 589.6s serial → 133-150s across 8 workers (TASK-230). The floor is
+# one module — test_task_writer.py runs alone for most of that.
 # `--serial` falls back to plain discover; use it when a failure looks like it
 # might be ordering-dependent, since parallel changes the order modules finish.
 if [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Run the suite module-by-module across processes. Stdlib only, like everything else.
 
-`python3 -m unittest discover -s tests` runs the modules one after another and
-took **181s** when there were 34 of them; the same 1287 tests across 8 processes
-took **79s**. The modules are already independent — each builds its own project
-under its own temp dir — so the serialisation bought nothing.
+`python3 -m unittest discover -s tests` runs the modules one after another. On
+2026-08-30 that took **589.6s** for 99 modules / 2904 tests; the same set across
+8 processes took **133-150s** on the same machine within the same hour. The
+modules are already independent — each builds its own project under its own temp
+dir — so the serialisation bought nothing.
 
 **Two guards, because the first version of this runner was wrong in the way
 this repository keeps finding.** It shelled out to `python3 -m unittest
@@ -30,7 +31,7 @@ Exit status is 0 only if every module ran and every test passed.
 
 ## TASK-230: the clock, and the one rule that keeps it from lying
 
-The suite reached 98 modules / 2882 tests and a routine full run stopped being
+The suite reached 99 modules / 2904 tests and a routine full run stopped being
 a nuisance and started producing wrong outcomes: on 2026-08-28 two dispatches
 were killed by a 600-second no-progress watchdog **at the moment they kicked
 off the suite**, and their finished work had to be recovered by hand.
@@ -38,16 +39,44 @@ off the suite**, and their finished work had to be recovered by hand.
 Three things changed here, and the third is the only one that could ever have
 altered a verdict, so it is the one with a guard on it.
 
-**1. Longest module first, and it is the whole speedup.** With 98 modules and
+**1. Longest module first, and it is the whole speedup.** With 99 modules and
 one worker pool the makespan is `max(longest module, total / workers)` only if
 the long modules START early. Alphabetical order does not know which those are,
 and on this suite it is close to worst case: the three most expensive modules —
-`test_task_writer` (322s), `test_store_is_canonical` (234s), `test_store_drift`
-(282s) — sit at alphabetical positions **90, 84 and 83 of 98**, so eight
-workers spend the run on short modules and then draw a five-minute one with
-nothing left to overlap it with. Measured on the 2026-08-29 tree: **446.3s
-alphabetical → 322.1s longest-first at 8 workers, a 124-second saving**, which
-is the theoretical floor for this module set exactly.
+`test_task_writer`, `test_store_drift` and `test_store_is_canonical` — sit at
+alphabetical positions **91, 84 and 85 of 99**, so eight workers spend the run
+on short modules and then draw the longest one with nothing left to overlap it
+with.
+
+Measured 2026-08-30 on a machine that was NOT quiet (another agent's suite runs
+held the load average between 17 and 65 all night, and single measurements
+swung by 2x — see `perry/evidence/2026-08/TASK-230-result.md`). Twelve full
+runs, alternating the two schedules so the load drifted across both arms:
+
+    alphabetical  (5 runs)  179.8  184.4  188.4  203.1  241.1   median 188.4s
+    longest-first (7 runs)  133.1  140.1  149.2  149.7  171.9  247.0  285.0
+                                                            median 149.7s
+
+Wall-clock under that much foreign load is not a measurement, so the arms were
+also compared **against each run's own per-module costs**, which removes the
+drift: for each of four `--times` runs, what would the OTHER schedule have cost
+on exactly these module times?
+
+    run         alphabetical    longest-first   best possible   floor
+    t-alpha-1        179.7            120.1           120.1     120.1
+    t-hint-1         222.9            140.0           140.0     140.0
+    t-alpha-2        241.1            155.4           154.5     154.5
+    t-hint-2         210.4            133.1           133.1     133.1
+
+**The model is exact**: each run's simulated makespan under the schedule it
+actually used reproduces its measured wall-clock to within 0.1s, four times out
+of four. The saving is **33-37%**, and `tests/durations.json` — whose recorded
+values are 3-4x too large, because they were taken under that same foreign load
+— still produces a schedule equal to the perfect-knowledge one in three runs of
+four and within 0.9s in the fourth. That is the hint doing the only job it has.
+
+Total CPU is unchanged and says so: `user+sys` came to ~500s alphabetical and
+~480s longest-first. The same work, finishing sooner.
 
 `tests/durations.json` records what each module cost last time and the pool is
 fed in descending order of it. Modules with no recorded time sort **first**: an
@@ -57,22 +86,29 @@ new module landing last — the very pathology above.
 
 **2. The worker count is deliberately NOT raised, and that is a measurement.**
 `min(8, cpu_count())` looks like a leftover from when there were 34 modules,
-and raising it to 14 on this 14-core machine was the obvious change. Simulating
-the measured module times says it buys **nothing**: once the schedule is
-longest-first the makespan is 322.1s at 8, 12, 14 and 16 workers alike, because
-the binding constraint is no longer how many modules run at once — it is
-`test_task_writer.py` running alone for 322 seconds. More workers past that
-point buy zero seconds and cost real contention, and this suite has a
+and raising it to 14 on this 14-core machine was the obvious change. It buys
+**nothing**: the `floor` column above is `max(longest module, total/workers)`
+and it equals the longest module in all four runs, so once the schedule is
+longest-first the binding constraint is no longer how many modules run at once
+— it is `test_task_writer.py` running alone for two minutes. More workers past
+that point buy zero seconds and cost real contention, and this suite has a
 concurrency test (`test_host_support.TestOpenCodeDispatchLimit`) that is
 already known to flake under it. **A faster-looking suite that flakes is a
 worse gate than a slow one**, so the number stays where it is until the floor
-moves.
+moves. Moving it means splitting `test_task_writer.py`, which is a different
+row: sharding below the file changes the isolation boundary the fixtures
+assume, and this row deliberately did not do it.
 
 **3. `--ids` writes the pass/fail SET, not just its size.** The zero-test guard
 catches a module that stopped loading. It does not catch a module that loaded
 and ran *fewer* tests than it used to — which is the same failure wearing a
 smaller hat. Diffing the id set between two runs catches both, and it is what
 a change to this runner has to be verified against.
+
+**And the set has to be able to prove it is the whole set.** The first version
+of `parse_ids` returned 2885 ids for 2899 tests and said nothing; `--ids` now
+refuses to write a file whose id count disagrees with unittest's own `Ran N`.
+See `parse_ids`.
 
 **The rule the schedule obeys: a hint may reorder the work, never select it.**
 `tests/durations.json` is a **sort key over the glob's own result** and is used
@@ -174,6 +210,18 @@ def parse_ids(stderr: str) -> list[tuple[str, str]]:
     return out
 
 
+def unaccounted(results: list[dict]) -> list[dict]:
+    """Modules whose id list does not account for every test unittest ran.
+
+    Two numbers with independent origins: `ran` is summed from unittest's own
+    `Ran N` line, the ids come from parsing the verbose stream. They must
+    agree, and when they do not the SET is the thing that is wrong — not the
+    count — so the caller refuses to write it rather than writing a set that
+    silently understates. See `parse_ids`.
+    """
+    return [r for r in results if len(r["ids"]) != r["ran"]]
+
+
 def run_module(name: str) -> dict:
     t = time.time()
     proc = subprocess.run(
@@ -237,7 +285,7 @@ def main() -> int:
         for r in sorted(results, key=lambda r: -r["sec"]):
             print(f"  {r['sec']:7.2f}  {r['ran']:5d}  {r['mod']}")
 
-    unaccounted = [r for r in results if len(r["ids"]) != r["ran"]]
+    short = unaccounted(results)
     if args.ids:
         # **A set that cannot account for every test is not the set.** `ran`
         # comes from unittest's own `Ran N` line and the ids come from the
@@ -245,13 +293,13 @@ def main() -> int:
         # Checked only under `--ids`, because that is the mode whose whole
         # output is the set — a run that is only asked for a verdict is not
         # made red by a line the parser could not read.
-        for r in unaccounted:
+        for r in short:
             print(f"\n\033[31m✗ {r['mod']}: unittest ran {r['ran']} tests and "
                   f"the id parser accounted for {len(r['ids'])}\033[0m — "
                   f"`--ids` would understate the set, which is the one thing "
                   f"it may not do.")
-        if unaccounted:
-            print(f"\033[31m✗ no --ids file written\033[0m")
+        if short:
+            print("\033[31m✗ no --ids file written\033[0m")
         else:
             pathlib.Path(args.ids).write_text("".join(
                 f"{i}\t{o}\n" for r in results for i, o in sorted(r["ids"])))
@@ -268,7 +316,7 @@ def main() -> int:
     if failed or empty:
         print(f"\033[31m✗ {len(failed) + len(empty)} module(s) red\033[0m")
         return 1
-    if args.ids and unaccounted:
+    if args.ids and short:
         return 1
     print("\033[32m✓ all green\033[0m")
     return 0
