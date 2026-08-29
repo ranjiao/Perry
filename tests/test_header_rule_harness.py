@@ -1,29 +1,54 @@
-"""The planting harness for the one-header-rule check. TASK-050, round 8.
+"""The planting corpus for the one-header-rule check. TASK-050, round 9.
 
-**Two reviewers have now defeated this harness's corpus.** Round 5 planted nine
-spellings and five escaped both nets; round 7 planted twenty-five and
-twenty-one escaped, while six of eight LEGITIMATE shapes were reported. Those
-two lists are the design document for this file and they are reproduced in it
-rather than paraphrased, because a corpus that loses an entry per round is a
-corpus that loses the entry nobody remembered to retype.
+**Three reviewers have now defeated this file's corpus, and the third defeated
+it by AUDIT rather than by planting.** Round 5 planted nine spellings and five
+escaped both nets; round 7 planted twenty-five and twenty-one escaped; round 8
+reported *"30 of 30 caught"* against a corpus it described as *"the UNION of
+every shape the round 5 and round 7 reviews name"* and *"a superset of round
+7's corpus"* — and it was neither. Round 7's own escape list names *"a scalar
+header-row test"* and *"P23–P25, round 4's `_is_python` hole"*; **none of them
+was in the corpus**, and the labels `P23`–`P25` had been re-used for three
+different shapes, so the omission was invisible in the numbering. The reviewer
+re-derived the missing shapes, planted them with a control at the same paths,
+and all five escaped both nets.
 
-## What this file is FOR in round 8, which is less than it was
+So this file is rebuilt, and it is rebuilt under three rules:
 
-The row was closed by `viewer/tables.py § header_index` — one function that
-folds a header cell, and nothing else in the repository that does. This harness
-does not close it. It **measures** the residual net in `tests/header_rule.py`,
-so that the number in the round's evidence is one somebody ran rather than one
-somebody hoped for.
+1. **Every entry quotes the review line it comes from.** The `source` field is
+   not decoration — it is what makes the denominator auditable instead of
+   asserted. An entry with no quote cannot be checked against the review that
+   produced it, and `test_every_entry_carries_its_provenance` refuses one.
+2. **A label is never re-used for a different shape.** That is the specific
+   mechanism that hid round 8's pruning, and
+   `test_no_label_is_re_used_for_a_different_shape` asserts it directly.
+3. **What escapes is a corpus too, with the same provenance.** Round 8 reported
+   a fraction against the shapes it caught. This reports three fractions, and
+   the one that is zero is the one that matters most to read.
 
-## The corpus, and why the denominator is 30 and not 25
+## The three corpora, and what each measures
 
-Round 7's twenty-five planted readers live in that round's verdict, not in this
-tree, so they cannot be re-run — only re-derived. What is planted below is the
-UNION of every shape the round 5 and round 7 reviews name: the fourteen this
-file already carried plus the sixteen round 7 enumerated as escaping. That is a
-superset of round 7's corpus, so the fraction below is measured against a
-harder denominator than the one the amendment quotes, and it is reported as
-what it is.
+- `DRIFT` — **the net's own class**: the ONE rule (`squash`, or its `norm`
+  alias) applied to a header row, or to a cell of one, outside
+  `viewer/tables.py § header_index`. This is what
+  `tests/header_rule.py § offenders_by_symbol` exists to see and every entry
+  must be caught.
+- `CLEAN` — legitimate code that must never be reported. Criterion 4 of the
+  spec is this list, and round 7 failed it six times out of eight.
+- `SECOND_RULE` — **every shape the round 4, 5 and 7 reviews name, and it is
+  asserted to ESCAPE.** A reader that invents its own rule calls no blessed
+  symbol, so the symbol check is blind to it *by construction*. That is a
+  declared limit, not a defect to be fixed by an eighth detector: seven rounds
+  proved the shape net cannot be finished, and round 8 proved that keeping an
+  unfinished one next to the symbol check puts a false positive in front of
+  correct code. What covers this class is
+  `tests/test_header_index_is_the_only_fold.py`, which watches the real readers
+  parse a decorated document and asks whether every decorated header cell
+  reached `header_index` — a reader that grows its own rule stops reaching it.
+
+**Round 8's shape net (`offenders`) is deleted.** With it went `ROW_NAMES`
+(eleven variable names), the `("header", "headers", "hdr")` subscript test, and
+the `.split("|")` row inference that produced the declared false positive. No
+allowlist of variable names survives anywhere in `tests/header_rule.py`.
 
 Everything is planted into a `tempfile` COPY.
 `work/reference/review-constraints.md` is explicit: for the seconds a planted
@@ -43,483 +68,959 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from header_rule import offenders, readers_under      # noqa: E402
+from header_rule import offenders_by_symbol, readers_under      # noqa: E402
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 
 SHEBANG = "#!/usr/bin/env python3\n"
 
-#: `(label, path to plant at, body)`. The path is as load-bearing as the body:
-#: two historical blind spots were about WHERE the file sat.
-CAUGHT = [
-    # ── rounds 2 to 5, the regression corpus this file already carried ──
-    ("round 2 · the original spelling", "bin/perry-probe-a",
+#: Directories a planted copy does not need. `perry/` is 4 MB of evidence
+#: markdown and holds no reader; `tests/` is this file.
+NOT_COPIED = {".git", "perry", "tests", "__pycache__", ".perry"}
+
+#: `(label, source, path, body)`.
+#:
+#: `source` is the review sentence the entry is derived from, quoted. `path` is
+#: as load-bearing as `body`: three historical blind spots were about WHERE the
+#: file sat and two more about what it was NAMED.
+#:
+#: **DRIFT — the one rule, applied outside `header_index`.** All must be caught.
+DRIFT = [
+    ("D01 comprehension over `split_row`",
+     "round 8 review, M9: `bin/perry-diagnose:1825` -> `[squash(c) for c in "
+     "cells]` (the DRIFT case) — net 1 fires, net 2 correctly does not",
+     "bin/perry-probe-d01",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    cells = split_row(line)\n'
+     '    return [squash(c) for c in cells]\n'),
+
+    ("D02 a tuple-returning file-local function (`ihdr`)",
+     "round 8 review, M9b: `ihdr` reaches the walk only through `_, ihdr = "
+     "board.section_table(...)`, and the returns-dataflow closes it",
+     "bin/perry-probe-d02",
+     'from tables import squash, split_row\n'
+     'def section_table(n):\n'
+     '    return 1, split_row(n)\n'
+     'def read(n):\n'
+     '    _, ihdr = section_table(n)\n'
+     '    return [squash(h) for h in ihdr]\n'),
+
+    ("D03 one element-preserving unwrap (`prev_cells`)",
+     "round 7 Finding 1: `viewer/parsers.py:1827` — `header = [squash(c) for c "
+     "in prev_cells]` in `_table_rows` — GREEN",
+     "bin/perry-probe-d03",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    prev_cells = [c.strip() for c in split_row(line)]\n'
+     '    return [squash(c) for c in prev_cells]\n'),
+
+    ("D04 SCALAR, `squash(cells[0])`",
+     "round 4 verdict: `bin/perry-state:157` — `squash(cells[0]) != \"term\"` "
+     "— reverted to a second rule leaves all 1363 tests green",
+     "bin/perry-probe-d04",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    cells = split_row(line)\n'
+     '    return squash(cells[0]) != "term"\n'),
+
+    ("D05 SCALAR, the `fifth copy` shape",
+     "round 8 review, Finding 1: the scalar class is structural — that is the "
+     "exact shape of the `fifth copy` (viewer/parsers.py:428, "
+     "read_conformance), the copy that produced a real user-visible defect",
+     "bin/perry-probe-d05",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    rel = split_row(line)[0]\n'
+     '    return squash(rel) in ("file", "path")\n'),
+
+    ("D06 `map(norm, row)`",
+     "round 5 review, Finding 2: the `.casefold()` and `map()` blind spots",
+     "bin/perry-probe-d06",
+     'from tables import squash as norm, split_row\n'
+     'def read(line):\n'
+     '    return list(map(norm, split_row(line)))\n'),
+
+    ("D07 a `for`/`append` loop, no comprehension at all",
+     "round 5 review, Finding 1, case H: plain `for` loop with `.append()` "
+     "instead of a comprehension — escapes both",
+     "bin/perry-probe-d07",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    out = []\n'
+     '    for c in split_row(line):\n'
+     '        out.append(squash(c))\n'
+     '    return out\n'),
+
+    ("D08 a dict-comprehension header index",
+     "round 5 review, Finding 1, case F: dict-comprehension header index — "
+     "and case F is LIVE at bin/perry-diagnose:1826",
+     "bin/perry-probe-d08",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    return {squash(c): i for i, c in enumerate(split_row(line))}\n'),
+
+    ("D09 the rule factored into a file-local scalar helper",
+     "round 5 review, Finding 1, case G: the rule factored into a scalar "
+     "helper `_norm` — caught by complement only",
+     "bin/perry-probe-d09",
+     'from tables import squash, split_row\n'
+     'def _key(s):\n'
+     '    return squash(s)\n'
+     'def read(line):\n'
+     '    return [_key(c) for c in split_row(line)]\n'),
+
+    ("D10 a `lambda` folding helper",
+     "round 7 Finding 2: escapes include ... a `lambda` folding helper",
+     "bin/perry-probe-d10",
+     'from tables import squash, split_row\n'
+     'fold = lambda s: squash(s)\n'
+     'def read(line):\n'
+     '    return [fold(c) for c in split_row(line)]\n'),
+
+    ("D11 SCALAR fold of a loop variable",
+     "round 7 Finding 2: escapes include ... a scalar header-row test",
+     "bin/perry-probe-d11",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    for c in split_row(line):\n'
+     '        if squash(c) == "id":\n'
+     '            return True\n'
+     '    return False\n'),
+
+    ("D12 accumulation through `out +=`",
+     "round 7 Finding 2: escapes include ... `out +=`",
+     "bin/perry-probe-d12",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    out = []\n'
+     '    for c in split_row(line):\n'
+     '        out += [squash(c)]\n'
+     '    return out\n'),
+
+    ("D13 a SLICE of the row, `cells[1:]`",
+     "round 7 Finding 2: escapes include ... `cells[1:]`",
+     "bin/perry-probe-d13",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    cells = split_row(line)\n'
+     '    return [squash(c) for c in cells[1:]]\n'),
+
+    ("D14 an ALIASED row parameter, `cs = cells`",
+     "round 7 Finding 2: escapes include ... an aliased row parameter "
+     "(`cs = cells`)",
+     "bin/perry-probe-d14",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    cs = split_row(line)\n'
+     '    ks = cs\n'
+     '    return [squash(c) for c in ks]\n'),
+
+    ("D15 a walrus",
+     "round 7 Finding 2: escapes include ... a walrus",
+     "bin/perry-probe-d15",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    if (cs := split_row(line)):\n'
+     '        return [squash(c) for c in cs]\n'
+     '    return []\n'),
+
+    ("D16 `zip` between the row and its values",
+     "round 7 Finding 2: escapes include ... `zip`",
+     "bin/perry-probe-d16",
+     'from tables import squash, split_row\n'
+     'def read(line, values):\n'
+     '    return {squash(k): v for k, v in zip(split_row(line), values)}\n'),
+
+    ("D17 a parameter this file passes a row to",
+     "round 8 review, Finding 2: for net 1 the allowlist is not load-bearing "
+     "on anything I could construct — so the symbol check is name-free; this "
+     "plants the shape that would need a name if it were not",
+     "bin/perry-probe-d17",
+     'from tables import squash, split_row\n'
+     'def fold(stuff):\n'
+     '    return [squash(c) for c in stuff]\n'
+     'def read(line):\n'
+     '    return fold(split_row(line))\n'),
+
+    ("D18 a re-fold of `header_index`'s OWN output",
+     "TASK-050 spec amendment: no call to `squash` on a row cell exists "
+     "outside `header_index()`",
+     "bin/perry-probe-d18",
+     'from tables import squash, split_row, header_index\n'
+     'def read(line):\n'
+     '    keys = header_index(split_row(line))\n'
+     '    return [squash(k) for k in keys]\n'),
+
+    ("D19 planted in a SUBDIRECTORY",
+     "round 3, carried in this file since round 5: a SUBDIRECTORY was "
+     "invisible",
+     "bin/lib/probe_d19.py",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    return [squash(c) for c in split_row(line)]\n'),
+
+    ("D20 no suffix and NO SHEBANG",
+     "round 4: a file whose first line is a docstring, a `# -*- coding:` line, "
+     "or a licence header is invisible",
+     "bin/probe-d20",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    return [squash(c) for c in split_row(line)]\n'),
+
+    ("D21 a non-`.py` dotted suffix",
+     "round 4: any non-`.py` suffix returns `False` without reading anything "
+     "(line 54) ... the rule is \"trust the extension\"",
+     "bin/probe_d21.reader",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    return [squash(c) for c in split_row(line)]\n'),
+
+    ("D22 OUTSIDE `bin/` and `viewer/`",
+     "round 8 review, Finding 1: ESCAPED R4 · python reader outside bin/ and "
+     "viewer/ (packs/)",
+     "packs/probe_d22.py",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    return [squash(c) for c in split_row(line)]\n'),
+
+    ("D23 `sorted(key=norm)`",
+     "round 7 Finding 2: escapes include ... `sorted(key=str.lower)`",
+     "bin/perry-probe-d23",
+     'from tables import squash as norm, split_row\n'
+     'def read(line):\n'
+     '    return sorted(split_row(line), key=norm)\n'),
+
+    ("D24 a dict-ASSIGNMENT header index",
+     "round 7 Finding 2: escapes include ... a dict-assignment header index",
+     "bin/perry-probe-d24",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    idx = {}\n'
+     '    for i, c in enumerate(split_row(line)):\n'
+     '        idx[squash(c)] = i\n'
+     '    return idx\n'),
+]
+
+#: **Correct code. Criterion 4 of the spec is this list**, and round 7 reported
+#: six of these eight. Round 8 reported one — `C05` — and that one failure is
+#: what failed round 8: appending an ordinary multi-value-cell normalizer to a
+#: real reader turned `bash tests/run` red, and one of the two failing tests
+#: was named `test_value_normalizers_are_not_flagged`.
+CLEAN = [
+    ("C01 the correct reader",
+     "TASK-050 spec amendment: one `header_index()` becomes the only "
+     "function allowed to fold a header cell — this is that shape, and a "
+     "check that reported it would report the answer",
+     "bin/perry-probe-c01",
+     'from tables import header_index, split_row\n'
+     'def read(line):\n    return header_index(split_row(line))\n'),
+
+    ("C02 cells kept VERBATIM",
+     "round 8's harness: the live shape at bin/perry-diagnose",
+     "bin/perry-probe-c02",
+     'from tables import split_row\n'
+     'def read(line):\n    return [c.strip("*` ") for c in split_row(line)]\n'),
+
+    ("C03 a value normalizer over aliases",
+     "spec criterion 4: value normalizers keep their own rules, deliberately",
+     "bin/perry-probe-c03",
+     'def read(aliases):\n    return [a.strip().lower() for a in aliases]\n'),
+
+    ("C04 a value normalizer over directory names",
+     "round 8's harness: the live shape at bin/perry-diagnose",
+     "bin/perry-probe-c04",
+     'def read(inventory):\n    return [d.lower() for d in inventory["dirs"]]\n'),
+
+    ("C05 a MULTI-VALUE CELL split on `|` — round 8's declared false positive",
+     "round 8 review: appending an ordinary multi-value-cell normalizer to a "
+     "real reader turns `bash tests/run` RED, and one of the two failing tests "
+     "is named `test_value_normalizers_are_not_flagged`",
+     "bin/perry-probe-c05",
+     'def tags(cell):\n    return [t.strip().lower() for t in cell.split("|")]\n'),
+
+    ("C06 the same multi-value cell, folded through THE ONE RULE",
+     "round 5 review, latent risk: `tags = [t.strip().lower() for t in "
+     "cell.split(\"|\")]` is flagged — the harder version of C05, because here "
+     "the fold IS `squash` and only the row inference can separate them",
+     "bin/perry-probe-c06",
+     'from tables import squash\n'
+     'def tags(cell):\n    return [squash(t) for t in cell.split("|")]\n'),
+
+    ("C07 the prose keyword tokenizer",
+     "round 7 Finding 4: one character from firing on live code — adding "
+     "`.lower()` to `bin/perry-knowledge:242`'s prose tokenizer",
+     "bin/perry-probe-c07",
+     'import re\n'
+     'def keywords(text):\n'
+     '    return [w.lower() for w in re.findall(r"\\w+", text)]\n'),
+
+    ("C08 a Status/Outcome value normalizer over a row's VALUES",
+     "spec criterion 4: `Status`, `Outcome` and `parse_frequency` normalize "
+     "what a project wrote, not which column it wrote it in",
+     "bin/perry-probe-c08",
+     'def statuses(records):\n'
+     '    return {(r.get("status") or "").strip().lower() for r in records}\n'),
+
+    ("C09 a stage-vocabulary fold over declared spellings",
+     "round 7's eight legitimate shapes, carried since round 8",
+     "bin/perry-probe-c09",
+     'VOCAB = ["New", "In review", "Done"]\n'
+     'def stages():\n    return {v.casefold() for v in VOCAB}\n'),
+
+    ("C10 `squash` of a CANONICAL column name",
+     "round 8 result § 1: scalar `squash` of a canonical column NAME being "
+     "compared against a folded header is untouched and unchecked",
+     "bin/perry-probe-c10",
+     'from tables import squash\n'
+     'def accepted(column):\n    return [squash(n) for n in (column, "id")]\n'),
+
+    ("C11 `squash` of a single VALUE in a file that splits rows",
+     "round 4: add one `squash()` call on a VALUE — which is what "
+     "bin/perry-state, bin/perry-diagnose and bin/perry-explain all "
+     "legitimately do",
+     "bin/perry-probe-c11",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    cells = split_row(line)\n'
+     '    return squash("Status"), cells\n'),
+
+    ("C12 a row transformed but never FOLDED",
+     "TASK-050 spec, opening: `**Default** rung` lowercases to `default** "
+     "rung` and matches nothing — the rule is about the FOLD, and `.upper()` "
+     "resolves no column, so a check that reported this read a shape",
+     "bin/perry-probe-c12",
+     'from tables import split_row\n'
+     'def read(line):\n    return [c.upper() for c in split_row(line)]\n'),
+]
+
+#: **The declared limit, planted and measured rather than described.**
+#:
+#: A reader that invents its OWN rule calls no blessed symbol, so
+#: `offenders_by_symbol` is blind to every entry below *by construction*. This
+#: is the class round 8 reported as "30 of 30 caught" using a net that seven
+#: rounds had defeated and that reported correct code; round 9 deleted that net
+#: and states the consequence as a number.
+#:
+#: What covers this class instead is
+#: `tests/test_header_index_is_the_only_fold.py §
+#: TestTheDecoratedHeaderReachesTheOneFold` — a reader that grows its own rule
+#: stops calling `header_index`, and the decorated cells it used to resolve
+#: stop arriving. `test_a_bolded_kr_header_still_yields_the_KR` is the same
+#: property asserted behaviourally on the one site that historically lost data.
+SECOND_RULE = [
+    ("S01 the original spelling",
+     "round 2: three copies in files that never imported `squash`",
+     "bin/perry-probe-s01",
      "def read(cells):\n    return [c.strip().lower() for c in cells]\n"),
 
-    ("round 3 · the loop subject renamed", "bin/perry-probe-b",
+    ("S02 the loop subject renamed",
+     "round 3: the pattern matched a SPELLING",
+     "bin/perry-probe-s02",
      "def read(header):\n    return [h.strip().lower() for h in header]\n"),
 
-    ("round 3 · planted in a SUBDIRECTORY", "bin/lib/rows_probe.py",
+    ("S03 a second rule in a SUBDIRECTORY",
+     "round 3: a SUBDIRECTORY was invisible",
+     "bin/lib/probe_s03.py",
      "def read(cells):\n    return [c.strip().lower() for c in cells]\n"),
 
-    ("round 4 · the parenthesised comprehension, the live shape",
-     "bin/perry-probe-c",
+    ("S04 the parenthesised comprehension",
+     "round 4: the `[` had to sit right after the `=`",
+     "bin/perry-probe-s04",
+     "from tables import split_row\n"
      "def read(prev, ok):\n"
      "    header = ([c.strip().lower() for c in split_row(prev)] if ok else [])\n"
      "    return header\n"),
 
-    ("round 5 · own splitter AND own rule (the perry-explain shape)",
-     "bin/perry-probe-d",
-     'def read(line):\n'
-     '    return [c.strip("*` ").lower() for c in line.split("|")]\n'),
+    ("S05 a generator expression",
+     "round 4 verdict: nine planted readers ... a dict comprehension, a "
+     "GENERATOR EXPRESSION, a helper whose header parameter is named `titles`",
+     "bin/perry-probe-s05",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     "    return tuple(c.strip().lower() for c in split_row(line))\n"),
 
-    ("round 5 · no suffix, python by shebang only", "bin/perry-probe-e",
-     "def read(columns):\n    return [x.strip().lower() for x in columns]\n"),
+    ("S06 a helper whose header parameter is named `titles`",
+     "round 4 verdict: a helper whose header parameter is named `titles`",
+     "bin/perry-probe-s06",
+     "def read(titles):\n    return [t.strip().lower() for t in titles]\n"),
 
-    ("round 5 review · casefold in a non-splitting helper", "bin/perry-probe-f",
+    ("S07 a list comp whose iterable is named `row`",
+     "round 4 verdict: a list comp whose iterable is named `row`",
+     "bin/perry-probe-s07",
+     "def read(row):\n    return [c.strip().lower() for c in row]\n"),
+
+    ("S08 a bare `return [...]`",
+     "round 4 verdict: a `return [...]`",
+     "bin/perry-probe-s08",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     '    return [c.strip("*` ").lower() for c in split_row(line)]\n'),
+
+    ("S09 a multi-line comprehension",
+     "round 4 verdict: a multi-line comprehension",
+     "bin/perry-probe-s09",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     "    return [\n"
+     '        c.strip("*` ").lower()\n'
+     "        for c in split_row(line)\n"
+     "    ]\n"),
+
+    ("S10 a SCALAR header-row test under `bin/lib/`",
+     "round 4 verdict: a scalar header-row test planted at BOTH "
+     "bin/lib/scalar.py and viewer/scalar_reader.py",
+     "bin/lib/probe_s10.py",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     '    return split_row(line)[0].strip("*` ").lower() == "file"\n'),
+
+    ("S11 the same SCALAR test under `viewer/`",
+     "round 4 verdict: ... and viewer/scalar_reader.py",
+     "viewer/probe_s11.py",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     '    return split_row(line)[0].strip("*` ").lower() == "file"\n'),
+
+    ("S12 a reader with NO shebang and no suffix",
+     "round 4: the SAME BYTES are green at bin/perry-rowdump, red the moment "
+     "`#!/usr/bin/env python3` is prepended",
+     "bin/probe-s12",
+     "def read(cells):\n    return [c.strip().lower() for c in cells]\n"),
+
+    ("S13 a reader with a non-`.py` dotted suffix",
+     "round 4: any non-`.py` suffix returns `False` without reading anything",
+     "bin/probe_s13.reader",
+     "def read(cells):\n    return [c.strip().lower() for c in cells]\n"),
+
+    ("S14 a reader OUTSIDE `bin/` and `viewer/`",
+     "round 8 review, Finding 1: ESCAPED R4 · python reader outside bin/ and "
+     "viewer/ (packs/)",
+     "packs/probe_s14.py",
+     "def read(cells):\n    return [c.strip().lower() for c in cells]\n"),
+
+    ("S15 `.casefold()` in a non-splitting helper",
+     "round 5 review, Finding 1, case A: `.casefold()` in a non-splitting "
+     "helper taking `cells` — escapes both",
+     "bin/perry-probe-s15",
      "def read(cells):\n    return [c.strip().casefold() for c in cells]\n"),
 
-    ("round 5 review · casefold in a file that ALREADY contains `squash`",
-     "bin/perry-probe-g",
+    ("S16 `.casefold()` plus an own splitter, in a file that has `squash`",
+     "round 5 review, Finding 1, case C: `.casefold()` + own splitter, in a "
+     "file that already contains `squash` — escapes both",
+     "bin/perry-probe-s16",
      "from tables import squash\n"
      "def elsewhere(x):\n    return squash(x)\n"
      'def read(line):\n'
      '    return [c.strip().casefold() for c in line.split("|")]\n'),
 
-    ("round 5 review · a PIPE constant splitter", "bin/perry-probe-h",
+    ("S17 a `PIPE` constant splitter",
+     "round 5 review, Finding 1, case D: `.lower()`, splitter via a "
+     "`PIPE = \"|\"` constant — escapes both",
+     "bin/perry-probe-s17",
      'PIPE = "|"\n'
      "def read(line):\n"
      "    return [c.strip().lower() for c in line.split(PIPE)]\n"),
 
-    ("round 5 review · re.split instead of str.split", "bin/perry-probe-i",
+    ("S18 `re.split` instead of `str.split`",
+     "round 5 review, Finding 1, case E: `.lower()`, splitter via "
+     "`re.split(r\"\\|\", line)` — escapes both",
+     "bin/perry-probe-s18",
      "import re\n"
      "def read(line):\n"
      '    return [c.strip().lower() for c in re.split(r"\\|", line)]\n'),
 
-    ("round 5 review · a for/append loop, no comprehension at all",
-     "bin/perry-probe-j",
+    ("S19 a `for`/`append` loop with a second rule",
+     "round 5 review, Finding 1, case H: plain `for` loop with `.append()` "
+     "instead of a comprehension — escapes both",
+     "bin/perry-probe-s19",
      "def read(cells):\n"
      "    out = []\n"
      "    for c in cells:\n"
      "        out.append(c.strip().lower())\n"
      "    return out\n"),
 
-    ("round 5 review · dict-comprehension header INDEX over enumerate()",
-     "bin/perry-probe-k",
+    ("S20 a dict-comprehension header index with a second rule",
+     "round 5 review, Finding 1, case F: dict-comprehension header index",
+     "bin/perry-probe-s20",
      "def read(cells):\n"
      "    return {c.strip().lower(): i for i, c in enumerate(cells)}\n"),
 
-    ("round 5 review · the rule factored into a scalar helper",
-     "bin/perry-probe-l",
+    ("S21 the second rule factored into a scalar helper `_norm`",
+     "round 5 review, Finding 1, case G: the rule factored into a scalar "
+     "helper `_norm`",
+     "bin/perry-probe-s21",
      'def _norm(s):\n    return s.strip("*` ").lower()\n'
+     "from tables import split_row\n"
      "def read(line):\n    return [_norm(c) for c in split_row(line)]\n"),
 
-    ("round 5 review · map() instead of a comprehension", "bin/perry-probe-m",
+    ("S22 `map()` instead of a comprehension",
+     "round 5 review, Finding 2: the `.casefold()` and `map()` blind spots",
+     "bin/perry-probe-s22",
      "def read(cells):\n    return list(map(str.lower, cells))\n"),
 
-    # ── round 7's sixteen, the ones that failed the seventh round ──
-    ("round 7 · P21, `split_row` on its own line — THE decisive one",
-     "bin/perry-probe-p21",
+    ("S23 the round 5 DECISIVE case, appended to `viewer/parsers.py`",
+     "round 5 review, Finding 2: `def parse_foreign_board_header(line): "
+     "return [c.strip(\"*` \").casefold() for c in line.split(\"|\") if "
+     "c.strip()]` — both guards reporting nothing",
+     "viewer/probe_s23.py",
+     "def parse_foreign_board_header(line):\n"
+     '    return [c.strip("*` ").casefold() for c in line.split("|") '
+     "if c.strip()]\n"),
+
+    ("S24 P21, `split_row` on its own line",
+     "round 7 Finding 2: P21 is the one that matters — `parts = "
+     "split_row(line)` then `[c.strip(\"*` \").casefold() for c in parts]`, "
+     "the most ordinary spelling there is",
+     "bin/perry-probe-s24",
+     "from tables import split_row\n"
      "def parse_foreign_header_v2(line):\n"
      "    parts = split_row(line)\n"
      '    return [c.strip("*` ").casefold() for c in parts]\n'),
 
-    ("round 7 · a SLICE of the row, `cells[1:]`", "bin/perry-probe-p22",
+    ("S25 a SLICE of the row with a second rule",
+     "round 7 Finding 2: escapes include `cells[1:]`",
+     "bin/perry-probe-s25",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    cells = split_row(line)\n"
      "    return [c.strip().lower() for c in cells[1:]]\n"),
 
-    ("round 7 · a dict-ASSIGNMENT header index, not a comprehension",
-     "bin/perry-probe-p23",
+    ("S26 a dict-ASSIGNMENT header index with a second rule",
+     "round 7 Finding 2: escapes include a dict-assignment header index",
+     "bin/perry-probe-s26",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    idx = {}\n"
      "    for i, c in enumerate(split_row(line)):\n"
      "        idx[c.strip().lower()] = i\n"
      "    return idx\n"),
 
-    ("round 7 · a `lambda` folding helper", "bin/perry-probe-p24",
+    ("S27 a `lambda` second-rule helper",
+     "round 7 Finding 2: escapes include a `lambda` folding helper",
+     "bin/perry-probe-s27",
      'fold = lambda s: s.strip("*` ").lower()\n'
+     "from tables import split_row\n"
      "def read(line):\n    return [fold(c) for c in split_row(line)]\n"),
 
-    ("round 7 · TWO levels of local indirection", "bin/perry-probe-p25",
-     'def _low(s):\n    return s.lower()\n'
+    ("S28 TWO levels of local indirection",
+     "round 7 Finding 2: escapes include two-level local indirection",
+     "bin/perry-probe-s28",
+     "def _low(s):\n    return s.lower()\n"
      'def _key(s):\n    return _low(s.strip("*` "))\n'
+     "from tables import split_row\n"
      "def read(line):\n    return [_key(c) for c in split_row(line)]\n"),
 
-    ("round 7 · the splitter on a CLASS ATTRIBUTE", "bin/perry-probe-p26",
+    ("S29 the splitter on a CLASS ATTRIBUTE",
+     "round 7 Finding 2: escapes include a splitter on a class attribute",
+     "bin/perry-probe-s29",
      'class Fmt:\n    SEP = "|"\n'
      "def read(line):\n"
      "    return [c.strip().lower() for c in line.split(Fmt.SEP)]\n"),
 
-    ("round 7 · the splitter in a DICT", "bin/perry-probe-p27",
+    ("S30 the splitter in a DICT",
+     "round 7 Finding 2: escapes include a splitter ... in a dict",
+     "bin/perry-probe-s30",
      'SEPS = {"row": "|"}\n'
      "def read(line):\n"
      '    return [c.strip().lower() for c in line.split(SEPS["row"])]\n'),
 
-    ("round 7 · an ALIASED row parameter, `cs = cells`", "bin/perry-probe-p28",
+    ("S31 an ALIASED row parameter with a second rule",
+     "round 7 Finding 2: escapes include an aliased row parameter "
+     "(`cs = cells`)",
+     "bin/perry-probe-s31",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    cs = split_row(line)\n"
      "    ks = cs\n"
      "    return [c.strip().lower() for c in ks]\n"),
 
-    ("round 7 · `sorted(key=str.lower)`", "bin/perry-probe-p29",
+    ("S32 `sorted(key=str.lower)`",
+     "round 7 Finding 2: escapes include `sorted(key=str.lower)`",
+     "bin/perry-probe-s32",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    return sorted(split_row(line), key=str.lower)\n"),
 
-    ("round 7 · `filter` instead of a comprehension", "bin/perry-probe-p30",
+    ("S33 `filter` instead of a comprehension",
+     "round 7 Finding 2: escapes include `filter`",
+     "bin/perry-probe-s33",
+     "from tables import split_row\n"
      "def read(line):\n"
      '    return list(filter(lambda c: c.lower() == "id", split_row(line)))\n'),
 
-    ("round 7 · accumulation through `out.add`", "bin/perry-probe-p31",
+    ("S34 accumulation through `out.add`",
+     "round 7 Finding 2: escapes include `out.add`",
+     "bin/perry-probe-s34",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    out = set()\n"
      "    for c in split_row(line):\n"
      "        out.add(c.strip().casefold())\n"
      "    return out\n"),
 
-    ("round 7 · accumulation through `out +=`", "bin/perry-probe-p32",
+    ("S35 accumulation through `out +=`",
+     "round 7 Finding 2: escapes include `out +=`",
+     "bin/perry-probe-s35",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    out = []\n"
      "    for c in split_row(line):\n"
      "        out += [c.strip().lower()]\n"
      "    return out\n"),
 
-    ("round 7 · `zip` between the row and its values", "bin/perry-probe-p33",
+    ("S36 `zip` between the row and its values",
+     "round 7 Finding 2: escapes include `zip`",
+     "bin/perry-probe-s36",
+     "from tables import split_row\n"
      "def read(line, values):\n"
      "    return {k.lower(): v for k, v in zip(split_row(line), values)}\n"),
 
-    ("round 7 · a walrus", "bin/perry-probe-p34",
+    ("S37 a walrus",
+     "round 7 Finding 2: escapes include a walrus",
+     "bin/perry-probe-s37",
+     "from tables import split_row\n"
      "def read(line):\n"
      "    if (cs := split_row(line)):\n"
      "        return [c.strip().lower() for c in cs]\n"
      "    return []\n"),
 
-    ("round 7 · `functools.partial` of a folding helper",
-     "bin/perry-probe-p35",
+    ("S38 `functools.partial` of a folding helper",
+     "round 7 Finding 2: escapes include `functools.partial`",
+     "bin/perry-probe-s38",
      "import functools\n"
-     'def _norm(pad, s):\n    return s.strip(pad).lower()\n'
+     "from tables import split_row\n"
+     "def _norm(pad, s):\n    return s.strip(pad).lower()\n"
      'key = functools.partial(_norm, "*` ")\n'
      "def read(line):\n    return [key(c) for c in split_row(line)]\n"),
 
-    ("round 7 · `str.translate` as the fold", "bin/perry-probe-p36",
+    ("S39 a SCALAR header-row test",
+     "round 7 Finding 2: escapes include ... a scalar header-row test — "
+     "ABSENT from round 8's corpus, and re-derived by round 8's reviewer as "
+     "ESCAPED R7 · a SCALAR header-row test (the `fifth copy` shape, "
+     "parsers.py:428)",
+     "bin/perry-probe-s39",
+     "from tables import split_row\n"
+     "def read(line):\n"
+     "    cells = split_row(line)\n"
+     '    return cells[0].strip("*` ").lower() == "file"\n'),
+
+    ("S40 a SCALAR test on a header cell, `header` variable",
+     "round 8 review, Finding 1: ESCAPED R7 · scalar test on a header cell, "
+     "header var (`header[0].strip().lower()`)",
+     "bin/perry-probe-s40",
+     "def read(header):\n"
+     '    return header[0].strip().lower() == "file"\n'),
+
+    ("S41 `str.translate` as the fold",
+     "round 7 Finding 2: escapes include `str.translate`",
+     "bin/perry-probe-s41",
+     "from tables import split_row\n"
      "TBL = str.maketrans({})\n"
      "def read(line):\n"
      "    return [c.translate(TBL) for c in split_row(line)]\n"),
 ]
 
-#: Shapes that must NOT be reported. **Half of this guard's job**, and the half
-#: round 7 failed six times out of eight: *"the check is simultaneously blind to
-#: four of this tree's own header resolutions and loud about a keyword
-#: tokenizer."* Criterion 4 of the spec is exactly this line.
-CLEAN = [
-    ("the correct reader", "bin/perry-probe-n",
-     "from tables import header_index, split_row\n"
-     "def read(line):\n    return header_index(split_row(line))\n"),
-
-    ("cells kept VERBATIM — the live shape at bin/perry-diagnose",
-     "bin/perry-probe-o",
-     'def read(line):\n    return [c.strip("*` ") for c in split_row(line)]\n'),
-
-    ("a value normalizer over aliases", "bin/perry-probe-p",
-     "def read(aliases):\n    return [a.strip().lower() for a in aliases]\n"),
-
-    ("a value normalizer over directory names — the live shape at "
-     "bin/perry-diagnose", "bin/perry-probe-q",
-     'def read(inventory):\n    return [d.lower() for d in inventory["dirs"]]\n'),
-
-    # ── round 7's four, of which it reported six of eight ──
-    ("round 7 FP1 · a MULTI-VALUE CELL split on `|` — round 5 recorded this "
-     "as a latent risk and round 7 made it live", "bin/perry-probe-fp1",
-     'def tags(cell):\n    return [t.strip().lower() for t in cell.split("|")]\n'),
-
-    ("round 7 · the prose keyword tokenizer, one character from firing",
-     "bin/perry-probe-fp2",
-     "import re\n"
-     "def keywords(text):\n"
-     '    return [w.lower() for w in re.findall(r"\\w+", text)]\n'),
-
-    ("round 7 · a Status/Outcome value normalizer over a row's VALUES",
-     "bin/perry-probe-fp3",
-     "def statuses(records):\n"
-     '    return {(r.get("status") or "").strip().lower() for r in records}\n'),
-
-    ("round 7 · a stage-vocabulary fold over declared spellings",
-     "bin/perry-probe-fp4",
-     'VOCAB = ["New", "In review", "Done"]\n'
-     "def stages():\n    return {v.casefold() for v in VOCAB}\n"),
-]
+#: **What the reviews name but this corpus cannot reconstruct.** Round 5's
+#: Finding 1 says *"a nine-case probe and five escaped both nets"* and its table
+#: names seven of the nine — cases `B` and `I` appear in no sentence of the
+#: review. They are counted in the denominator below and not planted, because
+#: inventing a shape and labelling it `B` is exactly the substitution that hid
+#: round 8's pruning.
+UNRECOVERABLE = 2
 
 
-#: **The one legitimate shape this check still reports, named rather than
-#: excused.** `line.split("|")` (a home-made row splitter — round 5's decisive
-#: case, and probes d/g/h/i/p26/p27) and `cell.split("|")` (a multi-value cell)
-#: are the same program up to the RECEIVER'S NAME. Separating them needs a list
-#: of variable names, which is exactly what round 7 failed the row for, so this
-#: one is left flagged and declared instead of being closed with an allowlist.
-#: `TestTheOneFalsePositiveIsDeclared` asserts it, so the day the design makes
-#: it decidable this file goes red and the entry gets deleted.
-DECLARED_FALSE_POSITIVE = "bin/perry-probe-fp1"
-
-
-def plant(where: str, body: str) -> Path:
-    """Copy `bin/` and `viewer/` into a temp root and plant one file in it."""
-    tmp = Path(tempfile.mkdtemp(prefix="perry-header-harness-"))
-    for d in ("bin", "viewer"):
-        shutil.copytree(PERRY_HOME / d, tmp / d,
-                        ignore=shutil.ignore_patterns("__pycache__"))
-    target = tmp / where
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(SHEBANG + body)
+def _copy() -> Path:
+    """One `tempfile` copy of the tree, for planting into."""
+    tmp = Path(tempfile.mkdtemp(prefix="perry-header-r9-"))
+    shutil.copytree(PERRY_HOME, tmp / "t",
+                    ignore=lambda d, names: [n for n in names
+                                             if n in NOT_COPIED])
     return tmp
 
 
-def measure() -> tuple[list[str], list[str]]:
-    """`(planted readers that ESCAPED, legitimate shapes that were FLAGGED)`.
+def _hits(root: Path, where: str) -> list[str]:
+    """What the net reports about the file planted at `where`.
 
-    The number this round reports, computed rather than asserted, so the
-    evidence file quotes a run.
+    Matched on the FULL relative path, not the basename: this corpus plants at
+    `bin/`, `bin/lib/`, `viewer/` and `packs/`, and a basename match would read
+    a hit in one directory as a hit in another — which is how a scan that never
+    looked at a directory reports success there.
     """
-    escaped, flagged = [], []
-    for label, where, body in CAUGHT:
-        tmp = plant(where, body)
-        try:
-            if not [o for o in offenders(tmp) if Path(where).name in o]:
-                escaped.append(label)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-    for label, where, body in CLEAN:
-        tmp = plant(where, body)
-        try:
-            if [o for o in offenders(tmp) if Path(where).name in o]:
-                flagged.append(label)
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
-    return escaped, flagged
+    return [o for o in offenders_by_symbol(root) if o.startswith(where + ":")]
+
+
+def _plant(root: Path, where: str, body: str) -> Path:
+    target = root / where
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(SHEBANG + body)
+    return target
+
+
+def measure() -> dict:
+    """The three fractions, computed rather than asserted."""
+    tmp = _copy()
+    root = tmp / "t"
+    out = {"drift_escaped": [], "clean_flagged": [], "second_rule_caught": []}
+    try:
+        for key, corpus in (("drift_escaped", DRIFT),
+                            ("clean_flagged", CLEAN),
+                            ("second_rule_caught", SECOND_RULE)):
+            for label, _source, where, body in corpus:
+                target = _plant(root, where, body)
+                try:
+                    hit = bool(_hits(root, where))
+                    if (key == "drift_escaped" and not hit) \
+                            or (key != "drift_escaped" and hit):
+                        out[key].append(label)
+                finally:
+                    target.unlink(missing_ok=True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return out
+
+
+class TestTheCorpusIsAuditable(unittest.TestCase):
+    """**The three rules the rebuild is under.** Round 8's corpus failed all
+    three: it dropped four shapes two reviews had named, re-used three labels
+    for different shapes so the drop was invisible in the numbering, and cited
+    no source for any entry."""
+
+    def all_entries(self):
+        return DRIFT + CLEAN + SECOND_RULE
+
+    def test_no_label_is_re_used_for_a_different_shape(self):
+        """The specific mechanism that hid round 8's pruning: *"the labels
+        P23–P25 were re-used for three DIFFERENT shapes, so the omission is
+        invisible in the numbering."*"""
+        labels = [e[0] for e in self.all_entries()]
+        dupes = sorted({l for l in labels if labels.count(l) > 1})
+        self.assertEqual(dupes, [], f"labels re-used: {dupes}")
+        keys = [l.split()[0] for l in labels]
+        dupes = sorted({k for k in keys if keys.count(k) > 1})
+        self.assertEqual(dupes, [], f"label KEYS re-used: {dupes}")
+
+    def test_every_entry_carries_its_provenance(self):
+        """A denominator you cannot audit is a denominator you cannot trust.
+        Every entry quotes the review sentence it is derived from."""
+        for label, source, _where, _body in self.all_entries():
+            with self.subTest(label):
+                self.assertTrue(source and len(source) > 30,
+                                f"{label} cites no review line")
+                self.assertRegex(source.lower(), r"round \d|spec|task-050")
+
+    def test_no_two_entries_are_planted_at_the_same_path(self):
+        """Two shapes at one path is one shape measured twice."""
+        paths = [e[2] for e in self.all_entries()]
+        dupes = sorted({p for p in paths if paths.count(p) > 1})
+        self.assertEqual(dupes, [], f"paths re-used: {dupes}")
+
+    def test_the_denominator_is_at_least_round_8s_honest_one(self):
+        """Round 8's reviewer put the honest denominator at *"30 of at least
+        33"*. The rebuilt second-rule corpus alone is larger than that, and it
+        is larger because it was derived from the reviews rather than from the
+        previous corpus."""
+        self.assertGreaterEqual(len(SECOND_RULE) + UNRECOVERABLE, 33)
 
 
 class TestTheCopyItselfIsClean(unittest.TestCase):
-    """The control. Without it every result below is unreadable."""
+    """The controls. Without them every result below is unreadable."""
 
     def test_an_unplanted_copy_reports_nothing(self):
-        tmp = plant("bin/perry-probe-none", "x = 1\n")
+        tmp = _copy()
         try:
-            self.assertEqual(offenders(tmp), [])
+            self.assertEqual(offenders_by_symbol(tmp / "t"), [])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_the_copy_carries_the_readers(self):
         """A copy that lost the tree would make every scan below vacuous."""
-        tmp = plant("bin/perry-probe-none", "x = 1\n")
+        tmp = _copy()
         try:
-            self.assertGreater(len(readers_under(tmp)),
-                               len(readers_under(PERRY_HOME)) - 5)
+            self.assertEqual(len(readers_under(tmp / "t")),
+                             len(readers_under(PERRY_HOME)))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_the_control_is_caught_at_every_path_the_corpus_uses(self):
+        """**Round 8's reviewer's method, adopted.** A planting that escapes
+        proves nothing until a control planted at the SAME PATH is caught —
+        otherwise "escaped" and "the scan never looked here" are the same
+        result. This plants the same offending body at every distinct directory
+        the corpus uses."""
+        tmp = _copy()
+        root = tmp / "t"
+        control = ('from tables import squash, split_row\n'
+                   'def read(line):\n'
+                   '    return [squash(c) for c in split_row(line)]\n')
+        dirs = sorted({str(Path(e[2]).parent) for e in DRIFT + SECOND_RULE})
+        try:
+            for d in dirs:
+                where = f"{d}/perry-probe-control"
+                with self.subTest(where):
+                    target = _plant(root, where, control)
+                    try:
+                        self.assertTrue(
+                            _hits(root, where),
+                            f"the control planted at {where} was NOT caught, "
+                            f"so nothing this corpus reports about {d} means "
+                            f"anything")
+                    finally:
+                        target.unlink(missing_ok=True)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-class TestEveryEscapedSpellingIsReported(unittest.TestCase):
-    """Every shape either review has named, on every run."""
+class TestTheDriftCorpusIsCaught(unittest.TestCase):
+    """**The net's own class, and every entry must be caught.**
 
-    def test_each_planted_reader_is_caught(self):
-        for label, where, body in CAUGHT:
-            with self.subTest(label):
-                tmp = plant(where, body)
-                try:
-                    found = offenders(tmp)
-                    hits = [o for o in found if Path(where).name in o]
-                    self.assertTrue(
-                        hits,
-                        f"planted a divergent reader at {where} ({label}) and "
-                        f"the check reported nothing about it. Reported: "
-                        f"{found}")
-                finally:
-                    shutil.rmtree(tmp, ignore_errors=True)
+    The one rule applied to a header row, or to a cell of one, outside
+    `header_index`. This is what the amendment asks the guard to be: *"no call
+    to `squash` on a row cell exists outside `header_index()`. State it over the
+    symbol, not over a shape."*
+    """
+
+    def test_each_drift_shape_is_caught(self):
+        tmp = _copy()
+        root = tmp / "t"
+        try:
+            for label, source, where, body in DRIFT:
+                with self.subTest(label):
+                    target = _plant(root, where, body)
+                    try:
+                        self.assertTrue(
+                            _hits(root, where),
+                            f"planted the ONE RULE outside `header_index` at "
+                            f"{where} ({label}) and the check reported nothing "
+                            f"about it. Source: {source}")
+                    finally:
+                        target.unlink(missing_ok=True)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class TestCorrectCodeIsNotReported(unittest.TestCase):
-    """The other half. A check that flags correct code gets switched off."""
+    """**Criterion 4, and it is now ZERO rather than one.**
+
+    Round 7 reported six of eight legitimate shapes. Round 8 reported one and
+    declared it, and that one declaration is what failed round 8: the shape it
+    declared is an ordinary value normalizer, and appending one to a real reader
+    turned the suite red. The inference that produced it — treating any
+    `.split("|")` as a row's cells — is deleted, so `C05` and `C06` are silent
+    for a structural reason and not by an exception.
+    """
 
     def test_each_clean_shape_is_left_alone(self):
-        for label, where, body in CLEAN:
-            if where == DECLARED_FALSE_POSITIVE:
-                continue                # asserted below, as a known result
-            with self.subTest(label):
-                tmp = plant(where, body)
-                try:
-                    hits = [o for o in offenders(tmp)
-                            if Path(where).name in o]
-                    self.assertEqual(
-                        hits, [],
-                        f"{label} at {where} was reported, and it is correct "
-                        f"code — this is the false-positive failure every "
-                        f"round of this row has warned about")
-                finally:
-                    shutil.rmtree(tmp, ignore_errors=True)
-
-
-class TestTheOneFalsePositiveIsDeclared(unittest.TestCase):
-    """Round 7 reported SIX of eight legitimate shapes. This reports ONE, and
-    that one is stated as a result rather than left to a reviewer to find.
-
-    The check treats a split on a `|` as a row's cells. That is what catches a
-    reader carrying its own row splitter — the shape round 5's decisive case
-    used and the shape criterion 3 forbids. It cannot tell `line.split("|")`
-    from `cell.split("|")`, because nothing in the two expressions differs
-    except the receiver's name, and a check that reads variable names is the
-    thing this round exists to stop building.
-    """
-
-    def test_the_multi_value_cell_normalizer_is_still_reported(self):
-        label, where, body = next(c for c in CLEAN
-                                  if c[1] == DECLARED_FALSE_POSITIVE)
-        tmp = plant(where, body)
+        tmp = _copy()
+        root = tmp / "t"
         try:
-            hits = [o for o in offenders(tmp) if Path(where).name in o]
-            self.assertTrue(
-                hits,
-                "the declared false positive is gone — good news. Delete "
-                "DECLARED_FALSE_POSITIVE and this test, and put the shape "
-                "back under TestCorrectCodeIsNotReported.")
+            for label, source, where, body in CLEAN:
+                with self.subTest(label):
+                    target = _plant(root, where, body)
+                    try:
+                        self.assertEqual(
+                            _hits(root, where), [],
+                            f"{label} at {where} was reported, and it is "
+                            f"correct code — the false-positive failure every "
+                            f"round of this row has warned about. "
+                            f"Source: {source}")
+                    finally:
+                        target.unlink(missing_ok=True)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    def test_it_is_undecidable_and_that_is_asserted_not_argued(self):
-        """The offender and the false positive, run side by side."""
-        pairs = [("bin/perry-probe-fp1",
-                  'def tags(cell):\n'
-                  '    return [t.strip().lower() for t in cell.split("|")]\n'),
-                 ("bin/perry-probe-d",
-                  'def read(line):\n'
-                  '    return [t.strip().lower() for t in line.split("|")]\n')]
-        seen = []
-        for where, body in pairs:
-            tmp = plant(where, body)
-            try:
-                seen.append(bool([o for o in offenders(tmp)
-                                  if Path(where).name in o]))
-            finally:
-                shutil.rmtree(tmp, ignore_errors=True)
-        self.assertEqual(seen[0], seen[1],
-                         "these two differ only in the RECEIVER'S NAME; a "
-                         "check that separated them read the name")
+    def test_the_multi_value_cell_normalizer_is_not_reported_either_way(self):
+        """**The test round 8's reviewer asked for, asserting what it claims.**
 
+        Round 8 asserted only that `cell.split("|")` and `line.split("|")` get
+        the SAME verdict — which *"any name-blind check satisfies, including one
+        that flags neither"*. It measured name-blindness, not undecidability.
 
-class TestTheReviewersDecisiveCase(unittest.TestCase):
-    """The exact planting that failed round 5, appended to the exact file."""
-
-    BODY = ('\n\ndef parse_foreign_board_header(line):\n'
-            '    return [c.strip("*` ").casefold() '
-            'for c in line.split("|") if c.strip()]\n')
-
-    def test_it_is_reported_now(self):
-        tmp = Path(tempfile.mkdtemp(prefix="perry-header-decisive-"))
+        The claim now is stronger and is what the design actually buys: BOTH are
+        silent, because neither is a row unless `split_row` produced it. The
+        home-made splitter in the second one is not this check's business —
+        criterion 3 owns it, and `tests/test_row_integrity.py §
+        test_no_tool_splits_a_row_on_a_raw_pipe` reports a bare `.split("|")`
+        anywhere in `bin/` or `viewer/` whatever the receiver is called.
+        """
+        tmp = _copy()
+        root = tmp / "t"
+        cases = [
+            ("bin/perry-probe-fp-cell",
+             'def tags(cell):\n'
+             '    return [t.strip().lower() for t in cell.split("|")]\n'),
+            ("bin/perry-probe-fp-line",
+             'def read(line):\n'
+             '    return [t.strip().lower() for t in line.split("|")]\n'),
+        ]
         try:
-            for d in ("bin", "viewer"):
-                shutil.copytree(PERRY_HOME / d, tmp / d,
-                                ignore=shutil.ignore_patterns("__pycache__"))
-            pp = tmp / "viewer" / "parsers.py"
-            pp.write_text(pp.read_text() + self.BODY)
-            hits = [o for o in offenders(tmp) if "parsers.py" in o]
-            self.assertTrue(hits, "the case that failed round 5 still escapes")
+            for where, body in cases:
+                with self.subTest(where):
+                    target = _plant(root, where, body)
+                    try:
+                        self.assertEqual(_hits(root, where), [])
+                    finally:
+                        target.unlink(missing_ok=True)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_the_row_splitter_half_is_owned_by_criterion_3(self):
+        """The claim above leans on another module. Assert the lean, so it
+        cannot rot: `test_row_integrity`'s `SPLIT_RE` matches a bare
+        `.split("|")` and its scan covers `bin/` and `viewer/`."""
+        import test_row_integrity as RI
+        rule = RI.TestEveryoneReadsTheRowTheSameWay.SPLIT_RE
+        self.assertTrue(rule.search('for t in cell.split("|"):'))
+        self.assertTrue(rule.search('for t in line.split("|"):'))
 
-class TestTheFileLocalSplitterEscapeIsClosed(unittest.TestCase):
-    """The amendment names this one by hand.
 
-    *"`bin/perry-state:568` defines a file-local row splitter `cells_of`;
-    `is_row_cell_source` resolves local helpers on the folding side but not the
-    source side, so a comprehension over `cells_of(s)` escapes today and is
-    safe only because the result happens to be named `cells`."*
+class TestTheSecondRuleCorpusEscapes(unittest.TestCase):
+    """**The declared limit, planted and measured.**
 
-    Closed without adding `cells_of` to anything: the walk resolves what a
-    file-local function RETURNS. Planted with the result named `probe`, so the
-    old accident cannot be what makes this pass.
+    Forty-one shapes the round 4, 5 and 7 reviews name, each quoting the line it
+    came from. Every one invents its OWN rule, so it calls no blessed symbol and
+    the symbol check cannot see it. That is not a bug to be fixed by an eighth
+    detector — seven rounds are the evidence that the detector cannot be
+    finished, and round 8 is the evidence that keeping an unfinished one is
+    worse than not having it.
+
+    `TestTheCopyItselfIsClean §
+    test_the_control_is_caught_at_every_path_the_corpus_uses` is what makes
+    these zeros readable: the same offending body planted at each of these
+    directories IS caught, so "escaped" here means the shape, not the path.
     """
 
-    def test_a_comprehension_over_the_local_helper_is_reported(self):
-        tmp = Path(tempfile.mkdtemp(prefix="perry-header-cellsof-"))
+    def test_each_second_rule_shape_escapes(self):
+        tmp = _copy()
+        root = tmp / "t"
         try:
-            for d in ("bin", "viewer"):
-                shutil.copytree(PERRY_HOME / d, tmp / d,
-                                ignore=shutil.ignore_patterns("__pycache__"))
-            f = tmp / "bin" / "perry-state"
-            text = f.read_text()
-            anchor = "        cells = cells_of(s)"
-            self.assertIn(anchor, text,
-                          "`bin/perry-state` no longer calls `cells_of` — "
-                          "re-derive this planting against what replaced it")
-            f.write_text(text.replace(
-                anchor,
-                anchor + "\n        probe = [x.strip().lower() "
-                         "for x in cells_of(s)]"))
-            hits = [o for o in offenders(tmp) if "perry-state" in o]
-            self.assertTrue(hits, "a fold over the file-local splitter's "
-                                  "output still escapes")
+            for label, source, where, body in SECOND_RULE:
+                with self.subTest(label):
+                    target = _plant(root, where, body)
+                    try:
+                        self.assertEqual(
+                            _hits(root, where), [],
+                            f"{label} is now CAUGHT — good news. Move it into "
+                            f"DRIFT, keeping its label and its source, and "
+                            f"re-derive the fraction in the round's evidence. "
+                            f"Source: {source}")
+                    finally:
+                        target.unlink(missing_ok=True)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
-
-
-class TestWhatTheCheckStillCannotSee(unittest.TestCase):
-    """**Stated as assertions, so the list can go red rather than rot.**
-
-    Round 7 failed this class on its WORDING: gap 2 said "an iterable named
-    nothing like a row **and never split locally**", and P21 is split locally
-    and escaped. The wording below carries no such qualifier, because round 8
-    resolves local provenance and the gap that is left is the one no static
-    net can close — which is the argument for having shipped a function.
-    """
-
-    UNCAUGHT = [
-        ("a folding helper defined in ANOTHER module", "bin/perry-probe-r",
-         "from somewhere import _norm\n"
-         "def read(line):\n    return [_norm(c) for c in split_row(line)]\n"),
-        ("a fold over an iterable with NO provenance in this file",
-         "bin/perry-probe-s",
-         "def read(stuff):\n    return [c.strip().lower() for c in stuff]\n"),
-    ]
-
-    def test_these_shapes_are_known_to_escape(self):
-        for label, where, body in self.UNCAUGHT:
-            with self.subTest(label):
-                tmp = plant(where, body)
-                try:
-                    hits = [o for o in offenders(tmp)
-                            if Path(where).name in o]
-                    self.assertEqual(
-                        hits, [],
-                        f"{label} is now CAUGHT — good news. Move it into "
-                        f"CAUGHT and delete this entry.")
-                finally:
-                    shutil.rmtree(tmp, ignore_errors=True)
-
-    def test_the_second_gap_is_undecidable_and_that_is_the_whole_argument(self):
-        """`def read(stuff): [c.lower() for c in stuff]` and
-        `def read(aliases): [a.lower() for a in aliases]` are THE SAME PROGRAM
-        up to a parameter name. No static net separates them, so demanding one
-        is demanding an allowlist of variable names — which is what round 7
-        failed on. **Asserted by running both**, not by arguing it."""
-        offender = self.UNCAUGHT[1]
-        legit = next(c for c in CLEAN if c[1] == "bin/perry-probe-p")
-        seen = []
-        for _label, where, body in (offender, legit):
-            tmp = plant(where, body)
-            try:
-                seen.append(bool([o for o in offenders(tmp)
-                                  if Path(where).name in o]))
-            finally:
-                shutil.rmtree(tmp, ignore_errors=True)
-        self.assertEqual(seen[0], seen[1],
-                         "one of these two was separated from the other, and "
-                         "they differ only in a parameter name")
 
 
 if __name__ == "__main__":
-    escaped, flagged = measure()
-    print(f"planted readers caught : {len(CAUGHT) - len(escaped)} of {len(CAUGHT)}")
-    for e in escaped:
+    m = measure()
+    print(f"DRIFT       caught  : {len(DRIFT) - len(m['drift_escaped'])} "
+          f"of {len(DRIFT)}")
+    for e in m["drift_escaped"]:
         print(f"  ESCAPED: {e}")
-    print(f"legitimate shapes flagged: {len(flagged)} of {len(CLEAN)}")
-    for f in flagged:
-        print(f"  FLAGGED: {f}")
+    print(f"CLEAN       flagged : {len(m['clean_flagged'])} of {len(CLEAN)}")
+    for e in m["clean_flagged"]:
+        print(f"  FLAGGED: {e}")
+    print(f"SECOND_RULE caught  : {len(m['second_rule_caught'])} "
+          f"of {len(SECOND_RULE)} (+{UNRECOVERABLE} the reviews do not name) "
+          f"— zero is the DECLARED limit, not a failure")
+    for e in m["second_rule_caught"]:
+        print(f"  CAUGHT : {e}")

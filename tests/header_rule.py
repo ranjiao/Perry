@@ -1,11 +1,12 @@
-"""The one-header-rule check. TASK-050 round 8 — **over a symbol, not a shape.**
+"""The one-header-rule check. TASK-050 round 9 — **one net, over a symbol.**
 
 Rounds 2 through 7 each shipped a better DETECTOR of a second header rule and
 each was defeated within one review:
 
     round 2  three copies in files that never imported `squash`
     round 3  a SUBDIRECTORY was invisible; the pattern matched a SPELLING
-    round 4  the `[` had to sit right after the `=`
+    round 4  the `[` had to sit right after the `=`; and `_is_python` trusted
+             the extension, so the same bytes were green without a shebang
     round 5  it knew `split_row(` and not the private splitter `.split("|")`
     round 5's REVIEW  nine planted spellings, FIVE escaped both nets
     round 6  the regex became an AST walk
@@ -13,57 +14,66 @@ each was defeated within one review:
              variable names: `[squash(c) for c in prev_cells]` at
              viewer/parsers.py could be reverted to the historical rule,
              silently drop a KR out of a user's OKR, and leave 2882 tests green
+    round 8   kept the defeated shape net ALONGSIDE the symbol check, and the
+             shape net promptly reported correct code — a value normalizer
+             appended to `bin/perry-explain` turned `bash tests/run` red and one
+             of the two failing tests was named
+             `test_value_normalizers_are_not_flagged`
 
-**The seventh failure is why this file is no longer the deliverable.** The row
-was answered by `viewer/tables.py § header_index` — one function that folds a
-header cell, and nothing else in the repository that does. You do not stop two
-implementations drifting apart by getting better at spotting the second one;
-you stop it by having one. That is the move `ADR-007` already made for stores.
+**Round 9 deleted the shape net.** Not because it was unfinished — because
+finishing it is the thing seven rounds proved cannot be done, and keeping it
+next to the check that replaces it is what put a false positive in front of
+correct code. What is left is one net, and it is the one the amendment asks
+for:
 
-So the check this file performs is now **two nets, and they are not the same
-kind of thing**:
+## The net. `offenders_by_symbol()`
 
-## Net 1 — the symbol. `offenders_by_symbol()`
+*Nothing outside `viewer/tables.py § header_index` applies `squash` (or its
+`norm` alias) to a header row or to a cell of one.*
 
-*Nothing outside `header_index` maps `squash` (or its `norm` alias) across a
-row's cells.* This is the drift half, and it is the one the design makes
-decidable: after round 8 the tree contains **zero** such sites, so the check is
-an equality against zero over one symbol. It cannot fire on a value normalizer,
-because a value normalizer folds a value and not a row — that is not an
-exception carved out for it, it is what the two words mean.
+It is the drift half — the same rule, copied — and it is the half the design
+makes decidable, because after round 8's conversion the tree contains **zero**
+such sites. The check is an equality against zero over one symbol.
 
-## Net 2 — the shape. `offenders()`
+It holds **no allowlist of variable names of any kind**. A row is what
+`split_row` or `header_index` produced, followed through local dataflow:
+assignment, aliasing, slicing, subscript, a walrus, an iterable wrapper, one
+element-preserving comprehension unwrap, a parameter this file passes a row to,
+and what a file-local function RETURNS. `ROW_NAMES` (eleven variable names) and
+the `("header", "headers", "hdr")` subscript test are **deleted**; `BLESSED` and
+`ROW_PRODUCERS` name FUNCTIONS this repository is allowed to have, which is the
+design and not a spelling.
 
-*A collection built by mapping over a row's cells, whose element expression
-case-folds, must fold through `squash`.* This is the second-rule half: code
-that folds a header WITHOUT the blessed function. It is a shape check and
-therefore defeasible — seven rounds of evidence say so — and it is kept
-because a defeasible net over a surface this small still costs nothing to run.
-**It is not what closes the row**; `tests/test_header_index_is_the_only_fold.py`
-is, because it watches the real readers parse a real decorated document and
-asks who called `squash`.
+It cannot fire on a value normalizer, because a value normalizer folds a value
+and not a row — that is not an exception carved out for it, it is what the two
+words mean. Round 8's declared false positive came from treating any
+`.split("|")` as a row source, which cannot tell `line.split("|")` from
+`cell.split("|")`. **That inference is gone.** Criterion 3's own guard —
+`tests/test_row_integrity.py § test_no_tool_splits_a_row_on_a_raw_pipe` —
+already forbids a bare `.split("|")` anywhere in `bin/` or `viewer/`, so
+nothing here needs to guess about one.
 
-What changed inside net 2 for round 8: a row is now recognised by **local
-dataflow from `split_row`**, not by its variable's name. `parts = split_row(l)`
-on one line and the comprehension on the next — round 7's P21, "the most
-ordinary spelling there is" — is caught, as are `cells[1:]`, `cs = cells`, a
-parameter this file passes a row to, a `lambda` folder and two levels of local
-indirection. `ROW_NAMES` survives ONLY as a fallback for a bare parameter with
-no local provenance, and **it has not been extended** — extending it is what
-rounds 5 through 7 did.
+## What this net does NOT see, and what covers it instead
 
-## What net 2 still cannot see, stated as assertions elsewhere
+**A reader that invents its OWN rule** — `[c.strip("*` ").lower() for c in
+cells]` — calls no blessed symbol, so this net is blind to it by construction.
+That class is the whole of `tests/test_header_rule_harness.py § SECOND_RULE`,
+which plants every shape the round 5 and round 7 reviews name (each entry
+quoting the review line it comes from) and **asserts that it escapes**, so the
+limit is a measured number rather than a claim.
 
-`tests/test_header_rule_harness.py` plants each of these and asserts it
-escapes, so the list goes red rather than rotting:
+What covers that class is not a net:
 
-- a folding helper defined in ANOTHER module (cross-module dataflow is a type
-  checker's job);
-- a fold over an iterable with no local provenance and a name this file has
-  never heard of — `def read(stuff): return [c.lower() for c in stuff]`. There
-  is no information in that function to distinguish it from a value normalizer,
-  and **that is the proof that no static net closes this row**, which is why
-  the round shipped a function instead of a net.
+1. `viewer/tables.py § header_index` is the only function that folds a header
+   cell, so there is nothing for a second rule to be a second copy OF; and
+2. `tests/test_header_index_is_the_only_fold.py` watches the real readers parse
+   a real decorated document and asks both *who folded a header cell* and *did
+   every decorated header cell reach `header_index`*. A reader that grows its
+   own rule stops reaching it, and that test goes red.
+
+Its limit is stated there and measured there: it sees the readers a parse
+reaches, and the module reports exactly which readers those are, with fold
+counts, rather than listing readers it never observes.
 """
 
 from __future__ import annotations
@@ -73,21 +83,15 @@ import warnings
 from pathlib import Path
 
 #: The one rule, its `perry-lint` alias, and the one function allowed to apply
-#: it to a header row.
+#: it to a header row. **Names of FUNCTIONS**, which is what the design is
+#: made of — not names of variables, which is what rounds 5 to 7 were failed
+#: for.
 BLESSED = frozenset({"squash", "norm", "header_index", "header_keys"})
 
-#: Case-folding operations. `.title()`/`.upper()` are not here: neither
-#: resolves a header in this repo, and a guard that reports code nobody wrote
-#: is a guard nobody reads. `.translate()` is, because round 7's reviewer
-#: planted it.
-FOLDING_METHODS = frozenset({"lower", "casefold", "translate"})
-
-#: **Not extended since round 6, deliberately.** After the conversion this is
-#: a fallback for a bare parameter with no local provenance, not the gate the
-#: check runs on — round 7 failed the row precisely because this was the gate.
-ROW_NAMES = frozenset({
-    "cells", "cols", "columns", "header", "headers", "hdr", "hdrs",
-    "row", "cell", "header_cells", "raw_header"})
+#: The two names in `BLESSED` that are the RULE rather than the blessed
+#: wrapper. A site that applies one of these to a row, outside `header_index`,
+#: is a second copy of the one rule.
+THE_RULE = frozenset({"squash", "norm"})
 
 #: Builtins that wrap an iterable without changing what its elements ARE.
 ITERABLE_WRAPPERS = frozenset({
@@ -96,104 +100,77 @@ ITERABLE_WRAPPERS = frozenset({
 
 #: Calls that PRODUCE a row's cells. **Two entries, and they are the two
 #: functions this repository is allowed to have**: `split_row` is the only row
-#: splitter (criterion 3) and `header_index` is the only header fold. Anything
-#: else that yields a row — `bin/perry-state § cells_of`, `Board.section_table`
-#: — is resolved by `_RowLocals` from what it RETURNS, not by being listed
-#: here. Round 7's review named `cells_of` as an escape hatch for exactly that
-#: reason: it was safe only because its result happened to be called `cells`.
+#: splitter (criterion 3, guarded independently by
+#: `tests/test_row_integrity.py`) and `header_index` is the only header fold.
+#: Anything else that yields a row — `bin/perry-state § cells_of`,
+#: `Board.section_table` — is resolved by `_RowLocals` from what it RETURNS.
 ROW_PRODUCERS = frozenset({"split_row", "header_index"})
+
+#: Directories whose contents are not readers of a user's document.
+#: `tests/` is this check's own scaffolding and plants these shapes on purpose;
+#: `viewer/tables.py` DEFINES the rule. Both are named with a reason, and
+#: nothing else is skipped — round 4 failed this row for a scan that could not
+#: see a file outside two named directories.
+NOT_A_READER = ("tests", ".git", "__pycache__", ".perry")
 
 
 def is_python(p: Path) -> bool:
-    """A Python source file, by suffix or shebang — not by extension list."""
+    """A Python source file, by **what it is** — not by suffix and not by line 1.
+
+    Round 4 measured the previous rule's two holes and five rounds carried them
+    untouched: *"any non-`.py` suffix returns False without reading anything"*
+    and *"a file whose first line is a docstring, a `# -*- coding:` line, or a
+    licence header is invisible"*. The same bytes were green at
+    `bin/perry-rowdump`, red with a shebang, red with a `.py` suffix.
+
+    So this asks the parser. A file is Python when Python can parse it AND it
+    declares something — an import, a definition, an assignment. Prose that
+    happens to be comment-shaped parses to an empty module and does not
+    qualify; a bash script does not parse at all.
+    """
     if p.suffix == ".py":
         return True
-    if p.suffix:
-        return False
     try:
-        head = p.read_text(errors="replace").split("\n", 1)[0]
+        text = p.read_text(errors="replace")
     except OSError:
         return False
-    return "python" in head
+    if "\x00" in text[:4096]:
+        return False
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text)
+    except (SyntaxError, ValueError, RecursionError):
+        return False
+    return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                              ast.ClassDef, ast.Import, ast.ImportFrom,
+                              ast.Assign, ast.AnnAssign))
+               for n in ast.walk(tree))
 
 
 def readers_under(root) -> list[Path]:
-    """Every Python reader under `root`, minus the file that DEFINES the rule."""
-    root = Path(root)
-    return sorted(
-        p for d in ("bin", "viewer")
-        for p in (root / d).rglob("*")
-        if p.is_file()
-        and "__pycache__" not in p.parts
-        and p != root / "viewer" / "tables.py"
-        and is_python(p))
+    """Every Python reader under `root`, minus the file that DEFINES the rule.
 
-
-def _string_constants(tree: ast.AST) -> dict[str, str]:
-    """Module-level `NAME = "literal"`, so a constant splitter is resolvable."""
-    out: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) \
-                and isinstance(node.value.value, str):
-            for t in node.targets:
-                if isinstance(t, ast.Name):
-                    out[t.id] = node.value.value
-        if isinstance(node, ast.AnnAssign) and isinstance(node.value, ast.Constant) \
-                and isinstance(node.value.value, str) \
-                and isinstance(node.target, ast.Name):
-            out[node.target.id] = node.value.value
-        # `PIPE = {"sep": "|"}["sep"]` and `class C: SEP = "|"` — a constant
-        # reached through one attribute or one subscript is still a constant.
-        if isinstance(node, ast.ClassDef):
-            for sub in node.body:
-                if isinstance(sub, ast.Assign) \
-                        and isinstance(sub.value, ast.Constant) \
-                        and isinstance(sub.value.value, str):
-                    for t in sub.targets:
-                        if isinstance(t, ast.Name):
-                            out[t.id] = sub.value.value
-    return out
-
-
-def _pipe_literals(tree: ast.AST) -> bool:
-    """Whether this module writes a `|` string literal anywhere at all."""
-    return any(isinstance(n, ast.Constant) and isinstance(n.value, str)
-               and "|" in n.value for n in ast.walk(tree))
-
-
-def _splits_on_pipe(node: ast.AST, consts: dict[str, str], tree=None) -> bool:
-    """`x.split("|")`, `re.split(r"\\|", x)`, or either via a constant.
-
-    A separator reached through an attribute or a subscript (`C.SEP`,
-    `SEPS["row"]`) is resolved when the module contains a `|` literal at all —
-    round 7's reviewer escaped with both, and resolving the exact container is
-    dataflow analysis where a module-level existence test is enough.
+    **The whole tree, not two directories.** Round 4's third hole — carried
+    forward through rounds 5, 6, 7 and 8 — is that a Python reader outside
+    `bin/` and `viewer/` was invisible: `packs/`, `modes/`, `decide/`,
+    `goals/`, `templates/*/bin/`. Widening costs nothing, because this net
+    fires only on the blessed symbol applied to a row and prose does not
+    contain one.
     """
-    if not isinstance(node, ast.Call):
-        return False
-    if isinstance(node.func, ast.Attribute) and node.func.attr in {"split", "findall"}:
-        pass
-    else:
-        return False
-    regex = isinstance(node.func, ast.Attribute) \
-        and isinstance(node.func.value, ast.Name) and node.func.value.id == "re"
-
-    def is_pipe(text: str) -> bool:
-        # In a REGEX, a bare `|` is alternation and says nothing about rows —
-        # `re.split(r"\n(?=## (?:Objective|目标))", text)` is a section
-        # splitter, and flagging it is the false positive criterion 4 names.
-        # A row splitter written as a regex has to ESCAPE the pipe.
-        return ("\\|" in text or "[|]" in text) if regex else ("|" in text)
-
-    for a in list(node.args) + [k.value for k in node.keywords]:
-        if isinstance(a, ast.Constant) and isinstance(a.value, str) and is_pipe(a.value):
-            return True
-        if isinstance(a, ast.Name) and is_pipe(consts.get(a.id, "")):
-            return True
-        if isinstance(a, (ast.Attribute, ast.Subscript)) and tree is not None \
-                and _pipe_literals(tree):
-            return True
-    return False
+    root = Path(root)
+    out = []
+    for p in root.rglob("*"):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(root).parts
+        if any(part in NOT_A_READER for part in rel):
+            continue
+        if p == root / "viewer" / "tables.py":
+            continue
+        if is_python(p):
+            out.append(p)
+    return sorted(out)
 
 
 def _preserves_elements(comp) -> bool:
@@ -220,14 +197,15 @@ def _preserves_elements(comp) -> bool:
 
 
 class _RowLocals:
-    """Names that hold a row's cells, by **local dataflow**, PER FUNCTION.
+    """Names that hold a row's cells — or ONE cell of one — by **local
+    dataflow**, per function.
 
     Round 7's finding was that the gate in front of an otherwise genuine AST
-    walk was an eleven-name allowlist: `prev_cells` and `ihdr` were not in it,
-    so two live header resolutions and 21 of 25 planted readers walked past.
-    This replaces the gate with provenance — a name is a row because something
-    in this function put a row in it — and runs to a fixpoint so two levels of
-    local indirection do not escape.
+    walk was an eleven-name allowlist of variable names. Round 8 demoted it to
+    a fallback and round 8's reviewer measured that the fallback was still
+    load-bearing for eight of thirty catches. **Round 9 deleted it.** A name is
+    a row because something in this function put a row in it, and for no other
+    reason.
 
     **Scoped per function**, because a module-wide taint set makes one
     `cells = split_row(l)` colour every `cells` in a 3000-line file and a
@@ -235,20 +213,38 @@ class _RowLocals:
     File-local by construction: cross-module dataflow is a type checker's job.
     """
 
-    def __init__(self, tree: ast.AST, consts: dict[str, str]) -> None:
-        self.tree, self.consts = tree, consts
+    def __init__(self, tree: ast.AST) -> None:
+        self.tree = tree
+        #: Named definitions — the ones a `Return` and a call can belong to.
         self.funcs = [n for n in ast.walk(tree)
                       if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        #: Every callable BODY, lambdas included, because a `lambda` bound to a
+        #: name is how round 7's reviewer escaped the walk and it takes an
+        #: argument exactly like a `def` does.
+        self.bodies = [n for n in ast.walk(tree)
+                       if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                         ast.Lambda))]
+        #: `name -> callable body`, for `def f(...)` and for `f = lambda ...`.
+        self.by_name: dict[str, object] = {f.name: f for f in self.funcs}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Name) \
+                    and isinstance(node.value, ast.Lambda):
+                self.by_name.setdefault(node.targets[0].id, node.value)
+        #: names holding a ROW (an iterable of cells)
         self.scope: dict[object, set[str]] = {None: set()}
-        for f in self.funcs:
+        #: names holding ONE CELL of a row — `for c in split_row(l)`, `h[0]`
+        self.cells: dict[object, set[str]] = {None: set()}
+        for f in self.bodies:
             self.scope[f] = set()
+            self.cells[f] = set()
         self.owner: dict[object, object] = {}
         # INNERMOST wins. `ast.walk` is breadth-first, so a nested function
         # comes after the one that contains it and overwrites its claim —
         # `bin/perry-state § parse_tracks` defines `cells_of` inside itself,
         # and attributing that helper's `return` to its enclosing function
         # said `parse_tracks` returns a row and `cells_of` returns nothing.
-        for f in self.funcs:
+        for f in self.bodies:
             for sub in ast.walk(f):
                 self.owner[sub] = f
         #: `{function name: {tuple positions that are a row, -1 for a bare
@@ -257,11 +253,12 @@ class _RowLocals:
         #: its `ihdr` sites as escaping — because the walk asked what the
         #: variable was called. This asks what the function returned.
         self.returns: dict[str, set[int]] = {}
-        self._here: object = None
         for _ in range(6):                      # fixpoint; 6 is far past need
-            before = {k: set(v) for k, v in self.scope.items()}
+            before = ({k: set(v) for k, v in self.scope.items()},
+                      {k: set(v) for k, v in self.cells.items()})
             self._pass()
-            if all(self.scope[k] == before[k] for k in self.scope):
+            if all(self.scope[k] == before[0][k] for k in self.scope) \
+                    and all(self.cells[k] == before[1][k] for k in self.cells):
                 break
 
     def of(self, node) -> object:
@@ -282,15 +279,32 @@ class _RowLocals:
                             self.returns.setdefault(f.name, set()).add(i)
                 elif self.source(node.value, f):
                     self.returns.setdefault(f.name, set()).add(-1)
+        # A name-bound `lambda` returns its body.
+        for name, body in self.by_name.items():
+            if isinstance(body, ast.Lambda) and self.source(body.body, body):
+                self.returns.setdefault(name, set()).add(-1)
         for f in list(self.scope):
-            self._here = f
             body = f if f is not None else self.tree
             for node in ast.walk(body):
                 if self.of(node) is not (f if f is not None else None):
                     continue
+                # A loop or comprehension over a row binds ONE CELL.
+                if isinstance(node, (ast.For, ast.AsyncFor)) \
+                        and self.source(node.iter, f):
+                    for t in ast.walk(node.target):
+                        if isinstance(t, ast.Name):
+                            self.cells[f].add(t.id)
+                if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                                     ast.GeneratorExp)):
+                    for g in node.generators:
+                        if self.source(g.iter, f):
+                            for t in ast.walk(g.target):
+                                if isinstance(t, ast.Name):
+                                    self.cells[f].add(t.id)
                 if isinstance(node, ast.Assign):
                     targets, value = node.targets, node.value
-                elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr)):
+                elif isinstance(node, (ast.AnnAssign, ast.AugAssign,
+                                       ast.NamedExpr)):
                     targets, value = [node.target], node.value
                 else:
                     continue
@@ -305,6 +319,11 @@ class _RowLocals:
                         if i in positions and isinstance(t, ast.Name):
                             self.scope[f].add(t.id)
                     continue
+                if self.cell(value, f):
+                    for t in targets:
+                        for n in ast.walk(t):
+                            if isinstance(n, ast.Name):
+                                self.cells[f].add(n.id)
                 if not self.source(value, f):
                     continue
                 for t in targets:
@@ -316,14 +335,18 @@ class _RowLocals:
         for call in [n for n in ast.walk(self.tree) if isinstance(n, ast.Call)]:
             if not isinstance(call.func, ast.Name):
                 continue
-            fn = next((f for f in self.funcs if f.name == call.func.id), None)
+            fn = self.by_name.get(call.func.id)
             if fn is None:
                 continue
             params = [a.arg for a in fn.args.args]
             caller = self.of(call)
             for i, arg in enumerate(call.args):
-                if i < len(params) and self.source(arg, caller):
+                if i >= len(params):
+                    continue
+                if self.source(arg, caller):
                     self.scope[fn].add(params[i])
+                elif self.cell(arg, caller):
+                    self.cells[fn].add(params[i])
 
     def _returns_of(self, node: ast.AST) -> set[int]:
         """Tuple positions of a call to a file-local row-returning function."""
@@ -346,19 +369,16 @@ class _RowLocals:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
                 and node.func.attr in ROW_PRODUCERS:
             return True                    # `ops.split_row(l)`, `L.header_index(h)`
-        if _splits_on_pipe(node, self.consts, self.tree):
-            return True
         if -1 in self._returns_of(node):
             return True                    # a file-local function that returns one
         if isinstance(node, ast.Name):
-            return node.id in names or node.id in ROW_NAMES
-        # `cells[1:]`, `cells[0]`, `table["header"]` — a slice or an item of a
-        # row is a row cell, and `["header"]` names one by hand.
+            return node.id in names
+        # `cells[1:]` — a SLICE of a row is a row. `cells[0]` is one CELL and
+        # is answered by `cell()`, not here.
         if isinstance(node, ast.Subscript):
-            if isinstance(node.slice, ast.Constant) \
-                    and node.slice.value in ("header", "headers", "hdr"):
-                return True
-            return self.source(node.value, scope)
+            if isinstance(node.slice, ast.Slice):
+                return self.source(node.value, scope)
+            return False
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
                 and node.func.id in ITERABLE_WRAPPERS:
             return any(self.source(a, scope) for a in node.args)
@@ -378,74 +398,52 @@ class _RowLocals:
             return self.source(node.body, scope) or self.source(node.orelse, scope)
         return False
 
+    def cell(self, node: ast.AST, scope=...) -> bool:
+        """Does this expression yield ONE CELL of a row, in `scope`?
 
-def _folding_calls(node: ast.AST) -> list[str]:
-    """Every fold-ish call in this expression, named.
+        **The scalar half, and it is here because round 8's reviewer showed
+        the class was outside both nets by construction** — which is the shape
+        of `viewer/parsers.py § read_conformance`, the "fifth copy", and of
+        `bin/perry-state:157`'s `squash(cells[0]) != "term"`, which round 4
+        reverted to a second rule with all 1363 tests green.
+        """
+        if scope is ...:
+            scope = self.of(node)
+        if isinstance(node, ast.Name):
+            return node.id in self.cells.get(scope, set())
+        if isinstance(node, ast.Subscript) and not isinstance(node.slice, ast.Slice):
+            return self.source(node.value, scope)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr in {"strip", "lstrip", "rstrip", "lower",
+                                       "casefold", "upper", "replace", "title"}:
+            return self.cell(node.func.value, scope)
+        if isinstance(node, ast.IfExp):
+            return self.cell(node.body, scope) or self.cell(node.orelse, scope)
+        return False
 
-    `c.strip().lower()` -> ['strip', 'lower'];  `squash(c)` -> ['squash'];
-    `_norm(c)` -> ['_norm'] (resolved by the caller against `_local_folders`).
+
+def _blessed_calls(node: ast.AST) -> list[str]:
+    """Every BLESSED name applied in this expression, as a mapping function.
+
+    `squash(c)` -> ['squash'];  `map(norm, cells)` -> ['norm'].
     A bare `ast.Name` counts only where it is being USED AS the mapping
-    function — `map(str.lower, cells)`, `map(_norm, cells)` — which is what
-    `_mapping_sites` hands over as the element expression.
+    function, which is what `_mapping_sites` hands over as the element
+    expression.
     """
     found: list[str] = []
-    if isinstance(node, ast.Name):
-        found.append(node.id)                    # `map(_norm, cells)`
-    if isinstance(node, ast.Attribute):
-        found.append(node.attr)                  # `map(str.lower, cells)`
+    if isinstance(node, ast.Name) and node.id in BLESSED:
+        found.append(node.id)                    # `map(norm, cells)`
+    if isinstance(node, ast.Attribute) and node.attr in BLESSED:
+        found.append(node.attr)                  # `map(ops.norm, cells)`
     if isinstance(node, ast.Lambda):
-        found.extend(_folding_calls(node.body))
+        found.extend(_blessed_calls(node.body))
     for sub in ast.walk(node):
         if isinstance(sub, ast.Call):
-            if isinstance(sub.func, ast.Attribute):
+            if isinstance(sub.func, ast.Attribute) and sub.func.attr in BLESSED:
                 found.append(sub.func.attr)
-            elif isinstance(sub.func, ast.Name):
+            elif isinstance(sub.func, ast.Name) and sub.func.id in BLESSED:
                 found.append(sub.func.id)
-            for kw in sub.keywords:              # `functools.partial(_norm, ...)`
-                pass
-        elif isinstance(sub, ast.Attribute) and sub.attr in FOLDING_METHODS:
-            found.append(sub.attr)
     return found
-
-
-def _local_folders(tree: ast.AST) -> set[str]:
-    """File-local callables that case-fold — the `_norm` refactor, to fixpoint.
-
-    Functions, `lambda`s bound to a name, and one bound to `functools.partial`
-    of either. Round 7's reviewer escaped through the lambda and through two
-    levels of indirection, so this iterates rather than resolving one level.
-    """
-    named: dict[str, ast.AST] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            named[node.name] = node
-        elif isinstance(node, ast.Assign) and len(node.targets) == 1 \
-                and isinstance(node.targets[0], ast.Name):
-            named[node.targets[0].id] = node.value
-    out: set[str] = set()
-    for _ in range(6):
-        before = set(out)
-        for name, body in named.items():
-            if name in out:
-                continue
-            for sub in ast.walk(body):
-                folds = isinstance(sub, ast.Attribute) and sub.attr in FOLDING_METHODS
-                calls = (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
-                         and sub.func.id in out and sub.func.id != name)
-                # `functools.partial(_norm, x)` / `partial(_norm, x)`
-                wraps = (isinstance(sub, ast.Call)
-                         and any(isinstance(a, ast.Name) and a.id in out
-                                 for a in sub.args)
-                         and ((isinstance(sub.func, ast.Attribute)
-                               and sub.func.attr == "partial")
-                              or (isinstance(sub.func, ast.Name)
-                                  and sub.func.id == "partial")))
-                if folds or calls or wraps:
-                    out.add(name)
-                    break
-        if out == before:
-            break
-    return out
 
 
 def _mapping_sites(node: ast.AST):
@@ -466,72 +464,61 @@ def _mapping_sites(node: ast.AST):
                     yield kw.value, node.args[0]
 
 
-def _scan(root, want_blessed: bool) -> list[str]:
-    """The two nets, which differ only in which fold they are looking for."""
+def offenders_by_symbol(root) -> list[str]:
+    """Every site outside `header_index` that applies `squash`/`norm` to a
+    header row or to a cell of one. **Zero after TASK-050.**
+
+    `path:line: source`, sorted, one entry per site. The path is relative to
+    `root` and not the bare filename: round 9's corpus plants the same shape at
+    `bin/`, `bin/lib/`, `viewer/` and `packs/`, and a bare filename cannot tell
+    a hit at one from a hit at another.
+    """
     out: list[str] = []
+    root = Path(root)
     for p in readers_under(root):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 warnings.simplefilter("ignore", SyntaxWarning)
                 tree = ast.parse(p.read_text(errors="replace"))
-        except SyntaxError:
+        except (SyntaxError, ValueError, RecursionError):
             continue                            # not importable; not a reader
-        consts = _string_constants(tree)
-        rows = _RowLocals(tree, consts)
-        local_folders = _local_folders(tree)
+        rows = _RowLocals(tree)
 
-        def flag(node, elt, source):
-            if not rows.source(source):
-                return
-            names = _folding_calls(elt)
-            blessed = [n for n in names if n in BLESSED]
-            folds = [n for n in names
-                     if n in FOLDING_METHODS or n in local_folders]
-            if want_blessed:
-                # Net 1: the BLESSED rule, mapped across a row outside
-                # `header_index`. One symbol, no shape.
-                if not blessed:
-                    return
-            else:
-                # Net 2: a fold that is not the blessed rule.
-                if not folds or blessed:
-                    return
-            out.append(f"{p.name}:{node.lineno}: {ast.unparse(node)[:120]}")
+        rel = p.relative_to(root).as_posix()
+
+        def hit(node):
+            out.append(f"{rel}:{node.lineno}: {ast.unparse(node)[:120]}")
 
         for node in ast.walk(tree):
+            # (a) the rule MAPPED across a row.
             for elt, source in _mapping_sites(node):
-                flag(node, elt, source)
+                if rows.source(source) and _blessed_calls(elt):
+                    hit(node)
+            # (b) a loop over a row that accumulates a blessed fold.
             if isinstance(node, (ast.For, ast.AsyncFor)) and rows.source(node.iter):
-                # A loop that accumulates a folded cell — `.append`, `.add`,
-                # `out += [..]`, `d[..] = ..`. Round 7's reviewer escaped
-                # through every one of those but `.append`.
                 for sub in ast.walk(node):
                     if isinstance(sub, ast.Call) \
                             and isinstance(sub.func, ast.Attribute) \
                             and sub.func.attr in {"append", "add", "update",
                                                   "insert", "setdefault"} \
                             and sub.args:
-                        for a in sub.args:
-                            flag(node, a, node.iter)
-                    elif isinstance(sub, ast.AugAssign):
-                        flag(node, sub.value, node.iter)
+                        if any(_blessed_calls(a) for a in sub.args):
+                            hit(node)
+                    elif isinstance(sub, ast.AugAssign) \
+                            and _blessed_calls(sub.value):
+                        hit(node)
                     elif isinstance(sub, ast.Assign) and any(
                             isinstance(t, ast.Subscript) for t in sub.targets):
-                        for t in sub.targets:
-                            if isinstance(t, ast.Subscript):
-                                flag(node, t.slice, node.iter)
-                        flag(node, sub.value, node.iter)
+                        if _blessed_calls(sub.value) or any(
+                                _blessed_calls(t.slice) for t in sub.targets
+                                if isinstance(t, ast.Subscript)):
+                            hit(node)
+            # (c) the rule applied to ONE CELL of a row — the scalar half.
+            if isinstance(node, ast.Call) and len(node.args) == 1:
+                name = (node.func.id if isinstance(node.func, ast.Name)
+                        else node.func.attr if isinstance(node.func, ast.Attribute)
+                        else None)
+                if name in THE_RULE and rows.cell(node.args[0]):
+                    hit(node)
     return sorted(set(out))
-
-
-def offenders(root) -> list[str]:
-    """Net 2 — every site that folds a row's cells by a rule other than
-    `squash`. `path:line: source`, sorted, one entry per site."""
-    return _scan(root, want_blessed=False)
-
-
-def offenders_by_symbol(root) -> list[str]:
-    """Net 1 — every site outside `header_index` that maps `squash`/`norm`
-    across a row's cells. **Zero after TASK-050 round 8.**"""
-    return _scan(root, want_blessed=True)

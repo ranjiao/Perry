@@ -49,8 +49,7 @@ sys.path.insert(0, str(PERRY_HOME / "tests"))
 from tables import header_index, squash            # noqa: E402
 # Imported ONCE. Round 7's review found this module importing `header_rule`
 # twice, four lines apart.
-from header_rule import (offenders, offenders_by_symbol,  # noqa: E402
-                         readers_under)
+from header_rule import offenders_by_symbol, readers_under  # noqa: E402
 import parsers as P  # noqa: E402
 
 # The counter, not a second copy of it. `tests/parallel` puts `tests/` on the
@@ -100,26 +99,6 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertEqual(header_index(["Status"], alias={"status": "s"}.get),
                          ["s"])
 
-    def test_no_reader_folds_a_header_cell_by_a_second_rule(self):
-        """The whole category, in one assertion, over the whole tree.
-
-        **This replaced a regex over source lines and a whole-file substring
-        test, and both were defeated by the round 5 reviewer.** The regex knew
-        the spellings it had been taught; the substring test asked whether the
-        token "squash" appeared anywhere in the file, which all 9 row-splitting
-        readers already satisfy — so it contributed nothing against a new rule
-        added to an existing reader. The reviewer proved it by appending a
-        `.casefold()` header reader to `viewer/parsers.py` and getting `[]`
-        from both.
-
-        `tests/header_rule.py` asks the parser instead: a collection built by
-        mapping over a row's cells, whose element expression case-folds, must
-        fold through `squash`.
-        """
-        found = offenders(PERRY_HOME)
-        self.assertEqual(found, [], "header cells folded by a second rule:\n"
-                                    + "\n".join(found))
-
     def test_value_normalizers_are_not_flagged(self):
         """**The judgement in this module, asserted with a live number.**
 
@@ -149,7 +128,7 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertGreater(folding, 20,
                            "the tree stopped normalizing values — this test is "
                            "measuring nothing and should be re-derived")
-        self.assertEqual(offenders(PERRY_HOME), [])
+        self.assertEqual(offenders_by_symbol(PERRY_HOME), [])
 
     def test_the_norm_alias_is_the_same_object_and_not_a_second_copy(self):
         """`bin/perry-migrate` reaches the rule as `L.norm`. That is only

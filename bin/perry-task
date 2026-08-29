@@ -1334,9 +1334,16 @@ def header_language(header: list[str]) -> str:
     if _ALIASES is None:
         _build_column_maps()
     keys = header_keys(header)
-    for cell, key in zip(keys.raw, keys):
+    # The same cells folded WITHOUT the glossary alias, so the comparison below
+    # is against the spelling the project wrote rather than its canonical key.
+    # TASK-050 round 9: this read `zip(keys.raw, keys)` and then `squash(cell)`,
+    # which folded a header cell outside `header_index` — the same rule, a
+    # second copy of it, and the shape that drifts. `header_index(header)[i]`
+    # is `squash(header[i])` by construction, so this is the identical value.
+    folded = header_index(header)
+    for cell_key, key in zip(folded, keys):
         for lang, name in (_DISPLAY.get(key) or {}).items():
-            if lang != "en" and squash(name) == squash(cell):
+            if lang != "en" and squash(name) == cell_key:
                 return lang
     return "en"
 

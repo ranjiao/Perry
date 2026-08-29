@@ -297,8 +297,7 @@ class TestWhatThisCannotSee(unittest.TestCase):
 
     def test_the_static_net_is_the_one_that_sees_dead_code(self):
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from header_rule import offenders, offenders_by_symbol
-        self.assertEqual(offenders(PERRY_HOME), [])
+        from header_rule import offenders_by_symbol
         self.assertEqual(offenders_by_symbol(PERRY_HOME), [])
 
 

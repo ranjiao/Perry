@@ -334,9 +334,18 @@ def column_index(got: list[str], column: str) -> int:
     return -1
 
 
-def canonical_column(header: str) -> str:
-    """A normalized localized header mapped back to its schema column name."""
-    value = norm(header)
+def canonical_column(key: str) -> str:
+    """A FOLDED localized header key mapped back to its schema column name.
+
+    Takes a key straight out of `header_index` and does not fold it again.
+    TASK-050 round 9: this said `value = norm(header)`, and its one caller
+    (`_track_context`) already hands it `header_index`'s own output — so the
+    fold was redundant, and it was a second application of the one rule to a
+    header cell, one edit away from `.strip("*` ").lower()` and the divergence
+    this row exists to close. `viewer/tables.py § header_index` folds a header
+    cell; nothing else does.
+    """
+    value = key
     for column in COLUMN_ALIASES:
         if value in accepted(column):
             return norm(column)
