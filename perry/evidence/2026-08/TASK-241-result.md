@@ -408,12 +408,13 @@ All `git archive` copies, `bash tests/run`, same host, 2026-08-30.
 | tree | runner | modules · tests · time | failures |
 |---|---|---|---|
 | `git archive` copy of **`658e8c9`** — the fork point | `bash tests/run` (8 workers) | 100 · 2992 · 346.0s | **3** in 2 modules |
-| `git archive` copy of **branch HEAD `5054bd6`** | `bash tests/run` (8 workers) | 100 · 3009 · 165.8s | **3** in 2 modules |
+| `git archive` copy of **the code commit `5054bd6`** | `bash tests/run` (8 workers) | 100 · 3009 · 165.8s | **3** in 2 modules |
+| `git archive` copy of **branch HEAD `23c8c5d`** | `bash tests/run` (8 workers) | 100 · 3009 · 441.4s | **4** in 3 modules — see below |
 
 `+17 tests` over the fork point is exactly the seven round 1 added plus the
 ten round 2 adds (2992 → 2999 → 3009). The wall-clock figures are not
 comparable to each other — the two runs shared a host with other work — but the
-module and test counts and the failure sets are. The three failures are the same three in both runs and all
+module and test counts and the failure sets are. Three failures are common to all three runs and all
 three are pre-existing at the fork point:
 
 - `test_diagnose.DecisionsAreCountedPerRecordNotPerMention.test_the_queue_register_reconciles_with_the_queue_on_this_repository`
@@ -439,6 +440,17 @@ three are pre-existing at the fork point:
   is not comparable to either** and I did not measure one this round: minting the
   six stores a live run needs is a write to the worktree, and the reviewer's
   ruling that the archive copies carry the comparison stands.
+- **The branch-HEAD run shows a fourth failure and it is a flake, measured as
+  one.** `23c8c5d` differs from `5054bd6` only in
+  `perry/evidence/2026-08/TASK-241-result.md` — markdown, no code, no test — and
+  it added `test_host_support.TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`
+  to the failure list. I did not wave it away: I re-ran `tests.test_host_support`
+  standalone **three times on `23c8c5d` and three times on `5054bd6`**, and its
+  own class alone once more, and every one of the seven runs was `OK`. It is a
+  concurrency test with a global cap, it does not read `perry/evidence/`, and no
+  code between the two trees differs. Recorded as an unreproducible flake under
+  load rather than dropped from the table. The other three failures are the same
+  three in all three runs.
 - `python3 -m unittest discover -s tests` on the `git archive` copy of
   **`5054bd6`**: `Ran 3009 tests in 651.112s`, `FAILED (failures=6,
   skipped=4)`. Same test count as `bash tests/run` on the same
