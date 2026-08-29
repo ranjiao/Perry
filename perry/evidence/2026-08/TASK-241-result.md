@@ -470,8 +470,9 @@ three are pre-existing at the fork point:
 **Three notes on the numbers, and one is a correction of my own round-1 text.**
 
 - **The baseline is the FORK POINT `658e8c9`, not `main`.** `main` has moved
-  again — it was `9db8f45` when I measured and `84aee3b` by the time I finished
-  writing this, and TASK-233 landed a **parallel test runner**
+  again, twice — it was `9db8f45` when I measured, `84aee3b` when I finished
+  writing this, and it has since been **merged into this branch** at `3c5f186`
+  (see the next note). TASK-233 landed a **parallel test runner**
   and rewrote `tests/run` itself. A `bash tests/run` figure from today's `main`
   and one from this branch would not be the same runner, so the only honest
   before/after is against the tree this branch forked from. Round 1's table
@@ -487,6 +488,25 @@ three are pre-existing at the fork point:
   is not comparable to either** and I did not measure one this round: minting the
   six stores a live run needs is a write to the worktree, and the reviewer's
   ruling that the archive copies carry the comparison stands.
+- **`main` was merged INTO this branch after those two runs, and the merged tree
+  is measured too.** `3c5f186` brought 18 commits — records, and TASK-233's
+  parallel runner, which rewrites `tests/run` and `tests/parallel` and adds
+  `tests/test_parallel_runner.py`. **It touches none of this row's files**:
+  `viewer/parsers.py`, `tests/test_conformance.py`, `tests/test_one_header_rule.py`,
+  `bin/perry-conform` and `viewer/tables.py` are byte-identical across the merge
+  (`git diff --name-only d23a1b9 3c5f186` lists none of them, and
+  `viewer/parsers.py` is still md5 `2de201a…`). So the mechanism and its
+  mutations are unaffected, and the two rows above remain the honest
+  before/after — they are the ones that isolate this change. On the merged tree,
+  with TASK-233's runner:
+
+  | tree | runner | modules · tests · time | failures |
+  |---|---|---|---|
+  | `git archive` copy of **`bcb2715`** — HEAD after the merge | `bash tests/run` (8 workers, TASK-233) | 101 · 3036 · 96.3s | **3** in 2 modules |
+
+  Same three failures, `+27` tests and `+1` module from TASK-233 alone, and **no
+  fourth failure** — one more non-reproduction of the flake below, on the tree
+  that will actually merge.
 - **The branch-HEAD run shows a fourth failure and it is a flake, measured as
   one.** `23c8c5d` differs from `5054bd6` only in
   `perry/evidence/2026-08/TASK-241-result.md` — markdown, no code, no test — and
