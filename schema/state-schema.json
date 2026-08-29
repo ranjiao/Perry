@@ -1283,7 +1283,9 @@
             "Linked overall KR"
           ],
           "id_column": "Id",
-          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+          "optional": true,
+          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: phase/<NNN>-linkage.md. `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the register instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when there is no register — and a table Perry can still meet is a table Perry must still validate."
         }
       ],
       "anchor": "state"
@@ -1364,6 +1366,11 @@
                   "stretch": {
                     "type": "boolean",
                     "required": false
+                  },
+                  "linked": {
+                    "type": "string",
+                    "required": false,
+                    "note": "The overall KR this phase KR serves — the `Linked overall KR` column the phase document used to carry. TASK-157 moved it here with the rest of the KR; additive and optional, so `linkage: 1` is unchanged and a register written without it means what an empty cell always meant."
                   },
                   "tasks": {
                     "type": "array",

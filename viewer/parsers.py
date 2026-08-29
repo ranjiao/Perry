@@ -642,6 +642,13 @@ class Objective:
     title: str
     raw_body: str = ""
     intro: str = ""    # prose between the heading and the first KR bullet
+    #: `"1"` for `## Objective 1 — …` in a phase document, `""` everywhere
+    #: else. Recorded rather than re-derived from position because
+    #: `phase_key_results_by_objective` attaches a register's KRs by the
+    #: objective number their **id** carries (`P003-O2-KR1` → `O2`), and
+    #: matching by position would put a KR under the wrong heading the moment
+    #: a document's objectives are not `1, 2, 3 …` in order.
+    number: str = ""
     krs: list[KR] = field(default_factory=list)
 
 
@@ -709,6 +716,15 @@ class LinkageKR:
     current: float | None = None
     due: str = ""
     stretch: bool = False
+    #: The overall KR this phase KR serves — the `Linked overall KR` column of
+    #: the KR table the phase document used to carry. TASK-157 moved it here
+    #: rather than dropping it with the table: it is the only one of that
+    #: table's four columns the register had no field for, and DESIGN-013 § 5.1
+    #: puts a schema'd fact in exactly one store rather than in a document.
+    #: **Additive and optional**, so `linkage: 1` is unchanged: a register
+    #: written before this field existed carries `""`, which is what an empty
+    #: `Linked overall KR` cell always meant.
+    linked: str = ""
     tasks: list[str] = field(default_factory=list)
 
 
@@ -2141,8 +2157,14 @@ def parse_phase(slug: str, text: str) -> Phase:
         if not m:
             continue
         title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
+        # `_parse_krs` still runs, and TASK-157 did not make it dead code:
+        # a phase document Perry writes carries no KR table any more, but an
+        # ADOPTED project's does, and so does a Perry project that has not
+        # migrated. `phase_key_results` is what chooses between the two — one
+        # source at a time, never merged.
         phase.objectives.append(
-            Objective(title=title, raw_body=chunk, krs=_parse_krs(chunk))
+            Objective(title=title, raw_body=chunk, number=m.group(1),
+                      krs=_parse_krs(chunk))
         )
 
     return phase
@@ -3232,6 +3254,7 @@ def parse_linkage(text: str) -> Linkage:
                 current=_num(kr.get("current")),
                 due=str(kr.get("due") or ""),
                 stretch=bool(kr.get("stretch")),
+                linked=str(kr.get("linked") or ""),
                 tasks=[str(t) for t in _as_list(kr.get("tasks"))],
             ))
         link.objectives.append(LinkageObjective(
@@ -3252,6 +3275,94 @@ def parse_linkage(text: str) -> Linkage:
             status=str(pr.get("status") or "active").lower(),
         ))
     return link
+
+
+#: `P003-O2-KR1` → `O2`. A phase KR id names the objective it belongs to, so
+#: attaching a register's KRs to a document's headings needs no position match
+#: and no second field to keep in sync.
+_KR_OBJECTIVE_RE = re.compile(r"^P\d{3}-(O\d+)-KR\d+$")
+
+
+def kr_objective_id(kr_id: str) -> str:
+    m = _KR_OBJECTIVE_RE.match((kr_id or "").strip())
+    return m.group(1) if m else ""
+
+
+def phase_key_results(phase, linkage) -> list["KR"]:
+    """A phase's key results, from the ONE place that declares them — TASK-157.
+
+    The id, title, metric and target of a phase KR used to be written **twice**:
+    as a row of a markdown table in `phase/<NNN>-<slug>.md`, and as a `krs[]`
+    entry in `phase/<NNN>-linkage.md`. Nothing compared the two, the markdown
+    copy is the one that went stale, and it had — `P003-O2-KR1` read a target
+    the register did not.
+
+    DESIGN-013 § 5.1, locked 2026-08-29: *a fact that has a schema lives in
+    exactly one store; a document holds what has no schema; no field lives in
+    both.* Those four fields are schema'd (`files[id=linkage].frontmatter`), so
+    they live in the register and the phase document carries no KR table.
+
+    **The document is still read, and only when there is no register.** An
+    adopted project's phase file carries a table (that is what adoption reads),
+    and so does a Perry project written before this row. `linkage` answering
+    with objectives is the test, so the two sources are never merged and never
+    both consulted: a project has a register or it has a table, and which one
+    answered is observable in `perry-goals list --json § conformance`.
+
+    Returned as `KR` — the same shape the document's table produced — so every
+    consumer downstream of this function is unchanged by where the values came
+    from. `linked` is carried because TASK-157 moved that column into the
+    register rather than dropping it with the table.
+    """
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return list(getattr(phase, "krs", None) or [])
+    return [KR(id=k.id, text=k.title, metric=kr_metric_cell(k),
+               linked=k.linked, stretch=bool(k.stretch)) for k in declared]
+
+
+def kr_metric_cell(kr: "LinkageKR") -> str:
+    """The register's two target fields → the one string a reader is shown.
+
+    `metric` is *"prose; always safe to display"* in the schema and is what the
+    `Metric / Target` column always held. `target` is *"NUMBER ONLY. Omit for
+    prose targets"*, so it is what there is to show exactly when there is no
+    prose — a register carrying only a number must not display an empty metric.
+    """
+    if kr.metric:
+        return kr.metric
+    if kr.target is None:
+        return ""
+    return f"{kr.target:g}"
+
+
+def phase_key_results_by_objective(phase, linkage) -> list[list["KR"]]:
+    """`phase_key_results`, grouped to match `phase.objectives` one for one.
+
+    A KR is attached to the objective its **id** names (`P003-O2-KR1` → the
+    document's `## Objective 2`). A registered KR whose objective the document
+    has no heading for is appended to the last objective rather than dropped:
+    losing it would make `kr_total` disagree with the sum of the groups, and a
+    payload that cannot add up is worse than one whose grouping is approximate.
+    """
+    objectives = list(getattr(phase, "objectives", None) or [])
+    krs = phase_key_results(phase, linkage)
+    if not objectives:
+        return []
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return [list(o.krs) for o in objectives]
+    slots: dict[str, int] = {}
+    for n, o in enumerate(objectives):
+        slots.setdefault(o.number or str(n + 1), n)
+    out: list[list[KR]] = [[] for _ in objectives]
+    for kr in krs:
+        oid = kr_objective_id(kr.id)
+        at = slots.get(oid.lstrip("O"), len(objectives) - 1)
+        out[at].append(kr)
+    return out
 
 
 def _load_ops_counts(root: Path) -> OpsCounts:
@@ -3964,7 +4075,12 @@ if __name__ == "__main__":
     print(f"Phase: {s.phase.slug if s.phase else '(none)'} #{s.phase.number if s.phase else ''}")
     if s.phase:
         print(f"  · day: {s.phase.day if s.phase.day is not None else '—'}")
-        print(f"  · objectives: {len(s.phase.objectives)} · KRs: {len(s.phase.krs)}")
+        # Through the resolver, not `s.phase.krs`: TASK-157 moved the
+        # phase's KRs into `phase/<NNN>-linkage.md`, so the document's
+        # own list is empty on every migrated project and this smoke
+        # print would report a phase with no key results.
+        print(f"  · objectives: {len(s.phase.objectives)} · KRs: "
+              f"{len(phase_key_results(s.phase, getattr(s, 'linkage', None)))}")
         print(f"  · scope triggers: {len(s.phase.scope_triggers)}")
         print(f"  · cost-ceiling lines: {len(s.phase.cost_ceiling_lines)}")
     print(f"ADRs: {len(s.adrs)} · Evidence: {len(s.evidence)} · Journal: {len(s.journal)}")

@@ -145,7 +145,7 @@ KR_ID_RE = r"\bP\d{3}-O\d+-KR\d+\b"
 #: the old form*, and a regex that simply stopped matching would have honoured
 #: the letter and broken the spirit: `check_cross_file` reads a phase file's
 #: KR set with `KR_ID_RE` and then guards every comparison with
-#: `if phase_krs and …`. Handed a file still written in the old form, that set
+#: `if own_krs and …`. Handed a file still written in the old form, that set
 #: comes back EMPTY and every linkage check downstream silently passes. A
 #: check that can be handed the old id and do nothing is the compatibility
 #: branch wearing a different hat. So `check_legacy_kr_ids` below turns the
@@ -1094,7 +1094,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     perry_dir = (project_root or root) / ".perry"
 
     # The old phase-KR form is REJECTED, not merely unmatched. See the note on
-    # `LEGACY_KR_ID_RE`: every guard below is written `if phase_krs and …`, so
+    # `LEGACY_KR_ID_RE`: every guard below is written `if own_krs and …`, so
     # a phase file left in `P-O3.1` [[old-form]] yields an empty KR set and
     # buys silence
     # from every check downstream. This is the one place that can tell the
@@ -1104,7 +1104,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     #
     # Scanned over `phase/*.md` rather than just the CURRENT phase because a
     # scored phase's register is read too — `check_cross_file` re-derives
-    # `phase_krs` per linkage file from the file's own phase — so an unmigrated
+    # `own_krs` per linkage file from the file's own phase — so an unmigrated
     # 001 is exactly as silent as an unmigrated 002.
     _legacy = re.compile(LEGACY_KR_ID_RE)
     for pf in sorted((root / "phase").glob("*.md")) if (root / "phase").is_dir() else []:
@@ -1137,10 +1137,17 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 ))
                 phase_file = None
 
-    # linkage: every KR the graph names must exist in the phase file
-    phase_krs: set[str] = set()
-    if phase_file and phase_file.exists():
-        phase_krs = set(re.findall(KR_ID_RE, strip_comments(phase_file.read_text())))
+    # **The phase's KR set is no longer read here at all** — TASK-157.
+    #
+    # It used to be `re.findall(KR_ID_RE, <the CURRENT phase document>)`, and
+    # the two guards below compared every register against it. The document
+    # carried a KR table declaring those ids; it does not any more
+    # (DESIGN-013 § 5.1: a fact with a schema lives in exactly one store), and
+    # a set scraped from the surviving prose would grade a declaration against
+    # a mention. Each register now answers with its OWN `krs[]` — see the loop
+    # below, which also keeps the document scan for a project that has not
+    # migrated.
+
     # linkage: every TASK the graph names must exist in the task store.
     #
     # **`None` is "this project has not been adopted", not "no tasks"** —
@@ -1187,23 +1194,65 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         # names its own phase (`<NNN>-linkage.md`), so the right KR set is
         # derivable with no new state.
         own = lf.name.split("-", 1)[0]
-        mine = sorted((root / "phase").glob(f"{own}-*.md"))
-        mine = [m for m in mine if not m.name.endswith("-linkage.md")]
-        if mine:
-            phase_krs = set(re.findall(
-                KR_ID_RE, strip_comments(mine[0].read_text())))
+        # **The register declares its own KR set** — TASK-157. This used to be
+        # `re.findall(KR_ID_RE, <the phase document>)`, because the document
+        # carried a KR table that declared the same ids in the same words. It
+        # does not any more (DESIGN-013 § 5.1), and re-pointing the check at
+        # the document's prose would grade a declaration against a mention.
+        #
+        # A project that has NOT migrated — an adopted one, or a Perry project
+        # older than this row — still has that table and no `krs[]`, and its
+        # ids are still the phase's KR set. So the document is read exactly
+        # when the register declares nothing, which is the same choice
+        # `viewer/parsers.py § phase_key_results` makes, and never both.
+        own_krs = {k.id for o in link.objectives for k in o.krs}
+        if not own_krs:
+            mine = sorted((root / "phase").glob(f"{own}-*.md"))
+            mine = [m for m in mine if not m.name.endswith("-linkage.md")]
+            if mine:
+                own_krs = set(re.findall(
+                    KR_ID_RE, strip_comments(mine[0].read_text())))
         for pr in link.projects:
-            if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
+            if pr.serves_kr and own_krs and pr.serves_kr not in own_krs:
                 findings.append(Finding(
                     "warn", rel, "linkage-kr-exists",
-                    f"{pr.project_id}: serves {pr.serves_kr}, which is not in the "
-                    "current phase's KR set"))
+                    f"{pr.project_id}: serves {pr.serves_kr}, which is not a "
+                    f"KR this register declares"))
         for obj in link.objectives:
             for kr in obj.krs:
-                if phase_krs and kr.id not in phase_krs:
+                # **The id must name the phase whose register it sits in.**
+                # The old form of this guard asked whether the id appeared in
+                # the phase document, which was one file's way of asking this
+                # same question and stopped being answerable when the KR table
+                # left the document. Asked directly it is stronger: a
+                # `P002-…` KR pasted into `003-linkage.md` used to be caught
+                # only because `003-storage-code.md` did not mention it, and
+                # is caught here by the id itself.
+                if not kr.id.startswith(f"P{own}-"):
                     findings.append(Finding(
                         "warn", rel, "linkage-kr-exists",
-                        f"{kr.id} is in the graph but not in the current phase file"))
+                        f"{kr.id} is declared in the register for phase "
+                        f"{own}, and its id names a different phase. A phase "
+                        f"KR id carries its phase (DESIGN-007 decision #4), "
+                        f"so one of the two is wrong"))
+                # **And the objective half of the id, against the objective it
+                # is declared under.** `P001-O9-KR9` sitting under `- id: O1`
+                # used to be caught only sideways — the phase document did not
+                # mention it, so the old document-scan reported it — and that
+                # is the case `tests/test_cadence.py §
+                # test_a_genuinely_wrong_kr_is_still_reported` was written
+                # around. Asked directly it needs no second file, and it is the
+                # same question `linkage-objective-agrees` already asks of a
+                # `projects[]` entry: an id that names its own place must agree
+                # with the place it was put.
+                declared_under = P.kr_objective_id(kr.id)
+                if declared_under and obj.id and declared_under != obj.id:
+                    findings.append(Finding(
+                        "warn", rel, "linkage-kr-exists",
+                        f"{kr.id} names objective {declared_under} and is "
+                        f"declared under {obj.id}. The id carries the "
+                        f"objective, so one of the two is wrong and nothing "
+                        f"here guesses which"))
                 # **The comment above does NOT transfer to task ids, and the
                 # difference is what makes this check simpler than that one.**
                 # A KR id USED TO BE scoped to a phase file rather than

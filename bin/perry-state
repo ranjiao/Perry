@@ -2120,11 +2120,23 @@ def build(root: Path, project_root: Path | None = None) -> dict:
             "started": snap.phase.started,
             "day": snap.phase.day,
             "focus_present": bool(snap.phase.focus),
+            # **The KRs come from `phase/<NNN>-linkage.md`, not from the phase
+            # document** — TASK-157. Their id, title, metric, target and
+            # linked overall KR used to be written in both files with nothing
+            # comparing the two, and the markdown copy is the one that went
+            # stale. DESIGN-013 § 5.1 put them in the register alone;
+            # `phase_key_results_by_objective` is the one resolver and it
+            # reads the document only on a project that has no register, so
+            # the KEY SHAPE here is unchanged and only its source moved.
             "objectives": [
-                {"title": o.title, "krs": [encode(k) for k in o.krs]}
-                for o in snap.phase.objectives
+                {"title": o.title, "krs": [encode(k) for k in krs]}
+                for o, krs in zip(
+                    snap.phase.objectives,
+                    P.phase_key_results_by_objective(
+                        snap.phase, getattr(snap, "linkage", None)))
             ],
-            "kr_total": len(snap.phase.krs),
+            "kr_total": len(P.phase_key_results(
+                snap.phase, getattr(snap, "linkage", None))),
             "cost_ceiling": snap.phase.cost_ceiling_lines,
             "scope_triggers": [encode(t) for t in snap.phase.scope_triggers],
         },

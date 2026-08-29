@@ -299,6 +299,16 @@ displaying a number nobody wrote down:
 3. **A KR may carry zero tasks.** That is the most valuable thing the view
    shows — a commitment nobody is working on — not a parse error.
 
+A fourth rule was added by TASK-157 and it is about where the KR lives rather
+than about what it says: **`phase/<NNN>-<slug>.md` carries no KR table.** The
+id, title, metric, target and `linked` (the overall KR this one serves) used to
+be written here AND in that document, with nothing comparing them, and the
+document's copy is the one that went stale. DESIGN-013 § 5.1 — a fact with a
+schema lives in exactly one store — puts them here alone; `bin/perry-goals krs`
+prints them. `linked` is the field the move added: additive and optional, so
+`linkage: 1` is unchanged and a register written before it reads as the empty
+`Linked overall KR` cell always did.
+
 Perry reads it back with a deliberately small YAML subset reader
 (`parsers.parse_yaml_subset`) because Perry ships zero dependencies. That is
 only acceptable because the file is machine-written to a declared shape:

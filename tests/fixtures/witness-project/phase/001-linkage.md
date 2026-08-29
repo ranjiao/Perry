@@ -19,6 +19,7 @@ objectives:
         target: 4
         current: 2
         stretch: false
+        linked: "KR-O1.1"
         tasks: ["WIT-001", "WIT-002"]
 ---
 

@@ -181,12 +181,19 @@ The phase OKR is *not* a smaller copy of the overall OKR — it's a tactical com
 7. **Objectives** — 2–4 phase Objectives. For each:
    - Title (as `## Objective <N> — <title>`)
    - Goal (1–2 sentences)
-   - 3–5 Key Results in a `### Key Results` table, ids matching `P<NNN>-O<n>-KR<m>`:
-     ```
-     | Id | KR text | Metric / Target | Linked overall KR |
-     |----|---------|-----------------|---------------------|
-     | P<NNN>-O1-KR1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
-     ```
+   - A `### Key Results` heading carrying the template's pointer and **no
+     table**. 3–5 Key Results per Objective, ids matching `P<NNN>-O<n>-KR<m>`,
+     are declared in `phase/<NNN>-linkage.md` at step 2 of *After write* below
+     and printed by `bin/perry-goals krs`.
+
+     **This step used to say "write them in a `### Key Results` table" and that
+     is the defect TASK-157 closed.** A KR's id, title, metric, target and
+     linked overall KR were then written twice — here by hand, and in the
+     register machine-written — in two files in one directory with nothing
+     comparing them. The markdown copy is the one that went stale, and it had:
+     `P003-O2-KR1` read a target its register did not. DESIGN-013 § 5.1 (locked
+     2026-08-29) puts a fact with a schema in exactly one store, and all five
+     of those fields are schema'd. **Write the register; do not retype it here.**
    - Linked Projects: each Project has Owner / User role / Deliverable / Verification — these become PMO task seeds with TASK-IDs.
 8. **Definition of Done** — split into **Must-Have** (failure = phase missed) and **Nice-to-Have** (failure allowed but explained in retro).
 9. **Not Doing in this phase** — explicit anti-goals scoped to this phase. Often more concrete than the overall Anti-Goals.
@@ -202,15 +209,53 @@ Then confirm with the user and write `phase/<NNN>-<slug>.md` from `state/phase_T
 
 After write:
 1. Update `phase/CURRENT` (a one-line pointer file containing `<NNN>-<slug>`).
-2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now). Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at. Every `projects[]` entry is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above, which derives `objective` from the KR id and sets `status: active`; every task edge afterwards is `bin/perry-goals link`, and nothing in this file is edited by hand once it exists (`reference/linkage.md`).
+2. **Write the linkage graph**: `phase/<NNN>-linkage.md` from `state/linkage_TEMPLATE.md` — YAML frontmatter, spec `linkage: 1`. One `objectives[]` entry per phase Objective with its KRs (`tasks: []` for now). **This is where the KRs are declared** — `id`, `title`, `metric`, `target`, and `linked` (the overall KR this one serves). Nothing else in the project holds them, so a KR left out here is a KR the phase does not have. Check what you wrote with `bin/perry-goals krs`, which prints the table the phase document used to carry. Set `updated` to a full ISO datetime (`date -u +%Y-%m-%dT%H:%M:%SZ`) — a day-only value is dropped by both readers rather than guessed at. Every `projects[]` entry is then `bin/perry-goals link --project <PROJECT-ID> <KR-ID> "<name>"`, one per Project defined above, which derives `objective` from the KR id and sets `status: active`; every task edge afterwards is `bin/perry-goals link`, and nothing in this file is edited by hand once it exists (`reference/linkage.md`).
 
    Two things to get right, because a reader can't recover from either:
    - **`target` / `current` are numbers or omitted.** A KR whose target is prose ("≤ 15% drawdown", "6–10% annualised") carries no `target` — the number goes in `metric` as text. A ceiling rendered as a progress bar reports a risk limit as two-thirds achieved. **`current` is an author's assertion: leave it out until someone asserts one.** The template no longer carries `current: 0`, because most KRs drive a count down and a defaulted zero reads as met on the day the register is written.
    - **`unlinked` starts empty and is only ever appended deliberately.** It means "this work serves no KR", not "we haven't got round to it".
 
    This graph is the stable-ID source of truth that keeps attribution from being guessed later, and it is what the frontend draws the O→KR→task chain from. See `$PERRY_HOME/reference/okr-linkage.md`.
-3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that the graph parses at all, that no task serves two KRs, and that each project's `objective` agrees with its `serves` KR.
+3. Verify structure: `"$PERRY_HOME/bin/perry-lint" --root .` — it checks the ten sections, the KR id pattern, that the graph parses at all, that no task serves two KRs, that every KR id names the phase whose register it sits in, and that each project's `objective` agrees with its `serves` KR.
 4. Optionally call `plan-week` for week 1 immediately.
+
+## `krs`
+
+Print the current phase's key results. **Read-only, and the only surface for
+them.**
+
+```bash
+"$PERRY_HOME/bin/perry-goals" krs                  # the current phase
+"$PERRY_HOME/bin/perry-goals" krs --phase 002      # a scored phase
+"$PERRY_HOME/bin/perry-goals" krs --json           # for a consumer
+```
+
+It reads `phase/<NNN>-linkage.md` and prints the id, KR text, metric/target and
+linked overall KR of every KR the register declares, grouped by Objective — the
+table `phase/<NNN>-<slug>.md` used to carry.
+
+**Why the phase document no longer carries it.** Those four facts were written
+in both files, in full: by hand here at `plan-phase` step 7, and machine-written
+into the register by `bin/perry-goals link`. Nothing compared the two —
+`perry-lint` reports drift for six declared stores and had nothing to say about
+this pair — and the markdown copy is the one that went stale. Measured at
+`30cc467`, every one of the 24 KR rows across phases 001, 002 and 003 disagreed
+with its register, and `P003-O2-KR1` carried a target the register did not.
+DESIGN-013 § 5.1 (locked 2026-08-29): *a fact that has a schema lives in exactly
+one store; a document holds what has no schema; no field lives in both.*
+TASK-157 is the row.
+
+**What this command will never do.** It has no `--write` and refuses one. The
+alternative design — generate the table back into the phase document and report
+hand edits to it as drift — was the row's original scope and was rejected under
+the rule above: it builds a second copy and then a checker for it. There is
+nothing to reconcile here because there is nothing to reconcile against.
+
+**On a project that has not migrated** — an adopted one, or a Perry project
+older than this row — the phase document still carries a table and the register
+carries no `krs[]`. `viewer/parsers.py § phase_key_results` reads the document
+exactly then, so those KRs still reach every payload. One source at a time,
+chosen, never merged; `krs` itself needs a register and says so if there is none.
 
 ## `score-phase [<NNN>]`
 

@@ -60,6 +60,14 @@ is that rule as code, and the board-side link — a `Commitment` cell carrying a
 Usage:
   perry-goals list [--json] [--level overall|phase]
 
+  perry-goals krs [--json] [--phase <NNN>]
+      The current phase's key results, printed from `phase/<NNN>-linkage.md`.
+      READ-ONLY, and the only surface for them: TASK-157 removed the KR table
+      from `phase/<NNN>-<slug>.md` because those four facts were written there
+      AND in the register, with nothing comparing the two and the markdown copy
+      already stale. DESIGN-013 § 5.1 — a fact with a schema lives in exactly
+      one store.
+
   perry-goals commit --track <t> --promise <text> --to <whom> --due <when>
                      [--by-when-note <prose>]
   perry-goals commit --id <Id> [--due <when>] [--by-when-note <prose>]
@@ -898,11 +906,24 @@ def kr_rows(snap, events: list | None = None,
     status_by_id = lib.task_status_index(
         getattr(snap, "project_root", "."), getattr(snap, "board", None))
 
+    # **The phase's KRs come from the register, not from the phase document.**
+    # TASK-157: they used to be declared in both, in full, with nothing
+    # comparing them — so this loop read the markdown copy and then overwrote
+    # its numbers from the register, which meant a stale title or metric was
+    # published and a stale target was not. `phase_key_results` is the one
+    # resolver; it reads the document only on a project that has no register.
+    phase_objectives = [
+        (o, krs) for o, krs in zip(
+            getattr(getattr(snap, "phase", None), "objectives", None) or [],
+            P.phase_key_results_by_objective(getattr(snap, "phase", None), lk))]
     out = []
-    for level, src in (("overall", getattr(snap, "okr", None)),
-                       ("phase", getattr(snap, "phase", None))):
-        for o in (getattr(src, "objectives", None) or []):
-            for k in (getattr(o, "krs", None) or []):
+    for level, groups in (
+            ("overall", [(o, list(o.krs)) for o in
+                         (getattr(getattr(snap, "okr", None), "objectives",
+                                  None) or [])]),
+            ("phase", phase_objectives)):
+        for o, group in groups:
+            for k in group:
                 r = reg.get(k.id, {})
                 target, current = r.get("target"), r.get("current")
                 out.append({
@@ -983,7 +1004,10 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     # explicitly, from fields that do exist.
     okr_present = bool(okr and (okr.version or okr.mission or okr.objectives))
     phase_day = days_since(ph.started) if ph else None
-    phase_krs = sum(len(o.krs or []) for o in (ph.objectives or [])) if ph else None
+    # From the register, for the reason `kr_rows` gives: TASK-157 removed the
+    # KR table from the phase document, and counting its objectives' `krs`
+    # would report 0 on every migrated project.
+    phase_krs = len(P.phase_key_results(ph, lk)) if ph else None
 
     # The event log answers ONE question here: has a linked task moved since
     # the register asserted its numbers. `present` is carried separately from
@@ -2968,7 +2992,127 @@ def canonical_of(header_cell: str, names: list[str]) -> str:
     return squash(header_cell)
 
 
-COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link}
+# ── `krs` — the phase's key results, printed from the one place they live ──
+#
+# TASK-157, under DESIGN-013 § 5.1 (locked 2026-08-29): *a fact that has a
+# schema lives in exactly one store; a document holds what has no schema; no
+# field lives in both.*
+#
+# A phase KR's id, title, metric, target and linked overall KR are schema'd
+# fields of `phase/<NNN>-linkage.md`. They were ALSO written into a markdown
+# table in `phase/<NNN>-<slug>.md`, by hand, by `plan-phase` — the same four
+# facts twice, in two files in one directory, with nothing comparing them.
+# `perry-lint` reported drift for six declared stores and nothing for this
+# pair, and the markdown copy is the one that went stale: `P003-O2-KR1` read a
+# target its register did not.
+#
+# The table is gone from the document. This is where a human reads it now, and
+# it is READ-ONLY: it prints, it never writes, and there is nothing for a hand
+# edit to drift from because there is no second copy to edit. That is the whole
+# difference between this and the reconcile the row was originally scoped to
+# build — see `perry/evidence/2026-08/TASK-157-result.md`.
+
+def kr_table_columns() -> list[str]:
+    """The header the phase document's KR table carried.
+
+    A reader who knew that table meets the same four columns here. Read out of
+    the schema rather than retyped: `perry-lint` still validates an adopted
+    project's table against that list, and a second copy would disagree the day
+    a column is added — silently, because an extra column would simply not be
+    printed.
+    """
+    for spec in load_schema().get("files", []):
+        if spec.get("path", "").startswith("phase/[0"):
+            for table in spec.get("tables", []):
+                if "Objective" in (table.get("under") or ""):
+                    return list(table.get("columns") or [])
+    raise Refused("schema/state-schema.json declares no phase KR table; this "
+                  "tool cannot invent a header for one")
+
+
+def phase_register(state_root: Path, phase: str | None) -> Path:
+    """The register to read — the current phase's, or the one `--phase` names.
+
+    `--phase` takes the number (`003`) rather than the slug, because that is
+    what the file is named by and it is the half of `<NNN>-<slug>` that cannot
+    be misremembered.
+    """
+    if not phase:
+        return register_path(state_root)
+    number = str(phase).strip()
+    if not re.fullmatch(r"\d{3}", number):
+        raise Refused(f"--phase takes a three-digit phase number such as "
+                      f"`003`, not {phase!r}")
+    path = state_root / "phase" / f"{number}-linkage.md"
+    if not path.exists():
+        raise Refused(f"no linkage register at "
+                      f"{path.relative_to(state_root).as_posix()}")
+    return path
+
+
+def cmd_krs(args, ctx) -> dict:
+    """`krs` — every KR of one phase, from `phase/<NNN>-linkage.md`.
+
+    Read-only by construction: it takes no write path, appends no event and
+    holds no `--write`. `perry-goals link` is still the register's only writer.
+    """
+    if args.rest:
+        raise Refused(f"`krs` takes no positional arguments and no `--write`; "
+                      f"got {' '.join(args.rest)!r}. It is a READ — the phase "
+                      f"document has no KR table for it to write into, which "
+                      f"is the whole of TASK-157. Nothing was printed")
+    path = phase_register(ctx["state_root"], args.phase)
+    model = P.parse_linkage(path.read_text(encoding="utf-8"))
+    if model.error:
+        raise Refused(f"{path.name} does not parse as a linkage register "
+                      f"({model.error}). A half-read graph would print a KR "
+                      f"table missing whichever rows it dropped, which is the "
+                      f"one thing this command must never do")
+    objectives = []
+    for obj in model.objectives:
+        objectives.append({
+            "id": obj.id, "title": obj.title,
+            "krs": [{"id": k.id, "text": k.title,
+                     "metric": P.kr_metric_cell(k), "linked": k.linked,
+                     "target": k.target, "current": k.current,
+                     "stretch": bool(k.stretch), "tasks": list(k.tasks or [])}
+                    for k in obj.krs],
+        })
+    return {"register": path.name, "phase": model.phase,
+            "updated": model.updated, "objectives": objectives,
+            "counts": {"objectives": len(objectives),
+                       "krs": sum(len(o["krs"]) for o in objectives)}}
+
+
+def render_krs(result: dict) -> str:
+    """The payload → the markdown the phase document used to carry.
+
+    Rendered through `tables.render_row`, which is the one row renderer in this
+    repository: a cell holding a `|` is escaped so it reads back as itself, and
+    a cell holding a line break is REFUSED rather than written as a row that
+    silently swallows the rest of the table.
+    """
+    columns = kr_table_columns()
+    out = [f"# Phase {result['phase'] or '—'} — key results",
+           f"> Declared in `phase/{result['register']}` · updated "
+           f"{result['updated'] or '—'}. This is a render, not a file: the "
+           f"register is the only place these values live."]
+    for obj in result["objectives"]:
+        out += ["", f"## {obj['id']} — {obj['title']}", ""]
+        if not obj["krs"]:
+            out.append("_no key results declared under this objective_")
+            continue
+        out.append(render_row(columns))
+        out.append("|" + "|".join("---" for _ in columns) + "|")
+        for kr in obj["krs"]:
+            out.append(render_row([kr["id"], kr["text"],
+                                   kr["metric"] or "—",
+                                   kr["linked"] or "—"]))
+    return "\n".join(out)
+
+
+COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
+            "krs": cmd_krs}
 
 
 class Args:
@@ -2977,7 +3121,7 @@ class Args:
 
 def parse(argv: list[str]) -> Args:
     a = Args()
-    a.cmd = a.root = a.level = None
+    a.cmd = a.root = a.level = a.phase = None
     a.id = a.track = a.promise = a.to = a.due = a.by_when_note = None
     a.close = a.miss = a.reason = a.discharged_by = None
     a.actor = "agent"
@@ -2991,6 +3135,7 @@ def parse(argv: list[str]) -> Args:
     a.alias = a.unlinked = a.project = False
     a.rest = []
     flags = {"--root": "root", "--level": "level", "--id": "id",
+             "--phase": "phase",
              "--track": "track", "--promise": "promise", "--to": "to",
              "--due": "due", "--by-when-note": "by_when_note",
              "--close": "close", "--miss": "miss",
@@ -3077,6 +3222,15 @@ def main(argv: list[str]) -> int:
         state_root = P.resolve_state_root(project_root)
         if args.cmd == "list":
             result = build(project_root, state_root, args.level)
+        elif args.cmd == "krs":
+            # **On the read path, deliberately.** `krs` prints a register; it
+            # opens no lock and passes no conformance gate because both belong
+            # to writing. Routing it through the `else` branch below would take
+            # the project lock to print a table and would REFUSE to print one
+            # on a project whose `OKR.md` is out of shape — a read that cannot
+            # answer while the file it does not touch is malformed.
+            result = cmd_krs(args, {"project_root": project_root,
+                                    "state_root": state_root})
         else:
             # ADR-004, before the lock and before the command runs: a refusal
             # must mean nothing was written, and a dry run must preview the
@@ -3160,6 +3314,8 @@ def main(argv: list[str]) -> int:
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "krs":
+        print(render_krs(result))
     elif args.cmd == "commit" and result.get("migrated"):
         m = result["migrated"]
         verb = "would split" if args.dry_run else "split"

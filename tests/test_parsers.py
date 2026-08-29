@@ -68,16 +68,38 @@ class TemplateContract(unittest.TestCase):
         self.assertEqual(len(okr.anti_goals), 4, "horizontal rules must not count as bullets")
         self.assertEqual(okr.version_log[0][0], "v1", "## Versioning log not read")
 
-    def test_phase_template_yields_objectives_krs_and_scope_triggers(self):
+    def test_phase_template_yields_objectives_and_scope_triggers(self):
         ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
         self.assertEqual(len(ph.objectives), 2)
-        self.assertEqual([kr.id for kr in ph.krs],
-                         ["P{{NNN}}-O1-KR1", "P{{NNN}}-O1-KR2",
-                          "P{{NNN}}-O1-KR3", "P{{NNN}}-O2-KR1"])
         self.assertEqual(len(ph.scope_triggers), 2,
                          "## Phase Scope Reduction Rule not parsed")
         self.assertEqual({t.kind for t in ph.scope_triggers},
                          {"phase-day", "kr-progress"})
+
+    def test_the_phase_template_declares_no_krs_and_the_register_does(self):
+        """TASK-157 — the assertion this replaced read the other way round.
+
+        It used to pin four KR ids parsed out of `phase_TEMPLATE.md`'s KR
+        tables. Those tables are gone: a KR's id, title, metric, target and
+        linked overall KR are schema'd fields and DESIGN-013 § 5.1 puts a fact
+        with a schema in exactly one store. **Both halves are asserted here**,
+        because "the template has no KR table" on its own is also what a
+        template with no Objectives at all would say, and that is the shape a
+        deletion would leave behind.
+        """
+        ph = P.parse_phase("001-demo", read("goals/state/phase_TEMPLATE.md"))
+        self.assertEqual([kr.id for kr in ph.krs], [],
+                         "phase_TEMPLATE.md still authors a KR table")
+        self.assertEqual(len(ph.objectives), 2,
+                         "the Objectives themselves must survive — they are "
+                         "the document's own headings, not the register's")
+        self.assertIn("linkage.md", read("goals/state/phase_TEMPLATE.md"),
+                      "the template must point at the file that does declare "
+                      "them, or the KRs are simply missing")
+        link = P.parse_linkage(read("goals/state/linkage_TEMPLATE.md"))
+        self.assertTrue(link.error or link.objectives,
+                        "linkage_TEMPLATE.md declares neither KRs nor a "
+                        "refusal — the KRs would then live nowhere at all")
 
     def test_phase_template_placeholder_status_is_not_a_real_status(self):
         """The template ships `{{armed / disarmed / tripped}}`; reading that as
