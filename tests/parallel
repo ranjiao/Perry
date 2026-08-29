@@ -102,8 +102,11 @@ DURATIONS = ROOT / "tests" / "durations.json"
 #: `test_x (test_mod.Class.test_x)` opens a record; the outcome may land on
 #: that line or, when the test has a docstring, on a following one.
 _ID = re.compile(r"^(\w+) \(([\w.]+)\)")
-_OUTCOME = re.compile(
-    r" \.\.\. (ok|FAIL|ERROR|skipped .*|expected failure|unexpected success)$")
+_VERDICT = r"(ok|FAIL|ERROR|skipped .*|expected failure|unexpected success)"
+_OUTCOME = re.compile(r" \.\.\. " + _VERDICT + r"$")
+#: The same verdict **alone on a line**, which is where it lands whenever the
+#: test itself wrote to stderr — see `parse_ids`.
+_BARE_OUTCOME = re.compile(r"^" + _VERDICT + r"$")
 
 
 def load_durations() -> dict[str, float]:
@@ -132,15 +135,40 @@ def schedule(mods: list[str], durations: dict[str, float]) -> list[str]:
 
 
 def parse_ids(stderr: str) -> list[tuple[str, str]]:
-    """(test id, outcome) pairs out of `unittest -v` output."""
+    """(test id, outcome) pairs out of `unittest -v` output.
+
+    **The verdict is not always on the line that names the test, and the first
+    version of this function silently dropped every case where it was not.**
+    `unittest` writes the description and ` ... ` when the test STARTS and the
+    verdict when it finishes, so anything the test writes to stderr in between
+    lands in the middle — and the verdict is then pushed onto a line of its
+    own. Measured on the live suite: 2899 tests ran and this function returned
+    2885 ids, fourteen missing across seven modules, the shortfall coming from
+    ordinary `DeprecationWarning`s that `-W default` prints.
+
+    That is the exact defect `tests/parallel` already carries a scar from —
+    **the number was still large enough to look right** — reappearing in the
+    function whose whole job is to say which tests ran. `--ids` is the pass/
+    fail SET, so a set that quietly understates makes every comparison drawn
+    from it a false negative: a test that stopped running looks like a test the
+    parser never saw.
+
+    Two shapes are read, and `main()` refuses to write an `--ids` file when the
+    count does not match unittest's own `Ran N` — because a third shape is
+    always possible (a test whose output does not end in a newline glues the
+    verdict onto it) and a parser that cannot account for every test must say
+    so rather than round down.
+    """
     out: list[tuple[str, str]] = []
     pending: str | None = None
     for line in stderr.splitlines():
         m = _ID.match(line)
         if m:
             pending = m.group(2)
-        o = _OUTCOME.search(line)
-        if o and pending:
+        if not pending:
+            continue
+        o = _OUTCOME.search(line) or (not m and _BARE_OUTCOME.match(line))
+        if o:
             out.append((pending, o.group(1).split()[0]))
             pending = None
     return out
@@ -171,6 +199,10 @@ def main() -> int:
                     help="write every test id and its outcome to FILE")
     ap.add_argument("--record", action="store_true",
                     help="refresh tests/durations.json from this run")
+    ap.add_argument("--alphabetical", action="store_true",
+                    help="ignore the stopwatch and run modules in name order "
+                         "— the pre-TASK-230 schedule, kept so the saving can "
+                         "be re-measured rather than believed")
     args = ap.parse_args()
 
     mods = sorted(p.name for p in (ROOT / "tests").glob("test_*.py"))
@@ -183,7 +215,8 @@ def main() -> int:
 
     t0 = time.time()
     with cf.ThreadPoolExecutor(max_workers=args.j) as ex:
-        results = list(ex.map(run_module, schedule(mods, load_durations())))
+        order = schedule(mods, {} if args.alphabetical else load_durations())
+        results = list(ex.map(run_module, order))
     results.sort(key=lambda r: r["mod"])
     wall = time.time() - t0
 
@@ -204,9 +237,24 @@ def main() -> int:
         for r in sorted(results, key=lambda r: -r["sec"]):
             print(f"  {r['sec']:7.2f}  {r['ran']:5d}  {r['mod']}")
 
+    unaccounted = [r for r in results if len(r["ids"]) != r["ran"]]
     if args.ids:
-        pathlib.Path(args.ids).write_text("".join(
-            f"{i}\t{o}\n" for r in results for i, o in sorted(r["ids"])))
+        # **A set that cannot account for every test is not the set.** `ran`
+        # comes from unittest's own `Ran N` line and the ids come from the
+        # verbose stream: two numbers with independent origins that must agree.
+        # Checked only under `--ids`, because that is the mode whose whole
+        # output is the set — a run that is only asked for a verdict is not
+        # made red by a line the parser could not read.
+        for r in unaccounted:
+            print(f"\n\033[31m✗ {r['mod']}: unittest ran {r['ran']} tests and "
+                  f"the id parser accounted for {len(r['ids'])}\033[0m — "
+                  f"`--ids` would understate the set, which is the one thing "
+                  f"it may not do.")
+        if unaccounted:
+            print(f"\033[31m✗ no --ids file written\033[0m")
+        else:
+            pathlib.Path(args.ids).write_text("".join(
+                f"{i}\t{o}\n" for r in results for i, o in sorted(r["ids"])))
 
     if args.record and not args.only:
         DURATIONS.write_text(json.dumps(
@@ -219,6 +267,8 @@ def main() -> int:
           f"· {args.j} workers")
     if failed or empty:
         print(f"\033[31m✗ {len(failed) + len(empty)} module(s) red\033[0m")
+        return 1
+    if args.ids and unaccounted:
         return 1
     print("\033[32m✓ all green\033[0m")
     return 0

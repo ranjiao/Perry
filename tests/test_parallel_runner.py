@@ -28,6 +28,8 @@ import importlib.machinery
 import importlib.util
 import json
 import pathlib
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -95,6 +97,16 @@ class TestLongestFirstAndUnknownFirstOfAll(unittest.TestCase):
         mods = ["test_known.py", "test_new.py"]
         hint = {"test_known.py": 900.0}
         self.assertEqual(P.schedule(mods, hint)[0], "test_new.py")
+
+    def test_an_empty_hint_is_exactly_the_pre_task_230_alphabetical_order(self):
+        """What `--alphabetical` reproduces, so the A/B is a real A/B.
+
+        The measured saving is only meaningful if the "before" arm is the
+        schedule that actually shipped before. It was `sorted(glob)`, and an
+        empty hint reproduces it exactly rather than approximately.
+        """
+        mods = ["test_c.py", "test_a.py", "test_b.py"]
+        self.assertEqual(P.schedule(mods, {}), sorted(mods))
 
     def test_the_order_is_deterministic_for_equal_times(self):
         mods = ["test_b.py", "test_a.py"]
@@ -174,6 +186,53 @@ class TestTheIdParserSeesEveryOutcome(unittest.TestCase):
                 "----------------------------------------\n"
                 "Ran 1 test in 0.061s\n\nOK\n")
         self.assertEqual(P.parse_ids(text), [("test_m.C.test_x", "ok")])
+
+    def test_a_test_that_wrote_to_stderr_is_still_counted(self):
+        """**The fourteen that went missing.** `unittest` prints ` ... ` when
+        the test STARTS, so anything the test writes to stderr lands between
+        that and the verdict — and the verdict ends up alone on a line. The
+        first version required ` ... ` on the same line, matched nothing, and
+        dropped the test from the set entirely. Real shape, copied out of
+        `test_one_header_rule` on the live suite.
+        """
+        text = ("test_value_normalizers_are_not_flagged "
+                "(test_m.C.test_value_normalizers_are_not_flagged)\n"
+                "**The judgement in this module.** ... "
+                "<unknown>:939: DeprecationWarning: invalid escape sequence\n"
+                "<unknown>:85: DeprecationWarning: invalid escape sequence\n"
+                "ok\n")
+        self.assertEqual(
+            P.parse_ids(text),
+            [("test_m.C.test_value_normalizers_are_not_flagged", "ok")])
+
+    def test_a_bare_verdict_with_no_test_open_is_not_a_test(self):
+        """`OK` and a stray `ok` in a traceback must not invent an id."""
+        self.assertEqual(P.parse_ids("ok\nFAIL\nOK\n"), [])
+
+    def test_stderr_noise_does_not_bleed_one_verdict_onto_the_next_test(self):
+        text = ("test_a (test_m.C.test_a)\nwarning here\nok\n"
+                "test_b (test_m.C.test_b) ... FAIL\n")
+        self.assertEqual(P.parse_ids(text),
+                         [("test_m.C.test_a", "ok"), ("test_m.C.test_b", "FAIL")])
+
+    def test_every_test_in_the_live_suites_noisiest_module_is_accounted_for(self):
+        """The property, run against a real module rather than a fixture.
+
+        `--ids` is the pass/fail SET the whole verification story rests on, and
+        the failure it must not have is understating it. `Ran N` is unittest's
+        own count; the ids come from the verbose stream. Two independent
+        origins, and they have to agree.
+        """
+        proc = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests",
+             "-p", "test_one_header_rule.py", "-v"],
+            capture_output=True, text=True, cwd=ROOT)
+        ran = sum(int(line.split()[1]) for line in proc.stderr.splitlines()
+                  if line.startswith("Ran "))
+        self.assertTrue(ran, "the reference module ran nothing")
+        self.assertEqual(len(P.parse_ids(proc.stderr)), ran,
+                         "the id parser did not account for every test the "
+                         "module ran")
 
 
 if __name__ == "__main__":
