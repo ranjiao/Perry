@@ -45,7 +45,12 @@ from pathlib import Path
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-from tables import squash  # noqa: E402
+sys.path.insert(0, str(PERRY_HOME / "tests"))
+from tables import squash            # noqa: E402
+from header_rule import offenders, readers_under   # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from header_rule import offenders, readers_under  # noqa: E402
 import parsers as P  # noqa: E402
 
 # The counter, not a second copy of it. `tests/parallel` puts `tests/` on the
@@ -53,67 +58,12 @@ import parsers as P  # noqa: E402
 # `test_task_writer`.
 import test_row_integrity as RI  # noqa: E402
 
-#: Every file that reads a Perry state file. Not a curated list of offenders —
-#: the point is that a NEW reader is caught too, so this is "everything in
-#: `bin/` plus the `viewer/` readers", minus the one that defines the rule.
-def _is_python(p) -> bool:
-    """A Python source file, by suffix or shebang — not by extension list.
-
-    The first widened version enumerated every file and flagged
-    `bin/perry-dispatch-limit` (bash) and, while it existed, the viewer's
-    `static/sortable.js`. Neither can reach `squash` and neither reads a Perry
-    markdown table, so reporting them is a guard crying wolf — and this module's own docstring says the
-    judgement about scope IS the module. Excluding by suffix list would have
-    to be extended for the next asset type; asking what the file is does not.
-    """
-    if p.suffix == ".py":
-        return True
-    if p.suffix:
-        return False
-    try:
-        return "python" in p.read_text(errors="replace").split("\n", 1)[0]
-    except OSError:
-        return False
-
-
-#: **Three blind spots, all measured by a reviewer planting a file, all in this
-#: one expression.** (1) `iterdir()` + `is_file()` skips DIRECTORIES, so the
-#: byte-identical defect was green at `bin/lib/rows.py` and red at
-#: `bin/perry-rows-probe` — and `bin/lib/` is the directory TASK-065 exists to
-#: create. That is the same hole its sibling guard had just been fixed for, one
-#: file over. (2) `viewer/` was a hardcoded ONE-FILE list, in the package where
-#: the rule lives. Both are why this now walks the tree.
-READERS = sorted(
-    p for d in ("bin", "viewer")
-    for p in (PERRY_HOME / d).rglob("*")
-    if p.is_file()
-    and "__pycache__" not in p.parts
-    and p != PERRY_HOME / "viewer" / "tables.py"
-    and _is_python(p))
-
-#: A HEADER cell resolved by a rule other than `squash`. The shape that makes
-#: it a header rather than a value: the result is a **list built over a row's
-#: cells**, which is then used to find columns by name. A scalar `.lower()` on
-#: one cell is a value normalizer — `perry-state`'s `Status` test,
-#: `perry-task`'s `Outcome` test, `parse_frequency` — and those are legitimately
-#: their own rules, because they normalize what a project WROTE rather than
-#: which column it wrote it in. Narrowing this to the header shape is the whole
-#: judgement in this module; widening it flags eight correct call sites.
-#: **(3) It matched a spelling, not a shape.** `for c in cells` was caught and
-#: `for h in header` was not — one variable rename walked past the guard, which
-#: a reviewer proved by renaming it. The loop SUBJECT is now any identifier, and
-#: the comprehension is recognised by what it builds rather than by what the
-#: author happened to call the row.
-#: **(4) It required the `[` to sit immediately after the `=`.** Found by
-#: mutation while measuring TASK-094: `header = ([c.strip().lower() for c in
-#: split_row(prev)] if … else [])` — the LIVE shape in `viewer/parsers.py §
-#: _parse_task_table`, one paren away from the pattern — was planted and this
-#: guard stayed green while three other tests went red. A parenthesised
-#: comprehension is how the real call site is written, so the blind spot was
-#: aimed at exactly the line the module exists to watch.
-SECOND_RULE = re.compile(
-    r"=\s*[(\[\s]*\[[^\]]*?\.lower\(\)[^\]]*?\bfor\b\s+\w+\s+in\s+"
-    r"(?:cells|cols|columns|header|hdr|split_row\()")
+#: **The scan is one implementation, in `tests/header_rule.py`**, shared with
+#: `tests/test_header_rule_harness.py`. Round 5's review found the harness
+#: could not point the complement net at a planted copy — precisely because
+#: there were two nets, one parameterised and one pinned to `PERRY_HOME`. There
+#: is one now, and it takes a root.
+READERS = readers_under(PERRY_HOME)
 
 
 class TestOneRuleForAHeaderCell(unittest.TestCase):
@@ -125,44 +75,56 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertEqual(squash("**Default** rung"), "default rung")
         self.assertEqual(squash("Default  rung"), "default rung")
 
-    def test_no_reader_resolves_a_header_cell_by_a_second_rule(self):
-        offenders = []
-        for p in READERS:
-            src = p.read_text(encoding="utf-8", errors="replace")
-            for n, line in enumerate(src.split("\n"), 1):
-                if line.lstrip().startswith("#"):
-                    continue          # a comment quoting the old rule is fine
-                if SECOND_RULE.search(line):
-                    offenders.append(f"{p.name}:{n}: {line.strip()}")
-        self.assertEqual(offenders, [], "header cells resolved by a second rule:\n"
-                                        + "\n".join(offenders))
+    def test_no_reader_folds_a_header_cell_by_a_second_rule(self):
+        """The whole category, in one assertion, over the whole tree.
 
-    def test_every_reader_that_resolves_headers_reaches_the_one_rule(self):
-        """The complement: catching the old spelling is not enough if a reader
-        invents a third. A file that reads tables must reach `squash` — either
-        by importing it, or through `perry-lint`'s `norm` alias, which the next
-        test pins to the same object."""
-        missing = []
-        for p in READERS:
-            src = p.read_text(encoding="utf-8", errors="replace")
-            # **Not `split_row(` alone — that exempted exactly the combination
-            # that bit.** A file carrying its own splitter AND its own header
-            # rule never mentions `split_row`, so the skip excused the one
-            # shape this module exists to catch; `bin/perry-explain` was
-            # precisely that file. A PRIVATE splitter is `.split("|")`, so the
-            # question is "does it split a row", either way.
-            #
-            # Narrower than the first attempt, which asked "does a string in
-            # this file contain a pipe" and flagged `perry-conform` and
-            # `perry-decide` — neither splits a row at all; `perry-decide`'s
-            # `header_fields` reads `**Status**:` document frontmatter, not a
-            # table header.
-            if not re.search(r"""\.split\(\s*['"]\|['"]|split_row\(""",
-                             src):
-                continue              # does not split markdown rows at all
-            if "squash" not in src and ".norm(" not in src:
-                missing.append(p.name)
-        self.assertEqual(missing, [], f"read tables without reaching `squash`: {missing}")
+        **This replaced a regex over source lines and a whole-file substring
+        test, and both were defeated by the round 5 reviewer.** The regex knew
+        the spellings it had been taught; the substring test asked whether the
+        token "squash" appeared anywhere in the file, which all 9 row-splitting
+        readers already satisfy — so it contributed nothing against a new rule
+        added to an existing reader. The reviewer proved it by appending a
+        `.casefold()` header reader to `viewer/parsers.py` and getting `[]`
+        from both.
+
+        `tests/header_rule.py` asks the parser instead: a collection built by
+        mapping over a row's cells, whose element expression case-folds, must
+        fold through `squash`.
+        """
+        found = offenders(PERRY_HOME)
+        self.assertEqual(found, [], "header cells folded by a second rule:\n"
+                                    + "\n".join(found))
+
+    def test_value_normalizers_are_not_flagged(self):
+        """**The judgement in this module, asserted with a live number.**
+
+        The tree holds ~30 case-folding comprehensions and not one is a header
+        resolution: they lowercase directory names, aliases, spellings, modes
+        and stages. Those normalize what a project WROTE, not WHICH COLUMN it
+        wrote it in, and every earlier round's docstring warns that widening
+        the guard to cover them flags correct call sites — a guard that reports
+        correct code is one people switch off.
+
+        Asserting the count would make this fail on every unrelated edit. What
+        must hold is that a large number of them exist and none is reported.
+        """
+        import ast
+        folding = 0
+        for path in READERS:
+            try:
+                tree = ast.parse(path.read_text(errors="replace"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                                     ast.GeneratorExp)):
+                    if ".lower()" in ast.unparse(node) \
+                            or ".casefold()" in ast.unparse(node):
+                        folding += 1
+        self.assertGreater(folding, 20,
+                           "the tree stopped normalizing values — this test is "
+                           "measuring nothing and should be re-derived")
+        self.assertEqual(offenders(PERRY_HOME), [])
 
     def test_the_norm_alias_is_the_same_object_and_not_a_second_copy(self):
         """`bin/perry-migrate` reaches the rule as `L.norm`. That is only
