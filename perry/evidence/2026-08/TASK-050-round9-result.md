@@ -333,14 +333,23 @@ It is measured now, on both, and it settles the sentence round 8 retracted.
 | runner | tree | how | modules | tests | failures |
 |---|---|---|---|---|---|
 | `bash tests/run` | `main` @ `6c0d041` | `git archive` export | 98 | 2882 | 3 |
-| `bash tests/run` | round 9 (`HEAD` of this branch) | the worktree, clean | 99 | 2895 | 3 |
+| `bash tests/run` | round 9 (`HEAD` = `93a49a1`) | the worktree, clean | 99 | 2895 | 3 |
 | `python3 -m unittest discover -s tests` | `main` @ `6c0d041` | `git archive` export | — | 2882 | **6** |
 | `python3 -m unittest discover -s tests` | round 8 @ `68e63cf` | `git archive` export | — | 2893 | **6** |
 | `python3 -m unittest discover -s tests` | round 9 (`HEAD`) | `git archive` export | — | 2895 | **6** |
 
-Outputs: `scratchpad/r9work/run-main-6c0d041.txt`,
-`run-r9-worktree.txt`, `discover-main.txt`, `discover-branch-68e63cf.txt`,
+Outputs: `scratchpad/r9work/run-main-6c0d041.txt`, `run-r9-worktree.txt`,
+`run-final2.txt`, `discover-main.txt`, `discover-branch-68e63cf.txt`,
 `discover-r9.txt`.
+
+`bash tests/run` was run **twice** on this branch's code: once at
+`5e737ed` (`run-r9-worktree.txt`) and once on the committed tip
+(`run-final2.txt`), because the first run was before the evidence files
+existed and `test_diagnose` reads this repository. The second run is why
+the minted task id in § 6.5 was caught and removed. Both report
+99 / 2895 / 3, the same three names. The `discover` row for round 9 is a
+`git archive` export of `5e737ed`; the code is byte-identical at the tip,
+which changes only `perry/evidence/`.
 
 **The two runners differ by exactly 3, on every tree, and the three are named.**
 `bash tests/run` reports:
