@@ -375,7 +375,15 @@ _CONFORMANCE_ROW = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
 #: declaration (TASK-241). It cannot be caught by any property of the row
 #: itself: a fenced row is byte-for-byte identical to a genuine one, and what
 #: makes it not a declaration is where it sits, not how it is written.
-_FENCE = re.compile(r"^\s*(?:`{3,}|~{3,})")
+#:
+#: Three groups, because the *first* version of this guard had none and was a
+#: boolean toggle flipped by any line that looked like a fence. That is not
+#: markdown's rule, and it was defeated by the ordinary way a document shows a
+#: fenced block — a NESTED fence. `~~~` then ``` ``` ``` closed the toggle on
+#: the inner line, and the row under it was a live declaration again, laundered
+#: into a canonical row by the next legitimate `declare`, exactly as before the
+#: guard existed. Measured on four nestings (TASK-241 round 2).
+_FENCE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
 
 
 @dataclass
@@ -412,15 +420,40 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         text = path.read_text(errors="replace")
     except OSError:
         return rec
-    in_fence = False
+    # ── which lines are inside a code fence ───────────────────────────────
+    #
+    # `fence` is the OPEN fence's `(delimiter character, run length)`, not a
+    # boolean. A boolean was the first version and it was wrong: any
+    # fence-looking line flipped it, so a fence nested inside a longer or
+    # differently-charactered one — ``` inside ~~~, ``` inside ````, a
+    # ```` ```x ```` line inside ``` — turned tracking OFF and handed the row
+    # below it back to the parser as a real declaration.
+    #
+    # **Opening is liberal, closing is strict, and each direction is chosen
+    # fail-closed.** Any run of three or more backticks or tildes at any indent
+    # OPENS — including the two shapes CommonMark says are not openers (a
+    # backtick fence whose info string contains a backtick; a fence indented
+    # four or more spaces, which is an indented code block) — because refusing
+    # a row we are unsure about costs a loud `unreadable`, while parsing one
+    # costs a false `conformant` on the file that gates every write. A fence
+    # CLOSES only on CommonMark's terms (§ 4.5): the same delimiter character,
+    # a run at least as long as the opener's, indented at most three, and
+    # nothing after it but whitespace. Every line that is not that is content.
+    fence: tuple[str, int] | None = None
     for i, line in enumerate(text.split("\n"), start=1):
-        if _FENCE.match(line):
-            in_fence = not in_fence
+        f = _FENCE.match(line)
+        if f:
+            run, rest = f.group(2), f.group(3)
+            if fence is None:
+                fence = (run[0], len(run))
+            elif (run[0] == fence[0] and len(run) >= fence[1]
+                  and len(f.group(1).expandtabs(4)) < 4 and not rest.strip()):
+                fence = None
             continue
         m = _CONFORMANCE_ROW.match(line)
         if not m:
             continue
-        if in_fence:
+        if fence is not None:
             # Reported, not skipped. A row nobody can see the effect of is how
             # this class stayed live: `ConformanceRecord.unreadable` exists so
             # a row that is neither `declared` nor `absent` says so out loud,

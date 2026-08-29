@@ -1230,6 +1230,14 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
     is proved live in the same test that proves it closed, and none of these can
     pass because the reader stopped reading, because the fixture stopped being
     lint-clean, or because the row was malformed for some fourth reason.
+
+    **Shape 3 has more than one spelling, and the first fix only closed one.**
+    That fix was a boolean toggle flipped by any fence-looking line, so a fence
+    NESTED in another — which is how every markdown document that shows a fenced
+    block writes it — turned tracking off and gave the row back. Six further
+    spellings were measured live on that fix (§ "the fence has to be markdown's
+    fence" below) and each has its own test, because a single test over all of
+    them would pass with five regressed.
     """
 
     VER = C.shape_version(SCHEMA)
@@ -1290,7 +1298,160 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
 
+    # ── the fence has to be markdown's fence ──────────────────────────────
+    #
+    # Every test in this block was measured GREEN-side-up on the first version
+    # of the guard — that is, the row declared `BOARD.md` and `unreadable` was
+    # 0, exactly as if no guard existed — because the toggle closed on a line
+    # that markdown does not close on. They are six different ways to write the
+    # same lie, and they get six tests.
+
+    def test_a_backtick_fence_nested_in_a_tilde_fence_is_still_a_fence(self):
+        """`~~~` opens; the ``` ``` ``` under it is CONTENT, not a close — a
+        different delimiter character cannot close. This is the plainest way a
+        document shows a fenced block: wrap it in the other fence character."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "~~~\n```\n" + self.canonical() + "```\n~~~\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a backtick fence inside a tilde fence closed it")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_three_backtick_line_inside_a_four_backtick_fence_is_still_a_fence(self):
+        """The other plain way: open with a LONGER run. A close must be at
+        least as long as the open, so ``` inside ```` is content."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "````\n```\n" + self.canonical() + "````\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a short fence run closed a longer fence")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_tilde_fence_nested_in_a_backtick_fence_is_still_a_fence(self):
+        """The mirror of the first, and it is not the same test: the toggle was
+        symmetric but the rule is not, so a fix that keyed on the character
+        could close one direction and leave the other open."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "```\n~~~\n" + self.canonical() + "~~~\n```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a tilde fence inside a backtick fence closed it")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_fence_line_with_trailing_text_does_not_close_the_fence(self):
+        """An info string is allowed on the OPENING fence only. ```` ```x ````
+        inside an open fence is a content line — and it is exactly what an
+        example showing an opening fence looks like."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "```\n```x\n" + self.canonical() + "```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a fence line with an info string closed a fence")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_four_space_indented_fence_line_does_not_close_the_fence(self):
+        """A closing fence may be indented at most three spaces. At four it is
+        content — which is how a fenced block nested in a list item or a
+        blockquote-free indent appears."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "```\n    ```\n" + self.canonical() + "```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a four-space-indented fence line closed a fence")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_whole_table_inside_a_nested_fence_declares_nothing(self):
+        """The shape that decided the mechanism.
+
+        A document does not show one bare row; it shows the table — header,
+        delimiter, row. This is why the reader tracks FENCES and not "rows in
+        the contiguous run under the `| File |` header": measured, that rule
+        closes every bare-row shape above and then reads THIS one as a
+        declaration, because the fenced example brings its own header and so
+        starts its own run. Both rows must be refused, and reported."""
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "~~~\n```\n"
+            "| File | Shape version | Declared | Route |\n"
+            "|---|---|---|---|\n" + self.canonical()
+            + "```\n~~~\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "an example table in a nested fence declared a file")
+        self.assertEqual(unreadable, 2,
+                         "the fenced rows were dropped silently, not reported")
+
+    # ── and the two the corner sweep says must stay shut ──────────────────
+    #
+    # CommonMark says neither of these OPENS a fence. This reader opens on both
+    # anyway, deliberately: an unsure line costs a loud `unreadable` if we treat
+    # it as a fence and a false `conformant` if we do not, and this is the file
+    # that gates every write. Named, because "be liberal about opening" is the
+    # half of the rule that a later tidy-up toward strict CommonMark would
+    # delete without noticing it had reopened anything.
+
+    def test_a_four_space_indented_fence_still_opens_one(self):
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "    ```\n" + self.canonical() + "    ```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a four-space-indented fence stopped opening one")
+        self.assertEqual(unreadable, 1)
+
+    def test_a_backtick_fence_with_a_backtick_in_its_info_string_still_opens_one(self):
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            "```a`b\n" + self.canonical() + "```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a backtick in the info string stopped opening a fence")
+        self.assertEqual(unreadable, 1)
+
+    # ── a cell that cannot be written back at all ─────────────────────────
+
+    def test_a_path_cell_that_cannot_be_written_back_is_reported_not_crashed(self):
+        """`read_conformance` splits the record on `"\\n"`; `render_row` refuses
+        through `line_break_at`, which uses `str.splitlines()` — **eleven**
+        boundaries, not one. So a path cell holding `U+2028` sits inside a
+        single line for the reader and makes the canonical form unwritable.
+
+        Without the `except UnrenderableCell` the round trip raises straight out
+        of `read_conformance` and `perry-conform status` dies with a traceback
+        on a hand-edited record — on the tool the enforce gate calls. This test
+        exists because the RESULT for round 1 claimed nothing it added could be
+        deleted with the suite unchanged, and a reviewer deleted this guard with
+        the suite unchanged. Asserts the exit code, not just the report: a crash
+        and a refusal both produce no declaration."""
+        p = Project()
+        p.marker().write_text(
+            "\n".join(C.HEADER) + "\n"
+            + f"| BOARD\u2028.md | {self.VER} | 2026-08-28 | declare |\n")
+        rc, out, err = p.run(CONFORM, "status")
+        self.assertEqual(rc, 0, f"status crashed on the record: {err}")
+        self.assertIsInstance(out, dict, f"status printed no JSON: {out} {err}")
+        self.assertEqual(len(out["unreadable_rows"]), 1,
+                         "the unwritable row was dropped instead of reported")
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(rec.declarations, {})
+
     # ── the harm the three shapes lead to ─────────────────────────────────
+
+    def test_a_nested_fence_row_is_not_laundered_by_the_next_declare(self):
+        """The laundering came back with the nesting, so it is measured again
+        against the shape that reopened it. Same story as the backticked row
+        below: an ordinary declare of a DIFFERENT file, and the record quietly
+        canonicalises a claim nobody made."""
+        p = Project()
+        p.marker().write_text(
+            "\n".join(C.HEADER) + "\n"
+            + "~~~\n```\n"
+            + f"| BOARD.md | {self.VER} | 2026-08-28 | declare |\n"
+            + "```\n~~~\n")
+        rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
+        self.assertEqual(rc, 0, f"the control declare failed: {out} {err}")
+        text = p.marker().read_text()
+        self.assertIn("| .perry/hook.md |", text, "nothing was rewritten")
+        self.assertNotIn(f"| BOARD.md | {self.VER} |", text,
+                         "the fenced row was laundered into a canonical one")
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
 
     def test_a_planted_row_is_not_laundered_by_the_next_declare(self):
         """The second half of the measured defect, and the worse half: after
