@@ -628,18 +628,33 @@ class TestTheExemptionIsBounded(Base):
 
         The controls are here rather than in each test so that no test in this
         class can be written without them.
+
+        **The last one is the one that makes this a control rather than a
+        description.** The V4 round-5 review checked and found that
+        `drifted([1, 2, 3, 4])` — a clean board, no drift, no shrink possible —
+        passed every assertion here, because nothing compared the two numbers.
+        The tests still went red on their behaviour assertions, so nothing was
+        green for the wrong reason; but the claim "a clean-board version fails
+        its own control" was true of the prose and not of the code. It is now
+        true of the code.
         """
         f = self.fixture(build_board(intake=table))
         self.assertEqual(len(f.records("intake.jsonl")), 4,
                          "control: the store is minted from the whole table")
         tidy_intake_rows_off_the_board(f, keep)
         board = PT.Board(f.root / "BOARD.md")
-        self.assertEqual(len(board.section_rows("Intake")), len(keep),
+        rows = len(board.section_rows("Intake"))
+        self.assertEqual(rows, len(keep),
                          "control: the board was tidied to the kept rows")
-        self.assertEqual(len(f.records("intake.jsonl")), 4,
-                         "control: the STORE still holds every record, so a "
-                         "derivation from this board shrinks it — a shrink is "
-                         "possible here, which is the point")
+        records = len(f.records("intake.jsonl"))
+        self.assertEqual(records, 4,
+                         "control: the STORE still holds every record")
+        self.assertLess(rows, records,
+                        "control: the board must hold FEWER rows than the "
+                        "store, or no shrink is possible and this test cannot "
+                        "tell whether the bound fired — which is exactly how "
+                        "round 4's clean-board test passed with the allowance "
+                        "and without it")
         return f
 
     def test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from(self):

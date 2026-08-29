@@ -33,6 +33,7 @@ did not perform**.
 | `1e42b97` | the bound: an allowed command may shrink by exactly the count it declares removing. |
 | `a900585` | a guard in `declared_removal` that nothing could reach, removed. |
 | `0cc3889` | the line `tests/test_intake_store.py` stopped one short of: the dangerous state it builds now has a shrink-permitted command run on it. |
+| *(this commit)* | the shared control gets the `assertLess` that makes "a clean board fails its own control" true of the code as well as the prose. |
 
 ## 2. The rule as implemented
 
@@ -177,15 +178,32 @@ shared `drifted()` helper that raises before any behaviour is asserted:
 ```python
 self.assertEqual(len(f.records("intake.jsonl")), 4, "control: minted whole")
 tidy_intake_rows_off_the_board(f, keep)
-self.assertEqual(len(board.section_rows("Intake")), len(keep), "control: tidied")
-self.assertEqual(len(f.records("intake.jsonl")), 4,
-                 "control: the STORE still holds every record, so a derivation "
-                 "from this board shrinks it — a shrink is possible here")
+rows = len(board.section_rows("Intake"))
+self.assertEqual(rows, len(keep), "control: the board was tidied")
+records = len(f.records("intake.jsonl"))
+self.assertEqual(records, 4, "control: the STORE still holds every record")
+self.assertLess(rows, records,
+                "control: the board must hold FEWER rows than the store, or no "
+                "shrink is possible and this test cannot tell whether the bound "
+                "fired")
 ```
 
 A clean-board version of any of these tests does not merely pass; it **fails its
 own control**. That is the structural answer to "a check that cannot fail on the
 thing it names".
+
+**That sentence was overstated when this document was first written, and the
+`assertLess` is what made it true.** The V4 round-5 review checked it and found
+that `drifted([1, 2, 3, 4])` — every row kept, no drift, no shrink possible —
+passed all three original controls, because nothing compared the two numbers to
+each other. The tests still went red, on their behaviour assertions, so nothing
+was green for the wrong reason and it was not a defect; but the claim was true
+of the prose and not of the code. Adding the assertion was cheaper than
+weakening the claim, and a probe confirms it fires:
+`AssertionError: 4 not less than 4 : control: the board must hold FEWER rows
+than the store …`. **A control that cannot fail is the same mistake as a test
+that cannot fail, one level up** — which is the mistake this whole row exists
+to stop repeating.
 
 | command | the named behavioural test | the board it runs on |
 |---|---|---|
@@ -348,15 +366,23 @@ Measured, not assumed, two ways:
   round 5 was written. The seven-test difference (2921 → 2928) is this round's
   tests, and the failure count does not move.
 
-Two honest discrepancies against the round-4 reviewer's own `discover` figures
-(`Ran 2914 tests`, `FAILED (failures=7, errors=2)`), stated rather than
-reconciled away: neither of my runs reproduced the two
-`ModuleNotFoundError: No module named 'tests'` errors or the `test_host_support`
-OpenCode-cap flake. The `tests` import problem is row 1 of this repository's own
-`## Intake` and is sensitive to how the tree is laid out — mine is a `git
-archive` extraction, the reviewer's was a worktree — and the third is recorded
-as a flake. **I did not chase either**; both are outside this row and neither
-moves with the bound.
+**One unexplained discrepancy, recorded as unexplained.** The round-4 reviewer's
+own `discover` run reported `Ran 2914 tests`, `FAILED (failures=7, errors=2)`;
+neither of my runs reproduced the two `ModuleNotFoundError: No module named
+'tests'` errors or the `test_host_support` OpenCode-cap flake.
+
+An earlier draft of this document attributed the difference to tree layout — a
+`git archive` extraction versus a worktree. **That attribution was wrong and is
+struck.** The V4 round-5 reviewer ran `discover` on both a worktree copy and a
+`git archive` extraction and got my figures on **both**, with neither the
+`ModuleNotFoundError` nor the flake. So the layout is not the cause, and I do
+not know what is. Nothing is hidden by it — the six failures reproduce
+identically on this tip and on round 4's — and the difference has not been
+explained.
+
+**An unexplained difference recorded as unexplained is worth more than a
+plausible cause that turns out not to be the cause.** This project lost an hour
+to exactly that substitution the night before this round.
 
 ## 7. What I did NOT do, and what I could not verify
 
@@ -377,7 +403,11 @@ moves with the bound.
    The bound is evaluated strictly before anything is staged, so it does not
    reach `replace_canonical_pair`, but I did not re-run round 4's `os._exit(9)`
    probes.
-5. **A localized (`zh`) board was not driven through a bounded refusal.**
+5. **A localized (`zh`) board was driven through a bounded refusal — by the
+   review, not by me.** The V4 round-5 reviewer closed this gap: `asks.jsonl`
+   with 2 records on the `zh` fixture, both rows hand-deleted, `perry-task ask`
+   → rc 1, store unchanged. Recorded as **verified by the review**, which is a
+   weaker provenance than verified here and is not the same as untested.
 6. **Concurrency between two Perry writers was not exercised.**
 7. **`asks.jsonl` and `risks.jsonl` remain unexposed to this defect by
    construction** — no command declares a removal on either store, so no command
@@ -386,3 +416,23 @@ moves with the bound.
 8. **I did not re-measure `main` at `6c0d041`** (98 / 2882 / 3 under
    `git archive`). My numbers are the branch tip only, on the board state named
    in § 6.
+
+## 8. The door this bound does NOT close, named here so nobody reads § 3 as more
+
+**A count-preserving SUBSTITUTION still destroys canonical records silently.**
+Swap N `## Intake` rows on the board by hand and any register-touching command
+persists the swap — `resolve-intake` included, which declares 0 removals and
+removes 0. The V4 round-5 reviewer measured it at **10 records lost, 10 gained,
+rc 0**, with `perry-lint` going from `16 row(s) drifted` to `0 row(s) drifted`,
+and reproduced it on `asks.jsonl` on the `zh` fixture.
+
+**It is ruled out of scope for this row and I have not touched it.** The
+amendment binds and is explicitly a **count** rule: 32 → 32 is not fewer, and
+closing this needs a per-record identity predicate — which is round 2's door and
+the fifth predicate the amendment forbids. The coordinator is filing it as its
+own row.
+
+It is recorded here because § 3's before/after tables are about a store getting
+SMALLER, and a reader who takes them as "the intake store cannot now be
+corrupted at rc 0" would be wrong. The bound closes the shrink. It does not
+close the swap.
