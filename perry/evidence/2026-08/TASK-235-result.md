@@ -76,16 +76,12 @@ $ perry-decide new twelve --title Twelve --type Process
 perry-decide: wrote ADR-011                     ← REISSUED
 ```
 
-`bin/perry-task § minting_records` takes the opposite rule for `TASK-` ids:
-`purge` removes the record and `.perry/events.jsonl` keeps the number,
-*"retired, not freed"*, because a reissued id inherits the dead row's timeline.
-
 **The disagreement is between two tools over one contract**, and the contract
 is `perry-task`'s: *an id, once issued, is never issued again.*
 `bin/perry-task § minting_records` states it — *"a purged number is retired,
 not freed"* — and gives the reason in the same breath: `.perry/events.jsonl`
 is append-only and still carries the dead record's `add`, `drop` and `purge`,
-so a new row wearing that number inherits a timeline that is not its own.
+so a new row wearing that number would inherit a timeline that is not its own.
 Every word of that applies to an ADR except the mechanism.
 
 **`perry-decide` cannot follow that rule today and TASK-235 does not make it.**
