@@ -139,7 +139,7 @@ removed the second copy of it.
 written; it has now been re-run from scratch by a second agent, and one of its
 seven claims did not hold.]**
 
-Twelve reverts, each anchored by exact text asserted present before it is
+Fourteen reverts, each anchored by exact text asserted present before it is
 replaced, applied with every `__pycache__` cleared and a sleep past the
 whole-second boundary either side, each file restored and md5-verified, and the
 tree checked clean after. The harness refuses to start on a dirty tree, holds a
@@ -166,6 +166,8 @@ loader failure says nothing about the mutation. Every run below is
 | M10 | `phase_key_results` never falls back to the document | `viewer/parsers.py:3319` | `…TestAProjectWithNoRegisterStillReadsItsDocument.test_its_krs_still_reach_the_payload` |
 | M11 | `perry-lint` never falls back to the document | `bin/perry-lint:1209` | `…TestTheLinterFallsBackToTheDocumentToo.test_a_project_that_serves_an_undocumented_kr_is_reported` |
 | M12 | `001-linkage.md`'s `linked` is put back to the retro prose | `perry/phase/001-linkage.md:15` | `…TestTheLinkedOverallKrCameWithIt.test_every_linked_value_names_an_overall_kr_this_project_declares` |
+| M13 | the `linked:` slot is taken back out of a KR stub in `linkage_TEMPLATE.md` | `goals/state/linkage_TEMPLATE.md:45` | `…TestPlanPhaseNoLongerAuthorsTheBlock.test_the_register_template_offers_every_field_a_kr_now_has` |
+| M14 | the `metric:` placeholder points at the phase file again | `goals/state/linkage_TEMPLATE.md:17` | the same test, reporting the offending line |
 
 **M4 is the one that did not hold, and it is the reason this row was re-run.**
 The inherited table above had no M4 of this kind at all: it listed seven
@@ -231,8 +233,9 @@ actually forks from. Every row below was measured by the second agent.]**
 | `bash tests/run` | fresh clone at `8abd30d` — the fork point | 98 · 2882 | **5** |
 | `bash tests/run` | `wt-157` at `f15d234` — the inherited restore point | 99 · 2910 | **5** |
 | `python3 -m unittest discover -s tests` | `wt-157` at `f15d234` | — · 2910 | **8** |
-| `bash tests/run` | `wt-157`, branch head | 99 · 2913 | **5** |
-| `python3 -m unittest discover -s tests` | `wt-157`, branch head | — · 2913 | **8** |
+| `bash tests/run` | `wt-157` at `1e0935b` | 99 · 2913 | **5** |
+| `python3 -m unittest discover -s tests` | `wt-157` at `1e0935b` | — · 2913 | **8** |
+| `bash tests/run` | `wt-157`, branch head — after the V4 template fix | 99 · 2914 | **5** |
 
 The five under `bash tests/run` are **the same five tests on every row**:
 
