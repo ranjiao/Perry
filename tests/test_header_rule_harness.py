@@ -300,6 +300,29 @@ DRIFT = [
      'def read(line):\n'
      '    return sorted(split_row(line), key=norm)\n'),
 
+    ("D32 an alias passed to `map`, never CALLED",
+     "round 9 review, the FAIL: the corpus plants both HARDER indirections "
+     "and neither easy one — and `D06 map(norm, row)` plants the `map` shape "
+     "only for a name already in `BLESSED`. Mutation R10-5 was GREEN without "
+     "this entry: every other alias shape is redundantly caught by the SCALAR "
+     "half, because an alias in a comprehension is a Call node. Here it is "
+     "not, so the mapping half is the only thing that can see it",
+     "bin/perry-probe-d32",
+     'from tables import squash, split_row\n'
+     'fold = squash\n'
+     'def read(line):\n'
+     '    return list(map(fold, split_row(line)))\n'),
+
+    ("D33 an alias used as a `sorted` key, never CALLED",
+     "round 7 Finding 2: escapes include ... `sorted(key=str.lower)` — "
+     "planted as `D23` for the blessed name and here for an alias, the same "
+     "gap `D32` closes for `map`",
+     "bin/perry-probe-d33",
+     'from tables import squash, split_row\n'
+     'fold = squash\n'
+     'def read(line):\n'
+     '    return sorted(split_row(line), key=fold)\n'),
+
     ("D25 a BARE ALIAS of the rule, `fold = squash`",
      "round 9 review, the FAIL: ESCAPED B `fold = squash` (ONE character "
      "simpler than D10, which is caught) — a one-line rebinding of `squash` "
@@ -352,13 +375,19 @@ DRIFT = [
      'def read(line):\n'
      '    return [keyof(c) for c in split_row(line)]\n'),
 
-    ("D30 a CHAIN of aliases",
+    ("D30 a CHAIN of aliases, bound OUT OF ORDER",
      "round 9 review, the FAIL: it is small to fix — resolve module-level "
      "`NAME = <blessed>` bindings into the blessed set; a resolver that does "
-     "not run to a fixpoint closes the one-step case and not this one",
+     "not run to a fixpoint closes the one-step case and not this one. The "
+     "first link is nested inside an `if`, so `ast.walk`'s breadth-first "
+     "order reaches the SECOND link first and one pass cannot close it — "
+     "mutation R10-4 was GREEN against the in-order spelling and is the "
+     "reason this entry is written this way",
      "bin/perry-probe-d30",
+     'import os\n'
      'from tables import squash, split_row\n'
-     'a = squash\n'
+     'if os.name == "posix":\n'
+     '    a = squash\n'
      'fold = a\n'
      'def read(line):\n'
      '    return [fold(c) for c in split_row(line)]\n'),
