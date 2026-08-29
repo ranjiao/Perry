@@ -294,7 +294,30 @@ dependency chain, not a series of open questions.
 
 ## 9. Changes (append-only after lock)
 
-—
+**2026-08-29 · Step 2 gains a precondition it did not know it had.**
+
+Reviewing the open rows against this design found `TASK-182` — DESIGN-009 step 2,
+*"`perry-okr render` reproduces `OKR.md` byte-for-byte with objective rows in the
+store"*. It was first read here as a **conflict**, on the ground that it builds a
+renderer for tables this design deletes. That reading was wrong and the
+correction matters, because it reverses the ordering.
+
+DESIGN-009 § 6 states step 2's purpose in its own words: *"**This is the gate**:
+if the renderer cannot rebuild the five headings from records, the records are
+wrong. Same bar as `risks-diff`."* It is a **completeness proof for the store**,
+not a deliverable renderer — and under this design that proof stops being
+incidental and becomes load-bearing. **The KR tables must not be deleted until
+something has proved `okr.jsonl` holds them.**
+
+The risk runs the other way from the one first suspected: **if the `OKR.md` step
+ran first, `TASK-182`'s gate would evaporate.** With the tables already gone there
+is nothing left to rebuild, so the proof would pass vacuously and nobody would
+learn whether the store was complete. That is the defect class this project has
+caught six times — a check that cannot fail on the thing it names.
+
+`TASK-236` therefore depends on `TASK-181` and `TASK-182` as well as `TASK-235`.
+§ 6 step 2's ordering is unchanged; what changed is that it now has an explicit
+precondition rather than an assumed one.
 
 ## 10. References
 
