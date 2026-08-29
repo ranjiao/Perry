@@ -127,6 +127,7 @@ For navigation help: `/okr help` prints this index; `/okr help <subcommand>` pri
 | `snapshot` | Copy `phase/<current>.md` → `phase/snapshots/<YYYY-MM-DD>-<NNN>-<slug>.md`; does NOT end the phase | `reference/phases.md` |
 | `plan-week` | Propose 3–5 weekly tasks; hand off to PMO `add-task` | `reference/weekly.md` |
 | `link <TASK-ID> <KR-ID>` / `--alias` / `--unlinked` / `--project` | Accept PMO's attribution hand-off and write it into `phase/<NNN>-linkage.md` (the only writer). **`bin/perry-goals link` does the write**, in place; it refuses anything that does not resolve to exactly one KR and names the candidates | `reference/linkage.md` |
+| `krs` | Print the current phase's key results from `phase/<NNN>-linkage.md`. **`bin/perry-goals krs` is the whole command** and it is read-only. The phase document carries no KR table (TASK-157 / DESIGN-013 § 5.1 — a fact with a schema lives in exactly one store); `--phase <NNN>` reads a scored phase's | `reference/phases.md` |
 | `pivot <reason>` | Mid-phase goal change (high-friction by design) | `reference/pivots.md` |
 | `dashboard` | Detailed view per Objective (computes status, projection) | `reference/pivots.md` |
 | `help [<subcommand>]` | Print this index; with arg, print + read the matching reference | (handled here) |

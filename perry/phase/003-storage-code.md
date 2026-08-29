@@ -117,11 +117,8 @@ difference is invisible unless you read the tail of a lint run.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O1-KR1 | Stores declared in `claims[]` that exist on disk (baseline 4 of 6 — `intake.jsonl` and `asks.jsonl` were built by TASK-196 / TASK-197 and never imported) | 6 of 6 | KR-O2.1 |
-| P003-O1-KR2 | Stores for which one run of `perry-lint --root .` prints a drift verdict (baseline 2 of 6 — tasks and risks; `perry-okr diff` and `perry-config diff` both work and the census calls neither) | 6 of 6 | KR-O2.3 |
-| P003-O1-KR3 | Stores that report `unchecked` rather than `clean` when the store file is removed, measured by removing each one (baseline: true for `intake.jsonl` and `asks.jsonl`, **unmeasured** for the other four) | 6 of 6 | KR-O2.3 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -134,11 +131,8 @@ difference is invisible unless you read the tail of a lint run.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O2-KR1 | Call sites in `bin/` that read a projected markdown file **as truth** while its store exists — excluding the adoption/migration reader and the drift-comparison reader (baseline 4, all `parse_tracks`: `bin/perry-task:6680`, `bin/perry-diagnose:1888`, `bin/perry-goals:2102`, `bin/perry-state:139`) | 0 | KR-O2.1 |
-| P003-O2-KR2 | The adoption/migration reader is fenced into one named module, with a mechanical guard that fails when a non-adoption call site parses a projected file — and the guard is shown able to go red by restoring one removed call site (baseline: no boundary; `viewer/parsers.py` is 3,973 lines serving both roles) | guard live · reverting one call site turns it red | KR-O2.3 |
-| P003-O2-KR3 | `BOARD.md`'s two truth models are marked in the file, so a reader can tell which sections are projected from a store and which are still canonical markdown (baseline: nothing marks the boundary — TASK-199) | boundary marked | KR-O2.1 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 **Two exclusions in `P003-O2-KR1`, both deliberate.** `bin/perry-tasks:1473`
 parses `BOARD.md` to *compare* it against the store — a drift check must read
@@ -179,10 +173,8 @@ about.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O3-KR1 | Open `main`-track rows in neither `objectives[].krs[].tasks[]` nor a declared `unlinked[]` — the never-asked state (baseline 45 of 45 at phase start, measured by `perry-state --section attribution` on 2026-08-28; the 5 carry-over edges declared with this file are the first movement) | 0 | KR-O2.3 |
-| P003-O3-KR2 | Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add` (baseline 0 — the edge is a separate step nobody takes) | 100% of rows added this phase | KR-O2.3 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 

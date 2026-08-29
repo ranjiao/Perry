@@ -832,6 +832,50 @@ class TestLinkageBelongsToItsOwnPhase(unittest.TestCase):
         p.write_text(p.read_text().replace("P001-O1-KR1", "P001-O9-KR9"))
         self.assertIn("linkage-kr-exists", self.rules(d))
 
+    def test_a_kr_belonging_to_another_phase_is_reported(self):
+        """The *phase* half of the id, which the test above cannot reach.
+
+        TASK-157 replaced `linkage-kr-exists`'s document scan with two direct
+        questions about the id: does it name the objective it is declared
+        under, and does it name the phase whose register it sits in. The test
+        above supplies `P001-O9-KR9`, which fails only the FIRST — its phase
+        is still `001` — so the phase half shipped with nothing holding it.
+        Measured: deleting `if not kr.id.startswith(f"P{own}-")` from
+        `bin/perry-lint` left the ENTIRE suite unchanged, which is the
+        definition of a guard that is not one.
+
+        Before this row the case was caught sideways: `001-old.md` did not
+        mention `P002-O1-KR1`, so the document scan reported it. Asking the id
+        directly must not lose that.
+        """
+        d = self.project("002-new")
+        p = d / "phase" / "001-linkage.md"
+        # Objective `O1` is kept, so the objective-agreement half is SILENT and
+        # only the phase half can produce the finding.
+        p.write_text(p.read_text().replace("P001-O1-KR1", "P002-O1-KR1"))
+        rules = self.rules(d)
+        self.assertIn("linkage-kr-exists", rules)
+
+    def test_the_phase_half_names_the_phase_and_the_id(self):
+        """A finding that does not say which two things disagree is a shrug."""
+        import json
+        import subprocess
+        import sys
+        d = self.project("002-new")
+        p = d / "phase" / "001-linkage.md"
+        p.write_text(p.read_text().replace("P001-O1-KR1", "P002-O1-KR1"))
+        proc = subprocess.run(
+            [sys.executable, str(PERRY_HOME / "bin" / "perry-lint"),
+             "--root", str(d), "--json"], capture_output=True, text=True)
+        hits = [x for x in json.loads(proc.stdout)["findings"]
+                if x["rule"] == "linkage-kr-exists"
+                and "P002-O1-KR1" in x["message"]]
+        self.assertEqual(len(hits), 1, hits)
+        self.assertEqual(hits[0]["file"], "phase/001-linkage.md")
+        self.assertIn("001", hits[0]["message"],
+                      "the finding does not name the phase whose register "
+                      "this is")
+
 
 if __name__ == "__main__":
     unittest.main()

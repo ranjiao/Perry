@@ -11,18 +11,21 @@ objectives:
         metric: "6 of 6 (baseline 4 of 6 — `intake.jsonl` and `asks.jsonl` built by TASK-196 / TASK-197 and never imported)"
         target: 6
         stretch: false
+        linked: "KR-O2.1"
         tasks: ["TASK-203"]
       - id: P003-O1-KR2
         title: "Stores for which one run of `perry-lint --root .` prints a drift verdict"
         metric: "6 of 6 (baseline 2 of 6 — tasks and risks; `perry-okr diff` and `perry-config diff` both work and the census calls neither)"
         target: 6
         stretch: false
+        linked: "KR-O2.3"
         tasks: ["TASK-209", "TASK-067"]
       - id: P003-O1-KR3
         title: "Stores that report `unchecked` rather than `clean` when the store file is removed"
         metric: "6 of 6, measured by removing each one (baseline: true for `intake.jsonl` and `asks.jsonl`, unmeasured for the other four)"
         target: 6
         stretch: false
+        linked: "KR-O2.3"
         tasks: ["TASK-229"]
   - id: O2
     title: "The code reads a store, not a rendered file"
@@ -32,16 +35,19 @@ objectives:
         metric: "0 (baseline 4, all `parse_tracks`: bin/perry-task:6680, bin/perry-diagnose:1888, bin/perry-goals:2102, bin/perry-state:139)"
         target: 0
         stretch: false
+        linked: "KR-O2.1"
         tasks: ["TASK-095", "TASK-233"]
       - id: P003-O2-KR2
         title: "The adoption/migration reader is fenced into one named module, with a mechanical guard shown able to go red"
         metric: "guard live, and restoring one removed call site turns it red (baseline: no boundary; viewer/parsers.py is 3,973 lines serving both roles)"
         stretch: false
+        linked: "KR-O2.3"
         tasks: ["TASK-099", "TASK-050"]
       - id: P003-O2-KR3
         title: "`BOARD.md`'s two truth models are marked in the file"
         metric: "boundary marked (baseline: nothing marks it — TASK-199)"
         stretch: false
+        linked: "KR-O2.1"
         tasks: ["TASK-199", "TASK-215"]
   - id: O3
     title: "The phase's KRs cover the work that actually runs"
@@ -51,11 +57,13 @@ objectives:
         metric: "0 (baseline 45 of 45 at phase start, measured by `perry-state --section attribution` on 2026-08-28)"
         target: 0
         stretch: false
+        linked: "KR-O2.3"
         tasks: []
       - id: P003-O3-KR2
         title: "Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add`"
         metric: "100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)"
         stretch: false
+        linked: "KR-O2.3"
         tasks: []
 unlinked: ["TASK-077", "TASK-097", "TASK-129", "TASK-155", "TASK-173", "TASK-177", "TASK-179", "TASK-181", "TASK-182", "TASK-183", "TASK-184", "TASK-185", "TASK-186", "TASK-187", "TASK-188", "TASK-189", "TASK-190", "TASK-191", "TASK-192", "TASK-193", "TASK-194", "TASK-204", "TASK-206", "TASK-207", "TASK-208", "TASK-211", "TASK-212", "TASK-216", "TASK-217", "TASK-218", "TASK-219", "TASK-220", "TASK-221", "TASK-226", "TASK-139", "TASK-157", "TASK-066", "TASK-112", "TASK-116", "TASK-137", "TASK-172", "TASK-198", "TASK-213", "TASK-214", "TASK-222", "TASK-223", "TASK-224", "TASK-225", "TASK-227", "TASK-228", "TASK-230", "TASK-231", "TASK-232", "TASK-234", "TASK-235", "TASK-236", "TASK-237", "TASK-238", "TASK-239", "TASK-240", "TASK-241", "TASK-242"]
 agents: []

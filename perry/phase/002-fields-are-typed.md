@@ -67,26 +67,18 @@ somebody's board without them is what ADR-004 exists to prevent.
 
 ## Objective 1 — The three stores are stores
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|---|---|---|---|
-| P002-O1-KR1 | `BOARD.md` is rendered from `perry/tasks.jsonl`, which is the only thing writers write (baseline: the markdown is canonical) | 1 of 1 | — |
-| P002-O1-KR2 | `OKR.md` and `.perry/config.md` likewise (baseline 0 of 2) | 2 of 2 | — |
-| P002-O1-KR3 | A hand edit to a rendered file is reported rather than honoured, at the severity the user picks (baseline: it is honoured) | reported | — |
+> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ## Objective 2 — The defect classes cannot be expressed
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|---|---|---|---|
-| P002-O2-KR1 | `CLOCK_RE` deleted and `By when` split into `due` + `by_when_note` (baseline: one column, five failed review rounds) | 0 occurrences of `CLOCK_RE` | — |
-| P002-O2-KR2 | Readers that resolve a header cell for the three stores (baseline 5 live copies across 4 rounds) | 0 | — |
-| P002-O2-KR3 | Lines of markdown parser serving the three stores (baseline 3,320 across `viewer/parsers.py` and `viewer/tables.py`) | 0 for the three; adoption keeps what it needs | — |
+> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ## Objective 3 — Agents work the new way
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|---|---|---|---|
-| P002-O3-KR1 | Lane procedures that hand-edit a rendered file (baseline: unmeasured) | 0 | — |
-| P002-O3-KR2 | The read contracts survive the move unchanged — a consumer pinned at `perry-task/list/1.9` needs no edit (baseline: 1.9 live, aiMark pinned at 1.5) | 0 breaking changes | — |
+> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ## Week-by-week breakdown
 

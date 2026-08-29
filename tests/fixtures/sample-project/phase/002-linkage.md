@@ -12,6 +12,7 @@ objectives:
         target: 3
         current: 1
         stretch: false
+        linked: "KR-O1.1"
         tasks: [REL-001]
       - id: P002-O1-KR2
         title: "Manual gates removed"
@@ -19,6 +20,7 @@ objectives:
         target: 0
         current: 2
         stretch: false
+        linked: "KR-O1.2"
         tasks: []
   - id: O2
     title: "Make the signal trustworthy"
@@ -27,6 +29,7 @@ objectives:
         title: "Flake rate measured and reduced"
         metric: "flaky runs <= 1%"
         stretch: false
+        linked: "KR-O2.1"
         tasks: [REL-002]
 unlinked: [REL-009]
 agents:
