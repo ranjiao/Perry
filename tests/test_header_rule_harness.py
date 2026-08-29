@@ -514,6 +514,89 @@ DRIFT = [
      '        return [squash(c) for c in table["header"]]\n'
      '    return []\n'),
 
+    ("D43 a table RE-YIELDED by `yield from`",
+     "round 11 review: two branches of the new machinery still survive their "
+     "own deletion — the `YieldFrom` step and `ast.Set` in the literal "
+     "branch; either give them a test or delete them the way the other ten "
+     "were deleted. `yield from` re-yields, so it does NOT add an element "
+     "level, and a step that gets that wrong reads one subscript too deep",
+     "bin/perry-probe-d43",
+     'from tables import squash, split_row\n'
+     'def tables_of(lines):\n'
+     '    out = []\n'
+     '    for line in lines:\n'
+     '        out.append({"header": split_row(line)})\n'
+     '    return out\n'
+     'def sections(lines):\n'
+     '    yield from tables_of(lines)\n'
+     'def read(lines):\n'
+     '    for table in sections(lines):\n'
+     '        return [squash(c) for c in table["header"]]\n'
+     '    return []\n'),
+
+    ("D44 a table reached through a METHOD of a file-local class",
+     "round 11 review, correction 3: the hand-written sweep did not reach "
+     "every branch. `_rpaths_of` resolves a call by the ATTRIBUTE name as "
+     "`_returns_of` already does, and nothing planted it — this is "
+     "`bin/perry-task § Board.task_tables()` and `bin/perry_store.py § plan`, "
+     "which read `table['header']` off a method of a class, minus the "
+     "cross-module root that keeps the live ones out of reach",
+     "bin/perry-probe-d44",
+     'from tables import squash, split_row\n'
+     'class Board:\n'
+     '    def __init__(self, lines):\n'
+     '        self.lines = lines\n'
+     '    def tables(self):\n'
+     '        out = []\n'
+     '        for line in self.lines:\n'
+     '            out.append({"header": split_row(line)})\n'
+     '        return out\n'
+     'def read(lines):\n'
+     '    board = Board(lines)\n'
+     '    for table in board.tables():\n'
+     '        return [squash(c) for c in table["header"]]\n'
+     '    return []\n'),
+
+    ("D45 a table bound by a COMPREHENSION generator",
+     "round 11 review, correction 3: the sweep did not reach every branch — "
+     "`_bind_element` is called for a comprehension's generators as well as "
+     "for a `for` statement, and only the statement form was planted. Round "
+     "10's review named the indexed list of dicts; this is the same list "
+     "walked by a comprehension",
+     "bin/perry-probe-d45",
+     'from tables import squash, split_row\n'
+     'def tables_of(lines):\n'
+     '    out = []\n'
+     '    for line in lines:\n'
+     '        out.append({"header": split_row(line)})\n'
+     '    return out\n'
+     'def read(lines):\n'
+     '    return [squash(c) for t in tables_of(lines) for c in t["header"]]\n'),
+
+    ("D46 a tuple unpack whose element is one CELL",
+     "round 11 review, correction 3: the sweep did not reach every branch — "
+     "the tuple-unpack branch has a `cell()` half and nothing planted it. "
+     "`bin/perry_store.py:857` is `i, cells = row['line'], row['cells']`, so "
+     "unpacking element-wise out of a carried row is this file's own idiom",
+     "bin/perry-probe-d46",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    t = {"header": split_row(line)}\n'
+     '    first, rest = t["header"][0], t["header"][1:]\n'
+     '    return squash(first) == "id"\n'),
+
+    ("D47 a row written INTO a dict, then folded out of it",
+     "round 11 review, correction 3: the sweep did not reach every branch — "
+     "the SUBSCRIPT half of the carried-write branch was unplanted while the "
+     "attribute half was pinned by `D37`. `D24` is its sibling: a dict "
+     "assignment built the header index, this one holds the header row",
+     "bin/perry-probe-d47",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    spec = {}\n'
+     '    spec["header"] = split_row(line)\n'
+     '    return [squash(c) for c in spec["header"]]\n'),
+
     ("D40 a dict-carried row, SCALAR on one cell",
      "round 10 review, the FAIL: a header row carried through a dict key is "
      "invisible to BOTH halves — the scalar half is planted separately "

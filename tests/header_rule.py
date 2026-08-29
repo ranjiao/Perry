@@ -632,7 +632,11 @@ class _RowLocals:
                     for p in self._paths(v, scope):
                         out.add((f"key:{k.value}",) + p)
             return out
-        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        # `ast.Set` was here and is deleted: a row is a list, a list is not
+        # hashable, so a row cannot be an element of a set literal. It
+        # survived its own deletion because it is unreachable, which the
+        # round 11 sweep did not probe and the round 11 REVIEW did.
+        if isinstance(node, (ast.List, ast.Tuple)):
             for i, el in enumerate(node.elts):
                 for p in self._paths(el, scope):
                     out.add(("elem",) + p)
