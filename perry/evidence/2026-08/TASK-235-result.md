@@ -467,7 +467,10 @@ expectation, not as a measurement.**
   against `perry-goals` and reverted that: a measurement quoted against a
   command that can no longer produce it is a measurement nobody took. It is
   labelled as history and the property it demonstrates is the gate's.
-- **I did not verify the viewer's HTML rendering of ADRs.** `snap.adrs` is
-  consumed by `bin/perry-state` (`decisions.count` / `last` /
-  `expired_sunsets`, all checked) and by a `__main__` print in `parsers.py`;
-  `grep` found no other consumer, and `sunset_or_notes` has none at all.
+- **There is no viewer HTML to verify, and I originally listed this as a gap
+  before checking.** `viewer/` contains `parsers.py` and `tables.py` and
+  nothing else — no template, no HTML. `snap.adrs` is consumed by
+  `bin/perry-state` (`decisions.count` / `last` / `expired_sunsets`, all
+  checked against the pre-change reader field by field) and by a `__main__`
+  print in `parsers.py`. `sunset_or_notes` has **no** consumer anywhere, which
+  is why its `"—"` → `""` change in § 7 A is inert.
