@@ -277,3 +277,10 @@ than they were.
    from `argv` for this round.
 8. **The three pre-existing failures were not investigated**, only measured as
    identical on both trees.
+9. **No `python3 -m unittest discover -s tests` count was measured on either
+   tree.** The run was started and its summary was lost to output capture, and
+   it was launched against an intermediate tree rather than `f1eb3f5`, so it
+   would not have described the committed state either. The statement in § 5
+   that the two runners disagree by 3 is carried from the round's brief and
+   from the TASK-095 round 1 review, **not** from a measurement taken here.
+   Every number in § 5 is `bash tests/run`.
