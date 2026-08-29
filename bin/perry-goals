@@ -2161,10 +2161,11 @@ def tracks_of(project_root: Path) -> list[dict]:
     # lane writes `phase/` and the linkage register off the track list, so a
     # register quietly missing a track lands in a file the user reads as
     # authoritative.
-    # State 7 — the store defaulted while the table declares more. Drift, not
-    # an answer; this lane writes `phase/` and the linkage register off the
-    # track list. See `bin/perry-task § main` for the full reasoning.
-    lost = ps.tracks_missing_from_the_register(project_root, tracks, source)
+    # State 7 — the store answered by DEFAULT while the table declares tracks
+    # it has no row for at all; this lane writes `phase/` and the linkage
+    # register off the track list. `store-default` only, per USER-905 decision
+    # 2 — see `bin/perry-task § main` for why the wider version was reverted.
+    lost = ps.tracks_the_register_cannot_place(project_root, tracks, source)
     if lost:
         raise Refused(
             f"the track register does not carry {', '.join(sorted(lost))}, "
@@ -2172,6 +2173,14 @@ def tracks_of(project_root: Path) -> list[dict]:
             f"register. Nothing was written. `perry-config write --from-file` "
             f"rebuilds the store from the table; `perry-lint` reports the same "
             f"disagreement as `config-store-drift`.")
+    # Allowed, and not in silence — the same rule, the same wording, the same
+    # one function `perry-state` and `perry-task` ask.
+    drift = ps.tracks_the_register_contradicts(project_root, source)
+    if drift:
+        print(f"⚠ the track register disagrees with `.perry/config.md § "
+              f"Tracks` on {', '.join(drift)}. This lane writes off the "
+              f"REGISTER. `perry-lint` reports the same disagreement as "
+              f"`config-store-drift`.", file=sys.stderr)
     if source in ps.TRACKS_STORE_UNUSABLE:
         raise Refused(
             f"the track register cannot be read from the store: "

@@ -1596,6 +1596,11 @@ WHY = {
         "that label — so it will keep asking what is aging in review when the "
         "real question is what came in and never got answered, and the check "
         "that would have caught something never runs.",
+    "MODE-02":
+        "There are two copies of the track list — one Perry reads and one you "
+        "read — and they no longer say the same thing. Every tool answers "
+        "from the one you do not see, so the settings written in the table "
+        "you are looking at are not the settings anything is using.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -1903,12 +1908,20 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # findings channel — so the provenance travels on the payload the same
         # way `perry-state` carries `tracks_source`.
         tracks, tracks_source = state.declared_tracks_detail(root)
+        # **The drift signal, so this reader is not the silent one.** The V4
+        # round 5 review measured `perry-diagnose` carrying `tracks_source`
+        # with no drift signal at all: on a table declaring `main` beside a
+        # trackless store it reported `store-default` / `['main']` with empty
+        # stderr while the other three warned or refused. Same function, same
+        # rule — `perry-lint`'s own comparison, asked once.
+        tracks_contradicted = state.tracks_the_register_contradicts(
+            root, tracks_source)
     except Exception:
         # Reported absent rather than defaulted. A fallback here would make
         # every project read as one implicit `project` track, and MODE-01 would
         # go quiet instead of red.
         return {"available": False, "register_declared": False, "tracks": [],
-                "tracks_source": "unavailable"}
+                "tracks_source": "unavailable", "tracks_contradicted": []}
 
     aliases = column_aliases()
     board = read_text(state_root / "BOARD.md")
@@ -2143,6 +2156,9 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # its projection — and on a store present-but-unusable the two give
         # different track lists. See the `_detail` call above.
         "tracks_source": tracks_source,
+        # Which declared rows that register CONTRADICTS. `MODE-02` is the
+        # finding; this is the machine-readable half, beside the label.
+        "tracks_contradicted": tracks_contradicted,
         "tracks": out,
     }
 
@@ -2187,6 +2203,25 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
             f"picks the review questions, so a wrong one asks about the wrong "
             f"thing every single time.",
             t["evidence"].get(t["mode"], [])[:6],
+        ))
+
+    # The register and its table disagree about a row the table declares.
+    # Reported once for the file, not once per row: it is one hand edit or one
+    # interrupted write, and the rows are named in the detail.
+    _contradicted = (modes or {}).get("tracks_contradicted") or []
+    if _contradicted:
+        out.append(finding(
+            "MODE-02", "warn",
+            f"`.perry/config.md` and `.perry/config.jsonl` disagree about "
+            f"{', '.join(_contradicted)}",
+            f"Perry answers from `.perry/config.jsonl`, so what the table in "
+            f"`.perry/config.md` says about "
+            f"{', '.join(_contradicted)} is not in force. Pick the side that "
+            f"is right and make the other match it: `perry-config write "
+            f"--from-file` takes the table as correct, `perry-config render "
+            f"--write` takes the stored one as correct. `perry-lint` reports "
+            f"the same disagreement.",
+            [f"`{n}`" for n in _contradicted][:6],
         ))
 
     # ── namespace ──

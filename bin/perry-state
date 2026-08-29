@@ -749,19 +749,26 @@ TRACKS_FROM_STORE = "store"
 #:
 #: The distinction it restores: a store with no track record beside a
 #: `## Tracks` section that ALSO declares nothing is a complete answer
-#: (`main`, per DESIGN-003) and must be silent. The same store beside a table
-#: that declares two tracks is DRIFT — `perry-lint` reports it as
-#: `config-store-drift` — and reporting one track with no warning loses the
-#: other and its SLA from the dashboard, from `sla_report`, from `wip_report`
-#: and from `--track` validation. Round 3 did the second, which was worse than
-#: both of its own predecessors.
+#: (`main`, per DESIGN-003) and must be silent. Round 3 answered the same way
+#: beside a table declaring two tracks and lost the second track and its SLA
+#: from the dashboard, from `sla_report`, from `wip_report` and from `--track`
+#: validation, in silence.
+#:
+#: **What this value no longer decides is drift.** Rounds 3 to 5 keyed the
+#: warning and the refusal on `source`, which made the label load-bearing for
+#: a question it does not answer: whether the register agrees with the table
+#: is `tracks_the_register_contradicts`, asked identically for `store` and
+#: `store-default`, and the write refusal is the narrower
+#: `tracks_the_register_cannot_place`. This value says which register spoke.
 TRACKS_STORE_DEFAULT = "store-default"
 TRACKS_STORE_ABSENT = "absent"
 TRACKS_STORE_UNREADABLE = "unreadable"
 TRACKS_STORE_INVALID = "invalid"
 #: **Retired as a failure mode, kept as a name.** A store that validates and
-#: carries no `kind: track` record is `TRACKS_FROM_STORE` now, answering
-#: `main` — see `stored_tracks`. The constant stays so that a project or a
+#: carries no `kind: track` record is `TRACKS_STORE_DEFAULT` now, answering
+#: DESIGN-003's implicit `main` — see `stored_tracks`. (This comment said
+#: `TRACKS_FROM_STORE` from round 3, when it briefly was; round 4 split the
+#: two and did not come back here.) The constant stays so that a project or a
 #: reader still referring to the old spelling gets a name that resolves rather
 #: than an AttributeError, and so this comment is where the question is
 #: answered.
@@ -787,9 +794,11 @@ TRACKS_STORE_NO_TRACK_RECORD = "no-track-record"
 TRACKS_STORE_UNUSABLE = frozenset({
     TRACKS_STORE_UNREADABLE, TRACKS_STORE_INVALID})
 
-#: What to tell a human for each. Written once so the payload warning, the
-#: writers' refusals and the diagnosis cannot describe the same state three
-#: ways — the "N implementations of one rule" defect this repo keeps paying for.
+#: What to tell a human for each UNUSABLE source. Written once so the payload
+#: warning, the writers' refusals and the diagnosis cannot describe the same
+#: state three ways — the "N implementations of one rule" defect this repo
+#: keeps paying for, and the one `tracks_the_register_contradicts` answers for
+#: drift by calling `perry-lint`'s own comparison instead of writing a fourth.
 TRACKS_STORE_WHY = {
     TRACKS_STORE_UNREADABLE:
         "`.perry/config.jsonl` exists but could not be read as JSONL",
@@ -798,27 +807,17 @@ TRACKS_STORE_WHY = {
 }
 
 
-def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
-    """`(rows, source)` — the track register from `.perry/config.jsonl`.
+def _validated_config_records(project_root: Path) -> tuple[list[dict] | None, str]:
+    """`.perry/config.jsonl` loaded and validated ONCE, for both readers.
 
-    **The second element is the whole point of this function's signature.** It
-    used to return a bare `None` for four different situations and the caller
-    could not tell them apart, so `declared_tracks` read the rendered markdown
-    in all four. One of those is right and three are wrong:
+    `(records, why)` — `records` is `None` exactly when `why` is one of
+    `absent` / `unreadable` / `invalid`, and a list otherwise (`why` is then
+    the empty string, because nothing went wrong).
 
-    | `source` | store on disk | reading `## Tracks` is |
-    |---|---|---|
-    | `store` | yes, usable | not reached |
-    | `absent` | no | **correct** — the adoption path, excluded by the KR |
-    | `unreadable` | yes | the counted condition |
-    | `invalid` | yes | the counted condition |
-    | `store-default` | yes, usable, declares none | not reached — DESIGN-003's `main` |
-
-    A malformed store still does not raise from here: `perry-state` is the
-    read-everything tool and exits 0 on a project with no state at all, so it
-    may not be the thing that turns an unreadable store into a crash. What
-    changed is that the caller is now TOLD, and each caller decides — the
-    payload warns and labels its answer, the writers refuse.
+    `stored_tracks` and `tracks_the_register_contradicts` both need "load the
+    store, validate it, and say what went wrong if anything did", and a second
+    copy of that decision is how this file came to hold two spellings of one
+    rule three rounds running.
     """
     path = project_root / ".perry" / "config.jsonl"
     if not path.exists():
@@ -852,6 +851,45 @@ def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
         # rather than folded in here, because it is `bin/perry-config`'s
         # behaviour and this row is the read side.
         return None, TRACKS_STORE_INVALID
+    return good, ""
+
+
+def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
+    """`(rows, source)` — the track register from `.perry/config.jsonl`.
+
+    **The second element is the whole point of this function's signature.** It
+    used to return a bare `None` for four different situations and the caller
+    could not tell them apart, so `declared_tracks` read the rendered markdown
+    in all four. One of those is right and three are wrong:
+
+    | `source` | store on disk | reading `## Tracks` is |
+    |---|---|---|
+    | `store` | yes, usable | not reached |
+    | `absent` | no | **correct** — the adoption path, excluded by the KR |
+    | `unreadable` | yes | the counted condition |
+    | `invalid` | yes | the counted condition |
+    | `store-default` | yes, usable, declares none | not reached — DESIGN-003's `main` |
+
+    A malformed store still does not raise from here: `perry-state` is the
+    read-everything tool and exits 0 on a project with no state at all, so it
+    may not be the thing that turns an unreadable store into a crash. What
+    changed is that the caller is now TOLD, and each caller decides — the
+    payload warns and labels its answer, the writers refuse.
+
+    **`store-default` means the store ANSWERED, and says nothing about whether
+    that answer agrees with the table.** The V4 round 5 review recorded this
+    file contradicting itself: this docstring and `TRACKS_ANSWERED` both said
+    `store-default` was an answer, while the comparison forty lines below
+    decided the same `main` had not answered because `DEFAULT_TRACK`'s
+    `declared` flag is `False`. Two orthogonal questions had been folded into
+    one flag. They are separated now: *which register answered* is this
+    function, and *does that answer contradict what `## Tracks` declares* is
+    `tracks_the_register_contradicts`, which asks `perry-lint`'s own
+    comparison rather than a second one written here.
+    """
+    good, why = _validated_config_records(project_root)
+    if good is None:
+        return None, why
     rows = [r for r in good
             if r.get("kind") == "track" and (r.get("track") or "").strip()]
     if not rows:
@@ -878,84 +916,180 @@ def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
 def tracks_the_projection_declares(project_root: Path) -> list[str]:
     """Track names `.perry/config.md § Tracks` **declares**, `[]` when none.
 
-    **`declared`, not the name.** This filtered on `n != "main"` and the V4
-    round 4 review failed the row for it: `parse_tracks` returns a one-element
-    `main` for two different reasons and the string cannot tell them apart —
-    the section is ABSENT, so `main` was synthesised, or the table DECLARES a
-    row named `main` carrying its own mode, spine, stages, WIP, SLA and rung.
-    A table declaring `| main | queue | standing | new→triaged→done | 4 | 3d |
-    weekly | V2 |` beside a trackless store lost every one of those settings in
-    silence, with an allowed write, while `perry-lint` reported the same
-    `config-store-drift · track/main` it reports for the case this file
-    refuses on.
+    **Read with `perry_md_store.CONFIG.scan` — the same scanner `perry-lint`
+    walks** — and not with `parse_tracks`. Round 4 filtered these names on the
+    string `main`; round 5 replaced that with `parse_tracks`' `declared` flag,
+    which was right about state 8 and still a SECOND reader of the register's
+    own heading and columns, sitting on the write path. The scanner takes both
+    from `schema/state-schema.json`, so `## 轨道` with `| 轨道 | 模式 | … |`
+    resolves here exactly as `## Tracks` does, from the aliases the schema
+    already declares — `parse_tracks` carries its own copy of that regex.
 
-    `parse_tracks` already carries the flag on every row it returns. Reading it
-    is not a second implementation of the comparison — it is asking the parser
-    what it parsed.
+    Names, in file order, deduplicated. This answers *what does the table
+    declare*, and nothing about whether the register agrees — that is
+    `tracks_the_register_contradicts`, one function, asked once.
     """
     cfg = project_root / ".perry" / "config.md"
     if not cfg.exists():
         return []
-    return [t.get("track", "") for t
-            in parse_tracks(cfg.read_text(errors="replace"))
-            if t.get("declared") and t.get("track")]
+    try:
+        import perry_md_store as md_store  # noqa: PLC0415
+        _lines, sites = md_store.CONFIG.scan(cfg.read_text(errors="replace"))
+    except Exception:                                            # noqa: BLE001
+        # A `.perry/config.md` the scanner cannot read declares nothing this
+        # function can name. `perry-lint` reports that file on its own terms
+        # and `perry-state` must not turn it into a crash — the same rule
+        # `stored_tracks` follows for the store.
+        return []
+    out: list[str] = []
+    for site in sites:
+        if site.get("kind") != "track":
+            continue
+        name = (site.get("values", {}).get("track") or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out
 
 
 #: Sources for which a register ANSWERED and can therefore be compared against
 #: the table beside it. `absent` is the adoption path — there is nothing to
 #: compare — and the two unusable sources are already refused on their own
 #: terms, so a second finding about them would double-report.
+#:
+#: **Answering and agreeing are different questions.** `store-default` is in
+#: here because DESIGN-003's implicit `main` IS the store's answer; whether
+#: that answer contradicts the table is asked separately, by
+#: `tracks_the_register_contradicts`, and asked the same way for both members.
 TRACKS_ANSWERED = frozenset({TRACKS_FROM_STORE, TRACKS_STORE_DEFAULT})
 
 
-def tracks_missing_from_the_register(project_root: Path, tracks: list[dict],
-                                     source: str) -> list[str]:
-    """Track names the TABLE declares that the REGISTER did not return.
+def tracks_the_register_contradicts(project_root: Path, source: str) -> list[str]:
+    """Declared track rows the register contradicts. **`perry-lint`'s rule.**
 
-    **One question, asked once, for every source where a store answered.** The
-    previous version asked it only of `store-default`, and the V4 round 4
-    review showed that split one drift two ways: a store with ZERO track
-    records beside a table declaring `main` and `intake` warned and refused,
-    while a store with ONE record (`main`) beside the same table was silent and
-    wrote — `intake` gone from the payload either way, and `perry-lint`
-    reporting `config-store-drift · track/intake` on both. *"The rule that
-    decides is 'did the store happen to contain zero track records', which is
-    not a fact about the user's situation."*
+    Principle A, decided by the user on 2026-08-29 (USER-905): *a declared row
+    the register contradicts is drift*, one principle everywhere, with no
+    second principle for the synthesised `main`.
 
-    So the comparison is a set difference on names, which is the shape
-    `perry-lint` reports per row, and it covers `store` and `store-default`
-    alike. That also removes the asymmetry's cause rather than its symptom:
-    there is no longer a branch where the question goes unasked.
+    **Nothing is re-derived here.** `bin/perry-lint § check_md_store_drift`
+    already answers this question, and it answers it by handing the file and
+    the store's records to `perry_md_store.plan` — the same plan `perry-config
+    render`, `diff` and `verify` are built on. This function calls that plan
+    and reads the `track/…` rows out of its report. That is the whole fix: the
+    root cause across rounds 3, 4 and 5 was a comparison written a fourth time
+    on the write side, disagreeing with the linter on three states each round.
+
+    Two of `plan`'s three drift registers name a declared row the register
+    contradicts, and both are counted:
+
+    - `cells_the_store_and_the_file_disagree_on` — the store HAS a record for
+      this track and it says something else. **This is what round 5 missed:**
+      `have` was a set of NAMES, so a record contradicting the declared row
+      counted as carrying it, and one table against two stores differing only
+      in whether a `main` record existed got opposite answers while
+      `perry-lint` reported the same rule on both.
+    - `lines_verbatim` — the table declares this row and the store holds no
+      record for it at all. That is the trackless-store-over-a-declaring-table
+      case, states 7, 8 and 9.
+
+    The third, `records_not_in_the_file`, is deliberately NOT counted: it is
+    the register declaring a track the TABLE does not render, which is drift
+    too and is `perry-lint`'s to report. Counting it here would put "the
+    register does not carry X" in a payload warning about a track the register
+    is the only side that has.
     """
     if source not in TRACKS_ANSWERED:
         return []
-    # **A name present on both sides is not enough.** The register's `main` is
-    # either a RECORD (`declared: True`, from `track_from_record`) or the
-    # synthesised `DEFAULT_TRACK` (`declared: False`). On a table declaring
-    # `| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |`
-    # beside a trackless store, both sides say "main" and everything the row
-    # actually carries — mode, spine, stages, WIP, SLA, rung — is gone. A set
-    # difference on names reports nothing there, which is how the first attempt
-    # at this fix still lost states 8, 9 and 13.
-    #
-    # So the register "carries" a track only when it carries a RECORD for it.
-    have = {t.get("track", "") for t in tracks if t.get("declared")}
+    cfg = project_root / ".perry" / "config.md"
+    if not cfg.exists():
+        return []
+    good, _why = _validated_config_records(project_root)
+    if good is None:
+        # `absent` cannot reach here (it is not in `TRACKS_ANSWERED`) and the
+        # unusable pair is refused on its own terms one branch further down in
+        # every caller. Returning `[]` rather than guessing keeps this function
+        # answering exactly one question.
+        return []
+    try:
+        import perry_md_store as md_store  # noqa: PLC0415
+        report = md_store.plan(md_store.CONFIG,
+                               cfg.read_text(errors="replace"), good)["report"]
+    except Exception:                                            # noqa: BLE001
+        return []
+    keys = {c["key"] for c in report["cells_the_store_and_the_file_disagree_on"]}
+    keys |= {ln["key"] for ln in report["lines_verbatim"]
+             if ln.get("kind") == "track"}
+    return sorted({k.split("/", 1)[1] for k in keys
+                   if k.startswith("track/") and "/" in k})
+
+
+def tracks_the_register_cannot_place(project_root: Path, tracks: list[dict],
+                                     source: str) -> list[str]:
+    """Declared track names the register returned **no row for at all**.
+
+    **This is the write refusal, and it is deliberately narrower than the
+    drift above.** USER-905 decision 2: the refusal reverts to round 4's width
+    — `source == store-default` — because widening it to every drifted row
+    hard-blocked three ordinary hand-edit workflows that wrote at `45a355d`
+    and at round 4, and on one of them `perry-config write --from-file`, the
+    only command either refusal message names, exits 1. A refusal whose named
+    remedy fails is worse than no refusal.
+
+    The two questions are different questions, not two answers to one:
+
+    - *does the register contradict the table* → drift → **warn**, everywhere,
+      by `tracks_the_register_contradicts`;
+    - *is there a declared track the register has no row for* → the writer
+      cannot stamp `Track`, `Stage`, `Arrived`, the WIP limit or the SLA for
+      that row at all, and re-running the command does not fix what it wrote
+      → **refuse**.
+
+    Round 4 asked the second question as `name != "main"`, which happens to be
+    the right answer on the `store-default` branch — where the register's only
+    row IS `main` — and was the wrong question, because it was also being used
+    as the drift rule. Asking the register what it returned says the same thing
+    about `store-default` without saying anything false about anything else.
+
+    `store` is not included: a register that returned records for every
+    declared name can place every row it is asked to place. It still drifts,
+    and it still warns.
+    """
+    if source != TRACKS_STORE_DEFAULT:
+        return []
+    have = {(t.get("track") or "") for t in tracks}
     return [n for n in tracks_the_projection_declares(project_root)
             if n not in have]
 
 
-def defaulted_over_a_declaring_table(project_root: Path, source: str) -> list[str]:
-    """Kept as the name round 4's callers used; `tracks` is the missing half.
+#: The two names earlier rounds' callers used, kept so that a stale caller gets
+#: a name that resolves into an explanation instead of a silently narrower
+#: answer — which is the exact shape this row has been failed for. Both raise.
+_RETIRED_TRACK_PREDICATES = (
+    "defaulted_over_a_declaring_table", "tracks_missing_from_the_register")
 
-    Retained rather than deleted because a caller passing only `(root, source)`
-    cannot ask the widened question — it needs the register's own answer — and
-    a silently narrower result under the old name is exactly the shape this row
-    keeps being failed for. It raises instead.
-    """
+
+def defaulted_over_a_declaring_table(project_root: Path, source: str) -> list[str]:
+    """Round 4's name. Raises — see `_RETIRED_TRACK_PREDICATES`."""
     raise TypeError(
         "defaulted_over_a_declaring_table was replaced by "
-        "tracks_missing_from_the_register(project_root, tracks, source), "
-        "which also needs the register's answer — see its docstring")
+        "tracks_the_register_cannot_place(project_root, tracks, source) for "
+        "the refusal and tracks_the_register_contradicts(project_root, "
+        "source) for the drift warning — see their docstrings")
+
+
+def tracks_missing_from_the_register(project_root: Path, tracks: list[dict],
+                                     source: str) -> list[str]:
+    """Round 5's name. Raises — see `_RETIRED_TRACK_PREDICATES`.
+
+    It compared a set of NAMES, so a register record that CONTRADICTED a
+    declared row counted as carrying it, and it was wired to both the warning
+    and the refusal. Those are now two functions because they are two
+    questions.
+    """
+    raise TypeError(
+        "tracks_missing_from_the_register compared names over records and was "
+        "split: tracks_the_register_contradicts(project_root, source) is the "
+        "drift rule (perry-lint's own), tracks_the_register_cannot_place("
+        "project_root, tracks, source) is the write refusal")
 
 
 def declared_tracks_detail(project_root: Path) -> tuple[list[dict], str]:
@@ -1874,30 +2008,28 @@ def build(root: Path, project_root: Path | None = None) -> dict:
     # queue reports — which is what happened to `intake` on the reviewer's
     # fixture, with nothing in the payload to say so.
     _tracks_source = (_cfg_for_wip or {}).get("tracks_source")
-    # **`store-default` warns only when the projection disagrees.**
+    # **One drift rule, asked once, for every source where a register
+    # answered** (USER-905 decision 1 — principle A).
     #
     # A store with no track record beside a `## Tracks` section that also
     # declares none is a COMPLETE answer — DESIGN-003's implicit `main` — and a
     # warning there would cry wolf on every project of that shape, which is
-    # three of this repo's six. The same store beside a table declaring `main`
-    # and `intake` is DRIFT: `perry-lint` reports it as `config-store-drift`,
-    # and reporting one track in silence loses the other and its SLA from the
-    # dashboard, from `sla_report`, from `wip_report` and from `--track`
-    # validation. Round 3 did exactly that, and it was worse than either of its
-    # predecessors.
-    if _tracks_source in TRACKS_ANSWERED:
-        _missing = tracks_missing_from_the_register(
-            perry_root, (_cfg_for_wip or {}).get("tracks") or [], _tracks_source)
-        if _missing:
-            warnings.append(
-                f"the track register does not carry "
-                f"{', '.join(sorted(_missing))}, which "
-                f"`.perry/config.md § Tracks` declares. "
-                f"{'Those tracks and their' if len(_missing) > 1 else 'That track and its'} "
-                f"mode, stages, WIP and SLA are missing from this payload. "
-                f"`perry-lint` reports the same disagreement as "
-                f"`config-store-drift`; `perry-config write --from-file` "
-                f"rebuilds the store from the table.")
+    # three of this repo's six. A table that DECLARES a row the register
+    # contradicts is DRIFT, whether the register contradicts it with a record
+    # of its own or by having none: `perry-lint` reports `config-store-drift`
+    # on both, and this line now asks `perry-lint`'s comparison rather than a
+    # second one written on this side.
+    _drift = tracks_the_register_contradicts(perry_root, _tracks_source)
+    if _drift:
+        warnings.append(
+            f"the track register disagrees with `.perry/config.md § Tracks` "
+            f"on {', '.join(_drift)}. "
+            f"{'Those rows declare' if len(_drift) > 1 else 'That row declares'} "
+            f"a mode, stages, WIP, SLA and rung the register does not hold, "
+            f"and this payload reports the REGISTER. `perry-lint` reports the "
+            f"same disagreement as `config-store-drift`; `perry-config write "
+            f"--from-file` rebuilds the store from the table and "
+            f"`perry-config render --write` rebuilds the table from the store.")
     if _tracks_source in TRACKS_STORE_UNUSABLE:
         warnings.append(
             f"the track register was read from `.perry/config.md`, not from "
