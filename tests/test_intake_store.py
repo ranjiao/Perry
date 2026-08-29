@@ -781,16 +781,25 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         after = numbering()
         self.assertNotEqual(before[2], after[2],
                             "the point of the test: n=2 is a different row")
-        payload = self._lint(p.root)
-        self.assertEqual(payload["intake_store_drift"]["drifted"], 3)
-        self.assertTrue([f for f in payload["findings"]
-                         if f["rule"] == "intake-store-drift"])
-        # And the fix is the import, which is what re-numbers the store.
-        self.assertEqual(
-            self._tasks(p.root, "intake-write", "--from-board").returncode, 0)
+        # **Converted by TASK-203.** This asserted `drifted: 3` and then ran
+        # the import to fix it. `intake-sweep` now writes the store inside the
+        # same transaction as the board — it is one of the three commands
+        # `bin/perry-task § SHRINK_ALLOWED` permits to make a canonical store
+        # smaller — so the renumbering is recorded as it happens and there is
+        # no window in which the two disagree. The reading this test exists
+        # for is unchanged: `n = 2` addresses a different request than it did
+        # five commands ago, and the store is what says so.
+        #
+        # The drift half is not lost. It belongs to a hand edit, not to the
+        # sweep, and `test_a_row_deleted_by_hand_reports_every_row_it_renumbered`
+        # thirty lines up is where it is proved.
         self.assertEqual(self._lint(p.root)["intake_store_drift"],
                          {"store_present": True, "comparison_performed": True,
                           "records": 2, "drifted": 0})
+        stored = [json.loads(l) for l in
+                  (p.root / "intake.jsonl").read_text().split("\n") if l.strip()]
+        self.assertEqual([r["request"] for r in stored], [after[1], after[2]])
+        self.assertEqual([r["order"] for r in stored], [0, 1])
 
     def test_the_shift_is_reported_rather_than_absorbed_by_a_re_render(self):
         """`intake-render --write` is the fix, and it puts the STORE back —

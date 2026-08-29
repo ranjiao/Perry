@@ -419,14 +419,15 @@ class TestTheFourDoors(Base):
                 if shape == "table":
                     continue
                 with self.subTest(register=key, shape=shape):
-                    f = self.fixture(build_board(**{key: SHAPES[key][shape]}),
-                                     mint=(key,))
+                    # Minted from the healthy board, then the shape is broken
+                    # on disk — exactly the order a human editing a board
+                    # produces, and the only order in which the store has
+                    # records to lose.
+                    f = self.fixture(build_board(), mint=(key,))
                     store = REGISTERS[key][1]
                     before = f.raw(store)
                     self.assertTrue(f.records(store),
                                     "control: the store starts with records")
-                    # The shape is broken AFTER the store is minted, exactly as
-                    # a human editing the board does it.
                     f.write_board(build_board(**{key: SHAPES[key][shape]}))
                     rc, out = f.run(*OWN_WRITE[key])
                     self.assertNotEqual(rc, 0, out)
