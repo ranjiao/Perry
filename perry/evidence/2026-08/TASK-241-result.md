@@ -195,16 +195,16 @@ three trees are `git archive` copies.
 | 00 | the undecorated row — **the control** | conformant 0 | conformant 0 | **conformant 0** |
 | 01 | backticked path cell | conformant 0 | undeclared 1 | undeclared 1 |
 | 02 | indented row | conformant 0 | undeclared 1 | undeclared 1 |
-| 03 | plain ``` fence | conformant 0 | undeclared 1 | undeclared 1 |
-| 04 | `~~~` wrapping a ``` fence | conformant 0 | **conformant 0** | undeclared 1 |
-| 05 | ```` ```` ```` fence containing a ``` line | conformant 0 | **conformant 0** | undeclared 1 |
-| 06 | ``` wrapping a `~~~` fence | conformant 0 | **conformant 0** | undeclared 1 |
-| 07 | fence with info string ` ```markdown ` | conformant 0 | undeclared 1 | undeclared 1 |
+| 03 | a plain three-backtick fence | conformant 0 | undeclared 1 | undeclared 1 |
+| 04 | a tilde fence wrapping a backtick fence | conformant 0 | **conformant 0** | undeclared 1 |
+| 05 | a four-backtick fence containing a three-backtick line | conformant 0 | **conformant 0** | undeclared 1 |
+| 06 | a backtick fence wrapping a tilde fence | conformant 0 | **conformant 0** | undeclared 1 |
+| 07 | a fence whose info string is `markdown` | conformant 0 | undeclared 1 | undeclared 1 |
 | 08 | fence closed by a longer run | conformant 0 | undeclared 1 | undeclared 1 |
-| 09 | a ` ```x ` line inside an open fence | conformant 0 | **conformant 0** | undeclared 1 |
+| 09 | a fence line with trailing text inside an open fence | conformant 0 | **conformant 0** | undeclared 1 |
 | 10 | fence indented 3 spaces | conformant 0 | undeclared 1 | undeclared 1 |
 | 11 | fence indented 4 spaces | conformant 0 | undeclared 1 | undeclared 1 |
-| 12 | a 4-space-indented ``` inside an open fence | conformant 0 | **conformant 0** | undeclared 1 |
+| 12 | a four-space-indented fence line inside an open fence | conformant 0 | **conformant 0** | undeclared 1 |
 | 13 | backtick fence, backtick in its info string | conformant 0 | undeclared 1 | undeclared 1 |
 | 14 | tilde fence, backtick in its info string | conformant 0 | undeclared 1 | undeclared 1 |
 | 15 | the whole TABLE inside a fence | conformant 0 | undeclared 2 | undeclared 2 |
@@ -255,10 +255,10 @@ gate reads — not the parser in isolation.
 |---|---|
 | backticked path cell | `test_a_backticked_path_cell_is_not_a_declaration` |
 | indented row | `test_an_indented_row_is_not_a_declaration` |
-| row inside a plain ``` fence | `test_a_row_inside_a_code_fence_is_not_a_declaration` |
-| **``` nested in `~~~`** | `test_a_backtick_fence_nested_in_a_tilde_fence_is_still_a_fence` |
-| **``` inside ````` ```` ````` | `test_a_three_backtick_line_inside_a_four_backtick_fence_is_still_a_fence` |
-| **`~~~` nested in ```** | `test_a_tilde_fence_nested_in_a_backtick_fence_is_still_a_fence` |
+| row inside a plain three-backtick fence | `test_a_row_inside_a_code_fence_is_not_a_declaration` |
+| **a backtick fence nested in a tilde fence** | `test_a_backtick_fence_nested_in_a_tilde_fence_is_still_a_fence` |
+| **a three-backtick line inside a four-backtick fence** | `test_a_three_backtick_line_inside_a_four_backtick_fence_is_still_a_fence` |
+| **a tilde fence nested in a backtick fence** | `test_a_tilde_fence_nested_in_a_backtick_fence_is_still_a_fence` |
 | **a fence line with trailing text** | `test_a_fence_line_with_trailing_text_does_not_close_the_fence` |
 | **a 4-space-indented fence line** | `test_a_four_space_indented_fence_line_does_not_close_the_fence` |
 | **the whole table, nested fence** | `test_a_whole_table_inside_a_nested_fence_declares_nothing` |
