@@ -336,12 +336,27 @@ own `sys.path` insertion of `bin/lib`, once directly by the test module), so two
 equal lists are not the same object: `['ID', 'Risk', 'Opened', 'Status'] is not
 ['ID', 'Risk', 'Opened', 'Status']`.
 
-Measured, not assumed: `test_risks_store` is **green under both runners in
-isolation, on this tree and on a `git archive` copy of round 4's tip `afb3a48`**
-(53 tests, OK, four ways). It is the whole-tree single-process run that
-reddens them.
+Measured, not assumed, two ways:
 
-<!-- DISCOVER-BASELINE -->
+* `test_risks_store` is **green under both runners in isolation, on this tree
+  and on a `git archive` copy of round 4's tip `afb3a48`** — 53 tests, OK, four
+  ways. It is the whole-tree single-process run that reddens them.
+* **`discover -s tests` was run to completion on the `afb3a48` copy too**, and
+  comes back `Ran 2921 tests`, `FAILED (failures=6, skipped=4)` — **the same six
+  failures, name for name.** So the three identity failures are not "look
+  pre-existing"; they are pre-existing, on round 4's tip, before any line of
+  round 5 was written. The seven-test difference (2921 → 2928) is this round's
+  tests, and the failure count does not move.
+
+Two honest discrepancies against the round-4 reviewer's own `discover` figures
+(`Ran 2914 tests`, `FAILED (failures=7, errors=2)`), stated rather than
+reconciled away: neither of my runs reproduced the two
+`ModuleNotFoundError: No module named 'tests'` errors or the `test_host_support`
+OpenCode-cap flake. The `tests` import problem is row 1 of this repository's own
+`## Intake` and is sensitive to how the tree is laid out — mine is a `git
+archive` extraction, the reviewer's was a worktree — and the third is recorded
+as a flake. **I did not chase either**; both are outside this row and neither
+moves with the bound.
 
 ## 7. What I did NOT do, and what I could not verify
 
