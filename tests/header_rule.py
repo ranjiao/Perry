@@ -405,6 +405,22 @@ class _RowLocals:
                 for pth in self._paths(node.value, f):
                     if pth:
                         self.rpaths.setdefault(f.name, set()).add(pth)
+            # A GENERATOR is a producer too. `bin/perry-task §
+            # _section_tables` is *the ONE walk over the board's task-bearing
+            # sections* and it `yield`s its tables; `task_tables()` and
+            # `find()` both read `table["header"]` off what it yields. Only
+            # `Return` was read before, so a locally-built table handed over
+            # by `yield` was a local case still open.
+            for node in ast.walk(f):
+                if not isinstance(node, (ast.Yield, ast.YieldFrom)) \
+                        or node.value is None:
+                    continue
+                if self.of(node) is not f:
+                    continue
+                step = () if isinstance(node, ast.YieldFrom) else ("elem",)
+                for pth in self._paths(node.value, f):
+                    if step + pth:
+                        self.rpaths.setdefault(f.name, set()).add(step + pth)
         # A name-bound `lambda` returns its body.
         for name, body in self.by_name.items():
             if isinstance(body, ast.Lambda) and self.source(body.body, body):
@@ -552,14 +568,28 @@ class _RowLocals:
                     self.scope[fn].add(params[i])
                 elif self.cell(arg, caller):
                     self.cells[fn].add(params[i])
+                # ...and a parameter this file passes a TABLE to carries the
+                # table's paths, which is the same sentence one step wider.
+                self._add_path(fn, params[i], self._paths(arg, caller))
 
     def _bind_element(self, target, iterable, scope) -> None:
         """`for X in <a list of tables>` — X is one table, with the paths the
-        list said its elements have."""
-        if not isinstance(target, ast.Name):
-            return
+        list said its elements have. A tuple target unpacks by position, which
+        is `for title, pri, i, table in self._section_tables():` at
+        `bin/perry-task:875`."""
         got = {q[1:] for q in self._paths(iterable, scope)
                if q and q[0] == "elem"}
+        if isinstance(target, (ast.Tuple, ast.List)):
+            for i, t in enumerate(target.elts):
+                if not isinstance(t, ast.Name):
+                    continue
+                sub_p = {q[1:] for q in got if q and q[0] == f"pos:{i}"}
+                if () in sub_p:
+                    self.scope[scope].add(t.id)
+                self._add_path(scope, t.id, sub_p)
+            return
+        if not isinstance(target, ast.Name):
+            return
         if () in got:
             self.scope[scope].add(target.id)
         self._add_path(scope, target.id, got)
