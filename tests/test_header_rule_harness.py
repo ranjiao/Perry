@@ -440,6 +440,25 @@ DRIFT = [
      'def read(line):\n'
      '    return [squash(c) for c in tables_of(line)[0]["header"]]\n'),
 
+    ("D42 a LOOP over a list of tables",
+     "round 10 review, the FAIL: `[squash(c) for c in "
+     "tables_of(line)[0]['header']]` ESCAPED — the same list of dicts walked "
+     "instead of indexed, which is how `bin/perry_md_store.py:468` and `:543` "
+     "and `bin/perry_store.py:531` all read a header: `for tbl in tables:` "
+     "then `tbl['header']`. Planted because neutralising the loop-target "
+     "binding left every other entry of this corpus caught",
+     "bin/perry-probe-d42",
+     'from tables import squash, split_row\n'
+     'def tables_of(lines):\n'
+     '    out = []\n'
+     '    for line in lines:\n'
+     '        out.append({"header": split_row(line)})\n'
+     '    return out\n'
+     'def read(lines):\n'
+     '    for tbl in tables_of(lines):\n'
+     '        return [squash(c) for c in tbl["header"]]\n'
+     '    return []\n'),
+
     ("D37 a row carried on an OBJECT ATTRIBUTE",
      "round 10 review, smaller results: *a row carried on an object "
      "attribute escapes too* — `t = T(line); [squash(c) for c in t.header]`, "

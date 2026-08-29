@@ -461,20 +461,16 @@ class _RowLocals:
                         and isinstance(node.func, ast.Attribute) \
                         and isinstance(node.func.value, ast.Name) and node.args:
                     holder, attr = node.func.value.id, node.func.attr
+                    # `append` and `add` ONLY. `extend`, `insert` and
+                    # `setdefault` were written here too and neutralising each
+                    # left the whole corpus caught and the live census
+                    # unmoved, so they were speculation and are deleted —
+                    # this row's own lesson about carrying machinery no
+                    # measurement pins.
                     if attr in ("append", "add"):
-                        new = {("elem",) + q for q in self._paths(node.args[0], f)}
-                    elif attr in ("extend", "update"):
-                        new = set(self._paths(node.args[0], f))
-                    elif attr == "insert" and len(node.args) > 1:
-                        new = {("elem",) + q for q in self._paths(node.args[1], f)}
-                    elif attr == "setdefault" and len(node.args) > 1 \
-                            and isinstance(node.args[0], ast.Constant) \
-                            and isinstance(node.args[0].value, str):
-                        new = {(f"key:{node.args[0].value}",) + q
-                               for q in self._paths(node.args[1], f)}
-                    else:
-                        new = set()
-                    self._add_path(f, holder, new)
+                        self._add_path(f, holder, {
+                            ("elem",) + q
+                            for q in self._paths(node.args[0], f)})
                 if isinstance(node, ast.Assign):
                     targets, value = node.targets, node.value
                 elif isinstance(node, (ast.AnnAssign, ast.AugAssign,
@@ -568,9 +564,6 @@ class _RowLocals:
                     self.scope[fn].add(params[i])
                 elif self.cell(arg, caller):
                     self.cells[fn].add(params[i])
-                # ...and a parameter this file passes a TABLE to carries the
-                # table's paths, which is the same sentence one step wider.
-                self._add_path(fn, params[i], self._paths(arg, caller))
 
     def _bind_element(self, target, iterable, scope) -> None:
         """`for X in <a list of tables>` — X is one table, with the paths the
@@ -590,8 +583,6 @@ class _RowLocals:
             return
         if not isinstance(target, ast.Name):
             return
-        if () in got:
-            self.scope[scope].add(target.id)
         self._add_path(scope, target.id, got)
 
     def _paths_snapshot(self):
@@ -648,21 +639,16 @@ class _RowLocals:
                     out.add((f"pos:{i}",) + p)
             return out
         if isinstance(node, ast.Subscript):
-            base = self._paths(node.value, scope)
-            if isinstance(node.slice, ast.Slice):
-                return out | base       # a slice of a list of tables is one
-            key = node.slice.value if isinstance(node.slice, ast.Constant) else None
-            for p in base:
+            key = node.slice.value if isinstance(node.slice, ast.Constant) \
+                else None
+            for p in self._paths(node.value, scope):
                 if not p:
                     continue
                 if isinstance(key, str):
                     if p[0] == f"key:{key}":
                         out.add(p[1:])
-                elif isinstance(key, int):
-                    if p[0] in ("elem", f"pos:{key}"):
-                        out.add(p[1:])
                 elif p[0] == "elem":
-                    out.add(p[1:])      # `tables[n]`, index not known here
+                    out.add(p[1:])      # `tables[0]`, `tables[n]`
             return out
         if isinstance(node, ast.Attribute):
             for p in self._paths(node.value, scope):
@@ -670,28 +656,13 @@ class _RowLocals:
                     out.add(p[1:])
             return out
         if isinstance(node, ast.Call):
-            out |= self._rpaths_of(node)
-            if isinstance(node.func, ast.Name) \
-                    and node.func.id in ITERABLE_WRAPPERS:
-                for a in node.args:
-                    out |= self._paths(a, scope)
-            if isinstance(node.func, ast.Attribute) \
-                    and node.func.attr in {"copy", "get", "pop"}:
-                base = self._paths(node.func.value, scope)
-                if node.func.attr == "copy":
-                    out |= base
-                elif node.args and isinstance(node.args[0], ast.Constant) \
-                        and isinstance(node.args[0].value, str):
-                    want = f"key:{node.args[0].value}"
-                    out |= {p[1:] for p in base if p and p[0] == want}
-            return out
+            # An iterable wrapper, `.copy()`, `.get("header")` and a `BoolOp`
+            # were all written here and all three survived their own deletion
+            # with the corpus fully caught and the census unmoved. Deleted.
+            return out | self._rpaths_of(node)
         if isinstance(node, ast.IfExp):
             return (out | self._paths(node.body, scope)
                     | self._paths(node.orelse, scope))
-        if isinstance(node, ast.BoolOp):
-            for v in node.values:
-                out |= self._paths(v, scope)
-            return out
         return out
 
     def _returns_of(self, node: ast.AST) -> set[int]:
