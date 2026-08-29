@@ -32,6 +32,7 @@ did not perform**.
 | `36be5bd` | the three bounded-exemption tests, on boards where a shrink is possible. **Deliberately RED.** |
 | `1e42b97` | the bound: an allowed command may shrink by exactly the count it declares removing. |
 | `a900585` | a guard in `declared_removal` that nothing could reach, removed. |
+| `0cc3889` | the line `tests/test_intake_store.py` stopped one short of: the dangerous state it builds now has a shrink-permitted command run on it. |
 
 ## 2. The rule as implemented
 
@@ -194,6 +195,28 @@ thing it names".
 | `purge` | `test_purge_removes_the_one_record_it_names_and_leaves_the_other` | a two-record store — round 4's purge test ran 1 → 0, where "removed exactly one" and "removed everything" are the same number |
 | `purge` | `test_purge_may_not_take_two_records_with_one_removal` | a store carrying the subject's id twice |
 
+### The line the suite stopped one short of
+
+Separately from the class above, and the more useful of the two findings the
+round-4 review left on method rather than on code:
+`tests/test_intake_store.py § test_a_row_deleted_by_hand_reports_every_row_it_
+renumbered` **builds the exact dangerous state** — a hand-deleted `## Intake`
+row against a minted 4-record store, with a docstring that says outright that
+`resolve-intake 2` now addresses what `resolve-intake 3` addressed yesterday —
+and then runs only `perry-lint`. **Nothing in the whole suite then ran a
+shrink-permitted command on that board.** One more step is the entire defect.
+
+`0cc3889` extracts the board-building so both tests run on the same state, says
+in the lint-only test's docstring that it is deliberately lint-only and where
+the other question is asked, and adds
+`test_a_shrink_permitted_command_on_that_same_board_is_refused` to ask it.
+Mutation **MB1b** below confirms it is red under round 4's exact rule.
+
+**A test that constructs the dangerous state and then asserts something safe
+about it reads as coverage and is not.** That is the general lesson this round
+takes, and it is why `TestTheExemptionIsBounded.drifted()` asserts the danger
+before it asserts the behaviour.
+
 The last one is the one honest asterisk on this table and it is declared rather
 than smoothed over. `commit()`'s removal branch drops **every** record matching
 `removed_id`, so a duplicated id is a drop of 2 against a declaration of 1 — but
@@ -222,7 +245,12 @@ second boundary on both sides, restores from an in-memory copy and compares
 
 Modules per mutation: `test_register_store_invariant`, `test_intake_store`,
 `test_asks_store`, `test_risks_store`, `test_purge` — **238 tests, control
-green**.
+green** (239 from `0cc3889` onward).
+
+**MB1, MR and MB7 were each re-run at the shipped tip** (`f282d2395f1eae6c5fa07
+7f3e11f958a`, after `a900585` shifted the anchors by four lines) and reddened
+the same named tests, so the mutation evidence is about the file that ships and
+not only about the file at `1e42b97`.
 
 | mutation | anchor | change | red |
 |---|---|---|---|
@@ -238,6 +266,7 @@ green**.
 | **MR** | `:2193` | the reviewer's own: drop `"resolve-intake"` from the map entirely | **2 — and one of them is now `test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from`, a named behavioural test on a drifted board.** Under round 4 this mutation reddened only two assertions about the constant. This is the specific finding the round-4 review closed on |
 | **M1** | `:2269` | the invariant deleted — `if True:` | 34 failures / **17 named**: all four doors, all four reproduction tests, the three new bounded tests, `test_commit_asks_the_invariant_about_tasks_jsonl` |
 | **M6** | `:2384` | round 3's exact consecutive-only weakening of the uniqueness clause | **1 — `test_a_repeated_identity_is_no_identity_even_when_no_two_are_adjacent`.** Green across 2815 tests in round 3; still red here, so round 5's change did not re-open it |
+| **MB1b** | `:2273` | MB1 again, after `0cc3889`, against **239** tests | 13 / **7 named** — MB1's six plus **`test_a_shrink_permitted_command_on_that_same_board_is_refused`**, the line the suite had been stopping short of |
 
 MB6 was interrupted once by a two-minute command timeout, leaving the mutation
 in the tree. It was restored by hand from the recorded old text and md5-verified
@@ -255,7 +284,7 @@ the event and has MB7 behind it.
 ## 6. Baselines — the runner, the tree, the board state, and the load
 
 **Runner:** `bash tests/run`, 8 workers.
-**Tree:** this worktree at `0e6afd0`.
+**Tree:** this worktree at `0cc3889`.
 **Board state:** `perry/` is `main` at `6c0d041` plus this row's round-4 and
 round-5 evidence files — i.e. the same board state round 4's numbers were taken
 on, which is why the two `test_contract_key_parity` witness tests the spec warns
@@ -264,7 +293,7 @@ non-empty on the LIVE board) do not appear in the red set here.
 **Load:** load average 8–15, from three other concurrent agent sessions.
 
 ```
-99 modules · 2928 tests · 197.7s · 8 workers · 2 module(s) red
+99 modules · 2929 tests · 194.1s · 8 workers · 2 module(s) red
   test_diagnose               (2)  test_perry_itself_passes_its_own_id_checks
                                    + the queue-register reconciliation
   test_kr_progress_provenance (1)  test_no_current_in_the_payload_claims_to_be_
@@ -272,13 +301,47 @@ non-empty on the LIVE board) do not appear in the red set here.
 ```
 
 **Round 4's tip was 99 modules / 2921 tests / 3 failures on this runner and this
-board state. This round adds 7 tests and no failures: 2921 + 7 = 2928, and the
+board state. This round adds 8 tests and no failures: 2921 + 8 = 2929, and the
 red set is identical, name for name.** None of the three is mine and none of
-them touches a register store.
+them touches a register store. An earlier run at `0e6afd0`, before the eighth
+test landed, read 99 / 2928 / 3 with the same red set.
 
 ### Spec item 5 — `python3 -m unittest discover -s tests`
 
-<!-- DISCOVER -->
+Run to completion this round, from the repository root, single-process, on this
+worktree at `0e6afd0` — one test before the tip, so 2928 rather than 2929:
+
+```
+Ran 2928 tests in 629.683s
+FAILED (failures=6, skipped=1)
+```
+
+The six, named:
+
+| failure | also red under `tests/run`? |
+|---|---|
+| `test_diagnose.test_perry_itself_passes_its_own_id_checks` | yes |
+| `test_diagnose.test_the_queue_register_reconciles_with_the_queue_on_this_repository` | yes |
+| `test_kr_progress_provenance.test_no_current_in_the_payload_claims_to_be_a_measurement` | yes |
+| `test_risks_store.TestTheReadersAreOneFunction.test_the_columns_are_one_list` | **no** |
+| `test_risks_store.TestTheReadersAreOneFunction.test_the_register_header_predicate_is_one_object` | **no** |
+| `test_risks_store.TestTheReadersAreOneFunction.test_the_bullet_and_placeholder_rules_are_one_object` | **no** |
+
+**The three-failure disagreement the spec names is these three, and they are
+runner artifacts on their face.** All three are `assertIs` identity assertions —
+`PT.RISK_COLUMNS is P.RISK_COLUMNS`, `PT.is_risk_header is
+P.is_risk_register_header` — and under a single-process `discover` the `parsers`
+module is imported twice under two identities (once through `bin/perry-task`'s
+own `sys.path` insertion of `bin/lib`, once directly by the test module), so two
+equal lists are not the same object: `['ID', 'Risk', 'Opened', 'Status'] is not
+['ID', 'Risk', 'Opened', 'Status']`.
+
+Measured, not assumed: `test_risks_store` is **green under both runners in
+isolation, on this tree and on a `git archive` copy of round 4's tip `afb3a48`**
+(53 tests, OK, four ways). It is the whole-tree single-process run that
+reddens them.
+
+<!-- DISCOVER-BASELINE -->
 
 ## 7. What I did NOT do, and what I could not verify
 
