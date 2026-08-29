@@ -160,11 +160,11 @@ declaration**, because the example carries its own `| File |` header and so
 starts its own contiguous run:
 
 ```
-                                          fence tracking   contiguous run
-  whole table inside a fence               undeclared       CONFORMANT
-  whole table inside a nested fence        undeclared       CONFORMANT
-  blank line inside the real table         conformant       undeclared
-  prose line, then a real row              conformant       undeclared
+                                     round 1   fence tracking   contiguous run
+  15 whole table inside a fence      undecl.2   undeclared 2     CONFORMANT 0
+  16 whole table in a NESTED fence   confmt.0   undeclared 2     CONFORMANT 0
+  17 blank line inside the table     confmt.0   conformant 0     undeclared 1
+  20 prose line, then a real row     confmt.0   conformant 0     undeclared 1
 ```
 
 A document showing what a conformance record looks like writes the header, the
@@ -175,15 +175,29 @@ genuinely declarations today.
 
 It could be tightened to "only the **first** header run counts", which would
 refuse the fenced table — at the cost of voiding the whole real table if any
-example table precedes it, which is the all-or-nothing failure § 1 rejects the
-whole-file fixed point for. I did not take it.
+example table precedes it. That is **the same all-or-nothing failure § 1 rejects
+the whole-file fixed point for**, reached by document order instead of by a
+stray line. I did not take it.
+
+**Two things the V4 reviewer added to this rejection, both of which I had
+missed.** It built the framing independently from round 1's own sentence, into
+its own copy, without seeing my prototype, and probed it against its own
+catalogue; the measurements above reproduce cell for cell. On top of them:
+
+- **It would have been a REGRESSION, not merely a non-fix.** Catalogue row 15 —
+  the whole table in a *plain, unnested* fence — is already closed by round 1's
+  broken toggle (`undeclared 2`). The contiguous run **hands it back**. I framed
+  the rejection as "closes nothing new here"; it is worse than that.
+- The "first run only" patch is not a different idea from the whole-file fixed
+  point, it is that idea in another coordinate. Stated above.
 
 **Chosen: CommonMark's closing rule inside the same function.** It is the only
-one of the three that leaves every one of the 21 probed shapes in the right
-state. `test_a_whole_table_inside_a_nested_fence_declares_nothing` is the named
+one of the three that leaves every one of the 21 markdown shapes probed below in
+the right state — rows 21-23, the HTML shapes, are outside every one of the
+three and § 9 says so. `test_a_whole_table_inside_a_nested_fence_declares_nothing` is the named
 test for the shape that decided it.
 
-### The catalogue — 21 shapes, three trees
+### The catalogue — 26 shapes, three trees
 
 `scratchpad/rd2/probe.py`, my own script: synthetic `mktemp` projects, each
 tree's own `bin/perry-conform`, `PERRY_HOME` / `PERRY_CONFORMANCE` /
@@ -213,9 +227,18 @@ three trees are `git archive` copies.
 | 18 | a second real table later in the file | conformant 0 | conformant 0 | **conformant 0** |
 | 19 | a fence opened and never closed | conformant 0 | undeclared 1 | undeclared 1 |
 | 20 | prose, then a real row | conformant 0 | conformant 0 | **conformant 0** |
+| 21 | a row inside a `<pre>` block | conformant 0 | conformant 0 | **conformant 0** |
+| 22 | a row inside an HTML comment | conformant 0 | conformant 0 | **conformant 0** |
+| 23 | a row inside `<details>` | conformant 0 | conformant 0 | **conformant 0** |
+| 24 | an empty route cell | conformant 0 | undeclared 1 | undeclared 1 |
+| 25 | a leading-zero version cell (`02`) | conformant 0 | undeclared 1 | undeclared 1 |
 
 Bold in the round-1 column = fail-**open**, the FAIL. Bold in the round-2 column
-= rows that must stay declarations and do. Six shapes closed by round 2 —
+= rows that must stay declarations and do — **except 21-23, which must NOT and
+still do**: those are the HTML constructs § 9 now states plainly, unchanged
+across all three trees and outside all three candidate mechanisms. 24 and 25 are
+the two shapes § 9 declares changed without a named test, and they are the two
+that M16 and M17 in § 4 revert. Six shapes closed by round 2 —
 04, 05, 06, 09, 12, 16 — of which **09 and 12 the review had not probed** and
 16 is the one that decided the mechanism. Nothing regressed: no cell moves from
 `undeclared` to `conformant` between round 1 and round 2, and the four
@@ -339,8 +362,31 @@ the seven from round 1 against the new code.
 **M8–M13 are the point of round 2.** Each of the four clauses of the closing
 rule, and each half of the deliberately-liberal opening rule, has **exactly one
 uniquely-reddening named test** (M9, M10, M11, M12, M13 redden one test each;
-M8's four are the character-check's four distinct shapes). No clause of the new
-mechanism can be deleted with the suite unchanged.
+M8's four are the character-check's four distinct shapes). **No clause of the
+FENCE RULE can be deleted or weakened with the suite unchanged.**
+
+That sentence used to read *"no clause of the new mechanism"*, and it was
+broader than what the mutations prove. The V4 reviewer showed it by finding two
+that are not covered, and I reproduced both on my own harness:
+
+| # | old text → new | red |
+|---|---|---|
+| M16 | `route or "declare"])` → `route])` | **NONE** — `Ran 81 tests … OK` |
+| M17 | `render_row([rel, str(int(ver)), …` → `render_row([rel, ver, …` | **NONE** — `Ran 81 tests … OK` |
+
+Neither is a defect, and I checked that rather than assuming it. Each weakening
+reverts **exactly one** shape to fork-point behaviour, and each of those two
+shapes is one this RESULT's § 9 already declares changed-without-a-named-test:
+M16 makes the **empty route cell** declare again (catalogue row 24: `undeclared 1`
+→ `conformant 0`, and `conformant 0` at the fork point), M17 makes the
+**leading-zero version cell** declare again (row 25, the same three figures), and
+neither touches the other's shape. So the two clauses are real and deliberate
+and simply have no named test — which is what § 9 says about them, and which the
+old sentence contradicted by summarising what I had done instead of stating what
+I had measured. **This is the same failure as § 1's attribution and § 4's sweep
+claim: a completeness claim written from intent rather than from a measurement.
+Third time in this task, and the first two were also caught by a reviewer, not
+by me.**
 
 M1's set and M2/M3's sets are **disjoint**: M1 leaves all ten fence tests green,
 M2/M3 leave backticked and indented green. That is the measurement behind § 1 —
@@ -533,24 +579,70 @@ code.
   applies universal newlines.
 - **An unclosed fence still swallows the rest of the file** — every row after it
   is reported unreadable. Probe row 19; fail-closed and loud; no named test.
-- **What is still open, and it is a judgement not an oversight.** The reader now
-  matches CommonMark on *closing* and is deliberately looser on *opening*. Three
-  constructs it does not model, all of which make it refuse rows a strict
-  renderer would show, i.e. all fail-closed: a fence-looking line inside an HTML
-  block; a fence inside a **list item** or **blockquote**, where CommonMark
-  measures indent relative to the container and this reader measures it from
-  column 0; and a `|`-row inside an **indented code block** with no fence at all,
-  which the round trip refuses only because such a row is indented. If a future
-  change makes indentation stop implying refusal, that third one reopens. I did
-  not test any of the three by name.
+- **HTML IS NOT HANDLED, AND THE SENTENCE BELOW USED TO IMPLY IT WAS.** This
+  bullet previously named "a fence-looking line inside an HTML block" among the
+  constructs the reader does not model — true, fail-closed, and misleading by
+  omission, because it described HTML only in the direction where not modelling
+  it is *safe*. The unsafe direction is live: **a bare canonical row inside
+  `<pre>`, inside an HTML comment, or inside `<details>` still declares, and is
+  still laundered by the next `declare`.** Measured on all three trees, same
+  three figures each time:
+
+  ```
+                                   658e8c9      8c34973      5054bd6
+    row inside a <pre> block       conformant 0  conformant 0  conformant 0
+    row inside an HTML comment     conformant 0  conformant 0  conformant 0
+    row inside <details>           conformant 0  conformant 0  conformant 0
+  ```
+
+  **Not a regression** — identical at the fork point, at round 1 and at round 2 —
+  and outside the spec's three named traps, which is why it is not this row's
+  work. It is invisible to the round-trip property by construction, for exactly
+  the reason the fenced row is: the row is byte-identical to a genuine one and
+  only its container says otherwise. Closing it means tracking HTML blocks as
+  well as fences, which is the reader growing a second markdown parser;
+  `TASK-234` dissolves it instead. **The PMO is filing it as its own row beside
+  `TASK-246`.** I did not fix it, and I am not filing it.
+- **What is still open beyond that, and it is a judgement not an oversight.** The
+  reader matches CommonMark on *closing* and is deliberately looser on *opening*.
+  Two further constructs it does not model, both of which make it refuse rows a
+  strict renderer would show, i.e. both fail-closed: a fence inside a **list
+  item** or **blockquote**, where CommonMark measures indent relative to the
+  container and this reader measures it from column 0; and a `|`-row inside an
+  **indented code block** with no fence at all, which the round trip refuses only
+  because such a row is indented. If a future change makes indentation stop
+  implying refusal, that second one reopens. I did not test either by name.
 - **No live-worktree suite figure this round** — see § 6. The comparison is
   archive-to-archive.
 - **I did not read the `perry-conform status` human (non-`--json`) rendering** of
   the new unreadable rows. JSON surface only, both rounds.
 - **`perry/BOARD.md` and `perry/tasks.jsonl` are untouched**, as instructed, and
   `bin/perry-tasks --dry-run` was never used.
+- **Four things the V4 review measured that I have NOT re-run, and cite instead.**
+  Named here so the record shows which figures are mine and which are its:
+  1. **How `declare` was exercised.** Its brief forbade running `declare`
+     anywhere, so it **computed what `declare` writes** via
+     `render(parse(record))` rather than invoking the command, and said so as a
+     method note instead of claiming the command ran. My § 2 laundering trace
+     *does* invoke `declare`, against synthetic `mktemp` projects; the two routes
+     agree, and its route is the more conservative one.
+  2. **Seven "must still declare after a properly closed fence" shapes** — the
+     direction I never probed, since my catalogue's positive control is a record
+     with no fence in it at all. No false refusals.
+  3. **The human, non-`--json` `perry-conform status` rendering** of the new
+     unreadable rows. § 9 of round 1 and of this file both declare I read only
+     the JSON surface; the review closed it.
+  4. **The all-or-nothing argument, quantified.** § 1 asserts that a whole-file
+     fixed point is voided by one stray blank line. The reviewer measured what
+     that costs on the real record: **one stray blank line voids all 23 of
+     Perry's declarations under a whole-file rule, and 0 under the per-row
+     rule.** That is a measurement of my argument, not a rewording of it, and it
+     is the reviewer's number.
+  It also recorded an **eighth** non-reproduction of § 6's `test_host_support`
+  flake: its suite on the merged tree matched the PMO's figure with no fourth
+  failure.
 - **The probe, the mutation harness and the two prototype trees are session
   scratch, not committed** — `perry/evidence/` holds markdown only, by this
   repository's own convention. The table in § 4 carries the anchor, the old
-  text, the replacement and the reddened test for each of the fifteen; § 2
+  text, the replacement and the reddened test for each of the seventeen; § 2
   carries the catalogue and the discarded prototype's measurements.
