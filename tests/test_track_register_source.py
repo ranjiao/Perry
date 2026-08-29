@@ -61,6 +61,7 @@ TASK = ROOT / "bin" / "perry-task"
 GOALS = ROOT / "bin" / "perry-goals"
 DIAGNOSE = ROOT / "bin" / "perry-diagnose"
 CONFIG = ROOT / "bin" / "perry-config"
+LINT = ROOT / "bin" / "perry-lint"
 
 
 def _state_module():
@@ -841,6 +842,45 @@ class TestTheThreeHandEditWorkflowsStillWrite(Fixture):
         _d, out = self.hand_edit_then_write(self.TWO_TRACKS,
                                             self.TWO_TRACKS_SWAPPED)
         self.assertIn("the track register disagrees", out.stderr)
+
+    def test_a_hand_edited_SETTING_is_not_reported_as_a_track(self):
+        """**The V4 round 6 reviewer's finding, asserted on the message.**
+
+        `plan`'s `cells_the_store_and_the_file_disagree_on` is not filtered by
+        record kind — it carries `setting/…` keys beside `track/…` ones — so
+        the `startswith("track/")` filter at `bin/perry-state §
+        tracks_the_register_contradicts` is what keeps a hand-edited SETTING
+        out of an answer about the track register. Deleting it left all 56
+        tests green, which under USER-905 means it did not count.
+
+        The state: a `## Tracks` table whose track row AGREES with the store
+        cell for cell, plus one hand-edited setting. Without the filter,
+        `perry-task` prints *"the track register disagrees with `.perry/
+        config.md § Tracks` on document_language"* — a sentence about the
+        track register, naming a setting, pointing at a section that does not
+        contain it. The assertion is on that sentence rather than on the
+        predicate's return value, because the sentence is the harm.
+        """
+        d = self.derived(self.ONE_TRACK)
+        (d / ".perry" / "config.md").write_text(
+            self.ONE_TRACK.replace("- Document language: English",
+                                   "- Document language: 中文"))
+        # The control: the file and the store really do disagree, and
+        # `perry-lint` — which owns the rule — says so. Without this the test
+        # could pass on a project with no drift at all.
+        lint = json.loads(self.tool(LINT, d, "--json").stdout)
+        drifted = sorted({f["message"].split(" — ")[0] for f in lint["findings"]
+                          if f["rule"] == "config-store-drift"})
+        self.assertEqual(drifted, ["setting/document_language"],
+                         "the fixture does not carry the drift it is for")
+        out = self.tool(TASK, d, "add", "--title", "t", "--deliverable", "d",
+                        "--verification", "v")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn(
+            "the track register disagrees", out.stderr,
+            "a hand-edited SETTING was reported as a track-register "
+            "disagreement — the message names `## Tracks`, which does not "
+            "contain it")
 
     def test_the_named_remedy_really_does_fail_on_W3(self):
         """The instrument for the sentence above. If `perry-config write

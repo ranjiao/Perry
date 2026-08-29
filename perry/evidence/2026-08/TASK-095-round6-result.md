@@ -281,7 +281,7 @@ below reports `restored: OK`**, and an anchor that did not match is reported
 as `ANCHOR MISS → NOT RUN` rather than as a green.
 
 Runner for all of them: `python3 -m unittest test_track_register_source` from
-`tests/` (56 tests).
+`tests/` — 56 tests before the V4 review, **57** after it.
 
 ### The exact reverts the amendment names
 
@@ -324,9 +324,12 @@ Each pointed back at `.perry/config.md`:
 | M18 | `perry-state:836` | `if not good:` → `if False:` | **1 RED** `test_an_empty_store_is_unusable_but_a_settings_only_store_is_not` |
 | M19 | `perry-state:894` | blank-name filter in `stored_tracks` dropped | **1 RED** `test_the_filter_is_load_bearing` |
 | M22 | `perry-state:1107` | `if not cfg.exists():` → `if False:` in `declared_tracks_detail` | **1 ERROR** `test_an_unusable_store_with_no_config_md_beside_it_still_answers` |
+| **M23** | `perry-state:1022` | `if k.startswith("track/") and "/" in k}` → `if "/" in k}` — **the round 6 reviewer's finding**, added after the PASS | **1 RED** `test_a_hand_edited_SETTING_is_not_reported_as_a_track` |
+| M26 | `perry-state:823` | `if not path.exists():` → `if False:` — the absent-store branch | **4 RED** `test_no_store_reports_absent_and_is_NOT_unusable`, `test_no_store_warns_about_nothing_either`, `test_a_write_is_fine_with_no_store_at_all`, `test_goals_is_fine_with_no_store` |
+| M27 | `perry-state:891` | `if good is None:` → `if False:` in `stored_tracks` | **15 RED** (`failures=8, errors=9`) |
 | M13+M14 | `perry-state:946` **and** `:949` | both filters of `tracks_the_projection_declares` removed in ONE edit | `failures=10`, **9 RED**, incl. `test_only_named_track_rows_come_out`, `test_nothing_nameless_reaches_the_refusal`, `test_W1_…`, `test_a_COMPLETE_default_still_writes`, `test_a_write_is_fine_with_a_trackless_store` |
 
-**28 mutations, 28 `restored: OK`, 0 `MISMATCH`, 0 `ANCHOR MISS`.** The harness
+**33 mutations, 33 `restored: OK`, 0 `MISMATCH`, 0 `ANCHOR MISS`.** (28 before the V4 review, 5 after it: M23–M27.) The harness
 prints `ANCHOR MISS → NOT RUN` rather than a verdict when the line does not
 carry the expected text, because a mutation whose anchor did not match reports
 a meaningless "OK" and that has happened on this row.
@@ -353,6 +356,21 @@ a meaningless "OK" and that has happened on this row.
   pair is guarded (M13+M14 above), and `TestWhatTheProjectionDeclares` states
   the masking in its own docstring so the next round does not rediscover it as
   a defect.
+- **M24** — `perry-state:1006`, `if good is None:` → `if False:` in
+  `tracks_the_register_contradicts`. GREEN. The function returns early unless
+  `source in TRACKS_ANSWERED`, and both members of that set imply
+  `_validated_config_records` returned records, so on every path a caller can
+  reach today the branch is dead. It is kept as a guard against the TOCTOU
+  window — `source` is computed from disk by the caller a moment earlier, and
+  the store can be replaced in between — and that race is not something this
+  module can construct. Unreachable by construction, defensive on purpose.
+- **M25** — `perry-state:1020`, the `ln.get("kind") == "track"` filter on the
+  `lines_verbatim` half → `if True`. GREEN, and **masked by M23**: a
+  `lines_verbatim` entry for a setting line carries the key `setting/…`, which
+  the `startswith("track/")` filter two lines below already drops. The two are
+  redundant; the lower one is the one that does the work, and it is guarded.
+  Left in place rather than removed, because the row had already PASSED and
+  widening a passing change is how rounds 2, 3 and 5 failed.
 - **M20** (`perry-state:933`) and **M21** (`:1003`) — the `cfg.exists()` fast
   paths in `tracks_the_projection_declares` and
   `tracks_the_register_contradicts`. GREEN and equivalent: both functions wrap
@@ -361,6 +379,49 @@ a meaningless "OK" and that has happened on this row.
   `declared_tracks_detail`, has **no** `try/except` — it was a real crash path,
   it was GREEN at rounds 4 and 5, the round 4 review recorded it, and it is
   closed here.
+
+### Addendum after the V4 PASS — the reviewer's one finding
+
+The round 6 review PASSED and named one non-blocking gap: **a guard this round
+ADDED survived its own deletion.** Replacing `bin/perry-state:1022`'s
+`if k.startswith("track/") and "/" in k}` with `if "/" in k}` left all 56 tests
+green, and the line was absent from the table above.
+
+The shipped code is correct; the missing thing was the test.
+`cells_the_store_and_the_file_disagree_on` is **not** filtered by record kind —
+it carries `setting/…` keys beside `track/…` ones — so that filter is the only
+thing keeping a hand-edited setting out of an answer about the track register.
+
+Reproduced before fixing, on a project whose `## Tracks` row AGREES with the
+store cell for cell and whose store was derived by `perry-config write
+--from-file`, then with ONE setting hand-edited (`- Document language: English`
+→ `中文`):
+
+```
+with the filter (shipped):
+  $ perry-task add …            exit=0   no track-register line on stderr
+without the filter (mutant):
+  $ perry-task add …            exit=0
+    ⚠ the track register disagrees with `.perry/config.md § Tracks` on
+      document_language. This command answers from the REGISTER. …
+```
+
+A sentence about the track register, naming a setting, pointing at a section
+that does not contain it.
+
+`test_a_hand_edited_SETTING_is_not_reported_as_a_track` asserts on **that
+sentence**, not on the predicate's return value, because the sentence is the
+harm. It carries `perry-lint --json` as its own control, asserting the fixture
+really does drift (`['setting/document_language']`) so it cannot pass on a
+clean project. M23 above is the mutation: **1 RED, and it is that test.**
+
+Auditing the rest of the table rather than only the line the reviewer named
+added M24–M27. Two more guards are green and both are explained under
+*Mutations that came back GREEN*; two were real and are now covered.
+
+**Nothing else was changed.** The diff of this addendum is one test method
+(+40 lines in `tests/test_track_register_source.py`) and this section. No
+`bin/` file moved.
 
 ---
 
@@ -371,7 +432,8 @@ a meaningless "OK" and that has happened on this row.
 | tree | commit | modules | tests | failures |
 |---|---|---|---|---|
 | clean `git archive HEAD` copy | `6c0d041` | 98 | 2882 | **3** |
-| this worktree, after | `6c0d041` + this change | 98 | **2902** | **3** |
+| this worktree, at the V4 PASS | `a917a43` | 98 | 2902 | **3** |
+| this worktree, after the addendum | `a917a43` + one test | 98 | **2903** | **3** |
 
 `diff` of the sorted `FAIL:`/`ERROR:` lines between the two: **empty — the
 identical failure set.** The three are:
@@ -382,10 +444,14 @@ test_diagnose … test_the_queue_register_reconciles_with_the_queue_on_this_repo
 test_kr_progress_provenance … test_no_current_in_the_payload_claims_to_be_a_measurement
 ```
 
-+20 tests is this row's own, exactly: `test_track_register_source` goes from
-**36 to 56** test methods, measured with `python3 -m unittest
++21 tests is this row's own, exactly: `test_track_register_source` goes from
+**36 to 57** test methods, measured with `python3 -m unittest
 test_track_register_source` from `tests/` on each tree. No other module gained
-or lost a test.
+or lost a test. The last of the 21 is
+`test_a_hand_edited_SETTING_is_not_reported_as_a_track`, added after the V4
+PASS; the run that measured 2903 took 677s under a machine load average of 37
+to 39 from other agents, which is why it is slower than the 296s run above and
+not why any number differs.
 
 **Two warnings about these numbers, both learned the expensive way.**
 
