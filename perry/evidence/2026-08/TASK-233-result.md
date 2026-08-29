@@ -7,8 +7,10 @@
 
 ## What changed
 
-Seven commits, plus this file. The seventh is round 2 and exists because
-the V4 review of round 1 **FAILED**; § 4 below is rewritten around that.
+**Eight code commits, plus four revisions of this file.** The last two code
+commits are round 2 and exist because the V4 review of round 1 **FAILED**. The
+code fix there is two lines; the corrections to this report are the larger part,
+and § 4 is rewritten around them.
 
 | sha | what |
 |---|---|
@@ -18,7 +20,8 @@ the V4 review of round 1 **FAILED**; § 4 below is rewritten around that.
 | `02dc442` | the "unreadable store" guard was guarding one branch of two |
 | `b0d8cde` | "refuses" has to mean a refusal, not a traceback |
 | `d32ec76` | "is there a `.perry/config.md`" stopped being "is this configured" — **four of six** |
-| `40eb4cc` | the other two, in `bin/perry-state`, after the V4 review found them |
+| `40eb4cc` | **round 2** — the other two, in `bin/perry-state`, after the V4 review found them, plus a guard for the reviewer's X4 |
+| `d1deefb` | **round 2** — the X4 guard's control tripped the live-state sweep and did not need to |
 
 ### 1 — the readers prefer the store
 
