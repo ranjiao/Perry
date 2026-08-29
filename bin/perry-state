@@ -740,20 +740,15 @@ _BLANK_MARKER: str | None = None
 def blank_marker() -> str:
     """How this project's files spell "this cell says nothing": `—`.
 
-    Read from `schema/state-schema.json § i18n.blank_cell.en`, first entry,
-    rather than written here — the same list `lib.is_blank_cell` matches
-    against, so the spelling this hands back cannot become one that function
-    would not recognise.
+    **`lib.blank_marker` is the implementation** and this is the name every
+    caller in this file already uses. It moved there when `perry_md_store §
+    scaffold_config` became a third caller — a renderer rebuilding
+    `.perry/config.md` from the store alone has no file to copy the marker out
+    of, and a second hardcoded `—` there is exactly the shape of the defect
+    `schema § i18n.blank_cell`'s note records: three tools, three lists, one of
+    them missing 无.
     """
-    global _BLANK_MARKER
-    if _BLANK_MARKER is None:
-        try:
-            blank = (lib.load_schema().get("i18n") or {}).get("blank_cell") or {}
-            en = [v for v in (blank.get("en") or []) if isinstance(v, str)]
-        except Exception:                                        # noqa: BLE001
-            en = []
-        _BLANK_MARKER = en[0] if en else "—"
-    return _BLANK_MARKER
+    return lib.blank_marker()
 
 
 def track_from_record(rec: dict) -> dict:
