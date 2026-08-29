@@ -424,7 +424,8 @@ three are pre-existing at the fork point:
 **Three notes on the numbers, and one is a correction of my own round-1 text.**
 
 - **The baseline is the FORK POINT `658e8c9`, not `main`.** `main` has moved
-  again — it is now `9db8f45`, and TASK-233 landed a **parallel test runner**
+  again — it was `9db8f45` when I measured and `84aee3b` by the time I finished
+  writing this, and TASK-233 landed a **parallel test runner**
   and rewrote `tests/run` itself. A `bash tests/run` figure from today's `main`
   and one from this branch would not be the same runner, so the only honest
   before/after is against the tree this branch forked from. Round 1's table
