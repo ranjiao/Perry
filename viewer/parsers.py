@@ -40,7 +40,7 @@ from pathlib import Path
 #
 # `tests/test_risks.py::TestOneNormalizationForAHeaderCell` compares the
 # reader's predicate against the writer's over a corpus of header forms.
-from tables import split_row, squash  # noqa: E402
+from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
 
 # ── localization glossary ─────────────────────────────────────────────────
 #
@@ -532,6 +532,22 @@ CONFORMANCE_FILE = ".perry/conformance.md"
 
 _CONFORMANCE_ROW = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
 
+#: A markdown code fence — ``` or ~~~, three or more, any indent, any info
+#: string. `read_conformance` tracked none, so a row written INSIDE a fenced
+#: block — an example in prose, or a row someone hid there — read as a real
+#: declaration (TASK-241). It cannot be caught by any property of the row
+#: itself: a fenced row is byte-for-byte identical to a genuine one, and what
+#: makes it not a declaration is where it sits, not how it is written.
+#:
+#: Three groups, because the *first* version of this guard had none and was a
+#: boolean toggle flipped by any line that looked like a fence. That is not
+#: markdown's rule, and it was defeated by the ordinary way a document shows a
+#: fenced block — a NESTED fence. `~~~` then ``` ``` ``` closed the toggle on
+#: the inner line, and the row under it was a live declaration again, laundered
+#: into a canonical row by the next legitimate `declare`, exactly as before the
+#: guard existed. Measured on four nestings (TASK-241 round 2).
+_FENCE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
+
 
 @dataclass
 class Declaration:
@@ -567,9 +583,45 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         text = path.read_text(errors="replace")
     except OSError:
         return rec
+    # ── which lines are inside a code fence ───────────────────────────────
+    #
+    # `fence` is the OPEN fence's `(delimiter character, run length)`, not a
+    # boolean. A boolean was the first version and it was wrong: any
+    # fence-looking line flipped it, so a fence nested inside a longer or
+    # differently-charactered one — ``` inside ~~~, ``` inside ````, a
+    # ```` ```x ```` line inside ``` — turned tracking OFF and handed the row
+    # below it back to the parser as a real declaration.
+    #
+    # **Opening is liberal, closing is strict, and each direction is chosen
+    # fail-closed.** Any run of three or more backticks or tildes at any indent
+    # OPENS — including the two shapes CommonMark says are not openers (a
+    # backtick fence whose info string contains a backtick; a fence indented
+    # four or more spaces, which is an indented code block) — because refusing
+    # a row we are unsure about costs a loud `unreadable`, while parsing one
+    # costs a false `conformant` on the file that gates every write. A fence
+    # CLOSES only on CommonMark's terms (§ 4.5): the same delimiter character,
+    # a run at least as long as the opener's, indented at most three, and
+    # nothing after it but whitespace. Every line that is not that is content.
+    fence: tuple[str, int] | None = None
     for i, line in enumerate(text.split("\n"), start=1):
+        f = _FENCE.match(line)
+        if f:
+            run, rest = f.group(2), f.group(3)
+            if fence is None:
+                fence = (run[0], len(run))
+            elif (run[0] == fence[0] and len(run) >= fence[1]
+                  and len(f.group(1).expandtabs(4)) < 4 and not rest.strip()):
+                fence = None
+            continue
         m = _CONFORMANCE_ROW.match(line)
         if not m:
+            continue
+        if fence is not None:
+            # Reported, not skipped. A row nobody can see the effect of is how
+            # this class stayed live: `ConformanceRecord.unreadable` exists so
+            # a row that is neither `declared` nor `absent` says so out loud,
+            # and `perry-conform status` prints it.
+            rec.unreadable.append((i, line.strip()))
             continue
         # `split_row` — the SIXTH implementation of this, found by a V4
         # reviewer after five were unified. It reads a row out of a regex
@@ -591,6 +643,48 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         if squash(rel) in ("file", "path") or not rel:
             continue           # the header row
         if not re.fullmatch(r"\d+", ver or ""):
+            rec.unreadable.append((i, line.strip()))
+            continue
+        # ── the round trip: a row is a declaration only if it is ALREADY the
+        # row `bin/perry-conform:render` would write for what we just parsed.
+        #
+        # `strip("` ")` above removes backticks, `_CONFORMANCE_ROW` allows
+        # leading whitespace, and this reader tracks no code fences — so a
+        # path cell in BACKTICKS, an INDENTED row, and a row inside a ``` ```
+        # ``` FENCE each parsed to the same plain key as a row a person had
+        # declared on purpose. Measured (TASK-241, found by the TASK-226 V4
+        # reviewer): one hand-written backticked row flipped a real file from
+        # `undeclared` to `conformant`, and because `declare` rewrites the
+        # whole file from the parsed declarations, the next legitimate
+        # `perry-conform declare` LAUNDERED it into a plain canonical row that
+        # nothing downstream could tell from a real one. This is the file that
+        # gates every write under ADR-004's enforce gate.
+        #
+        # This is ONE PROPERTY, not a list of decorations, and that is the
+        # whole reason it is written this way: `render(parse(row)) == row`
+        # closes the class, including the shapes nobody has thought of yet.
+        # A list of known decorations closes the three that have been found
+        # and is defeated by the fourth — TASK-050 spent eight V4 rounds
+        # learning that on this same file.
+        #
+        # It is not a new normalization rule either: the canonical form is
+        # `render_row`, the same writer the record's only writer uses, so
+        # "what a declaration looks like" still has exactly one definition.
+        #
+        # ASTERISKS survive, deliberately: `strip("` ")` never removed them,
+        # so `| **path** |` round-trips to itself and still reads as a
+        # declaration under the key `**path**` — inert, because no key from
+        # `state_files()` carries asterisks, and unchanged by this guard. A
+        # bolded `| **File** |` HEADER is squashed to `file` above and skipped
+        # before we get here; that is TASK-050's rule and it still stands.
+        try:
+            canonical = render_row([rel, str(int(ver)), declared,
+                                    route or "declare"])
+        except UnrenderableCell:
+            # A cell that cannot be written back at all — a `\n` smuggled in,
+            # say. Refused for the same reason: unreadable, never guessed at.
+            canonical = None
+        if canonical != line:
             rec.unreadable.append((i, line.strip()))
             continue
         rec.declarations[rel] = Declaration(
