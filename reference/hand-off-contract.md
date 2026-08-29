@@ -12,7 +12,7 @@ itself applies to its own earlier edit below.
 
 **Two changes from the previous contract, and why.**
 
-1. **`DECISIONS.md` + `decisions/` move from `work` to `decide`.** A settled
+1. **`decisions/` moves from `work` to `decide`.** A settled
    decision and the document that settles it now have one owner. `work` was
    the largest lane and the record of *what was decided* sat one lane away from
    the RFCs that decided it, which is where "where do I record this?" became

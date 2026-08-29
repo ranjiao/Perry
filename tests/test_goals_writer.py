@@ -1268,9 +1268,9 @@ class TestTheHandOffContract(WriterCase):
 
     #: The rule is a predicate over the whole filesystem, so this is a
     #: category, not the three files the contract happens to name. A guard
-    #: shaped around `BOARD.md` / `journal/` / `DECISIONS.md` would pass a
+    #: shaped around `BOARD.md` / `journal/` / `decisions/` would pass a
     #: write to `weekly/` that the same sentence forbids for the same reason.
-    FOREIGN = ["BOARD.md", "journal/2026-08/2026-08-17.md", "DECISIONS.md",
+    FOREIGN = ["BOARD.md", "journal/2026-08/2026-08-17.md",
                "decisions/ADR-001-x.md", "PROJECT_STATE.md",
                "evidence/2026-08/retro.md", "weekly/2026-W33.md",
                "handoff/session.md", "design/DESIGN-001-x.md"]
@@ -1287,8 +1287,8 @@ class TestTheHandOffContract(WriterCase):
     def test_the_lane_it_names_is_the_right_one(self):
         p = self.project()
         for rel, lane in (("BOARD.md", "work"), ("journal/x.md", "work"),
-                          ("DECISIONS.md", "decide"),
-                          ("decisions/ADR-001.md", "decide")):
+                          ("decisions/ADR-001.md", "decide"),
+                          ("design/DESIGN-001-x.md", "decide")):
             with self.subTest(path=rel):
                 with self.assertRaises(G.Refused) as caught:
                     G.write_atomic(p.dir, p.dir / rel, "x")
@@ -1305,12 +1305,14 @@ class TestTheHandOffContract(WriterCase):
     def test_a_commit_leaves_every_other_lane_byte_identical(self):
         p = self.project()
         (p.dir / "BOARD.md").write_text("# board\n")
-        (p.dir / "DECISIONS.md").write_text("# decisions\n")
+        (p.dir / "decisions").mkdir()
+        (p.dir / "decisions" / "ADR-001-x.md").write_text("# decisions\n")
         (p.dir / "journal").mkdir()
         (p.dir / "journal" / "2026-08-17.md").write_text("# day\n")
         p.commit("--track", "ops", "--promise", "a", "--to", "x", "--due", "3d")
         self.assertEqual("# board\n", (p.dir / "BOARD.md").read_text())
-        self.assertEqual("# decisions\n", (p.dir / "DECISIONS.md").read_text())
+        self.assertEqual("# decisions\n",
+                         (p.dir / "decisions" / "ADR-001-x.md").read_text())
         self.assertEqual("# day\n",
                          (p.dir / "journal" / "2026-08-17.md").read_text())
 

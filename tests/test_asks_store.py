@@ -628,14 +628,21 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
         self.assertEqual(len(rows), 1, [r["message"] for r in rows])
         self.assertIn("different order", rows[0]["message"])
 
-    def test_the_ordinary_writer_still_writes_the_section_and_that_is_drift(self):
-        """**Deliberately not converted (TASK-203).** `perry-task answer`
-        writes the board and not the store, exactly as `risk-add` and
-        `perry-task intake` still do. Converting one register's writers alone
-        would make an ordinary command mint a store as a side effect on a
-        project that never ran the gated import. What the store adds today is
-        that the divergence is REPORTED rather than silent — which is this
-        assertion."""
+    def test_the_ordinary_writer_reaches_the_store_and_leaves_no_drift(self):
+        """**Converted by TASK-203.** It read
+        `test_the_ordinary_writer_still_writes_the_section_and_that_is_drift`,
+        and its docstring said `answer` writes the board and not the store —
+        *"deliberately not converted (TASK-203)"*. TASK-203 is the row that
+        converts it, so the assertion is now the other half of the same fact:
+        the section and the store are written in one transaction, so there is
+        nothing left to report as drift.
+
+        The drift READING is not lost with it. It was never this command's to
+        prove — `perry-task` keeps the store current, and what drifts a store
+        is a hand edit, which
+        `TestDriftIsReportedRatherThanAbsorbed`' other four tests cover by
+        editing `BOARD.md` directly.
+        """
         p = _imported(self)
         out = subprocess.run(
             [sys.executable, str(PERRY_HOME / "bin" / "perry-task"), "answer",
@@ -643,7 +650,13 @@ class TestDriftIsReportedRatherThanAbsorbed(unittest.TestCase):
              "--root", str(p.root), "--json"],
             capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 1)
+        self.assertEqual(_lint(p.root)["ask_store_drift"]["drifted"], 0)
+        record = next(r for r in
+                      [json.loads(l) for l in
+                       (p.root / "asks.jsonl").read_text().split("\n")
+                       if l.strip()] if r["id"] == "USER-002")
+        self.assertIn("CSV, with a header row", record["status"])
+        self.assertIs(record["answered"], True)
 
     def test_the_store_is_claimed_as_a_file_perry_wrote(self):
         """Without this every project that runs the import gets an `NS-01`

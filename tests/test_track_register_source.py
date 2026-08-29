@@ -60,6 +60,8 @@ STATE = ROOT / "bin" / "perry-state"
 TASK = ROOT / "bin" / "perry-task"
 GOALS = ROOT / "bin" / "perry-goals"
 DIAGNOSE = ROOT / "bin" / "perry-diagnose"
+CONFIG = ROOT / "bin" / "perry-config"
+LINT = ROOT / "bin" / "perry-lint"
 
 
 def _state_module():
@@ -292,6 +294,33 @@ class TestTheFourSituationsAreDistinguished(Fixture):
 SETTING_ONLY = json.dumps({"kind": "setting", "key": "language",
                            "value": "English", "order": 0}) + "\n"
 
+#: A `## Tracks` row whose every cell is FILLED, so that a store record which
+#: merely EXISTS under the same name still contradicts it. Round 5's FAIL
+#: lived in the gap between "a record named `main`" and "a record that says
+#: what the table says", and `CONFIG_MD` above cannot express it: its `main`
+#: row agrees with `GOOD_STORE`'s `main` record cell for cell.
+DECLARING_MAIN = ("""# Perry configuration
+
+- Document language: English
+- Repo layout: single
+- State root: .
+""" + GATE_OFF + """
+## Tracks
+
+| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |
+""")
+
+#: The same table, localized. `perry_md_store` takes the heading AND every
+#: column name from `schema/state-schema.json § i18n` — the same place
+#: `perry-lint` takes them from — so this is one register read one way, not
+#: an English path and a Chinese one.
+DECLARING_MAIN_ZH = DECLARING_MAIN.replace(
+    "## Tracks", "## 轨道").replace(
+    "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |",
+    "| 轨道 | 模式 | 主线 | 阶段序列 | 在制上限 | 时限 | 周期 | 默认验证级 |")
+
 
 class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
     """**Round 3's FAIL, and the third `two situations, one answer` in a row.**
@@ -334,10 +363,19 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
 
     DEFAULTED = [dict(PS.DEFAULT_TRACK)]
 
+    def contradicts(self, d: pathlib.Path) -> list[str]:
+        return PS.tracks_the_register_contradicts(d, self.detail(d)[1])
+
     def test_a_complete_default_loses_nothing(self):
-        self.assertEqual(PS.tracks_missing_from_the_register(
-            self.project(SETTING_ONLY, md_declares=False),
-            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), [])
+        """**The trackless case, named.** No `## Tracks` section and a store
+        with no track record: nothing is declared, so nothing is contradicted.
+        Three of this repo's six `config.md` files are this shape and round 2
+        hard-blocked every one of them."""
+        d = self.project(SETTING_ONLY, md_declares=False)
+        self.assertEqual(self.detail(d)[1], PS.TRACKS_STORE_DEFAULT)
+        self.assertEqual(self.contradicts(d), [])
+        self.assertEqual(PS.tracks_the_register_cannot_place(
+            d, self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), [])
 
     def test_a_table_that_DECLARES_main_is_not_a_complete_default(self):
         """**Round 4's FAIL.** The predicate filtered on the NAME `main`, so a
@@ -345,34 +383,14 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
         trackless store looked identical to no table at all — and every one of
         those settings vanished in silence with an allowed write, while
         `perry-lint` reported `config-store-drift · track/main`.
-
-        `parse_tracks` carries `declared` on every row; the register's `main`
-        is `DEFAULT_TRACK`, whose `declared` is False. Comparing on the RECORD
-        rather than the name is what separates them.
         """
-        self.assertEqual(PS.tracks_missing_from_the_register(
-            self.project(SETTING_ONLY, md_declares=True),
-            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT), ["main"])
+        self.assertEqual(self.contradicts(
+            self.project(SETTING_ONLY, md_declares=True)), ["main"])
 
     def test_it_names_every_declared_track_the_register_lacks(self):
-        self.assertEqual(sorted(PS.tracks_missing_from_the_register(
-            self.project(SETTING_ONLY, md_declares_two=True),
-            self.DEFAULTED, PS.TRACKS_STORE_DEFAULT)), ["intake", "main"])
-
-    def test_the_mirror_case_is_the_same_drift_and_gets_the_same_answer(self):
-        """**Round 4's third defect.** The question used to be asked only of
-        `store-default`, so a store with ZERO track records beside a
-        two-track table warned and refused, while a store with ONE record
-        (`main`) beside the SAME table was silent and wrote — `intake` gone
-        either way, and `perry-lint` reporting `config-store-drift ·
-        track/intake` on both. *"The rule that decides is 'did the store happen
-        to contain zero track records', which is not a fact about the user's
-        situation."*
-        """
-        carries_main = [dict(PS.DEFAULT_TRACK, declared=True)]
-        self.assertEqual(PS.tracks_missing_from_the_register(
-            self.project(SETTING_ONLY, md_declares_two=True),
-            carries_main, PS.TRACKS_FROM_STORE), ["intake"])
+        self.assertEqual(self.contradicts(
+            self.project(SETTING_ONLY, md_declares_two=True)),
+            ["intake", "main"])
 
     def test_the_predicate_is_empty_where_a_register_did_not_answer(self):
         """`absent` is the adoption path — there is nothing to compare — and
@@ -382,16 +400,181 @@ class TestAStoreThatDeclaresNoTrackIsTwoSituations(Fixture):
         for source in (PS.TRACKS_STORE_ABSENT, PS.TRACKS_STORE_UNREADABLE,
                        PS.TRACKS_STORE_INVALID):
             with self.subTest(source):
-                self.assertEqual(PS.tracks_missing_from_the_register(
-                    d, self.DEFAULTED, source), [])
+                self.assertEqual(
+                    PS.tracks_the_register_contradicts(d, source), [])
 
-    def test_the_retired_name_raises_rather_than_answering_narrowly(self):
-        """A caller passing only `(root, source)` cannot ask the widened
-        question. Answering it narrowly under the old name is the shape this
-        row keeps being failed for."""
-        with self.assertRaises(TypeError):
-            PS.defaulted_over_a_declaring_table(
-                self.project(SETTING_ONLY), PS.TRACKS_STORE_DEFAULT)
+    #: Each retired name with the arity ITS OWN callers used, so the
+    #: `TypeError` comes from the body and not from Python counting arguments
+    #: — an assertion satisfied by a wrong call is an assertion about nothing.
+    RETIRED_CALLS = {
+        "defaulted_over_a_declaring_table": lambda fn, d, rows:
+            fn(d, PS.TRACKS_STORE_DEFAULT),
+        "tracks_missing_from_the_register": lambda fn, d, rows:
+            fn(d, rows, PS.TRACKS_STORE_DEFAULT),
+    }
+
+    def test_the_retired_names_raise_rather_than_answering_narrowly(self):
+        """Both earlier spellings — round 4's and round 5's. A caller reaching
+        for one is asking a question that has since been split in two, and a
+        silently narrower answer under an old name is the shape this row keeps
+        being failed for."""
+        self.assertEqual(sorted(PS._RETIRED_TRACK_PREDICATES),
+                         sorted(self.RETIRED_CALLS))
+        d = self.project(SETTING_ONLY)
+        for name, call in sorted(self.RETIRED_CALLS.items()):
+            with self.subTest(name):
+                with self.assertRaises(TypeError):
+                    call(getattr(PS, name), d, self.DEFAULTED)
+
+
+class TestOneTableTwoStoresOneVerdict(Fixture):
+    """**Round 5's FAIL, and the principle the user settled in USER-905.**
+
+    *A declared row the register contradicts is drift* — principle A, one
+    principle everywhere, with no second principle for the synthesised `main`.
+
+    Round 5 compared a set of NAMES, so a register record that CONTRADICTED a
+    declared row counted as carrying it. One table
+    (`main/queue/standing/4/3d/V2`) against two stores differing ONLY in
+    whether a `main` record exists got opposite responses — `source=store`,
+    no warning, `add` rc 0 with a record; `source=store-default`, one warning,
+    `add` rc 1 without one — while `perry-lint` reported the same rule on the
+    same row in both.
+
+    The fix is not a better comparison written here. It is not writing one:
+    `tracks_the_register_contradicts` hands the file and the store's records
+    to `perry_md_store.plan`, which is exactly what `bin/perry-lint §
+    check_md_store_drift` does.
+    """
+
+    #: The store that CONTRADICTS the declared row: a real `kind: track`
+    #: record named `main`, saying `project`/`phase/`/`V3` where the table
+    #: says `queue`/`standing`/`V2`.
+    CONTRADICTING = SETTING_ONLY + track_record("main", "project", 0) + "\n"
+
+    def declaring(self, store: str, *, zh: bool = False) -> pathlib.Path:
+        d = self.project(store)
+        (d / ".perry" / "config.md").write_text(
+            DECLARING_MAIN_ZH if zh else DECLARING_MAIN)
+        return d
+
+    def lint_track_rows(self, d: pathlib.Path) -> list[str]:
+        """`perry-lint`'s own verdict — the independent control."""
+        proc = subprocess.run(
+            [sys.executable, str(ROOT / "bin" / "perry-lint"), "--root",
+             str(d), "--json"], capture_output=True, text=True, cwd=ROOT)
+        payload = json.loads(proc.stdout)
+        return sorted({f["message"].split(" — ")[0]
+                       for f in payload["findings"]
+                       if f["rule"] == "config-store-drift"
+                       and f["message"].startswith("track/")})
+
+    def run_task(self, d: pathlib.Path, *argv):
+        return subprocess.run(
+            [sys.executable, str(TASK), *argv, "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+
+    def test_the_two_stores_really_do_differ(self):
+        """The control. Without it every assertion below could pass on two
+        identical fixtures."""
+        self.assertEqual(self.detail(self.declaring(self.CONTRADICTING))[1],
+                         PS.TRACKS_FROM_STORE)
+        self.assertEqual(self.detail(self.declaring(SETTING_ONLY))[1],
+                         PS.TRACKS_STORE_DEFAULT)
+
+    def test_perry_lint_reports_the_same_rule_on_both(self):
+        for label, store in (("record", self.CONTRADICTING),
+                             ("no record", SETTING_ONLY)):
+            with self.subTest(label):
+                self.assertEqual(
+                    self.lint_track_rows(self.declaring(store)), ["track/main"])
+
+    def test_the_writer_gives_the_same_verdict_on_both(self):
+        """Same table, same drift, same answer — and the answer is *write, and
+        say so*, because a register holding a row for every declared name can
+        place every row it is asked to place (USER-905 decision 2)."""
+        for label, store in (("record", self.CONTRADICTING),
+                             ("no record", SETTING_ONLY)):
+            with self.subTest(label):
+                d = self.declaring(store)
+                out = self.run_task(d, "add", "--title", "t", "--deliverable",
+                                    "d", "--verification", "v")
+                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+                self.assertIn("the track register disagrees", out.stderr)
+
+    def test_the_payload_warns_on_both(self):
+        for label, store in (("record", self.CONTRADICTING),
+                             ("no record", SETTING_ONLY)):
+            with self.subTest(label):
+                d = self.declaring(store)
+                proc = subprocess.run(
+                    [sys.executable, str(STATE), "--root", str(d), "--json"],
+                    capture_output=True, text=True, cwd=ROOT)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                hits = [w for w in json.loads(proc.stdout)["warnings"]
+                        if "track register" in w]
+                self.assertTrue(hits, "the payload said nothing about drift "
+                                      "perry-lint reports on this row")
+                self.assertIn("main", hits[0])
+
+    def test_the_goals_lane_gives_the_same_verdict_on_both(self):
+        """Asserted as an EQUALITY between the two stores, not as a rc of 0.
+
+        `commit` on this fixture is refused either way, for a reason that is
+        not this row's: `DECLARING_MAIN` declares `main` as `queue` work, both
+        registers answer `project`, and `OKR.md` has no `## Commitments`
+        section. That refusal is identical on both sides, which is the point —
+        what must not differ is the track-register verdict, and a test pinned
+        to `rc == 0` would be measuring the commitments gate instead.
+        """
+        seen = []
+        for label, store in (("record", self.CONTRADICTING),
+                             ("no record", SETTING_ONLY)):
+            out = subprocess.run(
+                [sys.executable, str(GOALS), "commit", "--track", "main",
+                 "--promise", "p", "--to", "someone", "--due",
+                 "2026-09-30", "--root", str(self.declaring(store))],
+                capture_output=True, text=True, cwd=ROOT)
+            blob = out.stdout + out.stderr
+            with self.subTest(label):
+                self.assertIn("the track register disagrees", out.stderr)
+                self.assertNotIn("the track register does not carry", blob,
+                                 "the lane refused for a track-register "
+                                 "reason on one store and not the other — "
+                                 "the round 5 FAIL")
+            seen.append((out.returncode,
+                         "the track register disagrees" in out.stderr))
+        self.assertEqual(seen[0], seen[1],
+                         "one table, two stores, two different verdicts")
+
+    def test_the_contradicted_declaration_is_named_by_the_predicate(self):
+        """**The contradicted-declaration case, named.** The store HAS a
+        record for `main` and it says something else — the case round 5's set
+        of names could not see at all."""
+        d = self.declaring(self.CONTRADICTING)
+        self.assertEqual(PS.tracks_the_register_contradicts(
+            d, PS.TRACKS_FROM_STORE), ["main"])
+        # …and it is NOT a refusal: the register can place a `main` row.
+        self.assertEqual(PS.tracks_the_register_cannot_place(
+            d, self.detail(d)[0], PS.TRACKS_FROM_STORE), [])
+
+    def test_the_localized_table_behaves_identically(self):
+        """`## 轨道` with localized column headers, at both states.
+        Round 5 got this right and it must not regress: the aliases come from
+        `schema/state-schema.json § i18n`, which is where `perry-lint` gets
+        them."""
+        for label, store in (("record", self.CONTRADICTING),
+                             ("no record", SETTING_ONLY)):
+            with self.subTest(label):
+                zh = self.declaring(store, zh=True)
+                en = self.declaring(store)
+                self.assertEqual(self.lint_track_rows(zh),
+                                 self.lint_track_rows(en))
+                self.assertEqual(
+                    PS.tracks_the_register_contradicts(zh, self.detail(zh)[1]),
+                    PS.tracks_the_register_contradicts(en, self.detail(en)[1]))
+                self.assertEqual(["main"], PS.tracks_the_register_contradicts(
+                    zh, self.detail(zh)[1]))
 
 
 class TestThePayloadSaysWhichAnswerItGave(Fixture):
@@ -555,6 +738,164 @@ class TestAWriteAgainstADefaultedRegisterIsRefused(Fixture):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 
 
+class TestTheThreeHandEditWorkflowsStillWrite(Fixture):
+    """**USER-905 decision 2, measured as commands.**
+
+    The V4 round 5 review measured three ordinary hand-edit workflows — each
+    starting from a store genuinely derived by `perry-config write
+    --from-file` — hard-blocked by a refusal widened from `store-default` to
+    every drifted row. All three wrote at `45a355d` and at round 4. On W3 the
+    block could not even be cleared by the one command either refusal message
+    names: `perry-config write --from-file` exits 1 there, so the front door
+    was locked from the inside.
+
+    | | the hand edit | round 5 | here |
+    |---|---|---|---|
+    | W1 | no `## Tracks`, then add a `main` row | refused | writes |
+    | W2 | one track, then add a second | refused | writes |
+    | W3 | two tracks, then SWAP one row | refused | writes |
+
+    W1 is the one that separates this from round 4: round 4 also wrote here,
+    by filtering the projection's names on the string `main`, and that filter
+    is what round 4 was failed for. The refusal asks the register what it
+    returned instead, which says the same thing about `store-default` without
+    saying anything false about state 8.
+    """
+
+    NO_TRACKS = CONFIG_MD.split("## Tracks")[0]
+    ONE_TRACK = CONFIG_MD
+    TWO_TRACKS = CONFIG_MD_TWO
+    #: **W3's swap**, and it is the NAME that swaps: the second declared row
+    #: is replaced by a row for a track the register has no record of. This
+    #: is the shape that reproduces the round 5 reviewer's measurement exactly
+    #: — refused at `main`, and `perry-config write --from-file` exits 1 on it
+    #: with *"track/intake: in the store, no line in the file — the whole
+    #: record would be dropped"*, so the block cannot be cleared by the one
+    #: command the refusal names.
+    TWO_TRACKS_SWAPPED = CONFIG_MD_TWO.replace(
+        "| intake | queue |", "| ops | queue |")
+
+    #: The other reading of "swap one row" — the row keeps its name and
+    #: changes what it says. Measured at `main` too: this one already WROTE
+    #: there, because round 5 compared names, which is finding 1. It is kept
+    #: because it is the shape whose stored cells the remedy would overwrite.
+    TWO_TRACKS_RECELLED = CONFIG_MD_TWO.replace(
+        "| main | project | phase/ | — | — | — | — | V3 |",
+        "| main | queue | standing | new→triaged→done | 4 | 3d | weekly | V2 |")
+
+    def derived(self, config_md: str) -> pathlib.Path:
+        """A project whose store `perry-config write --from-file` built."""
+        d = self.project(None)
+        (d / ".perry" / "config.md").write_text(config_md)
+        out = self.tool(CONFIG, d, "write", "--from-file")
+        self.assertEqual(out.returncode, 0,
+                         "the fixture's own precondition failed: "
+                         + out.stdout + out.stderr)
+        self.assertTrue((d / ".perry" / "config.jsonl").exists())
+        return d
+
+    def tool(self, exe: pathlib.Path, d: pathlib.Path, *argv):
+        return subprocess.run(
+            [sys.executable, str(exe), *argv, "--root", str(d)],
+            capture_output=True, text=True, cwd=ROOT)
+
+    def hand_edit_then_write(self, before: str, after: str):
+        d = self.derived(before)
+        (d / ".perry" / "config.md").write_text(after)
+        out = self.tool(TASK, d, "add", "--title", "t", "--deliverable", "d",
+                       "--verification", "v")
+        return d, out
+
+    def test_W1_no_section_then_a_main_row_is_added(self):
+        d, out = self.hand_edit_then_write(self.NO_TRACKS, self.ONE_TRACK)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
+
+    def test_W2_one_track_then_a_second_is_added(self):
+        d, out = self.hand_edit_then_write(self.ONE_TRACK, self.TWO_TRACKS)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
+
+    def test_W3_two_tracks_then_one_row_is_swapped(self):
+        """The one whose named remedy fails. `perry-config write --from-file`
+        exits 1 on this project — a defect of that command, filed separately —
+        so a refusal here is a board the user cannot unblock through the front
+        door."""
+        d, out = self.hand_edit_then_write(self.TWO_TRACKS,
+                                           self.TWO_TRACKS_SWAPPED)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
+
+    def test_W3b_the_other_reading_of_a_swapped_row_also_writes(self):
+        """Same name, different cells. Round 5 allowed this one — its
+        comparison was on names — and round 6 must not lose it while fixing
+        the case round 5 blocked."""
+        d, out = self.hand_edit_then_write(self.TWO_TRACKS,
+                                           self.TWO_TRACKS_RECELLED)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("the track register disagrees", out.stderr)
+        self.assertTrue((d / "tasks.jsonl").exists(), "nothing was written")
+
+    def test_W3_says_so_rather_than_writing_in_silence(self):
+        """Allowed is not the same as unreported: the register really does
+        disagree with the table, and `perry-lint` says so too."""
+        _d, out = self.hand_edit_then_write(self.TWO_TRACKS,
+                                            self.TWO_TRACKS_SWAPPED)
+        self.assertIn("the track register disagrees", out.stderr)
+
+    def test_a_hand_edited_SETTING_is_not_reported_as_a_track(self):
+        """**The V4 round 6 reviewer's finding, asserted on the message.**
+
+        `plan`'s `cells_the_store_and_the_file_disagree_on` is not filtered by
+        record kind — it carries `setting/…` keys beside `track/…` ones — so
+        the `startswith("track/")` filter at `bin/perry-state §
+        tracks_the_register_contradicts` is what keeps a hand-edited SETTING
+        out of an answer about the track register. Deleting it left all 56
+        tests green, which under USER-905 means it did not count.
+
+        The state: a `## Tracks` table whose track row AGREES with the store
+        cell for cell, plus one hand-edited setting. Without the filter,
+        `perry-task` prints *"the track register disagrees with `.perry/
+        config.md § Tracks` on document_language"* — a sentence about the
+        track register, naming a setting, pointing at a section that does not
+        contain it. The assertion is on that sentence rather than on the
+        predicate's return value, because the sentence is the harm.
+        """
+        d = self.derived(self.ONE_TRACK)
+        (d / ".perry" / "config.md").write_text(
+            self.ONE_TRACK.replace("- Document language: English",
+                                   "- Document language: 中文"))
+        # The control: the file and the store really do disagree, and
+        # `perry-lint` — which owns the rule — says so. Without this the test
+        # could pass on a project with no drift at all.
+        lint = json.loads(self.tool(LINT, d, "--json").stdout)
+        drifted = sorted({f["message"].split(" — ")[0] for f in lint["findings"]
+                          if f["rule"] == "config-store-drift"})
+        self.assertEqual(drifted, ["setting/document_language"],
+                         "the fixture does not carry the drift it is for")
+        out = self.tool(TASK, d, "add", "--title", "t", "--deliverable", "d",
+                        "--verification", "v")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertNotIn(
+            "the track register disagrees", out.stderr,
+            "a hand-edited SETTING was reported as a track-register "
+            "disagreement — the message names `## Tracks`, which does not "
+            "contain it")
+
+    def test_the_named_remedy_really_does_fail_on_W3(self):
+        """The instrument for the sentence above. If `perry-config write
+        --from-file` starts succeeding here, the argument for the narrower
+        refusal weakens and this test is where that shows up — rather than in
+        a paragraph nobody re-measures."""
+        d = self.derived(self.TWO_TRACKS)
+        (d / ".perry" / "config.md").write_text(self.TWO_TRACKS_SWAPPED)
+        out = self.tool(CONFIG, d, "write", "--from-file")
+        self.assertNotEqual(
+            out.returncode, 0,
+            "`perry-config write --from-file` now recovers W3 — re-open "
+            "USER-905 decision 2 rather than deleting this test")
+
+
 class TestABlankTrackNameIsNotSilentlyADefault(Fixture):
     """The gap round 3's reviewer found unguarded.
 
@@ -580,6 +921,76 @@ class TestABlankTrackNameIsNotSilentlyADefault(Fixture):
         self.assertEqual([t["track"] for t in tracks], ["main"])
         self.assertNotIn("", [t["track"] for t in tracks],
                          "a blank-named record became a track")
+
+
+class TestWhatTheProjectionDeclares(Fixture):
+    """`tracks_the_projection_declares` — names only, and only track rows.
+
+    It feeds the write refusal, so anything that leaks into it becomes a
+    refusal naming something that is not a track. Its two filters — *this
+    site is a track site* and *the name is not blank* — MASK EACH OTHER under
+    single-line mutation: a settings site carries no `track` value, so
+    dropping the kind filter leaks a blank that the blank filter catches, and
+    the scanner already drops a `## Tracks` row whose first cell is empty, so
+    dropping the blank filter leaks nothing the kind filter has not already
+    excluded. Each alone is therefore an equivalent mutant. Both together are
+    not, and that is what this asserts.
+    """
+
+    #: Settings in the preamble, a `## Tracks` row with a BLANK first cell,
+    #: and one real row. Nothing but `main` may come out.
+    RAGGED = ("""# Perry configuration
+
+- Document language: English
+- Repo layout: single
+- State root: .
+""" + GATE_OFF + """
+## Tracks
+
+| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
+|---|---|---|---|---|---|---|---|
+|  | queue | standing | — | 4 | 3d | — | V2 |
+| main | project | phase/ | — | — | — | — | V3 |
+""")
+
+    def test_only_named_track_rows_come_out(self):
+        d = self.project(SETTING_ONLY)
+        (d / ".perry" / "config.md").write_text(self.RAGGED)
+        self.assertEqual(PS.tracks_the_projection_declares(d), ["main"])
+
+    def test_nothing_nameless_reaches_the_refusal(self):
+        """The consequence, at the writer: a leaked blank would refuse every
+        write with an empty name in the message."""
+        d = self.project(SETTING_ONLY)
+        (d / ".perry" / "config.md").write_text(self.RAGGED)
+        lost = PS.tracks_the_register_cannot_place(
+            d, [dict(PS.DEFAULT_TRACK)], PS.TRACKS_STORE_DEFAULT)
+        self.assertEqual(lost, [], "a nameless or non-track site reached the "
+                                   "write refusal")
+
+    def test_no_config_md_declares_nothing(self):
+        """The adoption shape. Round 4's review found this branch untested and
+        round 5 left it that way."""
+        d = self.project(SETTING_ONLY)
+        (d / ".perry" / "config.md").unlink()
+        self.assertEqual(PS.tracks_the_projection_declares(d), [])
+
+    def test_an_unusable_store_with_no_config_md_beside_it_still_answers(self):
+        """A store present and unusable, and no projection to fall back TO.
+
+        `declared_tracks_detail`'s `cfg.exists()` guard is the only thing
+        between this state and a `FileNotFoundError` out of the tool that is
+        supposed to keep working when everything else has broken. It was
+        GREEN across the whole suite at rounds 4 and 5 — the round 4 review
+        recorded it and round 5 left it — so it is asserted here rather than
+        carried for a third round.
+        """
+        d = self.project(GOOD_STORE + '{"kind": "track", "track": "hal')
+        (d / ".perry" / "config.md").unlink()
+        tracks, source = self.detail(d)
+        self.assertIn(source, PS.TRACKS_STORE_UNUSABLE)
+        self.assertEqual([t["track"] for t in tracks], ["main"])
+        self.assertEqual(PS.tracks_the_register_contradicts(d, source), [])
 
 
 class TestTheGoalsLaneRefusesToo(Fixture):
@@ -623,6 +1034,30 @@ class TestTheGoalsLaneRefusesToo(Fixture):
             *self.REACHES_REGISTER)
         self.assertNotIn("track register", out.stdout + out.stderr)
 
+    def test_goals_refuses_when_a_declared_track_has_no_row_at_all(self):
+        """**The assertion this class was missing, and Decision 3 of USER-905.**
+
+        `bin/perry-goals`' refusal was measured again at round 5: `if lost:` →
+        `if False:` left the FULL suite at exactly the baseline, because none
+        of this class's three tests reached the `lost` branch — all three used
+        fixtures where the table declares nothing the register lacks. That is
+        the same defect this class's own docstring records against round 2,
+        one branch to the side.
+
+        State 7 is the branch: a settings-only store beside a table declaring
+        `main` AND `intake`. The register has no row for `intake` at all, so
+        `commit --track main` would still write `phase/` and the linkage
+        register off a truncated list.
+        """
+        out = self.run_goals(self.project(SETTING_ONLY, md_declares_two=True),
+                             *self.REACHES_REGISTER)
+        self.assertNotEqual(out.returncode, 0,
+                            "the goals lane wrote against a register that "
+                            "carries no row for a declared track")
+        blob = out.stdout + out.stderr
+        self.assertIn("the track register does not carry", blob)
+        self.assertIn("intake", blob, "the message must name what was lost")
+
 
 class TestDiagnoseSaysWhichRegisterItRead(Fixture):
     """The FOURTH call site, which round 2's own design note never mentioned.
@@ -648,6 +1083,48 @@ class TestDiagnoseSaysWhichRegisterItRead(Fixture):
             self.project(GOOD_STORE + '{"kind": "track", "track": "hal'))
         self.assertIn(wm.get("tracks_source"), PS.TRACKS_STORE_UNUSABLE,
                       "diagnose read the projection and did not say so")
+
+    def payload(self, d: pathlib.Path) -> dict:
+        proc = subprocess.run(
+            [sys.executable, str(DIAGNOSE), "--root", str(d), "--json"],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.returncode, 0, proc.stderr[:400])
+        return json.loads(proc.stdout)
+
+    def test_a_label_with_no_drift_signal_was_the_silent_one(self):
+        """**V4 amended criterion 9.** Round 5 measured `perry-diagnose` on
+        state 7 reporting `store-default` / `['main']` with empty stderr while
+        `perry-state` warned and both writers refused. It carried WHICH
+        register answered and nothing about that register contradicting the
+        table beside it. `MODE-02` is that half."""
+        d = self.project(SETTING_ONLY, md_declares_two=True)
+        pay = self.payload(d)
+        wm = pay["work_modes"]
+        self.assertEqual(wm["tracks_source"], PS.TRACKS_STORE_DEFAULT)
+        self.assertEqual(wm["tracks_contradicted"], ["intake", "main"])
+        self.assertIn("MODE-02", [f["id"] for f in pay["findings"]])
+
+    def test_it_reports_the_contradicted_declaration_too(self):
+        """The other half of the one principle: a store record that DISAGREES
+        with the declared row, not merely a missing one."""
+        d = self.project(SETTING_ONLY + track_record("main", "project", 0)
+                         + "\n")
+        (d / ".perry" / "config.md").write_text(DECLARING_MAIN)
+        pay = self.payload(d)
+        self.assertEqual(pay["work_modes"]["tracks_source"],
+                         PS.TRACKS_FROM_STORE)
+        self.assertEqual(pay["work_modes"]["tracks_contradicted"], ["main"])
+        self.assertIn("MODE-02", [f["id"] for f in pay["findings"]])
+
+    def test_an_agreeing_register_gets_no_finding(self):
+        """The other direction, or the check is decorative: `GOOD_STORE`'s
+        `main` record agrees with `CONFIG_MD`'s `main` row cell for cell, and
+        `intake` being in the store and not the table is the register
+        declaring MORE — `perry-lint`'s to report, not a contradiction of a
+        declared row."""
+        pay = self.payload(self.project(GOOD_STORE))
+        self.assertEqual(pay["work_modes"]["tracks_contradicted"], [])
+        self.assertNotIn("MODE-02", [f["id"] for f in pay["findings"]])
 
 
 if __name__ == "__main__":

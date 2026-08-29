@@ -1189,9 +1189,6 @@ def records(text: str, key: str) -> dict[str, list]:
             return {"objective": [ob.title for ob in o.objectives],
                     "KR": [(k.id, k.text, k.metric, k.stretch)
                            for ob in o.objectives for k in ob.krs]}
-        if name == "DECISIONS.md":
-            return {"ADR": [(a.id, a.title, a.type, a.date)
-                            for a in P.parse_decisions(text)]}
         if parts and parts[0] == "phase":
             ph = P.parse_phase(Path(key).stem, text)
             return {"objective": [ob.title for ob in ph.objectives],

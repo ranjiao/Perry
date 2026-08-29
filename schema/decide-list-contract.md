@@ -1,6 +1,6 @@
 # `perry-decide list --json` — the decisions contract
 
-> Contract: **`perry-decide/list/1.1`**
+> Contract: **`perry-decide/list/2.0`**
 > Locked by `tests/test_decide_writer.py § TestListContract`.
 > DESIGN-005 § 6 step 1.
 
@@ -31,7 +31,7 @@ listable at all.**
 
 ```jsonc
 {
-  "contract":        "perry-decide/list/1.1",
+  "contract":        "perry-decide/list/2.0",
   "semantics":       [],                    // meaning changes, oldest minor first
   "project_root":    "/abs/path",
   "state_root":      "/abs/path",
@@ -52,14 +52,14 @@ key that stays and starts returning something else, and that is what this array
 reports.
 
 **It is `[]` here because nothing in this payload has ever changed meaning.**
-`1.0` and `1.1` are the only versions a consumer can have read against, `1.1`
-added this key and moved no value, and there is nothing to say. An entry
-invented to fill the array would be worse than the empty one: a consumer that
-walked it would go and check three fields that never moved.
+`1.1` added this key and moved no value; `2.0` **removed** three and re-pointed
+none. A removal is a major and belongs in the changelog below, not here — an
+entry invented to mark it would send a consumer to re-check fields that never
+moved.
 
 The key is nevertheless present on **every** response, including this one and
-including a project with no `DECISIONS.md` at all — **a consumer checks before
-it looks**, and a key that appears only when there is something to say is one a
+including a project with no `decisions/` at all — **a consumer checks before it
+looks**, and a key that appears only when there is something to say is one a
 consumer cannot check. Same argument as `contract` on an empty store, same
 shape as `perry-task/list § semantics[]` for the day there is an entry: an
 object with `version`, `fields` and `note`, documented there rather than
@@ -86,26 +86,30 @@ keep true.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `index_present` | bool | `false` on a project that never ran `perry-decide bootstrap` |
-| `indexed_without_file` | array | ids the index lists with no file behind them |
-| `filed_without_index_row` | array | ADR files the index never mentions |
 | `off_enum_status` | array | `{id, status}` for a status the enum does not declare |
 | `missing_type` | array | ids with no `Type:` |
 
-`indexed_without_file` and `filed_without_index_row` are **both legitimate** and
-both worth naming: the index is *rendered* from the files, so either one means
-somebody edited one side only. Neither is an error; both are things a reader
-should be able to say out loud.
+Neither is an error; both are things a reader should be able to say out loud.
 
-## The files are the record; the index is a view
+**Three keys were here until `2.0` and their removal is the version bump.**
+`index_present`, `indexed_without_file` and `filed_without_index_row` each
+compared `DECISIONS.md` against `decisions/`. TASK-235 deleted that file
+(DESIGN-013 § 5.3), so one side of every one of those comparisons is gone and
+all three could now only report a constant. A conformance field that cannot
+vary is worse than no field, because a consumer reads it as a check being
+performed.
 
-`DECISIONS.md` is re-rendered from `decisions/ADR-*.md` on every write. Do not
-hand-edit rows in it — they are overwritten. Edit the ADR, then re-run any
-`perry-decide` write (or `list`, which reports the divergence).
+## The files are the record, and there is no view but the command
 
-Reading the index instead of the files would make a hand-added ADR invisible and
-a stale row authoritative — the same board-vs-history divergence `perry-task`
-was built to remove, one lane over.
+`decisions/ADR-*.md` is the whole record. `perry-decide list` computes this
+payload from those files on every call and stores nothing, so there is no second
+copy to hand-edit and none to go stale.
+
+There used to be one — a rendered `DECISIONS.md` index — and reading it instead
+of the files would have made a hand-added ADR invisible and a stale row
+authoritative, the same board-vs-history divergence `perry-task` was built to
+remove one lane over. This reader never did read it; TASK-235 removed the file
+so that nothing can.
 
 ## Reading is tolerant; writing is strict
 
@@ -125,14 +129,14 @@ malformed. Writing goes the other way: `new` refuses without `--title` and
 refuses `superseded` by name because that transition must say what replaced it.
 
 `status` also refuses any value outside `enums.decision_status` — that is the
-strict half. The tolerant half is that a `DECISIONS.md` **already** carrying an
+strict half. The tolerant half is that an ADR file **already** carrying an
 off-enum value is still read, listed and counted; the value is reported through
 `conformance.off_enum_status` rather than refused, corrected or hidden.
 
 ## Adding a status is not a break
 
-`enums.decision_status` gaining a value does **not** move this contract off
-`perry-decide/list/1.0`. No payload key changes, no key's type changes, and a
+`enums.decision_status` gaining a value does **not** move this contract off its
+current major. No payload key changes, no key's type changes, and a
 consumer that reads `status` as a string keeps working — it simply may now see
 a string it has not seen before, which the `off_enum_status` field already told
 it to expect. Renaming or removing a key, or narrowing a documented field,
@@ -143,8 +147,8 @@ would be the break. `proposed` was added this way.
 `journal/`. `SKILL.md § The hand-off contract` names `decide` writing `journal/`
 as one of three cases that must refuse; a numbered step in
 `decide/reference/decisions.md` instructed it anyway, and the instruction was
-the bug. `perry-decide` writes `DECISIONS.md` and `decisions/` and nothing else,
-and `tests/test_decide_writer.py § TestLaneOwnership` asserts it.
+the bug. `perry-decide` writes `decisions/` and nothing else, and
+`tests/test_decide_writer.py § TestLaneOwnership` asserts it.
 
 ## Changelog
 
@@ -153,3 +157,4 @@ and `tests/test_decide_writer.py § TestLaneOwnership` asserts it.
 | `1.0` | 2026-08-17 | first published. DESIGN-005 § 6 step 1. |
 | `1.0` | 2026-08-21 | **unchanged.** `enums.decision_status` gained `proposed`. No key added, removed or retyped — see *Adding a status is not a break* above. |
 | `1.1` | 2026-08-28 | **additive, TASK-205.** One key added, none removed or retyped: top-level `semantics`, `[]` today. Until now this payload had no place to report a value whose meaning moved, so a consumer holding `perry-decide/list/1.0` could read the minor and learn nothing from it. `perry-events/list/1.1` added the same key on the same reading. |
+| `2.0` | 2026-08-29 | **breaking, TASK-235.** Three keys **removed** from `conformance` — `index_present`, `indexed_without_file`, `filed_without_index_row` — because `DECISIONS.md` is deleted (DESIGN-013 § 5.3) and each of them compared it against `decisions/`. Nothing was added, renamed or retyped, and no surviving value changed meaning. *Removing a key* is named as the break in **Adding a status is not a break** above, so this is the major that rule points at. A consumer that read the three: `index_present` is now always the answer to "does `decisions/` exist", which `total` and an empty `decisions[]` already say; the other two have no successor, because the divergence they reported cannot occur without a second copy to diverge from. |

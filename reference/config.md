@@ -29,7 +29,7 @@ Cross-reference convention:
 - Code commits reference PMO task IDs in commit messages (e.g., `Closes TASK-007`).
 - Each repo has its own `.git/`; neither repo is a submodule of the other.
 
-Trigger to migrate from A → B: ≥ 2 incidents of branch contention or commit-history pollution within a month. Capture the trigger as a `DECISIONS.md` ADR (`Type: Process`) before splitting.
+Trigger to migrate from A → B: ≥ 2 incidents of branch contention or commit-history pollution within a month. Capture the trigger as an ADR under `decisions/` (`Type: Process`) before splitting.
 
 When B is in effect, `.perry/config.md` records both paths so every child skill knows where to look. Delegation prompts to Coding Agents must explicitly state which repo their work targets.
 

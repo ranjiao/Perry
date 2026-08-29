@@ -642,6 +642,13 @@ class Objective:
     title: str
     raw_body: str = ""
     intro: str = ""    # prose between the heading and the first KR bullet
+    #: `"1"` for `## Objective 1 — …` in a phase document, `""` everywhere
+    #: else. Recorded rather than re-derived from position because
+    #: `phase_key_results_by_objective` attaches a register's KRs by the
+    #: objective number their **id** carries (`P003-O2-KR1` → `O2`), and
+    #: matching by position would put a KR under the wrong heading the moment
+    #: a document's objectives are not `1, 2, 3 …` in order.
+    number: str = ""
     krs: list[KR] = field(default_factory=list)
 
 
@@ -709,6 +716,15 @@ class LinkageKR:
     current: float | None = None
     due: str = ""
     stretch: bool = False
+    #: The overall KR this phase KR serves — the `Linked overall KR` column of
+    #: the KR table the phase document used to carry. TASK-157 moved it here
+    #: rather than dropping it with the table: it is the only one of that
+    #: table's four columns the register had no field for, and DESIGN-013 § 5.1
+    #: puts a schema'd fact in exactly one store rather than in a document.
+    #: **Additive and optional**, so `linkage: 1` is unchanged: a register
+    #: written before this field existed carries `""`, which is what an empty
+    #: `Linked overall KR` cell always meant.
+    linked: str = ""
     tasks: list[str] = field(default_factory=list)
 
 
@@ -2147,8 +2163,14 @@ def parse_phase(slug: str, text: str) -> Phase:
         if not m:
             continue
         title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
+        # `_parse_krs` still runs, and TASK-157 did not make it dead code:
+        # a phase document Perry writes carries no KR table any more, but an
+        # ADOPTED project's does, and so does a Perry project that has not
+        # migrated. `phase_key_results` is what chooses between the two — one
+        # source at a time, never merged.
         phase.objectives.append(
-            Objective(title=title, raw_body=chunk, krs=_parse_krs(chunk))
+            Objective(title=title, raw_body=chunk, number=m.group(1),
+                      krs=_parse_krs(chunk))
         )
 
     return phase
@@ -2556,50 +2578,129 @@ def parse_top_risks(text: str) -> list[TopRisk]:
     return risks
 
 
-# ── DECISIONS.md ──────────────────────────────────────────────────────────
+# ── decisions/ADR-*.md ────────────────────────────────────────────────────
+#
+# **The ADR files are the record and there is no index.** `DECISIONS.md` was a
+# rendered projection of exactly these files, and TASK-235 deleted it under
+# DESIGN-013 § 5.3 — so the reader that used to parse its `## Active` table
+# reads the directory instead. Nothing replaces the file (§ 4.1: the link
+# surface it gave a web reader is given up, deliberately, and must not be
+# re-added under another name).
+#
+# **This lives here rather than in `bin/perry-decide`, and that is the point.**
+# `perry-decide` carried its own tolerant header parser while this module
+# carried a table parser for the rendering of it — two readers of one record.
+# With the table gone there is one reader, and `bin/perry-decide` imports it
+# (`import parsers as P`). A second implementation is the defect this project
+# has now caught six times; `split_row` reached six copies before TASK-234
+# found the last one.
+
+ADR_ID_RE = re.compile(r"\bADR-(\d+)\b")
 
 
-def parse_decisions(text: str) -> list[ADR]:
-    adrs: list[ADR] = []
-    in_active = False
-    in_table = False
+def adr_header_fields(text: str) -> dict:
+    """The `> Key: value` block at the top of an ADR, normalized.
+
+    Tolerant by construction. Every one of these is real, from files in this
+    repo and its templates:
+
+        > **Status**: active          > Status: active
+        > **Sunset criteria**: —      > Sunset: —
+        > Deciders: Ran Jiao          (absent entirely)
+
+    Keys are lowercased with punctuation stripped, so `Sunset criteria` and
+    `Sunset` land on the same key and a caller does not need to know which
+    generation of the template produced the file.
+    """
+    out: dict[str, str] = {}
     for line in text.split("\n"):
-        if line.startswith("## "):
-            in_active = heading_is(line[3:].strip(), "Active")
-            in_table = False
-            continue
-        if not in_active:
-            continue
-        if re.match(r"^\|\s*---", line):
-            in_table = True
-            continue
-        if not in_table or not line.startswith("|"):
-            continue
-        cells = split_row(line)
-        if len(cells) < 4:
-            continue
-        first = cells[0]
-        if first.lower().startswith("adr") and "id" in first.lower():
-            continue
-        link_match = re.match(r"\[(ADR-\d+)\]\(([^)]+)\)", first)
-        if link_match:
-            adr_id = link_match.group(1)
-            adr_path = link_match.group(2)
-        else:
-            adr_id = first
-            adr_path = ""
-        adrs.append(
-            ADR(
-                id=adr_id,
-                title=cells[1] if len(cells) > 1 else "",
-                type=cells[2] if len(cells) > 2 else "",
-                date=cells[3] if len(cells) > 3 else "",
-                sunset_or_notes=cells[4] if len(cells) > 4 else "",
-                file_path=adr_path,
-            )
-        )
+        s = line.strip()
+        if not s.startswith(">"):
+            if s.startswith("#") or not s:
+                continue
+            break
+        # Two fields share one line in every ADR this repo has written:
+        # `> Supersedes: —   · Superseded by: —`. Reading to end-of-line gives
+        # `Supersedes` the value "· Superseded by: —", which is not a wrong
+        # format on the file's part — it is a wrong assumption on the reader's.
+        for part in re.split(r"\s+·\s+|\s+\|\s+", s.lstrip("> ").strip()):
+            m = re.match(r"\**\s*([A-Za-z][\w ]*?)\s*\**\s*[:：]\s*(.*)$", part)
+            if not m:
+                continue
+            key = re.sub(r"\s+", " ", m.group(1)).strip().lower()
+            key = {"sunset criteria": "sunset", "superseded by": "superseded_by",
+                   "status date": "status_date"}.get(key, key)
+            out.setdefault(key, m.group(2).strip().strip("*` "))
+    return out
 
-    # Sort newest first by ADR number (e.g. ADR-024 before ADR-001).
+
+def read_adr_records(state_root: Path) -> list[dict]:
+    """Every `decisions/ADR-*.md`, as records, id-sorted.
+
+    The record `perry-decide list` publishes, and the source `parse_decisions`
+    below projects for the snapshot. Reading is tolerant and reports what the
+    file says — an off-enum `status` is named by the caller, never corrected
+    here.
+    """
+    out: list[dict] = []
+    d = state_root / "decisions"
+    if not d.is_dir():
+        return out
+    for p in sorted(d.glob("ADR-*.md")):
+        text = p.read_text(errors="replace")
+        h = adr_header_fields(text)
+        title = ""
+        first = next((l for l in text.split("\n") if l.startswith("# ")), "")
+        if first:
+            # `# ADR-001: Title`, `# ADR-001 — Title`, and a bare `# Title` are
+            # all in circulation; strip the id and whichever separator follows.
+            title = re.sub(r"^ADR-\d+\s*[—:–-]?\s*", "", first[2:].strip()).strip()
+        m = ADR_ID_RE.search(p.name)
+        out.append({
+            "id": f"ADR-{int(m.group(1)):03d}" if m else p.stem,
+            "title": title,
+            "type": h.get("type", ""),
+            "status": (h.get("status") or "active").lower(),
+            "date": h.get("date", ""),
+            "deciders": h.get("deciders", ""),
+            "supersedes": h.get("supersedes", "").strip("—- ") or "",
+            "superseded_by": h.get("superseded_by", "").strip("—- ") or "",
+            "sunset": h.get("sunset", "").strip("—- ") or "",
+            "path": str(p.relative_to(state_root)),
+            "lines": len(text.split("\n")),
+        })
+    return out
+
+
+def parse_decisions(state_root: Path) -> list[ADR]:
+    """The snapshot's `adrs` — **active decisions, newest first**.
+
+    Active-only and newest-first are not new: the reader this replaces parsed
+    the `## Active` section of `DECISIONS.md` and sorted descending by number,
+    and `bin/perry-state § expired_sunsets` says so in its own docstring —
+    "Active ADRs whose date-based sunset criteria have passed". Feeding it the
+    superseded ones too would start warning about the sunset of a decision that
+    is no longer in force.
+
+    It takes the **state root**, not text: there is no document to hand it any
+    more. That signature change is why the one other caller,
+    `bin/perry-migrate § records_in`, drops its `DECISIONS.md` branch instead
+    of being ported — a before/after reading of a file neither side can have.
+    """
+    adrs = [
+        ADR(
+            id=r["id"],
+            title=r["title"],
+            type=r["type"],
+            date=r["date"],
+            sunset_or_notes=r["sunset"],
+            file_path=r["path"],
+        )
+        for r in read_adr_records(state_root)
+        if r["status"] == "active"
+    ]
+
+    # Newest first by ADR number (e.g. ADR-024 before ADR-001).
     def _adr_num(a: ADR) -> int:
         m = re.search(r"(\d+)", a.id)
         return int(m.group(1)) if m else 0
@@ -3238,6 +3339,7 @@ def parse_linkage(text: str) -> Linkage:
                 current=_num(kr.get("current")),
                 due=str(kr.get("due") or ""),
                 stretch=bool(kr.get("stretch")),
+                linked=str(kr.get("linked") or ""),
                 tasks=[str(t) for t in _as_list(kr.get("tasks"))],
             ))
         link.objectives.append(LinkageObjective(
@@ -3258,6 +3360,94 @@ def parse_linkage(text: str) -> Linkage:
             status=str(pr.get("status") or "active").lower(),
         ))
     return link
+
+
+#: `P003-O2-KR1` → `O2`. A phase KR id names the objective it belongs to, so
+#: attaching a register's KRs to a document's headings needs no position match
+#: and no second field to keep in sync.
+_KR_OBJECTIVE_RE = re.compile(r"^P\d{3}-(O\d+)-KR\d+$")
+
+
+def kr_objective_id(kr_id: str) -> str:
+    m = _KR_OBJECTIVE_RE.match((kr_id or "").strip())
+    return m.group(1) if m else ""
+
+
+def phase_key_results(phase, linkage) -> list["KR"]:
+    """A phase's key results, from the ONE place that declares them — TASK-157.
+
+    The id, title, metric and target of a phase KR used to be written **twice**:
+    as a row of a markdown table in `phase/<NNN>-<slug>.md`, and as a `krs[]`
+    entry in `phase/<NNN>-linkage.md`. Nothing compared the two, the markdown
+    copy is the one that went stale, and it had — `P003-O2-KR1` read a target
+    the register did not.
+
+    DESIGN-013 § 5.1, locked 2026-08-29: *a fact that has a schema lives in
+    exactly one store; a document holds what has no schema; no field lives in
+    both.* Those four fields are schema'd (`files[id=linkage].frontmatter`), so
+    they live in the register and the phase document carries no KR table.
+
+    **The document is still read, and only when there is no register.** An
+    adopted project's phase file carries a table (that is what adoption reads),
+    and so does a Perry project written before this row. `linkage` answering
+    with objectives is the test, so the two sources are never merged and never
+    both consulted: a project has a register or it has a table, and which one
+    answered is observable in `perry-goals list --json § conformance`.
+
+    Returned as `KR` — the same shape the document's table produced — so every
+    consumer downstream of this function is unchanged by where the values came
+    from. `linked` is carried because TASK-157 moved that column into the
+    register rather than dropping it with the table.
+    """
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return list(getattr(phase, "krs", None) or [])
+    return [KR(id=k.id, text=k.title, metric=kr_metric_cell(k),
+               linked=k.linked, stretch=bool(k.stretch)) for k in declared]
+
+
+def kr_metric_cell(kr: "LinkageKR") -> str:
+    """The register's two target fields → the one string a reader is shown.
+
+    `metric` is *"prose; always safe to display"* in the schema and is what the
+    `Metric / Target` column always held. `target` is *"NUMBER ONLY. Omit for
+    prose targets"*, so it is what there is to show exactly when there is no
+    prose — a register carrying only a number must not display an empty metric.
+    """
+    if kr.metric:
+        return kr.metric
+    if kr.target is None:
+        return ""
+    return f"{kr.target:g}"
+
+
+def phase_key_results_by_objective(phase, linkage) -> list[list["KR"]]:
+    """`phase_key_results`, grouped to match `phase.objectives` one for one.
+
+    A KR is attached to the objective its **id** names (`P003-O2-KR1` → the
+    document's `## Objective 2`). A registered KR whose objective the document
+    has no heading for is appended to the last objective rather than dropped:
+    losing it would make `kr_total` disagree with the sum of the groups, and a
+    payload that cannot add up is worse than one whose grouping is approximate.
+    """
+    objectives = list(getattr(phase, "objectives", None) or [])
+    krs = phase_key_results(phase, linkage)
+    if not objectives:
+        return []
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return [list(o.krs) for o in objectives]
+    slots: dict[str, int] = {}
+    for n, o in enumerate(objectives):
+        slots.setdefault(o.number or str(n + 1), n)
+    out: list[list[KR]] = [[] for _ in objectives]
+    for kr in krs:
+        oid = kr_objective_id(kr.id)
+        at = slots.get(oid.lstrip("O"), len(objectives) - 1)
+        out[at].append(kr)
+    return out
 
 
 def _load_ops_counts(root: Path) -> OpsCounts:
@@ -3866,7 +4056,6 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
 
     board_text = read(root / "BOARD.md")
     okr_text = read(root / "OKR.md")
-    decisions_text = read(root / "DECISIONS.md")
     project_state_text = read(root / "PROJECT_STATE.md")
     architecture_text = read(root / "ARCHITECTURE.md")
 
@@ -3940,7 +4129,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         okr=parse_okr(okr_text, krs=load_okr_store(root)) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
-        adrs=parse_decisions(decisions_text) if decisions_text else [],
+        adrs=parse_decisions(root),
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),
@@ -3970,7 +4159,12 @@ if __name__ == "__main__":
     print(f"Phase: {s.phase.slug if s.phase else '(none)'} #{s.phase.number if s.phase else ''}")
     if s.phase:
         print(f"  · day: {s.phase.day if s.phase.day is not None else '—'}")
-        print(f"  · objectives: {len(s.phase.objectives)} · KRs: {len(s.phase.krs)}")
+        # Through the resolver, not `s.phase.krs`: TASK-157 moved the
+        # phase's KRs into `phase/<NNN>-linkage.md`, so the document's
+        # own list is empty on every migrated project and this smoke
+        # print would report a phase with no key results.
+        print(f"  · objectives: {len(s.phase.objectives)} · KRs: "
+              f"{len(phase_key_results(s.phase, getattr(s, 'linkage', None)))}")
         print(f"  · scope triggers: {len(s.phase.scope_triggers)}")
         print(f"  · cost-ceiling lines: {len(s.phase.cost_ceiling_lines)}")
     print(f"ADRs: {len(s.adrs)} · Evidence: {len(s.evidence)} · Journal: {len(s.journal)}")

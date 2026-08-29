@@ -413,7 +413,11 @@ class TestAnOldPhaseIsJudgedAgainstTodaysStore(Fixture):
         reader who deletes it will re-derive the wrong one — `test_cadence`'s
         precedent is right there and looks like it applies."""
         source = LINT.read_text()
-        start = source.index('"linkage-kr-exists",\n                        f"{kr.id} is in the graph')
+        # The anchor moved with TASK-157: the KR guard used to report "{kr.id}
+        # is in the graph but not in the current phase file" and now reports
+        # the objective disagreement, because the phase document no longer
+        # declares KRs to be absent from. The rationale it guards is unchanged.
+        start = source.index('f"{kr.id} names objective {declared_under} and is "')
         rationale = source[start:source.index('"linkage-task-exists"', start)]
         self.assertIn("A task id is global", rationale)
         self.assertIn("does NOT transfer", rationale)

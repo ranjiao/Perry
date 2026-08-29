@@ -42,10 +42,8 @@ Remove every manual step between merge and production.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P002-O1-KR1 | Deploy script green in staging | 3 consecutive green runs | KR-O1.1 |
-| P002-O1-KR2 | Manual gates removed | manual steps = 0 | KR-O1.2 |
+> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -60,9 +58,8 @@ Remove every manual step between merge and production.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P002-O2-KR1 | Flake rate measured and reduced | flaky runs ≤ 1% | KR-O2.1 |
+> Declared in `phase/002-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects
 

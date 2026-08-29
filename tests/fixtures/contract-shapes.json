@@ -1,12 +1,15 @@
 {
   "perry-decide/list": {
-    "contract": "perry-decide/list/1.0",
+    "contract": "perry-decide/list/2.0",
+    "empty_lists": [
+      "conformance.missing_type",
+      "conformance.off_enum_status",
+      "expired_sunsets",
+      "semantics"
+    ],
     "shape": {
       "active": "int",
       "conformance": "dict",
-      "conformance.filed_without_index_row": "list",
-      "conformance.index_present": "bool",
-      "conformance.indexed_without_file": "list",
       "conformance.missing_type": "list",
       "conformance.off_enum_status": "list",
       "contract": "str",
@@ -24,6 +27,7 @@
       "decisions[].type": "str",
       "expired_sunsets": "list",
       "project_root": "str",
+      "semantics": "list",
       "state_root": "str",
       "total": "int"
     }
