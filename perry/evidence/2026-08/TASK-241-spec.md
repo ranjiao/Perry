@@ -32,8 +32,7 @@ offered for it was not.
 
 **A decorated row cannot silently become a declaration.** Either:
 
-- the reader **refuses a row it cannot round-trip** — `render(parse(row)) == row`,
-  which the reviewer showed is a complete detector for this class; or
+- the reader **refuses a row it cannot round-trip** — `render(parse(row)) == row`; or
 - decoration is stripped **only where a documented rule says it may be**, and
   every other shape is **reported as unreadable** rather than parsed.
 
@@ -70,3 +69,29 @@ This row must not wait on it: the hole is live under the enforce gate today and
 `parse_decisions` wholesale). `read_conformance` is a different function from all
 of those. Keep the edit inside it, and say so in the RESULT if that turns out not
 to be possible.
+
+
+---
+
+## Correction, 2026-08-30 — the attribution above was mine and it was wrong
+
+The original wording of the deliverable said the round trip was one
+`"which the reviewer showed is a complete detector for this class"`. **The
+TASK-226 reviewer showed no such thing about a per-ROW check.** Its detector was
+`render(parse(f)) == f` over the **whole file**, and that claim was true as
+written. The per-row form is mine, invented in this spec, and I attached
+somebody else's proof to it.
+
+The cost was not theoretical. TASK-241's author inherited the sentence, built the
+per-row round trip, discovered by measurement that it does **not** close a fenced
+row — a fenced row is byte-for-byte identical to a genuine one, so no row-local
+property can see it — and reported that as *correcting the reviewer*. It was
+correcting me. The reviewer's file-level claim was never contradicted.
+
+Both halves of that are worth keeping. The **row-local invisibility** result is
+sound and provable and was measured (mutation M2), and it is a real contribution.
+The **attribution** was false, and it travelled through a spec, a RESULT and a
+commit message before a second reviewer caught it.
+
+The rule this spec should have followed: **a specification may state a property
+it wants; it may not attribute that property to somebody who did not state it.**
