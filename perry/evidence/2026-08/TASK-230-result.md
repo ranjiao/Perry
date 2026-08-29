@@ -17,15 +17,25 @@
   eight ways.
 - **What it buys, measured with load controlled:** the makespan drops **33-37%**
   and lands on the theoretical floor. Serial `discover` 589.6s → parallel
-  133-150s on the same machine in the same hour.
+  **133-285s over seven runs, median 149.7s**, on the same machine in the same
+  hour; the spread is foreign load, and the whole range is quoted because the
+  fast end of it is not the number.
 - **Coverage:** the parallel id SET is **identical to the serial id set** —
   2904 against 2904, zero on either side — and identical across all **twelve**
-  full runs. Five mutations, five named tests reddened.
+  full runs. A V4 round re-derived that set from unittest's loader without
+  running a test or touching my parser and got **2907 against 2907** (§ 8a).
+  Eight mutations of mine, eight named tests reddened.
 - **What I corrected in the inherited work:** its id extractor was silently
   dropping 14 tests, and its docstring's headline measurements were not
   reproducible and disagreed with the data file committed beside them.
+- **What the V4 round corrected in MINE**, all four recorded in place rather
+  than edited away: a guard I shipped **survived its own deletion** and I had
+  argued it was untestable (§ 6, now M6-M8); "the model is exact four times of
+  four" was really **two** (§ 3); an md5 named no committed file (§ 6); and my
+  own quoted range dropped my two slowest runs (§ 4.4).
 - **What does not hold:** the spec's "under two minutes" target is not
-  guaranteed, and cannot be by this approach. See § 7.
+  guaranteed, and cannot be by this approach — the spec also contradicts itself
+  on the point. Filed as **TASK-244**. See § 7 and § 8a.
 
 ## 1. Conditions — stated first, because they are bad
 
@@ -47,8 +57,11 @@ Machine: 14 cores, Python **3.11.15** at `~/.local/bin/python3` (the spec said
 Tree: git worktree at `coding/task-230-suite-cost`, committed state only — not
 the live dirty board of `/Users/bytedance/proj/Perry`.
 
-**And the tree is behind.** This branch forked at `ee0b36a` and `main` has moved
-**65 commits** since. The measured suite is 99 modules; `main` carries 100 at
+**And the tree is behind, and the number moves while you read it.** This branch
+forked at `ee0b36a`. `main` had moved **65 commits** when I first wrote this
+line, **66** when a V4 round checked it, and **67** by the time I corrected it —
+`main` is advancing during the session, so the figure is a timestamp, not a
+constant. My "65" was simply stale, and the reviewer's 66 was right when taken. The measured suite is 99 modules; `main` carries 100 at
 the time of writing, so **every number here describes this branch's tree, not
 current `main`'s**, and a merge will shift the totals by whatever `main` added.
 It will not shift the conclusions: the saving is a scheduling property of any
@@ -108,8 +121,21 @@ arms are scored on the same numbers.
 | t-hint-2 | longest-first | 133.1s | 210.4 | **133.1** | 133.1 | 133.1 |
 
 **The bolded cell is the simulation of the schedule the run actually used, and
-it reproduces that run's measured wall-clock to within 0.1s, four times out of
-four.** That is the reason to believe the other column.
+it reproduces that run's measured wall-clock to within 0.1s. But it is validated
+by TWO of these four runs, not four** — an earlier draft of this file claimed
+four and a V4 round was right to cut it in half.
+
+In the two **longest-first** runs the longest module started at t=0 and ran to
+the end, and `Σ/8` is below it, so `simulated = max(module time) = measured
+wall` is forced. It is an arithmetic identity restating the run's own longest
+module back at itself, and it predicts nothing.
+
+The two **alphabetical** runs are the real check. There the makespan is a
+bin-packing of 99 modules across 8 workers under an order that has nothing to do
+with cost — it could have landed anywhere between `max` (120.1s, 149.2s) and
+`Σ` — and it landed on **179.7 against a measured 179.8**, and **241.1 against a
+measured 241.1**. Two independent predictions, both right to 0.1s. That is the
+reason to believe the other column, and two is the honest count.
 
 Reading it: the saving is **33-37%**, and longest-first lands exactly on the
 floor — it is not merely better than alphabetical, it is optimal for this module
@@ -196,6 +222,15 @@ Also corrected: 99 modules / 2904 tests (not 98 / 2882), alphabetical positions
 91 / 84 / 85 of 99 (not 90 / 84 / 83 of 98), and `tests/run`'s header comment,
 which still described a 34-module 181s suite.
 
+**And then corrected again, by a V4 round, in the same direction.** My own
+replacement docstring quoted the parallel range as "133-150s" — which is my two
+fastest runs of seven, with the 247.0s and 285.0s dropped. A range that excludes
+the slow half of the measurements is not the range, and quoting it was the same
+optimism I had just finished criticising. Both `tests/parallel` and `tests/run`
+now say **133-285s, median 149.7s of seven runs**, with the spread attributed to
+machine load. The reviewer's own independent run came in at 246.8s, inside the
+honest range and outside the one I published.
+
 ### 4.5 Nothing was deleted, skipped or made conditional
 
 No test was removed, no test was marked skip, no assertion was weakened, no
@@ -229,7 +264,8 @@ rather than a warning.
 ## 6. Coverage proofs — mutation, not argument
 
 Harness: `scratchpad/m230/mut230.py`, a name nothing else in this worktree uses.
-It refuses to start on a dirty tree (it printed `tree clean at 78aa67e`), asserts
+It refuses to start on a dirty tree (it printed `tree clean at 78aa67e` for the
+first five and `tree clean at 317042e` for M6-M8), asserts
 the target is **green before** mutating — a red there proves nothing and is
 refused — anchors each edit by line number, asserts the old text is present and
 unique before replacing it, clears every `__pycache__`, crosses the whole-second
@@ -238,7 +274,8 @@ the hash taken before the edit. It reported `tree after harness: clean`.
 
 The three modules whose scheduling this row moves most are the three longest —
 they now start first — so the coverage proofs are drawn from those three, plus
-two against the runner's own new guards.
+two against the runner's own new guards, plus three more (M6-M8) added after a
+V4 round showed one of those guards was not wired in.
 
 | # | mutation (an exact revert of the fix) | named test that went red |
 |---|---|---|
@@ -255,8 +292,35 @@ M4 and M5 are the ones that matter for *this* row: M5 is the property the whole
 design rests on — a hint may reorder the work, never select it — and M4 is the
 correction in § 4.2 proving it is real and not a comment.
 
-**Plus one end-to-end proof of the new refusal**, which a unit test cannot give.
-With `parse_ids` truncated by one id in `run_module`:
+**And the guard I shipped survived its own deletion, which a V4 round found and
+I had argued was unavoidable.** Changing `if short:` to `if False:` in `main()`
+left the entire suite green: `unaccounted()` had three unit tests and its USE
+had none. This file previously said a unit test "cannot give" that coverage.
+**That was wrong.** It is a `run_module` monkeypatch away, the reviewer said so,
+and the test now exists — `main()` is driven directly with a stub so no test
+actually runs:
+
+| # | mutation | named test that went red |
+|---|---|---|
+| M6 | `tests/parallel:301` — `if short:` → `if False:`, the reviewer's own mutation | `test_parallel_runner.TestTheRefusalIsWiredIntoMainAndNotJustDefined.test_a_short_count_writes_no_file_and_exits_nonzero` → **FAILED** |
+| M7 | `tests/parallel:319` — `if args.ids and short:` → `if False:` (refuses, but stops failing) | same test → **FAILED** |
+| M8 | `tests/parallel:301` — `if short:` → `if True:`, the guard "fixed" into refusing everything | `...test_a_count_that_adds_up_writes_the_file_and_exits_zero` → **FAILED** |
+
+Three, not one, because the refusal is two separate lines that can be deleted
+independently — writing no file, and exiting non-zero — and because a guard that
+refuses everything passes a one-directional test while being just as useless.
+`3 mutation(s), 0 did not behave as required`, tree restored to md5
+`307cdc1f877b422f9cebada39dcb64fb`.
+
+I record the original error rather than quietly deleting it: **I asserted a
+limit I had not tried to reach.** The claim that `main()` was untestable was
+load-bearing for shipping an uncovered guard, and it took someone else deleting
+the guard to find out it was false. This project's rule is that a guard which
+survives its own deletion is not a guard; mine did, for two commits.
+
+**Plus one end-to-end proof of the refusal**, which the unit tests do not cover
+because they stub out the parser entirely. With `parse_ids` truncated by one id
+in `run_module`, against the committed state:
 
 ```
 ✗ test_one_header_rule.py: unittest ran 12 tests and the id parser accounted for 11
@@ -265,7 +329,16 @@ With `parse_ids` truncated by one id in `run_module`:
 rc=1     ids file exists? NO
 ```
 
-and `tests/parallel` restored to md5 `430637240808773774420e83ca1b593d`.
+and `tests/parallel` restored to md5 `307cdc1f877b422f9cebada39dcb64fb`, which
+is the file as committed at `642e2ca` and unchanged since.
+
+A V4 round pointed out that an earlier draft cited md5
+`430637240808773774420e83ca1b593d` here, which matches **no committed version of
+the file**. The benign reading was the right one: it was an intermediate working
+state — after the `unaccounted()` extraction, before the docstring rewrite — so
+the proof was real but the hash named a tree nobody could check it against.
+Rather than explain the old hash, the proof was **re-run against the committed
+state**, and the block above is that run.
 
 One thing this harness caught on me, worth recording because it is the whole
 argument for the discipline: my first attempt at that end-to-end proof used an
@@ -305,8 +378,11 @@ start of the run rather than being spread through it, and
 watching it, not a finding. It is also the second reason the worker count was
 left at 8.
 
-**The spec's "under two minutes" target: not met as a guarantee, and it cannot
-be by this approach.** The floor is a single module. `test_task_writer.py` alone
+**The spec's "under two minutes" target: not met as a guarantee, it cannot be
+by this approach, and the spec contradicts itself about it** — it forbids
+sharding below the file while asking for a number only sharding below the file
+can reach. A V4 round ruled that non-blocking and filed the real work as
+**TASK-244**. The floor is a single module. `test_task_writer.py` alone
 took 105.4s, 120.1s, 133.1s, 140.0s and 149.2s in the runs above, and the whole
 run finishes when it does. Three of the four `--times` runs came in under 150s
 and one came in at 120.1s, so the target is reachable on a machine with capacity
@@ -347,6 +423,47 @@ is what that step emits when it is unhappy.
 That 266.7s is also the twelve-run spread doing its thing: the same gate, on the
 same commit, at a load average that hit 59. Log: `scratchpad/m230/final-run.log`.
 
+## 8a. What the V4 round established independently
+
+Recorded because it is stronger than my own evidence in one place and because it
+settles four things I had left open.
+
+**The central safety claim was re-verified without using my tooling at all.**
+The reviewer enumerated test ids with unittest's **loader** — never running a
+test, never calling `parse_ids` — for whole-suite `discover` and for the
+per-module partition the runner actually executes, in separate processes:
+**2907 against 2907, zero on either side.** That loader-derived reference set
+then matched, id for id, its own independent re-implementation of my parser over
+my raw `serial.err` (2904), all twelve of my `--ids` files (2904 each, and all
+twelve pairwise identical), and its own fresh `tests/parallel --ids` run (2907).
+
+**My § 4.2 audit reproduced on a different corpus**: the old parser returned
+**2890 against unittest's own `Ran 2904`**, missing across the same seven modules
+with the same distribution. Different tree, different run, same fourteen-ish
+shortfall — the defect was structural, not an artefact of the run I found it in.
+
+**The mutation sweep was extended to thirteen**, covering every production
+surface my new tests touch. All 25 tests die under at least one, and the only
+survivor was the `main()` refusal — now M6/M7/M8 above, and no longer a
+survivor. I cite that rather than re-running it.
+
+Four things ruled settled, which I had flagged as open:
+
+- **All four declared limits are non-blocking.** The two-minute target is
+  structurally unreachable **and the spec contradicts itself**: it forbids
+  sharding below the file while asking for a number only sharding below the file
+  can reach. Filed as **TASK-244**. The reviewer's own run makes the point
+  better than my table does — it ended **0.1 seconds after `test_task_writer.py`
+  did**, 246.74s of a 246.8s run. The suite is one module wearing 98 others.
+- **Declining to claim a flakiness effect on 1-of-7 against 0-of-5 was correct.**
+  The adverse mechanism in § 7 needs a filed measurement, not a gate.
+- **The load-independent evidence survives the noisy machine.** Every cell of
+  § 3's table was re-derived independently and the conclusion stands; only the
+  validation COUNT was wrong, and it is fixed above.
+- **The `git checkout --` does not matter**, and reporting it was right: my own
+  worktree, my own uncommitted diagnostic, on a file committed minutes earlier —
+  the constraint's stated harm does not apply. The note stays in § 9 anyway.
+
 ## 9. What I did not do, or could not verify
 
 - **I did not get a quiet machine.** Every number here was taken with a foreign
@@ -369,7 +486,12 @@ same commit, at a load average that hit 59. Log: `scratchpad/m230/final-run.log`
   too small and I would rather say so.
 - **The `--ids` accounting guard does not run without `--ids`.** Deliberate, and
   the consequence is stated in § 4.2 rather than left for someone to find.
-- **One process note:** early on I used `git checkout -- tests/parallel` to
+- **I did not re-run the reviewer's thirteen-mutation sweep**, on its
+  instruction; § 8a cites it instead. My own sweep is the eight in § 6.
+- **I did not merge, and `main` keeps moving** — 67 commits ahead as I write
+  this. § 1.
+- **One process note, ruled harmless and kept anyway:** early on I used
+  `git checkout -- tests/parallel` to
   drop a throwaway diagnostic edit of my own, in my own worktree, on a file
   committed minutes earlier. It was safe and it recovered nothing that was not
   mine, but `review-constraints.md` says never, and recording it is cheaper than

@@ -3,9 +3,11 @@
 
 `python3 -m unittest discover -s tests` runs the modules one after another. On
 2026-08-30 that took **589.6s** for 99 modules / 2904 tests; the same set across
-8 processes took **133-150s** on the same machine within the same hour. The
-modules are already independent — each builds its own project under its own temp
-dir — so the serialisation bought nothing.
+8 processes took **133-285s over seven runs, median 149.7s**, on the same
+machine within the same hour. That spread is the machine, not the runner — a
+foreign load average of 17-65 all night — and it is quoted whole rather than
+best-case on purpose. The modules are already independent — each builds its own
+project under its own temp dir — so the serialisation bought nothing.
 
 **Two guards, because the first version of this runner was wrong in the way
 this repository keeps finding.** It shelled out to `python3 -m unittest
@@ -68,9 +70,13 @@ on exactly these module times?
     t-alpha-2        241.1            155.4           154.5     154.5
     t-hint-2         210.4            133.1           133.1     133.1
 
-**The model is exact**: each run's simulated makespan under the schedule it
-actually used reproduces its measured wall-clock to within 0.1s, four times out
-of four. The saving is **33-37%**, and `tests/durations.json` — whose recorded
+**The model is validated by two of those four runs, not four.** In the two
+longest-first runs the longest module started at t=0 and ran to the end, so
+`simulated == max(module time) == measured wall` is an arithmetic identity and
+predicts nothing. The two ALPHABETICAL runs are the real check — there the
+makespan is a bin-packing of 99 modules across 8 workers that could have come
+out anywhere, and it came out 179.7 against a measured 179.8, and 241.1 against
+a measured 241.1. The saving is **33-37%**, and `tests/durations.json` — whose recorded
 values are 3-4x too large, because they were taken under that same foreign load
 — still produces a schedule equal to the perfect-knowledge one in three runs of
 four and within 0.9s in the fourth. That is the hint doing the only job it has.
