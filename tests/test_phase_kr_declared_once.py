@@ -389,6 +389,48 @@ class TestTheLinkedOverallKrCameWithIt(Fixture):
                if k["id"] == "P002-O1-KR1"]
         self.assertEqual([r["linked_to"] for r in row], [""])
 
+    def test_every_linked_value_names_an_overall_kr_this_project_declares(self):
+        """The field must hold an overall KR **id**, not prose. Live tree.
+
+        Moving a column out of a table and into a schema'd field is a
+        transcription, and a transcription is where a fact quietly becomes a
+        different fact. It did: `f15d234` populated `phase/001-linkage.md`'s
+        eight `linked:` values from the **retro score table's `Measured`
+        column** rather than from `Linked overall KR`, so all eight of phase
+        001's edges to the overall OKR — `KR-O1.1`, `KR-O1.2`, `KR-O1.3`,
+        `KR-O2.1`, `KR-O3.4` — were deleted along with the table they were
+        supposed to be rescued from, and replaced by a second copy of a
+        sentence that already lived in the document. Nothing reported it,
+        because nothing asked what the field was for.
+
+        Asked as *does it resolve* rather than *does it look like an id*: a
+        shape check would accept `KR-O9.9`, and an edge to a KR that does not
+        exist is the dangling reference `perry-lint` exists to report.
+        """
+        overall = {k["id"] for k in json.loads(subprocess.run(
+            [sys.executable, str(GOALS), "list", "--root", str(ROOT),
+             "--level", "overall", "--json"],
+            capture_output=True, text=True, cwd=ROOT).stdout)["krs"]}
+        self.assertTrue(overall, "this project declares no overall KRs at "
+                                 "all, so the assertion below is vacuous")
+        sys.path.insert(0, str(ROOT / "viewer"))
+        import parsers as _P
+        dangling, checked = [], 0
+        for reg in sorted((ROOT / "perry" / "phase").glob("*-linkage.md")):
+            model = _P.parse_linkage(reg.read_text())
+            for obj in model.objectives:
+                for kr in obj.krs:
+                    if not kr.linked:
+                        continue
+                    checked += 1
+                    if kr.linked not in overall:
+                        dangling.append(
+                            f"{reg.name}: {kr.id} linked to {kr.linked!r}")
+        self.assertEqual(dangling, [], "\n".join(dangling))
+        self.assertGreaterEqual(
+            checked, 8, "no register carries a `linked` value, so this test "
+                        "passed without looking at anything")
+
 
 class TestAProjectWithNoRegisterStillReadsItsDocument(unittest.TestCase):
     """The migration path, asserted rather than assumed.

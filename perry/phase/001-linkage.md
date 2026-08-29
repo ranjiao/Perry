@@ -12,7 +12,7 @@ objectives:
         target: 3
         current: 0
         stretch: false
-        linked: "`parse_tracks` on `.perry/config.md` returns `[('main','project')]` — 0 of 3 non-`project` modes on a live track"
+        linked: "KR-O1.1"
         tasks: ["TASK-019", "TASK-021", "TASK-028"]
       - id: P001-O1-KR2
         title: "Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance"
@@ -20,13 +20,13 @@ objectives:
         target: 3
         current: 0
         stretch: false
-        linked: "The code ships — `perry-state` carries `stage_counts`, `wip_breaches` and `intake`. Two of the three report empty **because no track is declared to exercise them**, so the capability is built and unproven"
+        linked: "KR-O1.2"
         tasks: ["TASK-020", "TASK-046"]
       - id: P001-O1-KR3
         title: "Switching a track's mode edits one file and rewrites no state, shown by a revert test"
         metric: "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately."
         stretch: false
-        linked: "No revert test for a mode switch exists in `tests/test_work_modes.py`"
+        linked: "KR-O1.3"
         tasks: []
       - id: P001-O1-KR4
         title: "Blocking review findings open against the mode work"
@@ -34,7 +34,7 @@ objectives:
         target: 0
         current: 3
         stretch: false
-        linked: "Baseline 6, target 0. Two of three closed on TASK-019; TASK-020's round-6 finding is open (`route` ignores `--group`)"
+        linked: "KR-O1.1"
         tasks: ["TASK-027", "TASK-053", "TASK-056", "TASK-062"]
   - id: O2
     title: "The `goals` lane can write its own state"
@@ -45,7 +45,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
-        linked: "`bin/perry-goals`, `bin/perry-task`, `bin/perry-decide` all exist and write — 3 of 3"
+        linked: "KR-O2.1"
         tasks: ["TASK-037", "TASK-042"]
       - id: P001-O2-KR2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
@@ -53,7 +53,7 @@ objectives:
         target: 1
         current: 1
         stretch: false
-        linked: "The byte-identity test lives in `tests/test_goals_writer.py` and runs against all four `OKR.md` files"
+        linked: "KR-O2.1"
         tasks: []
   - id: O3
     title: "A real project can become Perry-shaped, once"
@@ -64,7 +64,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
-        linked: "`perry-conform status` reports **13/14 declared and matching**, and all three writers gate on it (ADR-004)"
+        linked: "KR-O3.4"
         tasks: ["TASK-043", "TASK-045", "TASK-047"]
       - id: P001-O3-KR2
         title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
@@ -72,7 +72,7 @@ objectives:
         target: 1
         current: 0
         stretch: false
-        linked: "TASK-044: dry-run byte-identical, 365 → 380 ids with none lost, 59 → 15 errors on gimegime-pmo, PolyForge refused in one sentence. Guarantee 3 FAILed on three unguarded write sites and was fixed; **its re-review has not run**"
+        linked: "KR-O3.4"
         tasks: ["TASK-044", "TASK-051", "TASK-052", "TASK-068"]
 unlinked:
   - "TASK-034"
