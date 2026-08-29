@@ -1201,6 +1201,160 @@ class TestLintPointsAtTheDeclaration(unittest.TestCase):
         self.assertEqual(after["conformance"]["declared"], 1)
 
 
+# ── 10b · a decorated row is not a declaration (TASK-241) ─────────────────
+
+
+class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
+    """`read_conformance` stripped each cell with ``strip("` ")``, so a row
+    whose path cell was in BACKTICKS parsed to the same plain key as a row a
+    person had declared on purpose. Same for an INDENTED row (`_CONFORMANCE_ROW`
+    is `^\\s*\\|`) and for a row inside a ``` FENCE (this reader tracked none).
+
+    Found by the `TASK-226` V4 reviewer, who measured the harm: one hand-written
+    backticked row flips a real file from `undeclared` to **conformant**, and
+    because `declare` rewrites the whole file from the parsed declarations
+    (`bin/perry-conform § render`), the next legitimate declare **launders** it
+    into a plain canonical row nothing downstream can tell from a real one.
+    `.perry/conformance.md` is the file that gates every write under ADR-004's
+    enforce gate, and its own header invites hand editing — *"Delete a row to
+    withdraw a declaration"* — so this is reachable by design, not contrivance.
+
+    **THREE SHAPES, THREE TESTS.** One test covering all three would still pass
+    with two of the three regressed, and the three are stopped by two different
+    mechanisms — the row round trip catches decoration written INSIDE the row,
+    and only fence tracking catches the fenced row, which is byte-for-byte
+    identical to a genuine one.
+
+    **Each test carries its own control.** It first plants the UNDECORATED row
+    and asserts that the verdict really does flip to `conformant` — so the trap
+    is proved live in the same test that proves it closed, and none of these can
+    pass because the reader stopped reading, because the fixture stopped being
+    lint-clean, or because the row was malformed for some fourth reason.
+    """
+
+    VER = C.shape_version(SCHEMA)
+
+    def plant(self, body: str):
+        """A project whose record is exactly the real header plus `body`.
+
+        Returns `(state of BOARD.md, number of unreadable rows)` as
+        `perry-conform status` reports them — the surface the gate reads, not
+        the parser in isolation."""
+        p = Project()
+        p.marker().write_text("\n".join(C.HEADER) + "\n" + body)
+        rc, out, err = p.run(CONFORM, "status")
+        row = next(f for f in out["files"] if f["path"] == "BOARD.md")
+        return row["state"], len(out["unreadable_rows"])
+
+    def canonical(self) -> str:
+        return f"| BOARD.md | {self.VER} | 2026-08-28 | declare |\n"
+
+    # ── the control, shared by all three ──────────────────────────────────
+
+    def assert_trap_would_have_worked(self):
+        """The undecorated row. If this stops flipping the verdict, every test
+        below is vacuous — so every test below runs it first."""
+        self.assertEqual(
+            self.plant(self.canonical()), (C.CONFORMANT, 0),
+            "the control row no longer declares BOARD.md — the three tests "
+            "below would pass for the wrong reason")
+
+    # ── shape 1 ───────────────────────────────────────────────────────────
+
+    def test_a_backticked_path_cell_is_not_a_declaration(self):
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant(
+            f"| `BOARD.md` | {self.VER} | 2026-08-28 | declare |\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a backticked path cell still declares a file")
+        self.assertEqual(unreadable, 1,
+                         "the row was dropped silently instead of reported")
+
+    # ── shape 2 ───────────────────────────────────────────────────────────
+
+    def test_an_indented_row_is_not_a_declaration(self):
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant("   " + self.canonical())
+        self.assertEqual(state, C.UNDECLARED,
+                         "an indented row still declares a file")
+        self.assertEqual(unreadable, 1,
+                         "the row was dropped silently instead of reported")
+
+    # ── shape 3 ───────────────────────────────────────────────────────────
+
+    def test_a_row_inside_a_code_fence_is_not_a_declaration(self):
+        self.assert_trap_would_have_worked()
+        state, unreadable = self.plant("```\n" + self.canonical() + "```\n")
+        self.assertEqual(state, C.UNDECLARED,
+                         "a row inside a code fence still declares a file")
+        self.assertEqual(unreadable, 1,
+                         "the row was dropped silently instead of reported")
+
+    # ── the harm the three shapes lead to ─────────────────────────────────
+
+    def test_a_planted_row_is_not_laundered_by_the_next_declare(self):
+        """The second half of the measured defect, and the worse half: after
+        the rewrite the row is indistinguishable from one a person wrote.
+
+        The declare here is of a DIFFERENT file — a legitimate one — because
+        that is the whole point: the user does something entirely ordinary and
+        the record quietly canonicalises a claim they never made."""
+        p = Project()
+        p.marker().write_text(
+            "\n".join(C.HEADER) + "\n"
+            + f"| `BOARD.md` | {self.VER} | 2026-08-28 | declare |\n")
+        rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
+        self.assertEqual(rc, 0, f"the control declare failed: {out} {err}")
+        text = p.marker().read_text()
+        self.assertIn("| .perry/hook.md |", text, "nothing was rewritten")
+        self.assertNotIn(f"| BOARD.md | {self.VER} |", text,
+                         "the decorated row was laundered into a canonical one")
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+
+    # ── and the case that must NOT change ─────────────────────────────────
+
+    def test_an_asterisked_path_reads_exactly_as_it_did_before(self):
+        """``strip("` ")`` never removed asterisks, so `| **BOARD.md** |` has
+        always parsed to the decorated key `**BOARD.md**` — inert, because no
+        key `state_files()` produces carries asterisks. TASK-226 filed it as an
+        observation and it stays one. This guard is about rows that reach a
+        REAL key; widening it to reject asterisks too would be a different
+        change, and the round trip deliberately lets this row through because
+        it is already exactly what `render` would write for that key."""
+        p = Project()
+        p.marker().write_text(
+            "\n".join(C.HEADER) + "\n"
+            + f"| **BOARD.md** | {self.VER} | 2026-08-28 | declare |\n")
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(list(rec.declarations), ["**BOARD.md**"])
+        self.assertEqual(rec.unreadable, [])
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED,
+                         "the asterisked row started flipping a real verdict")
+
+    def test_a_bolded_header_row_is_still_not_a_row(self):
+        """`squash` answers this and answered it before TASK-241 (TASK-050).
+        Here so that a guard added ABOVE the header check — where it would
+        report the header as an unreadable row — cannot land green."""
+        p = Project()
+        p.marker().write_text(
+            "# Perry conformance\n\n"
+            "| **File** | **Shape version** | **Declared** | **Route** |\n"
+            "|---|---|---|---|\n" + self.canonical())
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(list(rec.declarations), ["BOARD.md"])
+        self.assertEqual(rec.unreadable, [])
+
+    def test_perrys_own_record_is_read_without_a_single_refusal(self):
+        """The guard is strict, and a strict guard that refuses the real file
+        would take the enforce gate down for this repository. Every row of the
+        shipped `.perry/conformance.md` must still read."""
+        rec = C.P.read_conformance(PERRY_HOME)
+        self.assertTrue(rec.exists)
+        self.assertEqual(rec.unreadable, [],
+                         "the guard refuses rows in Perry's own record")
+        self.assertGreater(len(rec.declarations), 0)
+
+
 # ── 11 · is_adopted still answers its own question ────────────────────────
 
 
