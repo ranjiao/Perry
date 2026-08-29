@@ -736,6 +736,35 @@ CLEAN = [
      'def read(records):\n'
      '    return [squash(d["status"]) for d in statuses(records)]\n'),
 
+    ("C15 a DECOY ATTRIBUTE beside a real header row",
+     "round 11 review, the delta pass: dropping ONE CONJUNCT at "
+     "`tests/header_rule.py:659` — `if p and p[0] == f\"attr:{node.attr}\"` "
+     "becomes `if p:` — makes the net report a legitimate value normalizer, "
+     "`[squash(s) for s in t.statuses]` on an object that also carries a "
+     "header row, and the entire 47-entry corpus stays silent. That is "
+     "criterion 4's failure mode and the exact thing round 8 was failed for. "
+     "The conjunct is what says WHICH attribute holds the row",
+     "bin/perry-probe-c15",
+     'from tables import squash, split_row\n'
+     'class Table:\n'
+     '    def __init__(self, line, statuses):\n'
+     '        self.header = split_row(line)\n'
+     '        self.statuses = statuses\n'
+     'def read(line, statuses):\n'
+     '    t = Table(line, statuses)\n'
+     '    return [squash(s) for s in t.statuses]\n'),
+
+    ("C16 a DECOY KEY beside a real header row",
+     "round 11 review, the delta pass: the dict sibling of `C15`. The key "
+     "test is what says WHICH key holds the row, and a corpus that plants "
+     "only the catching direction cannot tell a net that resolves "
+     "`t['header']` from one that resolves every key of `t`",
+     "bin/perry-probe-c16",
+     'from tables import squash, split_row\n'
+     'def read(line, statuses):\n'
+     '    t = {"header": split_row(line), "statuses": statuses}\n'
+     '    return [squash(s) for s in t["statuses"]]\n'),
+
     ("C12 a row transformed but never FOLDED",
      "TASK-050 spec, opening: `**Default** rung` lowercases to `default** "
      "rung` and matches nothing — the rule is about the FOLD, and `.upper()` "
