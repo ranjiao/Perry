@@ -265,6 +265,22 @@ after `status` the decide lane left ['ADRS.md']. Its whole record is
 any name.
 ```
 
+**Its known limit, found by the V4 reviewer and recorded rather than patched.**
+The reviewer could not defeat this guard with any `ADRS.md`-class name, but did
+build one escape: a real index table written as **`decisions/ADR-000-index.md`**.
+That path *is* an ADR body by the guard's own definition, so it slips past
+`TestNothingWritesAnIndex` — and then dies one module over in
+`test_decide_status_enum`, because `read_adr_records` globs it back as an ADR
+and the reader reports it. So the escape is caught, just not here.
+
+**I am not widening the guard to cover it, deliberately.** The predicate that
+would catch `ADR-000-index.md` has to distinguish an ADR body from a table
+inside `decisions/`, which means teaching this guard to parse content instead
+of listing paths — and a guard that parses is a guard that argues about what it
+parsed. The clean statement stays: everything under `decisions/` is an ADR
+body, and anything that is not one is somebody writing a file this lane does
+not own, which the reader already reports.
+
 DESIGN-013 § 4.1 accepts the loss of the web link surface **and warns in the
 same paragraph that the implementing row must not quietly re-add an index to
 avoid it**. A guard written the obvious way —
@@ -310,6 +326,26 @@ this tool does not write, which `bin/perry-goals § main` names as the mistake i
 so many words. So the gate is removed and named rather than faked. Restoring it
 means giving `decisions/ADR-*.md` a `files[]` shape — new claim surface, its own
 row, and `.perry/hook.md` calls that a high-stakes operation.
+
+**How big the loss is, measured — because I first wrote it down smaller than it
+is.** The comment in `bin/perry-decide` used to close *"only the index write
+was ever gated"*. That is **false**, and a V4 reviewer caught it by measuring
+rather than reading. The gate ran *before* the command, so it refused the whole
+command. With `PERRY_CONFORMANCE=enforce` and nothing declared:
+
+| Tree | `perry-decide new` | ADR body written |
+|---|---|---|
+| `main` at `ee0b36a` | **rc=1**, *"DECISIONS.md already matches Perry's shape at version 2, but no one has declared it"* | **none** |
+| this branch | **rc=0** | `ADR-001` |
+
+There is no reachable state on `main` where a body was written past the gate.
+**The decide lane went from fully gated to not gated at all**, and the
+follow-up row should be sized as restoring a gate, not as closing a gap that
+was mostly already open. (My own first attempt to check this reproduced the
+reviewer's claim as false — because I ran `main`'s script with the *branch's*
+`PERRY_HOME`, so it read the branch schema, found no `files[id=decisions]`, and
+returned `absent`. The fixture was wrong, not the reviewer. Recorded because a
+mixed-tree `PERRY_HOME` is a silent way to measure the wrong thing.)
 
 Two consequences already visible in the suite: `test_conformance`'s
 per-file-not-per-project test was written on `perry-decide`/`DECISIONS.md` and
@@ -386,7 +422,25 @@ test_i18n test_parsers test_project_root_resolution test_router_budget
 → 19 modules · 683 tests · 98.1s · ✓ all green
 ```
 
-**The full-suite run, and the one it caught.** `bash tests/run` completed at
+**Measured, on the committed tree, twice independently.** The expectation this
+section used to record is now a measurement:
+
+| Tree | Runner | Result |
+|---|---|---|
+| this branch at `0926e97`, quiet machine | `bash tests/run` (V4 reviewer) | **98 modules · 2892 tests · 458.4s · 3 failures** |
+| this branch at `0926e97`, load ~50 | `python3 tests/parallel -j 4` (me) | **98 modules · 2892 tests · 613.6s · 3 failures** |
+
+Both runs give the **same three failures**, and all three are pre-existing at
+`ee0b36a`: the two in `test_diagnose` and the one in
+`test_kr_progress_provenance` listed above. Steps 1, 3 and 4 of `tests/run`
+were run separately on the committed tree and pass: the template drift guard is
+clean, every `bin/` script parses and answers `--help`, and both sample
+projects lint at **0 errors** (`exit 0` for each).
+
+`2892 − 2882 = +10` is this branch's net test count, and it is now a measured
+delta rather than an arithmetic claim.
+
+**The full-suite run that caught a defect of mine.** `bash tests/run` completed at
 **98 modules · 2892 tests · 594.6s**, with **4 failures across 3 modules**: the
 three pre-existing ones above, plus
 `test_procedures_call_the_tool.test_no_procedure_hand_edits_a_tool_owned_file`
@@ -397,20 +451,18 @@ was right and the sentence was wrong; `b57a34a` fixes it, and candidate
 wordings were run through `test_procedures_call_the_tool.scan` directly rather
 than reworded until the suite went quiet.
 
-**That run predates the fix, so it is not the number for this tree**, and a
-clean `bash tests/run` on `b57a34a` was still executing when this row was
-handed back — see § 9 for the load it was competing with. The expected result
-is 2892 tests and the **3 pre-existing failures**, and `2892 − 2882 = +10` is
-this branch's net test count: nine added (five in `TestNothingWritesAnIndex`,
-two in `TestMintingReadsTheFilesAlone`, `test_the_three_index_keys_are_gone_and_stay_gone`,
+That run predates the fix, so it is not the number for this tree; the two runs
+in the table above are. The +10 is nine tests added — five in
+`TestNothingWritesAnIndex`, two in `TestMintingReadsTheFilesAlone`,
+`test_the_three_index_keys_are_gone_and_stay_gone`,
 `test_bootstrap_creates_the_directory_and_no_file`,
 `test_a_project_that_never_bootstrapped_lists_cleanly_too`,
 `test_the_status_a_new_adr_is_born_with_is_one_the_schema_declares`,
-`test_the_shipped_version_is_recorded_in_its_own_changelog`) against two
-removed with the index they tested (`test_an_index_row_with_no_file_is_reported`,
+`test_the_shipped_version_is_recorded_in_its_own_changelog` — against two
+removed with the index they tested
+(`test_an_index_row_with_no_file_is_reported`,
 `test_a_project_with_no_proposal_renders_no_proposed_section`), plus the
-subTest arithmetic in the two rewritten fixtures. **I am stating that as an
-expectation, not as a measurement.**
+subTest arithmetic in the two rewritten fixtures.
 
 ## 9 · What I did not do, and what I could not verify
 
@@ -421,12 +473,16 @@ expectation, not as a measurement.**
   brief says that runner shows 3 more failures from a module-double-import
   artefact in `test_risks_store`; I did not confirm that on this tree and am
   not reporting it as if I had.
-- **The clean `bash tests/run` on `b57a34a` did not finish before this row was
-  handed back**, under the load above. § 8.1 says what completed, what it
-  caught, and what is an expectation rather than a measurement. The 19 modules
-  this change touches are green on the committed tree; the full suite is green
-  on every module except the three that were already red at `ee0b36a`, as of
-  the 595 s run, whose only extra failure is the one `b57a34a` fixes.
+- **The gap this section declared is now CLOSED, by two runs.** It read: *a
+  clean full run on the committed tree did not finish under load.* The V4
+  reviewer ran `bash tests/run` on `0926e97` on a quiet machine
+  (**2892 tests / 3 failures / 458.4 s**) and my own
+  `python3 tests/parallel -j 4` on the same tree agrees
+  (**2892 / 3 / 613.6 s**). Steps 1, 3 and 4 were run separately and pass.
+  § 8.1 carries both. Kept here rather than deleted because a gap that was
+  declared and then closed is a different record from one that was never
+  there — and because the thing that closed it was somebody else re-running
+  what I could not.
 - **`viewer/parsers.py` is on another agent's list and I edited it anyway.**
   Reported here as the brief asks. The edit is contained — the
   `# ── DECISIONS.md ──` section is replaced by a `# ── decisions/ADR-*.md ──`

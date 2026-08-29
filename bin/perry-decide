@@ -151,8 +151,19 @@ BORN_STATUS = "active"
 #: reviewer to find: **giving `decisions/ADR-*.md` a `files[]` shape is what
 #: would restore it, and that is new claim surface — its own row, not this
 #: one.** Until then `perry-decide` writes ADR bodies into an undeclared
-#: project, which is what it already did for the bodies themselves; only the
-#: index write was ever gated.
+#: project, and **that is new.** This clause used to read "only the index write
+#: was ever gated", which is false and was caught by a V4 reviewer measuring it
+#: rather than reading it. The gate ran before the command, so it refused the
+#: WHOLE command: on `main` at `ee0b36a`, with `PERRY_CONFORMANCE=enforce` and
+#: nothing declared, `perry-decide new` returned **rc=1 and wrote no ADR body
+#: at all**, refusing with "DECISIONS.md already matches Perry's shape at
+#: version 2, but no one has declared it". On this branch the same call returns
+#: **rc=0 and writes `ADR-001`**. There is no reachable state on `main` where a
+#: body was written past the gate.
+#:
+#: So the honest size of the hole is: **the decide lane went from fully gated
+#: to not gated at all**, and whoever sizes the follow-up row should size it as
+#: restoring a gate, not as closing a gap that was mostly already open.
 
 
 def load_schema() -> dict:
