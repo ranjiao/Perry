@@ -348,11 +348,39 @@ class TestTheReproduction(Base):
         self.assertEqual(len(self.f.records("intake.jsonl")), 4)
 
     def test_the_refusal_names_the_store_and_a_way_forward(self):
+        """And the way forward is a subcommand that exists.
+
+        `perry-tasks` prefixes the three registers (`intake-write`) and leaves
+        the task store's own subcommands bare (`write`), so a message built by
+        pasting the store's name in front of `-write` sends the reader to
+        `perry-tasks tasks-write`, which there is no such thing as.
+        """
         _rc, out = self.f.run("add", "--title", "a queue task probe",
                               "--track", "ops", "--deliverable", "d",
                               "--verification", "v")
         self.assertIn("intake.jsonl", out)
-        self.assertIn("intake-write --from-board", out)
+        self.assertIn("perry-tasks intake-write --from-board", out)
+        self.assertIn("perry-tasks intake-render --write", out)
+        with self.assertRaises(PT.Refused) as caught:
+            PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
+                                "next", 5, 4)
+        self.assertIn("perry-tasks write --from-board", str(caught.exception))
+        self.assertNotIn("tasks-write", str(caught.exception))
+
+    def test_a_dry_run_previews_the_refusal_rather_than_the_write(self):
+        """`--dry-run` reaches the same gate the real write does.
+
+        `commit()` calls `register_change` BEFORE `if dry_run: return plan`,
+        deliberately: `cmd_add`'s own docstring says a preview that is not the
+        write is worse than no preview, and a dry run that printed a plan for a
+        write the tool would refuse is exactly that.
+        """
+        rc, out = self.f.run("add", "--title", "a queue task probe",
+                             "--track", "ops", "--deliverable", "d",
+                             "--verification", "v", "--dry-run")
+        self.assertNotEqual(rc, 0, "the dry run previewed a refused write:\n"
+                                   + out)
+        self.assertIn("may never make a canonical store smaller", out)
 
     def test_a_refused_register_write_writes_nothing_at_all(self):
         """Refused before anything is staged — not half a transaction."""

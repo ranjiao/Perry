@@ -2214,13 +2214,18 @@ def refuse_to_shrink(store: str, path: Path, event_name: str,
     """
     if after >= before or event_name in SHRINK_ALLOWED:
         return
+    # `perry-tasks`' subcommands for the task store are unprefixed — `write`,
+    # `render` — and the three registers each carry their own prefix. Naming
+    # `perry-tasks tasks-write` would send the reader to a subcommand that does
+    # not exist, on the one store where the refusal is hardest to get out of.
+    verb = "" if store == "tasks" else f"{store}-"
     raise Refused(
         f"`{event_name}` would take {path} from {before} record(s) to {after}, "
         f"and an ordinary write may never make a canonical store smaller "
         f"(USER-906). {why}Nothing was written.\n"
         f"If the board is right and the store is stale, the explicit "
-        f"board-to-store direction is `perry-tasks {store}-write --from-board`; "
-        f"if the store is right, `perry-tasks {store}-render --write` puts the "
+        f"board-to-store direction is `perry-tasks {verb}write --from-board`; "
+        f"if the store is right, `perry-tasks {verb}render --write` puts the "
         f"records back on the board. Only "
         f"{', '.join(sorted(SHRINK_ALLOWED))} may reduce a record count.")
 
