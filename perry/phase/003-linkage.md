@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "003-storage-code"
-updated: "2026-08-29T19:27:22Z"
+updated: "2026-08-29T20:58:07Z"
 objectives:
   - id: O1
     title: "Every declared store exists, and one command checks all of them"
@@ -36,7 +36,7 @@ objectives:
         target: 0
         stretch: false
         linked: "KR-O2.1"
-        tasks: ["TASK-095", "TASK-233"]
+        tasks: ["TASK-095", "TASK-233", "TASK-247"]
       - id: P003-O2-KR2
         title: "The adoption/migration reader is fenced into one named module, with a mechanical guard shown able to go red"
         metric: "guard live, and restoring one removed call site turns it red (baseline: no boundary; viewer/parsers.py is 3,973 lines serving both roles)"
