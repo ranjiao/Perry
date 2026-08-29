@@ -55,6 +55,40 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 | main | project | phase/ | — | — | — | — | V3 |
 ```
 
+### Prose in this file is layout, and `.perry/hook.md` is where it belongs
+
+**`.perry/config.md` is a projection of `.perry/config.jsonl`** (ADR-007,
+TASK-092). The store holds the preamble's `- Key: value` settings and every row
+of `## Tracks`; every other byte of the file is layout. `perry-config render`
+reproduces layout byte for byte **while a copy of the file is on disk to read it
+from**, and `perry-config render --write` rebuilds the whole file from the store
+alone when there is not — the shape above, the stored settings, the stored
+table, and nothing else.
+
+So the contract has two halves and only one of them is a promise:
+
+- **Settings and track rows are recoverable.** Delete the file and
+  `perry-config render --write` brings it back; every reader answers from the
+  store meanwhile, so nothing depends on the file existing (TASK-233).
+- **Prose is not.** It survives a render only while a file is there to copy it
+  out of, and that guarantee ends the first time the file is deleted, or a
+  project is cloned without it, or a fresh checkout renders before the file is
+  restored. It is not stored, on purpose:
+  [DESIGN-013](perry/design/DESIGN-013-one-place-per-fact.md) § 5.1 puts a
+  schema'd fact in exactly one store, and § 5.5 rejects moving prose into one by
+  name — a store is already a bad home for a paragraph.
+
+**Write the explanation in `.perry/hook.md` instead.** It is tier 1, it is
+yours, it is read at every standup by `/perry` and by every lane, and nothing
+renders it — so a render cannot destroy it and a deletion cannot lose it. Perry
+carries its own two configuration notes there, moved out of `.perry/config.md`
+on 2026-08-30 under `## Configuration notes`: what its `intake` track carries
+versus `main`, and why its state root is not `.`.
+
+A note left in `.perry/config.md` is not an error and nothing will delete it.
+`perry-config verify` reports it as a line the store does not hold, which is
+true and is the point: it is a line one command away from being gone.
+
 `## Tracks` is what turns on `pipeline` / `queue` / `inquiry` mode. A project
 that never writes it behaves exactly as Perry did before DESIGN-003 — that is
 the point — but a user who never hears the section exists cannot reach three of

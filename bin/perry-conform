@@ -293,14 +293,41 @@ ENFORCE = "enforce"
 DEFAULT_MODE = ENFORCE
 
 
+#: The store key `- Conformance gate: advisory` mints, per
+#: `bin/perry_md_store § setting_key`. Named rather than spelled inline so the
+#: store read and the markdown read below cannot drift apart — the same reason
+#: `tests/gate.py § GATE_OFF` exists on the fixture side.
+GATE_SETTING_KEY = "conformance_gate"
+
+
 def gate_mode(project_root: Path) -> str:
     """`enforce` or `advisory`, most specific wins.
 
-    env `PERRY_CONFORMANCE` beats `.perry/config.md § Conformance gate` beats
-    the shipped default."""
+    env `PERRY_CONFORMANCE` beats the project's declared `Conformance gate`
+    beats the shipped default.
+
+    **The declaration is read from `.perry/config.jsonl` when that store
+    exists, with `.perry/config.md` as the fallback** (TASK-233). It used to be
+    read from the markdown alone, so deleting a rendered projection dropped a
+    project that had declared `advisory` back to the shipped `enforce` in
+    silence — the gate then refused writes the user had explicitly opted out
+    of, and nothing in the refusal said which register it had consulted.
+
+    **A usable store that carries no `Conformance gate` record is an ANSWER,
+    not a reason to go read the markdown.** The store is derived from the
+    preamble, so a key it does not carry is a line the file does not have; the
+    project has declared nothing and the shipped default applies. Falling
+    through to the markdown there would reintroduce exactly the two-registers
+    problem this row exists to remove — and it would do it on the one setting
+    that decides whether every other write is allowed.
+    """
     env = (os.environ.get("PERRY_CONFORMANCE") or "").strip().lower()
     if env in (ENFORCE, ADVISORY):
         return env
+    stored, _why = P.config_store_settings(Path(project_root))
+    if stored is not None:
+        value = (stored.get(GATE_SETTING_KEY) or "").strip().lower()
+        return value if value in (ENFORCE, ADVISORY) else DEFAULT_MODE
     cfg = Path(project_root) / ".perry" / "config.md"
     if cfg.exists():
         m = re.search(r"Conformance gate\s*[:：]\s*([^\n]+)",

@@ -3416,7 +3416,7 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
     file as missing — noise on someone else's project, and unusable as the
     stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
     files adoption wrote are malformed" from "adoption hasn't run"."""
-    return ((project_root / ".perry" / "config.md").exists()
+    return (P.configured(project_root)
             or (state_root / "BOARD.md").exists()
             or (state_root / "OKR.md").exists()
             or (state_root / "phase").is_dir())
@@ -3939,7 +3939,7 @@ def main(argv: list[str]) -> int:
         if not root_arg:
             for d in [project_root, *project_root.parents]:
                 if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
-                        or (d / ".perry" / "config.md").exists()):
+                        or P.configured(d)):
                     project_root = d
                     break
         # State may live in a subdirectory when the project already uses a name

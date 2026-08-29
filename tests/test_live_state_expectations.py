@@ -40,10 +40,19 @@ are not, which the baseline records with a verdict apiece.
 three of them real, and asserting zero would have meant either widening three
 verdicts into silence or fixing three rows that pass was explicitly not
 allowed to fix. Those three rows were TASK-150, TASK-151 and TASK-152, and
-they are repaired: the floor is now the four named false positives and
-nothing else. It is still recorded rather than asserted-to-be-zero — the four
-are hits the guard is expected to keep making, and a floor of zero would be a
-claim about the sweep that is false.
+they are repaired: the floor holds false positives and nothing else. It is
+still recorded rather than asserted-to-be-zero — every entry is a hit the
+guard is expected to keep making, and a floor of zero would be a claim about
+the sweep that is false.
+
+**It was four entries and is twenty-three, and the nineteen that arrived on
+2026-08-30 are one shape.** `tests/test_config_store_readers.py` (TASK-233)
+binds `bin/perry-state` and `bin/perry-conform` at module level through
+`load_bin_module`, which reads them out of `bin/` — so the sweep taints every
+value those two modules return, including values computed entirely inside a
+tempdir the test just built. The count is not a widening of what counts as a
+false positive; it is one module whose readers are loaded from the repository
+and whose data never is.
 
 That the floor holds no instances is no longer evidence the guard works, so
 `test_the_floor_is_not_claimed_to_be_zero` stopped resting on it and rests on

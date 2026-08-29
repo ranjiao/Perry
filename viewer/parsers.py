@@ -241,6 +241,166 @@ def status_cleared_date(status_cell: str) -> str:
     return m.group(0) if m else ""
 
 
+# ── `.perry/config.jsonl`, read in ONE place ──────────────────────────────
+#
+# TASK-233 / P003-O2-KR1. `.perry/config.md` is a PROJECTION of
+# `.perry/config.jsonl` wherever that store exists, and until this row three
+# readers scanned the markdown as truth: `resolve_state_root` below,
+# `bin/perry-state § parse_config` and `bin/perry-conform § gate_mode`. Each of
+# them now asks the two functions here.
+#
+# **This file, not `bin/perry-state`, because this file is the bottom of the
+# import graph** — `perry-conform` cannot import a hyphenated `perry-state`
+# without loading `perry-lint` on the way, and `resolve_state_root` is called
+# before anything else in every tool. It is the same move `ask_is_answered`
+# made one register over, for the same reason: two halves that both need one
+# rule meet here or they meet nowhere.
+#
+# `bin/perry-state`'s track-register constants spell these same three strings —
+# `_validated_config_records` there is now a delegate to `config_store_records`
+# here, so "what went wrong with the store" has one answer for tracks and
+# settings alike.
+
+#: There is legitimately no store. **This is the adoption path and reading the
+#: markdown here is CORRECT** — it is the register a project that has never run
+#: `perry-config write --from-file` actually has, and P003-O2-KR1 excludes it by
+#: name. The other two below both occur with `.perry/config.jsonl` present on
+#: disk, which is the condition that KR counts.
+CONFIG_STORE_ABSENT = "absent"
+CONFIG_STORE_UNREADABLE = "unreadable"
+CONFIG_STORE_INVALID = "invalid"
+
+#: The store answered and holds no record for the key that was asked for. Not
+#: an error and not a fallback: a projection whose store has no line for a
+#: setting is a file that does not declare it.
+CONFIG_STORE_DEFAULT = "store-default"
+
+#: The store answered from its own records.
+CONFIG_FROM_STORE = "store"
+
+#: The two that mean "a store is sitting right there and cannot be used", so a
+#: caller reading the markdown instead must say so rather than answer silently.
+CONFIG_STORE_UNUSABLE = frozenset({CONFIG_STORE_UNREADABLE, CONFIG_STORE_INVALID})
+
+
+def config_store_records(project_root: Path) -> tuple[list[dict] | None, str]:
+    """`.perry/config.jsonl` loaded and validated. `(records, why)`.
+
+    `records` is `None` exactly when `why` is one of `absent` / `unreadable` /
+    `invalid`, and a list otherwise (`why` is then the empty string, because
+    nothing went wrong).
+
+    A malformed store never raises from here. `perry-state` is the
+    read-everything tool and exits 0 on a project with no state at all, and
+    `resolve_state_root` runs before any tool can report anything — neither may
+    be the thing that turns an unreadable store into a crash. What the caller
+    gets instead is the reason, so it can decide.
+    """
+    path = Path(project_root) / ".perry" / "config.jsonl"
+    if not path.exists():
+        return None, CONFIG_STORE_ABSENT
+    try:
+        # Imported here, not at module scope: `perry_md_store` imports THIS
+        # file, reads the schema at import time and refuses a bad one. A module
+        # -scope import would be a cycle, and a schema problem must not turn
+        # every state-root resolution in every tool into an ImportError before
+        # anything can report it.
+        import sys                                            # noqa: PLC0415
+        _bin = str(Path(__file__).resolve().parent.parent / "bin")
+        if _bin not in sys.path:
+            sys.path.insert(0, _bin)
+        import perry_md_store as md_store                     # noqa: PLC0415
+        good, findings = md_store.validate_records(
+            md_store.load_store(path))
+    except Exception:                                         # noqa: BLE001
+        return None, CONFIG_STORE_UNREADABLE
+    if findings:
+        return None, CONFIG_STORE_INVALID
+    if not good:
+        # **An EMPTY store is broken.** A file that parsed to zero records has
+        # answered nothing, and an interrupted write does produce one. The
+        # classification is `bin/perry-state § _validated_config_records`'s and
+        # travelled here with it.
+        return None, CONFIG_STORE_INVALID
+    return good, ""
+
+
+def config_store_settings(project_root: Path) -> tuple[dict[str, str] | None, str]:
+    """`{setting key: stored value}` from `.perry/config.jsonl`, or `(None, why)`.
+
+    The values are the STORE's, which means a declared blank is the empty
+    string: `perry_md_store § stored_value` normalises `—` / `n/a` / `无` on the
+    way in, because the marker is layout and the value is "nothing". A caller
+    that renders the answer back to a human puts the marker back
+    (`bin/perry-state § parse_config`); a caller that only asks whether a field
+    was declared does not have to care.
+
+    **A key with no record means the file does not declare it**, which is a
+    complete answer and not a reason to go read the markdown. That distinction
+    is why `why` comes back as `store-default` rather than as one of the
+    failure reasons when the store is usable and simply carries no settings.
+    """
+    records, why = config_store_records(project_root)
+    if records is None:
+        return None, why
+    out = {}
+    for rec in records:
+        if rec.get("kind") != "setting":
+            continue
+        key = (rec.get("key") or "").strip()
+        if not key:
+            continue
+        value = rec.get("value")
+        out[key] = value if isinstance(value, str) else (
+            "" if value is None else str(value))
+    return out, (CONFIG_FROM_STORE if out else CONFIG_STORE_DEFAULT)
+
+
+def declared_state_root(project_root: Path) -> tuple[str, str]:
+    """The raw `State root` value this project declares, and where it came from.
+
+    Store first, `.perry/config.md` as the fallback for a project that has no
+    store. Split out of `resolve_state_root` so the source is inspectable by a
+    test — the resolved `Path` alone cannot tell a store answer from a markdown
+    one, and TASK-233's whole subject is that they can differ.
+    """
+    stored, why = config_store_settings(project_root)
+    if stored is not None:
+        return stored.get("state_root", ""), why
+    cfg = Path(project_root) / ".perry" / "config.md"
+    if not cfg.exists():
+        return "", why
+    m = re.search(r"State root\s*[:：]\s*([^\n]+)",
+                  cfg.read_text(errors="replace"), re.I)
+    return (m.group(1).strip().strip("*`  ") if m else ""), why
+
+
+def configured(project_root: Path) -> bool:
+    """Has this project been configured at all? **Either register counts.**
+
+    The one predicate behind "is there a `.perry/config.md`", which stopped
+    being the right question when the file became a projection (TASK-233): a
+    project whose markdown has been deleted, or that was cloned before
+    `perry-config render --write` put it back, is configured and its store says
+    so. `bin/perry-goals § tracks_of` already asked it the wide way.
+
+    **Six call sites ask it here; that is not all of them.** Round 1 converted
+    four — `bin/perry-lint § is_adopted` and its project-root walk,
+    `bin/perry-explain`, `parsers § _resolve_project_root` — and claimed they
+    were the rest. They were not: `bin/perry-state § build` and its own copy of
+    the walk kept the markdown test, in the file the row is about, and the V4
+    reviewer reproduced both. Round 2 converted those two.
+    `bin/perry-diagnose § scan_tracking` and `§ diagnose` still ask it the
+    narrow way and are NOT converted — see `TASK-233-result.md § 4`.
+
+    It answers about `.perry/` only. Every caller ORs it with the state files
+    it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per
+    caller and this does not.
+    """
+    perry = Path(project_root) / ".perry"
+    return (perry / "config.jsonl").exists() or (perry / "config.md").exists()
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -252,14 +412,17 @@ def resolve_state_root(project_root: Path) -> Path:
     `.perry/` itself never moves: it is the anchor that says "this is a Perry
     project" and it is where the pointer lives, so it cannot be behind the
     pointer. Every reader must resolve the root the same way, which is why this
-    lives here and not in a caller."""
-    cfg = project_root / ".perry" / "config.md"
-    if not cfg.exists():
-        return project_root
-    m = re.search(r"State root\s*[:：]\s*([^\n]+)", cfg.read_text(errors="replace"), re.I)
-    if not m:
-        return project_root
-    raw = m.group(1).strip().strip("*`  ")
+    lives here and not in a caller.
+
+    **The value comes out of `.perry/config.jsonl` when that store exists**
+    (TASK-233), with the markdown as the fallback. Before that it came out of
+    the markdown alone, and deleting the markdown on a project whose store said
+    `State root: perry` moved every Perry file the tools looked for from
+    `perry/` to the project root in silence — measured: `perry-state --json`
+    then reports *"No Perry state found — run /perry for first-time setup"* on a
+    fully populated project. That is the same failure the six settings had, on
+    the one setting every other read is relative to."""
+    raw, _why = declared_state_root(project_root)
     if not raw or raw in {".", "./", "—", "-"}:
         return project_root
     root = (project_root / raw).resolve()
@@ -336,7 +499,7 @@ def _resolve_project_root() -> Path:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
     for d in [cur, *cur.parents]:
-        if ((d / ".perry" / "config.md").exists()
+        if (configured(d)
                 or (d / "BOARD.md").exists() or (d / "OKR.md").exists()):
             return d
     return cur  # fall back to CWD; load_snapshot will just find nothing

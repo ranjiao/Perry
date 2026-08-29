@@ -51,7 +51,7 @@ import sys
 import tempfile
 import unittest
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+from gate import GATE_OFF, gate_off_record   # tests/gate.py — the opt-out
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
@@ -121,8 +121,14 @@ def track_record(name: str, mode: str, order: int) -> str:
 #: A store holding BOTH tracks. `.perry/config.md` above declares only `main`,
 #: so any test whose answer contains `intake` read the store and any test whose
 #: answer does not read the projection. The divergence IS the instrument.
+#: The `conformance_gate` record rides along on every hand-built store here for
+#: the reason `tests/gate.py § gate_off_record` states: `gate_mode` reads
+#: `.perry/config.jsonl` first (TASK-233), so a store that omits the setting is
+#: a project declaring no gate — which would make every write below refuse for
+#: an ADR-004 reason that has nothing to do with the track register, the exact
+#: trap this module was written after.
 GOOD_STORE = track_record("main", "project", 0) + "\n" \
-    + track_record("intake", "queue", 1) + "\n"
+    + track_record("intake", "queue", 1) + "\n" + gate_off_record()
 
 
 class Fixture(unittest.TestCase):
@@ -291,8 +297,14 @@ class TestTheFourSituationsAreDistinguished(Fixture):
             self.assertIn("config.jsonl", PS.TRACKS_STORE_WHY[source])
 
 
+#: A store that validates, carries a setting and declares no track. The
+#: `conformance_gate` record rides along for the reason `GOOD_STORE`'s does —
+#: without it every write against this fixture refuses on ADR-004 instead of
+#: reaching the track register, which is a green `assertNotEqual(rc, 0)`
+#: measuring nothing.
 SETTING_ONLY = json.dumps({"kind": "setting", "key": "language",
-                           "value": "English", "order": 0}) + "\n"
+                           "value": "English", "order": 0}) + "\n" \
+    + gate_off_record()
 
 #: A `## Tracks` row whose every cell is FILLED, so that a store record which
 #: merely EXISTS under the same name still contradicts it. Round 5's FAIL
@@ -675,10 +687,8 @@ class TestAWriterRefusesRatherThanFallingBack(Fixture):
         pinning the very defect that round caused, under a docstring naming a
         different one.
         """
-        setting = json.dumps({"kind": "setting", "key": "language",
-                              "value": "English", "order": 0})
         out = self.run_task(
-            self.project(setting + "\n", md_declares=False),
+            self.project(SETTING_ONLY, md_declares=False),
             "intake", "--title", "a request")
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
 

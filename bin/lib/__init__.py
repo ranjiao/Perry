@@ -229,6 +229,31 @@ ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _BLANK_CELLS: set = set()
 
 
+_BLANK_MARKER: str | None = None
+
+
+def blank_marker() -> str:
+    """How this project's files spell "this cell says nothing": `—`.
+
+    `schema § i18n.blank_cell.en`, first entry — the same list `is_blank_cell`
+    matches against, so the spelling this hands back cannot become one that
+    function would not recognise. It lives here rather than in a caller because
+    three of them need it: `bin/perry-state § track_from_record` puts the marker
+    back on a stored blank, `stored_settings` does the same for a setting, and
+    `perry_md_store § scaffold_config` writes it into a file being rebuilt from
+    the store with no file on disk to copy it from.
+    """
+    global _BLANK_MARKER
+    if _BLANK_MARKER is None:
+        try:
+            blank = (load_schema().get("i18n") or {}).get("blank_cell") or {}
+            en = [v for v in (blank.get("en") or []) if isinstance(v, str)]
+        except Exception:                                        # noqa: BLE001
+            en = []
+        _BLANK_MARKER = en[0] if en else "\u2014"
+    return _BLANK_MARKER
+
+
 def normalize_typed_cell(value: str) -> str:
     """Normalize presentation around a typed cell, never its interior."""
     return (value or "").strip().strip("*`~ ")
