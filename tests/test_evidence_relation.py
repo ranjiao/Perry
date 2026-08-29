@@ -47,11 +47,25 @@ import re
 import subprocess
 import unittest
 
+import sys
+from pathlib import Path as _Path
+
 from test_task_writer import PT, PERRY_HOME, TOOL
 
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent / "bin"))
+import lib  # noqa: E402
+
 #: A placeholder cell, the value `evidence_paths` and `evidence_relations` both
-#: skip. Read off the tool so this module cannot disagree with it.
-ABSENT = PT.ABSENT
+#: skip. **Read off the one rule so this module cannot disagree with it.**
+#:
+#: This was `ABSENT = PT.ABSENT`, and the instinct was right — read it off the
+#: tool rather than restating it — but it pointed at `bin/perry-task`'s own
+#: hardcoded set, which TASK-213 retired as the fourth copy of the blank-cell
+#: list. `lib.is_blank_cell` reads the declared spellings out of
+#: `schema/state-schema.json § i18n.blank_cell`, so this module now agrees with
+#: the tool AND with a Chinese board, which the old set did not.
+def is_absent(value: str) -> bool:
+    return lib.is_blank_cell(value or "")
 
 #: What may sit between two things in a cell and belong to neither: the
 #: separators the tool splits on, the backticks an author marks spans with, and
@@ -74,7 +88,7 @@ def live_cells(pay: dict) -> list[dict]:
     """Every task whose evidence cell says something. The corpus, not a sample."""
     return [t for t in pay["tasks"]
             if (t["evidence"] or "").strip()
-            and (t["evidence"] or "").strip().lower() not in ABSENT]
+            and not is_absent(t["evidence"])]
 
 
 class TestTheCorpusIsReal(unittest.TestCase):

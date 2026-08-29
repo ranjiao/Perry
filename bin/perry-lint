@@ -1261,6 +1261,38 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         f"refusal says a mis-aimed edge comes out: on the "
                         f"user's confirmation."))
 
+        # **`unlinked[]` gets the same sweep as `krs[].tasks[]`** (TASK-227).
+        # It never had one: `linkage-task-exists` above proves the task half of
+        # an EDGE, and the declaration list beside it was unchecked at the
+        # linter exactly as it was unchecked at the writer. Both holes were
+        # proven on 2026-08-28 by the same command — `perry-goals link
+        # --unlinked` accepted 48 ids space-joined into one argument, and
+        # separately the literal string `NOT-A-TASK-ID at all`, and
+        # `perry-lint` reported 0 errors over the result.
+        #
+        # `warn`, matching `linkage-task-exists`: it is the same statement one
+        # key over, and a declaration naming a row that has been purged is a
+        # stale record rather than a broken file.
+        #
+        # A declared id costs less than a dangling edge — it lands in no
+        # denominator — but it is not free. `perry-state § attribution` reports
+        # `declared_unlinked` straight from this list (TASK-228), so an id no
+        # row carries is a row the standup says was answered, and no such row
+        # exists to have answered for.
+        for tid in (link.unlinked or []):
+            if store_ids is None or not tid or tid in store_ids:
+                continue
+            findings.append(Finding(
+                "warn", rel, "linkage-unlinked-exists",
+                f"`unlinked` declares {tid!r}, which is not a record in "
+                f"`tasks.jsonl`. A declaration says a KNOWN row serves no KR; "
+                f"an id no row carries declares nothing, and "
+                f"`perry-state --section attribution` still reports it under "
+                f"`declared_unlinked`. Either the id is a typo, the row was "
+                f"purged, or several ids were passed to `perry-goals link "
+                f"--unlinked` as one argument — the shape that put 48 of them "
+                f"on one line here on 2026-08-28."))
+
     # design: locked docs need an implementation plan
     for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:
         if df.name == "README.md":

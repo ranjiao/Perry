@@ -371,7 +371,25 @@ def columns_for(values: dict) -> list[str]:
             if key not in REQUIRED_KEYS]
 
 
-ABSENT = {"", "—", "-", "–", "n/a", "na", "tbd", "无", "none"}
+#: **Retired: the fourth copy of the blank-cell list** (TASK-213).
+#:
+#: This set was `{"", "—", "-", "–", "n/a", "na", "tbd", "无", "none"}` and the
+#: three readers below matched a cell against it with `.lower() in ABSENT`.
+#: `lib.is_blank_cell` is the one rule, reading the spellings out of
+#: `schema/state-schema.json § i18n.blank_cell`, and it is a strict SUPERSET —
+#: measured 2026-08-29 across the whole probe set, every value `ABSENT` called
+#: absent `is_blank_cell` also calls absent, so nothing any caller treated as
+#: empty became present.
+#:
+#: What it missed, and why that mattered here: `待定`, `不适用` and `暂无` — the
+#: declared Chinese spellings — plus every decorated or padded form (`**—**`,
+#: `` `n/a` ``, `" — "`). So on a Chinese board `Depends on: 待定` parsed as a
+#: real dependency id, and `depends_on_resolved` reported a task waiting on a
+#: row that does not exist and never will.
+#:
+#: Kept as a name so a reader who greps for it lands on this comment rather
+#: than on nothing.
+ABSENT_RETIRED_SEE_LIB_IS_BLANK_CELL = True
 
 
 def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[list[str], list[str]]:
@@ -393,7 +411,7 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
     separately so they can be reported rather than rendered as dead links.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return [], []
     spans = re.findall(r"`([^`]+)`", raw)
     if not spans:
@@ -403,7 +421,7 @@ def evidence_paths(cell: str, state_root: Path, project_root: Path) -> tuple[lis
         # `path § Section` and `path (12 tests)` are both in circulation; the
         # path is the head of the span.
         cand = re.split(r"\s+§|\s+\(", s.strip())[0].strip().rstrip(",.")
-        if not cand or cand.lower() in ABSENT:
+        if not cand or lib.is_blank_cell(cand):
             continue
         for root in (state_root, project_root):
             p = (root / cand)
@@ -480,7 +498,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
     by `tests/test_evidence_relation.py`.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return []
     out: list[dict] = []
 
@@ -489,7 +507,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
         # Section` and `path (12 tests)` both put the path at the head, and two
         # copies of that rule is how a reader and a writer of one column drift.
         cand = re.split(r"\s+§|\s+\(", text.strip())[0].strip().rstrip(",.")
-        if not cand or cand.lower() in ABSENT:
+        if not cand or lib.is_blank_cell(cand):
             out.append({"text": text.strip(), "path": "", "kind": "note"})
             return
         for root in (state_root, project_root):
@@ -516,7 +534,7 @@ def evidence_relations(cell: str, state_root: Path, project_root: Path) -> list[
                 span(part)
                 continue
             text = part.strip().strip(EVIDENCE_SEPARATORS).strip()
-            if text and text.lower() not in ABSENT:
+            if text and not lib.is_blank_cell(text):
                 out.append({"text": text, "path": "", "kind": "note"})
     else:
         for piece in re.split(r"[" + EVIDENCE_SEPARATORS + r"]", raw):
@@ -572,12 +590,12 @@ def parse_depends(cell: str) -> list[str]:
     named "—". They are what `add` writes when nobody passed `--depends`.
     """
     raw = (cell or "").strip()
-    if raw.lower() in ABSENT:
+    if lib.is_blank_cell(raw):
         return []
     out: list[str] = []
     for tok in _DEPENDS_SPLIT.split(raw):
         tok = strip_handle(tok).strip(",.;:")
-        if not tok or tok.lower() in ABSENT or tok in out:
+        if not tok or lib.is_blank_cell(tok) or tok in out:
             continue
         out.append(tok)
     return out
@@ -2160,6 +2178,30 @@ def replace_canonical_pair(state_root: Path,
                       f"journal were rolled back; nothing was written.") from None
 
 
+#: The board preamble line that says when the file last changed. Matched at the
+#: start of a quote line so a mention of the phrase inside a task row cannot be
+#: mistaken for it.
+LAST_UPDATED_RE = re.compile(r"^(>\s*(?:Last updated|最后更新)\s*[:：]\s*)(.*)$")
+
+
+def stamp_last_updated(board) -> bool:
+    """Rewrite `> Last updated:` to today. Returns whether a line was found.
+
+    A board with no such line is left alone rather than given one: the header
+    is a convention of Perry's own template, not a required section, and
+    inventing it in someone else's board would be this tool writing a line the
+    project never asked for.
+    """
+    today = f"{date.today():%Y-%m-%d}"
+    for i, line in enumerate(board.lines):
+        m = LAST_UPDATED_RE.match(line)
+        if m:
+            if m.group(2).strip() != today:
+                board.lines[i] = m.group(1) + today
+            return True
+    return False
+
+
 def commit(project_root: Path, state_root: Path, board: Board,
            journal_line: str, event: dict, dry_run: bool,
            definition: str = "", signoff_block: str = "",
@@ -2314,6 +2356,23 @@ def commit(project_root: Path, state_root: Path, board: Board,
             records.append(target)
     else:
         records = [dict(record) for record in current]
+    # **The `> Last updated:` header is stamped by the WRITER, before the
+    # render** (TASK-215). It read `2026-08-16 (21st pass — …)` on 2026-08-29,
+    # thirteen days stale, on a file re-rendered dozens of times a day — a line
+    # every reader takes at face value and nothing maintained.
+    #
+    # Not in `perry_store.render`, which would be the tidier home and is the
+    # wrong one: `perry-tasks render --byte-compare` and `perry-lint`'s
+    # store-drift check both compare a fresh render against the file on disk,
+    # so a renderer that stamped today's date would report the board as drifted
+    # every morning until somebody wrote to it. "Last updated" means the last
+    # WRITE, and a re-render is not a write — putting it here makes the
+    # sentence true and leaves the drift check quiet.
+    #
+    # The editorial parenthetical goes. A rendered file's header is not a place
+    # for prose nobody re-derives; `journal/` is where "21st pass, 6 tasks"
+    # belongs and already has it.
+    stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
 
@@ -6685,7 +6744,56 @@ def main(argv: list[str]) -> int:
         cfg_store = project_root / ".perry" / "config.jsonl"
         config = {"tracks": []}
         if cfg_store.exists() or cfg_path.exists():
-            config = {"tracks": perry_state().declared_tracks(project_root)}
+            _ps = perry_state()
+            tracks, source = _ps.declared_tracks_detail(project_root)
+            # **A writer does not act on a projection while the store it is
+            # projected FROM sits there unusable** (TASK-095, V4 round 1).
+            # `perry-state` may fall back and warn — it is the read-everything
+            # tool and must exit 0 on a broken project. This is the write path:
+            # `--track`, every row's `mode`, and the stage/SLA columns a write
+            # stamps all come off this register, and the reviewer's fixture
+            # showed a truncated trailing line silently deleting `intake` from
+            # it. Writing a row against a register that is missing a track is
+            # not recoverable by re-running the command.
+            #
+            # A READ is still allowed through, for the same reason
+            # `perry-state` is: refusing `list` would make a corrupt store
+            # un-diagnosable with the tool the user has in their hand.
+            # **State 7: the store answered by DEFAULT while the table
+            # declares tracks it does not carry.** That is drift, not an
+            # answer, and a write against a register provably missing a
+            # declared track stamps `Track`, `Stage` and `Arrived` off a
+            # truncated list. Round 2 refused here and was right to; round 3
+            # allowed it and lost `intake` and its SLA in silence.
+            #
+            # The message names the STORE as the register that answered — the
+            # round 3 refusal told the user a track was "not declared in
+            # `.perry/config.md § Tracks`" while pointing at a table that
+            # declares it on line 14.
+            _lost = _ps.tracks_missing_from_the_register(
+                project_root, tracks, source)
+            if _lost and args.cmd not in READ_ONLY_COMMANDS:
+                raise Refused(
+                    f"the track register does not carry "
+                    f"{', '.join(sorted(_lost))}, which "
+                    f"`.perry/config.md § Tracks` declares. The store is the "
+                    f"register, so a write now would stamp a truncated list "
+                    f"and lose that track's mode, stages, WIP and SLA. "
+                    f"Nothing was written. `perry-config write --from-file` "
+                    f"rebuilds the store from the table; `perry-lint` reports "
+                    f"the same disagreement as `config-store-drift`.")
+            if source in _ps.TRACKS_STORE_UNUSABLE \
+                    and args.cmd not in READ_ONLY_COMMANDS:
+                raise Refused(
+                    f"the track register cannot be read from the store: "
+                    f"{_ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § "
+                    f"Tracks` is a PROJECTION of that store, so writing "
+                    f"against it would stamp a register that may be missing a "
+                    f"track entirely. Nothing was written. Repair the store — "
+                    f"`perry-lint` and `perry-config diff` name the "
+                    f"disagreement — or remove it to fall back to the file "
+                    f"deliberately.")
+            config = {"tracks": tracks}
         # ADR-004. Taken before the lock and before any command runs: a refusal
         # must mean nothing was written, and a dry run must preview the refusal
         # rather than the write it would not be allowed to perform.

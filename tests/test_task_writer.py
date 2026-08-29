@@ -2189,7 +2189,11 @@ class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
         reported = {e["id"] for e in d["conformance"]["evidence_not_found"]}
         self.assertTrue(d["tasks"])
         for t in d["tasks"]:
-            if t["evidence"].strip().lower() in PT.ABSENT:
+            # `lib.is_blank_cell`, not `PT.ABSENT` — TASK-213 retired that
+            # set as the fourth copy of the blank-cell list, and the one rule
+            # also knows the declared Chinese spellings and the decorated
+            # forms.
+            if PT.lib.is_blank_cell(t["evidence"]):
                 continue
             self.assertTrue(
                 t["evidence_paths"] or t["id"] in reported,

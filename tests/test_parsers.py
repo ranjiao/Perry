@@ -407,9 +407,20 @@ class StateExtractor(unittest.TestCase):
         self.assertEqual(self.payload["design"]["locked"], 1)
 
     def test_unlinked_task_is_surfaced_not_guessed(self):
+        """`REL-009` serves no KR and is never guessed into one.
+
+        **It is surfaced in `declared_unlinked`, not in `unlinked`** (TASK-228).
+        This used to assert `unlinked == ["REL-009"]` — the fixture declares
+        that id in the register's `unlinked[]`, and the payload reported it in
+        both buckets, so `unlinked` counted answered questions as unanswered
+        ones. `unlinked` is now the never-asked set; the sample project has
+        none, and that is the whole point of a fixture that declares its one
+        unattributable row.
+        """
         att = self.payload["attribution"]
         self.assertEqual(att["linked"], 2)
-        self.assertEqual([u["id"] for u in att["unlinked"]], ["REL-009"])
+        self.assertEqual(list(att["declared_unlinked"]), ["REL-009"])
+        self.assertEqual([u["id"] for u in att["unlinked"]], [])
 
     def test_locked_design_without_impl_rows_is_flagged(self):
         self.assertEqual(

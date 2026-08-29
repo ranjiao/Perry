@@ -507,14 +507,23 @@ class TestPerryReadsWhatTheWriterWrote(Case):
         self.assertIn("evaluated", kr["current_staleness"])
 
     def test_a_declared_unlinked_task_stops_being_drift_when_it_is_linked(self):
-        """The read side of the same edge, and of the same-edit rule: a task
-        the register declared unlinked is reported as drift until an edge is
-        written, and must not be reported as both afterwards."""
+        """The read side of the same edge: linking a declared row moves it.
+
+        **The `before` expectation changed with TASK-228.** This docstring used
+        to end "and must not be reported as both afterwards", and the two
+        assertions under it pinned the row into BOTH buckets beforehand — the
+        double-count, noticed and tolerated one line above the sentence
+        objecting to it. A declared row is now reported in `declared_unlinked`
+        and nowhere else, before the edge as well as after.
+
+        What the test is actually for survives unchanged: writing the edge
+        moves the row into `linked` and empties both other buckets.
+        """
         def attribution():
             return json.loads(self.tool(STATE, "--json", "--section",
                                         "attribution").stdout)["attribution"]
         before = attribution()
-        self.assertEqual([t["id"] for t in before["unlinked"]], ["REL-009"])
+        self.assertEqual([t["id"] for t in before["unlinked"]], [])
         self.assertEqual(before["declared_unlinked"], ["REL-009"])
         w = self.tool(GOALS, "link", "REL-009", "P002-O2-KR1")
         self.assertEqual(w.returncode, 0, w.stderr)

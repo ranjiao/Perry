@@ -1783,8 +1783,49 @@ def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
     return out
 
 
+#: What a task id looks like: one `PREFIX-NUMBER` handle, no whitespace.
+#: Deliberately a SHAPE check and not a lookup — see `link_unlinked`.
+TASK_ID_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\d+$")
+
+
 def link_unlinked(reg: Register, expect: dict, task: str) -> dict:
-    """3 — unresolved → declare it unlinked. A DECLARATION, never inferred."""
+    """3 — unresolved → declare it unlinked. A DECLARATION, never inferred.
+
+    **The argument is validated as a shape before anything is written**
+    (TASK-227). This path validated nothing at all, and `perry-lint` did not
+    check `unlinked[]` either, so two malformed declarations went in on
+    2026-08-28 and the lint reported 0 errors over both:
+
+    - the literal string `NOT-A-TASK-ID at all`, and
+    - **48 task ids space-joined into one argument** — `--unlinked` takes one
+      positional, word splitting was off in that shell, and the whole sweep
+      landed as a single list entry.
+
+    The second is the one that matters: it is not a typo, it is the ordinary
+    way this command gets called by a loop, and it failed silently while
+    reporting success 48 times.
+
+    A SHAPE check, not a store lookup, and the difference is the point. Two
+    ids that both exist would pass a lookup and still be wrong when joined;
+    whitespace is what tells them apart. And a declaration about a row that is
+    later purged must not become unwritable — `perry-lint`'s
+    `linkage-unlinked-exists` is where the store question is asked, at `warn`,
+    because a stale declaration is a record to correct rather than a file to
+    refuse.
+    """
+    if " " in task or "\t" in task:
+        count = len(task.split())
+        raise Refused(
+            f"`--unlinked` takes ONE task id and got {count} whitespace-"
+            f"separated values in a single argument: {task!r}. This is the "
+            f"shape that put 48 ids on one line of `unlinked[]` on "
+            f"2026-08-28 — a shell with word splitting off hands the whole "
+            f"loop over as one string. Run it once per id. Nothing was written")
+    if not TASK_ID_SHAPE.match(task):
+        raise Refused(
+            f"{task!r} is not a task id. `--unlinked` declares that a KNOWN "
+            f"row serves no KR, so the argument has to be a handle something "
+            f"can be looked up by — `TASK-123`, `REL-007`. Nothing was written")
     holder = reg.model.kr_for_task(task)
     if holder:
         raise Refused(
@@ -2111,7 +2152,35 @@ def tracks_of(project_root: Path) -> list[dict]:
     perry = project_root / ".perry"
     if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
         return []
-    return perry_state().declared_tracks(project_root)
+    ps = perry_state()
+    tracks, source = ps.declared_tracks_detail(project_root)
+    # **The store is present and unusable → refuse, do not fall back.**
+    # TASK-095's V4 round 1 review: three of `stored_tracks`' four `None`
+    # conditions occur with `.perry/config.jsonl` on disk, and reading the
+    # projection in those states is the condition `P003-O2-KR1` counts. This
+    # lane writes `phase/` and the linkage register off the track list, so a
+    # register quietly missing a track lands in a file the user reads as
+    # authoritative.
+    # State 7 — the store defaulted while the table declares more. Drift, not
+    # an answer; this lane writes `phase/` and the linkage register off the
+    # track list. See `bin/perry-task § main` for the full reasoning.
+    lost = ps.tracks_missing_from_the_register(project_root, tracks, source)
+    if lost:
+        raise Refused(
+            f"the track register does not carry {', '.join(sorted(lost))}, "
+            f"which `.perry/config.md § Tracks` declares. The store is the "
+            f"register. Nothing was written. `perry-config write --from-file` "
+            f"rebuilds the store from the table; `perry-lint` reports the same "
+            f"disagreement as `config-store-drift`.")
+    if source in ps.TRACKS_STORE_UNUSABLE:
+        raise Refused(
+            f"the track register cannot be read from the store: "
+            f"{ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § Tracks` is a "
+            f"PROJECTION of that store and is not authoritative while the "
+            f"store exists. Nothing was written. Repair the store — "
+            f"`perry-lint` and `perry-config diff` name the disagreement — or "
+            f"remove it to fall back to the file deliberately.")
+    return tracks
 
 
 def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:
