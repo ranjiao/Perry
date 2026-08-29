@@ -59,8 +59,10 @@ packs/ modes/` is empty. The code diff is the same three files under `tests/` �
    eight and one of the eight was already being driven (§ 3).
 6. **The corpus plants the shape.** Nine new `DRIFT` entries and two new
    `CLEAN` controls: `DRIFT` 33 → 42, `CLEAN` 12 → 14 (§ 4).
-7. **Twenty-three mutations, all red; sixteen survival probes, of which ten
-   came back green and are DELETED** rather than kept (§ 5, § 1.5).
+7. **Twenty-three mutations, all red; eighteen survival probes over the
+   round's own new machinery, of which ten came back green and are DELETED**
+   rather than kept, and an eleventh green one that was a corpus gap (§ 5,
+   § 1.5).
 8. **R10-2's count is corrected to eight**, as the review said (§ 8).
 
 ---
@@ -168,9 +170,9 @@ The shape list, one plant at a time into copies, controls included:
 
 ### 1.5 Ten branches DELETED because nothing measured them
 
-Sixteen survival probes were run over the new machinery, each neutralised
-alone. Ten came back green — the whole corpus stayed caught **and** the live
-census stayed at 76 sites / 27 static-blind / no offenders — so they were
+Eighteen survival probes were run over the new machinery, each neutralised
+alone. **Ten came back green** — the whole corpus stayed caught **and** the
+live census stayed at 76 sites / 27 static-blind / no offenders — so they were
 speculation and are deleted rather than carried:
 
 `extend`/`update`, `insert` and `setdefault` container fills; an iterable
@@ -182,10 +184,13 @@ That is this row's own lesson applied to its own code: round 8 was failed for
 keeping a half nothing measured, and an unmeasured half is a liability whichever
 direction it errs in.
 
-One green probe was a **corpus gap** rather than dead code — a LOOP over a list
-of tables rather than an index into one, which is how `bin/perry_md_store.py:468`
-and `:543` and `bin/perry_store.py:531` each read a header. `D42` plants it,
-and the probe now reddens `D42` and only `D42`.
+An eleventh probe came back green and was a **corpus gap** rather than dead
+code — the loop-target binding, a LOOP over a list of tables rather than an
+index into one, which is how `bin/perry_md_store.py:468` and `:543` and
+`bin/perry_store.py:531` each read a header. `D42` plants it, and the probe
+(R11-12) now reddens `D42` and only `D42`. The remaining seven probes were red
+from the start and are R11-9, R11-10, R11-11, R11-13, R11-14, R11-16 and R11-17
+in § 5 — seven red, ten deleted, one corpus entry, eighteen in all.
 
 ---
 
@@ -414,8 +419,9 @@ The three failures are the same three names in all three runs, unchanged:
 Two of them are data-dependent on board state and one on a row's Next action
 prose, so this count is stated for these two trees and not carried forward.
 
-The static net costs **2.95s** on the live tree against round 10's **2.89s**;
-`test_header_rule_harness` is 147s against round 10's 156s.
+`offenders_by_symbol` on the live tree, best of three in one process:
+**1.83s** against round 10's **1.47s**. `test_header_rule_harness` is 147s
+against round 10's 156s.
 
 ---
 
