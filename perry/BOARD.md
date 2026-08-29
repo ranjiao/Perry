@@ -5,7 +5,7 @@
 > Per-task spec / deliverable / audit: `evidence/2026-08/<TASK-ID>-*.md` (P0/P1 always have a `<TASK-ID>-spec.md`)
 > Auto-dispatch a task: `/pmo dispatch <TASK-ID>` (requires spec.Dispatch mode = auto)
 >
-> Last updated: 2026-08-29
+> Last updated: 2026-08-30
 > Hard cap: ≤200 lines. If you're over, run `/pmo triage`.
 >
 > **Bootstrapped 2026-08-16** from the hand-off of DESIGN-001 and DESIGN-002, both
@@ -43,6 +43,7 @@
 | 2026-08-29 | a hand-REORDERED .perry/config.md § Tracks table is config-store-drift to perry-lint and silent to every other tool — defensible under principle A as written, but neither documented nor guarded; found by the TASK-095 round 6 V4 reviewer, who also notes records_out_of_stored_order and cells_wearing_decoration were each verified against only one fixture | — |
 | 2026-08-29 | the shared scratchpad is not safe for fixed-name tooling while several agents run: mutate.py was OVERWRITTEN mid-session at 14:56 by another agent's harness pointing at a different mutation directory, observed by the TASK-095 agent, which finished its last five mutations under a privately named copy — no worktree was harmed and HEAD was verified, but two agents writing the same scratchpad filename is a silent cross-contamination path for exactly the evidence this project grades on | — |
 | 2026-08-29 | a session cannot tell 'no writer ran' from 'no writer ran INSIDE MY TRANSCRIPT' — TASK-226's phantom row was the documented writer invoked by the user in their own shell, and the session concluded a contract violation from the absence of a tool call in its own history; every 'nobody did X' claim this project makes has the same blind spot, and the machine's own record (shell history, mtimes, the event log) is the check | — |
+| 2026-08-30 | test_contract_key_parity's two witness tests are DATA-DEPENDENT on the live board — they fail whenever conformance.in_progress_with_no_live_run is non-empty, which is true of any repository with a row left in_progress and no dispatch marker for 4h; measured 2026-08-30 identical on 7f934d5 and on the pre-merge 9b53315, so a baseline of '3 failures' is only true of a board with no stalled rows. Third instance of this class after test_diagnose's queue-reconcile and the scratchpad-baseline race, and the first where the failing check is CORRECT — it is reporting a true fact about the board | — |
 
 ## P0 (must finish this period)
 
