@@ -415,7 +415,13 @@ than they were.
    instance of the scalar second-rule class, established as dead code by rounds
    3 and 4. Not in scope; recorded so it is not rediscovered.
 5. **`bin/perry-state § cells_of` was not removed** and `viewer/` was not
-   renamed (TASK-232). Unchanged from round 8.
+   renamed — the spec's own closing note says do this row first and the
+   rename afterwards, and it is a separate row. Unchanged from round 8.
+   (Round 8's review cites a task id for the rename; it is not on this
+   branch's board, so it is deliberately not repeated here — writing it
+   into a state file is how a dangling reference gets minted, and doing
+   so grew `test_perry_itself_passes_its_own_id_checks`'s pre-existing
+   failure by one element until this was removed.)
 6. **The three pre-existing failures were not investigated**, only measured as
    identical on both trees under both runners.
 7. **No reader was driven end-to-end from `argv` in this round.** Round 8's
