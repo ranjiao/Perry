@@ -433,30 +433,64 @@ repaired rather than explained:
   floor's docstring says so now instead of still claiming four entries. Every
   entry in the floor is still judged `false positive`; none is an `instance`.
 
-## Baselines — runner and tree
+## Baselines — runner, tree, and hour
 
-Tree: worktree `wt-233` of `main` at `658e8c9`, carrying live board state and
-all six stores. `PERRY_HOME` set to that tree for every run.
+> **Round 1's "2 failures" was a figure of a tree and an hour, not of the
+> branch, and it was not labelled as one.** Re-measured for round 2 on named,
+> dated, disposable trees. The V4 reviewer got **3** where round 1 got 2; the
+> extra one is data-dependent on live board state, and re-measuring reproduces
+> the reviewer's three, not round 1's two.
 
-| runner | tree | before | after |
-|---|---|---|---|
-| `bash tests/run` | this worktree | **100 modules / 2992 tests / 2 failures** | **101 / 3031 / 2 failures** |
-| `python3 -m unittest discover -s tests` | this worktree | not measured before | see below |
+Runner `bash tests/run` (step 2 is `tests/parallel`, 8 workers). `PERRY_HOME`
+set to the tree under test in every run. Each tree is a **fresh `git archive`
+extract** into `…/scratchpad/`, carrying the board state committed on that
+commit and no uncommitted state from any checkout.
 
-The two failures are the same two before and after, and neither is this row's:
+| tree | commit | started | modules | tests | failures |
+|---|---|---|---|---|---|
+| `base-r1` | `632c198` — round-1 tip, **before** | 2026-08-30 04:41 CST | 101 | 3031 | **3** |
+| `base-r2` | `40eb4cc` — round-2 fix, **after** | 2026-08-30 04:41 CST | 101 | 3037 | **4** — see below |
+| `base-r3` | `d1deefb` — round-2 final, **after** | 2026-08-30 04:49 CST | 101 | 3037 | **3 — the same three** |
 
+`r1` and `r2` ran concurrently on one machine, so their wall-clock (414.8s /
+410.0s) is contended and not comparable to `r3`'s 272.9s. Delta from `632c198`
+to `d1deefb`: **+0 modules, +6 tests, 0 new failures.**
+
+The three, identical in `base-r1` and `base-r3`, and none of them this row's:
+
+- `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+  (`3 != 1 : diagnose and perry-task disagree about how many queue rows are
+  waiting on the user`)
 - `test_diagnose § TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`
+  (`['ACTION-7', 'D009-1', 'D010-2', 'PROJ-003', 'SPEC-007'] != []`)
 - `test_kr_progress_provenance § TestBothOfTodaysWrongReadingsFlip.test_no_current_in_the_payload_claims_to_be_a_measurement`
   (`the register carries no asserted current`)
 
-**These numbers differ from the ones in the dispatch, and the difference is the
-tree.** The dispatch cites 98 / 2882 / 3 on a `git archive` copy of `main` and
-5 on a tree carrying live board state. This worktree is `main` at `658e8c9`,
-two commits past what the spec measured, and it does NOT carry the main
-checkout's uncommitted board state — so `test_contract_key_parity`'s two
-data-dependent witness tests do not fire here. I did not re-measure the archive
-figure; the before/after pair above is measured on one tree with one runner and
-is the comparison this row rests on.
+**The first one is why round 1's number was wrong.** It reconciles the queue
+register against the live board, so its verdict is a property of what the board
+says at the moment it runs, not of the branch. Round 1 measured before the
+board moved and reported 2; the reviewer measured after and got 3; round 2's
+`base-r1` — the *same commit* round 1 measured — now also gives 3. **The commit
+did not change. The board did.** A failure count with no tree and no timestamp
+beside it is not a measurement, and round 1's table gave neither.
+
+**`base-r2` had a fourth failure and it WAS this row's.**
+`test_live_state_expectations § test_the_floor_is_not_claimed_to_be_zero`, 24
+sweep hits against a recorded floor of 23. The new hit was the X4 guard's
+control asserting `values["document_language"] == "English"` — a false positive
+(the value came out of a tempdir the test had just built) but a redundant
+assertion, so it became `assertIn` rather than a 24th floor entry (`d1deefb`).
+It is listed here rather than quietly fixed because a suite run that goes red in
+a module the before tree did not is exactly what the before/after pair exists to
+catch, and it caught one.
+
+**These numbers differ from the dispatch's, and the difference is the tree and
+the hour.** The dispatch cites 98 / 2882 / 3 on a `git archive` copy of an
+earlier `main`, and separately 5 on a tree carrying live board state. Neither
+was re-measured here; the before/after pair above is measured on two trees at
+one commit each, with one runner, and is the comparison this row rests on. The
+`python3 -m unittest discover -s tests` delta of 3 remains unmeasured — see
+below.
 
 ## What I did not do, and what I could not verify
 
@@ -483,11 +517,15 @@ is the comparison this row rests on.
 - **`--dry-run` was not trusted on `perry-tasks`** and was not used at all.
   Every destructive check ran on a `tar` copy of the tree, never on the tree.
 - **The archive baseline (98 / 2882 / 3) was not reproduced.** I measured
-  before-and-after on one tree instead.
+  before-and-after at two commits instead. The V4 reviewer ruled this
+  non-blocking and made the sharper point: chasing that figure is a trap,
+  because the failure count moves with the board.
 - **The `discover` vs `tests/run` delta of 3 was NOT measured on this tree.**
   One serial `python3 -m unittest discover -s tests` run was started and killed
   unfinished after ~25 minutes, by which point it also predated two of the
-  commits. There is no `discover` number in this report and the dispatch's
+  commits. The V4 reviewer tried the same thing on a clean clone under a
+  40-minute cap and also hit the cap with no `Ran N tests` line — the gap was
+  reproduced, not closed, and round 2 did not retry it. There is no `discover` number in this report and the dispatch's
   delta-of-3 is neither confirmed nor contradicted here. The `bash tests/run`
   before/after pair is the whole of the evidence for "no regression".
 - **Other markdown-as-truth readers were not exhaustively swept — and in round 1
@@ -504,6 +542,10 @@ is the comparison this row rests on.
   `config.md` across `bin/` and `viewer/`) is a heuristic, not a proof — and
   round 1's mistake was not this paragraph, it was writing a completeness claim
   in § 4 that this paragraph's own grep falsifies.
+- **The two `bin/perry-diagnose` existence checks were not converted** — see
+  § 4. Named, counted, reproducible in principle by the same fixtures; not done.
+  `bin/perry-diagnose` does not import `parsers`, so it is an import change plus
+  two guards, which is a row.
 - **Nothing was measured on a second real project.** `~/proj/gimegime-pmo` is
   referenced throughout `perry_md_store` as the second corpus and I did not
   touch it — every measurement here is on Perry's own files or on fixtures.
