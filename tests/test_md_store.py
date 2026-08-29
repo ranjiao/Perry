@@ -141,12 +141,20 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
         # document this module writes, where the number is a fact about the
         # fixture — `TestTheScannerReadsAnOkrToItsLastLine`.
 
-    def test_config_including_its_prose_section(self):
+    def test_config(self):
         path = ROOT / ".perry" / "config.md"
         records, report = self.assert_round_trips(M.CONFIG, path)
-        # The section V4 step 2 names. It is PROSE: the store must hold no
-        # record for it and the renderer must not touch a byte of it.
-        self.assertIn("## Why the state root is not `.`", path.read_text())
+        # `assertIn("## Why the state root is not `.`", …)` used to close the
+        # top of this test. It asserted that prose renders untouched by naming
+        # a section `.perry/config.md` happened to carry, so moving that
+        # section reddened a test whose subject is byte-identical
+        # round-tripping — the same shape as `test_okr`'s retired
+        # `assertGreater(len(krs), 20)` and repaired the same way. TASK-233
+        # moved Perry's own two configuration notes to `.perry/hook.md`,
+        # because a file `perry-config render` can rebuild from the store alone
+        # rebuilds the settings and the table and nothing else. The property is
+        # unchanged and now lives on a document this module writes:
+        # `test_a_prose_section_renders_byte_for_byte_and_mints_no_record`.
         # Every record is accounted for by kind, and no kind is invented.
         # This used to read `{"setting": len(records)}` — true only while this
         # repository had declared no tracks, so declaring one reddened it
@@ -167,6 +175,50 @@ class TestThisRepositoryIsReproducedByteForByte(unittest.TestCase, RoundTrip):
         keys = {r["key"] for r in records if r["kind"] == "setting"}
         for expected in ("document_language", "state_root", "code_repo_path"):
             self.assertIn(expected, keys)
+
+    def test_a_prose_section_renders_byte_for_byte_and_mints_no_record(self):
+        """The property V4 step 2 names, on a file this test writes.
+
+        A `.perry/config.md` carrying settings, a `## Tracks` table and two
+        prose sections — one of them holding a bullet with a colon in it, which
+        is the case `scan_config` refuses to read as a setting and the reason
+        it only scans the preamble. The store must hold no record for any of
+        it, and the render must return every byte.
+        """
+        d = pathlib.Path(tempfile.mkdtemp(prefix="perry-config-prose-"))
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        (d / ".perry").mkdir()
+        path = d / ".perry" / "config.md"
+        path.write_text(
+            "# Perry configuration\n\n"
+            "- Document language: English\n"
+            "- State root: perry\n"
+            "- Code repo path: —\n\n"
+            "## Tracks\n\n"
+            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle "
+            "| Default rung |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            "| main | project | phase/ | — | — | — | — | V3 |\n\n"
+            "`intake` carries the work that ARRIVES. It is not decomposed\n"
+            "from a goal — it shows up.\n\n"
+            "## Why the state root is not `.`\n\n"
+            "- Cross-reference convention: PMO docs → code via a pinned SHA.\n"
+            "  A bullet with a colon in it, which is a sentence and not a key.\n\n"
+            "See `schema/README.md § Where the files are`.\n",
+            encoding="utf-8")
+        before = path.read_text(encoding="utf-8")
+        records, report = self.assert_round_trips(M.CONFIG, path)
+        self.assertEqual(path.read_text(encoding="utf-8"), before)
+        self.assertEqual(report["lines_verbatim"], [])
+        self.assertEqual(report["records_not_in_the_file"], [])
+        self.assertEqual(sum(report["kinds"].values()), len(records))
+        # The prose contributed nothing. Three settings and one track is the
+        # whole of what was written above the prose.
+        self.assertEqual(report["kinds"], {"setting": 3, "track": 1})
+        self.assertNotIn(
+            "cross_reference_convention",
+            {r.get("key") for r in records},
+            "a bullet inside a prose section was filed as a setting")
 
     def test_the_declared_blank_marker_survives_the_bullet_path(self):
         """`- Code repo path: —` — c9018ae's rule, on a line that is not a table.

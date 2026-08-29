@@ -43,9 +43,17 @@ What each store holds
     kind `track`       one row of `## Tracks`.
 
 Everything else — the mission, the operating principles, the rationale
-paragraphs, `## Why the state root is not .`, gimegime-pmo's nine screens of
-dispatch lessons — is layout. It is never parsed, never re-rendered, and never
-at risk.
+paragraphs, gimegime-pmo's nine screens of dispatch lessons — is layout. It is
+never parsed and never re-rendered.
+
+**"Never at risk" was true of a renderer that always had the file in front of
+it, and `scaffold_config` below is the one that does not** (TASK-233).
+`perry-config render` with no `.perry/config.md` on disk rebuilds the document
+from the store alone, which is the settings, the table, and the fixed lines of
+the shape — so layout survives a render and does not survive a deletion.
+`reference/config.md § Prose in this file is layout` states that to a user and
+points at `.perry/hook.md`, which is where Perry's own `## Why the state root is
+not .` went.
 """
 
 from __future__ import annotations
