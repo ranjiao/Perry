@@ -337,6 +337,17 @@ indexes and two shipped scaffolds were invisible to `grep -rn 'DECISIONS.md'`
 because nothing inside them contains the string. `find . -name 'DECISIONS*'`
 found them. The V4 check as written would have passed over the fixtures.
 
+**G · `main` moved while this branch was open, and both overlapping files
+merge clean.** The fork point is `ee0b36a`; `main` is now `7f934d5` (TASK-095
+round 6, TASK-050 round 8 evidence, TASK-203 round 4, and a dispatch record).
+Two files are touched by both: `bin/perry-diagnose` — mine at `@@ -129` and
+`@@ -920`, main's at `@@ -1596`, `@@ -1903`, `@@ -2143`, `@@ -2189` — and
+`bin/perry-goals` — mine at `@@ -52` and `@@ -613`, main's at `@@ -2161` and
+`@@ -2172`. No hunk overlaps. This branch is **61 files, +1505 / -800 against
+its fork point**; measured with `git diff $(git merge-base main HEAD)..HEAD`,
+because `git diff main..HEAD` now reports 72 files and counts other people's
+work as deletions.
+
 **F · The new ADR reader parses no tables and no headings**, which is what
 makes § 5's merge advice safe to act on. Grepped over the replaced section of
 `viewer/parsers.py` at `0179c02`: zero `heading_is`, zero `split_row`, zero
@@ -353,7 +364,8 @@ keys. Not mine, not touched, reported.
 | Tree | Runner | Result |
 |---|---|---|
 | `coding/task-235-decisions-index` at `ee0b36a` (= `main`, before any edit) | `bash tests/run` | **98 modules · 2882 tests · 3 failures** |
-| this branch, after the change | `bash tests/run` | see § 7.1 |
+| this branch at `b57a34a` | `bash tests/run` | see § 8.1 |
+| this branch, 19 touched modules | `python3 tests/parallel` | **683 tests · all green** |
 
 The three baseline failures, all pre-existing and unrelated:
 
@@ -361,20 +373,64 @@ The three baseline failures, all pre-existing and unrelated:
 - `test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks` — `['ACTION-7', 'D009-1', 'D010-2', 'PROJ-003', 'SPEC-007']`.
 - `test_kr_progress_provenance.TestBothOfTodaysWrongReadingsFlip.test_no_current_in_the_payload_claims_to_be_a_measurement`.
 
-`unittest discover` was **not** run on either tree — see § 8.
+`unittest discover` was **not** run on either tree — see § 9.
 
 ### 8.1 · After
 
-FINAL_RUN_PLACEHOLDER
+**The targeted set is the number I stand behind without qualification.** Every
+module this change touches, run on the committed tree with
+`python3 tests/parallel`:
+
+```
+test_decide_writer test_decide_status_enum test_conformance
+test_contract_invariance test_contract_key_parity test_ownership test_claims
+test_pointers_resolve test_procedures_call_the_tool test_heading_defines
+test_shipped_vocabulary test_row_integrity test_work_modes test_goals_writer
+test_i18n test_parsers test_project_root_resolution test_router_budget
+→ 19 modules · 683 tests · 98.1s · ✓ all green
+```
+
+**The full-suite run, and the one it caught.** `bash tests/run` completed at
+**98 modules · 2892 tests · 594.6s**, with **4 failures across 3 modules**: the
+three pre-existing ones above, plus
+`test_procedures_call_the_tool.test_no_procedure_hand_edits_a_tool_owned_file`
+— **which was mine.** Trimming `SKILL.md` back under its 20,480-byte cap had
+put a write verb inside the guard's 60-character window before the
+`OKR.md § Commitments` target, making `SKILL.md:75` an R1 finding. The guard
+was right and the sentence was wrong; `b57a34a` fixes it, and candidate
+wordings were run through `test_procedures_call_the_tool.scan` directly rather
+than reworded until the suite went quiet.
+
+**That run predates the fix, so it is not the number for this tree**, and a
+clean `bash tests/run` on `b57a34a` was still executing when this row was
+handed back — see § 9 for the load it was competing with. The expected result
+is 2892 tests and the **3 pre-existing failures**, and `2892 − 2882 = +10` is
+this branch's net test count: nine added (five in `TestNothingWritesAnIndex`,
+two in `TestMintingReadsTheFilesAlone`, `test_the_three_index_keys_are_gone_and_stay_gone`,
+`test_bootstrap_creates_the_directory_and_no_file`,
+`test_a_project_that_never_bootstrapped_lists_cleanly_too`,
+`test_the_status_a_new_adr_is_born_with_is_one_the_schema_declares`,
+`test_the_shipped_version_is_recorded_in_its_own_changelog`) against two
+removed with the index they tested (`test_an_index_row_with_no_file_is_reported`,
+`test_a_project_with_no_proposal_renders_no_proposed_section`), plus the
+subTest arithmetic in the two rewritten fixtures. **I am stating that as an
+expectation, not as a measurement.**
 
 ## 9 · What I did not do, and what I could not verify
 
-- **`unittest discover` was not run**, on either tree. The machine carried five
-  other agents' full suites throughout (load average 38–41) and `tests/run`
-  alone took 763 s against the baseline's 576 s. The row's brief says that
-  runner shows 3 more failures from a module-double-import artefact in
-  `test_risks_store`; I did not confirm that number on this tree, and I am not
-  reporting it as if I had.
+- **`unittest discover` was not run**, on either tree. The machine carried
+  several other agents' full suites throughout — load average **32–48**,
+  measured repeatedly — and `bash tests/run` took 576 s at baseline, 763 s
+  mid-change and 595 s on the run that caught the `SKILL.md` defect. The row's
+  brief says that runner shows 3 more failures from a module-double-import
+  artefact in `test_risks_store`; I did not confirm that on this tree and am
+  not reporting it as if I had.
+- **The clean `bash tests/run` on `b57a34a` did not finish before this row was
+  handed back**, under the load above. § 8.1 says what completed, what it
+  caught, and what is an expectation rather than a measurement. The 19 modules
+  this change touches are green on the committed tree; the full suite is green
+  on every module except the three that were already red at `ee0b36a`, as of
+  the 595 s run, whose only extra failure is the one `b57a34a` fixes.
 - **`viewer/parsers.py` is on another agent's list and I edited it anyway.**
   Reported here as the brief asks. The edit is contained — the
   `# ── DECISIONS.md ──` section is replaced by a `# ── decisions/ADR-*.md ──`
