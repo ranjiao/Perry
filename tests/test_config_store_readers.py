@@ -346,6 +346,50 @@ class TestTheStateRootReadsTheStore(Fixture):
         self.assertEqual(P.resolve_state_root(d), d)
 
 
+class TestAStoreAloneIsAConfiguredProject(Fixture):
+    """"Is there a `.perry/config.md`" stopped being "is this configured".
+
+    Four call sites asked it directly — `bin/perry-lint § is_adopted` and its
+    project-root walk, `bin/perry-explain`, and `parsers § project_root` — and
+    each is one `P.configured` call now. A project whose markdown was deleted,
+    or that was cloned before `perry-config render --write` put it back, is
+    configured: its store says so, and `bin/perry-goals § tracks_of` had
+    already been asking it the wide way.
+    """
+
+    def bare(self, *, markdown, store) -> pathlib.Path:
+        """A `.perry/` and nothing else — no `BOARD.md`, no `OKR.md`.
+
+        The other halves of every caller's OR-chain are removed on purpose: a
+        fixture carrying a `BOARD.md` answers `True` whatever this predicate
+        does, which is how a guard over an OR-chain passes while measuring
+        nothing.
+        """
+        d = self.project(markdown=markdown, store=store)
+        for name in ("BOARD.md", "OKR.md"):
+            (d / name).unlink(missing_ok=True)
+        return d
+
+    def test_a_store_with_no_markdown_is_configured(self):
+        self.assertTrue(P.configured(self.bare(markdown=None, store=None)))
+
+    def test_a_markdown_with_no_store_is_configured(self):
+        self.assertTrue(P.configured(self.bare(markdown=MD_SAYS, store=False)))
+
+    def test_neither_is_not(self):
+        self.assertFalse(P.configured(self.bare(markdown=None, store=False)))
+
+    def test_the_linter_calls_a_store_only_project_adopted(self):
+        """`is_adopted` gates every "this file is missing" finding.
+
+        Answering `False` here reports a fully populated project as
+        un-adopted, which `reference/adoption.md` stage 4 uses as its gate.
+        """
+        lint = load_bin_module("perry-lint")
+        d = self.bare(markdown=None, store=None)
+        self.assertTrue(lint.is_adopted(d, d))
+
+
 class TestTheTwoNamesForOneReason(unittest.TestCase):
     """`bin/perry-state`'s `TRACKS_STORE_*` and `parsers.CONFIG_STORE_*`.
 

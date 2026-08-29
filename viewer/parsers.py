@@ -375,6 +375,24 @@ def declared_state_root(project_root: Path) -> tuple[str, str]:
     return (m.group(1).strip().strip("*`  ") if m else ""), why
 
 
+def configured(project_root: Path) -> bool:
+    """Has this project been configured at all? **Either register counts.**
+
+    The one predicate behind "is there a `.perry/config.md`", which four call
+    sites asked directly and which stopped being the right question when the
+    file became a projection (TASK-233): a project whose markdown has been
+    deleted, or that was cloned before `perry-config render --write` put it
+    back, is configured and its store says so. `bin/perry-goals § tracks_of`
+    already asked it the wide way; these are the rest.
+
+    It answers about `.perry/` only. Every caller ORs it with the state files
+    it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per
+    caller and this does not.
+    """
+    perry = Path(project_root) / ".perry"
+    return (perry / "config.jsonl").exists() or (perry / "config.md").exists()
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -473,7 +491,7 @@ def _resolve_project_root() -> Path:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
     for d in [cur, *cur.parents]:
-        if ((d / ".perry" / "config.md").exists()
+        if (configured(d)
                 or (d / "BOARD.md").exists() or (d / "OKR.md").exists()):
             return d
     return cur  # fall back to CWD; load_snapshot will just find nothing
