@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "003-storage-code"
-updated: "2026-08-29T05:27:28Z"
+updated: "2026-08-29T05:38:12Z"
 objectives:
   - id: O1
     title: "Every declared store exists, and one command checks all of them"
@@ -32,7 +32,7 @@ objectives:
         metric: "0 (baseline 4, all `parse_tracks`: bin/perry-task:6680, bin/perry-diagnose:1888, bin/perry-goals:2102, bin/perry-state:139)"
         target: 0
         stretch: false
-        tasks: ["TASK-095"]
+        tasks: ["TASK-095", "TASK-233"]
       - id: P003-O2-KR2
         title: "The adoption/migration reader is fenced into one named module, with a mechanical guard shown able to go red"
         metric: "guard live, and restoring one removed call site turns it red (baseline: no boundary; viewer/parsers.py is 3,973 lines serving both roles)"

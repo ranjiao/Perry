@@ -38,6 +38,7 @@
 | 2026-08-29 | on a foreign section risk-add refuses with an explanation while intake and ask return rc 0, append a board row and skip the store — and on a renamed key column append_section_row drops the request text from the row too; pre-existing in perry_store but unreachable until TASK-203 made ordinary commands write those files | — |
 | 2026-08-29 | duplicate ids: a duplicate on the BOARD silently deletes a stored risks/asks record on an ordinary write (risk_records/ask_records skip a seen id), and a duplicate IN THE STORE leaks one record's cleared onto the other and re-persists it — both predate TASK-203 and were unreachable before it | — |
 | 2026-08-29 | the PMO dispatched three claude-subagents before calling perry-dispatch-limit register, and the third exceeded PERRY_MAX_DISPATCH_SUBAGENT=2 — the limiter is advisory-by-construction (it reserves a slot on request, it cannot refuse a dispatch that never asked), so nothing in the system can enforce the cap it publishes | — |
+| 2026-08-29 | perry-config render exits 0 while writing nothing when .perry/config.md is absent — it prints 'no .perry/config.md' and returns success, so the store-to-file recovery path its own help text names ('render --write is the store-to-file recovery') cannot recover a deleted file, and a caller checking the exit code is told it worked | — |
 
 ## P0 (must finish this period)
 
@@ -90,6 +91,7 @@
 | TASK-219 | retro-cites-phase-scores — a cross_file check that the retro cites the scores rather than re-deriving them | Coding Agent | not_started | — | evidence/2026-08/TASK-219-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-230 | the full suite takes eleven minutes, and that cost has started changing behaviour | Coding Agent | not_started | — | evidence/2026-08/TASK-230-spec.md | V3 | — | main |  |  |  |  |  |  |
 | TASK-231 | a measured KR number has no way into the register that does not break one of its two rules | Coding Agent | not_started | — | evidence/2026-08/TASK-231-spec.md | V3 | TASK-155 | main |  |  |  |  |  |  |
+| TASK-233 | .perry/config.md is load-bearing because six settings and the conformance gate still read it, not because the store lacks them | Coding Agent | not_started | Blocked until TASK-095 lands. TASK-095 is converting the ## Tracks reader in bin/perry-state right now and this row converts the six settings beside it in the same function — doing both at once conflicts in parse_config. The board already carries an intake row saying these seven readers are P003-O2-KR1's category under its literal wording while TASK-095's commit calls them 'a separate row' and no such row existed; this is that row. | — | V4 | TASK-095 | main |  |  |  |  |  |  |
 
 ## P2
 
