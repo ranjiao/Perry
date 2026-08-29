@@ -34,8 +34,10 @@ from pathlib import Path
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
+sys.path.insert(0, str(PERRY_HOME / "tests"))
 import tables                                  # noqa: E402
 import parsers as P                            # noqa: E402
+from header_rule import header_sites           # noqa: E402
 
 #: The header cells this module watches — **decorated ones only, and that is
 #: the whole trick.** A plain `ID` is folded twice for two different reasons:
@@ -62,10 +64,24 @@ HEADER_KEYS = {tables.squash(c) for c in HEADER_CELLS}
 #: listed twelve and one of them recorded nothing at all; a list that is only
 #: prose cannot go red. `test_every_reader_this_module_claims_to_watch_actually
 #: _folds_one` requires each of these to appear in the recorded call stacks.
+#: **Asserted in BOTH directions since round 11.** Round 10's reviewer
+#: deleted `"cmd_intake_write"` from this list and all eight tests stayed
+#: green: *"nothing fails when a converted reader is absent from the list ...
+#: this is not merely no guard against growing: the list is already short of
+#: the readers that matter."* It was short by eight, `is_intake_register_header`
+#: among them — a reader this workload has been driving all along and this
+#: list did not claim.
+#:
+#: `test_watched_is_exactly_the_converted_readers_this_workload_folds_through`
+#: now asserts SET EQUALITY against what the watch records, with the set of
+#: converted readers taken from `header_rule.header_sites()` rather than
+#: written here. Deleting a name goes red; converting a reader, driving it,
+#: and not listing it goes red too.
 WATCHED = [
     # viewer/parsers.py
     "_table_rows", "_parse_intake", "_parse_user_input", "_parse_cadence",
     "_parse_task_table", "read_conformance", "is_risk_register_header",
+    "is_intake_register_header", "is_user_register_header",
     # bin/
     "parse_tracks",            # bin/perry-state
     "_track_context",          # bin/perry-lint
@@ -73,9 +89,44 @@ WATCHED = [
     "harvest",                 # bin/perry-explain
     "header_language",         # bin/perry-task AND bin/perry-goals
     "header_keys",             # bin/perry-task
+    "check_header",            # bin/perry-task
+    "ensure_columns",          # bin/perry-task
+    "ensure_section_columns",  # bin/perry-task
+    "task_section_headings",   # bin/perry-task
+    "replace_row",             # bin/perry-task
+    "canonical_of",            # bin/perry-goals
     "markdown_tables",         # bin/perry_store.py
     "fix_tables",              # bin/perry-migrate
     "cmd_intake_write",        # bin/perry-tasks
+]
+
+#: **The remainder, measured — the sentence round 10 was failed for getting
+#: wrong.** Round 10 wrote *"every converted reader is now driven, so the
+#: uncovered set is empty today"*; the reviewer measured twelve.
+#:
+#: A site is a place this repository holds a header row — an argument of
+#: `header_index`/`header_keys` (`convert`), or a read of one off a dict key
+#: or an attribute (`carried`). A site is COVERED when the static net
+#: resolves that expression as a row (so a `squash` planted on it is
+#: reported), or when this module's workload enters the function it sits in
+#: (so a `squash` planted on it is watched). What is left is this list, and
+#: `test_the_uncovered_remainder_is_the_measured_one` recomputes it.
+#:
+#: All eight are rooted in a call into ANOTHER MODULE —
+#: `perry_store.markdown_tables`, `perry_store.intake_table`,
+#: `board.task_tables()` — which is the interprocedural step
+#: `tests/header_rule.py` is file-local by construction against, and the
+#: three `bin/perry-lint` checks need a whole project on disk rather than a
+#: document. They are named here instead of being called empty.
+UNCOVERED = [
+    ("carried", "bin/perry-task", "_cmd_list_from_board"),
+    ("carried", "bin/perry_md_store.py", "plan"),
+    ("carried", "bin/perry_store.py", "plan"),
+    ("convert", "bin/perry-lint", "check_cross_file"),
+    ("convert", "bin/perry-lint", "check_reviews"),
+    ("convert", "bin/perry-lint", "check_verification"),
+    ("convert", "bin/perry-task", "task_projection_row"),
+    ("convert", "bin/perry_store.py", "plan"),
 ]
 
 CONFIG = (
@@ -152,6 +203,22 @@ INTAKE_BOARD = (
 INTAKE_CONFIG = ("# Perry configuration\n\n- Document language: English\n"
                  "- Repo layout: single\n- State root: .\n")
 
+#: **Round 11.** A board with the columns the WRITE side refuses without —
+#: `Next action` and `Evidence` for `replace_row`, a `## P1` section for
+#: `ensure_columns`, a `## Top risks` table for `ensure_section_columns`. It
+#: is separate from `BOARD` because those three methods EDIT the lines they
+#: are given, and a fixture the read-side assertions share must not move
+#: underneath them.
+WRITE_BOARD = (
+    "# Board — W\n\n"
+    "## P1 now\n\n"
+    "| ID | **Title** | Owner | Status | Next action | Evidence |\n"
+    "|---|---|---|---|---|---|\n"
+    "| TASK-001 | ship it | me | open | do it | — |\n\n"
+    "## Top risks\n\n"
+    "| ID | **Risk** | Opened | Status |\n|---|---|---|---|\n"
+    "| RX-001 | the vendor lapses | 2026-01-01 | open |\n")
+
 CONFORMANCE = ("# Conformance\n\n"
                "| **File** | Shape version | Declared | Route |\n"
                "| --- | --- | --- | --- |\n"
@@ -177,6 +244,53 @@ def load(name: str):
     return mod
 
 
+class Reach:
+    """Every function of this repository the workload ENTERS.
+
+    **Round 10 was failed for asserting a reach instead of measuring one** —
+    *"a dynamic cover discharges a static hole only if the round MEASURES
+    which sites it reaches and STATES the remainder"*. This is the
+    measurement. `sys.setprofile` fires on every call, so it answers "was this
+    function entered" without sampling a capped stack, which is how a deep
+    reader goes missing from a stack-based count.
+
+    Line events are not collected because they cost a `settrace` on every
+    line; the round's evidence records that a line-level trace of the same
+    workload returns the SAME remainder, so the coarser question is not
+    hiding anything today.
+    """
+
+    def __init__(self) -> None:
+        self.seen: set[tuple[str, str]] = set()
+
+    def __enter__(self):
+        seen = self.seen
+
+        def profile(frame, event, _arg):
+            if event == "call":
+                code = frame.f_code
+                seen.add((code.co_filename, code.co_name))
+
+        self.previous = sys.getprofile()
+        sys.setprofile(profile)
+        return self
+
+    def __exit__(self, *exc):
+        sys.setprofile(self.previous)
+        return False
+
+    def functions(self) -> set[tuple[str, str]]:
+        """`(path relative to PERRY_HOME, function name)`, readers only."""
+        out = set()
+        for filename, name in self.seen:
+            try:
+                rel = Path(filename).resolve().relative_to(PERRY_HOME)
+            except ValueError:
+                continue
+            out.add((rel.as_posix(), name))
+        return out
+
+
 class Watch:
     """Every `squash` call made while this is active, with its caller.
 
@@ -188,6 +302,11 @@ class Watch:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, str]] = []   # (caller function, argument)
+        #: The same calls with the stack UNCAPPED. `calls` is capped at twelve
+        #: frames and every assertion about *who folded* uses that, unchanged;
+        #: this exists only so the converse `WATCHED` check can ask whether a
+        #: converted reader is anywhere on the chain, which a cap can hide.
+        self.deep: list[tuple[tuple, str]] = []
 
     def __enter__(self):
         self.real = tables.squash
@@ -197,11 +316,12 @@ class Watch:
             # The whole STACK, not the immediate caller: `header_index` folds
             # inside a comprehension, so `f_back` is `<listcomp>` and a check
             # on one frame would report the blessed function as an offender.
-            stack, f, n = [], sys._getframe(1), 0
-            while f is not None and n < 12:
-                stack.append(f.f_code.co_name)
-                f, n = f.f_back, n + 1
-            watch.calls.append((tuple(stack), str(s)))
+            stack, f = [], sys._getframe(1)
+            while f is not None:
+                stack.append((f.f_code.co_filename, f.f_code.co_name))
+                f = f.f_back
+            watch.calls.append((tuple(n for _f, n in stack[:12]), str(s)))
+            watch.deep.append((tuple(stack), str(s)))
             return watch.real(s)
 
         tables.squash = squash
@@ -234,6 +354,32 @@ class Watch:
         """
         return [(stack, arg) for stack, arg in self.calls
                 if arg.lower() != self.real(arg) and self.real(arg) in HEADER_KEYS]
+
+    def converted_readers_seen(self, converters) -> set[str]:
+        """Which CONVERTED readers are on the stack of a decorated fold.
+
+        `converters` is `{(path, function)}` — a function of this repository
+        that calls `header_index` or `header_keys`, taken from
+        `header_rule.header_sites()` rather than from a list written here.
+        The frame's FILE is matched as well as its name, so neither a
+        unittest runner frame nor the `header_language` that exists in two
+        readers can answer for one another.
+
+        The stack is uncapped here; `calls`, and every assertion about *who*
+        folded, still sees twelve frames exactly as it did.
+        """
+        out: set[str] = set()
+        for stack, arg in self.deep:
+            if arg.lower() == self.real(arg) or self.real(arg) not in HEADER_KEYS:
+                continue
+            for filename, name in stack:
+                try:
+                    rel = Path(filename).resolve().relative_to(PERRY_HOME)
+                except ValueError:
+                    continue
+                if (rel.as_posix(), name) in converters:
+                    out.add(name)
+        return out
 
 
 class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
@@ -286,6 +432,47 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         load("perry-migrate").fix_tables(
             MIGRATE_LINES, MIGRATE_SPEC, {}, [], [])
         self.drive_intake_write()
+        self.drive_the_carried_row_readers()
+
+    def drive_the_carried_row_readers(self):
+        """**Round 11: the readers that hold a header row on a DICT KEY.**
+
+        Round 10 said the uncovered set was empty. Measured, it was twelve —
+        and every one of the twelve holds its row the way
+        `bin/perry_store.py:854` does, `table["header"]`. Nine of them are
+        driven here rather than named, which is the half of the reviewer's
+        prescription that shrinks the number instead of reporting it.
+
+        The write-side three edit the lines they are handed, so they get a
+        board of their own; `refuse_foreign_risk_table` reaches
+        `tables[0]["header"]` only on its refusal path, so the refusal is
+        asserted rather than the call being made and its result dropped.
+        """
+        task = load("perry-task")
+        goals = load("perry-goals")
+        board = task.Board(self.tmp / "BOARD.md")
+        board.task_tables()                    # § task_tables
+        list(board._task_sections())           # § _task_sections
+        board.task_section_headings()
+        self.assertEqual(board.find("TASK-001")[0], "Work")   # § find
+        self.assertEqual(goals.canonical_of("**Title**", ["title"]), "title")
+        self.assertTrue(P.is_user_register_header(
+            ["USER-id", "**Needed from user**"]))
+
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / "BOARD.md").write_text(WRITE_BOARD, encoding="utf-8")
+        writable = task.Board(root / "BOARD.md")
+        self.assertIn("Verification",
+                      writable.ensure_columns("P1", ["Verification"]))
+        self.assertIn("Severity", writable.ensure_section_columns(
+            "Top risks", ["Severity"]))
+        header = writable.task_tables()[0]["header"]
+        self.assertIn("TASK-001", writable.replace_row(
+            6, header, {"id": "TASK-001", "title": "ship it"}))
+        with self.assertRaises(task.Refused):
+            task.refuse_foreign_risk_table([{"header": ["ID", "Note"],
+                                             "keys": {}}])
 
     def drive_intake_write(self):
         """`bin/perry-tasks intake-write --from-board`, in process.
@@ -362,6 +549,83 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
                     f"`{reader}` is named as a watched reader and folded no "
                     f"decorated header cell in this workload — either drive it "
                     f"or stop claiming it. Recorded: {sorted(seen)}")
+
+    def test_watched_is_exactly_the_converted_readers_this_workload_folds_through(self):
+        """**Round 10 review: a guard that survives its own deletion.**
+
+        *"`WATCHED` is asserted in one direction only — every listed reader
+        must fold — and there is no converse check: nothing fails when a
+        converted reader is absent from the list. I verified by deletion:
+        removing `cmd_intake_write` from `WATCHED` leaves all 8 tests green."*
+
+        So the list is asserted as a SET EQUALITY against what the watch
+        records, and the other side of the equality is not written here: it
+        is `header_rule.header_sites()`, which finds every function of this
+        repository that calls `header_index` or `header_keys` by walking the
+        tree. Two failures follow from one assertion:
+
+        * delete a name from `WATCHED` and the observed side is larger;
+        * convert a reader, drive it, and forget to list it — the *"one
+          unwatched conversion away"* this module declared as its own limit —
+          and the observed side is larger again. That is not hypothetical:
+          `is_intake_register_header` was already being driven and was
+          already missing from round 10's list.
+        """
+        converters = {(site[1], site[3]) for site in header_sites(PERRY_HOME)
+                      if site[0] == "convert"}
+        self.assertGreater(len(converters), 40,
+                           "the census found almost no converted readers, so "
+                           "this equality is measuring nothing")
+        with Watch() as w:
+            self.parse_everything()
+        seen = w.converted_readers_seen(converters)
+        self.assertEqual(
+            sorted(seen), sorted(WATCHED),
+            "`WATCHED` and the converted readers this workload actually folds "
+            "a decorated header cell through have diverged. Extra in the "
+            f"workload (convert-and-forget): {sorted(seen - set(WATCHED))}. "
+            f"Extra in the list (claimed and not observed): "
+            f"{sorted(set(WATCHED) - seen)}.")
+
+    def test_the_uncovered_remainder_is_the_measured_one(self):
+        """**The FAIL of round 10, answered with a number.**
+
+        *"A dynamic cover discharges a static hole only if the round MEASURES
+        which sites it reaches and STATES the remainder. This round states the
+        remainder as empty; it is twelve."*
+
+        Both halves are measured here against the same enumeration of sites.
+        Static: `header_sites()` asks `_RowLocals` whether it resolves the
+        expression as a row, which is exactly whether a `squash` planted on it
+        would be reported. Dynamic: `Reach` records every function this
+        module's workload enters. A site neither half covers is in `UNCOVERED`,
+        by name, and this recomputes the list rather than trusting it.
+
+        It fails in both directions on purpose. If the remainder grows — a new
+        reader holds a row somewhere nothing drives — the list is short and
+        the round that wrote it owes the next one an update. If it shrinks,
+        the list is claiming a hole that has been closed, and a limit stated
+        larger than it is is still a limit stated wrong.
+        """
+        reach = Reach()
+        with reach:
+            self.parse_everything()
+        reached = reach.functions()
+        sites = header_sites(PERRY_HOME)
+        self.assertGreater(len(sites), 60,
+                           "the census found almost no sites, so the "
+                           "remainder below is measuring nothing")
+        remainder = sorted({(kind, path, function) for
+                            kind, path, _line, function, static, _src in sites
+                            if not static and (path, function) not in reached})
+        self.assertEqual(
+            remainder, sorted(UNCOVERED),
+            "the measured remainder is not the one `UNCOVERED` states. "
+            f"Newly uncovered: {sorted(set(remainder) - set(UNCOVERED))}. "
+            f"Stated and no longer uncovered: "
+            f"{sorted(set(UNCOVERED) - set(remainder))}. Re-measure, update "
+            "`UNCOVERED`, and say the new number in the round's evidence — "
+            "an uncovered set is a limit only while its size is measured.")
 
     def test_the_rebinding_loop_watches_a_readers_own_reference(self):
         """**Round 9 review, smaller results: a guard that survives its own

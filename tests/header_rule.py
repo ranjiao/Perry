@@ -831,6 +831,83 @@ def _mapping_sites(node: ast.AST):
                     yield kw.value, node.args[0]
 
 
+#: **A CENSUS spelling, and it is not a gate.** Rounds 5 to 7 were failed for
+#: putting a list of variable names in FRONT of the check; `ROW_NAMES` is
+#: deleted and nothing below is consulted by `offenders_by_symbol`. These
+#: three names are used only by `header_sites()`, to COUNT the places this
+#: repository carries a header row on a key or an attribute, so that the
+#: remainder the runtime watch has to cover is a measured number instead of a
+#: claim. A census that undercounts overstates the coverage, so this is a
+#: limit of the MEASUREMENT and is stated as one in the round's evidence.
+CARRIED_KEYS = ("header", "headers", "hdr")
+
+
+def header_sites(root) -> list[tuple]:
+    """Every place a reader holds a header row, with the static verdict.
+
+    **This is the instrument round 10 was failed for not having.** Round 10
+    asserted *"every converted reader is now driven, so the uncovered set is
+    empty today"*; it was twelve. A dynamic cover discharges a static hole
+    only if the round measures which sites it reaches and states the
+    remainder, so the sites are enumerated here and
+    `tests/test_header_index_is_the_only_fold.py` measures the reach over
+    them.
+
+    Two kinds, and they are complementary:
+
+    - `convert` — an argument of `header_index`/`header_keys`. Spelling-free:
+      it is derived from the blessed call itself. This is the row the
+      repository is resolving, and a second fold planted beside it is the
+      shape the amendment forbids.
+    - `carried` — a subscript or attribute read whose key is one of
+      `CARRIED_KEYS`. This one IS a spelling, and it is a spelling because it
+      is the repository's own idiom: `table["header"]`, seventeen times over.
+
+    `static` is `True` when `_RowLocals` resolves that expression as a row —
+    i.e. when a `squash` planted on it in the same function is reported by
+    `offenders_by_symbol`. `False` means only the runtime watch can see it.
+
+    Returns `(kind, path, line, function, static, expr)`, sorted.
+    """
+    out: list[tuple] = []
+    root = Path(root)
+    for p in readers_under(root):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                warnings.simplefilter("ignore", SyntaxWarning)
+                tree = ast.parse(p.read_text(errors="replace"))
+        except (SyntaxError, ValueError, RecursionError):
+            continue
+        rows = _RowLocals(tree)
+        rel = p.relative_to(root).as_posix()
+        for node in ast.walk(tree):
+            owner = rows.of(node)
+            fn = getattr(owner, "name", "<module>")
+            if isinstance(node, ast.Call):
+                name = (node.func.id if isinstance(node.func, ast.Name)
+                        else node.func.attr
+                        if isinstance(node.func, ast.Attribute) else None)
+                if name in ("header_index", "header_keys"):
+                    arg = node.args[0] if node.args else None
+                    out.append(("convert", rel, node.lineno, fn,
+                                bool(arg is not None
+                                     and rows.source(arg, owner)),
+                                ast.unparse(node)[:100]))
+            carried = None
+            if isinstance(node, ast.Subscript) \
+                    and isinstance(node.slice, ast.Constant) \
+                    and node.slice.value in CARRIED_KEYS:
+                carried = node
+            elif isinstance(node, ast.Attribute) and node.attr in CARRIED_KEYS:
+                carried = node
+            if carried is not None:
+                out.append(("carried", rel, node.lineno, fn,
+                            bool(rows.source(carried, owner)),
+                            ast.unparse(carried)[:100]))
+    return sorted(out)
+
+
 def offenders_by_symbol(root) -> list[str]:
     """Every site outside `header_index` that applies `squash`/`norm` to a
     header row or to a cell of one. **Zero after TASK-050.**

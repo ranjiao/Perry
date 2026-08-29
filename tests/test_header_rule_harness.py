@@ -403,6 +403,119 @@ DRIFT = [
      '    fold = squash\n'
      '    return [fold(c) for c in split_row(line)]\n'),
 
+    ("D34 a row carried on a DICT KEY, built in the SAME function",
+     "round 10 review, the FAIL: `t = {'header': split_row(line)}; "
+     "[squash(c) for c in t['header']]` ESCAPED — *P2 is local dataflow "
+     "inside one function*, and the round's own reason for leaving it open "
+     "(interprocedural, across a module boundary) does not apply to it",
+     "bin/perry-probe-d34",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    t = {"header": split_row(line)}\n'
+     '    return [squash(c) for c in t["header"]]\n'),
+
+    ("D35 a dict a FILE-LOCAL function returned",
+     "round 10 review, the FAIL: `t = table_of(line); hdr = t['header']; "
+     "[squash(c) for c in hdr]` ESCAPED — teach `source()` that a subscript "
+     "of a dict this file built, or of what a file-local function returned, "
+     "is a row; `_RowLocals.returns` already carries tuple positions and a "
+     "string key is the same bookkeeping",
+     "bin/perry-probe-d35",
+     'from tables import squash, split_row\n'
+     'def table_of(line):\n'
+     '    return {"header": split_row(line), "rows": []}\n'
+     'def read(line):\n'
+     '    t = table_of(line)\n'
+     '    hdr = t["header"]\n'
+     '    return [squash(c) for c in hdr]\n'),
+
+    ("D36 a LIST OF DICTS, indexed",
+     "round 10 review, the FAIL: `[squash(c) for c in "
+     "tables_of(line)[0]['header']]` ESCAPED — `bin/perry_store.py:681` is "
+     "`tables[0]['header']` and it is written three times in that file",
+     "bin/perry-probe-d36",
+     'from tables import squash, split_row\n'
+     'def tables_of(line):\n'
+     '    return [{"header": split_row(line)}]\n'
+     'def read(line):\n'
+     '    return [squash(c) for c in tables_of(line)[0]["header"]]\n'),
+
+    ("D37 a row carried on an OBJECT ATTRIBUTE",
+     "round 10 review, smaller results: *a row carried on an object "
+     "attribute escapes too* — `t = T(line); [squash(c) for c in t.header]`, "
+     "on both trees; same family as the dict, recorded so the fix covers both",
+     "bin/perry-probe-d37",
+     'from tables import squash, split_row\n'
+     'class Table:\n'
+     '    def __init__(self, line):\n'
+     '        self.header = split_row(line)\n'
+     'def read(line):\n'
+     '    t = Table(line)\n'
+     '    return [squash(c) for c in t.header]\n'),
+
+    ("D38 the FOUR-LINK chain `bin/perry_store.py` actually writes",
+     "round 10 review, the FAIL: the escape is on a live production file — "
+     "`bin/perry_store.py § risk_plan`, which already reads `header, keys = "
+     "table['header'], table['keys']` at :854. `markdown_tables` APPENDS its "
+     "tables, `risk_section_shape` returns them at a TUPLE POSITION, "
+     "`risk_table` INDEXES one out, `risk_plan` UNPACKS the header. One "
+     "corpus entry for the whole chain, because closing three links and not "
+     "the fourth still escapes",
+     "bin/perry-probe-d38",
+     'from tables import squash, split_row\n'
+     'def markdown_tables(lines):\n'
+     '    out = []\n'
+     '    for line in lines:\n'
+     '        out.append({"header": split_row(line), "rows": []})\n'
+     '    return out\n'
+     'def section_shape(lines):\n'
+     '    tables = markdown_tables(lines)\n'
+     '    return "table", tables\n'
+     'def one_table(lines):\n'
+     '    shape, tables = section_shape(lines)\n'
+     '    return tables[0] if shape == "table" else None\n'
+     'def plan(lines):\n'
+     '    table = one_table(lines)\n'
+     '    header, rows = table["header"], table["rows"]\n'
+     '    return [squash(c) for c in header]\n'),
+
+    ("D39 a table handed over by `yield`",
+     "round 10 review, the FAIL: the fix is to teach `source()` that a "
+     "subscript of a dict this file built is a row — `bin/perry-task § "
+     "_section_tables` is the ONE walk over the board's task-bearing "
+     "sections and it `yield`s its tables, so a producer that never "
+     "`return`s is the same local case one function further on",
+     "bin/perry-probe-d39",
+     'from tables import squash, split_row\n'
+     'def sections(lines):\n'
+     '    for line in lines:\n'
+     '        yield "Work", {"header": split_row(line)}\n'
+     'def read(lines):\n'
+     '    for title, table in sections(lines):\n'
+     '        return [squash(c) for c in table["header"]]\n'
+     '    return []\n'),
+
+    ("D40 a dict-carried row, SCALAR on one cell",
+     "round 10 review, the FAIL: a header row carried through a dict key is "
+     "invisible to BOTH halves — the scalar half is planted separately "
+     "because, as round 9 put it, the two halves of the net are separate",
+     "bin/perry-probe-d40",
+     'from tables import squash, split_row\n'
+     'def read(line):\n'
+     '    t = {"header": split_row(line)}\n'
+     '    return squash(t["header"][0]) == "id"\n'),
+
+    ("D41 a dict-carried row folded through `ops.norm`",
+     "round 10 review, the FAIL: and with the repository's other spelling of "
+     "the rule, `ops.norm` — `Q1_opsnorm_dict ESCAPED t = {'header': "
+     "split_row(line)}; [ops.norm(c) for c in t['header']]`",
+     "bin/perry-probe-d41",
+     'import ops\n'
+     'from tables import split_row\n'
+     'def read(line):\n'
+     '    t = {"header": split_row(line)}\n'
+     '    return [ops.norm(c) for c in t["header"]]\n'),
+
     ("D24 a dict-ASSIGNMENT header index",
      "round 7 Finding 2: escapes include ... a dict-assignment header index",
      "bin/perry-probe-d24",
@@ -496,6 +609,30 @@ CLEAN = [
      'def read(line):\n'
      '    cells = split_row(line)\n'
      '    return squash("Status"), cells\n'),
+
+    ("C13 a dict of VALUES, folded",
+     "round 10 review, the FAIL, and criterion 4 of the spec: the fix must "
+     "teach `source()` that a subscript of a dict this file built is a ROW — "
+     "a dict whose value is a value is not, and a check that cannot tell "
+     "them apart is the false-positive generator round 8 was failed for",
+     "bin/perry-probe-c13",
+     'from tables import squash\n'
+     'def read(record):\n'
+     '    d = {"status": record.get("status", "")}\n'
+     '    return squash(d["status"])\n'),
+
+    ("C14 a generator yielding a dict of VALUES",
+     "round 10 review, the FAIL: the same sentence for the `yield` half — "
+     "the entry that must be caught (`D39`) and this one differ only in "
+     "whether what was put in the dict came off a row, which is the "
+     "provenance the design is stated over",
+     "bin/perry-probe-c14",
+     'from tables import squash\n'
+     'def statuses(records):\n'
+     '    for r in records:\n'
+     '        yield {"status": r.get("status", "")}\n'
+     'def read(records):\n'
+     '    return [squash(d["status"]) for d in statuses(records)]\n'),
 
     ("C12 a row transformed but never FOLDED",
      "TASK-050 spec, opening: `**Default** rung` lowercases to `default** "
