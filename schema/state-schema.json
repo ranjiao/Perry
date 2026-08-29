@@ -920,12 +920,6 @@
       "anchor": "state"
     },
     {
-      "path": "DECISIONS.md",
-      "kind": "file",
-      "owner": "decide",
-      "anchor": "state"
-    },
-    {
       "path": "ARCHITECTURE.md",
       "kind": "file",
       "owner": "user",
@@ -1942,36 +1936,6 @@
           "locked"
         ]
       },
-      "anchor": "state"
-    },
-    {
-      "id": "decisions",
-      "path": "DECISIONS.md",
-      "template": "decide/state/DECISIONS_TEMPLATE.md",
-      "owner": "decide",
-      "tier": 2,
-      "cap": 200,
-      "cap_kind": "soft",
-      "required": false,
-      "headings": [
-        {
-          "level": 2,
-          "match": "^Active\\b|^进行中",
-          "label": "## Active"
-        }
-      ],
-      "tables": [
-        {
-          "under": "^Active\\b|^进行中",
-          "columns": [
-            "ADR",
-            "Title",
-            "Type",
-            "Date"
-          ],
-          "column_match": "prefix"
-        }
-      ],
       "anchor": "state"
     },
     {

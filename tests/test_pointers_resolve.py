@@ -52,7 +52,7 @@ def project_owned() -> set[str]:
     schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
     names = {pathlib.Path(f["path"]).name
              for f in schema["files"] if f.get("path")}
-    return names | {"BOARD.md", "OKR.md", "PROJECT_STATE.md", "DECISIONS.md",
+    return names | {"BOARD.md", "OKR.md", "PROJECT_STATE.md",
                     "ARCHITECTURE.md", "config.md", "hook.md", "CURRENT"}
 
 

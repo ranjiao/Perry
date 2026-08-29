@@ -229,17 +229,22 @@ class TestTwoFactsNotOne(unittest.TestCase):
 
 class TestPerFileNotPerProject(unittest.TestCase):
 
-    def test_declaring_the_board_does_not_declare_the_decisions_index(self):
+    def test_declaring_the_board_does_not_declare_the_okr(self):
+        """**This was written against `perry-decide` and `DECISIONS.md`.**
+        TASK-235 deleted that file, and with it this lane's gate — the ADR
+        bodies `perry-decide` still writes have no `files[]` shape to conform
+        to, so gating it on anything would be a gate that cannot fire. The
+        property under test is ADR-004 § 5's, not that lane's: two writers,
+        two files, one declaration, and the second writer still refuses."""
         p = Project()
-        (p.root / "decisions").mkdir()
-        p.run(DECIDE, "bootstrap", enforce=False)
+        (p.root / "OKR.md").write_text(PRE_SPLIT_OKR)
         p.run(CONFORM, "declare", "BOARD.md")
         rc, out, _ = p.run(TASK, *ADD, enforce=True)
         self.assertEqual(rc, 0, f"the board was declared: {out}")
-        rc, out, _ = p.run(DECIDE, "new", "x", "--title", "T",
-                           "--type", "Process", enforce=True)
-        self.assertEqual(rc, 1, "perry-decide gated on a file it does not write")
-        self.assertIn("DECISIONS.md", out["refused"])
+        rc, out, _ = p.run(GOALS, "commit", "--track", "ops", "--promise", "a",
+                           "--to", "x", "--due", "3d", enforce=True)
+        self.assertEqual(rc, 1, "perry-goals wrote an undeclared OKR.md")
+        self.assertIn("OKR.md", out["refused"])
         self.assertNotIn("BOARD.md", out["refused"])
 
     def test_a_project_may_declare_one_file_and_not_another(self):
@@ -403,7 +408,7 @@ class TestReadingIsNotGated(unittest.TestCase):
         # string in the same edit. `perry-decide/list` carries it EMPTY, which
         # is the shipped fact and not a placeholder — a consumer checks before
         # it looks, so the key is asserted here by presence, not by content.
-        "perry-decide/list/1.1": (
+        "perry-decide/list/2.0": (
             DECIDE, ("list",),
             {"project_root", "state_root", "contract", "semantics",
              "decisions", "active", "total", "expired_sunsets",
@@ -1055,25 +1060,42 @@ class TestTheGateEnforces(unittest.TestCase):
 
 
 class TestAbsentIsNotNonConformant(unittest.TestCase):
+    """**Asserted on the gate, and it used to be asserted through a tool.**
 
-    def test_bootstrap_is_not_gated_on_the_file_it_creates(self):
-        """`perry-decide bootstrap` creates `DECISIONS.md`. There is no shape
-        to conform to before it exists, and the file it writes is Perry's own
-        template — refusing here would make the lane unreachable."""
-        p = Project()
-        self.assertFalse((p.root / "DECISIONS.md").exists())
-        self.assertEqual(p.verdict("DECISIONS.md").state, C.ABSENT)
-        rc, out, err = p.run(DECIDE, "bootstrap", enforce=True)
-        self.assertEqual(rc, 0, f"{out} {err}")
-        self.assertTrue((p.root / "DECISIONS.md").exists())
+    The pair below ran `perry-decide bootstrap`, which created `DECISIONS.md`
+    — the one shipped case of a tool creating the very file it gated on.
+    TASK-235 deleted that file, so no shipped tool has that shape any more and
+    the CLI half of these two has no stand-in: `perry-task` refuses on a
+    missing board, `perry-goals link` refuses on a missing register, and
+    `perry-goals commit` refuses on a missing `OKR.md`. Substituting one of
+    those would test a refusal, which is the opposite property.
 
-    def test_the_file_bootstrap_created_is_still_not_declared(self):
+    So the gate is called directly. What is under test is `verdict` and
+    `gate` — a file that is not there yet is `absent`, `absent` is allowed, and
+    the file appearing does not declare it — and that is what the tools were
+    only ever a delivery mechanism for.
+    """
+
+    def test_an_absent_file_is_allowed_rather_than_refused(self):
+        """There is no shape to conform to before a file exists, and refusing
+        here would make every lane unreachable on a new project."""
+        p = Project(board=None)
+        self.assertFalse((p.root / "BOARD.md").exists())
+        self.assertEqual(p.verdict("BOARD.md").state, C.ABSENT)
+        gate = C.gate(p.root, p.root, "BOARD.md", tool="perry-task",
+                      root_arg=None)
+        self.assertTrue(gate.ok, gate.message)
+
+    def test_the_file_appearing_does_not_declare_it(self):
         """…and Perry did not declare it on the user's behalf. The next write
         asks, and the refusal is the one-command kind."""
-        p = Project()
-        p.run(DECIDE, "bootstrap", enforce=True)
+        p = Project(board=None)
+        (p.root / "BOARD.md").write_text(BOARD)
         self.assertFalse(p.marker().exists())
-        self.assertEqual(p.verdict("DECISIONS.md").state, C.UNDECLARED)
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+        rc, out, _ = p.run(TASK, *ADD, enforce=True)
+        self.assertEqual(rc, 1)
+        self.assertIn("perry-conform declare BOARD.md", out["refused"])
 
 
 # ── 9 · the record itself ─────────────────────────────────────────────────
@@ -1124,13 +1146,11 @@ class TestTheRecordIsReadHonestly(unittest.TestCase):
 
     def test_the_record_survives_a_second_declaration(self):
         p = Project()
-        (p.root / "decisions").mkdir()
-        p.run(DECIDE, "bootstrap", enforce=False)
         p.run(CONFORM, "declare", "BOARD.md")
-        p.run(CONFORM, "declare", "DECISIONS.md")
+        p.run(CONFORM, "declare", ".perry/hook.md")
         text = p.marker().read_text()
         self.assertIn("| BOARD.md |", text)
-        self.assertIn("| DECISIONS.md |", text)
+        self.assertIn("| .perry/hook.md |", text)
 
     def test_dry_run_declares_nothing(self):
         p = Project()

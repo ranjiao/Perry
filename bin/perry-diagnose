@@ -129,6 +129,13 @@ SPINE_NAMES = [
 ]
 SPINE_DIRS = ["phase", "phases", "specs", "sprints", "milestones"]
 
+# **These are OTHER projects' filenames and TASK-235 deliberately left them.**
+# Perry deleted its own `DECISIONS.md` (DESIGN-013 § 5.3) because the rule is
+# "a fact with a schema lives in exactly one store" and Perry has the store.
+# A project `/perry diagnose` is pointed at has no store, so a document IS the
+# right home for its decisions under the same rule — which is why the FIT-02
+# and TRK-04 prescriptions below still name the file. Detecting a name Perry
+# no longer uses itself is not a stale reference; it is the whole job.
 DECISION_NAMES = ["DECISIONS.md", "ADR.md", "CHANGELOG.md"]
 DECISION_DIRS = ["decisions", "adr", "adrs", "docs/adr", "docs/decisions", "rfcs"]
 
@@ -920,7 +927,7 @@ def perry_owned_globs() -> list[str]:
     what kind of project this is."""
     globs = [
         # Fallback, used when the schema is unreadable (tarball install, etc).
-        "BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md",
+        "BOARD.md", "OKR.md", "PROJECT_STATE.md",
         "ARCHITECTURE.md", "phase/*", "design/*", "runbook/*", ".perry/*",
     ]
     schema = PERRY_HOME / "schema" / "state-schema.json"

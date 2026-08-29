@@ -2550,50 +2550,129 @@ def parse_top_risks(text: str) -> list[TopRisk]:
     return risks
 
 
-# ── DECISIONS.md ──────────────────────────────────────────────────────────
+# ── decisions/ADR-*.md ────────────────────────────────────────────────────
+#
+# **The ADR files are the record and there is no index.** `DECISIONS.md` was a
+# rendered projection of exactly these files, and TASK-235 deleted it under
+# DESIGN-013 § 5.3 — so the reader that used to parse its `## Active` table
+# reads the directory instead. Nothing replaces the file (§ 4.1: the link
+# surface it gave a web reader is given up, deliberately, and must not be
+# re-added under another name).
+#
+# **This lives here rather than in `bin/perry-decide`, and that is the point.**
+# `perry-decide` carried its own tolerant header parser while this module
+# carried a table parser for the rendering of it — two readers of one record.
+# With the table gone there is one reader, and `bin/perry-decide` imports it
+# (`import parsers as P`). A second implementation is the defect this project
+# has now caught six times; `split_row` reached six copies before TASK-234
+# found the last one.
+
+ADR_ID_RE = re.compile(r"\bADR-(\d+)\b")
 
 
-def parse_decisions(text: str) -> list[ADR]:
-    adrs: list[ADR] = []
-    in_active = False
-    in_table = False
+def adr_header_fields(text: str) -> dict:
+    """The `> Key: value` block at the top of an ADR, normalized.
+
+    Tolerant by construction. Every one of these is real, from files in this
+    repo and its templates:
+
+        > **Status**: active          > Status: active
+        > **Sunset criteria**: —      > Sunset: —
+        > Deciders: Ran Jiao          (absent entirely)
+
+    Keys are lowercased with punctuation stripped, so `Sunset criteria` and
+    `Sunset` land on the same key and a caller does not need to know which
+    generation of the template produced the file.
+    """
+    out: dict[str, str] = {}
     for line in text.split("\n"):
-        if line.startswith("## "):
-            in_active = heading_is(line[3:].strip(), "Active")
-            in_table = False
-            continue
-        if not in_active:
-            continue
-        if re.match(r"^\|\s*---", line):
-            in_table = True
-            continue
-        if not in_table or not line.startswith("|"):
-            continue
-        cells = split_row(line)
-        if len(cells) < 4:
-            continue
-        first = cells[0]
-        if first.lower().startswith("adr") and "id" in first.lower():
-            continue
-        link_match = re.match(r"\[(ADR-\d+)\]\(([^)]+)\)", first)
-        if link_match:
-            adr_id = link_match.group(1)
-            adr_path = link_match.group(2)
-        else:
-            adr_id = first
-            adr_path = ""
-        adrs.append(
-            ADR(
-                id=adr_id,
-                title=cells[1] if len(cells) > 1 else "",
-                type=cells[2] if len(cells) > 2 else "",
-                date=cells[3] if len(cells) > 3 else "",
-                sunset_or_notes=cells[4] if len(cells) > 4 else "",
-                file_path=adr_path,
-            )
-        )
+        s = line.strip()
+        if not s.startswith(">"):
+            if s.startswith("#") or not s:
+                continue
+            break
+        # Two fields share one line in every ADR this repo has written:
+        # `> Supersedes: —   · Superseded by: —`. Reading to end-of-line gives
+        # `Supersedes` the value "· Superseded by: —", which is not a wrong
+        # format on the file's part — it is a wrong assumption on the reader's.
+        for part in re.split(r"\s+·\s+|\s+\|\s+", s.lstrip("> ").strip()):
+            m = re.match(r"\**\s*([A-Za-z][\w ]*?)\s*\**\s*[:：]\s*(.*)$", part)
+            if not m:
+                continue
+            key = re.sub(r"\s+", " ", m.group(1)).strip().lower()
+            key = {"sunset criteria": "sunset", "superseded by": "superseded_by",
+                   "status date": "status_date"}.get(key, key)
+            out.setdefault(key, m.group(2).strip().strip("*` "))
+    return out
 
-    # Sort newest first by ADR number (e.g. ADR-024 before ADR-001).
+
+def read_adr_records(state_root: Path) -> list[dict]:
+    """Every `decisions/ADR-*.md`, as records, id-sorted.
+
+    The record `perry-decide list` publishes, and the source `parse_decisions`
+    below projects for the snapshot. Reading is tolerant and reports what the
+    file says — an off-enum `status` is named by the caller, never corrected
+    here.
+    """
+    out: list[dict] = []
+    d = state_root / "decisions"
+    if not d.is_dir():
+        return out
+    for p in sorted(d.glob("ADR-*.md")):
+        text = p.read_text(errors="replace")
+        h = adr_header_fields(text)
+        title = ""
+        first = next((l for l in text.split("\n") if l.startswith("# ")), "")
+        if first:
+            # `# ADR-001: Title`, `# ADR-001 — Title`, and a bare `# Title` are
+            # all in circulation; strip the id and whichever separator follows.
+            title = re.sub(r"^ADR-\d+\s*[—:–-]?\s*", "", first[2:].strip()).strip()
+        m = ADR_ID_RE.search(p.name)
+        out.append({
+            "id": f"ADR-{int(m.group(1)):03d}" if m else p.stem,
+            "title": title,
+            "type": h.get("type", ""),
+            "status": (h.get("status") or "active").lower(),
+            "date": h.get("date", ""),
+            "deciders": h.get("deciders", ""),
+            "supersedes": h.get("supersedes", "").strip("—- ") or "",
+            "superseded_by": h.get("superseded_by", "").strip("—- ") or "",
+            "sunset": h.get("sunset", "").strip("—- ") or "",
+            "path": str(p.relative_to(state_root)),
+            "lines": len(text.split("\n")),
+        })
+    return out
+
+
+def parse_decisions(state_root: Path) -> list[ADR]:
+    """The snapshot's `adrs` — **active decisions, newest first**.
+
+    Active-only and newest-first are not new: the reader this replaces parsed
+    the `## Active` section of `DECISIONS.md` and sorted descending by number,
+    and `bin/perry-state § expired_sunsets` says so in its own docstring —
+    "Active ADRs whose date-based sunset criteria have passed". Feeding it the
+    superseded ones too would start warning about the sunset of a decision that
+    is no longer in force.
+
+    It takes the **state root**, not text: there is no document to hand it any
+    more. That signature change is why the one other caller,
+    `bin/perry-migrate § records_in`, drops its `DECISIONS.md` branch instead
+    of being ported — a before/after reading of a file neither side can have.
+    """
+    adrs = [
+        ADR(
+            id=r["id"],
+            title=r["title"],
+            type=r["type"],
+            date=r["date"],
+            sunset_or_notes=r["sunset"],
+            file_path=r["path"],
+        )
+        for r in read_adr_records(state_root)
+        if r["status"] == "active"
+    ]
+
+    # Newest first by ADR number (e.g. ADR-024 before ADR-001).
     def _adr_num(a: ADR) -> int:
         m = re.search(r"(\d+)", a.id)
         return int(m.group(1)) if m else 0
@@ -3860,7 +3939,6 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
 
     board_text = read(root / "BOARD.md")
     okr_text = read(root / "OKR.md")
-    decisions_text = read(root / "DECISIONS.md")
     project_state_text = read(root / "PROJECT_STATE.md")
     architecture_text = read(root / "ARCHITECTURE.md")
 
@@ -3934,7 +4012,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         okr=parse_okr(okr_text, krs=load_okr_store(root)) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
-        adrs=parse_decisions(decisions_text) if decisions_text else [],
+        adrs=parse_decisions(root),
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),

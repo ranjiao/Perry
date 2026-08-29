@@ -2,20 +2,34 @@
 """
 perry-decide — deterministic writes and reads for the `decide` lane.
 
-DESIGN-005 step 1. Two gaps closed at once, and the first is the worse:
+DESIGN-005 step 1, amended by DESIGN-013 § 5.3. Two gaps closed at once, and
+the first is the worse:
 
-**Nothing created `DECISIONS.md` or `decisions/`.** `work/reference/bootstrap.md`
-correctly refuses to (they moved to `decide` by the signed hand-off contract) and
-says "`decide`'s own bootstrap creates them" — a bootstrap that does not exist.
+**Nothing created `decisions/`.** `work/reference/bootstrap.md` correctly
+refuses to (it moved to `decide` by the signed hand-off contract) and says
+"`decide`'s own bootstrap creates them" — a bootstrap that did not exist.
 `decide/SKILL.md § init` creates `design/` and states outright that it "does not
 create any docs", and first-time setup never invokes a `decide` subcommand at
-all. So `decide adr` step 7, "update the `DECISIONS.md` index", has been running
-against a file no code path produces, and every Perry project reports
-`decisions.count = 0` forever. Found by a fresh-context review, verified.
+all. So `decide adr` step 7, "update the index", had been running against a file
+no code path produced, and every Perry project reported `decisions.count = 0`
+forever. Found by a fresh-context review, verified.
 
 **The set of decisions was not readable from outside.** `perry-state` exposes
 `count`, `last` and `expired_sunsets` — a summary. A front-end could tell you
 there were eleven decisions and not one of their titles.
+
+**There is no rendered index, and its absence is a decision rather than an
+omission.** DESIGN-013 User Decision 3, answered 2026-08-29: `DECISIONS.md` was
+twelve rows of pure projection — 76% of its bytes inside table cells, no
+per-row prose — whose own third line told the reader it was generated and not
+to edit it. `perry-decide list` already printed the same content, so the file
+was a second copy of the ADR files' id, title, type, date and status. It is
+deleted, **not replaced**. § 4.1 of that design records what is given up with
+it — the markdown link surface into `decisions/ADR-*.md` that a reader browsing
+the repository on the web navigated by — and says in so many words that the
+implementing row must not quietly re-add an index under another name. So:
+`decisions/ADR-*.md` is the whole record, and `perry-decide list` is the whole
+view of it.
 
 Reading is deliberately tolerant. The ADR template and the ADRs people actually
 write already disagree: the template says `Sunset criteria`, real files say
@@ -27,7 +41,7 @@ The set it is strict about is `schema/state-schema.json § enums.decision_status
 and not a literal in this file — see `statuses()`.
 
 Usage:
-  perry-decide bootstrap                      create DECISIONS.md + decisions/
+  perry-decide bootstrap                      create decisions/
   perry-decide new <slug> --title "…" --type <T>
                   [--sunset "…"] [--supersedes ADR-NNN] [--deciders "…"]
   perry-decide supersede <OLD> <NEW>          flip OLD, point it at NEW
@@ -66,7 +80,6 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
-from tables import render_row  # noqa: E402
 import lib  # noqa: E402
 
 
@@ -80,7 +93,18 @@ class Refused(Exception):
 # TASK-205 moves it to `1.1`: the payload gains `semantics`, which is a plain
 # `1.x` key addition and is the key any future meaning change is reported in.
 # `perry-events/list/1.1` added it on exactly the same reading.
-LIST_CONTRACT = "perry-decide/list/1.1"
+#
+# **TASK-235 moves it to `2.0`, and the major is not a formality.**
+# `schema/decide-list-contract.md § Adding a status is not a break` names the
+# thing that IS a break in this contract's own words — "renaming or removing a
+# key, or narrowing a documented field". Three documented keys are removed from
+# `conformance`: `index_present`, `indexed_without_file` and
+# `filed_without_index_row`. All three described the index against the files,
+# and the index no longer exists (DESIGN-013 § 5.3), so there is nothing left
+# for them to be true or false about. A consumer holding `1.x` reads them
+# today; shipping their disappearance under a minor would be exactly the
+# silent narrowing the changelog rule forbids.
+LIST_CONTRACT = "perry-decide/list/2.0"
 
 # **Minors where a value's MEANING changed, not just where a key was added.**
 # Same rule, shape and order as `bin/perry-task § LIST_SEMANTICS`: one entry
@@ -88,44 +112,58 @@ LIST_CONTRACT = "perry-decide/list/1.1"
 # inserted.
 #
 # **It is empty, and the empty array is the shipped fact.** No value this
-# payload carries has ever changed meaning — `1.0` is still the only version
-# a consumer can have read against — and inventing an entry to fill the array
-# would be worse than saying so. The key is present anyway, on every response
-# including this one, because **a consumer checks before it looks**: a key
-# that appears only when there is something to say is one a consumer cannot
-# check, which is the same argument that puts `contract` on an empty store.
+# payload carries has ever changed meaning — no `1.x` moved one, and `2.0`
+# REMOVED three keys rather than re-pointing any, which is a major and is
+# reported in `schema/decide-list-contract.md § Changelog` where a major
+# belongs. Inventing an entry here to mark it would tell a consumer to go and
+# re-read fields that never moved. The key is present anyway, on every
+# response including this one, because **a consumer checks before it looks**:
+# a key that appears only when there is something to say is one a consumer
+# cannot check, which is the same argument that puts `contract` on an empty
+# store.
 LIST_SEMANTICS: list[dict] = []
 
 ADR_RE = re.compile(r"\bADR-(\d+)\b")
 
-#: `list` only reads, and reading is never gated (ADR-004). Everything else
-#: rewrites `DECISIONS.md` — `new` and `supersede` and `status` all re-render
-#: the index — so that is the one file this lane gates on. Not `design/*.md`
-#: and not the ADR bodies: conformance is per-file, and the file this lane is
-#: about to write is the index.
-READ_ONLY_COMMANDS = {"list"}
-GATED_FILE = "DECISIONS.md"
+#: The status a new ADR is born with. **One literal, checked against the enum
+#: before it is written** — see `cmd_new`. Named rather than inlined so the
+#: check and the write cannot drift apart, which is the whole failure mode
+#: `enums.decision_status` exists to close.
+BORN_STATUS = "active"
 
-_PERRY_CONFORM = None
-
-
-def perry_conform():
-    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
-    global _PERRY_CONFORM
-    if _PERRY_CONFORM is None:
-        import importlib.machinery
-        import importlib.util
-        sys.path.insert(0, str(PERRY_HOME / "bin"))
-        spec = importlib.util.spec_from_loader(
-            "perry_conform", importlib.machinery.SourceFileLoader(
-                "perry_conform", str(PERRY_HOME / "bin" / "perry-conform")))
-        mod = importlib.util.module_from_spec(spec)
-        # See the identical note in `bin/perry-task`: `dataclasses` resolves
-        # `from __future__ import annotations` strings through `sys.modules`.
-        sys.modules["perry_conform"] = mod
-        spec.loader.exec_module(mod)
-        _PERRY_CONFORM = mod
-    return _PERRY_CONFORM
+#: **This lane no longer takes a conformance gate, and that is a loss rather
+#: than a simplification.** ADR-004 gates a writer on *the file that command is
+#: about to write* — `bin/perry-goals § main` states the rule outright: "the
+#: gate is about the file this command writes … passing the gated name of a
+#: file the command does not touch would refuse a write for the shape of
+#: something unrelated, and pass one for a file nobody checked."
+#:
+#: `DECISIONS.md` was the only file this tool wrote that `schema/
+#: state-schema.json § files[]` gives a shape, and TASK-235 deletes it. What
+#: is left — `decisions/ADR-*.md` — has no `files[]` entry and never had one,
+#: so `perry-conform.verdict` returns `absent` for it and `absent` passes. A
+#: gate on it would be a gate that cannot fire, which this project removes on
+#: sight (`perry-goals`, TASK-095). A gate on `design/*.md` would be a gate on
+#: a file this tool does not write, which is the sentence above.
+#:
+#: So the gate is removed rather than faked, and the hole is named here and in
+#: `perry/evidence/2026-08/TASK-235-result.md` instead of being left for a
+#: reviewer to find: **giving `decisions/ADR-*.md` a `files[]` shape is what
+#: would restore it, and that is new claim surface — its own row, not this
+#: one.** Until then `perry-decide` writes ADR bodies into an undeclared
+#: project, and **that is new.** This clause used to read "only the index write
+#: was ever gated", which is false and was caught by a V4 reviewer measuring it
+#: rather than reading it. The gate ran before the command, so it refused the
+#: WHOLE command: on `main` at `ee0b36a`, with `PERRY_CONFORMANCE=enforce` and
+#: nothing declared, `perry-decide new` returned **rc=1 and wrote no ADR body
+#: at all**, refusing with "DECISIONS.md already matches Perry's shape at
+#: version 2, but no one has declared it". On this branch the same call returns
+#: **rc=0 and writes `ADR-001`**. There is no reachable state on `main` where a
+#: body was written past the gate.
+#:
+#: So the honest size of the hole is: **the decide lane went from fully gated
+#: to not gated at all**, and whoever sizes the follow-up row should size it as
+#: restoring a gate, not as closing a gap that was mostly already open.
 
 
 def load_schema() -> dict:
@@ -149,7 +187,7 @@ def statuses() -> tuple[str, ...]:
     only one of them refuses.
 
     Read once and cached. The schema does not change under a running command,
-    and `render_index` asks for this per write.
+    and `cmd_status` asks for this per write.
     """
     global _STATUSES
     if _STATUSES is None:
@@ -167,170 +205,65 @@ def statuses() -> tuple[str, ...]:
 # ── reading ───────────────────────────────────────────────────────────────
 
 
-def header_fields(text: str) -> dict:
-    """The `> Key: value` block at the top of an ADR, normalized.
-
-    Tolerant by construction. Every one of these is real, from files in this
-    repo and its templates:
-
-        > **Status**: active          > Status: active
-        > **Sunset criteria**: —      > Sunset: —
-        > Deciders: Ran Jiao          (absent entirely)
-
-    Keys are lowercased with punctuation stripped, so `Sunset criteria` and
-    `Sunset` land on the same key and a caller does not need to know which
-    generation of the template produced the file.
-    """
-    out: dict[str, str] = {}
-    for line in text.split("\n"):
-        s = line.strip()
-        if not s.startswith(">"):
-            if s.startswith("#") or not s:
-                continue
-            break
-        # Two fields share one line in every ADR this repo has written:
-        # `> Supersedes: —   · Superseded by: —`. Reading to end-of-line gives
-        # `Supersedes` the value "· Superseded by: —", which is not a wrong
-        # format on the file's part — it is a wrong assumption on the reader's.
-        for part in re.split(r"\s+·\s+|\s+\|\s+", s.lstrip("> ").strip()):
-            m = re.match(r"\**\s*([A-Za-z][\w ]*?)\s*\**\s*[:：]\s*(.*)$", part)
-            if not m:
-                continue
-            key = re.sub(r"\s+", " ", m.group(1)).strip().lower()
-            key = {"sunset criteria": "sunset", "superseded by": "superseded_by",
-                   "status date": "status_date"}.get(key, key)
-            out.setdefault(key, m.group(2).strip().strip("*` "))
-    return out
-
-
-def read_adrs(state_root: Path) -> list[dict]:
-    """Every `decisions/ADR-*.md`, read from the files rather than the index.
-
-    The files are the record; the index is a rendering of them. Reading the
-    index instead would make a hand-added ADR file invisible and a stale index
-    row authoritative — the same board-vs-history divergence `perry-task` was
-    built to remove, one lane over.
-    """
-    out = []
-    d = state_root / "decisions"
-    if not d.is_dir():
-        return out
-    for p in sorted(d.glob("ADR-*.md")):
-        text = p.read_text(errors="replace")
-        h = header_fields(text)
-        title = ""
-        first = next((l for l in text.split("\n") if l.startswith("# ")), "")
-        if first:
-            # `# ADR-001: Title`, `# ADR-001 — Title`, and a bare `# Title` are
-            # all in circulation; strip the id and whichever separator follows.
-            title = re.sub(r"^ADR-\d+\s*[—:–-]?\s*", "", first[2:].strip()).strip()
-        m = ADR_RE.search(p.name)
-        status = (h.get("status") or "active").lower()
-        out.append({
-            "id": f"ADR-{int(m.group(1)):03d}" if m else p.stem,
-            "title": title,
-            "type": h.get("type", ""),
-            # Reported as the file spells it, in or out of the enum — reading
-            # is tolerant and `conformance.off_enum_status` is where an
-            # unknown value is named rather than corrected.
-            "status": status,
-            "date": h.get("date", ""),
-            "deciders": h.get("deciders", ""),
-            "supersedes": h.get("supersedes", "").strip("—- ") or "",
-            "superseded_by": h.get("superseded_by", "").strip("—- ") or "",
-            "sunset": h.get("sunset", "").strip("—- ") or "",
-            "path": str(p.relative_to(state_root)),
-            "lines": len(text.split("\n")),
-        })
-    return out
-
-
-def index_rows(state_root: Path) -> list[str]:
-    p = state_root / "DECISIONS.md"
-    if not p.exists():
-        return []
-    return [l for l in p.read_text(errors="replace").split("\n")
-            if l.strip().startswith("|") and ADR_RE.search(l)]
+#: The ADR reader, in `viewer/parsers.py` and not here.
+#:
+#: **It used to be here, and there used to be two of them.** This module
+#: carried a tolerant `> Key: value` parser over `decisions/ADR-*.md` while
+#: `viewer/parsers.py` carried a table parser over the `DECISIONS.md` rendering
+#: of the same records — one record, two readers, kept in step by nothing.
+#: TASK-235 deletes the rendering (DESIGN-013 § 5.3), and rather than leave the
+#: surviving reader in the writer, it moved down to `parsers.py` where every
+#: other document reader lives and where `perry-state` and the viewer already
+#: reach it. `split_row` got to SIX implementations before TASK-234 found the
+#: last one; this is the same defect caught at two.
+#:
+#: `parsers.adr_header_fields` is the tolerant half — the template says
+#: `Sunset criteria`, every real file says `Sunset`, real files carry a
+#: `Deciders` line the template never mentions, and two fields share the line
+#: `> Supersedes: —   · Superseded by: —`. A reader that only accepted the
+#: template would report a project's own history as malformed.
+read_adrs = P.read_adr_records
 
 
 # ── writing ───────────────────────────────────────────────────────────────
 
 
 def mint_id(state_root: Path) -> str:
-    """Next ADR number from max(files ∪ index).
+    """Next ADR number from the ADR **files**, and nothing else.
 
-    Both, for the reason `perry-task.mint_id` learned the hard way: a record
-    that exists in only one of two places still owns its number, and reading
-    one source hands a live id to a second decision.
+    **This closes TASK-214.** It used to read `max(files ∪ index)`, on the
+    reading `perry-task.mint_id` learned the hard way — a record that exists in
+    only one of two places still owns its number. The trouble was that the
+    second place erased itself: `render_index` rebuilt `DECISIONS.md` *from the
+    files* on the very next write, so a number that survived only in the index
+    was gone one command later. The union was a memory with a one-command
+    half-life, which is worse than no memory because nobody could say which
+    command they were on. TASK-235 deletes the index, so `files` is not one of
+    two sources any more; it is the only one, and the union is gone with the
+    thing it was a union with.
+
+    **What that means for reissue, said plainly rather than implied.** Deleting
+    `decisions/ADR-011-*.md` frees `ADR-011`, and the next `new` mints it
+    again. `bin/perry-task § minting_records` takes the opposite rule for
+    `TASK-` ids: `purge` removes the record and `.perry/events.jsonl` keeps the
+    number, "retired, not freed", because a reissued id inherits the dead
+    row's timeline. **The two tools disagree, and this one is the weaker.**
+
+    It is not an oversight of TASK-235's and TASK-235 does not fix it: the rule
+    `perry-task` relies on is an append-only log, and `perry-decide` appends no
+    events at all — there is no `.perry/events.jsonl` line with `perry-decide`
+    on it, so there is nothing here to consult. Retiring an ADR number needs
+    this lane to start writing events first, which is a lane-shaped change and
+    its own row. Recorded in `perry/evidence/2026-08/TASK-235-result.md`.
+
+    The exposure is smaller than `perry-task`'s and that is why it can wait
+    rather than block: an ADR leaves `decisions/` only if a human deletes the
+    file (there is no `perry-decide purge`), and nothing resolves ADR ids
+    against a log. It is still a disagreement between two minters in one
+    project, and it is named rather than smoothed over.
     """
     seen = {int(m) for a in read_adrs(state_root) for m in ADR_RE.findall(a["id"])}
-    seen |= {int(m) for l in index_rows(state_root) for m in ADR_RE.findall(l)}
     return f"ADR-{max(seen, default=0) + 1:03d}"
-
-
-def render_index(state_root: Path, project: str) -> str:
-    """Rebuild `DECISIONS.md` from the ADR files.
-
-    Rendered, never patched. An index maintained by appending drifts from the
-    files it indexes the first time someone edits a file directly — and the
-    whole reason this lane owns both is that they are one record.
-    """
-    adrs = read_adrs(state_root)
-    active = [a for a in adrs if a["status"] == "active"]
-    # A proposal is neither in force nor historical, and the second table's
-    # heading says "historical" — so it gets its own section rather than a
-    # false label. Rendered only when the project has one: a project that
-    # never writes a `proposed` ADR renders exactly the file it rendered
-    # before, which is the "available, not mandatory" half of this value.
-    proposed = [a for a in adrs if a["status"] == "proposed"]
-    # By exclusion rather than by naming the remaining statuses: this is the
-    # catch-all table, so a status the schema gains and this file has never
-    # heard of lands here and stays visible.
-    hist = [a for a in adrs if a not in active and a not in proposed]
-    counts = {s: sum(1 for a in adrs if a["status"] == s) for s in statuses()}
-
-    def link(a):
-        return f"[{a['id']}]({a['path']})"
-
-    out = [f"# Decisions index — {project}", "",
-           "> Rendered by `bin/perry-decide` from `decisions/ADR-*.md`.",
-           "> Those files are the record; this file is a view of them. Edit an "
-           "ADR, then re-run `perry-decide list` to refresh — do not hand-edit "
-           "rows here, they are overwritten.",
-           # One field per declared status, in the schema's order. Named after
-           # the enum rather than typed out, so a status added there appears
-           # here with no edit — the same reason `counts` is built from it.
-           "> " + " · ".join(f"{s.capitalize()}: {counts[s]}"
-                             for s in statuses()),
-           f"> Last updated: {date.today():%Y-%m-%d}", "",
-           "## Active", "",
-           "| ADR | Title | Type | Date | Sunset / Notes |",
-           "|---|---|---|---|---|"]
-    if active:
-        # Through `render_row`, not an f-string. Built by hand, an ADR titled
-        # `Use A | not B` produced a SIX-cell row against a five-cell header —
-        # `Type` read `not B`, `Date` read the type — and a line break in the
-        # same field broke the file silently. Perry's own writer produced rows
-        # Perry's own linter reports as `ragged-row`.
-        out += [render_row([link(a), a['title'], a['type'], a['date'],
-                            a['sunset'] or '—']) for a in active]
-    else:
-        out.append("| (none yet) | | | | |")
-    if proposed:
-        out += ["", "## Proposed (awaiting the user)", "",
-                "| ADR | Title | Type | Date | Sunset / Notes |",
-                "|---|---|---|---|---|"]
-        out += [render_row([link(a), a['title'], a['type'], a['date'],
-                            a['sunset'] or '—']) for a in proposed]
-    out += ["", "## Superseded / Expired / Archived (historical)", "",
-            "| ADR | Title | Status | Status date | Replaced by |",
-            "|---|---|---|---|---|"]
-    if hist:
-        out += [render_row([link(a), a['title'], a['status'], a['date'],
-                            a['superseded_by'] or '—']) for a in hist]
-    else:
-        out.append("| (none yet) | | | | |")
-    return "\n".join(out) + "\n"
 
 
 write_atomic = lib.write_atomic
@@ -350,22 +283,21 @@ def project_lock(state_root: Path, timeout: float = 10.0):
 
 
 def cmd_bootstrap(args, ctx) -> dict:
-    """Create `DECISIONS.md` and `decisions/`. The step that did not exist."""
+    """Create `decisions/`. The step that did not exist.
+
+    One path now, not two. It refuses on an existing directory for the reason
+    it always refused: a one-time step that silently repeats is a step nobody
+    can use to answer "has this been done?".
+    """
     sr = ctx["state_root"]
-    idx = sr / "DECISIONS.md"
-    created = []
-    if not (sr / "decisions").is_dir():
-        created.append("decisions/")
-    if not idx.exists():
-        created.append("DECISIONS.md")
-    if not created:
+    d = sr / "decisions"
+    if d.is_dir():
         raise Refused(
-            f"{idx} and {sr / 'decisions'} both already exist — bootstrap is "
-            f"a one-time step and refuses rather than overwriting a record")
+            f"{d} already exists — bootstrap is a one-time step and refuses "
+            f"rather than reporting a project set up months ago as set up now")
     if not args.dry_run:
-        (sr / "decisions").mkdir(parents=True, exist_ok=True)
-        write_atomic(idx, render_index(sr, ctx["project_name"]))
-    return {"created": created, "index": str(idx)}
+        d.mkdir(parents=True, exist_ok=True)
+    return {"created": ["decisions/"], "decisions": str(d)}
 
 
 def slugify(s: str) -> str:
@@ -378,16 +310,18 @@ def cmd_new(args, ctx) -> dict:
         raise Refused("--title is required")
     # **A line break in the title silently destroys the record.** It is written
     # into the ADR's frontmatter block, where a blank line ENDS the block — so
-    # `Type` and `Date`, which follow it, are orphaned, and re-rendering the
-    # index produces `| ADR-0NN | first paragraph |  |  | — |`. rc 0, second
-    # paragraph gone, two fields emptied, and `perry-lint` reporting errors
-    # against a file the tool itself just wrote.
+    # `Type` and `Date`, which follow it, are orphaned. rc 0, second paragraph
+    # gone, two fields emptied, and `perry-lint` reporting errors against a
+    # file the tool itself just wrote.
     #
-    # `render_row` could not catch it: by the time the index is rendered the
-    # title has ALREADY been truncated by the frontmatter parser, so the value
-    # it sees is a clean one-line string. The refusal has to be here, at the
-    # argument, which is the same rule `perry-task` and `perry-goals` apply and
-    # the third tool to need it.
+    # **The refusal has to be here, at the argument, and deleting the index did
+    # not change that.** It used to be argued against `render_row`, which could
+    # not catch it either: by the time a row was rendered the title had ALREADY
+    # been truncated by the frontmatter parser, so the value it saw was a clean
+    # one-line string. The index is gone and the damage is not — `read_adrs`
+    # reads the same truncated frontmatter and `list` reports the ADR with an
+    # empty `type` and `date`. Same rule `perry-task` and `perry-goals` apply,
+    # and the third tool to need it.
     #
     # Reported two rounds ago in `review-queue-v4.md` **with the fix** — the
     # pipe half of that paragraph was fixed and the line-break half, one
@@ -411,6 +345,20 @@ def cmd_new(args, ctx) -> dict:
         raise Refused(
             f"no {sr / 'decisions'} — run `perry-decide bootstrap` first. "
             f"Creating it here would hide that a project was never set up")
+    # **The status this command writes, bound to the schema like every other.**
+    # `new` stamps `> Status: <BORN_STATUS>` into the body, and until TASK-235
+    # nothing checked that the enum declares it: the refusal came from
+    # `render_index`, which asked `statuses()` for its count line, and it came
+    # by accident. Deleting the index took the accident with it and left `new`
+    # writing a status value with no binding at all — so the binding is stated
+    # here, where the value is written, rather than inherited from a renderer.
+    # `tests/test_decide_status_enum.py § TestOneBinding` is what holds it.
+    if BORN_STATUS not in statuses():
+        raise Refused(
+            f"{SCHEMA_PATH} § enums.decision_status does not declare "
+            f"{BORN_STATUS!r}, which is the status a new ADR is born with. A "
+            f"writer that stamped it anyway would be putting a value into the "
+            f"record that the schema says is not one. Nothing was written")
     aid = mint_id(sr)
     slug = args.slug or slugify(args.title)
     path = sr / "decisions" / f"{aid}-{slug}.md"
@@ -426,7 +374,7 @@ def cmd_new(args, ctx) -> dict:
 
     body = "\n".join([
         f"# {aid} — {args.title}", "",
-        "> Status: active",
+        f"> Status: {BORN_STATUS}",
         f"> Type: {args.type}",
         f"> Date: {date.today():%Y-%m-%d}",
         f"> Deciders: {args.deciders or '—'}",
@@ -440,11 +388,8 @@ def cmd_new(args, ctx) -> dict:
     if not args.dry_run:
         with project_lock(sr):
             write_atomic(path, body)
-            write_atomic(sr / "DECISIONS.md", render_index(sr, ctx["project_name"]))
             if args.supersedes:
                 _flip(sr, args.supersedes, "superseded", aid)
-                write_atomic(sr / "DECISIONS.md",
-                             render_index(sr, ctx["project_name"]))
     return {"id": aid, "path": str(path.relative_to(sr)),
             "supersedes": args.supersedes or "",
             "note": "the ADR body is a skeleton — fill Context / Options / "
@@ -482,7 +427,6 @@ def cmd_supersede(args, ctx) -> dict:
     if not args.dry_run:
         with project_lock(sr):
             _flip(sr, args.id, "superseded", args.new)
-            write_atomic(sr / "DECISIONS.md", render_index(sr, ctx["project_name"]))
     return {"superseded": args.id, "by": args.new}
 
 
@@ -500,7 +444,6 @@ def cmd_status(args, ctx) -> dict:
     if not args.dry_run:
         with project_lock(sr):
             _flip(sr, args.id, args.status)
-            write_atomic(sr / "DECISIONS.md", render_index(sr, ctx["project_name"]))
     return {"id": args.id, "status": args.status}
 
 
@@ -511,18 +454,17 @@ def cmd_list(args, ctx) -> dict:
     if args.status:
         adrs = [a for a in adrs if a["status"] == args.status]
 
-    indexed = {m for l in index_rows(sr) for m in
-               (f"ADR-{int(x):03d}" for x in ADR_RE.findall(l))}
-    filed = {a["id"] for a in adrs}
     today = f"{date.today():%Y-%m-%d}"
+    # **Three keys left here at `2.0`, and their departure is the point.**
+    # `index_present`, `indexed_without_file` and `filed_without_index_row`
+    # each compared `DECISIONS.md` against `decisions/`. With one side of every
+    # comparison deleted (DESIGN-013 § 5.3) they could only ever have reported
+    # a constant, and a conformance field that cannot vary is worse than no
+    # field: a consumer reads it as a check being performed. `schema/
+    # decide-list-contract.md § Changelog` carries the removal as `2.0`.
+    #
+    # The two that remain are about the ADR files themselves and are unchanged.
     conformance = {
-        "index_present": (sr / "DECISIONS.md").exists(),
-        # A row in the index with no file behind it, and a file the index never
-        # mentions. Both are legitimate hand-edits and both are worth naming:
-        # the index is rendered from the files, so either means someone edited
-        # one side only.
-        "indexed_without_file": sorted(indexed - filed),
-        "filed_without_index_row": sorted(filed - indexed),
         "off_enum_status": [{"id": a["id"], "status": a["status"]}
                             for a in adrs if a["status"] not in statuses()],
         "missing_type": [a["id"] for a in adrs if not a["type"]],
@@ -603,24 +545,10 @@ def main(argv: list[str]) -> int:
         state_root = P.resolve_state_root(project_root)
         ctx = {"project_root": project_root, "state_root": state_root,
                "project_name": project_root.name}
-        # ADR-004, before the command runs so a refusal means nothing was
-        # written. `bootstrap` on a project with no `DECISIONS.md` sees the
-        # `absent` verdict and passes: there is no shape to conform to yet, and
-        # the file it creates is Perry's own.
-        gate = None
-        if args.cmd not in READ_ONLY_COMMANDS:
-            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
-                                        tool="perry-decide", root_arg=args.root)
-            if not gate.ok:
-                raise Refused(gate.message)
-            if gate.message and not args.as_json:
-                # `gate.mode`, not the literal "advisory" — see `bin/perry-task`
-                # for why the hardcoded word survived until TASK-047.
-                print(f"perry-decide: ⚠ conformance ({gate.mode}) — "
-                      f"{gate.message}", file=sys.stderr)
+        # No ADR-004 gate here any more, and the note above `ADR_RE` is where
+        # that is argued rather than here, because it is a property of the lane
+        # and not of this function.
         result = COMMANDS[args.cmd](args, ctx)
-        if gate is not None and isinstance(result, dict):
-            result["conformance"] = gate.as_dict()
     except Refused as exc:
         if args.as_json:
             print(json.dumps({"refused": str(exc)}, ensure_ascii=False, indent=2))
@@ -635,10 +563,19 @@ def main(argv: list[str]) -> int:
             print(f"  {a['id']:9} {a['status']:11} {a['type'][:12]:12} "
                   f"{(a['title'] or '(no title)')[:52]}")
         print(f"\n  {result['active']} active · {result['total']} total")
+        # **This is the surface now, so what the payload reports it prints.**
+        # It used to print the two index-vs-files divergences and nothing else;
+        # those are gone with the index (`cmd_list`), and the two conformance
+        # findings that outlived them were reachable only through `--json`. A
+        # terminal surface that silently drops half its own payload is the
+        # `DECISIONS.md` problem again, one layer up.
         c = result["conformance"]
-        for k in ("indexed_without_file", "filed_without_index_row"):
-            if c[k]:
-                print(f"  ⚠ {k}: {', '.join(c[k])}")
+        if c["missing_type"]:
+            print(f"  ⚠ missing_type: {', '.join(c['missing_type'])}")
+        if c["off_enum_status"]:
+            print("  ⚠ off_enum_status: "
+                  + ", ".join(f"{e['id']} ({e['status']})"
+                              for e in c["off_enum_status"]))
     else:
         verb = "would write" if args.dry_run else "wrote"
         print(f"perry-decide: {verb} {result.get('id') or result.get('created')}")

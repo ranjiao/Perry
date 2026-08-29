@@ -40,8 +40,9 @@ not about the live read path.
 
 What did NOT change, and is therefore not deleted: `perry-lint` still reads
 `BOARD.md` as a document and `ragged-row` is still the finding that catches a
-destroyed row; `render_row` still writes `DECISIONS.md`, phase files and every
-foreign project a migration touches; and four registers of `BOARD.md`
+destroyed row; `render_row` still writes phase files and every foreign project
+a migration touches — it stopped writing the decisions index when TASK-235
+deleted that file, which is why `bin/perry-decide` no longer imports it; and four registers of `BOARD.md`
 — `## Cadence`, `## Intake`, `## User Input Queue`, `## Top risks` — have no
 store of their own yet, so their readers are counted here as a pinned residual
 rather than quietly excused. **A test file that lost those assertions would

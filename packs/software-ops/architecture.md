@@ -82,7 +82,7 @@ PMO never writes to this file. It can:
 Interactive bootstrap when `ARCHITECTURE.md` doesn't exist. Walks the user through filling §1–§8 with prompts. Output is a draft the user edits to completion before flipping `Status: active`.
 
 Procedure:
-1. Detect `OKR.md` / existing code structure / `DECISIONS.md` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
+1. Detect `OKR.md` / existing code structure / `decisions/` to pre-fill §1 (Mission, drawn from OKR) and seed §2 (Components, drawn from top-level code directories).
 2. For each section, prompt the user with the section's question. Capture answers via free-text (no AskUserQuestion — these are essay answers, not multiple choice).
 3. Write the draft. Status starts as `draft`; doesn't gate dispatch yet.
 4. **Tier 1 cap check** — verify the draft ≤ 500 lines. If exceeds, AskUserQuestion (header `"ARCH cap"`, options): `Split — move §3+§4+§5 detail to architecture/sections/§<N>-<topic>.md and keep TOC + summaries in main (Recommended) | Trim sections in place | Override with logged reason`. Refuse the write on Override unless reason is provided.

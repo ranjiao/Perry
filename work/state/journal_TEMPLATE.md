@@ -35,9 +35,9 @@
 
 - (none)
 
-<!-- Each decision logged today, with a pointer to the ADR in DECISIONS.md.
+<!-- Each decision logged today, with a pointer to the ADR file under decisions/.
      Example:
-       ADR-005 — chose option A for rollback policy (Type: Operations) · DECISIONS.md
+       ADR-005 — chose option A for rollback policy (Type: Operations) · decisions/ADR-005-rollback-policy.md
 -->
 
 ## Notes

@@ -395,7 +395,7 @@ Triggered manually (or surfaced by the standup when ≥40–60% of phase day bud
 
 **Inline health-check** (added to mid-phase-review): run `/pmo health-check` (see `reference/health-check.md`) and fold its findings — audit violations, runbook gaps, incident patterns — into the mid-phase-review report. The detailed report lives at `evidence/<YYYY-MM>/health-check-<YYYY-MM-DD>.md`; the mid-phase-review summarises the top decision items inline.
 
-**Digest archive review** (added to mid-phase-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `DECISIONS.md` / `phase/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `work/reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
+**Digest archive review** (added to mid-phase-review): if `knowledge/` exists, scan for active digests with no reference in `BOARD.md` / `journal/` / `evidence/` / `decisions/` / `phase/` for ≥ `archive_inactive_days` days (default 90; override per-project hook). For each candidate, use `AskUserQuestion` (header = digest basename, options): `Archive (Recommended) | Keep active — still relevant | Mark eternal — never propose archive | Delete entirely`. On Archive: flip `Status: archived` in the digest header + record `Archived: <date> (reason: <user input>)`. On Eternal: flip `Status: eternal`. On Delete: `git rm` source + digest. Update `knowledge/INDEX.md`. See `work/reference/digests.md § Archive lifecycle` for full detail. (Note: `health-check` already includes the digest stale scan; running it here is the same scan, surfaced for the user to act on.)
 
 ### `end-phase-retro`
 Triggered when OKR `score-phase` is about to run (or explicitly by the user). Reads `BOARD.md` + all journal entries since the current phase started + `evidence/<YYYY-MM>/` for the calendar months the phase spanned. For each KR: mark `achieved | partial | missed | dropped`, link evidence file. Capture lessons. Identify carry-over candidates. Save to `evidence/<YYYY-MM>/retro.md` (using the calendar month at scoring time). This is OKR's input for `plan-phase` of the next phase.
@@ -416,16 +416,16 @@ These three numbers go into `evidence/<YYYY-MM>/retro.md` § "Health metrics" se
 ### ~~`decide <topic>`~~ — moved to the `decide` lane
 
 ADR recording left this lane on 2026-08-16, when the signed hand-off contract
-(`$PERRY_HOME/SKILL.md § The hand-off contract`) gave `DECISIONS.md` and
-`decisions/` to `decide`. It is now **`/perry decide adr <topic>`**, with the
+(`$PERRY_HOME/SKILL.md § The hand-off contract`) gave `decisions/` to
+`decide`. It is now **`/perry decide adr <topic>`**, with the
 same `--supersede` / `--expire` / `--archive` lifecycle, and the full procedure
 lives at `$PERRY_HOME/decide/reference/decisions.md`.
 
-**`work` no longer writes `DECISIONS.md` or `decisions/` at all.** If a request
+**`work` no longer writes `decisions/` at all.** If a request
 lands here that would, route it — do not write and mention it afterwards. That
 is the refusal case the contract names.
 
-The old-monolithic-`DECISIONS.md` migration moved with it.
+The migration for a pre-Perry project that keeps all its ADRs in one file moved with it.
 
 ### `risk`
 

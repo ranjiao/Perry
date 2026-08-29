@@ -244,7 +244,6 @@ your-project/
 │   ├── phase/              当前阶段 + 历史快照
 │   ├── BOARD.md            此刻的开放任务
 │   ├── journal/            每天发生了什么
-│   ├── DECISIONS.md        决策索引
 │   ├── decisions/          一个决策一个文件，含推理过程
 │   ├── design/             设计文档 / RFC
 │   ├── evidence/           任务做完的凭据

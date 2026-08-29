@@ -15,7 +15,6 @@
 | .perry/config.md | 2 | 2026-08-20 | declare |
 | .perry/hook.md | 2 | 2026-08-20 | declare |
 | BOARD.md | 2 | 2026-08-20 | declare |
-| DECISIONS.md | 2 | 2026-08-20 | declare |
 | OKR.md | 2 | 2026-08-20 | declare |
 | design/DESIGN-001-resumable-pipelines.md | 2 | 2026-08-20 | declare |
 | design/DESIGN-002-namespace-collision.md | 2 | 2026-08-20 | declare |

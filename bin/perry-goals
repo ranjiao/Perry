@@ -52,7 +52,7 @@ longer match the log is a **hand edit**: reported and reconciled with the
 user's value, never overwritten with the log's.
 
 **This tool writes `OKR.md` and `phase/` and nothing else.** `BOARD.md`,
-`journal/` and `DECISIONS.md` belong to other lanes, and `SKILL.md § The
+`journal/` and `decisions/` belong to other lanes, and `SKILL.md § The
 hand-off contract` names all three as cases that must refuse. `assert_owned`
 is that rule as code, and the board-side link — a `Commitment` cell carrying an
 `Id` from this table — is printed as a hand-off for `/perry work` to write.
@@ -613,7 +613,7 @@ def owned_by_goals(relative: str) -> bool:
 HANDOFF = {
     "BOARD.md": "work", "journal": "work", "PROJECT_STATE.md": "work",
     "evidence": "work", "weekly": "work", "handoff": "work",
-    "DECISIONS.md": "decide", "decisions": "decide", "design": "decide",
+    "decisions": "decide", "design": "decide",
 }
 
 

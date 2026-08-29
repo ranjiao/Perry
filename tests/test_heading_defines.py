@@ -162,11 +162,11 @@ class ADiscussionHeadingDoesNotDefine(ProjectFixture):
 # ── 2 · the definitions that must survive, each proved separately ─────────
 class TheHeadingDefinitionStillWorks(ProjectFixture):
     def test_an_adr_heading_defines_its_id_with_kind_section_and_a_title(self):
-        self.write("DECISIONS.md",
+        self.write("notes/decision-log.md",
                    "# Decisions\n\n## ADR-001 — PMO bootstrap\n\n"
                    "Chosen: a single project office.\n")
         entry = self.harvest()["ADR-001"]
-        self.assertEqual(entry["defined"], "DECISIONS.md:3")
+        self.assertEqual(entry["defined"], "notes/decision-log.md:3")
         self.assertEqual(entry["kind"], "section")
         self.assertEqual(entry["title"], "PMO bootstrap")
 
@@ -179,7 +179,8 @@ class TheHeadingDefinitionStillWorks(ProjectFixture):
                                ("## **ADR-001** — PMO bootstrap",
                                 "PMO bootstrap")):
             with self.subTest(heading=heading):
-                self.write("DECISIONS.md", f"# Decisions\n\n{heading}\n")
+                self.write("notes/decision-log.md",
+                           f"# Decisions\n\n{heading}\n")
                 entry = self.harvest()["ADR-001"]
                 self.assertEqual(entry["kind"], "section", heading)
                 self.assertEqual(entry["title"], title, heading)
@@ -214,7 +215,8 @@ class TheLinkageDefinitionStillWorks(ProjectFixture):
 class ExplainStillResolvesAllThree(ProjectFixture):
     def setUp(self):
         super().setUp()
-        self.write("DECISIONS.md", "# Decisions\n\n## ADR-001 — PMO bootstrap\n")
+        self.write("notes/decision-log.md",
+                   "# Decisions\n\n## ADR-001 — PMO bootstrap\n")
         self.write("BOARD.md",
                    "# Board\n\n## P1\n\n"
                    "| ID | Title | Owner | Status |\n"
@@ -242,7 +244,7 @@ class ExplainStillResolvesAllThree(ProjectFixture):
         self.write("notes/review.md",
                    "# Review\n\n## What `ADR-001` got wrong about regions\n")
         entry = self.harvest()["ADR-001"]
-        self.assertEqual(entry["defined"], "DECISIONS.md:3")
+        self.assertEqual(entry["defined"], "notes/decision-log.md:3")
         self.assertEqual(entry["title"], "PMO bootstrap")
 
 
@@ -285,7 +287,8 @@ class RevertingTheRuleSeparatesTheTwoCases(ProjectFixture):
                          "test is no longer pinning anything")
 
     def test_case_two_does_not_move_under_the_old_rule(self):
-        self.write("DECISIONS.md", "# Decisions\n\n## ADR-001 — PMO bootstrap\n")
+        self.write("notes/decision-log.md",
+                   "# Decisions\n\n## ADR-001 — PMO bootstrap\n")
         self.write("BOARD.md",
                    "# Board\n\n## P1\n\n"
                    "| ID | Title | Owner | Status |\n"
@@ -373,9 +376,10 @@ class TheQuotationRuleAlsoAppliesInAHeading(ProjectFixture):
         `reference/diagnose.md`, whose glossary rows are written
         ``| `CTX-01` | error | … |`` — the same false positive arriving from
         the other side."""
-        self.write("DECISIONS.md", "# Decisions\n\n## `REL-00` — Release freeze\n")
+        self.write("notes/decision-log.md",
+                   "# Decisions\n\n## `REL-00` — Release freeze\n")
         entry = self.harvest()["REL-00"]
-        self.assertEqual(entry["defined"], "DECISIONS.md:3")
+        self.assertEqual(entry["defined"], "notes/decision-log.md:3")
         self.assertEqual(entry["kind"], "section")
         self.assertEqual(entry["title"], "Release freeze")
 

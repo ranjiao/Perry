@@ -63,7 +63,7 @@ is would be worse than having only one of them.
 This tool writes inside `knowledge/`, which the hand-off contract gives to the
 `work` lane (`schema/state-schema.json § files[].owner`, `SKILL.md § The
 hand-off contract`). It writes nothing else — not `BOARD.md`, not `journal/`,
-not `DECISIONS.md`.
+not `decisions/`.
 
 No LLM, no external dependencies (stdlib only). DESIGN-006 section 5.4.
 """
@@ -277,8 +277,13 @@ def render_cards_section(cards: list[dict], preserved_comment: str) -> str:
     """The `## Cards by topic` block, rendered from the cards on disk.
 
     Rendered, never appended to — an index maintained by appending drifts from
-    the files it indexes the first time someone edits or deletes one, and
-    `perry-decide` learned this on `DECISIONS.md` one lane over.
+    the files it indexes the first time someone edits or deletes one, and the
+    `decide` lane learned this one lane over. It learned it twice: its index
+    was rendered rather than appended for exactly this reason, and TASK-235
+    then deleted the index outright because a rendering of records that a
+    command already prints is a second copy of them (DESIGN-013 § 5.3). This
+    one stays: `knowledge/INDEX.md` also carries digest registration and
+    archive metadata that live nowhere else, so it is not pure projection.
     """
     lines = [CARDS_HEADING, ""]
     if not cards:

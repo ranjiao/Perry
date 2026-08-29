@@ -242,7 +242,6 @@ your-project/
 │   ├── phase/              the current stretch of work + saved snapshots
 │   ├── BOARD.md            open tasks, right now
 │   ├── journal/            what happened each day
-│   ├── DECISIONS.md        index of decisions
 │   ├── decisions/          one file per decision, with the reasoning
 │   ├── design/             design docs / RFCs
 │   ├── evidence/           proof that tasks were finished

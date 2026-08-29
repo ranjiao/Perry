@@ -80,7 +80,7 @@ mechanism" — will they be able to tell the outcomes apart.
 
 Asking less means deciding more on the user's behalf, which is only acceptable
 if those decisions stay **visible and reversible**. So every decision an agent
-takes on the user's behalf is logged like any other — in `DECISIONS.md` or the
+takes on the user's behalf is logged like any other — in `decisions/` or the
 project's equivalent — and marked as agent-decided, with what would trigger a
 revisit. The user must be able to find, later, every call that was made without
 them. Silent autonomy is a worse failure than over-asking.

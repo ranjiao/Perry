@@ -268,7 +268,7 @@ Triggered automatically inside `mid-phase-review` and `end-phase-retro` (see `su
    - `BOARD.md`
    - `journal/<YYYY-MM>/*.md` for last 90 days
    - `evidence/<YYYY-MM>/**.md` for last 90 days
-   - `DECISIONS.md`
+   - `decisions/`
    - `phase/<NNN>-<slug>.md` (current phase) and recent `phase/snapshots/`
    for ≥ `archive_inactive_days` (default **90 days**, override per-project hook)
 2. Source file no longer exists (orphaned digest)

@@ -1,15 +1,15 @@
 {
   "contract_files_discovered": 6,
   "contracts": {
-    "perry-decide/list/1.1": {
+    "perry-decide/list/2.0": {
       "collections_the_witness_filled": [
         "expired_sunsets"
       ],
       "command": "perry-decide list --json",
-      "contract": "perry-decide/list/1.1",
-      "documented": 28,
+      "contract": "perry-decide/list/2.0",
+      "documented": 25,
       "documented_not_emitted": [],
-      "emitted": 25,
+      "emitted": 22,
       "emitted_not_documented": [],
       "file": "schema/decide-list-contract.md",
       "named_no_such_collection": [],
