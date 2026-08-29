@@ -473,6 +473,7 @@ in the payload. Use it, or better it — but never present a finding without one
 | `LOAD-04` | info | A code is defined but carries no readable name. | Title it where it's defined |
 | `NS-01` | warn | A directory Perry claims holds files Perry did not write. | Relocate the state root, or move the file |
 | `MODE-01` | warn | A track's **declared** work mode disagrees with what the board shows, with a clear margin. | Correct the `Mode` cell, or correct the work |
+| `MODE-02` | warn | `.perry/config.md § Tracks` declares a row that `.perry/config.jsonl` contradicts — a differing cell, or no record for the row at all. | `perry-config write --from-file` (the table is right) or `perry-config render --write` (the store is right) |
 | `FIT-01` | info | Far more process than work. | The subtraction |
 | `FIT-02` | info | Below the minimum viable spine. | The floor, and nothing more |
 

@@ -6760,17 +6760,27 @@ def main(argv: list[str]) -> int:
             # `perry-state` is: refusing `list` would make a corrupt store
             # un-diagnosable with the tool the user has in their hand.
             # **State 7: the store answered by DEFAULT while the table
-            # declares tracks it does not carry.** That is drift, not an
-            # answer, and a write against a register provably missing a
-            # declared track stamps `Track`, `Stage` and `Arrived` off a
-            # truncated list. Round 2 refused here and was right to; round 3
-            # allowed it and lost `intake` and its SLA in silence.
+            # declares tracks it has no row for at all.** A write against a
+            # register provably missing a declared track stamps `Track`,
+            # `Stage` and `Arrived` off a truncated list. Round 2 refused here
+            # and was right to; round 3 allowed it and lost `intake` and its
+            # SLA in silence.
+            #
+            # **The refusal is `store-default` only, and stays there**
+            # (USER-905 decision 2). Round 5 widened it to every drifted row
+            # and hard-blocked three ordinary hand-edit workflows that wrote at
+            # `45a355d` and at round 4 — on one of them `perry-config write
+            # --from-file`, the only command this message names, exits 1, so
+            # the block could not be cleared by its own documented remedy. A
+            # register that HAS a record for every declared name can place
+            # every row it is asked to place; that it disagrees about the
+            # row's mode or SLA is drift, and drift warns, five lines below.
             #
             # The message names the STORE as the register that answered — the
             # round 3 refusal told the user a track was "not declared in
             # `.perry/config.md § Tracks`" while pointing at a table that
             # declares it on line 14.
-            _lost = _ps.tracks_missing_from_the_register(
+            _lost = _ps.tracks_the_register_cannot_place(
                 project_root, tracks, source)
             if _lost and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(
@@ -6782,6 +6792,20 @@ def main(argv: list[str]) -> int:
                     f"Nothing was written. `perry-config write --from-file` "
                     f"rebuilds the store from the table; `perry-lint` reports "
                     f"the same disagreement as `config-store-drift`.")
+            # **Allowed, and not in silence.** The same drift rule the
+            # payload warns on — `perry-lint`'s, asked once — printed on
+            # stderr for every command, reads included. `perry-task list`
+            # taking the projection without a word was carried through four
+            # review rounds as an open finding; this does not fix the blank
+            # `mode` cell it is really about, and it does stop the command
+            # answering off a register it knows disagrees without saying so.
+            _drift = _ps.tracks_the_register_contradicts(project_root, source)
+            if _drift and not _lost:
+                print(f"⚠ the track register disagrees with "
+                      f"`.perry/config.md § Tracks` on {', '.join(_drift)}. "
+                      f"This command answers from the REGISTER. `perry-lint` "
+                      f"reports the same disagreement as `config-store-drift`.",
+                      file=sys.stderr)
             if source in _ps.TRACKS_STORE_UNUSABLE \
                     and args.cmd not in READ_ONLY_COMMANDS:
                 raise Refused(
