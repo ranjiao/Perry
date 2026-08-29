@@ -269,11 +269,40 @@ Exactly the author's tip figure (99 / 2921 / 3) and exactly his failure set.
 Machine was loaded throughout (three other agents' suites running concurrently).
 I did **not** re-measure `6c0d041` at 98 / 2882 / 3.
 
-`python3 -m unittest discover -s tests` (spec item 5, which the author did not
-run) was started on the tip copy and had not finished when this review was
-written — see § 5. **It does not block on its own**: the two runners are known
-to disagree by 3 on this repository and `bash tests/run` covers the same
-modules. It is a paperwork gap, not a correctness gap, and it is dwarfed by § 1.
+### Spec item 5 — `python3 -m unittest discover -s tests`. **RUN, on BOTH trees. Clean.**
+The author did not produce this figure. I ran it serially on the tip copy and on
+a reconstructed `6c0d041` fork-point tree (new module removed, `bin/perry-task`
+and the two converted test files reverted via `git show`, no checkout):
+
+| tree | tests | red |
+|---|---|---|
+| `6c0d041` (fork point) | 2875 | 8 |
+| tip `afb3a48` | 2914 | 9 |
+
+`+39` tests is exactly `tests/test_register_store_invariant.py`. The tip's red
+set is the fork point's **eight, unchanged**, plus one:
+`test_host_support.TestOpenCodeDispatchLimit.test_concurrent_registers_do_not_exceed_opencode_cap`
+— the load-sensitive `perry-dispatch-limit` bash flake the author already
+recorded in his § 9, on a script this branch does not touch, and the machine
+was carrying three other agents' suites while I measured.
+
+**This change adds no failure under either runner.** The six failures that
+separate `discover` from `bash tests/run` are pre-existing runner artifacts,
+now proven so on the fork point rather than assumed:
+
+- `test_store_is_canonical` and `test_task_summary` — `ModuleNotFoundError: No
+  module named 'tests'` from `from tests.X import …`, which is literally row 1
+  of this repository's own `## Intake` (filed 2026-08-21);
+- three `assertIs` identity failures in
+  `test_risks_store.TestTheReadersAreOneFunction` — `parsers` loaded twice under
+  two module identities, so `PT.is_risk_header is P.is_risk_register_header`
+  fails while the objects compare equal. I separately confirmed the branch's new
+  module does not cause these: `test_register_store_invariant` +
+  `test_risks_store.TestTheReadersAreOneFunction` run together is green, as is
+  the pre-existing `test_md_store` + the same class;
+- the `test_host_support` flake above.
+
+Spec item 5 is satisfied and it is clean.
 
 ### Guards that survive their own deletion
 Beyond the twelve the author mutated, the one I found is `MR` above: the
@@ -329,18 +358,16 @@ kept round 1's shape, on the user's instruction, without bounding it.
 
 ## 5. Not checked
 
-1. `python3 -m unittest discover -s tests` did not finish inside this round; the
-   figure is neither confirmed nor used. (Spec item 5, also open in the author's
-   § 10.2.)
-2. `6c0d041` baseline (98 / 2882 / 3) not re-measured — I measured the tip only.
-3. Six of the twelve mutations (M2, M4, M7, M8, M10, M11, M12) were not
+1. `6c0d041` under **`bash tests/run`** (98 / 2882 / 3) not re-measured — I
+   measured the tip under that runner, and both trees under `discover`.
+2. Six of the twelve mutations (M2, M4, M7, M8, M10, M11, M12) were not
    re-run; I spot-checked six including all three the brief singled out.
-4. Full suite not re-run per mutation — same limitation the author declares.
-5. Crash recovery / `os._exit(9)` at the rename boundaries not re-tested.
-6. Localized (`zh`) board not driven through a refusal — same as the author's
+3. Full suite not re-run per mutation — same limitation the author declares.
+4. Crash recovery / `os._exit(9)` at the rename boundaries not re-tested.
+5. Localized (`zh`) board not driven through a refusal — same as the author's
    § 10.3.
-7. Concurrency between two Perry writers not exercised.
-8. `asks.jsonl` and `risks.jsonl` were exercised only through the shape matrix
+6. Concurrency between two Perry writers not exercised.
+7. `asks.jsonl` and `risks.jsonl` were exercised only through the shape matrix
    and the fixture writes. They are **not** exposed to § 1: `SHRINK_ALLOWED`
    holds `purge` (tasks), `resolve-intake` and `intake-sweep` (both intake), so
    no command may shrink the ask or risk store at all. The blast radius of the
