@@ -37,7 +37,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
+from gate import GATE_OFF, gate_off, gate_off_record   # noqa: E402 — tests/gate.py: why these fixtures opt out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
@@ -513,8 +513,14 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         shutil.copytree(PERRY_HOME / "tests" / "fixtures" / "sample-project",
                         self.root)
         cfg = self.root / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text() + _TABLE_TRACKS + GATE_OFF)
-        (self.root / ".perry" / "config.jsonl").write_text(_STORE_TRACKS)
+        cfg.write_text(gate_off(cfg.read_text() + _TABLE_TRACKS))
+        # The store is hand-built, so the opt-out has to be said in it too:
+        # `gate_mode` reads `.perry/config.jsonl` first (TASK-233) and a store
+        # that carries no `conformance_gate` record is a project declaring no
+        # gate. `gate_off` above puts the same line in the markdown, which is
+        # what a derived store would have carried.
+        (self.root / ".perry" / "config.jsonl").write_text(
+            _STORE_TRACKS + gate_off_record())
 
     def declared(self, tracks) -> list[tuple[str, str]]:
         return [(t["track"], t["mode"]) for t in tracks]

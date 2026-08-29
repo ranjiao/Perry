@@ -49,7 +49,7 @@ import perry_md_store as M                                     # noqa: E402
 import perry_store as S                                        # noqa: E402
 import tables as T                                             # noqa: E402
 
-from gate import GATE_OFF                                      # noqa: E402
+from gate import GATE_OFF, gate_off                            # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 SECOND_PROJECT = pathlib.Path("~/proj/gimegime-pmo").expanduser()
@@ -829,8 +829,12 @@ class Project:
         # fixture here is writing the very file the gate consults about
         # itself. `GATE_OFF` is the documented way out (tests/gate.py); the
         # gate's own branches are `tests/test_conformance.py`'s subject.
+        # `gate_off`, not `+ GATE_OFF`: Perry's own config carries `## Tracks`
+        # and prose, and an appended bullet lands outside the preamble
+        # `perry_md_store § scan_config` reads — so it would mint no record,
+        # and `gate_mode` reads the store first since TASK-233.
         (self.root / ".perry" / "config.md").write_text(
-            (ROOT / ".perry" / "config.md").read_text() + GATE_OFF,
+            gate_off((ROOT / ".perry" / "config.md").read_text()),
             encoding="utf-8")
 
     def okr(self, *args):
@@ -1114,7 +1118,7 @@ class TestTheWriterWritesTheStore(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         shutil.copytree(FIXTURES / "second-project", d, dirs_exist_ok=True)
         cfg = d / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text() + GATE_OFF, encoding="utf-8")
+        cfg.write_text(gate_off(cfg.read_text()), encoding="utf-8")
         return d
 
     def test_commit_writes_okr_and_the_store_together(self):

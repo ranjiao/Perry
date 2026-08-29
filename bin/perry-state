@@ -113,45 +113,121 @@ def idle_days(u) -> int:
     return int(m.group(1)) if m else -1
 
 
+#: `.perry/config.jsonl` setting key → the key `parse_config` reports it under.
+#:
+#: The store's keys are `perry_md_store § setting_key`'s: the label as written
+#: in the file, decoration off and spaces to `_`. The payload's keys are older
+#: and shorter. Written once, here, so the store read and the markdown read
+#: cannot come to disagree about which field is which — the markdown half below
+#: is generated from this same map rather than carrying a second list of labels.
+SETTING_FIELDS: dict[str, tuple[str, str]] = {
+    # store key           payload key      the label the markdown writes
+    "document_language": ("language", "Document language"),
+    # Absent means "follow user" — mirror whatever the user typed. Written
+    # files always use `language`, never this one. See reference/i18n.md.
+    "chat_language": ("chat_language", "Chat language"),
+    "repo_layout": ("layout", "Repo layout"),
+    "pmo_repo_path": ("pmo_repo", "PMO repo path"),
+    "code_repo_path": ("code_repo", "Code repo path"),
+    "state_root": ("state_root", "State root"),
+}
+
+
+def stored_settings(project_root: Path) -> tuple[dict[str, str] | None, str]:
+    """`(settings, source)` — the preamble's settings from the STORE.
+
+    Keyed the way `parse_config` reports them, with the blank marker put back:
+    `perry_md_store § stored_value` normalises a declared blank — `—`, `n/a`,
+    `无` — to the empty string on the way IN, because the marker is layout and
+    the value is "nothing", and `parse_config` has always handed back the cell
+    the project actually wrote. `track_from_record` restores it for exactly the
+    same reason and the two must not disagree.
+
+    **A record that exists is a line that was written.** That is what makes the
+    reconstruction exact rather than a guess: `- Code repo path: —` mints a
+    record with an empty value, and a config with no such line mints no record
+    at all, so "record present, value empty" is unambiguously the marker and
+    "no record" is unambiguously "not declared". The one thing it cannot
+    recover is WHICH blank marker was written — a file that said `n/a` comes
+    back as `—` — and that is the same lossy step `## Tracks` has shipped since
+    TASK-095, named here rather than discovered later.
+    """
+    stored, why = P.config_store_settings(project_root)
+    if stored is None:
+        return None, why
+    out: dict[str, str] = {}
+    for store_key, (payload_key, _label) in SETTING_FIELDS.items():
+        if store_key not in stored:
+            continue
+        out[payload_key] = stored[store_key] or blank_marker()
+    if "packs" in stored:
+        out["packs"] = stored["packs"] or blank_marker()
+    return out, why
+
+
 def parse_config(root: Path) -> dict:
-    """`.perry/config.md` — document + chat language, repo layout, state root."""
+    """The project's settings — document + chat language, layout, state root.
+
+    **From `.perry/config.jsonl` when that store exists, with
+    `.perry/config.md` as the fallback for a project that has none** — the
+    arrangement `## Tracks` has had since TASK-095, extended to the six
+    settings beside it (TASK-233).
+
+    Until this row the function opened with `if not path.exists(): return cfg`,
+    so deleting the markdown blanked document language, chat language, repo
+    layout, state root and both repo paths in silence on a project whose store
+    carried all seven. **An absent markdown has stopped meaning "never
+    configured"**: `present` is now true when either register is there, which
+    is the state `SKILL.md § first-time setup` actually wants to branch on.
+
+    `settings_source` travels with the settings, for the reason
+    `tracks_source` travels with the tracks: a reader handed values with no
+    provenance cannot tell the store's answer from the projection's, and on a
+    project where the two have come apart that is the whole question. It is one
+    of `store` / `store-default` / `absent` / `unreadable` / `invalid`, and the
+    last two mean a store is sitting right there and could not be used — the
+    values below are then the PROJECTION's and must not be treated as truth.
+    """
     cfg = {"present": False, "language": "", "chat_language": "", "layout": "",
            "pmo_repo": "", "code_repo": "", "state_root": ""}
     path = root / ".perry" / "config.md"
-    if not path.exists():
-        return cfg
-    cfg["present"] = True
-    text = path.read_text(errors="replace")
-    fields = {
-        "language": r"Document language",
-        # Absent means "follow user" — mirror whatever the user typed. Written
-        # files always use `language`, never this one. See reference/i18n.md.
-        "chat_language": r"Chat language",
-        "layout": r"Repo layout",
-        "pmo_repo": r"PMO repo path",
-        "code_repo": r"Code repo path",
-        "state_root": r"State root",
-    }
-    for key, label in fields.items():
-        m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
-        if m:
-            cfg[key] = m.group(1).strip().strip("*` ")
+    stored, source = stored_settings(root)
+    cfg["settings_source"] = source
+    if stored is not None:
+        cfg["present"] = True
+        cfg.update(stored)
+    if path.exists():
+        cfg["present"] = True
+        text = path.read_text(errors="replace")
+        if stored is None:
+            for store_key, (payload_key, label) in SETTING_FIELDS.items():
+                m = re.search(rf"{label}\s*[:：]\s*([^\n]+)", text, re.I)
+                if m:
+                    cfg[payload_key] = m.group(1).strip().strip("*` ")
+    else:
+        text = ""
     # `declared_tracks`, not the raw table read: `## Tracks` is a projection
     # of `.perry/config.jsonl` wherever that store exists, and reading the
     # rendered table here made the dashboard report the projection while the
-    # store beside it said something else. The settings above still come out of
-    # the file — they are a separate row (P003-O2-KR1 counts the track
-    # readings) and `parse_config`'s early return already covers the
-    # no-config-at-all case.
+    # store beside it said something else.
     # **`tracks_source` travels with `tracks`.** A reader handed a list with no
     # provenance cannot tell the store's answer from the projection's, which is
     # the state the V4 round 1 review reproduced: a store holding `main` and
     # `intake` plus one truncated line reported only `main`, and the payload
     # looked like an ordinary single-track project. It says so now.
     cfg["tracks"], cfg["tracks_source"] = declared_tracks_detail(root)
-    m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
-    names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m else ["software-ops"]
-    cfg["packs"] = load_packs([n for n in names if n and n != "—"])
+    if "packs" in cfg:
+        names = [n.strip().strip("*` ") for n in cfg.pop("packs").split(",")]
+    elif stored is not None:
+        # The store answered and holds no `Packs` line, so the project declares
+        # none. Not a reason to go read the markdown.
+        names = ["software-ops"]
+    else:
+        m = re.search(r"Packs\s*[:：]\s*([^\n]+)", text, re.I)
+        names = [n.strip().strip("*` ") for n in m.group(1).split(",")] if m \
+            else ["software-ops"]
+    cfg["packs"] = load_packs(
+        [n for n in names if n and n != blank_marker() and n != "—"])
     return cfg
 
 
@@ -814,44 +890,37 @@ def _validated_config_records(project_root: Path) -> tuple[list[dict] | None, st
     `absent` / `unreadable` / `invalid`, and a list otherwise (`why` is then
     the empty string, because nothing went wrong).
 
-    `stored_tracks` and `tracks_the_register_contradicts` both need "load the
-    store, validate it, and say what went wrong if anything did", and a second
-    copy of that decision is how this file came to hold two spellings of one
-    rule three rounds running.
+    `stored_tracks`, `stored_settings` and `tracks_the_register_contradicts`
+    all need "load the store, validate it, and say what went wrong if anything
+    did", and a second copy of that decision is how this file came to hold two
+    spellings of one rule three rounds running.
+
+    **The implementation moved to `viewer/parsers.py § config_store_records`
+    and this is the row-shaped wrapper over it** (TASK-233). The settings half
+    of this same store is read by `bin/perry-conform § gate_mode` and by
+    `parsers.resolve_state_root`, neither of which can import a hyphenated
+    `bin/perry-state` — `perry-conform` would have to load `perry-lint` on the
+    way, and `resolve_state_root` runs before any tool has started. `parsers.py`
+    is the bottom of the import graph and is the one place all three already
+    reach, which is the same move `ask_is_answered` made one register over.
+
+    The `TRACKS_STORE_*` names below still spell the three reasons because
+    every caller in this file names them; they are the same three strings
+    `parsers.CONFIG_STORE_*` spells, and `tests/test_config_store_readers.py`
+    asserts that rather than leaving it to be noticed.
+
+    **An empty store is classified `invalid` and that decision travelled with
+    the implementation.** The justification here used to read "`perry-config
+    write --from-file` never produces one". That is false and one command
+    disproves it (round 3 review, finding 2): on a `.perry/config.md` carrying
+    no `- Key: value` settings, the importer writes a zero-record store at exit
+    0, and every write is then refused forever while `verify`, `diff` and
+    `perry-lint` all report zero drift. The classification stays — a file that
+    parsed to zero records has answered nothing, and an interrupted write does
+    produce one — but the claim under it is retracted rather than left
+    standing. The real fix is at the WRITER, and is filed to `## Intake`.
     """
-    path = project_root / ".perry" / "config.jsonl"
-    if not path.exists():
-        return None, TRACKS_STORE_ABSENT
-    try:
-        # Imported here, not at module scope: `perry_md_store` reads the schema
-        # at import time and refuses a bad one, and this file is imported by
-        # every other tool in `bin/` — a schema problem must not turn every
-        # read into an ImportError before the payload can report it.
-        import perry_md_store as md_store  # noqa: PLC0415
-        good, findings = md_store.validate_records(md_store.load_store(path))
-    except Exception:                                            # noqa: BLE001
-        return None, TRACKS_STORE_UNREADABLE
-    if findings:
-        return None, TRACKS_STORE_INVALID
-    if not good:
-        # **An EMPTY store is broken; a settings-only store is not.**
-        #
-        # The justification here used to read "`perry-config write --from-file`
-        # never produces one". **That is false and one command disproves it**
-        # (round 3 review, finding 2): on a `.perry/config.md` carrying no
-        # `- Key: value` settings, the importer writes a zero-record store at
-        # exit 0, and every write is then refused forever while `verify`,
-        # `diff` and `perry-lint` all report zero drift.
-        #
-        # The classification stays — a file that parsed to zero records has
-        # answered nothing, and an interrupted write does produce one — but the
-        # claim under it is retracted rather than left standing. The real fix is
-        # at the WRITER: an importer that derives no records should refuse or
-        # warn instead of reporting a successful write. Filed to `## Intake`
-        # rather than folded in here, because it is `bin/perry-config`'s
-        # behaviour and this row is the read side.
-        return None, TRACKS_STORE_INVALID
-    return good, ""
+    return P.config_store_records(project_root)
 
 
 def stored_tracks(project_root: Path) -> tuple[list[dict] | None, str]:
