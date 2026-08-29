@@ -441,6 +441,14 @@ class TestRenderRebuildsTheFileFromTheStore(unittest.TestCase):
         self.assertFalse((d / ".perry" / "config.md").exists())
 
     def test_it_returns_non_zero_on_a_store_it_cannot_read(self):
+        """A truncated trailing line — the shape an interrupted write leaves.
+
+        Refused in `load_store`, which never reaches validation. The next test
+        is the OTHER branch, and the two are separate cases because a first
+        draft of this one had them confused: a mutation that disabled the
+        validation branch left this test green, so it was guarding the JSON
+        decode and nothing else.
+        """
         d, _original = self.project()
         store = d / ".perry" / "config.jsonl"
         store.write_text(store.read_text(encoding="utf-8")
@@ -449,6 +457,27 @@ class TestRenderRebuildsTheFileFromTheStore(unittest.TestCase):
         (d / ".perry" / "config.md").unlink()
         out = run_config("render", "--write", root=d)
         self.assertNotEqual(out.returncode, 0)
+        self.assertFalse((d / ".perry" / "config.md").exists())
+
+    def test_it_returns_non_zero_on_a_store_that_does_not_validate(self):
+        """Well-formed JSONL that `validate_records` rejects.
+
+        A duplicate key, which is what two `- State root:` bullets in one file
+        mint. It parses, so `load_store` is happy; the findings branch is the
+        one that has to refuse.
+        """
+        d, _original = self.project()
+        store = d / ".perry" / "config.jsonl"
+        store.write_text(store.read_text(encoding="utf-8")
+                         + json.dumps({"kind": "setting", "key": "state_root",
+                                       "label": "State root",
+                                       "value": "elsewhere", "order": 99},
+                                      ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+        (d / ".perry" / "config.md").unlink()
+        out = run_config("render", "--write", root=d)
+        self.assertNotEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("store_findings", out.stdout + out.stderr)
         self.assertFalse((d / ".perry" / "config.md").exists())
 
     def test_okr_has_no_scaffold_and_still_refuses(self):
