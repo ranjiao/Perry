@@ -7,7 +7,8 @@
 
 ## What changed
 
-Six commits, plus this file.
+Seven commits, plus this file. The seventh is round 2 and exists because
+the V4 review of round 1 **FAILED**; § 4 below is rewritten around that.
 
 | sha | what |
 |---|---|
@@ -16,7 +17,8 @@ Six commits, plus this file.
 | `1928e38` | the prose gets a home a render cannot destroy, and a guard |
 | `02dc442` | the "unreadable store" guard was guarding one branch of two |
 | `b0d8cde` | "refuses" has to mean a refusal, not a traceback |
-| `d32ec76` | "is there a `.perry/config.md`" stopped being "is this configured" |
+| `d32ec76` | "is there a `.perry/config.md`" stopped being "is this configured" — **four of six** |
+| `40eb4cc` | the other two, in `bin/perry-state`, after the V4 review found them |
 
 ### 1 — the readers prefer the store
 
@@ -128,21 +130,129 @@ prose needs a per-project home, and every Perry project already has one.
 `SKILL.md:89` and `:195` were rewritten. `:89` no longer reads an absent
 `.perry/config.md` as "never configured".
 
-### 4 — the rest of that same sentence (`d32ec76`)
+### 4 — six existence checks, in two rounds (`d32ec76`, `40eb4cc`)
+
+> **Round 1 said four call sites "were the rest". That sentence was wrong, it
+> was never checked, and the V4 review FAILED this row for it.** The correction
+> is the first thing in this section because it is the more important half of
+> round 2; the code fix is two lines.
 
 **"An absent markdown stops meaning 'never configured'"** is the deliverable's
-own wording, and four call sites were still deciding exactly that by asking
-whether `.perry/config.md` exists: `bin/perry-lint § is_adopted` and its
-project-root walk, `bin/perry-explain`, and `viewer/parsers.py § project_root`.
-`bin/perry-goals § tracks_of` had already been asking the wide way since
-TASK-095 (`jsonl exists OR md exists`); these were the rest.
+own wording, and call sites were still deciding exactly that by asking whether
+`.perry/config.md` exists. `bin/perry-goals § tracks_of` had already been asking
+the wide way since TASK-095 (`jsonl exists OR md exists`). **Six** were
+converted, in two rounds:
+
+| round | site | needs |
+|---|---|---|
+| 1 (`d32ec76`) | `bin/perry-lint § is_adopted` | — |
+| 1 | `bin/perry-lint § main`, the project-root walk | — |
+| 1 | `bin/perry-explain` | — |
+| 1 | `viewer/parsers.py § _resolve_project_root` | — |
+| **2** (`40eb4cc`) | **`bin/perry-state § build:2022`**, the `installed` gate | `--root`, and a project with no `BOARD.md` / `OKR.md` / `design/DESIGN-*.md` |
+| **2** | **`bin/perry-state § resolve_root:2607`**, its own project-root walk | cwd BELOW the project root |
+
+Line numbers above are the round-1 tip's (`632c198`), matching the V4 review;
+after `40eb4cc` the same two sites are `:2026` and `:2616`.
+
+`:2607` was a **byte-for-byte duplicate** of the walk round 1 converted in
+`bin/perry-lint § main` and `parsers § _resolve_project_root`. `bin/perry-state`
+is the file the spec names first, and it kept its own private copy of both the
+walk and the gate.
+
+#### What the two sites did, reproduced on the round-1 tip before the fix
+
+`git archive 632c198` into a scratch copy, `.perry/config.md` deleted, store
+untouched, `cwd` = `<project>/subdir`, `PERRY_PROJECT` unset, `PERRY_HOME` = the
+copy:
+
+    $ python3 ../bin/perry-lint | head -1
+    perry-lint · …/walk (state root: perry/)                    ← converted walk: finds it
+
+    $ python3 ../bin/perry-state --json
+    "project": {"root": "…/walk/subdir", "name": "subdir"}
+    "installed": false
+    "warnings": ["No Perry state found — run /perry for first-time setup."]
+
+**That warning string is the one this row quotes as the defect that justified
+converting `resolve_state_root`.** Round 1's own justification still reproduced,
+one file over. After `40eb4cc`, same command, same tree:
+`"root": "…/walk2/perry"`, `installed: true`, no warning.
+
+Second site, `--root` given so the walk is out of play — two minimal projects,
+`.perry/` and nothing else:
+
+| project | round-1 tip | after `40eb4cc` |
+|---|---|---|
+| `.perry/config.jsonl` only | `installed: false` + the first-time-setup warning | `installed: true` |
+| `.perry/config.md` only | `installed: true` | `installed: true` |
+
+A store-configured project read as never configured; the same project configured
+by the projection read as configured. That is the sentence the deliverable was
+written to remove.
+
+#### How § 4's claim got past me
+
+Not by being unexamined generally — by being **asserted at the wrong altitude
+from a search I did once and then reasoned from.** I found the four sites by
+reading callers of the pattern, converted them, and wrote "these were the rest"
+as a summary of *what I had converted*, not as a claim I had gone back and
+tested. The declared grep in the round-1 § "what I did not do" —
+`grep -rn "config\.md" bin viewer | grep 'exists()'` — returns **both missed
+sites in one command**; the reviewer ran it and it took seconds. I had cited that
+grep as a *limitation* of the value-reading sweep (gap 4) and never re-ran it
+against the *existence-check* class I was simultaneously calling complete. So the
+one command that would have falsified § 4 was named in the same document, three
+sections down, in a paragraph about a different question.
+
+The mechanical failure sits underneath that: **round 1 had no test that ran
+`bin/perry-state` for this property at all.** Every round-1 guard on `configured`
+called the predicate directly or called `perry-lint § is_adopted`. A completeness
+claim across N call sites with a guard on only some of them is a claim with no
+measurement behind it, and it should have been written as "four converted;
+the class is not swept" — which is what round 1's gap 4 said correctly about a
+neighbouring class in the same file.
+
+The general rule I am taking from it: **a sentence of the form "these were the
+rest" is a measurement, not a summary.** It needs a command in the report whose
+output is the empty set, or it needs to be written as a count.
+
+#### What the same grep returns now
+
+    $ grep -rn "config\.md" bin viewer | grep 'exists()\|is_file()'
+    bin/perry-diagnose:1373:  "config": (root / ".perry" / "config.md").is_file(),
+    bin/perry-diagnose:2501:  is_perry = (root / ".perry" / "config.md").is_file() or (
+    bin/perry-lint:637:       if (root / ".perry" / "config.md").is_file():
+    bin/perry-goals:2177:     if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
+    viewer/parsers.py:401:    return (perry / "config.jsonl").exists() or (perry / "config.md").exists()
+
+Five lines, and **the existence-check class is NOT swept.** Stated as a count,
+not as a sweep:
+
+- `viewer/parsers.py:401` is `configured` itself — the predicate, not a caller.
+- `bin/perry-goals:2177` is already the wide form (`configured` inlined, TASK-095).
+- **`bin/perry-diagnose:1373` (`scan_tracking`) and `:2501` (`diagnose § is_perry`)
+  still ask the narrow way.** Same existence-as-configured shape, both in `bin/`,
+  both counted by `P003-O2-KR1`. The V4 reviewer named `:2501` and ruled it
+  non-blocking. **They are not converted here** — `bin/perry-diagnose` does not
+  import `parsers`, so converting them is an import change plus two guards of
+  their own, which is a row, not a line. I am declaring them rather than
+  widening § 4 into a sweep claim a second time.
+- `bin/perry-lint:637` (`track_context`) is TASK-095's class — it reads the
+  `## Tracks` table out of the markdown as truth — and the spec puts it out of
+  scope. Named here because it means the KR's count is non-zero for tracks too.
 
 `viewer/parsers.py § configured` is the one predicate. It answers about
 `.perry/` only — every caller ORs it with the state files it also accepts
 (`BOARD.md`, `OKR.md`, `phase/`), because those differ per caller and this does
-not. The guard's fixture strips `BOARD.md` and `OKR.md` on purpose: a fixture
-that kept them answers `True` whatever the predicate does, which is how a guard
-over an OR-chain passes while measuring nothing.
+not. Its docstring now says six, says which round found which, and names
+`bin/perry-diagnose`'s two as unconverted; it said "these are the rest" as well,
+and that copy of the claim is corrected too.
+
+The guard's fixture strips `BOARD.md` and `OKR.md` on purpose: a fixture that
+kept them answers `True` whatever the predicate does, which is how a guard over
+an OR-chain passes while measuring nothing. `TestPerryStateAsksItToo` extends the
+same discipline per site — see *Mutations, round 2*.
 
 ## Byte comparison — V4 step 2
 
@@ -179,8 +289,8 @@ The rest of V4 step 1, same copy, markdown still deleted:
 
 ## Mutations
 
-Harness: `…/scratchpad/task233_mutation_harness.py` and `…2.py` — uniquely
-named, outside the repo. It **refuses to start on a dirty tree**, asserts each
+Harness: `…/scratchpad/task233_mutation_harness.py`, `…2.py`, `…3.py` and
+`…4.py` — uniquely named, outside the repo. It **refuses to start on a dirty tree**, asserts each
 target is **GREEN and selected ≥ 1 test before mutating**, anchors by exact old
 text (refusing an ambiguous or missing anchor) and reports the line, clears
 every `__pycache__`, sleeps past the whole-second boundary CPython validates
@@ -188,7 +298,14 @@ bytecode on, restores from the captured text and **asserts the md5 matches**.
 The runner is `python3 -m unittest discover -s tests -p <module>.py -k <sel> -v`,
 never a bare module run. Tree verified CLEAN after each batch.
 
-**27 mutations, 27 red.** Every one names the test it reddened.
+**Round 1: 28 mutations, 28 red.** Every one names the test it reddened.
+
+> **Correction.** Round 1's text said "27 mutations, 27 red" twice while the
+> table below carried **28** rows and the three harnesses defined 28. The V4
+> reviewer caught the arithmetic, re-derived the anchors from the harnesses and
+> ran all 28 against a clean clone with their own driver: 28 of 28 red, reddened
+> sets matching row for row. The claim was right; the count was wrong. Round 2
+> adds five more (below), for **33 total**.
 
 | # | mutation | anchor | test that went red |
 |---|---|---|---|
@@ -224,7 +341,56 @@ never a bare module run. Tree verified CLEAN after each batch.
 **Every one of the 38 tests in `tests/test_config_store_readers.py` is reddened
 by at least one mutation above.** That was the point of the second batch: after
 batch 1, eleven of them had not been shown to fail for any reason, and a guard
-nobody has watched fail is not yet a guard.
+nobody has watched fail is not yet a guard. The V4 reviewer verified this
+independently on a clean clone — the union of reddened tests covers all 35
+distinct short names, with the three copies of
+`test_a_project_with_no_store_still_reads_its_markdown` separated by N1 / N3 / N5
+and the two copies of `test_the_store_wins_over_the_markdown` by M2 / M3.
+
+### Mutations — round 2 (`…/scratchpad/task233_mutation_harness4.py`)
+
+Same harness shape, same three refusals (dirty tree, target not green, target
+selected ≤ 0 tests), same md5-verified restore. Tree CLEAN after the batch.
+
+**5 mutations, 5 red.**
+
+| # | mutation | anchor | test that went red |
+|---|---|---|---|
+| R1 | revert `bin/perry-state § resolve_root` — the walk | `bin/perry-state:2616` | `test_the_walk_finds_a_store_only_project_from_a_subdirectory` |
+| R2 | revert `bin/perry-state § build` — the `installed` gate | `bin/perry-state:2026` | `test_the_installed_gate_counts_a_store_only_project_as_installed` |
+| R3 | X4 — `store-default` collapsed into `store` | `viewer/parsers.py:356` | `test_a_store_with_no_setting_records_says_store_default`, `test_the_distinction_reaches_the_payload` |
+| R4 | `configured` forgets the store, run against the two new sites | `viewer/parsers.py:401` | both of `TestPerryStateAsksItToo`'s site tests |
+| R5 | X4 again, selecting the payload test alone | `viewer/parsers.py:356` | `test_the_distinction_reaches_the_payload` |
+
+**Two sites, two tests, and they are provably not the same test.** The V4
+reviewer showed the sites fail under different conditions, so one test covering
+both would stay green with either one reverted. Cross-checked, each mutation run
+against the OTHER site's test:
+
+| mutation | selector | verdict |
+|---|---|---|
+| `:2607` reverted | `test_the_installed_gate_counts_a_store_only_project_as_installed` | **GREEN — independent** |
+| `:2022` reverted | `test_the_walk_finds_a_store_only_project_from_a_subdirectory` | **GREEN — independent** |
+
+R4 is the anti-vacuity pass on both: had either new site been satisfied by
+something other than the store branch of `configured`, breaking that branch would
+have left it green.
+
+### The reviewer's X4 — a documented reason value with no guard
+
+The V4 review ran five mutations of its own; four were red and one was **green**:
+collapsing `config_store_settings`'s
+`(CONFIG_FROM_STORE if out else CONFIG_STORE_DEFAULT)` to `CONFIG_FROM_STORE`
+left all 38 tests passing. `store-default` is documented in `parsers.py` as its
+own reason and named in `parse_config`'s docstring as one of the five values
+`settings_source` can take, so a usable store carrying zero setting records would
+have reported `store` — truthful-looking and wrong about which question it
+answered — with nothing watching.
+
+**It gets a guard** (`TestAStoreThatDeclaresNoSettingsSaysSo`), at both levels:
+the predicate (`config_store_settings` on a track-only store) and the payload
+field (`parse_config(...)["settings_source"]`), because the payload field is
+where a reader actually sees it. R3 and R5 are red.
 
 **Two of them were not guards until the mutation said so**, and both were
 repaired rather than explained:
@@ -302,7 +468,12 @@ is the comparison this row rests on.
   file survives all three deliverables. What changed is that its prose moved
   and it is now exactly what the store renders.
 - **A `render --write` that recreates a deleted `.perry/config.md` is not
-  gated, and that is pre-existing behaviour I did not change.**
+  gated. The behaviour is pre-existing; the reachability is not.** The V4
+  reviewer confirmed both halves and corrected the framing: before this row,
+  `render` with no file exited 2, so no `config` write could ever reach an
+  `ABSENT` verdict. This row makes that path reachable for the first time. The
+  reviewer ruled it non-blocking and said it belongs in the filed intake row's
+  text.
   `perry-conform § verdict` returns `ABSENT` for a file that is not on disk and
   `ABSENT` is `ok`, so the write proceeds even under `enforce` on a project
   where `.perry/config.md` is declared (it is, at shape version 2, in this
@@ -319,14 +490,20 @@ is the comparison this row rests on.
   commits. There is no `discover` number in this report and the dispatch's
   delta-of-3 is neither confirmed nor contradicted here. The `bash tests/run`
   before/after pair is the whole of the evidence for "no regression".
-- **Other markdown-as-truth readers were not exhaustively swept.** I converted
-  the two the deliverable names, plus `resolve_state_root`, plus the four
-  existence checks in `d32ec76`. `bin/perry-diagnose § scan_work_modes` was
-  already converted by TASK-095. `bin/perry-migrate` and the adoption path
-  were not read for this; whether a value-reading regex over `.perry/config.md`
-  survives anywhere else is a question this row did not answer, and the grep I
-  ran (`re.search` / `read_text` / `exists()` against `config.md` across `bin/`
-  and `viewer/`) is a heuristic, not a proof.
+- **Other markdown-as-truth readers were not exhaustively swept — and in round 1
+  I said this correctly here while contradicting it in § 4.** I converted the two
+  the deliverable names, plus `resolve_state_root`, plus the four existence
+  checks in `d32ec76` and the two in `40eb4cc`. `bin/perry-diagnose §
+  scan_work_modes` was already converted by TASK-095. **Still unconverted and
+  named, not swept:** `bin/perry-diagnose:1373` and `:2501` (existence checks),
+  `bin/perry-lint:637 § track_context` (TASK-095's class, out of scope by the
+  spec), `bin/perry-migrate:228 § document_language` (a value-reading regex
+  returning `"en"` when the file is absent — the V4 reviewer read it and it is
+  the same kind as the `parse_config` defect this row fixed). The adoption path
+  was not read. The grep I ran (`re.search` / `read_text` / `exists()` against
+  `config.md` across `bin/` and `viewer/`) is a heuristic, not a proof — and
+  round 1's mistake was not this paragraph, it was writing a completeness claim
+  in § 4 that this paragraph's own grep falsifies.
 - **Nothing was measured on a second real project.** `~/proj/gimegime-pmo` is
   referenced throughout `perry_md_store` as the second corpus and I did not
   touch it — every measurement here is on Perry's own files or on fixtures.
