@@ -288,12 +288,50 @@ class _RowLocals:
         #: its `ihdr` sites as escaping — because the walk asked what the
         #: variable was called. This asks what the function returned.
         self.returns: dict[str, set[int]] = {}
-        for _ in range(6):                      # fixpoint; 6 is far past need
+        #: **Round 11, and it is the hole round 10's reviewer walked through
+        #: with this repository's own idiom.** `bin/perry_store.py:854` is
+        #: `header, keys = table["header"], table["keys"]`, and one line under
+        #: it a bare `squash` folded that row with every guard silent —
+        #: because a row carried on a DICT KEY was not a row here.
+        #:
+        #: A path says where a row sits INSIDE a value, read left to right
+        #: from the value: `("key:header",)` — subscript by the string
+        #: `header`; `("elem", "key:header")` — index or iterate, then
+        #: subscript; `("pos:1", "elem", "key:header")` — a tuple position
+        #: first; `("attr:header",)` — an object attribute. The EMPTY path is
+        #: the row itself and lives in `self.scope`, so nothing here
+        #: duplicates what was already there.
+        #:
+        #: This is the same bookkeeping `returns` already did for tuple
+        #: positions, one step wider — provenance, not recognition. A path
+        #: exists only because an expression in THIS FILE put a row there, so
+        #: it cannot colour a value the way an allowlist of key names would.
+        self.paths: dict[object, dict[str, set[tuple]]] = {}
+        #: `function or class name -> paths in what it RETURNS`. The chain the
+        #: reviewer's plant rode is four links long and entirely file-local:
+        #: `markdown_tables` appends `{"header": split_row(...)}` to `out`,
+        #: `risk_section_shape` returns `("table", tables)`, `risk_table`
+        #: returns `tables[0]`, `risk_plan` unpacks `table["header"]`.
+        self.rpaths: dict[str, set[tuple]] = {}
+        #: `self.header = split_row(l)` in a method makes `T(line).header` a
+        #: row, so a class is a producer exactly the way a function is.
+        self.class_of: dict[object, str] = {}
+        for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
+            for sub_node in ast.walk(cls):
+                if isinstance(sub_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    self.class_of.setdefault(sub_node, cls.name)
+        # The fixpoint is over the paths too, and it needs more passes than
+        # round 10's six: each link of a chain like the one above is closed by
+        # a LATER pass, because a function's return is read before the local
+        # that feeds it is bound. It still stops the moment nothing moves.
+        for _ in range(12):
             before = ({k: set(v) for k, v in self.scope.items()},
-                      {k: set(v) for k, v in self.cells.items()})
+                      {k: set(v) for k, v in self.cells.items()},
+                      self._paths_snapshot())
             self._pass()
             if all(self.scope[k] == before[0][k] for k in self.scope) \
-                    and all(self.cells[k] == before[1][k] for k in self.cells):
+                    and all(self.cells[k] == before[1][k] for k in self.cells) \
+                    and self._paths_snapshot() == before[2]:
                 break
 
     def _alias_target(self, value) -> str | None:
@@ -363,6 +401,10 @@ class _RowLocals:
                             self.returns.setdefault(f.name, set()).add(i)
                 elif self.source(node.value, f):
                     self.returns.setdefault(f.name, set()).add(-1)
+                # ...and where a row sits INSIDE what it returns.
+                for pth in self._paths(node.value, f):
+                    if pth:
+                        self.rpaths.setdefault(f.name, set()).add(pth)
         # A name-bound `lambda` returns its body.
         for name, body in self.by_name.items():
             if isinstance(body, ast.Lambda) and self.source(body.body, body):
@@ -385,6 +427,38 @@ class _RowLocals:
                             for t in ast.walk(g.target):
                                 if isinstance(t, ast.Name):
                                     self.cells[f].add(t.id)
+                # A loop over a list of TABLES binds one table — `for table in
+                # task_tables:` at `bin/perry_store.py:531`, whose next line is
+                # `header = table["header"]`.
+                if isinstance(node, (ast.For, ast.AsyncFor)):
+                    self._bind_element(node.target, node.iter, f)
+                if isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                                     ast.GeneratorExp)):
+                    for g in node.generators:
+                        self._bind_element(g.target, g.iter, f)
+                # A container this function FILLS carries what was put in it.
+                # `out.append({"header": header, ...})` is how
+                # `bin/perry_store.py § markdown_tables` returns its tables,
+                # and it is the first link of the four-link chain the round 10
+                # reviewer's plant rode to `risk_plan`.
+                if isinstance(node, ast.Call) \
+                        and isinstance(node.func, ast.Attribute) \
+                        and isinstance(node.func.value, ast.Name) and node.args:
+                    holder, attr = node.func.value.id, node.func.attr
+                    if attr in ("append", "add"):
+                        new = {("elem",) + q for q in self._paths(node.args[0], f)}
+                    elif attr in ("extend", "update"):
+                        new = set(self._paths(node.args[0], f))
+                    elif attr == "insert" and len(node.args) > 1:
+                        new = {("elem",) + q for q in self._paths(node.args[1], f)}
+                    elif attr == "setdefault" and len(node.args) > 1 \
+                            and isinstance(node.args[0], ast.Constant) \
+                            and isinstance(node.args[0].value, str):
+                        new = {(f"key:{node.args[0].value}",) + q
+                               for q in self._paths(node.args[1], f)}
+                    else:
+                        new = set()
+                    self._add_path(f, holder, new)
                 if isinstance(node, ast.Assign):
                     targets, value = node.targets, node.value
                 elif isinstance(node, (ast.AnnAssign, ast.AugAssign,
@@ -394,15 +468,62 @@ class _RowLocals:
                     continue
                 if value is None:
                     continue
-                # `_, ihdr = board.section_table("Intake")` — a tuple unpack of
-                # a call whose Nth element is a row.
+                # A tuple unpack, ELEMENT BY ELEMENT. Two spellings reach
+                # here and round 10 resolved only the first:
+                #   `_, ihdr = board.section_table("Intake")`  (round 9's)
+                #   `header, keys = table["header"], table["keys"]`
+                # The second is `bin/perry_store.py:854` — the exact line the
+                # round 10 reviewer planted one line under, three times over
+                # in that file alone.
                 positions = self._returns_of(value)
-                if positions and len(targets) == 1 \
-                        and isinstance(targets[0], (ast.Tuple, ast.List)):
+                if len(targets) == 1 and isinstance(targets[0], (ast.Tuple,
+                                                                 ast.List)):
+                    vpaths = self._paths(value, f)
+                    elts = (value.elts
+                            if isinstance(value, (ast.Tuple, ast.List))
+                            else None)
+                    bound = False
                     for i, t in enumerate(targets[0].elts):
-                        if i in positions and isinstance(t, ast.Name):
+                        if not isinstance(t, ast.Name):
+                            continue
+                        sub_p = {q[1:] for q in vpaths
+                                 if q and q[0] == f"pos:{i}"}
+                        if elts is not None and i < len(elts):
+                            if self.cell(elts[i], f):
+                                self.cells[f].add(t.id)
+                                bound = True
+                        if i in positions or () in sub_p:
                             self.scope[f].add(t.id)
-                    continue
+                            bound = True
+                        if {q for q in sub_p if q}:
+                            self._add_path(f, t.id, sub_p)
+                            bound = True
+                    if bound:
+                        continue
+                # A row written INTO something — `spec["header"] = header`,
+                # `self.header = split_row(line)`. The second makes
+                # `T(line).header` a row wherever this file builds a `T`,
+                # which is the attribute half of the same escape.
+                for t in targets:
+                    if isinstance(t, ast.Subscript) \
+                            and isinstance(t.slice, ast.Constant) \
+                            and isinstance(t.slice.value, str):
+                        step, holder = f"key:{t.slice.value}", t.value
+                    elif isinstance(t, ast.Attribute):
+                        step, holder = f"attr:{t.attr}", t.value
+                    else:
+                        continue
+                    if not isinstance(holder, ast.Name):
+                        continue
+                    carried = {(step,) + q for q in self._paths(value, f)}
+                    self._add_path(f, holder.id, carried)
+                    if holder.id == "self" and self.class_of.get(f):
+                        for q in carried:
+                            self.rpaths.setdefault(
+                                self.class_of[f], set()).add(q)
+                # ...and the paths a plain name carries along with it.
+                if len(targets) == 1 and isinstance(targets[0], ast.Name):
+                    self._add_path(f, targets[0].id, self._paths(value, f))
                 if self.cell(value, f):
                     for t in targets:
                         for n in ast.walk(t):
@@ -432,6 +553,117 @@ class _RowLocals:
                 elif self.cell(arg, caller):
                     self.cells[fn].add(params[i])
 
+    def _bind_element(self, target, iterable, scope) -> None:
+        """`for X in <a list of tables>` — X is one table, with the paths the
+        list said its elements have."""
+        if not isinstance(target, ast.Name):
+            return
+        got = {q[1:] for q in self._paths(iterable, scope)
+               if q and q[0] == "elem"}
+        if () in got:
+            self.scope[scope].add(target.id)
+        self._add_path(scope, target.id, got)
+
+    def _paths_snapshot(self):
+        """Everything the path fixpoint has to stop moving before it stops."""
+        return ({k: {n: frozenset(v) for n, v in d.items()}
+                 for k, d in self.paths.items()},
+                {k: frozenset(v) for k, v in self.rpaths.items()})
+
+    def _paths_of_name(self, scope, name: str) -> set[tuple]:
+        return self.paths.get(scope, {}).get(name, set())
+
+    def _add_path(self, scope, name: str, paths) -> None:
+        """Bind non-empty paths to a local name. The EMPTY path is a row and
+        belongs to `self.scope`; recording it here as well would give two
+        answers to one question."""
+        keep = {p for p in paths if p}
+        if keep:
+            self.paths.setdefault(scope, {}).setdefault(name, set()).update(keep)
+
+    def _rpaths_of(self, node: ast.AST) -> set[tuple]:
+        """Paths in what a call to a file-local function — or a file-local
+        class — returns. Resolved by the callee's NAME, exactly as
+        `_returns_of` already resolves tuple positions."""
+        if not isinstance(node, ast.Call):
+            return set()
+        if isinstance(node.func, ast.Name):
+            return self.rpaths.get(node.func.id, set())
+        if isinstance(node.func, ast.Attribute):
+            return self.rpaths.get(node.func.attr, set())
+        return set()
+
+    def _paths(self, node: ast.AST, scope) -> set[tuple]:
+        """Where a row sits inside this expression's value.
+
+        `()` in the answer means the expression IS a row, which is what
+        `source()` asks. Every other member says "one more step and it is".
+        """
+        out: set[tuple] = set()
+        if self._source_direct(node, scope):
+            out.add(())
+        if isinstance(node, ast.Name):
+            out |= self._paths_of_name(scope, node.id)
+            return out
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and isinstance(k.value, str):
+                    for p in self._paths(v, scope):
+                        out.add((f"key:{k.value}",) + p)
+            return out
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            for i, el in enumerate(node.elts):
+                for p in self._paths(el, scope):
+                    out.add(("elem",) + p)
+                    out.add((f"pos:{i}",) + p)
+            return out
+        if isinstance(node, ast.Subscript):
+            base = self._paths(node.value, scope)
+            if isinstance(node.slice, ast.Slice):
+                return out | base       # a slice of a list of tables is one
+            key = node.slice.value if isinstance(node.slice, ast.Constant) else None
+            for p in base:
+                if not p:
+                    continue
+                if isinstance(key, str):
+                    if p[0] == f"key:{key}":
+                        out.add(p[1:])
+                elif isinstance(key, int):
+                    if p[0] in ("elem", f"pos:{key}"):
+                        out.add(p[1:])
+                elif p[0] == "elem":
+                    out.add(p[1:])      # `tables[n]`, index not known here
+            return out
+        if isinstance(node, ast.Attribute):
+            for p in self._paths(node.value, scope):
+                if p and p[0] == f"attr:{node.attr}":
+                    out.add(p[1:])
+            return out
+        if isinstance(node, ast.Call):
+            out |= self._rpaths_of(node)
+            if isinstance(node.func, ast.Name) \
+                    and node.func.id in ITERABLE_WRAPPERS:
+                for a in node.args:
+                    out |= self._paths(a, scope)
+            if isinstance(node.func, ast.Attribute) \
+                    and node.func.attr in {"copy", "get", "pop"}:
+                base = self._paths(node.func.value, scope)
+                if node.func.attr == "copy":
+                    out |= base
+                elif node.args and isinstance(node.args[0], ast.Constant) \
+                        and isinstance(node.args[0].value, str):
+                    want = f"key:{node.args[0].value}"
+                    out |= {p[1:] for p in base if p and p[0] == want}
+            return out
+        if isinstance(node, ast.IfExp):
+            return (out | self._paths(node.body, scope)
+                    | self._paths(node.orelse, scope))
+        if isinstance(node, ast.BoolOp):
+            for v in node.values:
+                out |= self._paths(v, scope)
+            return out
+        return out
+
     def _returns_of(self, node: ast.AST) -> set[int]:
         """Tuple positions of a call to a file-local row-returning function."""
         if not isinstance(node, ast.Call):
@@ -443,9 +675,26 @@ class _RowLocals:
         return set()
 
     def source(self, node: ast.AST, scope=...) -> bool:
-        """Does this expression yield a ROW'S CELLS, in `scope`?"""
+        """Does this expression yield a ROW'S CELLS, in `scope`?
+
+        Two answers, and the second is round 11's. `_source_direct` is round
+        9's dataflow — assignment, aliasing, slicing, a walrus, a wrapper, one
+        comprehension unwrap, a parameter, what a function returns. `_paths`
+        adds the step it did not have: a row CARRIED inside something this
+        file built — a dict key, a list element, a tuple position, an object
+        attribute — which is how `bin/perry_store.py`, `bin/perry-task`,
+        `bin/perry-tasks` and `bin/perry_md_store.py` hold a header row
+        seventeen times over.
+        """
         if scope is ...:
             scope = self.of(node)
+        if self._source_direct(node, scope):
+            return True
+        return () in self._paths(node, scope)
+
+    def _source_direct(self, node: ast.AST, scope) -> bool:
+        """Round 9's local dataflow, unchanged. Recursive steps go back
+        through `source`, so a carried row resolves at any depth."""
         names = self.scope.get(scope, set())
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
                 and node.func.id in ROW_PRODUCERS:
