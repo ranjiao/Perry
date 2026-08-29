@@ -254,7 +254,31 @@ the event and has MB7 behind it.
 
 ## 6. Baselines — the runner, the tree, the board state, and the load
 
-<!-- BASELINE -->
+**Runner:** `bash tests/run`, 8 workers.
+**Tree:** this worktree at `0e6afd0`.
+**Board state:** `perry/` is `main` at `6c0d041` plus this row's round-4 and
+round-5 evidence files — i.e. the same board state round 4's numbers were taken
+on, which is why the two `test_contract_key_parity` witness tests the spec warns
+about (data-dependent on `conformance.in_progress_with_no_live_run` being
+non-empty on the LIVE board) do not appear in the red set here.
+**Load:** load average 8–15, from three other concurrent agent sessions.
+
+```
+99 modules · 2928 tests · 197.7s · 8 workers · 2 module(s) red
+  test_diagnose               (2)  test_perry_itself_passes_its_own_id_checks
+                                   + the queue-register reconciliation
+  test_kr_progress_provenance (1)  test_no_current_in_the_payload_claims_to_be_
+                                   a_measurement
+```
+
+**Round 4's tip was 99 modules / 2921 tests / 3 failures on this runner and this
+board state. This round adds 7 tests and no failures: 2921 + 7 = 2928, and the
+red set is identical, name for name.** None of the three is mine and none of
+them touches a register store.
+
+### Spec item 5 — `python3 -m unittest discover -s tests`
+
+<!-- DISCOVER -->
 
 ## 7. What I did NOT do, and what I could not verify
 
