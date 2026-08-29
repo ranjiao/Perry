@@ -582,6 +582,53 @@ class TestTheInvariantItself(unittest.TestCase):
                             "purge", 5, 4)
 
 
+class TestTheTaskStoreCallSiteIsWired(Base):
+    """**A guard that survives its own deletion does not count.**
+
+    The rule above is a unit test of the FUNCTION. It says nothing about
+    whether `commit()` actually calls it for `tasks.jsonl`, and deleting those
+    two lines reddened nothing at all in the first mutation round — which is
+    the shape TASK-095 shipped and was failed for.
+
+    The reason it is hard to reach is real and is stated in the RESULT rather
+    than worked around: `commit()` builds `records` FROM `current` by removing
+    at most one record and appending at most one, so the only branch that
+    shortens the task store is `purge`, and `purge` is in `SHRINK_ALLOWED`. The
+    one input that shortens it otherwise is a store carrying the subject's id
+    twice — and `load_task_records` refuses a duplicate id before `commit()`
+    ever sees it.
+
+    So this test constructs that state deliberately, by replacing
+    `load_task_records` for the duration of one `commit()` call. It proves the
+    CALL SITE is wired; it does not claim the state is reachable through the
+    CLI, and the RESULT says so in those words. `--dry-run` is used so that a
+    build with the call site deleted writes nothing while going red.
+    """
+
+    def test_commit_asks_the_invariant_about_tasks_jsonl(self):
+        row = ("| TASK-001 | a task | Coding Agent | not_started | — | — |\n")
+        f = self.fixture(build_board(rows=row), mint=())
+        board = PT.Board(f.root / "BOARD.md")
+        current = PT.load_task_records(f.root)
+        self.assertEqual([r["id"] for r in current], ["TASK-001"],
+                         "control: the fixture holds exactly the one record")
+        doubled = [dict(current[0]), dict(current[0])]
+        event = {"ts": "2026-08-29T00:00:00Z", "event": "next",
+                 "id": "TASK-001", "title": "a task", "actor": "test",
+                 "from": "—", "to": "do the next thing"}
+        original = PT.load_task_records
+        PT.load_task_records = lambda _root: [dict(r) for r in doubled]
+        try:
+            with self.assertRaises(PT.Refused) as caught:
+                PT.commit(f.root, f.root, board, "- [TASK-001] next", event,
+                          True)
+        finally:
+            PT.load_task_records = original
+        self.assertIn("may never make a canonical store smaller",
+                      str(caught.exception))
+        self.assertIn("tasks.jsonl", str(caught.exception))
+
+
 # ── 6. the carry-forward join ─────────────────────────────────────────────
 
 
