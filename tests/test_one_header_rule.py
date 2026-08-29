@@ -195,7 +195,17 @@ class TestTheFifthCopy(unittest.TestCase):
         (tmp / ".perry").mkdir()
         (tmp / ".perry" / "conformance.md").write_text(
             f"# Conformance\n\n{header}\n| --- | --- | --- | --- |\n"
-            "| `BOARD.md` | 2 | 2026-08-18 | migrate |\n")
+            # A CANONICAL data row. It used to be `| `BOARD.md` | …` — a
+            # backticked path — which TASK-241 now refuses as unreadable,
+            # because a decorated path cell was how a hand-written row flipped
+            # a real file's verdict. The decoration under test here is on the
+            # HEADER, not the path, so the row's own shape is incidental to
+            # this class and the test keeps all of its power: bold the header
+            # while `squash` is broken and the header is still read as a
+            # declaration whose version cell is not a number, which is exactly
+            # what `test_a_bolded_header_is_not_reported_as_a_broken_row`
+            # catches.
+            "| BOARD.md | 2 | 2026-08-18 | migrate |\n")
         rec = P.read_conformance(tmp)
         return list(rec.declarations), rec.unreadable
 
