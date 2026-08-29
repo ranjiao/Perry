@@ -534,15 +534,224 @@ class TestExplicitRemovalStillWorks(Base):
         """Named by USER-906 as an explicit removal. It is not one.
 
         `cmd_resolve_intake` rewrites the row's `Outcome` cell; the row stays
-        on the board and the record count does not move. It is carried in
-        `SHRINK_ALLOWED` because the user named it, and this test records that
-        the allowance is unused rather than pretending it fires.
+        on the board and the record count does not move.
+
+        **This test runs on a CLEAN board and therefore says nothing about the
+        exemption.** The V4 round-4 review named it precisely: offered as the
+        record that "the allowance is unused", it is the one test that cannot
+        tell, because no shrink is possible here and `rc == 0` is true whether
+        the allowance exists or not. What it does say is that the invariant
+        does not block the ordinary discharge, which is worth a test of its
+        own. The bound is `TestTheExemptionIsBounded`, one class down, and
+        every test there runs on a board where a shrink IS possible.
         """
         f = self.fixture(build_board())
         rc, out = f.run("resolve-intake", "2", "--reason", "not for us")
         self.assertEqual(rc, 0, out)
         self.assertEqual(len(f.records("intake.jsonl")), 4)
         self.assertIs(f.records("intake.jsonl")[1]["discharged"], True)
+
+
+# ── 4b. the exemption is BOUNDED, on boards where a shrink is possible ────
+
+
+#: `## Intake` with rows 3 and 4 discharged, so ONE sweep legitimately removes
+#: TWO records. A bound written as the literal `1` rather than as the sweep's
+#: own count is red on this board and green on the shared fixture, which is
+#: why the class below uses both.
+INTAKE_TWO_DISCHARGED = (
+    "| Arrived | Request | Outcome |\n"
+    "|---|---|---|\n"
+    "| 2026-08-21 | a request that is still waiting for an outcome | — |\n"
+    "| 2026-08-21 | a second request still waiting for an outcome | — |\n"
+    "| 2026-08-27 | a request that went nowhere "
+    "| dropped 2026-08-28 — folded into TASK-190 |\n"
+    "| 2026-08-28 | a request that is waiting on the next phase "
+    "| deferred 2026-08-28 — until phase 004 opens |\n"
+)
+
+
+def tidy_intake_rows_off_the_board(f: Fixture, keep) -> None:
+    """Hand-tidy `## Intake` down to `keep` (1-based row numbers), and nothing
+    else — the store is deliberately NOT rewritten.
+
+    This is the `/pmo triage` state and the state
+    `evidence/2026-08/TASK-203-merge-hold.md` was measured in: rows leave the
+    board by hand and the store still holds them. The board is now SMALLER
+    than the store, so the next derivation shrinks it — which is the whole
+    condition round 4's tests for the three removal commands never created.
+    """
+    out, inside, seen = [], False, 0
+    for line in f.board_text().split("\n"):
+        if line.startswith("## "):
+            inside = line.startswith("## Intake")
+            out.append(line)
+            continue
+        if inside and line.startswith("|"):
+            seen += 1
+            # The first two `|` lines are the header and its separator.
+            if seen <= 2 or (seen - 2) in keep:
+                out.append(line)
+            continue
+        out.append(line)
+    f.write_board("\n".join(out))
+
+
+class TestTheExemptionIsBounded(Base):
+    """**An allowed command may shrink by exactly the count it declares.**
+
+    Round 4 granted the exemption by COMMAND NAME and without a bound, so a
+    listed command could shrink a canonical store by any amount — including a
+    shrink it did not perform. The V4 round-4 review used exactly that against
+    this repository's own intake data: `resolve-intake`, which removes no
+    record at all, took `perry/intake.jsonl` from 11781 bytes / 28 records to
+    1420 bytes / 4 records at exit code 0, with `perry-lint` reporting
+    `intake store: 4 record(s), 0 row(s) drifted`. That is the signature of
+    `evidence/2026-08/TASK-203-merge-hold.md` — the defect this row exists to
+    stop — reached one command over from the refusal that stops it.
+
+    `intake-sweep` had the same hole: it reported sweeping one row and took the
+    store from 4 records to 1.
+
+    **The reason the round-4 suite could not see it is the reason this class is
+    written the way it is.** Removing `"resolve-intake"` from the allowlist
+    reddened two tests, both assertions about the constant, because the one
+    behavioural test ran on a clean board where no shrink was possible and
+    asserted `rc == 0` — which is true with the allowance and without it. So
+    every test here first asserts, as a CONTROL, that the store is bigger than
+    the board: on a clean board these tests do not merely pass, they fail their
+    own control.
+    """
+
+    def drifted(self, keep, table=INTAKE_TABLE) -> Fixture:
+        """A fixture whose store holds 4 records and whose board holds `keep`.
+
+        The controls are here rather than in each test so that no test in this
+        class can be written without them.
+        """
+        f = self.fixture(build_board(intake=table))
+        self.assertEqual(len(f.records("intake.jsonl")), 4,
+                         "control: the store is minted from the whole table")
+        tidy_intake_rows_off_the_board(f, keep)
+        board = PT.Board(f.root / "BOARD.md")
+        self.assertEqual(len(board.section_rows("Intake")), len(keep),
+                         "control: the board was tidied to the kept rows")
+        self.assertEqual(len(f.records("intake.jsonl")), 4,
+                         "control: the STORE still holds every record, so a "
+                         "derivation from this board shrinks it — a shrink is "
+                         "possible here, which is the point")
+        return f
+
+    def test_resolve_intake_may_not_shrink_a_store_it_removes_nothing_from(self):
+        """The V4 round-4 review's § 1, as a test. Two records at stake.
+
+        `resolve-intake` rewrites one `Outcome` cell and removes no record, so
+        it declares 0 and may shrink by 0. The two records tidied off the board
+        by hand are records this command never addressed.
+        """
+        f = self.drifted([1, 2])
+        before = f.raw("intake.jsonl")
+        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
+                        "--reason", "not for us")
+        self.assertNotEqual(
+            rc, 0, "resolve-intake destroyed records it never touched:\n" + out)
+        self.assertEqual(f.raw("intake.jsonl"), before,
+                         "the store changed on a refused write")
+        self.assertEqual(len(f.records("intake.jsonl")), 4)
+        self.assertIn("removes 0 record(s)", out)
+        self.assertIn("by exactly what it removes", out)
+
+    def test_intake_sweep_may_not_shrink_by_more_than_the_rows_it_swept(self):
+        """It swept one row; three records were about to go.
+
+        The row kept at position 3 is the discharged one, so the sweep is
+        legitimate and removes exactly one board row. The other two records are
+        not its to remove.
+        """
+        f = self.drifted([1, 3])
+        before = f.raw("intake.jsonl")
+        rc, out = f.run("intake-sweep")
+        self.assertNotEqual(
+            rc, 0, "the sweep removed more than it swept:\n" + out)
+        self.assertEqual(f.raw("intake.jsonl"), before,
+                         "the store changed on a refused write")
+        self.assertEqual(len(f.records("intake.jsonl")), 4)
+        self.assertIn("removes 1 record(s)", out)
+
+    def test_intake_sweep_may_shrink_by_exactly_the_rows_it_swept(self):
+        """Two discharged rows, one sweep, two records — and it goes through.
+
+        The bound is the sweep's OWN count, not a literal. A board with two
+        discharged rows is refused by a bound written as `1` and permitted by
+        the count `cmd_intake_sweep` already carries in its event.
+        """
+        f = self.fixture(build_board(intake=INTAKE_TWO_DISCHARGED))
+        self.assertEqual(len(f.records("intake.jsonl")), 4,
+                         "control: four records to start")
+        rc, out = f.run("intake-sweep")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("wrote 2 row(s) (intake-sweep)", out,
+                      "control: the sweep declared two rows")
+        self.assertEqual(len(f.records("intake.jsonl")), 2,
+                         "the sweep did not remove both discharged rows")
+
+    def test_purge_removes_the_one_record_it_names_and_leaves_the_other(self):
+        """A store with two records, so the removal is bounded by something.
+
+        Round 4's purge test ran 1 record to 0, where "removed exactly one" and
+        "removed everything" are the same number.
+        """
+        rows = ("| TASK-001 | a smoke test row | Coding Agent | not_started "
+                "| — | — |\n"
+                "| TASK-002 | a row that stays | Coding Agent | not_started "
+                "| — | — |\n")
+        f = self.fixture(build_board(rows=rows))
+        self.assertEqual([r["id"] for r in f.records("tasks.jsonl")],
+                         ["TASK-001", "TASK-002"], "control")
+        self.assertEqual(f.run("drop", "TASK-001", "--reason", "never real")[0],
+                         0)
+        rc, out = f.run("purge", "TASK-001", "--reason", "a smoke test row")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([r["id"] for r in f.records("tasks.jsonl")],
+                         ["TASK-002"],
+                         "purge did not remove exactly the record it named")
+
+    def test_purge_may_not_take_two_records_with_one_removal(self):
+        """`purge` declares 1, and `commit()` holds it to 1.
+
+        `commit()`'s removal branch is `[r for r in current if r["id"] !=
+        removed_id]`, so a store carrying the subject's id TWICE loses BOTH on
+        one `purge` — a drop of 2 against a declaration of 1.
+
+        Like `test_commit_asks_the_invariant_about_tasks_jsonl`, this state is
+        constructed rather than reached: `load_task_records` refuses a
+        duplicate id before `commit()` ever sees one, so the store is handed to
+        `commit()` through a replaced loader for the duration of one call. It
+        proves the DECLARATION is what bounds the write; it does not claim the
+        duplicate is reachable through the CLI, and the RESULT says so in those
+        words. `--dry-run` is used so a build with the bound removed writes
+        nothing while going green.
+        """
+        rows = ("| TASK-001 | a task | Coding Agent | not_started | — | — |\n")
+        f = self.fixture(build_board(rows=rows), mint=())
+        board = PT.Board(f.root / "BOARD.md")
+        current = PT.load_task_records(f.root)
+        self.assertEqual([r["id"] for r in current], ["TASK-001"],
+                         "control: the fixture holds exactly the one record")
+        doubled = [dict(current[0]), dict(current[0])]
+        event = {"ts": "2026-08-30T00:00:00Z", "event": "purge",
+                 "id": "TASK-001", "title": "a task", "actor": "test",
+                 "from": "not_started", "to": "purged"}
+        original = PT.load_task_records
+        PT.load_task_records = lambda _root: [dict(r) for r in doubled]
+        try:
+            with self.assertRaises(PT.Refused) as caught:
+                PT.commit(f.root, f.root, board, "- [TASK-001] purged", event,
+                          True, removed_id="TASK-001")
+        finally:
+            PT.load_task_records = original
+        self.assertIn("removes 1 record(s)", str(caught.exception))
+        self.assertIn("tasks.jsonl", str(caught.exception))
 
 
 # ── 5. the invariant, on its own ──────────────────────────────────────────
