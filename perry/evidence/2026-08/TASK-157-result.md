@@ -380,6 +380,38 @@ byte-identical to its value at `8abd30d`.
 | No consumer outside this repository was checked; aiMark was not run | **Confirmed as still true.** Not run here either. `perry-state --json`'s `phase.objectives[].krs[]` key shape is unchanged by inspection, which is not the same as a consumer having read it. |
 | `bin/perry-migrate`'s adoption reader was not changed; `phase/snapshots/` was not touched | **Confirmed** from the diff — neither appears in it. |
 
+## The V4 finding, and what the guard does not prove
+
+The V4 review passed the row and left one non-blocking finding, closed here.
+
+**`goals/state/linkage_TEMPLATE.md` had not been updated with the rest of
+`plan-phase`.** The KR table's removal made the register the only place four of
+a KR's five fields can come from, and the template an author writes that
+register from had **no `linked:` slot at all**, plus a `metric:` placeholder
+reading *"metric as written in the phase file"* — pointing the next author at a
+file that no longer holds it. A phase 004 authored from it would have had every
+`linked` empty: the same lost edge this row already had to repair once in
+`phase/001-linkage.md`, displaced into the future. The template now offers a
+`linked:` slot on every KR stub with a comment saying what belongs in it and
+what went wrong last time, its `metric:` placeholder names the register, the
+key table documents `linked`, and the rules list carries the sentence that
+`linked` must resolve to an overall KR `OKR.md` declares.
+`goals/reference/linkage.md` described `perry-lint` as checking "every KR id
+present in the phase file", which stopped being true at `f15d234`; it now
+describes the two id checks that replaced it.
+`test_the_register_template_offers_every_field_a_kr_now_has` holds the template
+edit, and `perry-lint --templates` — the schema drift guard — stays clean.
+
+**The limitation the guard has, stated rather than fixed.**
+`test_every_linked_value_names_an_overall_kr_this_project_declares` requires at
+least 8 `linked` values across all of `perry/phase/*-linkage.md` before it will
+accept a pass. Phases 001 and 003 already satisfy that between them. So the
+guard proves that **some** phase has resolvable edges to the overall OKR — it
+does not prove that **this** phase, or the newest one, does. A phase 004
+written with every `linked` empty would leave it green. Widening it is a scope
+decision rather than a template fix and is deliberately not taken in this row;
+the coordinator is filing it as its own row.
+
 ## What this round did not check
 
 - **`perry-goals krs` as a read surface.** DESIGN-013 § 6 step 2 asks TASK-236
@@ -387,7 +419,12 @@ byte-identical to its value at `8abd30d`.
   file. That report does not exist and this row did not write one. The output
   is the same markdown table in the terminal; whether that is enough is a
   judgement, not a measurement.
-- **Any consumer outside this repository.** aiMark was not run.
+- **Any consumer outside this repository.** aiMark was not run, by this round
+  or by the V4 reviewer. `perry-state --json` keeps its key shape and its
+  `kr_total`, and the `contract` string is untouched — but `metric` now carries
+  the **register's** wording, which is longer than the phase document's cell
+  was on 22 of 24 KRs. A pinned consumer sees no structural break; whether it
+  renders a longer string acceptably is unmeasured.
 - **The three `test_risks_store` failures under `discover`.** Taken as the known
   double-import artefact on the strength of their being identical on both trees,
   not diagnosed.

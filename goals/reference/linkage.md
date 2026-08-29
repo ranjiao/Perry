@@ -124,8 +124,15 @@ Project's name must keep resolving for historical progress reports.
 
 It parses the graph with the **same reader Perry uses**, so a pass means Perry
 can read it. It also checks: no task under two KRs, no two projects sharing a
-name or alias, every project's `objective` agreeing with its `serves` KR, and
-every KR id present in the phase file.
+name or alias, every project's `objective` agreeing with its `serves` KR, every
+KR id naming the phase whose register it sits in, and every KR id agreeing with
+the objective it is declared under.
+
+The last two used to be one check — *every KR id present in the phase file* —
+which read the KR table the phase document carried. TASK-157 removed that
+table, so the questions are asked of the id directly, which needs no second
+file and is strictly stronger: a `P002-…` KR pasted into `003-linkage.md` used
+to be caught only because `003-storage-code.md` happened not to mention it.
 
 ## What `okr` must not do here
 

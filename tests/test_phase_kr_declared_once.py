@@ -564,6 +564,7 @@ class TestPlanPhaseNoLongerAuthorsTheBlock(unittest.TestCase):
     """
 
     TEMPLATE = ROOT / "goals" / "state" / "phase_TEMPLATE.md"
+    REGISTER_TEMPLATE = ROOT / "goals" / "state" / "linkage_TEMPLATE.md"
     PROCEDURE = ROOT / "goals" / "reference" / "phases.md"
 
     def test_the_template_carries_no_kr_table(self):
@@ -582,6 +583,47 @@ class TestPlanPhaseNoLongerAuthorsTheBlock(unittest.TestCase):
         self.assertNotIn("| Id | KR text | Metric / Target |", text,
                          "plan-phase still hands the author a KR table to fill")
         self.assertIn("perry-goals krs", text)
+
+    def test_the_register_template_offers_every_field_a_kr_now_has(self):
+        """The other half of `plan-phase`, missed when the first half moved.
+
+        `linkage_TEMPLATE.md` is what an author writes the register FROM, and
+        the KR table's removal made it the only place four of a KR's five
+        fields can come from. It shipped with no `linked:` slot at all and a
+        `metric:` placeholder reading "metric as written in the phase file" —
+        pointing the next author at a file that no longer holds it.
+
+        A phase 004 authored from that template would have had every `linked`
+        empty, which is the same lost edge this row already had to repair once
+        in `phase/001-linkage.md`, displaced into the future.
+
+        **This holds the template, not the register.** Whether a phase's OWN
+        KRs carry resolvable edges is a stronger question and a separate row —
+        `test_every_linked_value_names_an_overall_kr_this_project_declares`
+        proves some phase has them, not that the newest one does.
+        """
+        text = self.REGISTER_TEMPLATE.read_text()
+        krs = [n for n, l in enumerate(text.split("\n"), 1)
+               if l.strip().startswith("- id: P{{NNN}}-O")]
+        self.assertTrue(krs, "the template declares no KR stub at all, so "
+                             "every assertion below is vacuous")
+        self.assertEqual(
+            len([l for l in text.split("\n")
+                 if l.strip().startswith("linked:")]), len(krs),
+            "not every KR stub in the template offers a `linked:` slot")
+        # The `metric:` VALUES, not the whole file: the comment above them
+        # quotes the old placeholder in order to say why it is gone, and a
+        # bare substring test over the file would read that explanation as the
+        # defect it explains.
+        metrics = [l.strip() for l in text.split("\n")
+                   if l.strip().startswith("metric:")]
+        self.assertEqual(len(metrics), len(krs), metrics)
+        for line in metrics:
+            with self.subTest(line):
+                self.assertNotIn("phase file", line,
+                                 "the template still sends the author to the "
+                                 "phase document for a value the document no "
+                                 "longer holds")
 
 
 if __name__ == "__main__":
