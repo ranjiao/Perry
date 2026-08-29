@@ -40,7 +40,7 @@ from pathlib import Path
 #
 # `tests/test_risks.py::TestOneNormalizationForAHeaderCell` compares the
 # reader's predicate against the writer's over a corpus of header forms.
-from tables import split_row, squash  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
 
 # ── localization glossary ─────────────────────────────────────────────────
 #
@@ -170,7 +170,7 @@ def is_risk_register_header(header: list[str]) -> bool:
     closed, and the user's live risks invisible in every one. There is one
     predicate now because that defect is only reachable while there are two.
     """
-    return bool(set(_column_keys("Risk")) & {squash(c) for c in header})
+    return header_index(header).column(_column_keys("Risk")) >= 0
 
 
 #: What counts as a risk bullet on a section that has not migrated, and what
@@ -425,7 +425,7 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         # The fifth live copy of this rule, in the file the first pass claimed
         # to have unified, found by a reviewer running an AST sweep over all
         # 111 lowercasing sites rather than by grepping for the ones it knew.
-        if squash(rel) in ("file", "path") or not rel:
+        if header_index([rel]).column("file", "path") == 0 or not rel:
             continue           # the header row
         if not re.fullmatch(r"\d+", ver or ""):
             rec.unreadable.append((i, line.strip()))
@@ -1122,8 +1122,8 @@ def _parse_task_table(section: str, priority: str,
     idx: dict[str, int] = {}
     for line in lines:
         if re.match(r"^\|\s*---", line):
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             # Project-defined groups may contain reference tables beside work.
             # The writer treats only tables with resolvable ID + Title columns
             # as task tables, so the state reader must apply the gate per table.
@@ -1170,7 +1170,7 @@ def _parse_task_table(section: str, priority: str,
             return cells[i] if 0 <= i < len(cells) else ""
 
         tid = cell("ID", 0)
-        if not tid or squash(tid) in _column_keys("ID"):
+        if not tid or header_index([tid]).column(_column_keys("ID")) == 0:
             continue
         base_status, status_note = _split_status(cell("Status", 3))
         tasks.append(
@@ -1370,7 +1370,7 @@ def is_intake_register_header(header: list[str]) -> bool:
     block up. Resolved by NAME through the glossary so `| 到达 | 请求 |`
     counts, and by `squash` so `| Arrived | **Request** |` counts.
     """
-    return bool(set(_column_keys("Request")) & {squash(c) for c in header})
+    return header_index(header).column(_column_keys("Request")) >= 0
 
 
 def intake_is_discharged(outcome: str) -> bool:
@@ -1474,8 +1474,8 @@ def _parse_cadence(section: str) -> list[Cadence]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Recurring task", "Title", "Owner", "Frequency",
                          "Next due", "Last run", "Last evidence", "Evidence"):
@@ -1504,7 +1504,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
             return cells[i] if 0 <= i < len(cells) else ""
 
         cid = cell("ID", 0)
-        if not cid or squash(cid) in _column_keys("ID"):
+        if not cid or header_index([cid]).column(_column_keys("ID")) == 0:
             continue
         items.append(
             Cadence(
@@ -1564,8 +1564,8 @@ def is_user_register_header(header: list[str]) -> bool:
     this register is for — the same reading `is_risk_register_header` gives one
     block up, taken here for the same reason rather than by analogy.
     """
-    return bool(set(_column_keys("Needed from user"))
-                & {squash(c) for c in header})
+    return header_index(header).column(
+        _column_keys("Needed from user")) >= 0
 
 
 #: A `Status` cell that means "this question is still on the user". Matched as a
@@ -1658,8 +1658,8 @@ def _parse_user_input(section: str) -> list[UserInput]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("USER-id", "Needed from user", "Blocks", "Asked",
                          "Idle", "Status"):
@@ -1676,7 +1676,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
         cells = split_row(line)
         if len(cells) < 4:
             continue
-        if squash(cells[0]) in {"", *_column_keys("USER-id")}:
+        if header_index(cells[:1]).column("", _column_keys("USER-id")) == 0:
             continue
 
         def cell(name: str, fallback: int = -1) -> str:
@@ -1734,11 +1734,12 @@ def _parse_intake(section: str) -> list[dict]:
         cells = split_row(s)
         if not cells:
             continue
-        if not header and squash(cells[0]) in set(_column_keys("Arrived")) | {"arrived"}:
-            header = [squash(c) for c in cells]
+        if not header and header_index(cells[:1]).column(
+                set(_column_keys("Arrived")) | {"arrived"}) == 0:
+            header = header_index(cells)
             continue
         if not header:
-            header = [squash(c) for c in cells]
+            header = header_index(cells)
             continue
         row = dict(zip(header, cells))
         outcome = (row.get("outcome") or "").strip()
@@ -1815,8 +1816,13 @@ _RE_KR_BULLET = re.compile(
 def _table_rows(section: str) -> list[dict[str, str]]:
     """Parse every markdown table in `section` into header-keyed row dicts.
 
-    Header keys are `squash`ed — the one rule every Perry tool normalizes a
-    header cell by. Rows shorter than the header are padded; longer rows are
+    Header keys come from `viewer/tables.py § header_index` — **the one
+    function allowed to fold a header cell**, not merely the one rule. This
+    line spelled the fold itself until TASK-050 round 8, and round 7 measured
+    what that cost: reverted to `.strip("*` ").lower()` it silently dropped a
+    KR out of a user's OKR while 2882 tests stayed green, because the guard of
+    the day gated on an allowlist of variable names that did not contain
+    `prev_cells`. Rows shorter than the header are padded; longer rows are
     truncated. Returns [] when no table is present."""
     rows: list[dict[str, str]] = []
     header: list[str] = []
@@ -1824,7 +1830,7 @@ def _table_rows(section: str) -> list[dict[str, str]]:
     for line in section.split("\n"):
         stripped = line.strip()
         if re.match(r"^\|\s*:?-{2,}", stripped):
-            header = [squash(c) for c in prev_cells]
+            header = header_index(prev_cells)
             continue
         if not stripped.startswith("|"):
             prev_cells = []
@@ -2223,7 +2229,7 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
         # What remains is reachable and is not a header question at all: a DATA
         # row whose first cell is empty. `squash` rather than `.lower()` so the
         # two rules stay one, at no cost.
-        if squash(cells[0]) == "":
+        if header_index(cells[:1]).column("") == 0:
             continue
         idx += 1
         # Heuristic: status from response wording.
@@ -2881,7 +2887,7 @@ def parse_project_state(text: str) -> ProjectState:
             if not in_table or not line.startswith("|"):
                 continue
             cells = split_row(line)
-            if len(cells) < 5 or squash(cells[0]) == "id":
+            if len(cells) < 5 or header_index(cells[:1]).column("id") == 0:
                 continue
             ps.carry_forwards.append(
                 CarryForward(

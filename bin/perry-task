@@ -170,7 +170,8 @@ SCHEMA_PATH = PERRY_HOME / "schema" / "state-schema.json"
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P
-from tables import UnrenderableCell, render_row, split_row, squash  # noqa: E402
+from tables import (UnrenderableCell, header_index,  # noqa: E402
+                    render_row, split_row, squash)
 import lib  # noqa: E402
 import perry_store  # noqa: E402
 
@@ -973,7 +974,7 @@ class Board:
             if not {"id", "title"} <= set(table["keys"]):
                 continue
             missing = [c for c in needed
-                       if not any(norm(h) == norm(c) for h in header)]
+                       if norm(c) not in header_keys(header)]
             if not missing:
                 first = first or header
                 continue
@@ -1100,7 +1101,7 @@ class Board:
         for table in perry_store.markdown_tables(self.lines, start + 1, end, norm):
             header = table["header"]
             missing = [c for c in needed
-                       if not any(norm(h) == norm(c) for h in header)]
+                       if norm(c) not in header_keys(header)]
             if not missing:
                 first = first or header
                 continue
@@ -1156,7 +1157,7 @@ class Board:
         asks every gate refusal to have.
         """
         _, header = self.section_table(heading)
-        keys = [norm(h) for h in header]
+        keys = header_keys(header)
         at = next((i for i, k in enumerate(keys) if k in id_column_keys()), -1)
         if at < 0:
             raise Refused(
@@ -1178,7 +1179,7 @@ class Board:
         sep, header = self.section_table(heading)
         rows = self.section_rows(heading)
         at = (rows[-1][0] if rows else sep) + 1
-        line = render_row([values.get(norm(h), "") for h in header])
+        line = render_row([values.get(k, "") for k in header_keys(header)])
         self.lines.insert(at, line)
         return line
 
@@ -1206,7 +1207,7 @@ class Board:
             _, _, header = self.table(priority)
             check_header(header)
             at = self.last_row(priority) + 1
-        cells = [values.get(norm(h), "") for h in header]
+        cells = [values.get(k, "") for k in header_keys(header)]
         line = render_row(cells)
         self.lines.insert(at, line)
         return line
@@ -1214,11 +1215,11 @@ class Board:
     def task_section_headings(self) -> list[str]:
         """Headings a row could be filed under, for a refusal that helps."""
         return [title for title, _, _, header, _ in self._task_sections()
-                if {"id", "title"} <= {norm(h) for h in header}]
+                if {"id", "title"} <= set(header_keys(header))]
 
     def replace_row(self, index: int, header: list[str], values: dict) -> str:
         check_header(header)
-        cells = [values.get(norm(h), "") for h in header]
+        cells = [values.get(k, "") for k in header_keys(header)]
         self.lines[index] = render_row(cells)
         return self.lines[index]
 
@@ -1295,6 +1296,24 @@ def norm(s: str) -> str:
     return _ALIASES.get(k, k)
 
 
+def header_keys(header):
+    """A header ROW -> its folded, glossary-canonical keys. TASK-050 round 8.
+
+    Twenty-one call sites in this file spelled this `[norm(h) for h in
+    header]` — a fold of a row's cells, written out twenty-one times. That
+    surface is what `viewer/tables.py § header_index` exists to remove, and
+    what six rounds of trying to DETECT a second copy of failed to close.
+
+    This is the glossary half only. The fold happens in `header_index` and
+    nowhere else; `norm` stays for the SCALAR uses — `norm("ID")`, a canonical
+    English column name, a single cell — which are not a row and are not what
+    the one-rule check is about.
+    """
+    if _ALIASES is None:
+        _build_column_maps()
+    return header_index(header, alias=norm)
+
+
 # The columns that hold a row's handle, in every section that has one. A set
 # rather than a single name because `## User Input Queue` calls it `USER-id`
 # and the rest call it `ID`; both resolve through the glossary, so `编号` and
@@ -1314,8 +1333,8 @@ def header_language(header: list[str]) -> str:
     """
     if _ALIASES is None:
         _build_column_maps()
-    for cell in header:
-        key = norm(cell)
+    keys = header_keys(header)
+    for cell, key in zip(keys.raw, keys):
         for lang, name in (_DISPLAY.get(key) or {}).items():
             if lang != "en" and squash(name) == squash(cell):
                 return lang
@@ -1550,7 +1569,7 @@ def check_header(header: list[str]) -> None:
     reporting success while writing nothing the row means. A refusal names the
     header it could not read; a blank row names nothing.
     """
-    keys = {norm(h) for h in header}
+    keys = set(header_keys(header))
     missing = [k for k in REQUIRED_KEYS if k not in keys]
     if missing:
         raise Refused(
@@ -1577,7 +1596,7 @@ def widening_columns(header: list[str], values: dict) -> list[str]:
     "we do not know what these columns are", and only the first can be fixed by
     adding more.
     """
-    if not {"id", "title"} <= {norm(h) for h in header}:
+    if not {"id", "title"} <= set(header_keys(header)):
         check_header(header)
     return [canonical_column(k) for k in REQUIRED_KEYS] + columns_for(values)
 
@@ -1890,7 +1909,7 @@ def task_projection_row(ctx, task_id: str):
     """Locate projection layout, then fill every Task cell from the store."""
     record = task_record(ctx, task_id)
     section, index, header, cells = ctx["board"].find(task_id)
-    values = dict(zip([norm(h) for h in header], cells))
+    values = dict(zip(header_keys(header), cells))
     for field, column in _STORE_TO_BOARD.items():
         value = record.get(field)
         if field == "depends_on":
@@ -4122,7 +4141,7 @@ def cmd_resolve_intake(args, ctx) -> dict:
         raise Refused(f"intake row {n} does not exist (there are {len(rows)})")
     idx, cells = rows[n - 1]
     sep, header = ctx["board"].section_table("Intake")
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     intake = dict(zip(keys, cells))
     check_intake_undischarged(intake, str(n))
     outcome = args.outcome or "dropped"
@@ -4219,7 +4238,7 @@ def cmd_answer(args, ctx) -> dict:
             "--answer is required. Flipping the status without recording what "
             "was decided leaves the row closed and the decision nowhere")
     idx, header, cells = ctx["board"].find_section_row("User Input Queue", args.id)
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     values = dict(zip(keys, cells))
     today = f"{date.today():%Y-%m-%d}"
     prev = values.get("status", "")
@@ -4382,7 +4401,7 @@ def cmd_cadence_done(args, ctx) -> dict:
             f"itself run, citing nothing, is exactly the ritual nobody notices "
             f"has stopped happening")
     idx, header, cells = ctx["board"].find_section_row("Cadence", cid)
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     values = dict(zip(keys, cells))
     # By NAME. The register has at least two live column counts and a third
     # appears the moment `Last run` is added, so the frequency is not at a
@@ -4403,7 +4422,7 @@ def cmd_cadence_done(args, ctx) -> dict:
 
     ctx["board"].ensure_section_columns("Cadence", ["Last run", "Next due"])
     _, header = ctx["board"].section_table("Cadence")
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     prev_due = values.get("next due", "")
     values["frequency"] = freq
     values["last run"] = f"{ran:%Y-%m-%d}"
@@ -4416,7 +4435,7 @@ def cmd_cadence_done(args, ctx) -> dict:
     ev_key = next((k for k in ("last evidence", "evidence") if k in keys), None)
     if ev_key is None:
         header = ctx["board"].ensure_section_columns("Cadence", ["Last evidence"])
-        keys = [norm(h) for h in header]
+        keys = header_keys(header)
         ev_key = "last evidence"
     values[ev_key] = args.evidence
     ctx["board"].lines[idx] = render_row([values.get(k, "") for k in keys])
@@ -4773,7 +4792,7 @@ def cmd_risk_clear(args, ctx) -> dict:
                 "(every bullet crosses verbatim), after which the rows have "
                 "ids") from None
         raise
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     values = dict(zip(keys, cells))
     prev = (values.get("status", "") or "").strip()
     # `P.status_is_cleared`, not a local regex. This site had its own
@@ -4853,7 +4872,7 @@ def cmd_intake_sweep(args, ctx) -> dict:
     """
     rows = ctx["board"].section_rows("Intake")
     _, header = ctx["board"].section_table("Intake")
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     discharged = []
     for idx, cells in rows:
         row = dict(zip(keys, cells))
@@ -4901,7 +4920,7 @@ def cmd_route(args, ctx) -> dict:
         raise Refused(f"intake row {n} does not exist (there are {len(rows)})")
     idx, cells = rows[n - 1]
     sep, header = ctx["board"].section_table("Intake")
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     intake = dict(zip(keys, cells))
 
     check_intake_undischarged(intake, args.id)
@@ -5588,7 +5607,7 @@ def ask_register(ctx) -> dict[str, dict]:
     except Refused:
         return {}                     # not every project asks the user anything
     answered = perry_state().answered
-    keys = [norm(h) for h in header]
+    keys = header_keys(header)
     register: dict[str, bool] = {}
     for _, cells in rows:
         values = dict(zip(keys, cells))
@@ -6085,7 +6104,7 @@ def _cmd_list_from_board(args, ctx) -> dict:
     try:
         for pos, (_, cells) in enumerate(ctx["board"].section_rows("Intake"), 1):
             _, ihdr = ctx["board"].section_table("Intake")
-            row = dict(zip([norm(h) for h in ihdr], cells))
+            row = dict(zip(header_keys(ihdr), cells))
             outcome = (row.get("outcome") or "").strip()
             intake_rows.append({
                 "n": pos,
@@ -6256,7 +6275,7 @@ def cmd_list(args, ctx) -> dict:
         try:
             _, ihdr = board.section_table("Intake")
             for pos, (_, cells) in enumerate(board.section_rows("Intake"), 1):
-                row = dict(zip([norm(h) for h in ihdr], cells))
+                row = dict(zip(header_keys(ihdr), cells))
                 outcome = (row.get("outcome") or "").strip()
                 intake_rows.append({
                     "n": pos, "arrived": row.get("arrived", ""),

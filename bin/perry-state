@@ -54,7 +54,7 @@ import lib  # noqa: E402
 
 try:
     import parsers as P  # noqa: E402
-    from tables import split_row, squash  # noqa: E402
+    from tables import header_index, split_row, squash  # noqa: E402
 except ImportError as exc:  # pragma: no cover - install-shape problem
     print(
         f"perry-state: cannot import viewer/parsers.py from {PERRY_HOME}: {exc}",
@@ -182,7 +182,8 @@ def load_packs(names: list[str]) -> list[dict]:
                     # rule for a header cell, and it is the one every other
                     # reader uses. `.lower()` alone reads `**Term**` as
                     # `term**` and files a header row as glossary data.
-                    if len(cells) >= 2 and cells[0] and squash(cells[0]) != "term":
+                    if len(cells) >= 2 and cells[0] \
+                            and header_index(cells[:1]).column("term") != 0:
                         entry["glossary"][cells[0]] = cells[1]
         out.append(entry)
     return out
@@ -586,7 +587,7 @@ def parse_tracks(text: str) -> list[dict]:
         # of itself. `| **Default** rung |` lowers to `default** rung` and
         # matches nothing, so the column silently goes missing and every row
         # reports no default rung. Values keep their own bytes — `cells`.
-        low = [squash(c) for c in cells]
+        low = header_index(cells)
         if not header:
             # First table row is the header — that is what declares the layout.
             if any(a in low for a in track_columns()["track"]):

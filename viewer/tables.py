@@ -301,5 +301,87 @@ def squash(s: str) -> str:
     This is why the function is in `tables.py` and not in either caller: it is
     the only module both a writer and a reader could import without one of
     them depending on the other.
+
+    **Do not map this across a header row.** `header_index` below is the one
+    function allowed to fold a header cell, and the check that keeps it that
+    way — `tests/test_one_header_rule.py § test_nothing_outside_header_index
+    _maps_squash_across_a_row` — is stated over this symbol. Applying it to a
+    single VALUE (a `Status`, an `Outcome`, a column NAME being compared
+    against a folded header) is not that and is not checked.
     """
     return re.sub(r"[\s`*]+", " ", s).strip().lower()
+
+
+class HeaderIndex(list):
+    """A table's header row, folded. **A `list[str]` of the folded keys.**
+
+    A `list` subclass on purpose: every call site this replaced held
+    `[squash(c) for c in cells]` and then did `zip`, `.index`, `in`,
+    `enumerate` or `==` with it, so being a list keeps all of that working and
+    the conversion carries no behaviour with it. What it adds is the two
+    lookups those call sites kept re-deriving.
+    """
+
+    #: The raw header cells, before folding. Kept so a caller that needs the
+    #: spelling the project actually wrote (`display_name`, a refusal message)
+    #: does not have to hold a second copy of the row alongside this one.
+    raw: list[str]
+
+    def __init__(self, keys, raw=None) -> None:
+        super().__init__(keys)
+        self.raw = list(raw if raw is not None else keys)
+
+    def column(self, *names) -> int:
+        """Index of the first column matching any of `names`, else -1.
+
+        `names` may be strings or iterables of strings, because the two live
+        shapes are `header.column("id")` and `header.column(_column_keys("ID"))`
+        and making the caller flatten is how the flattening gets written twice.
+        """
+        want: set[str] = set()
+        for n in names:
+            if isinstance(n, str):
+                want.add(n)
+            else:
+                want.update(n)
+        return next((i for i, k in enumerate(self) if k in want), -1)
+
+    def row(self, cells) -> dict[str, str]:
+        """`{folded key: cell}` for one data row. Short rows pad, long rows
+        truncate — the behaviour `dict(zip(...))` gave, made explicit."""
+        return {k: (cells[i] if i < len(cells) else "")
+                for i, k in enumerate(self)}
+
+
+def header_index(cells, alias=None) -> HeaderIndex:
+    """**The one function allowed to fold a header cell.** TASK-050 round 8.
+
+    Rounds 2 through 7 of this row each tried to build a better DETECTOR of a
+    second header rule, and each was defeated: a regex knew spellings, an AST
+    walk knew shapes, and the walk's own gate was still an eleven-name
+    allowlist of variable names — so `[squash(c) for c in prev_cells]` at
+    `viewer/parsers.py` could be reverted to the historical `.strip("*` ")
+    .lower()` rule, silently drop a KR out of a user's OKR, and leave the whole
+    suite green.
+
+    The seventh failure is what makes this function the answer instead of an
+    eighth detector. **You do not stop two implementations drifting apart by
+    getting better at spotting the second one; you stop it by having one.**
+    That is the move `ADR-007` already made for stores, and the check it buys
+    is over a symbol rather than over a shape: *nothing outside this function
+    maps `squash` across a row's cells.* There is no list of variable names in
+    that sentence, and it cannot fire on a value normalizer, because a value
+    normalizer folds a value and not a row.
+
+    `cells` is a header row as `split_row` produced it — raw, decoration and
+    all. `alias` is an optional `folded key -> canonical key` map, which is how
+    `bin/perry-task`'s glossary turns `状态` and `Status` into one key; it runs
+    AFTER the fold, on the squashed spelling, because that is the only form the
+    glossary is built in (`bin/perry-task § _build_column_maps`).
+
+    Returns a `HeaderIndex` — a `list` of the folded keys in column order.
+    """
+    keys = [squash(c) for c in cells]
+    if alias is not None:
+        keys = [alias(k) for k in keys]
+    return HeaderIndex(keys, cells)

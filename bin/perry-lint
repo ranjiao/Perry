@@ -104,7 +104,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 import parsers as P
-from tables import split_row, squash  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 
@@ -650,7 +650,7 @@ def _track_context(state_file: Path, cell: str) -> dict:
         for line in text.split("\n"):
             if not line.lstrip().startswith("|"):
                 continue
-            cells = [squash(c) for c in split_row(line)]
+            cells = header_index(split_row(line))
             track_i = column_index(cells, "Track")
             mode_i = column_index(cells, "Mode")
             if track_i >= 0 and mode_i >= 0:
@@ -801,7 +801,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
         for body, start in bodies:
             for header, rows_at in tables_with_lines(body):
                 rows = [r for r, _ in rows_at]
-                got = [norm(c) for c in header]
+                got = header_index(header)
                 if not got:
                     continue
                 found_any = True
@@ -1315,7 +1315,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     board = root / "BOARD.md"
     if board.exists():
         for header, rows in tables(strip_comments(board.read_text())):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             if "status" not in got or "evidence" not in got:
                 continue
             si, ei = got.index("status"), got.index("evidence")
@@ -1503,7 +1503,7 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     seen_ids: set[str] = set()
     for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             ci_id, ci_st = column_index(got, "ID"), column_index(got, "Status")
             ci_ev, ci_v = column_index(got, "Evidence"), column_index(got, "Verification")
             ci_ti = column_index(got, "Title")
@@ -1667,7 +1667,8 @@ def intake_rows(text: str) -> int:
         if not s.startswith("|") or re.match(r"^\|\s*:?-{2,}", s):
             continue
         cells = split_row(s)
-        if not cells or squash(cells[0]) in {"arrived", "到达", ""}:
+        if not cells or header_index(cells[:1]).column(
+                "arrived", "到达", "") == 0:
             continue
         # `Outcome` is the last column and holds a drop reason or a routing.
         if len(cells) < 3 or cells[-1].strip() in UNDECLARED_CELL:
@@ -1988,7 +1989,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     rungs: dict[str, str] = {}
     for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             ci_id = column_index(got, "ID")
             ci_st = column_index(got, "Status")
             ci_v = column_index(got, "Verification")

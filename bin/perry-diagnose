@@ -53,7 +53,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
-from tables import split_row, squash  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
 import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
@@ -1822,7 +1822,7 @@ def md_table(lines: list[str], aliases: dict[str, set[str]]):
         # `.lower()` alone reads `| **Default** rung |` as `default** rung`,
         # so a project that bolded half a header loses that column entirely —
         # and `md_table` reads the USER's board and OKR.
-        low = [squash(c) for c in cells]
+        low = header_index(cells)
         if not header:
             header = {canon: i for canon, names in aliases.items()
                       for i, c in enumerate(low) if c in names}
