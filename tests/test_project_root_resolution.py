@@ -220,7 +220,7 @@ class TestPerrysOwnConfiguration(unittest.TestCase):
                         "an empty board was read for Perry itself")
         self.assertTrue(snap.adrs,
                         "no ADR reached the snapshot from Perry's own "
-                        "DECISIONS.md")
+                        "`decisions/`")
 
     def tearDown(self):
         os.environ.pop("PERRY_PROJECT", None)

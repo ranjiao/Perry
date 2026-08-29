@@ -21,7 +21,7 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies at all.
 | [`perry-goals`](perry-goals) | **write** + read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. Two write paths, both in place: `commit` edits `OKR.md § Commitments` and writes the OKR store the file is now a projection of; `link` writes the phase's `phase/<NNN>-linkage.md` — a task→KR edge, an alias, a declared-unlinked task, a new Project — refusing any attribution that does not resolve to exactly one KR. |
 | [`perry-okr`](perry-okr) | **write** + read | The OKR STORE (`okr.jsonl`, beside `OKR.md` in the state root) and the projection of it, in `perry-tasks`' shape: `build` / `verify` derive and check it, `write --from-file` migrates a project onto it, `render` / `diff` regenerate `OKR.md` and byte-compare. ADR-007's second slice (TASK-092). |
 | [`perry-config`](perry-config) | **write** + read | The same five commands over `.perry/config.md` and `.perry/config.jsonl` — the preamble's settings and the `## Tracks` register. Every prose section of that file is layout and is reproduced byte for byte. |
-| [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `DECISIONS.md`, mint ADRs, supersede, set status, list. |
+| [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `decisions/`, mint ADRs, supersede, set status, list. |
 | [`perry-knowledge`](perry-knowledge) | **write** + read | The knowledge-card write path (DESIGN-006 phase B). `propose` is read-only and answers whether a capture point should fire; `promote` writes `knowledge/<topic>/<slug>.md` and **refuses a card that cannot say where its claim came from**. |
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
 | [`perry-conform`](perry-conform) | read + writes `.perry/conformance.md` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. |
@@ -159,16 +159,22 @@ spellings real ADRs use (`Sunset` vs `Sunset criteria`, an extra `Deciders` line
 its writer is strict.
 
 ```bash
-"$PERRY_HOME/bin/perry-decide" bootstrap                     # creates DECISIONS.md + decisions/
+"$PERRY_HOME/bin/perry-decide" bootstrap                     # creates decisions/
 "$PERRY_HOME/bin/perry-decide" new <slug> --title "…" --type <T>
 "$PERRY_HOME/bin/perry-decide" supersede ADR-003 ADR-007
 "$PERRY_HOME/bin/perry-decide" list --json
 ```
 
-`DECISIONS.md` is **rendered** from the ADR files on every write. Never hand-edit
-it, never append to it.
+`decisions/ADR-*.md` are the whole record and **`perry-decide list` is the whole
+view of them**. There is no index file: `DECISIONS.md` was a rendered projection
+of these same files and TASK-235 deleted it under
+[DESIGN-013](../perry/design/DESIGN-013-one-place-per-fact.md) § 5.3. § 4.1 of
+that design records what goes with it — a reader browsing this repository on the
+web used its rows as links into `decisions/` and now lands in the directory
+listing instead — and says the implementing row must not re-add an index under
+another name.
 
-### Both writers gate on the conformance marker
+### `perry-task` and `perry-goals` gate on the conformance marker
 
 Under [ADR-004](../perry/decisions/ADR-004-mandatory-migration.md) a project
 migrates to Perry's shape once, and after that both the reader and the writer
@@ -203,8 +209,17 @@ warnings are quality signals and one of them, `stale-run`, becomes true with the
 passage of time alone.
 
 Conformance is **per file**: a project may migrate its board and not its risks,
-so `perry-task` gates on `BOARD.md` and `perry-decide` on `DECISIONS.md`, and
-neither looks at the other.
+so `perry-task` gates on `BOARD.md` and `perry-goals` on `OKR.md` (on the phase's
+linkage register for `link`, which is the file that command writes), and neither
+looks at the other.
+
+**`perry-decide` gates on nothing, and that is a hole rather than an
+exemption.** `DECISIONS.md` was the only file it wrote that
+`schema/state-schema.json § files[]` gives a shape, and TASK-235 deleted it. The
+ADR bodies it writes have no declared shape and never had one, so there is
+nothing to gate on and a gate would be one that cannot fire. Restoring it means
+giving `decisions/ADR-*.md` a `files[]` entry — new claim surface, and its own
+row.
 
 **Reading is never gated.** `perry-state`, `perry-task list`, `perry-goals list`,
 and `perry-decide list` answer on an unmarked project, whatever the gate is set
@@ -249,6 +264,14 @@ perry-conform status          →  · DECISIONS.md   undeclared
 perry-decide new <slug> …     →  refused — DECISIONS.md already matches Perry's
                                  shape at version 2, but no one has declared it
 ```
+
+> **This transcript is history, and it is kept verbatim for that reason.** It
+> was measured on 2026-08-20, and TASK-235 has since deleted `DECISIONS.md` and
+> with it `perry-decide`'s gate, so the exact commands above can no longer be
+> re-run. Restating them against a lane that still gates would be quoting a
+> measurement nobody took. What was measured is a property of the GATE, not of
+> that lane, and still holds wherever one is armed: creation is not gated, the
+> next write is, and the refusal names the one command that fixes it.
 
 Two facts hold that together, and only both make it survivable:
 

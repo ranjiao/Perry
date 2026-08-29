@@ -68,7 +68,7 @@ When a subcommand fires, **read the matching `reference/*.md` first**, then act.
 
 ## Companion skill
 
-Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `DECISIONS.md` and `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
+Pairs with **`okr`**. Hand-off rule: **OKR proposes weekly tasks tagged with KR ids; PMO writes them as rows in `BOARD.md` and definition blocks in `journal/<YYYY-MM>/<today>.md` after user approval, then tracks day-to-day execution.** `work` is the only writer of `BOARD.md`, `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, and `handoff/`. `decisions/` moved to the `decide` lane. OKR is the only writer of `OKR.md` and `phase/`.
 
 ## Two file models (read both first)
 
@@ -257,7 +257,7 @@ For navigation help at any time: `/pmo help` prints this entire index; `/pmo hel
 | `midweek-check` | Mid-week pulse → today's journal | `reference/subcommands.md` + `reference/reporting-format.md` |
 | `mid-phase-review` | Mark Os on/at-risk/off-track → `evidence/<YYYY-MM>/midphase-review.md` | `reference/subcommands.md` |
 | `end-phase-retro` | Per-KR achieved/partial/missed/dropped → `evidence/<YYYY-MM>/retro.md` | `reference/subcommands.md` |
-| ~~`decide <topic>`~~ | **Moved to the `decide` lane** as `/perry decide adr <topic>` (signed hand-off contract, 2026-08-16). `work` no longer writes `DECISIONS.md` or `decisions/`. | `$PERRY_HOME/decide/reference/decisions.md` |
+| ~~`decide <topic>`~~ | **Moved to the `decide` lane** as `/perry decide adr <topic>` (signed hand-off contract, 2026-08-16). `work` no longer writes `decisions/`. | `$PERRY_HOME/decide/reference/decisions.md` |
 | `architecture init / review / diff` | Bootstrap or maintain the single-source-of-truth `ARCHITECTURE.md`. User-owned; agents never write | `$PERRY_HOME/packs/software-ops/architecture.md` |
 | `architecture-audit [--quiet]` | Two-layer scan: mechanical §6 NN checks + LLM consistency scan of code vs doc. Report → `architecture/audit-history/` | `$PERRY_HOME/packs/software-ops/architecture.md` |
 | `runbook-check` | Scan runbooks for missing / stale / incomplete vs deployed components | `$PERRY_HOME/packs/software-ops/runbooks.md` |

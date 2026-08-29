@@ -1148,8 +1148,8 @@ class TestEveryModeColumnHasAWriter(unittest.TestCase):
                          "intake staleness has no elapsed-time threshold")
 
     def test_the_work_lane_no_longer_writes_decisions(self):
-        """The signed hand-off contract moved DECISIONS.md to `decide`. The
-        procedure file is where a violation would actually live.
+        """The signed hand-off contract moved the decision record to
+        `decide`. The procedure file is where a violation would actually live.
 
         The check was `assertNotRegex(self.proc, r"^### \\`decide <topic>\\`")`
         **without `re.M`**, so `^` anchored at byte 0 of a 350-line file and

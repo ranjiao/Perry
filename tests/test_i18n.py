@@ -78,9 +78,15 @@ class GlossaryShape(unittest.TestCase):
 
     def test_every_schema_column_is_in_the_glossary_or_is_invariant(self):
         """A column absent from the glossary can only ever be written in
-        English. That is a legitimate choice (`KR`, `ADR`) but it has to be a
-        choice, not an omission — so the exemptions are named here."""
-        invariant_columns = {"KR", "ADR"}
+        English. That is a legitimate choice (`KR`) but it has to be a choice,
+        not an omission — so the exemptions are named here.
+
+        `ADR` was the other one and TASK-235 removed it: the only schema table
+        with an `ADR` column was `files[id=decisions]`, which declared the
+        shape of `DECISIONS.md`, and that file is deleted (DESIGN-013 § 5.3).
+        An exemption for a column no table declares is one nobody can be wrong
+        about, so it goes rather than sitting here looking like coverage."""
+        invariant_columns = {"KR"}
         known = set(SCHEMA["i18n"]["columns"])
         for spec in SCHEMA["files"]:
             for table in spec.get("tables", []):
@@ -239,11 +245,33 @@ class ChineseProjectIsFirstClass(unittest.TestCase):
         self.assertEqual(self.zh["risks"]["count"], 1)
         self.assertTrue(self.zh["risks"]["top"]["title"])
 
-    def test_decisions_index_resolves_under_the_localized_heading(self):
+    def test_decisions_resolve_from_adr_files_written_in_chinese(self):
+        """**This asserted a localized heading and now asserts a localized
+        FILE, and the difference is a real loss worth naming.**
+
+        Until TASK-235 the zh fixture's decisions came from a `DECISIONS.md`
+        whose heading was `## 进行中`, so this was the one place the heading
+        glossary was exercised end-to-end on the decisions payload. That file
+        is deleted (DESIGN-013 § 5.3) and the fixture now carries real
+        `decisions/ADR-*.md` files — which it never had, so every field in that
+        index was orphan data.
+
+        What is asserted instead is the ADR reader's own i18n contract, stated
+        in `decide/reference/decisions.md § Language`: the narrative and the
+        title are in the project's language, and the `Status:` / `Type:` /
+        `Date:` **field names and values stay English** because every
+        downstream reader matches on them. A Chinese title must round-trip and
+        an English field name must still be found in a file that is otherwise
+        Chinese.
+        """
         dec = self.zh["decisions"]
-        self.assertEqual(dec["count"], 2, "## 进行中 did not resolve")
+        self.assertEqual(dec["count"], 2)
         self.assertEqual(dec["last"]["id"], "ADR-002")
         self.assertEqual(dec["last"]["date"], "2026-07-10")
+        self.assertEqual(dec["last"]["title"], "只做单区域",
+                         "a Chinese ADR title did not survive the reader")
+        self.assertEqual(self.en["decisions"]["count"], dec["count"],
+                         "the zh fixture is the en fixture said in Chinese")
 
     def test_the_hook_safety_gate_arms_under_a_localized_heading(self):
         """`## 高风险操作` must arm the dispatch safety scan. The linter and

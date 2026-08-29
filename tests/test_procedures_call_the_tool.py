@@ -5,8 +5,8 @@
      evidence documents."
                     — perry/decisions/ADR-007-fields-are-typed-prose-is-not.md
 
-A procedure that says *"update the `DECISIONS.md` index"* or *"append the full
-definition to the journal"* is that rule inverted back. The field write
+A procedure that says *"append a declaration to `.perry/conformance.md`"* or
+*"append the full definition to the journal"* is that rule inverted back. The field write
 lands wherever the agent's markdown happened to land, the tool's event is never
 appended, and the row shows up at the next standup as drift — which is the
 failure ADR-006 and ADR-007 both exist to end.
@@ -79,16 +79,21 @@ list of blessed lines:
    promise on the write side — *adoption proposes, the user declares*. So a
    step under a `Migration` / `Adoption` heading may write an **authored
    document** (an ADR file) by hand. It may **not** write a **projection**
-   (`DECISIONS.md`, `BOARD.md`, `OKR.md § Commitments`): a projection is
-   rendered from the documents, so transcribing one is drift the moment the
+   (`BOARD.md`, `OKR.md § Commitments`, `.perry/conformance.md`): a projection
+   is rendered from the documents, so transcribing one is drift the moment the
    next tool call re-renders it.
 6. **Bootstrap from a shipped template, for a file the tool cannot create.**
    `perry-task` refuses on a missing board — `no BOARD.md at <path>` — so
    `work/reference/bootstrap.md` copying `state/BOARD_TEMPLATE.md` is how the
    board comes to exist, not a hand edit of a field. This is conditioned on
-   `creates_file`, not on the word "template": `perry-decide bootstrap` DOES
-   create `DECISIONS.md`, so the identical phrasing about the index stays
-   reportable, and three of the nineteen were exactly that phrasing.
+   `creates_file`, not on the word "template": `perry-conform declare` DOES
+   create `.perry/conformance.md`, so the identical template phrasing about the
+   record stays reportable.
+
+   **The example this paragraph used to give was `DECISIONS.md`**, whose
+   `perry-decide bootstrap` created it — three of the nineteen were exactly
+   that phrasing. TASK-235 deleted the file, so the asymmetry needed a target
+   that still has a creating writer, and `.perry/conformance.md` is one.
 
 Run: python3 tests/parallel test_procedures_call_the_tool
 """
@@ -169,9 +174,6 @@ TARGETS = {
                 r"|journal(?:'s)? status[- ]change|status[- ]change (?:journal )?line",
         cell=r"status[- ]change|definition block|New tasks added",
         tool="perry-task", kind="projection"),
-    "DECISIONS.md index": dict(
-        pattern=r"DECISIONS\.md",
-        tool="perry-decide", kind="projection"),
     "an ADR's typed header": dict(
         # `ADR-NNN-<slug>` / `ADR-NNN-*.md` — the FILE. Bare `ADR-NNN` is left
         # out: it is how these pages name a decision in passing ("`ADR-NNN`
@@ -256,9 +258,9 @@ DETECTION_LIST = re.compile(
     r"\s*[`'\"*(\[]*$", re.I)
 
 #: How close a write verb has to sit to the target to be a write TO it. Wide
-#: enough for "Update `DECISIONS.md` index (move row to Expired section)",
-#: narrow enough that a read at the head of a step and a write to some other
-#: file two sentences later are not read as one instruction.
+#: enough for "Update `.perry/conformance.md` (move the row to the new shape
+#: version)", narrow enough that a read at the head of a step and a write to
+#: some other file two sentences later are not read as one instruction.
 BEFORE, AFTER = 60, 90
 
 
@@ -299,8 +301,8 @@ def target_is_subject(sentence: str, pattern: str) -> bool:
     """The target changes; the procedure is not ordering the reader to change it.
 
     Markdown closers and a paired path may sit between the target and its verb,
-    as in ``DECISIONS.md` + `decisions/` move``. A comma is intentionally not
-    accepted: "For the BOARD row, update Status" remains an instruction.
+    as in ``OKR.md` + `phase/` move``. A comma is intentionally not accepted:
+    "For the BOARD row, update Status" remains an instruction.
     """
     for match in re.finditer(pattern, sentence, re.I):
         tail = re.sub(r"^[`*_]+", "", sentence[match.end():]).lstrip()
@@ -350,9 +352,10 @@ ADOPTION_HEADING = re.compile(
 #: not a field write, and it is exempt only where the owning tool cannot create
 #: that file (`creates_file=False`). `perry-task` refuses on a missing
 #: `BOARD.md`, so `work/reference/bootstrap.md` copying `BOARD_TEMPLATE.md` is
-#: how the board comes to exist at all. `perry-decide bootstrap` DOES create
-#: `DECISIONS.md`, so the same phrasing about the index stays reportable —
-#: which is what caught three of the nineteen.
+#: how the board comes to exist at all. `perry-conform declare` DOES create
+#: `.perry/conformance.md`, so the same phrasing about that record stays
+#: reportable — the asymmetry that caught three of the nineteen, restated on a
+#: target that still exists after TASK-235.
 def from_target_template(flat: str, spec: dict) -> bool:
     """The step names template provenance for this target, not any template."""
     return bool(re.search(spec["template"], flat, re.I))
@@ -577,7 +580,7 @@ class ProceduresCallTheTool(unittest.TestCase):
                 root / "SKILL.md":
                     "1. Add a row to `BOARD.md` by hand.\n",
                 root / "reference" / "deep" / "page.md":
-                    "1. Update the `DECISIONS.md` index by hand.\n",
+                    "1. Update `.perry/conformance.md` by hand.\n",
                 root / "packs" / "ops" / "incidents.md":
                     "1. Append the `## Status changes` line by hand.\n",
             }
@@ -608,7 +611,7 @@ class ProceduresCallTheTool(unittest.TestCase):
             (lane / "state").mkdir()
             (lane / "SKILL.md").write_text(
                 "# reckon\n\n## Procedure\n\n"
-                "1. Update `DECISIONS.md` index: add a row in the Active section.\n")
+                "1. Update `.perry/conformance.md`: add a row for the file.\n")
             (lane / "reference" / "deep" / "buried.md").write_text(
                 "# buried\n\n## Procedure\n\n"
                 "1. Append the row to `BOARD.md` and write the "
@@ -623,8 +626,8 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "# bootstrap\n\n"
                 "1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`, empty "
                 "tables.\n"
-                "2. Write `DECISIONS.md` from "
-                "`state/DECISIONS_TEMPLATE.md`, empty index.\n")
+                "2. Write `.perry/conformance.md` from "
+                "`state/conformance_TEMPLATE.md`, empty record.\n")
             (lane / "state" / "SHIPPED.md").write_text(
                 "1. Update `BOARD.md`: add a row by hand.\n")
 
@@ -652,9 +655,9 @@ class ProceduresCallTheTool(unittest.TestCase):
                              "reporting it is how a guard gets switched off")
 
             # Exemption 6 cuts one way and not the other, on one page: nothing
-            # creates `BOARD.md`, `perry-decide bootstrap` creates the index.
+            # creates `BOARD.md`, `perry-conform declare` creates the record.
             boot = reported["bootstrap.md"]
-            self.assertEqual([f[1] for f in boot], ["DECISIONS.md index"],
+            self.assertEqual([f[1] for f in boot], [".perry/conformance.md"],
                              "the template exemption is conditioned on whether "
                              "the owning tool can create the file, not on the "
                              f"word 'template'; got {boot}")
@@ -671,7 +674,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         self.assertEqual(
             (str(item.page.relative_to(PERRY_HOME)), item.line, item.section,
              item.target),
-            ("decide/reference/decisions.md", 313,
+            ("decide/reference/decisions.md", 292,
              "## Migration: old monolithic `DECISIONS.md`",
              "an ADR's typed header"),
             "the signed-off set is the suppressions scan actually performed")
@@ -753,23 +756,23 @@ class ProceduresCallTheTool(unittest.TestCase):
         """
         step = ("1. Edit the target ADR yourself: flip its `Status:` header "
                 "to `active`.\n"
-                "2. Add the matching row to the `DECISIONS.md` index by hand.\n")
+                "2. Add the matching row to `.perry/conformance.md` by hand.\n")
         with tempfile.TemporaryDirectory() as tmp:
             page = Path(tmp) / "migrate.md"
 
             page.write_text("# m\n\n## Migration from a legacy board\n\n" + step)
             under = scan(page)
-            self.assertEqual([f[1] for f in under], ["DECISIONS.md index"],
+            self.assertEqual([f[1] for f in under], [".perry/conformance.md"],
                              "under an adoption heading the ADR file is the "
                              "authored document adoption exists to transcribe, "
-                             "and the index is the projection it may never "
+                             "and the record is the projection it may never "
                              f"write; got {under}")
 
             page.write_text("# m\n\n## Style rules\n\n" + step)
             outside = scan(page)
             self.assertEqual(
                 sorted(f[1] for f in outside),
-                ["DECISIONS.md index", "an ADR's typed header"],
+                [".perry/conformance.md", "an ADR's typed header"],
                 "outside an adoption heading both are reportable — if the "
                 "document half is silent here, the exemption is not scoped to "
                 f"the heading at all; got {outside}")
@@ -778,7 +781,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         findings, suppressed = self.scan_text(
             "# bootstrap\n\n## Procedure\n\n"
             "1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`.\n"
-            "2. Write `BOARD.md` from `state/DECISIONS_TEMPLATE.md`.\n")
+            "2. Write `BOARD.md` from `state/linkage_TEMPLATE.md`.\n")
         self.assertEqual([(f[0], f[1], f[2]) for f in findings],
                          [(6, "BOARD.md row", "R1")])
         templates = [s for s in suppressed
@@ -826,9 +829,6 @@ class ProceduresCallTheTool(unittest.TestCase):
             "the journal's status / definition block": (
                 "1. Append the `## Status changes` line to the journal.\n",
                 "1. `perry-task status` records the `## Status changes` line.\n"),
-            "DECISIONS.md index": (
-                "1. Update the `DECISIONS.md` index.\n",
-                "1. `perry-decide bootstrap` writes `DECISIONS.md`.\n"),
             "an ADR's typed header": (
                 "1. Flip the target ADR's `Status:` header.\n",
                 "1. `perry-decide status` flips the target ADR's `Status:`.\n"),
@@ -884,9 +884,9 @@ class ProceduresCallTheTool(unittest.TestCase):
     def test_paragraph_steps_lists_and_leading_prose_are_all_scanned(self):
         paragraph, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
-            "Update the `DECISIONS.md` index by hand.\n")
+            "Update `.perry/conformance.md` by hand.\n")
         self.assertEqual([(f[1], f[2]) for f in paragraph],
-                         [("DECISIONS.md index", "R1")])
+                         [(".perry/conformance.md", "R1")])
 
         split_from_tool, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
@@ -904,10 +904,10 @@ class ProceduresCallTheTool(unittest.TestCase):
 
         leading, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
-            "Update the `DECISIONS.md` index by hand.\n"
-            "1. Run `perry-decide list` afterward.\n")
+            "Update `.perry/conformance.md` by hand.\n"
+            "1. Run `perry-conform status` afterward.\n")
         self.assertEqual([(f[1], f[2]) for f in leading],
-                         [("DECISIONS.md index", "R1")])
+                         [(".perry/conformance.md", "R1")])
 
     def test_bulleted_steps_keep_exemptions_inside_their_item(self):
         """Both Markdown bullet forms segment steps just like numbered items."""
@@ -953,7 +953,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         cases = [
             ("/perry work", "BOARD.md", []),
             ("/perry goals", "OKR.md § Commitments", []),
-            ("/perry decide", "DECISIONS.md", []),
+            ("/perry decide", "the target ADR file", []),
         ]
         for command, target, expected in cases:
             with self.subTest(command=command, target=target):
@@ -973,10 +973,10 @@ class ProceduresCallTheTool(unittest.TestCase):
         """Four TASK-101 exemptions suppress descriptions, not instructions."""
         allowed = [
             ("1. `pmo` still writes `BOARD.md`.\n", True),
-            ("1. Detect `OKR.md` / code / `DECISIONS.md` to pre-fill a draft.\n",
-             False),
+            ("1. Detect `OKR.md` / code / `.perry/conformance.md` to pre-fill "
+             "a draft.\n", False),
             ("1. The BOARD row flips to `review` after verification.\n", True),
-            ("1. `DECISIONS.md` + `decisions/` move to `decide`.\n", True),
+            ("1. `BOARD.md` + `journal/` move to `work`.\n", True),
             ("1. **`OKR.md § Commitments` is explicitly `goals`.** Tracks put "
              "their spine there.\n", True),
             ("1. A reason that gets appended under `## Status changes` is "
@@ -992,8 +992,8 @@ class ProceduresCallTheTool(unittest.TestCase):
                                     "semantic exemptions must be observable")
 
         refused = [
-            "1. Detect the problem, then update the `DECISIONS.md` index.\n",
-            "1. Detect `OKR.md` / code. Then update `DECISIONS.md`.\n",
+            "1. Detect the problem, then update `.perry/conformance.md`.\n",
+            "1. Detect `OKR.md` / code. Then update `.perry/conformance.md`.\n",
             "1. For the BOARD row, after checking its id, update Status.\n",
         ]
         for text in refused:
@@ -1008,7 +1008,7 @@ class ProceduresCallTheTool(unittest.TestCase):
              "prohibition"),
             ("1. It updates the `BOARD.md` row.\n", "descriptive"),
             ("1. It already updates the `BOARD.md` row.\n", "descriptive"),
-            ("1. Writes the accompanying `DECISIONS.md` index itself.\n",
+            ("1. Writes the accompanying `.perry/conformance.md` row itself.\n",
              "descriptive"),
             ("1. Creating a queue row also creates `BOARD.md § Intake`.\n",
              "descriptive"),
@@ -1026,12 +1026,12 @@ class ProceduresCallTheTool(unittest.TestCase):
         findings, suppressed = self.scan_text(
             "# page\n\n## Inventory\n\n"
             "| Action | Update `BOARD.md`: add a row. |\n"
-            "> Update `DECISIONS.md`: add an index row.\n")
+            "> Update `.perry/conformance.md`: add a declaration row.\n")
         self.assertEqual(findings, [])
         self.assertEqual(
             [(s.exemption, s.target) for s in suppressed],
             [("quoted-or-table", "BOARD.md row"),
-             ("quoted-or-table", "DECISIONS.md index")])
+             ("quoted-or-table", ".perry/conformance.md")])
 
     def test_write_participles_and_read_anchors_do_not_go_silent(self):
         passive, _ = self.scan_text(

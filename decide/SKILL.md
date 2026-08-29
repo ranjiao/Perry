@@ -1,6 +1,6 @@
 ---
 name: decide
-description: The `decide` lane of the `perry` skill — not a separate command. Loaded on demand by $PERRY_HOME/SKILL.md when a request is reached as /perry decide … (alias /perry design …). Design-doc and decision steward. Owns design/<DESIGN-ID>-<slug>.md, DECISIONS.md and decisions/ — RFC-style architecture / process / interface design documents and ADRs that lock decisions BEFORE the `work` lane opens implementation tasks. Read this lane when the user asks to draft an RFC or architecture doc, record or expire an ADR, lock a design decision, or add user-decision rows to a design. Hands off to the `work` lane once a doc reaches "Design locked": `work` opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
+description: The `decide` lane of the `perry` skill — not a separate command. Loaded on demand by $PERRY_HOME/SKILL.md when a request is reached as /perry decide … (alias /perry design …). Design-doc and decision steward. Owns design/<DESIGN-ID>-<slug>.md and decisions/ — RFC-style architecture / process / interface design documents and ADRs that lock decisions BEFORE the `work` lane opens implementation tasks. Read this lane when the user asks to draft an RFC or architecture doc, record or expire an ADR, lock a design decision, or add user-decision rows to a design. Hands off to the `work` lane once a doc reaches "Design locked": `work` opens implementation tasks whose evidence files back-reference the design ID. Reads OKR.md / phase/ for goal context and BOARD.md to surface in-flight implementation work for any locked design.
 ---
 
 # design — Perry's design-doc steward
@@ -21,7 +21,7 @@ Voice: structured, decision-oriented, friction-friendly. The design skill refuse
 ## Companion skills
 
 Pairs with **`pmo`** and **`okr`**. Hand-off rules:
-- `decide` is the **only writer** of `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/ADR-NNN-*.md`**.
+- `decide` is the **only writer** of `design/<DESIGN-ID>-<slug>.md` and **`decisions/ADR-NNN-*.md`**.
 - `design` reads `OKR.md` / `phase/` for goal context (read-only) and reads `BOARD.md` to surface which implementation tasks reference each locked design.
 - Once a doc reaches **Design locked**, `design` hands off to `pmo`: print a list of proposed implementation tasks (each tagged with the design ID); user approves; `pmo add-task` writes them to `BOARD.md`. PMO's evidence files for those tasks back-reference the design ID in their first lines.
 - `design` never writes `BOARD.md`, `journal/`, `OKR.md`, `phase/`, `evidence/`, or any other Perry-owned file.
@@ -124,10 +124,10 @@ For navigation help: `/design help` prints this index; `/design help <subcommand
 
 | Subcommand | One-line | Section |
 |---|---|---|
-| `init` | First-time bootstrap of the lane: `design/` + README, **and** `DECISIONS.md` + `decisions/` via `perry-decide bootstrap` | Subcommands |
+| `init` | First-time bootstrap of the lane: `design/` + README, **and** `decisions/` via `perry-decide bootstrap` | Subcommands |
 | `new <slug>` | Start a new design doc (interactive: title, ID, KR linkage) | Subcommands |
 | `resolve <DESIGN-ID>` | Walk unresolved User Decisions rows; each → AskUserQuestion | Subcommands |
-| `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`; re-renders the `DECISIONS.md` index. Written by `perry-decide new` / `supersede` / `status`, never by hand | `reference/decisions.md` |
+| `adr <topic>` | New ADR → `decisions/ADR-NNN-<slug>.md`. Written by `perry-decide new` / `supersede` / `status`, never by hand; `perry-decide list` is the view of the set | `reference/decisions.md` |
 | `lock <DESIGN-ID>` | Move `in_review` → `locked`; print impl tasks for PMO `add-task` | Subcommands |
 | `revise <DESIGN-ID>` | Material change after lock; appends `## Changes` | Subcommands |
 | `supersede <OLD-ID> <NEW-slug>` | Replace one doc with a successor | Subcommands |
@@ -153,15 +153,15 @@ Run once per project. Two halves, and **both are required** — `init` used to d
 
 1. **`design/`** — create the directory and write `design/README.md` documenting the local DESIGN-ID convention (default: `DESIGN-NNN` zero-padded; projects may override in their hook to use domain prefixes like `INFRA-NNN`, `API-NNN`, etc.). No design docs are created.
 
-2. **`DECISIONS.md` + `decisions/`** — created by the tool, not by hand:
+2. **`decisions/`** — created by the tool, not by hand:
 
    ```
    "$PERRY_HOME/bin/perry-decide" bootstrap
    ```
 
-   It refuses if either already exists, so it is safe to run on an existing project and useless to run twice.
+   It refuses if the directory already exists, so it is safe to run on an existing project and useless to run twice.
 
-> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create those two paths — they belong to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s then-step 7, "update the `DECISIONS.md` index", ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17. That step no longer exists: `perry-decide` renders the index on every write, and the procedure calls it (ADR-007 rule 3, TASK-096).
+> **This second half did not exist, and its absence was silent.** `work/reference/bootstrap.md` correctly refuses to create that path — it belongs to this lane — and said "`decide`'s own bootstrap creates them". This section said the opposite: it created `design/` and stated it "does not create any docs". First-time setup never invoked a `decide` subcommand at all. So `adr`'s then-step 7, "update the index", ran against a file no code path produced, and every Perry project reported zero decisions forever. Found by a fresh-context review, 2026-08-17. That step no longer exists — first because `perry-decide` rendered the index itself on every write (ADR-007 rule 3, TASK-096), and since TASK-235 because there is no index: `perry-decide list` is the view (DESIGN-013 § 5.3).
 
 ### `new <slug>` (interactive)
 Start a new design doc. Prompts:
@@ -194,7 +194,7 @@ Move a doc from `in_review` → `locked`. Pre-flight checks:
 If any check fails, refuse the move and print the gap list. **Then run the advisory input-quality pass** (`$PERRY_HOME/reference/input-quality.md § 3`) over the whole doc — the hard checks above are the *floor* (empty section / open decision = refuse); the pass adds the softer coaching (alternatives considered, implications spelled out, risks name detection + mitigation) as ≤3 suggestions the user can fix or override. Advisory only — a clean-floor doc still locks even if the user overrides a suggestion. On success: set `Status: locked`, fill `Locked: <today>`, then **print the implementation tasks to chat** in PMO's `add-task` schema (Owner, Priority, Deliverable, Verification, Dependencies, Out of scope). **Use `AskUserQuestion`** (header `"Hand-off"`, options = `Hand to PMO now (Recommended) | Edit before handing off | Skip — manual paste later`) to collect the user's hand-off decision.
 
 ### `revise <DESIGN-ID>`
-For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Writes the accompanying ADR itself — `DECISIONS.md` and `decisions/` are this lane's files (`$PERRY_HOME/SKILL.md § The hand-off contract`). Use `adr <topic>` with `Type: Design`.
+For material changes after lock that don't warrant a new doc (small architecture refinements, decision updates that don't break implementation). Walks: what's changing, why, which Implementation plan items are affected. Bumps the `Date:` (keeps `Locked:`), appends a `## Changes` entry. Writes the accompanying ADR itself — `decisions/` is this lane's directory (`$PERRY_HOME/SKILL.md § The hand-off contract`). Use `adr <topic>` with `Type: Design`.
 
 **First step**: use `AskUserQuestion` (header `"Revise scope"`, options = `Decision update | Architecture refinement | Implementation re-sequence | Use supersede instead (Recommended if structural)`) to gauge the change kind. If the user picks `Use supersede instead`, route to `supersede` and stop here.
 
@@ -218,7 +218,7 @@ Without an ID: print the snapshot. With an ID: print that doc's full status — 
 |------------|-------|---------|----------|
 | `design/<DESIGN-ID>-<slug>.md` | design | One design doc per ID | `state/design_TEMPLATE.md` |
 | `design/README.md` | decide | Local DESIGN-ID convention + index | (written on `init`) |
-| `DECISIONS.md` + `decisions/ADR-NNN-*.md` | decide | ADR index + one file per decision. Moved here from `work` by the signed hand-off contract, 2026-08-16 — a settled decision and the document that settles it now have one owner | `state/ADR_TEMPLATE.md` |
+| `decisions/ADR-NNN-*.md` | decide | One file per decision, and the whole record — there is no index file, `perry-decide list` is the view (DESIGN-013 § 5.3, TASK-235). Moved here from `work` by the signed hand-off contract, 2026-08-16 — a settled decision and the document that settles it now have one owner | `state/ADR_TEMPLATE.md` |
 | `OKR.md`, `phase/<NNN>-<slug>.md` | okr | Read by design for goal context; never written | (in okr skill) |
 | `BOARD.md` | pmo | Read by design to count implementation rows; never written | (in pmo skill) |
 
@@ -229,8 +229,8 @@ Design docs live in their own `design/` directory at the project root, parallel 
 If `design/` doesn't exist:
 > "No design lane in `<project>`. Run `init` to create `design/` and the local convention? (yes/no)"
 
-If `DECISIONS.md` doesn't exist — which is a **separate** check, because a project can have one and not the other:
-> "No decision record in `<project>`. Run `perry-decide bootstrap` to create `DECISIONS.md` and `decisions/`? (yes/no)"
+If `decisions/` doesn't exist — which is a **separate** check, because a project can have one and not the other:
+> "No decision record in `<project>`. Run `perry-decide bootstrap` to create `decisions/`? (yes/no)"
 
 Check both. They were one question for a release, and the half nobody ran is the half that never got created.
 

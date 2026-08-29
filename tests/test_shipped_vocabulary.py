@@ -588,7 +588,7 @@ class TestShippedTemplatesAreTypeable(unittest.TestCase):
                            f"glob has come unstuck from the tree")
         names = {p.name for p in found}
         for expected in ("BOARD_TEMPLATE.md", "ADR_TEMPLATE.md",
-                         "DECISIONS_TEMPLATE.md", "hook_TEMPLATE.md",
+                         "hook_TEMPLATE.md",
                          "phase_TEMPLATE.md", "diagnosis_TEMPLATE.md"):
             self.assertIn(expected, names)
 
@@ -606,20 +606,30 @@ class TestShippedTemplatesAreTypeable(unittest.TestCase):
             "a shipped template stamps a withdrawn command into the user's "
             "own repository:\n    " + "\n    ".join(offenders))
 
-    def test_the_decisions_header_does_not_attribute_the_file_to_pmo(self):
-        """`DECISIONS.md` moved to `decide` under the signed hand-off contract.
-        Its own template — one of the two files this task relocated — kept a
-        header asserting that the lane forbidden to write it maintains it, and
-        that header is what lands in the user's repo."""
-        header = (PERRY_HOME / "decide" / "state"
-                  / "DECISIONS_TEMPLATE.md").read_text().splitlines()[:6]
-        text = "\n".join(header)
-        self.assertNotRegex(
-            text, r"\bPMO\b",
-            "DECISIONS_TEMPLATE.md still credits PMO with maintaining a file "
-            "the contract gave to `decide`")
-        self.assertIn("decide", text,
-                      "the header names no maintainer at all")
+    def test_no_decide_template_attributes_its_file_to_pmo(self):
+        """The decision record moved to `decide` under the signed hand-off
+        contract, and one of the relocated templates kept a header asserting
+        that the lane forbidden to write it maintains it — a header that lands
+        in the user's repo.
+
+        **That template was `DECISIONS_TEMPLATE.md` and TASK-235 deleted it
+        with the file it seeded.** The assertion is now over every template
+        this lane still ships, which is what it should have been: the defect
+        was a stale attribution in a `decide/state/` header, not a property of
+        one filename. `ADR_TEMPLATE.md` and `design_TEMPLATE.md` are inside it
+        today and a fourth is covered on the day it is added.
+        """
+        templates = sorted((PERRY_HOME / "decide" / "state").glob("*.md"))
+        self.assertGreaterEqual(len(templates), 2,
+                                "the decide lane's state templates moved; "
+                                "this glob is now vacuous")
+        for path in templates:
+            with self.subTest(template=path.name):
+                text = "\n".join(path.read_text().splitlines()[:6])
+                self.assertNotRegex(
+                    text, r"\bPMO\b",
+                    f"{path.name} credits PMO with maintaining a file the "
+                    f"contract gave to `decide`")
 
 
 class TestLaneFrontmatterDescribesALaneNotACommand(unittest.TestCase):

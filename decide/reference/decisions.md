@@ -1,12 +1,11 @@
 # `adr <topic>` and the `decisions/` library
 
-The `decide` lane's ADR (Architecture Decision Record) machinery. One file per decision under `decisions/<ADR-ID>-<slug>.md`. `DECISIONS.md` at the project root is **an index only** — it lists which ADRs exist and their current status, but does not hold the decision content itself. Same split rationale as BOARD.md vs journal/: keep the always-loaded file small; one decision per file scales.
+The `decide` lane's ADR (Architecture Decision Record) machinery. One file per decision under `decisions/<ADR-ID>-<slug>.md`. **Those files are the whole record**, and `perry-decide list` is the whole view of them.
 
-## Two-file split
+## One directory, and a command instead of an index
 
 ```
 <project_root>/
-├── DECISIONS.md                         # INDEX only (≤200 lines, like BOARD.md)
 └── decisions/
     ├── ADR-NNN-<slug>.md
     ├── ADR-NNN-<slug>.md
@@ -14,16 +13,25 @@ The `decide` lane's ADR (Architecture Decision Record) machinery. One file per d
     └── ...
 ```
 
-| File | Purpose | Lifetime | Read frequency |
+| Surface | Purpose | Lifetime | Read frequency |
 |---|---|---|---|
-| `DECISIONS.md` | Index table: ADR ID / Title / Type / Date / Status + link to the per-ADR file | **Rendered by `bin/perry-decide` from the ADR files** on every write — never hand-edited, never appended to | Every standup (light scan of recent active entries) |
+| `perry-decide list` | id / status / type / title for every ADR, plus counts, expired sunsets, and the two conformance findings | Computed on every call from the files; nothing is stored | Every standup |
 | `decisions/<ADR-ID>-<slug>.md` | One file per decision: Context / Options / Chosen / Consequences / Evidence / Sunset criteria | Append-only after creation; status field flips on supersede/expire/archive | On demand when the user or PMO needs the full reasoning |
 
-The index keeps PMO's standup-time decision awareness cheap (single ≤200-line file, no per-ADR content); the per-ADR files preserve the full reasoning indefinitely and grow with project age.
+**There used to be a `DECISIONS.md` index here and TASK-235 deleted it.**
+DESIGN-013 § 5.3: it was twelve rows of pure projection whose own header told
+the reader not to edit it, and `perry-decide list` already printed the same
+content. § 4.1 of that design records what goes with it and calls it a real
+property given up rather than an implementation detail — the rows were markdown
+links into `decisions/`, so a reader browsing the repository on the web
+navigated by them and now lands in the directory listing instead. A terminal
+command cannot be linked to. **The design says outright that the implementing
+row must not quietly re-add an index under another name**, and this page is
+where a future reader would go looking for permission to.
 
 ## Language: configured doc language is mandatory
 
-Before drafting any ADR, **read `.perry/config.md` § Document language**. The ADR's narrative content — Context, Options, Chosen, Consequences, Sunset criteria — MUST be written in that language. Citations (file paths, commit SHAs, code refs, evidence paths), the ADR id, and the `Type:` / `Status:` / `Date:` / `Supersedes:` **values** stay English regardless — they are matched by `bin/perry-state` and every downstream reader. The `DECISIONS.md` index heading and its column headers localize through the glossary (`## Active` → `## 进行中`, `| ADR | Title | Type | Date |` → `| ADR | 标题 | 类型 | 日期 |`); the full contract, including which field *names* may be localized and which may not, is `$PERRY_HOME/reference/i18n.md`.
+Before drafting any ADR, **read `.perry/config.md` § Document language**. The ADR's narrative content — Context, Options, Chosen, Consequences, Sunset criteria — MUST be written in that language. Citations (file paths, commit SHAs, code refs, evidence paths), the ADR id, and the `Type:` / `Status:` / `Date:` / `Supersedes:` **values** stay English regardless — they are matched by `bin/perry-state` and every downstream reader. There is no index heading left to localize — `perry-decide list` prints ids, statuses and titles as the files spell them; the full contract, including which field *names* may be localized and which may not, is `$PERRY_HOME/reference/i18n.md`.
 
 This rule applies to all PMO-written artifacts but is called out explicitly here because ADRs are long-lived records the user reads months later. Mixed-language ADRs are hard to skim — one language per file, end to end.
 
@@ -105,39 +113,6 @@ ADR in and out of `proposed`:
 - <trigger 1: date / metric threshold / event>
 - <trigger 2: ...>
 - Any trigger firing → file moves to `Status: expired` and the user is alerted in the next standup.
-```
-
-## `DECISIONS.md` index schema (template at `$PERRY_HOME/decide/state/DECISIONS_TEMPLATE.md`)
-
-```markdown
-# Decisions index — <project name>
-
-> Rendered by `bin/perry-decide` from `decisions/ADR-*.md` on every write.
-> Proposed: <count> · Active: <count> · Superseded: <count> · Expired: <count> · Archived: <count>
-> Last updated: <YYYY-MM-DD>
-
-## Active
-
-| ADR | Title | Type | Date | Sunset / Notes |
-|---|---|---|---|---|
-| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Adopt Perry skill for PMO/OKR/design workflow | Process | 2026-05-06 | — |
-| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Temporarily accept 8.18% error-budget overrun in deploy-service | Operations | 2026-05-06 | 2026-06-30 mandatory action |
-| ... |
-
-## Proposed (awaiting the user)
-
-<!-- rendered only when the project has a `proposed` ADR; omitted otherwise -->
-
-| ADR | Title | Type | Date | Sunset / Notes |
-|---|---|---|---|---|
-| [ADR-NNN](decisions/ADR-NNN-<slug>.md) | Move the queue off cron | Architecture | 2026-08-20 | — |
-
-## Superseded / Expired / Archived (historical)
-
-| ADR | Title | Status | Status date | Replaced by |
-|---|---|---|---|---|
-| [ADR-NNN](decisions/ADR-NNN-...) | Old data pipeline choice | superseded | 2026-08-15 | ADR-NNN |
-| ... |
 ```
 
 ## Subcommand: `adr [<topic>]` and `--supersede` / `--expire` / `--archive`
@@ -263,12 +238,16 @@ Metric-based and event-based triggers are NOT auto-checked (PMO can't reliably e
 
 ## Standup integration
 
-The standup ritual (in `SKILL.md § Mandatory first move`) reads `DECISIONS.md` (index only, not per-ADR files) for:
-- Total count by status
+The standup ritual (in `SKILL.md § Mandatory first move`) runs `perry-decide list --json` — headers only, never the ADR bodies — for:
+- Total count by status (`active`, `total`)
 - Most recent active ADR (for the `📝 Last decision` dashboard line)
-- Any active ADRs with date-based sunsets that have passed (alert)
+- Any active ADRs with date-based sunsets that have passed (`expired_sunsets`)
 
-PMO reads specific `decisions/ADR-NNN-*.md` files only when needed — e.g., when an ongoing task references that ADR, or when the user asks "what did we decide about X".
+It used to read an index file for the same three things. The command reads the
+same headers the index was rendered from, so the standup cost is unchanged and
+there is no longer a second copy that can be stale.
+
+PMO reads specific `decisions/ADR-NNN-*.md` bodies only when needed — e.g., when an ongoing task references that ADR, or when the user asks "what did we decide about X".
 
 ## Bootstrap
 
@@ -311,19 +290,20 @@ Projects that adopted Perry before this split still have a single-file `DECISION
 1. PMO reads the old `DECISIONS.md` top-to-bottom; identifies ADR boundaries (lines matching `^## ADR-NNN — `).
 2. For each ADR: extract content; parse Type / Status / Date / Supersedes from the header section; slug the title (≤8 words, lowercase, hyphenated).
 3. Write each to `decisions/ADR-NNN-<slug>.md` in the new schema (canonicalize header fields per `$PERRY_HOME/decide/state/ADR_TEMPLATE.md`). **Transcription is the exception, and this is the one place it applies**: the source is a document Perry did not write, so reading it is parsing by definition (ADR-007 § 6, answer 4) and there is nothing to call a tool with until the per-ADR files exist. The ids are the ones the old file already used — they are being *preserved*, not minted.
-4. **Move the old monolithic file aside, then let the tool render the index.**
+4. **Move the old monolithic file aside, then read the set back.**
 
    ```bash
    git mv DECISIONS.md evidence/<YYYY-MM>/decisions-pre-split.md
-   "$PERRY_HOME/bin/perry-decide" bootstrap
+   "$PERRY_HOME/bin/perry-decide" list
    ```
 
-   With `decisions/` already populated, `bootstrap` creates only the index and
-   renders it from the files step 3 just wrote. That is the point of doing it
-   this way round rather than typing the index out: the index is a projection,
-   and a projection typed by hand is wrong at the next `perry-decide` call.
-   Check it with `perry-decide list --json` — `conformance.filed_without_index_row`
-   is empty when every transcribed ADR made it in.
+   Nothing needs rendering: `decisions/` is the record, and `list` reads it.
+   `total` must equal the number of `^## ADR-NNN — ` headers step 1 counted in
+   the old file — that is the check that every transcribed ADR made it in, and
+   `missing_type` names any whose header did not survive the transcription.
+
+   `perry-decide bootstrap` is **not** run here. It creates `decisions/` and
+   refuses when it already exists, which after step 3 it does.
 5. Print the hand-off line for `work` to journal, if the migration deserves one. This lane does not write `journal/` — see step 7 of the `adr` walk above.
 6. Commit. Git history preserves the original DECISIONS.md so the migration is recoverable.
 
@@ -353,4 +333,4 @@ The `ADR types` line replaces the default type list when present.
 What it doesn't change:
 - ADR content is still append-only after creation (status flips append `## Status change` entries, never edit Chosen/Consequences in place)
 - Format is still Context → Options → Chosen → Consequences → Evidence (the classic ADR shape)
-- `DECISIONS.md` and `decisions/` are **`decide`-owned** — moved from `work` on 2026-08-16 by the signed hand-off contract, so that a settled decision and the document that settles it have one owner. `work` and `goals` read them freely and never write them. (This line said the opposite for a release; it was the concluding sentence of the moved lane's own reference.)
+- `decisions/` is **`decide`-owned** — moved from `work` on 2026-08-16 by the signed hand-off contract, so that a settled decision and the document that settles it have one owner. `work` and `goals` read it freely and never write it. (This line said the opposite for a release; it was the concluding sentence of the moved lane's own reference.)
