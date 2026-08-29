@@ -1,6 +1,7 @@
 # TASK-235 — `DECISIONS.md` stops existing; `perry-decide list` is the surface
 
 > Branch: `coding/task-235-decisions-index`, forked from `main` at `ee0b36a`.
+> Commit: `0179c02` — 61 files, +1394 / -800.
 > DESIGN-013 § 5.3 and User Decision 3, answered 2026-08-29: **delete it.**
 > Every synthetic id below is backticked on purpose: `bin/perry-diagnose`
 > reads a bare `ADR-0NN` in `evidence/` as a dangling reference, measured on
@@ -10,7 +11,7 @@
 
 **Deleted.** `perry/DECISIONS.md`, `decide/state/DECISIONS_TEMPLATE.md`, and
 the four fixture indexes (`tests/fixtures/sample-project`,
-`sample-project-zh`, `witness-project` — see § 6, they were not all pure
+`sample-project-zh`, `witness-project` — see § 7 A, they were not all pure
 projections).
 
 **`bin/perry-decide`** — the writer. `render_index` and `index_rows` are gone;
@@ -30,7 +31,7 @@ on the surface that is now the only surface is the same defect one layer up.
 have made `perry-state`'s `decisions.count` zero on every project forever,
 which is verbatim the defect `bin/perry-decide`'s own docstring says the tool
 was built to end. Verified equal, field by field, against the old reader on the
-old file — § 6.
+old file — § 7 A.
 
 **Schema and contracts.** `claims[path=DECISIONS.md]` and
 `files[id=decisions]` removed from `schema/state-schema.json`; the
@@ -49,12 +50,19 @@ row must not quietly re-add it. `tests/test_decide_writer.py §
 TestNothingWritesAnIndex` is that sentence as a test, and it is written as
 *"after this command the only files that exist are ADR bodies"* rather than
 `assertFalse(DECISIONS.md.exists())` — a guard shaped round one filename is
-satisfied by `ADRS.md`. Mutation 4 in § 5 plants exactly that and it goes red.
+satisfied by `ADRS.md`. Mutation 4 in § 6 plants exactly that and it goes red.
 
-## 2 · The `mint_id` contract answer
+## 2 · Finding 1 — two tools disagree about whether an id can be reissued
 
-**`perry-decide` reissues a deleted ADR number. `perry-task purge` does not.
-The two tools disagree, and this one is the weaker.** Measured, not reasoned:
+**The most important thing this row produced, and it is DECLARED, not fixed.**
+Somebody other than me should decide whether it is acceptable.
+
+**`perry-decide` reissues a deleted ADR number. `perry-task purge` does not.**
+An ADR id is an address — `perry/evidence/`, `perry/design/` and the ADR
+bodies cite each other by it — so a reissued number means **two different
+decisions can share one address**, and a citation written before the delete
+resolves to the decision written after it. Nothing in the tree detects that.
+Measured, not reasoned:
 
 ```
 $ perry-decide bootstrap --root .          # creates decisions/ only
@@ -72,27 +80,45 @@ perry-decide: wrote ADR-011                     ← REISSUED
 `purge` removes the record and `.perry/events.jsonl` keeps the number,
 *"retired, not freed"*, because a reissued id inherits the dead row's timeline.
 
+**The disagreement is between two tools over one contract**, and the contract
+is `perry-task`'s: *an id, once issued, is never issued again.*
+`bin/perry-task § minting_records` states it — *"a purged number is retired,
+not freed"* — and gives the reason in the same breath: `.perry/events.jsonl`
+is append-only and still carries the dead record's `add`, `drop` and `purge`,
+so a new row wearing that number inherits a timeline that is not its own.
+Every word of that applies to an ADR except the mechanism.
+
 **`perry-decide` cannot follow that rule today and TASK-235 does not make it.**
 The rule needs an append-only log and this lane writes no events at all — there
 is no `.perry/events.jsonl` line with `perry-decide` on it. Retiring an ADR
 number means teaching the lane to write events first, which is a lane-shaped
 change and its own row. The exposure is smaller than `perry-task`'s: there is
 no `perry-decide purge`, so an ADR leaves `decisions/` only when a human
-deletes the file, and nothing resolves ADR ids against a log. It is still a
-disagreement between two minters in one project, and it is now *stated* — in
+deletes the file, and nothing resolves ADR ids against a log. **That is a
+reason it can wait, not a reason it is acceptable** — that call is not mine to
+make and this row does not make it. It is now *stated* — in
 `mint_id`'s docstring and in
 `tests/test_decide_writer.py §
 TestMintingReadsTheFilesAlone.test_a_deleted_adr_number_is_reissued_and_that_disagrees_with_purge`,
 whose failure message says what to change and where if this ever becomes false.
 
-## 3 · TASK-214 — closed, and it was worse than it read
+## 3 · Finding 2 — TASK-214 is closed, and the defect was larger than filed
 
-TASK-214 is **closed by this change**. Nothing survives of the `max(files ∪
-index)` shape: there is no index, `mint_id` reads `read_adrs` and returns.
+**Nothing survives.** There is no index; `mint_id` reads `read_adrs` and
+returns. TASK-214 as filed is closed by this change.
 
-What the row does not say, and this tree does: **the union was not merely
-self-erasing, it made reissue non-deterministic.** Measured on `main`'s
-`bin/perry-decide` at `ee0b36a`, in a throwaway project:
+**The row under-described its own defect, and that is the part worth keeping.**
+It reads as *"the departed half erases itself"* — a redundant source going
+quiet. What was there was worse: **reissue was NON-DETERMINISTIC.** The union
+`max(files ∪ index)` gave a deleted id exactly one command of memory, because
+the very next write re-rendered the index *from the files* and dropped the row
+that was holding the number. So whether a deleted id came back depended on
+**how many unrelated writes happened in between**. Nobody looking at a project
+could say which case they were in, and the same sequence with one extra
+`status` flip in it gives the opposite answer.
+
+Reproduction, on `main`'s `bin/perry-decide` at `ee0b36a`, in a throwaway
+project:
 
 ```
 files: ADR-001 … ADR-010, ADR-012, ADR-013
@@ -104,18 +130,18 @@ $ perry-decide new fourteen --title Fourteen --type Process
 perry-decide: wrote ADR-013                        ← REISSUED anyway
 ```
 
-So `main` reissued too. The union bought exactly one command of memory, and
-whether an id came back depended on how many writes happened in between —
-which is worse than not remembering, because nobody could say which case they
-were in. After this change the behaviour is one thing, always, and § 2 names
-it.
+So `main` reissued too — it just needed one more command to do it. After this
+change the behaviour is one thing, always, and § 2 names what that one thing
+is. A row that closes by showing the defect was bigger than filed is worth
+more than one that closes by meeting its own description, which is why this
+paragraph is here and not only in the commit message.
 
 **A second thing closed on the way, which TASK-214 did not name.** `cmd_new`
 stamps `> Status: active` into every ADR it writes, and nothing bound that
 literal to `enums.decision_status`. The refusal that existed came from
 `render_index` asking `statuses()` for its count line — an accident of the
 renderer, and deleting the renderer took it. `bin/perry-decide § BORN_STATUS`
-is that binding stated where the value is written; mutation 7 proves it.
+is that binding stated where the value is written; mutation 7 in § 6 proves it.
 
 ## 4 · The contract: `perry-decide/list/2.0`
 
@@ -150,9 +176,59 @@ says must not be how a break is absorbed. So the bump got a door that a
 re-record cannot open: **`test_the_shipped_version_is_recorded_in_its_own_changelog`**
 requires the version a tool ships to appear in its own contract page's
 Changelog. It is standing rather than transitional — it fires on every run for
-all three contracts, not only across the bump — and mutation 9 proves it.
+all three contracts, not only across the bump — and mutation 9 in § 6 proves it.
 
-## 5 · Mutations
+## 5 · Finding 3 — `viewer/parsers.py` had to change, and the hunks, for `coding/task-050-header-index`
+
+**Why it was mandatory rather than tidying.** `load_snapshot` read
+`DECISIONS.md` and parsed its `## Active` table into `snap.adrs`.
+`bin/perry-state` builds `decisions.count`, `decisions.last` and
+`expired_sunsets` from that list. Delete the file and leave the reader, and
+every project reports `decisions.count = 0` forever — **which is verbatim the
+defect `bin/perry-decide`'s own module docstring says the tool was built to
+end.** It would have been a silent zero, not an error: the exact "a check that
+cannot fail on the thing it names" shape this project has caught six times.
+Mutation 8 in § 6 is that regression, planted, and three modules go red.
+
+**Exactly what moved. Three hunks, and the big one is a whole-section
+replacement rather than edits inside it:**
+
+| Hunk | Old | New | What |
+|---|---|---|---|
+| `@@ -2550,50 +2550,129 @@` | the `# ── DECISIONS.md ──` section: `parse_decisions(text)` **only** | `# ── decisions/ADR-*.md ──` section: `ADR_ID_RE`, `adr_header_fields(text)`, `read_adr_records(state_root)`, `parse_decisions(state_root)` | the section is replaced whole |
+| `@@ -3860,7 +3939,6 @@` | `decisions_text = read(root / "DECISIONS.md")` | *(line removed)* | one deletion in `load_snapshot` |
+| `@@ -3934,7 +4012,7 @@` | `adrs=parse_decisions(decisions_text) if decisions_text else []` | `adrs=parse_decisions(root)` | one line, `load_snapshot` |
+
+Nothing else in the file is touched: `parse_board`, `parse_okr`,
+`parse_phase`, `parse_linkage`, `parse_top_risks`, `walk_*`, `split_row`'s
+callers and `resolve_state_root` are byte-identical to `main`.
+
+**The one place it can collide with TASK-050, and how to resolve it.** The
+deleted `parse_decisions` contained exactly two header/table call sites —
+
+```python
+in_active = heading_is(line[3:].strip(), "Active")     # old line 2562
+cells = split_row(line)                                # old line 2572
+```
+
+— and **both are inside the replaced section**. If `coding/task-050-header-index`
+converted either of them among its 16 header sites, that conversion is moot
+here: **take the deletion.** The new reader parses `> Key: value` frontmatter
+and has **zero** `heading_is`, `split_row` or header-normalization calls
+(grepped, § 6 F). TASK-050's other sites are in functions this branch does not
+touch, so the rest of that branch merges clean. The two `load_snapshot` hunks
+are single lines and will not conflict unless TASK-050 also edits
+`load_snapshot`'s local reads.
+
+**Why the reader moved down here instead of staying in `bin/perry-decide`.**
+`perry-decide` carried a tolerant ADR-header parser while `parsers.py` carried
+a table parser for the *rendering* of the same records — one record, two
+readers, bound by nothing. With the table gone I could have left a copy in
+each. `split_row` reached **six** implementations before TASK-234 found the
+last one; this is the same defect caught at two. `bin/perry-decide` now does
+`read_adrs = P.read_adr_records` and carries no parser of its own.
+
+## 6 · Mutations
 
 Every one: anchored by line number, old text asserted before replacing,
 `__pycache__` cleared, 1.2 s past the whole-second boundary either way,
@@ -171,11 +247,40 @@ restored with an `md5` check that printed `OK`. Harness:
 | 8 | `viewer/parsers.py:2671` `for r in read_adr_records(state_root)` | the snapshot's ADR reader returns nothing | `test_project_root_resolution.TestPerrysOwnConfiguration.test_the_snapshot_off_perrys_own_project_root_is_not_empty` (+2 modules) |
 | 9 | `bin/perry-decide:107` `LIST_CONTRACT` | version bumped to `2.1` with no changelog row | `test_contract_invariance.TestNothingIsRemovedOrRetyped.test_the_shipped_version_is_recorded_in_its_own_changelog` (only) |
 
-Mutations 3, 4 and 9 each go red **alone**, which is the answer to *"a guard
-that can be deleted with the suite unchanged is not a guard"*: nothing else in
-2,900 tests catches those three.
+### 6.1 · Three of the nine go red ALONE, and one of them is the whole decision
 
-## 6 · Findings
+Mutations **3, 4 and 9** each go red with **exactly one** failing test in the
+whole suite. That is the answer to *"a guard that can be deleted with the suite
+unchanged is not a guard"*: delete any of those three and nothing else in
+~2,900 tests notices the defect it names.
+
+**Mutation 4 is the one that keeps the decision honest after I am gone.** It
+re-adds the index as **`ADRS.md`** — a different filename, same artefact — and
+the test that catches it is:
+
+> `tests/test_decide_writer.py §
+> TestNothingWritesAnIndex.test_status_writes_no_index`
+
+with the message it printed under mutation:
+
+```
+after `status` the decide lane left ['ADRS.md']. Its whole record is
+`decisions/ADR-*.md`; DESIGN-013 § 4.1 forbids re-adding an index under
+any name.
+```
+
+DESIGN-013 § 4.1 accepts the loss of the web link surface **and warns in the
+same paragraph that the implementing row must not quietly re-add an index to
+avoid it**. A guard written the obvious way —
+`assertFalse((root / "DECISIONS.md").exists())` — is satisfied by `ADRS.md`,
+`INDEX.md` or `decisions/README.md`, so it would have permitted exactly the
+move the design forbids. `TestNothingWritesAnIndex` instead asserts the
+**complete set of files each write command may leave behind** (ADR bodies, and
+nothing else), which is why it names no filename and catches all of them. Its
+five members cover `bootstrap`, `new`, `new --supersedes`, `supersede` and
+`status` — every command in the tool that writes.
+
+## 7 · Findings
 
 **A · The index was not a pure projection in every project, and DESIGN-013
 § 5.3's "Nothing is lost by deleting it" is true of Perry and not in general.**
@@ -232,12 +337,18 @@ indexes and two shipped scaffolds were invisible to `grep -rn 'DECISIONS.md'`
 because nothing inside them contains the string. `find . -name 'DECISIONS*'`
 found them. The V4 check as written would have passed over the fixtures.
 
+**F · The new ADR reader parses no tables and no headings**, which is what
+makes § 5's merge advice safe to act on. Grepped over the replaced section of
+`viewer/parsers.py` at `0179c02`: zero `heading_is`, zero `split_row`, zero
+header-normalization calls. The old `parse_decisions` had one of the first two
+each. So this branch **removes** two header sites from that file and adds none.
+
 **E · `tests/fixtures/contract-key-parity.json` has drifted from live on
 `perry-task/list/1.18`** in fields no test in that module asserts — `emitted`
 126 vs 115, and `not_observable` empty vs five `tasks[].depends_on_resolved[]`
 keys. Not mine, not touched, reported.
 
-## 7 · Baselines, by runner and tree
+## 8 · Baselines, by runner and tree
 
 | Tree | Runner | Result |
 |---|---|---|
@@ -252,11 +363,11 @@ The three baseline failures, all pre-existing and unrelated:
 
 `unittest discover` was **not** run on either tree — see § 8.
 
-### 7.1 · After
+### 8.1 · After
 
 FINAL_RUN_PLACEHOLDER
 
-## 8 · What I did not do, and what I could not verify
+## 9 · What I did not do, and what I could not verify
 
 - **`unittest discover` was not run**, on either tree. The machine carried five
   other agents' full suites throughout (load average 38–41) and `tests/run`
