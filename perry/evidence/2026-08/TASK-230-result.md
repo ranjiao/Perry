@@ -24,7 +24,8 @@
   2904 against 2904, zero on either side — and identical across all **twelve**
   full runs. A V4 round re-derived that set from unittest's loader without
   running a test or touching my parser and got **2907 against 2907** (§ 8a).
-  Eight mutations of mine, eight named tests reddened.
+  Eight mutations of mine, eight named tests reddened. On a quiet machine the
+  whole gate is **108.9s** (§ 8b).
 - **What I corrected in the inherited work:** its id extractor was silently
   dropping 14 tests, and its docstring's headline measurements were not
   reproducible and disagreed with the data file committed beside them.
@@ -363,12 +364,23 @@ this is twelve, spanning both schedules.
 | `test_rung_vocabulary...test_the_schema_lookup_is_the_guard_not_the_regex` | 12/12 `skipped` | 5/5 | 7/7 |
 | **`test_host_support.TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`** | **1/12** | 0/5 | **1/7** |
 
-The known flake fired **once in twelve runs**, in the longest-first arm. I am
-**not** claiming that is better or worse than before: one event in seven against
-zero in five is not a difference, and I say so rather than reporting a
-reassuring ratio. What can be said is that it did not become common — the brief
-records it flaking three times under the old arrangement — and that it was not
-retried away, hidden, or excluded here.
+The known flake fired **once in those twelve runs**, in the longest-first arm.
+**It then fired a second time**, in the quiet-machine run of § 8b — so the
+standing count across every full run I captured ids for is **2 of 10
+longest-first against 0 of 5 alphabetical**.
+
+I am still **not** claiming an effect. Two in ten against zero in five is not a
+difference either, and reporting the stale 1-of-7 because it read better would
+be the exact failure this row exists to catch. What can be said is that it did
+not become common — the brief records it flaking three times under the old
+arrangement — and that it was not retried away, hidden, or excluded here.
+
+**And the second occurrence cuts against my own explanation.** The mechanism I
+volunteered below says longest-first concentrates contention at the start of the
+run; the quiet-machine run had a load average of 5.76 and flaked anyway. That is
+one data point, not a refutation, but it is evidence against the story I told,
+and it belongs here rather than in a drawer. The filed measurement TASK-244's
+sibling needs is a repeated single-module run, not more full-suite runs.
 
 **There is a mechanism that could plausibly make it worse, and it is worth
 writing down for whoever measures next:** longest-first deliberately starts the
@@ -422,6 +434,33 @@ is what that step emits when it is unhappy.
 
 That 266.7s is also the twelve-run spread doing its thing: the same gate, on the
 same commit, at a load average that hit 59. Log: `scratchpad/m230/final-run.log`.
+
+### 8b. And then the machine went quiet
+
+Re-running the gate on `c678cf0` at 03:15, after the foreign load finally
+dropped — **the first genuinely uncontended measurement of the night**:
+
+| | |
+|---|---|
+| `bash tests/run` | **108.9s** wall, `99 modules · 2909 tests`, `user 341.1s sys 157.0s` |
+| load average | **5.76** before, 24.0 after — and the "after" figure is my own eight workers |
+| red | the same five tests in the same three modules as § 2, and nothing else |
+
+**108.9 seconds — under the spec's two-minute target.** And a follow-up
+`--times` run on the same commit makes the shape of it unmissable: the run took
+**126.3s and `test_task_writer.py` took 126.28s**. The suite finished 0.02s
+after its longest module did.
+
+That is the same thing the reviewer's own run showed (246.74s of a 246.8s run)
+and the same thing § 3's `floor` column predicts. It is the strongest single
+statement of what this row did and did not achieve: **the schedule is optimal,
+and optimal is one module long.** The target is reachable on a quiet machine and
+unreachable on a busy one, and no scheduling change can alter that — only
+TASK-244 can.
+
+Note the CPU: 341.1s user + 157.0s sys, against 338.6s + 153.9s for the 266.7s
+run. **Identical work, less than half the wall.** The night's entire timing
+spread was the machine.
 
 ## 8a. What the V4 round established independently
 
