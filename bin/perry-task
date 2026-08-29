@@ -2128,6 +2128,322 @@ def recover_transaction(state_root: Path) -> str | None:
                       f"any Perry command to recover deterministically.") from None
 
 
+# ── the sibling registers, written in the same transaction ────────────────
+#
+# `## Top risks`, `## Intake` and `## User Input Queue` each have a declared
+# store in `schema/state-schema.json § claims[]`, and until TASK-203 not one of
+# them was written by an ordinary command. `risk-add` mutated the board,
+# appended an event, printed `→ store`, and left `risks.jsonl`
+# **byte-identical**; `intake` and `ask` left their stores absent entirely.
+# Measured 2026-08-29, four registers side by side, in
+# `evidence/2026-08/TASK-203-premeasurement.md`.
+#
+# **A declared map, not a rule inferred from the event name.** Same shape as
+# `EVENT_FIELD`, for the same reason: a register command cannot be added
+# without saying which store it makes current.
+REGISTER_EVENTS = {
+    "risk-add": "risks", "risk-clear": "risks", "risk-migrate": "risks",
+    # `route` and `add` are TASK events that also touch `## Intake`: `route`
+    # discharges the row it promotes, and `add` on a queue-mode track creates
+    # the section. Both are here because the register they touch is the
+    # question, not the register their id belongs to.
+    "intake": "intake", "resolve-intake": "intake", "intake-sweep": "intake",
+    "route": "intake", "add": "intake",
+    "ask": "asks", "answer": "asks",
+}
+
+#: register key -> (board heading, store path fn, derivation fn, validator).
+REGISTER_SPEC = {
+    "risks": ("Top risks", perry_store.risk_store_path,
+              perry_store.risk_records, perry_store.validate_risk_records,
+              perry_store.risk_section_shape),
+    "intake": ("Intake", perry_store.intake_store_path,
+               perry_store.intake_records, perry_store.validate_intake_records,
+               perry_store.intake_section_shape),
+    "asks": ("User Input Queue", perry_store.ask_store_path,
+             perry_store.ask_records, perry_store.validate_ask_records,
+             perry_store.ask_section_shape),
+}
+
+#: **How many records each removal command DECLARES that it removes.**
+#:
+#: The permission is to remove WHAT THE COMMAND REMOVES, not to persist
+#: whatever the board happens to derive to. Round 4 wrote this as a bare
+#: `frozenset` of three names — an exemption keyed on the command and
+#: **unbounded** — so a listed command could shrink a canonical store by any
+#: amount, including a shrink it did not perform. The V4 round-4 review used
+#: exactly that on this repository's own intake data: `resolve-intake`, which
+#: removes no record at all, took `perry/intake.jsonl` from 11781 bytes / 28
+#: records to 1420 bytes / 4 records at exit code 0, with `perry-lint`
+#: reporting `intake store: 4 record(s), 0 row(s) drifted`. That is the exact
+#: signature of `evidence/2026-08/TASK-203-merge-hold.md`, reached one command
+#: over from the refusal that stops it.
+#:
+#: So an entry is a NUMBER, not a name:
+#:
+#:   `purge`          removes the one task it names                 → 1
+#:   `resolve-intake` rewrites an `Outcome` cell and removes none   → 0
+#:   `intake-sweep`   removes the rows it swept                     → `count`
+#:
+#: An `int` is a fixed declaration; a `str` names the field on the event the
+#: count is read from, and `cmd_intake_sweep` already carries `count` there.
+#: Every other command is an ORDINARY WRITE, declares nothing, and may not
+#: shrink a canonical store at all.
+SHRINK_ALLOWANCE: dict[str, int | str] = {
+    "purge": 1, "resolve-intake": 0, "intake-sweep": "count",
+}
+
+
+def declared_removal(event: dict) -> int:
+    """How many records this event DECLARES it removes. Zero for every other.
+
+    **Fail-closed in both unreadable directions.** A command that is not on the
+    list declares nothing, and a listed command whose declared count is
+    missing, negative, a `bool` or not an `int` also declares nothing. A
+    declaration this tool cannot read is not a licence to remove an unknown
+    number of canonical records — an unreadable declaration lands on 0, which
+    is a refusal, and a refusal is recoverable where a truncated store is not.
+    That is the whole difference between this and the frozenset it replaces.
+    """
+    rule = SHRINK_ALLOWANCE.get(event.get("event") or "")
+    if rule is None:
+        return 0
+    # `rule` is a literal in this file, so it needs no guard beyond its type —
+    # and a guard nothing can reach is a guard nothing tests. `count` below is
+    # the opposite case: it arrives on the EVENT, from the command, which is
+    # exactly the input a bound must not trust.
+    if isinstance(rule, int):
+        return rule
+    count = event.get(rule)
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        return 0
+    return count
+
+
+def refuse_to_shrink(store: str, path: Path, event: dict,
+                     before: int, after: int, why: str = "") -> None:
+    """**The invariant: an ordinary write may never SHRINK a canonical store,
+    and an explicit removal may shrink it by exactly what it removes.**
+
+    USER-906, option B, decided 2026-08-29 after three rounds of TASK-203 each
+    shipped a different predicate and each ended in the same defect — an
+    ordinary command silently truncating a canonical register store, exit code
+    0, `perry-lint` reporting the wreck as clean.
+
+    Round 1 keyed the exemption on the COMMAND NAME. Round 2 keyed it on an
+    identity TUPLE that was not unique. Round 3 keyed it on the section's
+    SHAPE — and the shape is read at a moment the command controls, because
+    `cmd_add`'s queue branch calls `ensure_section("Intake")` before `commit()`
+    ever asks. Each fix was principled and each moved the question one step
+    without answering it.
+
+    This asks no question about the command, the identity or the board. It
+    asks the only thing that is invariant across all four doors: **did the
+    derivation produce fewer records than the store already holds?** A gate
+    that is read too late still counts the same rows; a shape the gate cannot
+    read derives to `[]`, and `0 < n` is the refusal; an identity that cannot
+    identify cannot conjure a row out of nothing. Option A — evaluating the
+    gate against the board as it stood at command entry — was explicitly
+    rejected, and this is why it is not needed: WHEN you look does not change
+    HOW MANY there are.
+
+    A shrink is not always wrong; it is wrong when nobody asked for it — and
+    **it is wrong past the point somebody asked for.** Round 4's fifth door was
+    not inside this function; it was the exemption around it, granted by name
+    and without a bound, which let `resolve-intake` — a command that removes no
+    record at all — persist a 24-record loss it never performed. So the
+    exemption is a number, `declared_removal(event)`, and the question is not
+    "may this command shrink" but "is the drop the drop the caller declared".
+
+    That is still one question about two integers. It asks nothing about the
+    command's identity, nothing about the board, and nothing about when the
+    gate is read: option A stays rejected, because WHEN you look still does not
+    change HOW MANY there are, and now neither does WHO is looking.
+
+    The event dict is taken whole rather than as a name, deliberately: the
+    bound is computed HERE, from the event, so no call site can pass a name and
+    forget to pass its bound. There is no way to reach this function with the
+    permission and without the number.
+
+    The refusal is raised before anything is staged, so the whole write is
+    refused rather than half of it, and the board on disk is untouched.
+    """
+    name = event.get("event") or ""
+    allowed = declared_removal(event)
+    if before - after <= allowed:
+        return
+    # `perry-tasks`' subcommands for the task store are unprefixed — `write`,
+    # `render` — and the three registers each carry their own prefix. Naming
+    # `perry-tasks tasks-write` would send the reader to a subcommand that does
+    # not exist, on the one store where the refusal is hardest to get out of.
+    verb = "" if store == "tasks" else f"{store}-"
+    forward = (
+        f"If the board is right and the store is stale, the explicit "
+        f"board-to-store direction is `perry-tasks {verb}write --from-board`; "
+        f"if the store is right, `perry-tasks {verb}render --write` puts the "
+        f"records back on the board.")
+    if name in SHRINK_ALLOWANCE:
+        # An explicit removal, over its own declaration. The message says the
+        # two numbers rather than "refused": the caller asked to remove n and
+        # the write would have removed more, and which records went missing in
+        # between is a question about the board, not about this command.
+        raise Refused(
+            f"`{name}` would take {path} from {before} record(s) to {after} — "
+            f"a drop of {before - after} — but `{name}` removes "
+            f"{allowed} record(s). An explicit removal may shrink a canonical "
+            f"store by exactly what it removes and no more (USER-906). "
+            f"{why}Nothing was written.\n{forward}")
+    raise Refused(
+        f"`{name}` would take {path} from {before} record(s) to {after}, "
+        f"and an ordinary write may never make a canonical store smaller "
+        f"(USER-906). {why}Nothing was written.\n{forward} Only "
+        f"{', '.join(sorted(SHRINK_ALLOWANCE))} may reduce a record count, and "
+        f"only by the number of records they remove.")
+
+
+def load_register_records(path: Path) -> list[dict]:
+    """A register store as it is ON DISK, or `[]` when it does not exist yet.
+
+    A corrupt line is a **refusal**, not a skipped line, and that is the
+    opposite of `raw_events`' rule one file over. The event log is derived and
+    disposable, so a bad line there may be dropped; these three are canonical,
+    and silently discarding a record would let the next write persist the
+    smaller set as truth — which is the very thing `refuse_to_shrink` exists to
+    make impossible, and dropping the line here would defeat it by making the
+    store look smaller than it is.
+
+    The refusal names the file, the line and the parser's own message, in the
+    shape `load_task_records` uses for the same failure one register over. It
+    used to let `json.JSONDecodeError` escape as a bare traceback — the one
+    failure in this file that had no way forward attached to it.
+    """
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    for n, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+        if not line.strip():
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise Refused(
+                f"{path} line {n} cannot be read as JSON ({exc.msg}). This "
+                f"register store is canonical, so a line this tool cannot read "
+                f"is not a line it may drop — nothing was written. Repair the "
+                f"line, or restore the file from the event log.") from None
+    return out
+
+
+def register_section_shape(board, key: str) -> str:
+    """`absent` | `table` | `prose`/`bullets` | `foreign` for a register.
+
+    Asked of `perry_store`'s own shape function rather than re-derived, so the
+    caller and the derivation cannot disagree about what "there is nothing here
+    this store can hold" means.
+
+    It took a `section` argument that nothing read — declared, passed, never
+    used — in the commit that answered a review finding about a dead name. The
+    heading is a property of the register, so it is looked up from the register,
+    once, in `REGISTER_SPEC`.
+    """
+    shape, _tables = REGISTER_SPEC[key][4](board, _ops())
+    return shape
+
+
+def carry_forward_is_addressable(key: str, derived: list[dict],
+                                 current: list[dict]) -> bool:
+    """Do the stored records still describe the rows now sitting at those keys?
+
+    **This is not the invariant and it does not gate a write.** It decides
+    whether the ONE stored field a register's board has no column for —
+    `discharged`, `cleared`, `answered` — may be carried across this write.
+    Answering `False` drops a boolean; it never permits a write
+    `refuse_to_shrink` forbids and never forbids one it permits.
+
+    It is still needed with the invariant in place, because a row can be
+    REPLACED without the count moving: delete a discharged request by hand,
+    append a new one, and the store's `discharged: True` at position n would be
+    handed to a different request that is still waiting. `intake.jsonl` is
+    keyed on `order` — the row's POSITION — so a positional merge across a
+    replacement is not a merge but a swap, and `perry-lint` cannot see it
+    because `discharged` has no board column to compare against.
+
+    For the id-keyed registers the key IS the identity, so they always hold.
+
+    **The identity must be unique before it can identify anything.**
+    `(request, arrived)` is not: two intake rows with the same Request on the
+    same day is the same thing filed twice, which is the ordinary reason a row
+    gets `dropped — duplicate`, and every row `perry-task intake` writes gets
+    today's date. When the tuple repeats, this function cannot see a shift
+    through it, and the honest answer is no join rather than a guess about
+    which row the flag belonged to.
+    """
+    if key != "intake":
+        return True
+    stored = {r.get("order"): r for r in current
+              if isinstance(r.get("order"), int)
+              and not isinstance(r.get("order"), bool)}
+    identity = lambda r: (r.get("request"), r.get("arrived"))  # noqa: E731
+    identities = [identity(r) for r in stored.values()]
+    if len(set(identities)) != len(identities):
+        return False
+    for row in derived:
+        was = stored.get(row.get("order"))
+        if was is not None and identity(was) != identity(row):
+            return False
+    return True
+
+
+def register_change(state_root: Path, board: Board,
+                    event: dict) -> tuple[Path, str, str, int] | None:
+    """`(path, text, key, count)` for the register this event touched, or None.
+
+    Derived from the board AS MUTATED, merging the stored record for each
+    surviving key — the same two-source shape `commit()` uses for tasks, and
+    the reason a stored field the board has no column for survives an ordinary
+    write instead of being erased by it.
+
+    The invariant is applied here, once, against the record count the
+    derivation produced. Nothing above it decides whether the write is safe:
+    a section this store cannot read derives to `[]` and is refused by the
+    same line that refuses a hand-deleted row, because both are the store
+    getting smaller.
+    """
+    key = REGISTER_EVENTS.get(event.get("event") or "")
+    if key is None:
+        return None
+    _section, path_of, records_of, validate, _shape_of = REGISTER_SPEC[key]
+    path = path_of(state_root)
+    current = load_register_records(path)
+    shape = register_section_shape(board, key)
+    # `<register>_records` returns `[]` for every shape but `table`. That is
+    # the derivation answering honestly, not a special case to be routed
+    # around — so it is computed the same way and counted the same way.
+    derived = records_of(board, _ops(), None) if shape == "table" else []
+    refuse_to_shrink(key, path, event, len(current),
+                     len(derived),
+                     why=("`## %s` is currently `%s`, not a table this store "
+                          "can read. " % (_section, shape))
+                     if shape != "table" else "")
+    if shape != "table":
+        # The invariant has already passed, so the store is empty or absent:
+        # there is nothing to lose and nothing to derive. Minting an empty
+        # store here would replace `perry-lint`'s honest "no `intake.jsonl` —
+        # unchecked, not clean" with a confident "0 record(s), 0 drifted",
+        # which is the sentence this row exists to stop being false.
+        return None
+    records = (records_of(board, _ops(), current)
+               if carry_forward_is_addressable(key, derived, current)
+               else derived)
+    _valid, bad = validate(records)
+    if bad:
+        raise Refused(
+            f"`## {_section}` produces a {key} store this tool cannot read "
+            f"back, so nothing was written. First finding: "
+            f"{json.dumps(bad[0], ensure_ascii=False)}")
+    return path, perry_store.store_text(records), key, len(records)
+
+
 def replace_canonical_pair(state_root: Path,
                            changes: list[tuple[Path, str]]) -> None:
     """Replace store+journal with rollback on failure and crash recovery."""
@@ -2372,9 +2688,23 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # The editorial parenthetical goes. A rendered file's header is not a place
     # for prose nobody re-derives; `journal/` is where "21st pass, 6 tasks"
     # belongs and already has it.
+    # **`tasks.jsonl` is a canonical store too, and it is under the same rule.**
+    # `purge` is the only branch above that makes `records` shorter than
+    # `current`, and it says so in its own docstring; every other branch
+    # rewrites one record or none. So this asserts what the code above already
+    # intends, at the one place that can see both counts — and it is the same
+    # function the three registers call, not a second copy of the rule
+    # (TASK-203, USER-906).
+    refuse_to_shrink("tasks", perry_store.store_path(state_root),
+                     event, len(current), len(records))
     stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
+
+    # Before the plan, so `--dry-run` previews it, and before anything is
+    # staged, so a register the board cannot produce a readable store for
+    # refuses the whole write rather than half of it (TASK-203).
+    register = register_change(state_root, board, event)
 
     spath = perry_store.store_path(state_root)
     jpath = state_root / "journal" / f"{date.today():%Y-%m}" / f"{date.today():%Y-%m-%d}.md"
@@ -2382,6 +2712,12 @@ def commit(project_root: Path, state_root: Path, board: Board,
     plan = {
         "store": str(spath),
         "records": len(records),
+        # The sibling register this write also made current, or `None` when the
+        # event touches none. Named in the payload rather than left implicit:
+        # the success line reads it, and the reason this row exists is that the
+        # line used to assert a store write nothing had performed.
+        "register_store": ({"name": register[2], "path": str(register[0]),
+                            "records": register[3]} if register else None),
         "board": str(board.path),
         "journal": str(jpath),
         "events": str(events_path(project_root)),
@@ -2441,9 +2777,15 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # checked, so it belongs where the transaction guarantees reach.
         jtext = append_block(jtext, "V5 sign-off", signoff_block)
 
-    replace_canonical_pair(
-        state_root,
-        [(spath, perry_store.store_text(records)), (jpath, jtext)])
+    # The register store joins the canonical set rather than being written
+    # beside it. `replace_canonical_pair` already stages an arbitrary number of
+    # entries and records every pre-image in the marker, so this costs no new
+    # recovery semantics: the whole set lands or the whole set rolls back.
+    canonical = [(spath, perry_store.store_text(records))]
+    if register:
+        canonical.append((register[0], register[1]))
+    canonical.append((jpath, jtext))
+    replace_canonical_pair(state_root, canonical)
 
     # `BOARD.md`, re-rendered from what was just stored. Outside the pair for
     # the same reason the event log is: it is derived, one command regenerates
@@ -6977,7 +7319,19 @@ def main(argv: list[str]) -> int:
         # It names the STORE first now, because that is what the write writes
         # (ADR-007, TASK-089): `BOARD.md` is rendered from it and is reported
         # beside the event, as the other derived artefact that can fail alone.
-        tail = "store + journal"
+        # **Every name here is a file this write actually touched.** It used
+        # to read a flat `store + journal`, and on `risk-add`, `intake`, `ask`
+        # and `answer` the word `store` was false at the moment it printed:
+        # those four re-rendered the board and wrote no store at all
+        # (TASK-203, `evidence/2026-08/TASK-203-premeasurement.md`). The
+        # BOARD.md and event entries below were already conditional for
+        # exactly this reason; the canonical half was the half nobody made
+        # honest.
+        written = [Path(result["store"]).name]
+        register = result.get("register_store")
+        if register:
+            written.append(Path(register["path"]).name)
+        tail = " + ".join(written) + " + journal"
         for name, ok, why in (
                 ("BOARD.md", result.get("board_rendered", True),
                   "BOARD.md not re-rendered — `perry-tasks render --write` regenerates "
