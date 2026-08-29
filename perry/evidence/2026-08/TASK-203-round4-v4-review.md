@@ -57,18 +57,22 @@ records destroyed, exit code 0, `perry-lint` clean.** Compare
 `0 error(s)`, `intake store: 0 record(s), 0 row(s) drifted`.* Same signature,
 same store, same repository, one command over.
 
-The same hole on `intake-sweep`, which shrinks **more than it swept**
-(synthetic fixture, 4 records, one row legitimately discharged, three others
-hand-tidied off the board):
+The same hole on `intake-sweep`, which shrinks **more than it swept** — again on
+this repository's own intake data, copied to scratch (the live board had grown
+to 31 intake rows by the time I ran this):
 
 ```
-intake-sweep  rc=0  "wrote 1 row(s) (intake-sweep)"   intake.jsonl 4 → 1 records
-              perry-lint:  intake store: 1 record(s), 0 row(s) drifted
+minted from BOARD.md                                31 records / 13643 bytes
+perry-task resolve-intake 2 …                       31 records   (legitimate discharge)
+# 25 rows hand-tidied off `## Intake`; 6 remain, one of them the discharged row
+perry-task intake-sweep    rc=0  "wrote 1 row(s) (intake-sweep) → … intake.jsonl …"
+                                                     5 records / 1770 bytes
+perry-lint:  0 error(s) · intake store: 5 record(s), 0 row(s) drifted
 ```
 
-It reports sweeping one row and removes three records. `purge` on `tasks.jsonl`
-is not exposed the same way, because `commit()` builds `records` from `current`
-and can shorten it by at most one.
+It reports sweeping **one** row and removes **twenty-six** records. `purge` on
+`tasks.jsonl` is not exposed the same way, because `commit()` builds `records`
+from `current` and can shorten it by at most one.
 
 ### Why this is a defect and not the spec working as written
 
@@ -109,6 +113,14 @@ allowed to shrink**, because the one behavioural test,
 asserts `rc == 0` and `len(records) == 4` — which is true whether the allowance
 exists or not. The test the author offers as the record that "the allowance is
 unused" is precisely the test that cannot tell.
+
+The suite gets one line away from the defect and stops.
+`tests/test_intake_store.py § test_a_row_deleted_by_hand_reports_every_row_it_renumbered`
+builds the exact precondition — a `## Intake` row deleted by hand against a
+minted 4-record store — and then runs only `perry-lint`. Its own docstring says
+*"deleting the first row really does mean `resolve-intake 2` now addresses what
+`resolve-intake 3` addressed yesterday"*. Nothing in the suite then runs
+`resolve-intake` on that board.
 
 ---
 
