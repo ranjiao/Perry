@@ -7,7 +7,7 @@
 
 ## What changed
 
-Five commits.
+Six commits, plus this file.
 
 | sha | what |
 |---|---|
@@ -16,6 +16,7 @@ Five commits.
 | `1928e38` | the prose gets a home a render cannot destroy, and a guard |
 | `02dc442` | the "unreadable store" guard was guarding one branch of two |
 | `b0d8cde` | "refuses" has to mean a refusal, not a traceback |
+| `d32ec76` | "is there a `.perry/config.md`" stopped being "is this configured" |
 
 ### 1 — the readers prefer the store
 
@@ -127,6 +128,22 @@ prose needs a per-project home, and every Perry project already has one.
 `SKILL.md:89` and `:195` were rewritten. `:89` no longer reads an absent
 `.perry/config.md` as "never configured".
 
+### 4 — the rest of that same sentence (`d32ec76`)
+
+**"An absent markdown stops meaning 'never configured'"** is the deliverable's
+own wording, and four call sites were still deciding exactly that by asking
+whether `.perry/config.md` exists: `bin/perry-lint § is_adopted` and its
+project-root walk, `bin/perry-explain`, and `viewer/parsers.py § project_root`.
+`bin/perry-goals § tracks_of` had already been asking the wide way since
+TASK-095 (`jsonl exists OR md exists`); these were the rest.
+
+`viewer/parsers.py § configured` is the one predicate. It answers about
+`.perry/` only — every caller ORs it with the state files it also accepts
+(`BOARD.md`, `OKR.md`, `phase/`), because those differ per caller and this does
+not. The guard's fixture strips `BOARD.md` and `OKR.md` on purpose: a fixture
+that kept them answers `True` whatever the predicate does, which is how a guard
+over an OR-chain passes while measuring nothing.
+
 ## Byte comparison — V4 step 2
 
 On a copy of the branch tree, `.perry/config.md` deleted, store untouched:
@@ -171,7 +188,7 @@ bytecode on, restores from the captured text and **asserts the md5 matches**.
 The runner is `python3 -m unittest discover -s tests -p <module>.py -k <sel> -v`,
 never a bare module run. Tree verified CLEAN after each batch.
 
-**23 mutations, 23 red.** Every one names the test it reddened.
+**27 mutations, 27 red.** Every one names the test it reddened.
 
 | # | mutation | anchor | test that went red |
 |---|---|---|---|
@@ -199,8 +216,12 @@ never a bare module run. Tree verified CLEAN after each batch.
 | N10b | `except (OSError, ValueError)` narrowed to `except (OSError,)` | `bin/perry_md_store.py:989` | `test_it_returns_non_zero_on_a_store_it_cannot_read` |
 | N11 | `OKR` is given the config scaffold | `bin/perry_md_store.py:709` | `test_okr_has_no_scaffold_and_still_refuses` |
 | N12 | the general rule loses its heading | `reference/config.md:58` | `test_the_general_rule_names_the_home` |
+| O1 | `configured` forgets the store | `viewer/parsers.py:393` | `test_a_store_with_no_markdown_is_configured`, `test_the_linter_calls_a_store_only_project_adopted` |
+| O2 | `configured` forgets the markdown | `viewer/parsers.py:393` | `test_a_markdown_with_no_store_is_configured` |
+| O3 | `configured` says yes to anything | `viewer/parsers.py:393` | `test_neither_is_not` |
+| O4 | the linter stops asking the predicate | `bin/perry-lint:3419` | `test_the_linter_calls_a_store_only_project_adopted` |
 
-**Every one of the 34 tests in `tests/test_config_store_readers.py` is reddened
+**Every one of the 38 tests in `tests/test_config_store_readers.py` is reddened
 by at least one mutation above.** That was the point of the second batch: after
 batch 1, eleven of them had not been shown to fail for any reason, and a guard
 nobody has watched fail is not yet a guard.
@@ -253,7 +274,7 @@ all six stores. `PERRY_HOME` set to that tree for every run.
 
 | runner | tree | before | after |
 |---|---|---|---|
-| `bash tests/run` | this worktree | **100 modules / 2992 tests / 2 failures** | **101 / 3027 / 2 failures** |
+| `bash tests/run` | this worktree | **100 modules / 2992 tests / 2 failures** | **101 / 3031 / 2 failures** |
 | `python3 -m unittest discover -s tests` | this worktree | not measured before | see below |
 
 The two failures are the same two before and after, and neither is this row's:
@@ -292,13 +313,20 @@ is the comparison this row rests on.
   Every destructive check ran on a `tar` copy of the tree, never on the tree.
 - **The archive baseline (98 / 2882 / 3) was not reproduced.** I measured
   before-and-after on one tree instead.
-- **The `discover` vs `tests/run` delta of 3** was not re-measured on this tree
-  in time to be quoted here; the serial run was still going when this was
-  written. The `bash tests/run` numbers above are the ones the row rests on.
-- **Other markdown-as-truth readers were not swept.** `bin/perry-diagnose` and
-  `bin/perry-migrate` read `.perry/config.md` in places; I converted the three
-  the spec's deliverable names plus `resolve_state_root`, and stopped. Whether
-  any remain is a question this row did not answer.
+- **The `discover` vs `tests/run` delta of 3 was NOT measured on this tree.**
+  One serial `python3 -m unittest discover -s tests` run was started and killed
+  unfinished after ~25 minutes, by which point it also predated two of the
+  commits. There is no `discover` number in this report and the dispatch's
+  delta-of-3 is neither confirmed nor contradicted here. The `bash tests/run`
+  before/after pair is the whole of the evidence for "no regression".
+- **Other markdown-as-truth readers were not exhaustively swept.** I converted
+  the two the deliverable names, plus `resolve_state_root`, plus the four
+  existence checks in `d32ec76`. `bin/perry-diagnose § scan_work_modes` was
+  already converted by TASK-095. `bin/perry-migrate` and the adoption path
+  were not read for this; whether a value-reading regex over `.perry/config.md`
+  survives anywhere else is a question this row did not answer, and the grep I
+  ran (`re.search` / `read_text` / `exists()` against `config.md` across `bin/`
+  and `viewer/`) is a heuristic, not a proof.
 - **Nothing was measured on a second real project.** `~/proj/gimegime-pmo` is
   referenced throughout `perry_md_store` as the second corpus and I did not
   touch it — every measurement here is on Perry's own files or on fixtures.
