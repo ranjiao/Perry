@@ -24,8 +24,10 @@ Run: python3 tests/parallel test_parallel_runner
 
 from __future__ import annotations
 
+import contextlib
 import importlib.machinery
 import importlib.util
+import io
 import json
 import pathlib
 import subprocess
@@ -258,6 +260,61 @@ class TestTheIdParserSeesEveryOutcome(unittest.TestCase):
         self.assertEqual(len(P.parse_ids(proc.stderr)), ran,
                          "the id parser did not account for every test the "
                          "module ran")
+
+
+class TestTheRefusalIsWiredIntoMainAndNotJustDefined(unittest.TestCase):
+    """`unaccounted()` being right is not the same as `main()` using it.
+
+    **A V4 round found this by deleting the guard**: change `if short:` to
+    `if False:` in `main()` and the entire suite stayed green, because
+    `unaccounted()` had unit tests and its USE had none. That is this project's
+    named defect shape — a guard that survives its own deletion is not a guard
+    — and it is the same shape the row before this one was failed for.
+
+    So `main()` is driven directly here, with `run_module` replaced by a stub
+    so no test actually runs. Both halves of the refusal are asserted, because
+    they are two separate lines and either can be deleted alone: the file is
+    NOT written, and the exit status is NOT zero.
+    """
+
+    def _main(self, ran, ids, out_path):
+        """Run `main()` for one module whose `ran`/`ids` counts are as given."""
+        stub = {"mod": "test_one_header_rule.py", "rc": 0, "ran": ran,
+                "sec": 0.1, "err": "", "ids": [(f"m.C.t{i}", "ok")
+                                               for i in range(ids)]}
+        old_run, old_argv = P.run_module, sys.argv
+        P.run_module = lambda name: dict(stub, mod=name)
+        sys.argv = ["parallel", "--ids", str(out_path), "test_one_header_rule"]
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                rc = P.main()
+        finally:
+            P.run_module, sys.argv = old_run, old_argv
+        return rc, buf.getvalue()
+
+    def test_a_short_count_writes_no_file_and_exits_nonzero(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = pathlib.Path(td) / "ids.tsv"
+            rc, printed = self._main(ran=12, ids=11, out_path=out)
+            self.assertFalse(out.exists(),
+                             "main() wrote a set it could not account for")
+            self.assertNotEqual(rc, 0,
+                                "main() exited 0 on a set it could not "
+                                "account for")
+            self.assertIn("test_one_header_rule.py", printed)
+            self.assertIn("12", printed)
+            self.assertIn("11", printed)
+
+    def test_a_count_that_adds_up_writes_the_file_and_exits_zero(self):
+        """The other direction, so the test above cannot pass by refusing
+        everything — which is how a guard gets 'fixed' into uselessness."""
+        with tempfile.TemporaryDirectory() as td:
+            out = pathlib.Path(td) / "ids.tsv"
+            rc, _ = self._main(ran=12, ids=12, out_path=out)
+            self.assertEqual(rc, 0)
+            self.assertTrue(out.exists(), "main() refused a set that added up")
+            self.assertEqual(len(out.read_text().splitlines()), 12)
 
 
 if __name__ == "__main__":
