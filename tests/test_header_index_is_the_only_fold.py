@@ -56,6 +56,25 @@ HEADER_CELLS = ["**Risk**", "**Title**", "**Arrived**", "**Needed from user**",
 #: that reader as never folding a cell it folds on every run.
 HEADER_KEYS = {tables.squash(c) for c in HEADER_CELLS}
 
+#: **The readers this module claims to watch, asserted one by one.** Round 8
+#: listed twelve and one of them recorded nothing at all; a list that is only
+#: prose cannot go red. `test_every_reader_this_module_claims_to_watch_actually
+#: _folds_one` requires each of these to appear in the recorded call stacks.
+WATCHED = [
+    # viewer/parsers.py
+    "_table_rows", "_parse_intake", "_parse_user_input", "_parse_cadence",
+    "_parse_task_table", "read_conformance", "is_risk_register_header",
+    # bin/
+    "parse_tracks",            # bin/perry-state
+    "_track_context",          # bin/perry-lint
+    "md_table",                # bin/perry-diagnose
+    "harvest",                 # bin/perry-explain
+    "header_language",         # bin/perry-task AND bin/perry-goals
+    "header_keys",             # bin/perry-task
+    "markdown_tables",         # bin/perry_store.py
+    "fix_tables",              # bin/perry-migrate
+]
+
 CONFIG = (
     "# Perry configuration\n\n- State root: .\n\n## Tracks\n\n"
     "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | **Default** rung |\n"
@@ -85,6 +104,19 @@ OKR = (
     "## Commitments\n\n| ID | Promise | **Due** |\n|---|---|---|\n"
     "| C-1 | do it | 2026-02-01 |\n")
 
+#: Header ROWS, for the readers whose entry point takes a row rather than a
+#: document. Each carries a decorated cell, which is what
+#: `folds_of_a_header_cell` keys on.
+BOARD_HEADER = ["ID", "**Title**", "Owner", "Status", "Track", "Stage"]
+OKR_HEADER = ["**KR**", "Target", "Current"]
+OKR_TABLE = ["| **KR** | Target | Current |", "|---|---|---|", "| KR-1 | 3 | 1 |"]
+
+#: `bin/perry-migrate § fix_tables` takes a table spec, not a document.
+MIGRATE_LINES = ["## Commitments", "", "| ID | Promise | **Due** |",
+                 "|---|---|---|", "| C-1 | do it | 2026-02-01 |", ""]
+MIGRATE_SPEC = {"tables": [{"under": "Commitments", "under_level": 2,
+                            "columns": ["ID", "Promise", "Due"]}]}
+
 CONFORMANCE = ("# Conformance\n\n"
                "| **File** | Shape version | Declared | Route |\n"
                "| --- | --- | --- | --- |\n"
@@ -92,11 +124,20 @@ CONFORMANCE = ("# Conformance\n\n"
 
 
 def load(name: str):
-    """A `bin/` script as a module, the way the rest of the suite does."""
+    """A `bin/` script as a module, the way the rest of the suite does.
+
+    Registered in `sys.modules` BEFORE `exec_module`, because `bin/perry-migrate`
+    declares a `@dataclass` and `dataclasses` resolves the class's own module
+    out of `sys.modules` while the decorator runs. Without this line
+    `perry-migrate` cannot be loaded at all — which is one reason round 8's
+    workload never executed it.
+    """
+    mod_name = name.replace("-", "_")
     loader = importlib.machinery.SourceFileLoader(
-        name.replace("-", "_"), str(PERRY_HOME / "bin" / name))
-    spec = importlib.util.spec_from_loader(name.replace("-", "_"), loader)
+        mod_name, str(PERRY_HOME / "bin" / name))
+    spec = importlib.util.spec_from_loader(mod_name, loader)
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -195,6 +236,20 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
             diagnose.md_table(section.split("\n"), aliases)
         lint._track_context(self.tmp / "BOARD.md", "ops")
         explain.harvest(self.tmp)
+        # **Round 8's workload stopped here**, and its reviewer measured the
+        # consequence: `bin/perry-task`, `bin/perry-goals`, `bin/perry-tasks`,
+        # `bin/perry_store.py` and `bin/perry-migrate` were never executed at
+        # all — *"roughly 38 of 58 converted sites are LIVE, converted, and
+        # covered by the shape net alone."* The shape net is deleted, so the
+        # four below are driven here instead of being listed and not watched.
+        load("perry-task").header_language(BOARD_HEADER)
+        load("perry-goals").header_language(OKR_HEADER, ["kr"])
+        import perry_store                       # noqa: E402
+        perry_store.markdown_tables(OKR_TABLE, 0, len(OKR_TABLE), lambda s: s)
+        import perry_md_store                    # noqa: E402
+        perry_md_store.scan_okr(OKR)
+        load("perry-migrate").fix_tables(
+            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [])
 
     def test_every_fold_of_a_header_cell_came_from_header_index(self):
         with Watch() as w:
@@ -220,6 +275,33 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
                            "one decorated cell reached the readers; the "
                            "fixtures are not exercising the readers")
         self.assertTrue(any("header_index" in s for s, _ in folds))
+
+    def test_every_reader_this_module_claims_to_watch_actually_folds_one(self):
+        """**Round 8's Finding 3, asserted instead of listed.**
+
+        Round 8's evidence named twelve readers this module watches.
+        `bin/perry-diagnose § md_table` was one of them and it contributed
+        **zero** recorded folds, because it pre-stripped decoration with its own
+        `c.strip("*` ")` before calling `header_index`, so the watch's
+        discriminator never saw a decorated argument from it. *"A watcher that
+        watches a reader it can never see is a vacuous entry."*
+
+        The pre-strip is gone (`bin/perry-diagnose`, round 9) and the list is
+        now an assertion: every function named below must appear in the
+        recorded stacks, so a reader cannot be claimed as watched without being
+        watched. The number beside each is not asserted — it moves with the
+        fixtures — only that it is not zero.
+        """
+        with Watch() as w:
+            self.parse_everything()
+        seen = {fn for stack, _ in w.folds_of_a_header_cell() for fn in stack}
+        for reader in WATCHED:
+            with self.subTest(reader):
+                self.assertIn(
+                    reader, seen,
+                    f"`{reader}` is named as a watched reader and folded no "
+                    f"decorated header cell in this workload — either drive it "
+                    f"or stop claiming it. Recorded: {sorted(seen)}")
 
     def test_the_decorated_header_still_resolves(self):
         """Behaviour, not accounting. A guard satisfied by a rename is not one."""
@@ -287,12 +369,20 @@ class TestTheDecoratedHeaderReachesTheOneFold(unittest.TestCase):
 
 
 class TestWhatThisCannotSee(unittest.TestCase):
-    """Named, not argued away.
+    """Named, not argued away, and round 9 made the naming narrower.
 
-    This watches the readers a parse REACHES. A function no parse calls is
-    invisible to it — which is what `tests/test_header_rule_harness.py` plants
-    for, and why both nets exist. Neither is complete; the FUNCTION is what
-    makes the defect impossible, and these two measure that it stayed that way.
+    This watches the readers a parse REACHES, and
+    `test_every_reader_this_module_claims_to_watch_actually_folds_one` above
+    now asserts which those are, one by one, rather than listing them in prose.
+    What it still cannot see is a fold in a code path this workload does not
+    execute — a function nothing calls, a reader that grows its own rule for a
+    column these fixtures do not carry, or a branch these documents do not take.
+
+    The static net sees dead code and is blind to a second RULE; this sees a
+    second rule and is blind to dead code. **Neither is complete and neither is
+    what closes the row** — `viewer/tables.py § header_index` is, because there
+    is one function to fold a header cell and therefore nothing for a second
+    copy to be a copy of. These two measure that it stayed that way.
     """
 
     def test_the_static_net_is_the_one_that_sees_dead_code(self):

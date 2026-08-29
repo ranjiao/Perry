@@ -1817,12 +1817,23 @@ def md_table(lines: list[str], aliases: dict[str, set[str]]):
             continue
         if set(s) <= set("|- :"):
             continue
-        cells = [c.strip("*` ") for c in split_row(s)]
-        # `squash` resolves the header; `cells` keeps the values verbatim.
-        # `.lower()` alone reads `| **Default** rung |` as `default** rung`,
-        # so a project that bolded half a header loses that column entirely —
-        # and `md_table` reads the USER's board and OKR.
-        low = header_index(cells)
+        raw = split_row(s)
+        cells = [c.strip("*` ") for c in raw]
+        # The VALUES get their own rule — a value normalizer, criterion 4.
+        # The HEADER goes to `header_index` **unstripped**. `.lower()` alone
+        # reads `| **Default** rung |` as `default** rung`, so a project that
+        # bolded half a header loses that column entirely — and `md_table`
+        # reads the USER's board and OKR.
+        #
+        # TASK-050 round 9: this passed the pre-stripped `cells`. Behaviourally
+        # that is the same key (`squash` treats `*` and a backtick as
+        # whitespace, so `squash(c.strip("*` ")) == squash(c)`) — but it is
+        # half of a second rule applied before the one rule, and it made this
+        # reader INVISIBLE to `tests/test_header_index_is_the_only_fold.py`:
+        # round 8 listed `md_table` among the twelve readers that test watches
+        # while it contributed ZERO recorded folds, because the watch's
+        # discriminator never saw a decorated argument from it.
+        low = header_index(raw)
         if not header:
             header = {canon: i for canon, names in aliases.items()
                       for i, c in enumerate(low) if c in names}
