@@ -5,7 +5,16 @@
 > 2026-08-29 — USER-904, option C`, which binds.
 >
 > **This document supersedes `TASK-050-round8-result.md`**, which is now a
-> retraction note pointing here. There is one result of record.
+> retraction note pointing here.
+>
+> **SUPERSEDED IN PART by `TASK-050-round10-result.md`, which is the result of
+> record.** Round 9 was FAILed by its V4 review, which ruled its core correct
+> and failed it on one gap: `offenders_by_symbol` recognised the one rule by
+> the FUNCTION'S NAME, so `fold = squash` walked past it. Round 10 closes that,
+> closes the review's three minor findings, and re-states § 6's limits from
+> scratch — one of them was found to be missing. **Nothing in this document is
+> retracted**; two corrections are marked inline below, and where round 10
+> restates a number, round 10's is the measured one.
 
 **Every number below is labelled.** A number with a runner and a tree beside it
 was measured in this round, by me, and the file it came out of is named. A
@@ -56,8 +65,13 @@ extended"*, and round 8's reviewer measured that it was still load-bearing for
 eight of thirty catches. It is now **deleted**, along with the second one the
 reviewer found at `header_rule.py:357-360`.
 
-`grep -rn "ROW_NAMES" tests/ bin/ viewer/` on the round 9 tree returns **four
-lines, all prose saying it was deleted, and no code.** These are the name sets
+`grep -rn "ROW_NAMES" tests/ bin/ viewer/` on the round 9 tree returns **two
+lines, all prose saying it was deleted, and no code.**
+
+> **Correction, round 10.** This said **four** lines. It is two
+> (`tests/header_rule.py:42` and `tests/test_header_rule_harness.py:48`). The
+> round 9 review measured the miscount; the load-bearing half of the sentence —
+> *no code* — was and is true. `TASK-050-round10-result.md § 4.3`. These are the name sets
 that remain, in full, so the answer can be checked rather than believed:
 
 | set | contents | what kind of name |
@@ -418,6 +432,16 @@ than they were.
    branch these fixtures do not take, or for a **ninth** column beyond the eight
    in `HEADER_KEYS`, is still invisible. `bin/perry-tasks` is converted and not
    driven.
+
+   > **Closed in round 10.** This limit is the one the round 9 reviewer walked
+   > through: it planted its escape into `bin/perry-tasks` *because* this
+   > sentence named it. `cmd_intake_write` is now driven in process and
+   > `cmd_intake_write` is asserted in `WATCHED`.
+
+   > **And this list was incomplete.** The review found a tenth limit in none
+   > of these nine — the static net recognising the rule by name rather than by
+   > symbol. § 7 of the round 10 result re-states the limits from scratch for
+   > that reason.
 3. **Round 5's probe cases `B` and `I` are unrecoverable** and are counted, not
    invented. § 3.
 4. **`viewer/parsers.py:2582` (`parse_decisions`) is untouched** — a live
