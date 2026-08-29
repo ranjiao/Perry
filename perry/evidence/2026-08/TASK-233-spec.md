@@ -30,9 +30,18 @@ store"**.
 Two more things stand in the way, both measured:
 
 1. **`perry-config render` cannot rebuild the file from the store.** With it
-   deleted it prints `no .perry/config.md` and **exits 0** while writing nothing.
-   It is an in-place cell updater, not the projection `BOARD.md` has. Filed
-   separately as an intake row.
+   deleted it prints `no .perry/config.md` and writes nothing — it is an
+   in-place cell updater, not the projection `BOARD.md` has.
+
+   **Corrected 2026-08-30: it exits 2, not 0.** The original text here said 0,
+   and that was a measurement error of the PMO's — the command was piped into
+   `head` and `$?` was read after the pipe, which reports `head`'s status and is
+   always 0. Re-measured on a copy: `render --root . >/dev/null 2>&1` gives **2**.
+   The refusal is correct and always was. The intake row filed against it has
+   been dropped with the same correction. What remains true, and is what this
+   deliverable is about, is that it cannot REBUILD the file — refusing loudly is
+   the right behaviour for a tool that cannot, and a different thing from being
+   able to.
 2. **27 of the file's 45 lines are prose the store has no field for** — what
    `intake` carries versus `main`, why `Default rung` is V3 rather than queue
    mode's V2, and why the state root is not `.` (the DESIGN-002 collision).
