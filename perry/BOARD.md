@@ -106,6 +106,7 @@
 | TASK-223 | the conformance gate cannot tell a file Perry generated from one it found, so authored files need a hand declare | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-224 | linkage-kr-exists fires only on an absent id, so a KR nested under the wrong objective lints clean | Coding Agent | not_started | — | — | V3 |  | main |  |  |
 | TASK-225 | decide/SKILL.md:220 specifies a design index that nothing renders | Coding Agent | not_started | — | — | V3 |  | main |  |  |
+| TASK-232 | viewer/ is named for a web console deleted under TASK-178, and a reader just called it dead code | Coding Agent | not_started | Blocked until TASK-050 lands. TASK-050 option C converts the header resolution in the same 18 readers and touches viewer/tables.py's squash directly, so doing this first guarantees a conflict and doing it second is conflict-free. First step when unblocked: pick the name — parse/ is the recommendation, read/ the alternative, lib/ is ruled out because bin/lib/ already exists. | — | V3 | TASK-050 | main |  |  |
 
 ## Cadence (recurring; doesn't consume P0 slots)
 
