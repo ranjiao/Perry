@@ -784,8 +784,8 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         # **Converted by TASK-203.** This asserted `drifted: 3` and then ran
         # the import to fix it. `intake-sweep` now writes the store inside the
         # same transaction as the board — it is one of the three commands
-        # `bin/perry-task § SHRINK_ALLOWED` permits to make a canonical store
-        # smaller — so the renumbering is recorded as it happens and there is
+        # `bin/perry-task § SHRINK_ALLOWANCE` permits to make a canonical store
+        # smaller, and by exactly the rows it swept — so the renumbering is recorded as it happens and there is
         # no window in which the two disagree. The reading this test exists
         # for is unchanged: `n = 2` addresses a different request than it did
         # five commands ago, and the store is what says so.

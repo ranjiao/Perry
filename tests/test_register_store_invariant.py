@@ -363,7 +363,7 @@ class TestTheReproduction(Base):
         self.assertIn("perry-tasks intake-render --write", out)
         with self.assertRaises(PT.Refused) as caught:
             PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
-                                "next", 5, 4)
+                                {"event": "next"}, 5, 4)
         self.assertIn("perry-tasks write --from-board", str(caught.exception))
         self.assertNotIn("tasks-write", str(caught.exception))
 
@@ -758,11 +758,20 @@ class TestTheExemptionIsBounded(Base):
 
 
 class TestTheInvariantItself(unittest.TestCase):
-    """`refuse_to_shrink` as a unit — the one place the rule is written."""
+    """`refuse_to_shrink` as a unit — the one place the rule is written.
 
-    def call(self, event: str, before: int, after: int):
+    **These are assertions about the function and the constant, and the V4
+    round-4 review is right that they do not count on their own.** Removing
+    `"resolve-intake"` from round 4's allowlist reddened two tests of exactly
+    this kind and nothing else, while the reachable defect went unnoticed. They
+    are kept because a rule written in one place deserves a test in one place;
+    the tests that carry the argument are in `TestTheExemptionIsBounded`, on
+    boards where a shrink is possible.
+    """
+
+    def call(self, event: str, before: int, after: int, **extra):
         PT.refuse_to_shrink("intake", Path("/nowhere/intake.jsonl"),
-                            event, before, after)
+                            {"event": event, **extra}, before, after)
 
     def test_an_ordinary_event_may_not_reduce_a_record_count(self):
         with self.assertRaises(PT.Refused):
@@ -773,22 +782,49 @@ class TestTheInvariantItself(unittest.TestCase):
         self.call("add", 3, 9)
         self.call("add", 0, 0)
 
-    def test_each_of_the_three_named_commands_may_shrink(self):
-        for event in ("purge", "resolve-intake", "intake-sweep"):
+    def test_each_named_command_may_shrink_by_exactly_what_it_declares(self):
+        for event, declared in (("purge", 1), ("resolve-intake", 0),
+                                ("intake-sweep", 2)):
             with self.subTest(event=event):
-                self.call(event, 3, 0)
+                self.call(event, 9, 9 - declared, count=declared)
+                with self.assertRaises(PT.Refused):
+                    self.call(event, 9, 9 - declared - 1, count=declared)
 
-    def test_the_allowlist_is_exactly_the_three_commands_user_906_named(self):
-        self.assertEqual(set(PT.SHRINK_ALLOWED),
-                         {"purge", "resolve-intake", "intake-sweep"})
+    def test_the_allowance_is_the_three_commands_user_906_named_and_a_count(self):
+        self.assertEqual(PT.SHRINK_ALLOWANCE,
+                         {"purge": 1, "resolve-intake": 0,
+                          "intake-sweep": "count"})
+
+    def test_a_declaration_this_tool_cannot_read_declares_nothing(self):
+        """Fail-closed. An unreadable count is 0, not "as much as you like".
+
+        The frozenset this replaced treated the NAME as the permission, so a
+        sweep whose count went missing would still have been allowed to remove
+        everything. Every one of these is a shrink of 1 against a declaration
+        the tool cannot read, and every one of them refuses.
+        """
+        for count in (None, "two", -1, True, 1.0):
+            with self.subTest(count=count):
+                self.assertEqual(
+                    PT.declared_removal({"event": "intake-sweep",
+                                         "count": count}), 0)
+                with self.assertRaises(PT.Refused):
+                    self.call("intake-sweep", 4, 3, count=count)
+
+    def test_a_command_nobody_named_declares_nothing(self):
+        self.assertEqual(PT.declared_removal({"event": "add", "count": 9}), 0)
+        self.assertEqual(PT.declared_removal({}), 0)
 
     def test_the_task_store_is_under_the_same_rule_as_the_registers(self):
         """One function, called at every canonical store, not one per store."""
         with self.assertRaises(PT.Refused):
             PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
-                                "next", 5, 4)
+                                {"event": "next"}, 5, 4)
         PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
-                            "purge", 5, 4)
+                            {"event": "purge"}, 5, 4)
+        with self.assertRaises(PT.Refused):
+            PT.refuse_to_shrink("tasks", Path("/nowhere/tasks.jsonl"),
+                                {"event": "purge"}, 5, 3)
 
 
 class TestTheTaskStoreCallSiteIsWired(Base):
@@ -802,7 +838,9 @@ class TestTheTaskStoreCallSiteIsWired(Base):
     The reason it is hard to reach is real and is stated in the RESULT rather
     than worked around: `commit()` builds `records` FROM `current` by removing
     at most one record and appending at most one, so the only branch that
-    shortens the task store is `purge`, and `purge` is in `SHRINK_ALLOWED`. The
+    shortens the task store is `purge`, whose declaration in `SHRINK_ALLOWANCE`
+    is 1 — and `test_purge_may_not_take_two_records_with_one_removal` is what
+    holds it to that. The
     one input that shortens it otherwise is a store carrying the subject's id
     twice — and `load_task_records` refuses a duplicate id before `commit()`
     ever sees it.

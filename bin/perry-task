@@ -2165,23 +2165,61 @@ REGISTER_SPEC = {
              perry_store.ask_section_shape),
 }
 
-#: **The only commands permitted to make a canonical store smaller.**
+#: **How many records each removal command DECLARES that it removes.**
 #:
-#: `purge` is `tasks.jsonl`' one removal path and says so in its own docstring;
-#: `intake-sweep` moves discharged intake rows off the board into the journal;
-#: `resolve-intake` is named by USER-906 as an explicit discharge and is
-#: carried here for that reason, though it edits an `Outcome` cell and does not
-#: in fact remove a row — see `test_resolve_intake_is_not_blocked...`, which
-#: asserts exactly that rather than pretending otherwise.
+#: The permission is to remove WHAT THE COMMAND REMOVES, not to persist
+#: whatever the board happens to derive to. Round 4 wrote this as a bare
+#: `frozenset` of three names — an exemption keyed on the command and
+#: **unbounded** — so a listed command could shrink a canonical store by any
+#: amount, including a shrink it did not perform. The V4 round-4 review used
+#: exactly that on this repository's own intake data: `resolve-intake`, which
+#: removes no record at all, took `perry/intake.jsonl` from 11781 bytes / 28
+#: records to 1420 bytes / 4 records at exit code 0, with `perry-lint`
+#: reporting `intake store: 4 record(s), 0 row(s) drifted`. That is the exact
+#: signature of `evidence/2026-08/TASK-203-merge-hold.md`, reached one command
+#: over from the refusal that stops it.
 #:
-#: Every other command is an ORDINARY WRITE, and the rule below is what it may
-#: not do.
-SHRINK_ALLOWED = frozenset({"purge", "resolve-intake", "intake-sweep"})
+#: So an entry is a NUMBER, not a name:
+#:
+#:   `purge`          removes the one task it names                 → 1
+#:   `resolve-intake` rewrites an `Outcome` cell and removes none   → 0
+#:   `intake-sweep`   removes the rows it swept                     → `count`
+#:
+#: An `int` is a fixed declaration; a `str` names the field on the event the
+#: count is read from, and `cmd_intake_sweep` already carries `count` there.
+#: Every other command is an ORDINARY WRITE, declares nothing, and may not
+#: shrink a canonical store at all.
+SHRINK_ALLOWANCE: dict[str, int | str] = {
+    "purge": 1, "resolve-intake": 0, "intake-sweep": "count",
+}
 
 
-def refuse_to_shrink(store: str, path: Path, event_name: str,
+def declared_removal(event: dict) -> int:
+    """How many records this event DECLARES it removes. Zero for every other.
+
+    **Fail-closed in both unreadable directions.** A command that is not on the
+    list declares nothing, and a listed command whose declared count is
+    missing, negative, a `bool` or not an `int` also declares nothing. A
+    declaration this tool cannot read is not a licence to remove an unknown
+    number of canonical records — an unreadable declaration lands on 0, which
+    is a refusal, and a refusal is recoverable where a truncated store is not.
+    That is the whole difference between this and the frozenset it replaces.
+    """
+    rule = SHRINK_ALLOWANCE.get(event.get("event") or "")
+    if rule is None:
+        return 0
+    if isinstance(rule, int) and not isinstance(rule, bool):
+        return rule
+    count = event.get(rule)
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        return 0
+    return count
+
+
+def refuse_to_shrink(store: str, path: Path, event: dict,
                      before: int, after: int, why: str = "") -> None:
-    """**The invariant: an ordinary write may never SHRINK a canonical store.**
+    """**The invariant: an ordinary write may never SHRINK a canonical store,
+    and an explicit removal may shrink it by exactly what it removes.**
 
     USER-906, option B, decided 2026-08-29 after three rounds of TASK-203 each
     shipped a different predicate and each ended in the same defect — an
@@ -2205,29 +2243,58 @@ def refuse_to_shrink(store: str, path: Path, event_name: str,
     rejected, and this is why it is not needed: WHEN you look does not change
     HOW MANY there are.
 
-    A shrink is not always wrong; it is wrong when nobody asked for it.
-    `SHRINK_ALLOWED` is the three commands that ask, and it is a frozenset of
-    three names rather than a fourth predicate about board state.
+    A shrink is not always wrong; it is wrong when nobody asked for it — and
+    **it is wrong past the point somebody asked for.** Round 4's fifth door was
+    not inside this function; it was the exemption around it, granted by name
+    and without a bound, which let `resolve-intake` — a command that removes no
+    record at all — persist a 24-record loss it never performed. So the
+    exemption is a number, `declared_removal(event)`, and the question is not
+    "may this command shrink" but "is the drop the drop the caller declared".
+
+    That is still one question about two integers. It asks nothing about the
+    command's identity, nothing about the board, and nothing about when the
+    gate is read: option A stays rejected, because WHEN you look still does not
+    change HOW MANY there are, and now neither does WHO is looking.
+
+    The event dict is taken whole rather than as a name, deliberately: the
+    bound is computed HERE, from the event, so no call site can pass a name and
+    forget to pass its bound. There is no way to reach this function with the
+    permission and without the number.
 
     The refusal is raised before anything is staged, so the whole write is
     refused rather than half of it, and the board on disk is untouched.
     """
-    if after >= before or event_name in SHRINK_ALLOWED:
+    name = event.get("event") or ""
+    allowed = declared_removal(event)
+    if before - after <= allowed:
         return
     # `perry-tasks`' subcommands for the task store are unprefixed — `write`,
     # `render` — and the three registers each carry their own prefix. Naming
     # `perry-tasks tasks-write` would send the reader to a subcommand that does
     # not exist, on the one store where the refusal is hardest to get out of.
     verb = "" if store == "tasks" else f"{store}-"
-    raise Refused(
-        f"`{event_name}` would take {path} from {before} record(s) to {after}, "
-        f"and an ordinary write may never make a canonical store smaller "
-        f"(USER-906). {why}Nothing was written.\n"
+    forward = (
         f"If the board is right and the store is stale, the explicit "
         f"board-to-store direction is `perry-tasks {verb}write --from-board`; "
         f"if the store is right, `perry-tasks {verb}render --write` puts the "
-        f"records back on the board. Only "
-        f"{', '.join(sorted(SHRINK_ALLOWED))} may reduce a record count.")
+        f"records back on the board.")
+    if name in SHRINK_ALLOWANCE:
+        # An explicit removal, over its own declaration. The message says the
+        # two numbers rather than "refused": the caller asked to remove n and
+        # the write would have removed more, and which records went missing in
+        # between is a question about the board, not about this command.
+        raise Refused(
+            f"`{name}` would take {path} from {before} record(s) to {after} — "
+            f"a drop of {before - after} — but `{name}` removes "
+            f"{allowed} record(s). An explicit removal may shrink a canonical "
+            f"store by exactly what it removes and no more (USER-906). "
+            f"{why}Nothing was written.\n{forward}")
+    raise Refused(
+        f"`{name}` would take {path} from {before} record(s) to {after}, "
+        f"and an ordinary write may never make a canonical store smaller "
+        f"(USER-906). {why}Nothing was written.\n{forward} Only "
+        f"{', '.join(sorted(SHRINK_ALLOWANCE))} may reduce a record count, and "
+        f"only by the number of records they remove.")
 
 
 def load_register_records(path: Path) -> list[dict]:
@@ -2349,7 +2416,7 @@ def register_change(state_root: Path, board: Board,
     # the derivation answering honestly, not a special case to be routed
     # around — so it is computed the same way and counted the same way.
     derived = records_of(board, _ops(), None) if shape == "table" else []
-    refuse_to_shrink(key, path, event.get("event") or "", len(current),
+    refuse_to_shrink(key, path, event, len(current),
                      len(derived),
                      why=("`## %s` is currently `%s`, not a table this store "
                           "can read. " % (_section, shape))
@@ -2625,7 +2692,7 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # function the three registers call, not a second copy of the rule
     # (TASK-203, USER-906).
     refuse_to_shrink("tasks", perry_store.store_path(state_root),
-                     event.get("event") or "", len(current), len(records))
+                     event, len(current), len(records))
     stamp_last_updated(board)
     unstorable = unstorable_status_rows(conformance)
     board_text, projection = perry_store.render(board, records, _ops())
