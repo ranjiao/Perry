@@ -456,7 +456,13 @@ class TestRenderRebuildsTheFileFromTheStore(unittest.TestCase):
                          encoding="utf-8")
         (d / ".perry" / "config.md").unlink()
         out = run_config("render", "--write", root=d)
-        self.assertNotEqual(out.returncode, 0)
+        blob = out.stdout + out.stderr
+        self.assertNotEqual(out.returncode, 0, blob)
+        # **A refusal, not a crash**, and `assertNotEqual(rc, 0)` alone cannot
+        # tell those apart: a traceback also exits non-zero. Narrowing the
+        # `except` clause in `main` left this test green until it said so.
+        self.assertIn("store is not readable JSONL", blob)
+        self.assertNotIn("Traceback (most recent call last)", blob)
         self.assertFalse((d / ".perry" / "config.md").exists())
 
     def test_it_returns_non_zero_on_a_store_that_does_not_validate(self):
