@@ -33,7 +33,7 @@ did not perform**.
 | `1e42b97` | the bound: an allowed command may shrink by exactly the count it declares removing. |
 | `a900585` | a guard in `declared_removal` that nothing could reach, removed. |
 | `0cc3889` | the line `tests/test_intake_store.py` stopped one short of: the dangerous state it builds now has a shrink-permitted command run on it. |
-| *(this commit)* | the shared control gets the `assertLess` that makes "a clean board fails its own control" true of the code as well as the prose. |
+| `0ef1576` | the shared control gets the `assertLess` that makes "a clean board fails its own control" true of the code as well as the prose; the wrong `discover` attribution is struck. |
 
 ## 2. The rule as implemented
 
@@ -285,6 +285,7 @@ not only about the file at `1e42b97`.
 | **M1** | `:2269` | the invariant deleted — `if True:` | 34 failures / **17 named**: all four doors, all four reproduction tests, the three new bounded tests, `test_commit_asks_the_invariant_about_tasks_jsonl` |
 | **M6** | `:2384` | round 3's exact consecutive-only weakening of the uniqueness clause | **1 — `test_a_repeated_identity_is_no_identity_even_when_no_two_are_adjacent`.** Green across 2815 tests in round 3; still red here, so round 5's change did not re-open it |
 | **MB1b** | `:2273` | MB1 again, after `0cc3889`, against **239** tests | 13 / **7 named** — MB1's six plus **`test_a_shrink_permitted_command_on_that_same_board_is_refused`**, the line the suite had been stopping short of |
+| **MB1c** | `:2273` | MB1 again, after `0ef1576`'s `assertLess` control | 13 / **the same 7 named**, and `bin/perry-task` md5 unchanged at `f282d23…` — the tightened control changed the mutation evidence not at all, which is what a control that is not part of the subject should do |
 
 MB6 was interrupted once by a two-minute command timeout, leaving the mutation
 in the tree. It was restored by hand from the recorded old text and md5-verified
@@ -302,7 +303,8 @@ the event and has MB7 behind it.
 ## 6. Baselines — the runner, the tree, the board state, and the load
 
 **Runner:** `bash tests/run`, 8 workers.
-**Tree:** this worktree at `0cc3889`.
+**Tree:** this worktree at `0ef1576`; an identical run at `0cc3889` gave the
+same figures, since `0ef1576` adds an assertion and not a test.
 **Board state:** `perry/` is `main` at `6c0d041` plus this row's round-4 and
 round-5 evidence files — i.e. the same board state round 4's numbers were taken
 on, which is why the two `test_contract_key_parity` witness tests the spec warns
@@ -311,7 +313,7 @@ non-empty on the LIVE board) do not appear in the red set here.
 **Load:** load average 8–15, from three other concurrent agent sessions.
 
 ```
-99 modules · 2929 tests · 194.1s · 8 workers · 2 module(s) red
+99 modules · 2929 tests · 226.1s · 8 workers · 2 module(s) red
   test_diagnose               (2)  test_perry_itself_passes_its_own_id_checks
                                    + the queue-register reconciliation
   test_kr_progress_provenance (1)  test_no_current_in_the_payload_claims_to_be_
