@@ -24,7 +24,10 @@ recognised the one rule by the **function's name** rather than by the symbol.
 
 **Round 10 is that five-line gap, closed, plus the three minor findings and the
 two green mutations that closing it exposed.** No production code changed:
-`git diff --stat b5e7be3 HEAD` is three files, all under `tests/`.
+`git diff --stat b5e7be3 HEAD -- bin/ viewer/ schema/ templates/` is empty, and
+the code diff is three files, all under `tests/` — 366 insertions, 13
+deletions. The rest of the diff is this document and round 9's two inline
+corrections.
 
 ---
 
@@ -346,7 +349,8 @@ cannot both be had.
 
 | runner | tree | modules | tests | failures |
 |---|---|---|---|---|
-| `bash tests/run` | round 10 `HEAD` = `a1ff426`, on a `git archive` export | **99** | **2897** | **3** |
+| `bash tests/run` | round 10 code tip `a1ff426`, on a `git archive` export | **99** | **2897** | **3** |
+| `bash tests/run` | round 10 `HEAD` = `22f0cfc` (docs on top), same method | **99** | **2897** | **3** |
 | `bash tests/run` | `main` @ `3c7c8ba`, on a `git archive` export | 101 | 3019 | 3 |
 | `python3 -m unittest discover -s tests` | round 10 `HEAD`, same export | — | **2897** | **6** |
 
@@ -378,8 +382,16 @@ is a real one and is named in § 7.
 
 **Call sites: 59, unchanged.** Counted by AST (`ast.Call` whose callee is
 `header_index` or `header_keys`) over `readers_under(.)`. No reader was
-converted this round; `git diff --stat b5e7be3 HEAD` is three files, all under
-`tests/`, 366 insertions and 13 deletions.
+converted this round.
+
+**The worktree matches its commit.** Every tracked blob re-hashed against
+`git ls-tree -r HEAD`: **689 files checked, 0 mismatches**; `git status
+--porcelain` empty and `git ls-files -o --exclude-standard` empty. Eleven
+mutations were applied to this tree and every one restored under an `md5`
+check — R10-7's first run tripped the harness's own line-indexed restore
+(a multi-line replacement), the harness reported `MISMATCH`, the file was
+restored from `git` and the harness was fixed to keep the whole original
+text. That is reported rather than quietly re-run.
 
 ---
 
