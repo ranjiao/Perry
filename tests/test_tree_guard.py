@@ -15,6 +15,17 @@ neuters `tree_guard.compare` in a second copy and requires the same planted run
 to come back GREEN — because a red that would have been red anyway proves
 nothing about the guard.
 
+**Three things here exist because a V4 reviewer defeated the first version.**
+`test_all_three_ignore_lists_are_the_documented_ones` — the first version
+pinned two of the three lists, and blinding `IGNORE_NAMES` to `events.jsonl`
+and `intake.jsonl` left all thirteen tests green.
+`test_the_four_files_of_this_row_are_never_invisible` pins the same thing by
+consequence rather than by name, so a fourth list invented tomorrow is caught
+too. And `TestTheEnvironmentTheGuardCanSee` covers the vector the tree
+comparison structurally cannot see: `$PERRY_PROJECT` aimed at a second
+checkout, where all four files moved over there while step 0 truthfully
+reported this tree unmoved.
+
 The planting is into a COPY, never the live checkout: `work/reference/
 review-constraints.md` says so, and the reason is that for the seconds the
 plant exists, anything else running the suite sees a real, reproducible-looking
