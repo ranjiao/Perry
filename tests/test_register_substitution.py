@@ -70,6 +70,19 @@ FILLER = {
     "risks": lambda j: f"| RX-90{j} | a risk typed in by hand {j} |  | open |",
 }
 
+#: **An intake register with more rows than the report will PRINT.**
+#:
+#: `SUBSTITUTION_RECORDS_SHOWN` is 5 and every other board in this module stages
+#: at most 3 losses, so until this constant existed the `len(lost) > 5` branch
+#: was never reached: the count could be silently swapped for the length of the
+#: printed list and 71 tests came back OK. Nine rows, so seven can be destroyed
+#: at once and the message has to shorten its LIST without shortening its
+#: NUMBER — which is the exact failure this row exists to close, one level down.
+WIDE_INTAKE = ("| Arrived | Request | Outcome |\n|---|---|---|\n"
+               + "".join(f"| 2026-08-{d:02d} | a request filed on the "
+                         f"{d}th and still waiting | — |\n"
+                         for d in range(11, 20)))
+
 #: What each register's records are matched on. **Read from the shipped map**,
 #: not restated: a test that spelled the identity itself would go green if the
 #: shipped one changed underneath it, which is the whole failure mode this
@@ -309,6 +322,50 @@ class TestTheSubstitutionIsReportedOnEveryRegister(Base):
                                  f"{before} row(s) drifted fell to 0 and the "
                                  f"write named {reported(out)} of "
                                  f"{staged.n} destroyed record(s):\n" + out)
+
+
+class TestTheCapIsOnTheOutputAndNeverOnTheCount(Base):
+    """More losses than the report prints. TASK-243 V4 review.
+
+    `SUBSTITUTION_RECORDS_SHOWN`'s own comment says the cap is on the output and
+    never on the count. Nothing tested it: every other board here stages at most
+    three losses, so `⚠ {len(lost)}` could be changed to `⚠ {len(shown)}` — a
+    report announcing five destroyed records when ten died — and the whole
+    module stayed green. Two smaller survivors sat in the same unreached display
+    path, the `", and N more"` tail and the past-tense verb, and all three are
+    asserted here.
+
+    Seven losses on a nine-row register: five named, two summarised, seven
+    counted.
+    """
+
+    def test_seven_losses_are_counted_seven_and_listed_five(self):
+        f = self.fixture(build_board(intake=WIDE_INTAKE), mint=("intake",))
+        self.assertEqual(len(f.records("intake.jsonl")), 9,
+                         "control: the register must be wider than the cap")
+        staged = Staged(f, "intake", 7).check(self)
+        self.assertGreater(
+            staged.n, PT.SUBSTITUTION_RECORDS_SHOWN,
+            "control: fewer losses than the cap and this test cannot tell")
+        rc, out = f.run("resolve-intake", "1", "--outcome", "dropped",
+                        "--reason", "not for us")
+        self.assertEqual(rc, 0, out)
+        lost = staged.lost()
+        self.assertEqual(len(lost), 7,
+                         "control: seven canonical records really died")
+        # The NUMBER is the whole point: a report that shortened its own count
+        # to fit the terminal is this row's defect wearing a friendlier tone.
+        self.assertEqual(reported(out), 7,
+                         "the count was shortened to the printed list:\n" + out)
+        # The LIST is capped, and the tail says how many it did not print.
+        named = [i for i in lost if str(i) in out]
+        self.assertEqual(len(named), PT.SUBSTITUTION_RECORDS_SHOWN,
+                         "the cap moved off the output")
+        self.assertIn(f", and {7 - PT.SUBSTITUTION_RECORDS_SHOWN} more", out)
+        # A real write is in the past tense. `--dry-run` asserts the other verb
+        # one class down, and nothing else asserts this one.
+        self.assertIn("did not survive", out)
+        self.assertNotIn("would not survive", out)
 
 
 class TestResolveIntakeIsInsideItsBoundAndStillReports(Base):
