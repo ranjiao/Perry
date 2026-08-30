@@ -449,7 +449,7 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         import perry_md_store                    # noqa: E402
         perry_md_store.scan_okr(OKR)
         load("perry-migrate").fix_tables(
-            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [])
+            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [], root_arg=None)
         self.drive_intake_write()
         self.drive_the_carried_row_readers()
 

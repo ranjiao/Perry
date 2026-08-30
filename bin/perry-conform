@@ -75,6 +75,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import sys
 from dataclasses import dataclass, field
 from datetime import date
@@ -387,8 +388,33 @@ class GateResult:
         return d
 
 
+def _q(value) -> str:
+    """**One argument of a command this tool hands back, spelled so the reader
+    can copy it.** The single choke point for every such argument.
+
+    `shlex.quote`, which is a no-op on a value with nothing shell-special in
+    it — so a project at `/home/ada/perry` is still handed
+    `--root /home/ada/perry`, and one at `/Users/ada/My Project` is handed
+    `--root ʼ/Users/ada/My Projectʼ` instead of a line that parses as two
+    arguments.
+
+    **Why a named function and not `shlex.quote` inline.** Round 3 dropped the
+    root from a handed-back command; round 4 added it back UNQUOTED, in the
+    same sentence, because `_root_flag` was a convention and a convention is
+    enforced by whoever remembers it. This is the same convention — but
+    `tests/sweep_handed_back_commands.py` now reads every handed-back command
+    off the AST and reports any `{...}` inside one that is not `_q(...)`,
+    `_root_flag(...)`, `shlex.quote(...)` or the `r` those produce, and
+    `tests/test_conformance.py § test_no_refusal_names_a_command_without_the
+    _root` fails the suite on it. So the bypass spelling — `--root {root_arg}`,
+    `declare {v.path}` — is not discouraged, it is RED. That is the difference
+    between this shape and the one it replaces.
+    """
+    return shlex.quote(str(value))
+
+
 def _root_flag(root_arg: str | None) -> str:
-    return f" --root {root_arg}" if root_arg else ""
+    return f" --root {_q(root_arg)}" if root_arg else ""
 
 
 def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
@@ -420,7 +446,7 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"{v.path} already matches Perry's shape at version {v.shape_version}, "
             f"but no one has declared it. Perry writes only to declared files "
             f"(ADR-004: adoption proposes, the user declares). Declare it with:\n"
-            f"    perry-conform declare {v.path}{r}\n"
+            f"    perry-conform declare {_q(v.path)}{r}\n"
             f"Reading is unaffected — `{tool} list` and `perry-state` work "
             f"either way.{tail}")
     if v.state == UNDECLARED:
@@ -441,7 +467,7 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"which declares every file it migrates, names a restore point, and "
             f"leaves anything it will not touch byte-identical with the reason. "
             f"The unfiltered list of findings is `perry-lint{r}`; a file you fix "
-            f"by hand is declared with `perry-conform declare {v.path}{r}`.\n"
+            f"by hand is declared with `perry-conform declare {_q(v.path)}{r}`.\n"
             f"Reading is unaffected — `{tool} list` and `perry-state` work "
             f"either way.{tail}")
     if v.state == STALE:
@@ -450,7 +476,7 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"{v.declared_version} on {v.declared_on or '—'}; Perry's shape is "
             f"now version {v.shape_version}. A version Perry no longer speaks is "
             f"never silently accepted. Re-declare with:\n"
-            f"    perry-conform declare {v.path}{r}\n"
+            f"    perry-conform declare {_q(v.path)}{r}\n"
             f"which refuses if the file does not match the current shape"
             + (f" (it currently has {len(v.errors)} error(s))" if v.errors else "")
             + f".{tail}")
@@ -463,7 +489,17 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
             f"that is a finding, not a correction. See:\n"
             f"    perry-lint{r}\n"
             f"then re-declare with:\n"
-            f"    perry-conform declare {v.path}{r}{tail}")
+            f"    perry-conform declare {_q(v.path)}{r}"
+            # **`{tail}` goes on its own line, and that is not cosmetic.**
+            # This is the only branch whose last line IS the command, so
+            # appending the unreadable-lines parenthetical to it handed the
+            # reader `perry-conform declare BOARD.md --root X (2 line(s) in
+            # …)`. Pasted into a shell that is `syntax error near unexpected
+            # token ʼ(ʼ`, rc=2; parsed with `shlex.split` it is the command
+            # plus eighteen junk arguments. Found by the round-5 sweep rule
+            # that reads every interpolation inside a handed-back command,
+            # not by anyone reading the branch.
+            + (f"\n{tail.lstrip()}" if tail else ""))
     return ""
 
 

@@ -195,7 +195,13 @@ class Project:
         return json.loads(r.stdout)["errors"]
 
     def plan(self):
-        return M.plan_project(self.root, self.root, SCHEMA)
+        # `root_arg` is the root the CLI would have been given — the same
+        # string `Project.run` puts on the command line. An in-process plan
+        # built with `root_arg=None` is a plan no reader ever has, and every
+        # assertion about a handed-back command made from inside one is an
+        # assertion about a situation that does not occur (TASK-234 r5).
+        return M.plan_project(self.root, self.root, SCHEMA,
+                              root_arg=str(self.root))
 
     def __del__(self):
         self.dir.cleanup()
@@ -819,11 +825,13 @@ class TestRestoreTransactionProtocol(unittest.TestCase):
         M.datetime = Frozen
         try:
             board_run = M.apply_plan(
-                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"]),
+                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"],
+                               root_arg=str(p.root)),
                 SCHEMA, declare=False)
             design_run = M.apply_plan(
                 M.plan_project(p.root, p.root, SCHEMA,
-                               ["design/DESIGN-001-x.md"]),
+                               ["design/DESIGN-001-x.md"],
+                               root_arg=str(p.root)),
                 SCHEMA, declare=False)
         finally:
             M.datetime = real_datetime
@@ -1958,7 +1966,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         p = self.project()
         before = p.tree()
         target = None
-        for e in M.plan_project(p.root, p.root, SCHEMA).writable:
+        for e in M.plan_project(p.root, p.root, SCHEMA,
+                                root_arg=str(p.root)).writable:
             target = e.path
             break
         self.assertIsNotNone(target, "nothing writable in the fixture")
@@ -1975,7 +1984,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         M.write_atomic = flaky
         try:
             with self.assertRaises(M.Refused) as caught:
-                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA), SCHEMA)
+                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA,
+                                            root_arg=str(p.root)), SCHEMA)
         finally:
             M.write_atomic = real
 
@@ -2005,7 +2015,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         M.undo = lambda _p, **_kwargs: (_ for _ in ()).throw(
             PermissionError(13, "Permission denied"))
         try:
-            msg = M.rollback_message(point, "BOARD.md", "boom")
+            msg = M.rollback_message(point, "BOARD.md", "boom",
+                                     root_arg=str(point.parent))
         finally:
             M.undo = real
         self.assertIn("rollback also failed", msg)
@@ -2026,7 +2037,8 @@ class TestIOFailuresAreStructuredRefusals(unittest.TestCase):
         M.shutil.copy2 = denied
         try:
             with self.assertRaises(M.Refused) as caught:
-                M.plan_project(p.root, p.root, SCHEMA)
+                M.plan_project(p.root, p.root, SCHEMA,
+                               root_arg=str(p.root))
         finally:
             M.shutil.copy2 = real
 
@@ -2068,7 +2080,8 @@ class TestNothingWritableIsNotACrash(unittest.TestCase):
         p = Project(files={"BOARD.md": M.render_board_from_template()
                            if hasattr(M, "render_board_from_template")
                            else LEGACY_BOARD})
-        plan = M.plan_project(p.root, p.root, SCHEMA)
+        plan = M.plan_project(p.root, p.root, SCHEMA,
+                              root_arg=str(p.root))
         plan.edits = [e for e in plan.edits if False]
         out = M.apply_plan(plan, SCHEMA)
         self.assertIn("run", out)
