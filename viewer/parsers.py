@@ -681,7 +681,7 @@ def _declaration_from(line: str, number: int) -> "Declaration | None":
     """
     try:
         rec = json.loads(line)
-    except (ValueError, TypeError):
+    except ValueError:
         return None
     if not isinstance(rec, dict):
         return None

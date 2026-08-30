@@ -2197,6 +2197,128 @@ class TestTheRefusalNamesTheLine(unittest.TestCase):
             "make — `read_text` translates newlines")
 
 
+class TestTheDefensiveBranchesAreLoadBearing(unittest.TestCase):
+    """**Branches that survived their own deletion, now pinned.**
+
+    The V4 reviewer swept the new code for defensive branches that could be
+    removed with the suite green and found five; a wider sweep on the same
+    method found seven. The reviewer's ruling was that none could produce a
+    false verdict or destroy data, and asked for them to be tested or named as
+    unpinned with that reasoning rather than left under a general claim.
+
+    Six are tested here. One of the six turned out not to be defensive at all —
+    see `test_a_short_diff_does_not_claim_it_dropped_a_negative_number`.
+
+    **The one NOT tested, named with its reasoning**, per the ruling:
+
+    - `bin/perry-conform § verdict`'s `legacy_record=record.legacy is not None`
+      versus `bool(record.legacy)`. These are the same predicate: `record.legacy`
+      is `None` or a `Path` that came from `/`-joining two non-empty strings, and
+      every such `Path` is truthy. It is an EQUIVALENT MUTANT, not an untested
+      branch — there is no input that distinguishes them, so a test asserting
+      the difference cannot be written. Recorded so a later sweep does not
+      re-find it and file it again.
+    """
+
+    def store(self, line: str) -> Project:
+        p = Project()
+        p.marker().parent.mkdir(exist_ok=True)
+        p.marker().write_text(line)
+        return p
+
+    def test_a_non_string_path_is_refused_rather_than_used_as_a_key(self):
+        """`{"path": 123}` would otherwise become a dict key of the wrong type,
+        which no `state_files()` key can ever equal — an unreachable
+        declaration that reports as present."""
+        for value in ("123", '""', "null", "[]"):
+            with self.subTest(path=value):
+                p = self.store('{"kind": "declaration", "path": ' + value
+                               + ', "shape_version": 2, "declared": '
+                               '"2026-08-28", "route": "declare"}\n')
+                rec = C.P.read_conformance(p.root)
+                self.assertEqual(rec.declarations, {}, value)
+                self.assertEqual(len(rec.unreadable), 1,
+                                 f"path {value} was dropped silently")
+
+    def test_a_non_string_declared_or_route_is_refused(self):
+        """Both cells reach a human — `declared` is printed in every STALE and
+        DRIFTED refusal — and a non-string there formats as itself and reads
+        as a date nobody wrote."""
+        for field, value in (("declared", "20260828"), ("declared", "null"),
+                             ("route", "2"), ("route", "null")):
+            with self.subTest(**{field: value}):
+                rec = {"kind": '"declaration"', "path": '"BOARD.md"',
+                       "shape_version": "2", "declared": '"2026-08-28"',
+                       "route": '"declare"'}
+                rec[field] = value
+                p = self.store("{" + ", ".join(
+                    f'"{k}": {v}' for k, v in rec.items()) + "}\n")
+                got = C.P.read_conformance(p.root)
+                self.assertEqual(got.declarations, {}, f"{field}={value}")
+                self.assertEqual(len(got.unreadable), 1)
+
+    def test_an_empty_route_reads_as_declare_rather_than_as_blank(self):
+        """`route` answers *how was this declared*, and the two values are
+        `declare` and `migrate`. A blank is neither, and it is what a row
+        written before `route` existed parses to."""
+        p = self.store('{"kind": "declaration", "path": "BOARD.md", '
+                       '"shape_version": 2, "declared": "2026-08-28", '
+                       '"route": ""}\n')
+        self.assertEqual(
+            C.P.read_conformance(p.root).declarations["BOARD.md"].route,
+            "declare")
+        rc, out, _ = p.run(CONFORM, "status")
+        row = next(f for f in out["files"] if f["path"] == "BOARD.md")
+        self.assertEqual(row["route"], "declare")
+
+    def test_non_string_provenance_reads_as_empty_rather_than_as_itself(self):
+        """The three provenance fields are free text a reader is shown. A
+        number or an object there would travel into `status --json` and into
+        the next rewrite of the record exactly as typed."""
+        p = self.store('{"kind": "declaration", "path": "BOARD.md", '
+                       '"shape_version": 2, "declared": "2026-08-28", '
+                       '"route": "declare", "writer": 7, '
+                       '"recorded_at": {"x": 1}, "run": []}\n')
+        decl = C.P.read_conformance(p.root).declarations["BOARD.md"]
+        self.assertEqual((decl.writer, decl.recorded_at, decl.run), ("", "", ""))
+
+    def test_a_record_that_exists_but_cannot_be_read_is_not_a_crash(self):
+        """`exists()` is true and `read_text` raises — a directory where the
+        record should be, a revoked permission, a device. `perry-conform
+        status` is what the enforce gate calls, so a traceback here is a
+        traceback on every write.
+
+        A directory, because it raises `IsADirectoryError` (an `OSError`) on
+        every platform and needs no permission games that a root-running CI
+        would skip past."""
+        p = Project()
+        p.marker().mkdir(parents=True)
+        self.assertTrue(p.marker().exists())
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(rec.declarations, {})
+        rc, out, err = p.run(CONFORM, "status")
+        self.assertEqual(rc, 0, f"status crashed on an unreadable record: {err}")
+        self.assertIsInstance(out, dict, f"status printed no JSON: {out} {err}")
+
+    def test_a_short_diff_does_not_claim_it_dropped_a_negative_number(self):
+        """**Not a defensive branch — a live one.** `max(0, len(lines) - CAP)`
+        looks like belt-and-braces and is not: without it, `dropped` is
+        NEGATIVE for every diff shorter than the cap, `if dropped:` is true for
+        a negative number, and every ordinary refusal ends *"… and -37 more
+        diff line(s)"*. That is a false statement to the reader, printed on the
+        one message the V4 FAIL was about. Found by sweeping for survivors."""
+        p = Project()
+        p.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n"
+            + "| BOARD.md | 2 | 2026-08-20 | declare |\n" + "stray\n")
+        rc, out, _ = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1)
+        self.assertNotIn("more diff line(s)", out["refused"],
+                         "a short diff claims it dropped lines")
+        self.assertNotIn("-1", out["refused"].split("@@")[0],
+                         "a negative count reached the message")
+
+
 class TestWhatTheConversionDoesNotDissolve(unittest.TestCase):
     """**TASK-246 survives the format change, and this is where that is said.**
 

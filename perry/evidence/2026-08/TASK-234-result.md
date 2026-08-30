@@ -62,22 +62,85 @@ not declare is undeclared afterwards
 record was converted with `perry-conform migrate`.
 
 **The one-way door has a lock.** The conversion refuses unless the markdown is
-byte-for-byte `render_legacy(read_legacy_conformance(file))`. That is the
+line-for-line `render_legacy(read_legacy_conformance(file))`. That is the
 whole-file fixed point TASK-241 round 2 *rejected as a reading rule* — one stray
 blank line voids all 23 of Perry's declarations and takes the gate down — and it
 is the right rule here for the reason it was the wrong rule there: this runs
-once, the cost of refusing is *look at your file*, and the cost of proceeding is
-a laundered declaration nothing downstream can tell from a real one. It also
-refuses when any row is unreadable, rather than dropping it (§ 5, TASK-246).
+once, the consequence of refusing is bounded and reversible, and the consequence
+of proceeding is a laundered declaration nothing downstream can tell from a real
+one. It also refuses when any row is unreadable, rather than dropping it (§ 5,
+TASK-246).
 
 `render_legacy` is the **original** `render()` moved, not a re-derivation: a
 check that "this file is what Perry wrote" is worth nothing if the right-hand
 side is a second, freshly-typed idea of what Perry wrote.
 
+**Line-for-line, not byte-for-byte, and round 1 claimed the stronger thing.**
+The comparison is against `Path.read_text()`, which applies universal-newline
+translation, so a record saved with CRLF converts. That is the behaviour we
+want — refusing a CRLF record would strand a Windows checkout with no way
+forward — but it is not what the word said. Corrected in
+`bin/perry-conform`, `bin/README.md` and here, and pinned by
+`test_a_crlf_record_converts_and_the_wording_does_not_say_byte`, which asserts
+the behaviour **and** that the source has stopped claiming the other one.
+
+### 1.1 · The V4 FAIL — the refusal was a wall, and now it is not
+
+Round 1's refusal said *"diff it against the record and remove what does not
+belong: `perry-conform status`"*. The reviewer measured what `status` actually
+does: **it computes no diff, reports nothing about the markdown's contents, and
+names `perry-conform migrate`** — the command that had just refused. No shipped
+surface named the offending line; `status`, `check`, `migrate`, `declare` and
+`perry-lint` were all checked, in text and `--json`.
+
+And on such a project **every write path is closed**: `declare` calls
+`migrate_record` first and raises, `perry-migrate apply` refuses and rolls back,
+and all three gate call sites refuse because no store exists. So round 1's claim
+— *"the cost of refusing is look at your file"* — was **false**. The measured
+cost was: read 37 lines by eye, with no tool help, while nothing can write. It is
+reachable by ordinary editing (7 of 9 plausible hand edits refuse), and it
+contradicted a standard written in the same file, `bin/perry-conform § message_for`:
+
+> *a gate that says "not conformant" and stops is a wall — every branch here
+> ends in a command the reader can run.*
+
+**The fix.** `render_legacy(...)` was already computed on the refusing line;
+`record_diff()` turns it into a unified hunk with a legend for the direction
+(`-` is your file, `+` is what Perry reads out of it, so a `-` line alone is a
+line to delete and a `+` line is one to restore), capped at `DIFF_CAP = 40` so a
+wholly-rewritten record cannot bury the message's own last sentence. What it
+prints, on the shape that motivated the fixed point:
+
+```
+    --- .perry/conformance.md
+    +++ what Perry reads out of it
+    @@ -15,4 +15,2 @@
+     | .perry/hook.md | 2 | 2026-08-21 | declare |
+    -<!--
+     | OKR.md | 2 | 2026-08-20 | declare |
+    --->
+```
+
+`TestTheRefusalNamesTheLine` measures it on all four plausible hand edits the
+reviewer named — a trailing blank line, a note under the table, rows re-ordered
+by hand, a row hidden in an HTML comment — one subTest each, plus **two
+controls**: the canonical record still converts, and *deleting a row still
+withdraws a declaration*, which is the edit the file's own header invites and
+must never refuse.
+
+**Why it shipped, which is the more useful finding.** `assert_conversion_refuses`
+— the helper 17 tests route through — asserted only `"refused" in out`. Any
+refusal at all passed it. It now requires the refusal to **locate** the problem
+(a line number from the unreadable-rows branch, or a diff from the fixed-point
+branch), to name a runnable command, **never** to name `perry-conform status`,
+and — where the caller knows it — to quote the exact offending line, because a
+diff of the *wrong* lines passes every other assertion in the helper.
+
 **Measured consequence of the fixed point**, found by the fixture: a record whose
 rows a hand has re-ordered refuses, because the writer sorted by path. Any record
 `perry-conform declare` wrote is sorted, so this bites a hand-edited file only —
-which is exactly the file the check exists for.
+which is exactly the file the check exists for, and the diff now names the moved
+row.
 
 ## 2 · Self-reference — moved across explicitly, and split into two questions
 
