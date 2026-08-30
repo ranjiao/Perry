@@ -2264,8 +2264,35 @@ class TestTheRefusalNamesTheLine(unittest.TestCase):
         # DOES byte-compare — and a guard that made those red would be deleted
         # by the next person who hit it. What is banned is the phrase
         # describing what the file is compared AGAINST.
+        #
+        # **Round 5 widened it, having measured how narrow it was.** The V4
+        # round-4 reviewer put nine plausible overclaims to the round-4 regex:
+        # it caught **3** and evaded **5** — "identical to the file … wrote",
+        # "compared byte-for-byte against what", "byte-for-byte with what",
+        # the same phrase with a U+2011 non-breaking hyphen, and "bytewise".
+        # The regex below catches **9 of 9**, measured, and fires on nothing
+        # in either file today.
+        #
+        # The widening that was NOT taken is worth recording, because it was
+        # tried: allowing any short run of characters between "byte-for-byte"
+        # and its object also catches 9 of 9 and fires on **two correct
+        # sentences** — `bin/README.md`'s true claim that `perry-config`
+        # reproduces prose "byte for byte **while the file is on disk**", and
+        # `bin/perry-conform`'s own CORRECTING comment, which quotes the phrase
+        # in order to disown it. A guard that reddens the correction is a guard
+        # that gets deleted. So the object has to follow the phrase directly,
+        # through a connector from a closed list.
+        #
+        # **What it still cannot catch**, stated rather than left: a genuine
+        # byte comparison in either file described in exactly this shape — "the
+        # store is compared byte-for-byte with the record it derived" — would
+        # be a false positive. There is none today. If one arrives, the fix is
+        # to name the object rather than to delete the guard.
         overclaim = re.compile(
-            r"byte[- ]for[- ]byte(\s+identical)?\s+(to\s+)?what", re.IGNORECASE)
+            r"byte[\s\-\u2010-\u2015]*(?:for[\s\-\u2010-\u2015]*byte|wise)"
+            r"(?:\s+(?:identical|equal|the\s+same))?"
+            r"(?:\s+(?:to|with|against|as))?"
+            r"\s+(?:what|the\s+file|the\s+record)\b", re.IGNORECASE)
         for rel in ("bin/perry-conform", "bin/README.md"):
             text = (PERRY_HOME / rel).read_text()
             found = overclaim.search(text)

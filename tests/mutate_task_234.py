@@ -463,6 +463,16 @@ MUTATIONS = [
      "tests.test_migrate.TestRecoverable"
      ".test_every_way_back_this_tool_names_carries_the_root"),
 
+    # The widened overclaim guard: an EVADING spelling, which round 4's regex
+    # let through. Five of the nine the V4 round-4 reviewer put to it did.
+    ("M57", "bin/README.md",
+     "It refuses rather than convert a file that is not line-for-line\n"
+     "what `perry-conform declare` would have written",
+     "It refuses rather than convert a file that is not bytewise\n"
+     "against what `perry-conform declare` would have written",
+     "tests.test_conformance.TestTheRefusalNamesTheLine"
+     ".test_a_crlf_record_converts_and_the_wording_does_not_say_byte"),
+
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
     ("M19", "viewer/parsers.py",
      '        if header_index([rel]).column("file", "path") == 0 or not rel:',
