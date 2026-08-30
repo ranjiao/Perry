@@ -129,7 +129,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
 from tables import (UnrenderableCell, append_cell, cell_spans,  # noqa: E402
-                    render_row, splice_cell, split_row, squash)
+                    header_index, render_row, splice_cell, split_row, squash)
 import lib  # noqa: E402
 # TASK-092. The store `OKR.md` is now a projection of, and its renderer. This
 # tool does not carry a second copy of either, for the same reason it parses
@@ -269,11 +269,7 @@ def column_spellings(canonical: str) -> list[str]:
 
 def column_at(header: list[str], canonical: str) -> int:
     """Index of `canonical` in `header`, or -1. By NAME, never by position."""
-    want = set(column_spellings(canonical))
-    for i, cell in enumerate(header):
-        if squash(cell) in want:
-            return i
-    return -1
+    return header_index(header).column(column_spellings(canonical))
 
 
 def header_language(header: list[str], declared: list[str]) -> str:
@@ -285,7 +281,7 @@ def header_language(header: list[str], declared: list[str]) -> str:
     asking the wrong scope.
     """
     i18n = load_schema().get("i18n", {}).get("columns", {}) or {}
-    cells = {squash(c) for c in header}
+    cells = set(header_index(header))
     for canonical in declared:
         for lang, spellings in (i18n.get(canonical) or {}).items():
             if cells & {squash(s) for s in spellings}:
@@ -420,7 +416,7 @@ class Okr:
     def rows(self, lo: int, hi: int) -> list[tuple[int, dict]]:
         """(line index, cells keyed by squashed header) for each data row."""
         sep, header = self.table(lo, hi)
-        keys = [squash(h) for h in header]
+        keys = header_index(header)
         out = []
         for i in range(sep + 1, hi):
             line = self.lines[i]
@@ -2321,11 +2317,7 @@ def legacy_due_at(header: list[str]) -> int:
     the whole lesson of the deleted regex's fifth round, applied to its
     replacement.
     """
-    want = {squash(LEGACY_DUE_COLUMN)}
-    for i, cell in enumerate(header):
-        if squash(cell) in want:
-            return i
-    return -1
+    return header_index(header).column(squash(LEGACY_DUE_COLUMN))
 
 
 def unsplit_rows(okr: Okr, tracks: list[dict]) -> list[str]:
@@ -2995,10 +2987,11 @@ def canonical_of(header_cell: str, names: list[str]) -> str:
     from `values` if the caller named it and left empty otherwise — never
     dropped, and never shifted into by position.
     """
+    key = header_index([header_cell])[0]
     for name in names:
-        if squash(header_cell) in set(column_spellings(name)):
+        if key in set(column_spellings(name)):
             return name
-    return squash(header_cell)
+    return key
 
 
 # ── `krs` — the phase's key results, printed from the one place they live ──

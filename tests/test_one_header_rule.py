@@ -46,11 +46,10 @@ from pathlib import Path
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "tests"))
-from tables import squash            # noqa: E402
-from header_rule import offenders, readers_under   # noqa: E402
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from header_rule import offenders, readers_under  # noqa: E402
+from tables import header_index, squash            # noqa: E402
+# Imported ONCE. Round 7's review found this module importing `header_rule`
+# twice, four lines apart.
+from header_rule import offenders_by_symbol, readers_under  # noqa: E402
 import parsers as P  # noqa: E402
 
 # The counter, not a second copy of it. `tests/parallel` puts `tests/` on the
@@ -75,25 +74,30 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertEqual(squash("**Default** rung"), "default rung")
         self.assertEqual(squash("Default  rung"), "default rung")
 
-    def test_no_reader_folds_a_header_cell_by_a_second_rule(self):
-        """The whole category, in one assertion, over the whole tree.
+    def test_nothing_outside_header_index_maps_squash_across_a_row(self):
+        """**Round 8's check, and it is over a SYMBOL.**
 
-        **This replaced a regex over source lines and a whole-file substring
-        test, and both were defeated by the round 5 reviewer.** The regex knew
-        the spellings it had been taught; the substring test asked whether the
-        token "squash" appeared anywhere in the file, which all 9 row-splitting
-        readers already satisfy — so it contributed nothing against a new rule
-        added to an existing reader. The reviewer proved it by appending a
-        `.casefold()` header reader to `viewer/parsers.py` and getting `[]`
-        from both.
+        `viewer/tables.py § header_index` is the only function allowed to fold
+        a header cell. The check that keeps it that way is not a shape to
+        recognise — seven rounds of evidence say a shape check loses — it is
+        an equality against zero over one symbol: nothing outside that function
+        maps `squash` (or its `norm` alias) across a row's cells.
 
-        `tests/header_rule.py` asks the parser instead: a collection built by
-        mapping over a row's cells, whose element expression case-folds, must
-        fold through `squash`.
+        It holds no list of variable names and it cannot fire on a value
+        normalizer, because a value normalizer folds a value and not a row.
         """
-        found = offenders(PERRY_HOME)
-        self.assertEqual(found, [], "header cells folded by a second rule:\n"
-                                    + "\n".join(found))
+        found = offenders_by_symbol(PERRY_HOME)
+        self.assertEqual(found, [],
+                         "`squash` is mapped across a row outside "
+                         "`header_index`:\n" + "\n".join(found))
+
+    def test_the_one_fold_is_reachable_and_is_the_one_rule(self):
+        """`header_index` folds by `squash` and by nothing else, so the symbol
+        check above is about the rule and not merely about a call site."""
+        self.assertEqual(header_index(["**Default** rung", "  Status "]),
+                         ["default rung", "status"])
+        self.assertEqual(header_index(["Status"], alias={"status": "s"}.get),
+                         ["s"])
 
     def test_value_normalizers_are_not_flagged(self):
         """**The judgement in this module, asserted with a live number.**
@@ -124,7 +128,7 @@ class TestOneRuleForAHeaderCell(unittest.TestCase):
         self.assertGreater(folding, 20,
                            "the tree stopped normalizing values — this test is "
                            "measuring nothing and should be re-derived")
-        self.assertEqual(offenders(PERRY_HOME), [])
+        self.assertEqual(offenders_by_symbol(PERRY_HOME), [])
 
     def test_the_norm_alias_is_the_same_object_and_not_a_second_copy(self):
         """`bin/perry-migrate` reaches the rule as `L.norm`. That is only
