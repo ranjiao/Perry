@@ -696,7 +696,8 @@ independent rather than asserting it.
 | After (round 1) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `601b651` | 2026-08-30 09:40 → 09:45 | **103 modules · 3123 tests · 4 failures** |
 | **After (V4 round 2)** | `bash tests/run`, python 3.11.15, worktree `wt-234` | `ae26e80` (branch HEAD) | 2026-08-30 10:32 → 10:40 | **103 modules · 3136 tests · 4 failures** |
 | Baseline (V4 round 4) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `7d3f93f` | 2026-08-30 12:54 → 12:59 | **103 modules · 3136 tests · 4 failures** |
-| **After (V4 round 4)** | `bash tests/run`, python 3.11.15, worktree `wt-234` | `b8779f3` (branch HEAD) | 2026-08-30 13:22 → 13:27 | **103 modules · 3141 tests · 4 failures** |
+| After (V4 round 4, code) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `b8779f3` | 2026-08-30 13:22 → 13:27 | **103 modules · 3141 tests · 4 failures** |
+| **After (V4 round 4, tip)** | `bash tests/run`, python 3.11.15, worktree `wt-234` | `5f9f28b` | 2026-08-30 13:28 → 13:32 | **103 modules · 3141 tests · 4 failures** |
 
 ### 7.1 · Round 4 — counted the way the runner makes hard, and bracketed
 
@@ -712,9 +713,9 @@ lines, and it is what both round-4 rows above report:
 grep -oE 'FAILED \(failures=[0-9]+' <log> | grep -oE '[0-9]+$' | paste -sd+ - | bc
 ```
 
-Both round-4 runs read **4 test failures across 3 red modules**, and
-`grep -c '^FAIL:'` reads **3** in both — the trap is live in these exact logs.
-Same red set, by name, in both: `test_diagnose.py` (2 —
+All three round-4 runs read **4 test failures across 3 red modules**, and
+`grep -c '^FAIL:'` reads **3** in every one — the trap is live in these exact
+logs. Same red set, by name, in all three: `test_diagnose.py` (2 —
 `test_perry_itself_passes_its_own_id_checks` and the queue-register one that
 loses its header to the window), `test_heading_title.py` (1), and
 `test_kr_progress_provenance.py` (1). **No new red.** 3136 → 3141 is +5: four
@@ -734,9 +735,15 @@ after each round-4 run, with `git status --porcelain` empty after both:
 |---|---|---|
 | baseline `7d3f93f` | `00e912781c6d368df074f1bba6e87405` | `00e912781c6d368df074f1bba6e87405` |
 | after `b8779f3` | `3ac041c3d8c38deb473ff4d5e56cf827` | `3ac041c3d8c38deb473ff4d5e56cf827` |
+| after `5f9f28b` | `a7be6205c4142dd227e91414622e94ea` | `a7be6205c4142dd227e91414622e94ea` |
 
 The baseline digest is the same one the V4 round-3 reviewer recorded for this
-tip, which is how these two rows are known to be about the same bytes.
+tip, which is how the baseline row is known to be about the same bytes it read.
+The run at `5f9f28b` is the one that covers this document as it stands: the
+`b8779f3` run predates the § 7 and § 11 corrections, and `test_heading_title`
+and `test_diagnose` both read `perry/` documents, so a RESULT edit is inside
+their subject. The only commit after `5f9f28b` is the one that adds these three
+lines.
 
 **Mutations, round 4**: `python3 tests/mutate_task_234.py` run whole, in a
 private detached worktree at `b8779f3`, **40/40 red**, `git status --porcelain`
