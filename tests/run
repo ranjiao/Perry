@@ -42,6 +42,41 @@ if [ "${1:-}" = "--only" ]; then
   fi
 fi
 
+# ── step 0a: the environment the guard can see ─────────────────────────
+# **The guard hashes $ROOT and only $ROOT, so every write has to be aimed at
+# $ROOT for it to see them.** `perry-task` resolves its project root from
+# $PERRY_PROJECT BEFORE falling back to the cwd, so a suite run in a worktree
+# by an agent that has $PERRY_PROJECT exported at the main checkout sends
+# every un-rooted write into that OTHER tree — four files move over there
+# while step 0 truthfully reports this one unmoved. Several worktrees are live
+# on this machine and a PERRY_PROJECT/PERRY_HOME mismatch has already cost one
+# agent a check that appeared to refute its own reviewer.
+#
+# So the suite REFUSES to start in that environment. It does not quietly
+# re-point the variable: exporting PERRY_PROJECT="$ROOT" was tried first and
+# reddens nine tests in `test_config_store_readers` that depend on the variable
+# being ABSENT so the cwd walk runs — a guard that has to bend the suite to fit
+# is a guard that will be bent back. Refusing costs nothing, because after it
+# the only two reachable states are "unset" (perry-task falls back to the cwd,
+# which `cd "$ROOT"` above just set) and "equal to $ROOT". Both land inside the
+# tree step 0 hashes.
+#
+# What this does NOT reach is a test that builds its own `env=` dict naming a
+# third directory. No tree comparison can; it is declared in tree_guard.py.
+if [ -n "${PERRY_PROJECT:-}" ] && [ "$PERRY_PROJECT" != "$ROOT" ]; then
+  printf '\n\033[31m✗ refusing to run: PERRY_PROJECT points somewhere else\033[0m\n'
+  echo "    PERRY_PROJECT = $PERRY_PROJECT"
+  echo "    tests/run     = $ROOT"
+  echo
+  echo "  perry-task resolves its project root from PERRY_PROJECT BEFORE the"
+  echo "  cwd, so any test that invokes it without --root would write into"
+  echo "  that other checkout — and step 0 hashes this one, so it would report"
+  echo "  a clean tree while four files moved over there (TASK-249)."
+  echo
+  echo "  Run it as:  env -u PERRY_PROJECT bash tests/run"
+  exit 2
+fi
+
 # ── step 0: the tree guard ──────────────────────────────────────────────
 # The manifest lives OUTSIDE $ROOT on purpose: a manifest written into the
 # tree it describes is itself a change to that tree.

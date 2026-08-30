@@ -31,18 +31,61 @@ that got it wrong. A guard that compares the tree at both ends does not care
 how the write arrived: fixture, bare subprocess, a stray `open(..., "w")`, or a
 tool three layers down that resolved a root from the cwd.
 
+## The blind spot the project had already declared
+
+`tests/live_state_expectations.py § _tool_reads_this_project` decides which
+project a test's tool call reads from `--root`, then `cwd=`, then a state path
+among the arguments, and says of a call carrying none of the three: *"With none
+of them the answer is no — the tool would in fact inherit the runner's cwd and
+so read this repository, but `--help` and `--version` runs are the bulk of that
+population and **none of them touches state**. A stated blind spot, not a
+claim."*
+
+TASK-249's call site is exactly that shape, and `intake-sweep` is the
+counterexample to the sentence. The blind spot was declared honestly and the
+population turned out to have one member that wrote. That is the argument for a
+guard that watches the tree instead of reading the call: a static guard can only
+be as good as its statement about what the un-analysable population contains.
+
 ## What it does NOT catch, said plainly
+
+Each of these was found by a reviewer or by looking for it. They are listed so
+that the next reader inherits the list rather than rediscovering it.
 
 - **An idempotent write on an already-written tree.** The very sweep that
   motivated this file moves nothing on a tree it has already swept. The guard
   catches the *first* occurrence — which is the one that matters, and the one
   that would have been caught in the first place — not the steady state.
-- **Anything under an ignored path** (`IGNORE_DIRS` below). `.git` is ignored:
-  a test that runs `git commit` in the live root gets through. Hashing `.git`
-  would make the guard both slow and noisy, and the write side this project
-  actually has does not go there.
+- **A write to a DIFFERENT checkout.** The guard hashes `$ROOT` and only
+  `$ROOT`. A tool that resolves its root from `$PERRY_PROJECT` would write into
+  whatever tree that names while the guard reports `$ROOT` unmoved — and this
+  machine runs several worktrees, so it is not hypothetical. **`tests/run`
+  closes the ambient case** by exporting `PERRY_PROJECT="$ROOT"` for the whole
+  run, which pins every un-rooted write into the tree the guard is watching
+  rather than letting it escape to a neighbour. What remains uncovered is a
+  test that builds its own `env=` dict naming a third directory; nothing a
+  tree comparison can do reaches that, and it is named here instead.
+- **`.git`.** A test that runs `git commit` in the live root gets through.
+  Hashing `.git` against a live repository would be slow and noisy — index and
+  ref mtimes move under any concurrent git command, including a reviewer's
+  `git log` in another terminal, and a guard that is red for reasons the reader
+  did not cause is a guard that gets switched off.
+- **`__pycache__` and `*.pyc` / `*.pyo`, at any depth.** Running the suite
+  compiles the suite. This is deliberate and unbounded on purpose: bytecode
+  legitimately appears beside any Python file.
+- **A file named `.DS_Store`, at any depth.** Written by the Finder, not by a
+  test, and it appears in whatever directory a human opened.
 - **A write that is reverted before the suite ends.** Two writes that cancel
   are one tree.
+
+The ignore list is **two directory names and two suffixes and one filename**,
+and it was cut down to that: `.pytest_cache`, `.mypy_cache`, `.ruff_cache` and
+`node_modules` were carried here from habit, and this repository contains none
+of them and no tool that makes one. An ignore entry that matches nothing is a
+blind spot held open for no benefit, so they are gone. All three lists are
+pinned by `tests/test_tree_guard.py`, and separately the four files of TASK-249
+are asserted to be visible to the manifest — because pinning a list by equality
+catches a list that GREW and the thing to fear is a list that grew.
 
 Usage:
 
@@ -66,8 +109,7 @@ from pathlib import Path
 #: reason is in the docstring above — do not extend this list to make a red
 #: run green. A red run means the suite wrote into the checkout, and the fix
 #: is the write, not the guard.
-IGNORE_DIRS = frozenset({".git", "__pycache__", ".pytest_cache",
-                         ".mypy_cache", ".ruff_cache", "node_modules"})
+IGNORE_DIRS = frozenset({".git", "__pycache__"})
 
 #: Files never hashed. Compiled bytecode is a build artefact of running the
 #: suite at all, and `.DS_Store` is written by the Finder, not by a test.
@@ -82,9 +124,12 @@ def _skip_name(name: str) -> bool:
 def manifest(root: str | os.PathLike) -> dict[str, str]:
     """Map every path under `root` to a token that changes when it does.
 
-    Files hash their bytes. Symlinks record their target rather than following
-    it — a relinked symlink is a change even when both targets are identical.
-    Directories are recorded too, so that creating an empty one counts.
+    Files hash their bytes AND carry their permission bits: `chmod +x` on a
+    shipped script changes what the tree is without changing a byte of it, and
+    this repository ships eleven executables whose bit is load-bearing.
+    Symlinks record their target rather than following it — a relinked symlink
+    is a change even when both targets are identical. Directories are recorded
+    too, with their mode, so that creating an empty one counts.
     """
     root = Path(root).resolve()
     out: dict[str, str] = {}
@@ -94,7 +139,8 @@ def manifest(root: str | os.PathLike) -> dict[str, str]:
         for d in dirnames:
             p = here / d
             rel = str(p.relative_to(root))
-            out[rel] = ("l:" + os.readlink(p)) if p.is_symlink() else "d:"
+            out[rel] = (("l:" + os.readlink(p)) if p.is_symlink()
+                        else "d:%04o" % (p.stat().st_mode & 0o7777))
         for name in sorted(filenames):
             if _skip_name(name):
                 continue
@@ -104,11 +150,12 @@ def manifest(root: str | os.PathLike) -> dict[str, str]:
                 out[rel] = "l:" + os.readlink(p)
                 continue
             try:
+                mode = p.stat().st_mode & 0o7777
                 h = hashlib.sha256(p.read_bytes()).hexdigest()
             except OSError as exc:                     # unreadable is a state
                 out[rel] = f"e:{exc.errno}"            # too, and it can change
             else:
-                out[rel] = "f:" + h
+                out[rel] = "f:%04o:%s" % (mode, h)
     return out
 
 

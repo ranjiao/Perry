@@ -93,16 +93,73 @@ def copy_repo(dest: Path) -> Path:
     return dest
 
 
-def run_suite(root: Path, module: str) -> subprocess.CompletedProcess:
+def run_suite(root: Path, module: str,
+              perry_project: str | None = None) -> subprocess.CompletedProcess:
     """`bash tests/run --only <module>` in `root` — the real runner.
 
     Not `tree_guard.py` called directly: what is under test is whether the
     SUITE fails, which is a property of `tests/run`'s wiring as much as of the
     guard. TASK-249's defect was in wiring, not in an algorithm.
+
+    `PERRY_PROJECT` is stripped unless a test asks for it, so that an ambient
+    one in the outer runner's environment cannot decide the answer here.
     """
+    env = dict(os.environ)
+    env.pop("PERRY_PROJECT", None)
+    if perry_project is not None:
+        env["PERRY_PROJECT"] = perry_project
     return subprocess.run(
         ["bash", "tests/run", "--only", module.removesuffix(".py")],
-        cwd=str(root), capture_output=True, text=True)
+        cwd=str(root), capture_output=True, text=True, env=env)
+
+
+class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
+    """**The fourth defeat vector, and it was live on this machine.**
+
+    The guard hashes `$ROOT` and only `$ROOT`. `perry-task` resolves its
+    project root from `$PERRY_PROJECT` *before* the cwd — so an agent running
+    the suite in a worktree with `$PERRY_PROJECT` exported at the main checkout
+    sends every un-rooted write into that other tree, and step 0 truthfully
+    reports THIS one unmoved. A reviewer demonstrated it: all four files moved
+    in a second checkout while step 0 printed `✓ nothing under … moved`.
+
+    `tests/run` refuses to start in that environment. It does not silently
+    re-point the variable — exporting `PERRY_PROJECT="$ROOT"` was tried first
+    and reddens nine tests in `test_config_store_readers` that need it ABSENT.
+    """
+
+    def test_a_foreign_perry_project_refuses_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_repo(Path(tmp) / "repo")
+            victim = Path(tmp) / "victim"
+            victim.mkdir()
+            (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
+            r = run_suite(root, CONTROL_MODULE, perry_project=str(victim))
+            out = r.stdout + r.stderr
+
+            self.assertEqual(r.returncode, 2,
+                             "the suite ran with PERRY_PROJECT aimed at "
+                             "another tree:\n" + out)
+            self.assertIn("refusing to run", out)
+            self.assertIn(str(victim), out,
+                          "the refusal must name the directory it is "
+                          "refusing:\n" + out)
+            self.assertNotIn("schema drift guard", out,
+                             "the refusal has to come BEFORE step 1 — after "
+                             "it, tests have already run:\n" + out)
+
+    def test_perry_project_equal_to_the_root_is_allowed(self):
+        """The refusal must not be satisfied by refusing everything. Pointed
+        at the tree the guard watches, the variable is harmless — that is the
+        state `cd "$ROOT"` already produces — and the run proceeds."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_repo(Path(tmp) / "repo")
+            (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
+            r = run_suite(root, CONTROL_MODULE,
+                          perry_project=str(root.resolve()))
+            out = r.stdout + r.stderr
+            self.assertEqual(r.returncode, 0, out)
+            self.assertIn("nothing under", out)
 
 
 class TestThePlantedWrite(unittest.TestCase):
@@ -239,15 +296,51 @@ class TestTheManifest(unittest.TestCase):
         (self.root / ".git" / "index").write_bytes(b"\x00")
         self.assertEqual(TG.compare(before, TG.manifest(self.root)), [])
 
-    def test_the_ignore_list_is_the_documented_one(self):
+    def test_all_three_ignore_lists_are_the_documented_ones(self):
         """A guard is weakened by growing its ignore list, and that is the
-        cheapest way to make a red run green. Any addition has to change this
-        line, which is a place a reviewer looks."""
-        self.assertEqual(
-            set(TG.IGNORE_DIRS),
-            {".git", "__pycache__", ".pytest_cache", ".mypy_cache",
-             ".ruff_cache", "node_modules"})
+        cheapest way to make a red run green.
+
+        **There are THREE lists and the first version of this test pinned
+        two.** A V4 reviewer set `IGNORE_NAMES = {".DS_Store",
+        "events.jsonl", "intake.jsonl"}` — blinding the guard to two of the
+        four files this whole row is about — and all thirteen tests stayed
+        green. Naming two of three is how a pin becomes decoration.
+        """
+        self.assertEqual(set(TG.IGNORE_DIRS), {".git", "__pycache__"})
         self.assertEqual(TG.IGNORE_SUFFIXES, (".pyc", ".pyo"))
+        self.assertEqual(set(TG.IGNORE_NAMES), {".DS_Store"})
+
+    def test_the_four_files_of_this_row_are_never_invisible(self):
+        """The pin above catches a list that GREW, by name. This catches the
+        same attack by CONSEQUENCE, and it does not care which of the three
+        lists was used — or whether a fourth is invented.
+
+        `perry-task intake-sweep` writes exactly these four. If the manifest
+        cannot see a change to one of them, the guard cannot fail on the thing
+        it was built to fail on, whatever the mechanism.
+        """
+        four = ["\u002eperry/events.jsonl", "perry/BOARD.md",
+                "perry/intake.jsonl", "perry/journal/2026-08/2026-08-30.md"]
+        for rel in four:
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text("before\n")
+        before = TG.manifest(self.root)
+        for rel in four:
+            (self.root / rel).write_text("after\n")
+        moved = {l.split()[1] for l in TG.compare(before, TG.manifest(self.root))}
+        self.assertEqual(moved, set(four),
+                         "the manifest is blind to one of the four files "
+                         "TASK-249's sweep writes")
+
+    def test_a_permission_change_is_a_change(self):
+        """`chmod +x` on a shipped script changes what the tree is without
+        changing a byte of it, and this repository ships eleven executables
+        whose bit is load-bearing."""
+        import os as _os
+        before = TG.manifest(self.root)
+        _os.chmod(self.root / "a.txt", 0o755)
+        self.assertEqual(TG.compare(before, TG.manifest(self.root)),
+                         ["  M a.txt   (changed)"])
 
 
 class TestTheCLI(unittest.TestCase):
