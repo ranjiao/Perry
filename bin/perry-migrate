@@ -1758,10 +1758,12 @@ def current_signature(path: Path, rel: str) -> dict:
 def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     """The bytes of every file this run is about to touch, before it touches it.
 
-    Includes `.perry/conformance.md`: the run writes that too, through
+    Includes `.perry/conformance.jsonl`: the run writes that too, through
     `perry-conform`, and a restore that put the state files back while leaving
     the declarations standing would leave the record claiming conformance for
-    files that no longer have it."""
+    files that no longer have it. And `.perry/conformance.md` when the project
+    still has one, because the run CONVERTS it (TASK-234) and a conversion is a
+    deletion."""
     record = plan.project_root / P.CONFORMANCE_FILE
     legacy = plan.project_root / P.CONFORMANCE_LEGACY_FILE
     files = {e.key_rel: (file_image(e.image_before)
