@@ -2,6 +2,15 @@
 
 > Branch `coding/task-234-conformance-store`, forked from `main` at `49d83fc`.
 > Serves `perry/design/DESIGN-013-one-place-per-fact.md` § 5.1, which is locked.
+>
+> **Four V4 rounds.** Round 1's FAIL was a refusal that named a command
+> computing no diff (§ 1.1). Round 3's was the same standard broken one level
+> down: the refusal round 3 rewrote to satisfy it named the command **with the
+> root dropped**, and the dropped-root command exits 0 with a success-shaped
+> sentence about a different project (§ 1.2). Round 4 fixes that, sweeps the
+> class it belongs to, and corrects three numbers this document was carrying —
+> the helper's routing count (§ 1.1, § 11), what the helper actually covers
+> (§ 1.1), and "29/29" (§ 6).
 
 ## 0 · What landed, in one paragraph
 
@@ -561,10 +570,10 @@ I expected this one to die and it does not. Measured:
 > round-3 reviewer re-ran **8** of the 29 (M22-M29) plus M15's branch as a
 > control, added 9 of its own, and said plainly that M1-M14 and M16-M21 were
 > **not** re-run. Round 4 re-ran **the whole harness, all of it, in this
-> session**, and extended it: **40/40 red**, instrument named below, log in the
-> commit message of the round-4 mutation commit. Two of the eleven new ones
-> came back GREEN first — M35 and M36 — and both are recorded as findings in
-> § 6.1 rather than quietly re-pointed.
+> session** — `python3 tests/mutate_task_234.py`, whole, in a private detached
+> worktree — and extended it: **40/40 red** (§ 7.1 for the run). Two of the
+> eleven new ones came back GREEN first, M35 and M36, and both are recorded as
+> findings in § 6.1 rather than quietly re-pointed.
 
 Harness: `tests/mutate_task_234.py`. Uniquely named; **refuses a dirty tree**;
 anchors on exact text and asserts the anchor is **unique** in the file; resolves
@@ -686,6 +695,53 @@ independent rather than asserting it.
 | After | `bash tests/run`, python 3.11.15, worktree `wt-234` | `0762a0b` | 2026-08-30 09:32 → 09:37 | **103 modules · 3122 tests · 4 failures** |
 | After (round 1) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `601b651` | 2026-08-30 09:40 → 09:45 | **103 modules · 3123 tests · 4 failures** |
 | **After (V4 round 2)** | `bash tests/run`, python 3.11.15, worktree `wt-234` | `ae26e80` (branch HEAD) | 2026-08-30 10:32 → 10:40 | **103 modules · 3136 tests · 4 failures** |
+| Baseline (V4 round 4) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `7d3f93f` | 2026-08-30 12:54 → 12:59 | **103 modules · 3136 tests · 4 failures** |
+| **After (V4 round 4)** | `bash tests/run`, python 3.11.15, worktree `wt-234` | `b8779f3` (branch HEAD) | 2026-08-30 13:22 → 13:27 | **103 modules · 3141 tests · 4 failures** |
+
+### 7.1 · Round 4 — counted the way the runner makes hard, and bracketed
+
+**`bash tests/run` reports three numbers that look like a failure count and two
+of them are wrong.** The summary line — `✗ N module(s) red` — counts MODULES.
+`grep -c '^FAIL:'` UNDERCOUNTS, because `tests/parallel:283` prints a red
+module's stderr truncated to its last 25 lines **with nothing visibly elided**:
+`test_diagnose` fails twice and only the second `FAIL:` header survives that
+window. The correct count is the sum of the per-module `FAILED (failures=N)`
+lines, and it is what both round-4 rows above report:
+
+```
+grep -oE 'FAILED \(failures=[0-9]+' <log> | grep -oE '[0-9]+$' | paste -sd+ - | bc
+```
+
+Both round-4 runs read **4 test failures across 3 red modules**, and
+`grep -c '^FAIL:'` reads **3** in both — the trap is live in these exact logs.
+Same red set, by name, in both: `test_diagnose.py` (2 —
+`test_perry_itself_passes_its_own_id_checks` and the queue-register one that
+loses its header to the window), `test_heading_title.py` (1), and
+`test_kr_progress_provenance.py` (1). **No new red.** 3136 → 3141 is +5: four
+tests in `TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun` and one in
+`tests/test_migrate.py § TestRecoverable`.
+
+**`test_host_support` did not appear in either round-4 run.** Two round-3
+reviewers measured the same commit within an hour and read 4/3 and 5/4, the
+extra being that already-recorded flake. Recorded because a count that only
+matches when the flake is quiet is a count that will disagree with the next
+reader, and the right answer to that is to say which run this was.
+
+**md5 bracket** (`git ls-files -z | xargs -0 md5 -q | md5 -q`), before and
+after each round-4 run, with `git status --porcelain` empty after both:
+
+| run | before | after |
+|---|---|---|
+| baseline `7d3f93f` | `00e912781c6d368df074f1bba6e87405` | `00e912781c6d368df074f1bba6e87405` |
+| after `b8779f3` | `3ac041c3d8c38deb473ff4d5e56cf827` | `3ac041c3d8c38deb473ff4d5e56cf827` |
+
+The baseline digest is the same one the V4 round-3 reviewer recorded for this
+tip, which is how these two rows are known to be about the same bytes.
+
+**Mutations, round 4**: `python3 tests/mutate_task_234.py` run whole, in a
+private detached worktree at `b8779f3`, **40/40 red**, `git status --porcelain`
+empty afterwards. Not run in `wt-234` and not in
+`/Users/bytedance/proj/Perry`.
 
 **The four failures are the same four, by name, in both runs** — diffed, not
 counted: `test_no_current_in_the_payload_claims_to_be_a_measurement` and
