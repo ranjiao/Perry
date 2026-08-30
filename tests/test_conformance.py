@@ -147,7 +147,25 @@ class Project:
             return r.returncode, r.stdout, r.stderr
 
     def marker(self) -> Path:
-        return self.root / ".perry" / "conformance.md"
+        """The record — `.perry/conformance.jsonl` since TASK-234."""
+        return self.root / C.P.CONFORMANCE_FILE
+
+    def legacy_marker(self) -> Path:
+        """`.perry/conformance.md`, the record every project written before
+        TASK-234 carries. Not a register any more: a conversion source."""
+        return self.root / C.P.CONFORMANCE_LEGACY_FILE
+
+    def line(self, path: str = "BOARD.md", version: int | None = None,
+             declared: str = "2026-08-28", route: str = "declare",
+             **extra) -> str:
+        """One canonical store line, as `perry-conform declare` writes it."""
+        rec = {"kind": "declaration", "path": path,
+               "shape_version": C.shape_version(SCHEMA) if version is None
+               else version,
+               "declared": declared, "route": route,
+               "writer": "", "recorded_at": "", "run": ""}
+        rec.update(extra)
+        return json.dumps(rec, ensure_ascii=False) + "\n"
 
     def verdict(self, key: str = "BOARD.md"):
         return C.verdict(self.root, self.root, key, SCHEMA)
@@ -190,8 +208,9 @@ class TestTwoFactsNotOne(unittest.TestCase):
         (p.root / "BOARD.md").write_text(BOARD_WRONG_SHAPE)
         p.run(CONFORM, "check", "BOARD.md")
         p.run(TASK, *ADD, enforce=False)          # a full advisory write cycle
-        self.assertIn("| BOARD.md | 2 |", p.marker().read_text(),
-                      "the declaration was revoked behind the user's back")
+        self.assertEqual(
+            [d.path for d in C.P.read_conformance(p.root).declarations.values()],
+            ["BOARD.md"], "the declaration was revoked behind the user's back")
 
     def test_no_tool_stamps_the_marker_on_its_own_initiative(self):
         """ADR-004 § 4. A whole advisory write cycle — the mode that is allowed
@@ -258,8 +277,9 @@ class TestPerFileNotPerProject(unittest.TestCase):
         self.assertIn(".perry/config.md", declared)
         self.assertIn("BOARD.md", refused)
         self.assertEqual(rc, 1)
-        self.assertIn("| .perry/config.md |", p.marker().read_text())
-        self.assertNotIn("| BOARD.md |", p.marker().read_text())
+        stored = C.P.read_conformance(p.root).declarations
+        self.assertIn(".perry/config.md", stored)
+        self.assertNotIn("BOARD.md", stored)
 
 
 # ── 3 · versioned from the start ──────────────────────────────────────────
@@ -277,14 +297,14 @@ class TestVersionedFromTheStart(unittest.TestCase):
         self.assertEqual(C.shape_version(SCHEMA), on_disk)
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
-        self.assertIn(f"| BOARD.md | {on_disk} |", p.marker().read_text())
+        self.assertEqual(
+            C.P.read_conformance(p.root).declarations["BOARD.md"].shape_version,
+            on_disk)
 
     def test_a_declaration_at_an_older_shape_version_is_never_silently_accepted(self):
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
-        p.marker().write_text(
-            p.marker().read_text().replace(
-                f"| BOARD.md | {C.shape_version(SCHEMA)} |", "| BOARD.md | 1 |"))
+        p.marker().write_text(p.line(version=1))
         v = p.verdict()
         self.assertEqual(v.state, C.STALE)
         rc, out, _ = p.run(TASK, *ADD, enforce=True)
@@ -297,8 +317,7 @@ class TestVersionedFromTheStart(unittest.TestCase):
         a v2 project by reading the record, not by inspecting the files."""
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
-        p.marker().write_text(p.marker().read_text().replace(
-            f"| BOARD.md | {C.shape_version(SCHEMA)} |", "| BOARD.md | 1 |"))
+        p.marker().write_text(p.line(version=1))
         rc, out, _ = p.run(CONFORM, "status")
         row = next(f for f in out["files"] if f["path"] == "BOARD.md")
         self.assertEqual(row["declared_version"], 1)
@@ -324,8 +343,7 @@ class TestARefusalNamesTheWayForward(unittest.TestCase):
 
         stale = Project()
         stale.run(CONFORM, "declare", "BOARD.md")
-        stale.marker().write_text(stale.marker().read_text().replace(
-            f"| BOARD.md | {C.shape_version(SCHEMA)} |", "| BOARD.md | 1 |"))
+        stale.marker().write_text(stale.line(version=1))
         out[C.STALE] = stale.verdict()
 
         drift = Project()
@@ -1106,8 +1124,8 @@ class TestTheRecordIsReadHonestly(unittest.TestCase):
     def test_a_row_that_cannot_be_read_is_reported_not_treated_as_absent(self):
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
-        p.marker().write_text(p.marker().read_text().replace(
-            f"| BOARD.md | {C.shape_version(SCHEMA)} |", "| BOARD.md | v-two |"))
+        p.marker().write_text(p.line().replace('"shape_version": 2',
+                                                '"shape_version": "v-two"'))
         rc, out, _ = p.run(CONFORM, "status")
         self.assertEqual(len(out["unreadable_rows"]), 1)
         row = next(f for f in out["files"] if f["path"] == "BOARD.md")
@@ -1119,8 +1137,8 @@ class TestTheRecordIsReadHonestly(unittest.TestCase):
         the user did declare, in a table they mistyped."""
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
-        p.marker().write_text(p.marker().read_text().replace(
-            f"| BOARD.md | {C.shape_version(SCHEMA)} |", "| BOARD.md | v-two |"))
+        p.marker().write_text(p.line().replace('"shape_version": 2',
+                                                '"shape_version": "v-two"'))
         rc, out, _ = p.run(TASK, *ADD, enforce=True)
         self.assertEqual(rc, 1)
         self.assertIn("could not be read", out["refused"])
@@ -1148,9 +1166,9 @@ class TestTheRecordIsReadHonestly(unittest.TestCase):
         p = Project()
         p.run(CONFORM, "declare", "BOARD.md")
         p.run(CONFORM, "declare", ".perry/hook.md")
-        text = p.marker().read_text()
-        self.assertIn("| BOARD.md |", text)
-        self.assertIn("| .perry/hook.md |", text)
+        stored = C.P.read_conformance(p.root).declarations
+        self.assertIn("BOARD.md", stored)
+        self.assertIn(".perry/hook.md", stored)
 
     def test_dry_run_declares_nothing(self):
         p = Project()
@@ -1201,23 +1219,47 @@ class TestLintPointsAtTheDeclaration(unittest.TestCase):
         self.assertEqual(after["conformance"]["declared"], 1)
 
 
-# ── 10b · a decorated row is not a declaration (TASK-241) ─────────────────
+# ── 10b · a decorated row is not a declaration, and never becomes one ──────
+#
+# **TASK-241's suite, moved to the door it now guards, not deleted.**
+#
+# Every test below was written against `read_conformance` while the record was
+# `.perry/conformance.md`. TASK-234 made the record a store, and its subject
+# MOVED rather than disappeared: the markdown is still on disk in every project
+# written before the conversion, it is still read exactly once — by
+# `perry-conform migrate`, through `read_legacy_conformance`, which is TASK-241's
+# reader unchanged — and a row that fools that reader is now laundered into a
+# JSON declaration nothing downstream can tell from a real one. That is TASK-241's
+# harm at a ONE-WAY DOOR instead of at a re-runnable read.
+#
+# So each test keeps its shape and gains a second assertion. Both layers matter
+# and each can go red alone:
+#
+#   1. the READER still refuses the row — the round trip and the fence rule,
+#      unchanged, now measured on `read_legacy_conformance`;
+#   2. the CONVERSION refuses the FILE — the whole-file fixed point, which is
+#      what catches the shapes the per-row round trip is blind to BY
+#      CONSTRUCTION (a fenced row, and TASK-248's `<pre>` / HTML comment /
+#      `<details>` row, are byte-for-byte genuine rows).
+#
+# Layer 2 is not a substitute for layer 1: a fixed-point check with the reader
+# reverted would convert a decorated row that round-trips to itself, which is
+# exactly `test_an_asterisked_path_reads_exactly_as_it_did_before` below.
 
 
 class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
-    """`read_conformance` stripped each cell with ``strip("` ")``, so a row
-    whose path cell was in BACKTICKS parsed to the same plain key as a row a
+    """`read_legacy_conformance` stripped each cell with ``strip("` ")``, so a
+    row whose path cell was in BACKTICKS parsed to the same plain key as a row a
     person had declared on purpose. Same for an INDENTED row (`_CONFORMANCE_ROW`
     is `^\\s*\\|`) and for a row inside a ``` FENCE (this reader tracked none).
 
     Found by the `TASK-226` V4 reviewer, who measured the harm: one hand-written
     backticked row flips a real file from `undeclared` to **conformant**, and
-    because `declare` rewrites the whole file from the parsed declarations
-    (`bin/perry-conform § render`), the next legitimate declare **launders** it
-    into a plain canonical row nothing downstream can tell from a real one.
-    `.perry/conformance.md` is the file that gates every write under ADR-004's
-    enforce gate, and its own header invites hand editing — *"Delete a row to
-    withdraw a declaration"* — so this is reachable by design, not contrivance.
+    because the writer rewrote the whole record from the parsed declarations,
+    the next legitimate declare **laundered** it into a canonical row nothing
+    downstream can tell from a real one. The record's own header invited hand
+    editing — *"Delete a row to withdraw a declaration"* — so this is reachable
+    by design, not contrivance.
 
     **THREE SHAPES, THREE TESTS.** One test covering all three would still pass
     with two of the three regressed, and the three are stopped by two different
@@ -1226,10 +1268,11 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
     identical to a genuine one.
 
     **Each test carries its own control.** It first plants the UNDECORATED row
-    and asserts that the verdict really does flip to `conformant` — so the trap
-    is proved live in the same test that proves it closed, and none of these can
-    pass because the reader stopped reading, because the fixture stopped being
-    lint-clean, or because the row was malformed for some fourth reason.
+    and asserts that it really does read as a declaration and convert cleanly —
+    so the trap is proved live in the same test that proves it closed, and none
+    of these can pass because the reader stopped reading, because the fixture
+    stopped being lint-clean, or because the row was malformed for some fourth
+    reason.
 
     **Shape 3 has more than one spelling, and the first fix only closed one.**
     That fix was a boolean toggle flipped by any fence-looking line, so a fence
@@ -1242,61 +1285,86 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
 
     VER = C.shape_version(SCHEMA)
 
-    def plant(self, body: str):
-        """A project whose record is exactly the real header plus `body`.
+    def plant(self, body: str) -> tuple:
+        """A project whose MARKDOWN record is exactly the real header plus
+        `body`, and what the legacy reader makes of it.
 
-        Returns `(state of BOARD.md, number of unreadable rows)` as
-        `perry-conform status` reports them — the surface the gate reads, not
-        the parser in isolation."""
+        Returns `(project, keys honoured, number of unreadable rows)` — the two
+        halves of what the conversion would be allowed to carry across."""
         p = Project()
-        p.marker().write_text("\n".join(C.HEADER) + "\n" + body)
-        rc, out, err = p.run(CONFORM, "status")
-        row = next(f for f in out["files"] if f["path"] == "BOARD.md")
-        return row["state"], len(out["unreadable_rows"])
+        p.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n" + body)
+        rec = C.P.read_legacy_conformance(p.root)
+        self._keep = p
+        return p, sorted(rec.declarations), len(rec.unreadable)
 
     def canonical(self) -> str:
         return f"| BOARD.md | {self.VER} | 2026-08-28 | declare |\n"
 
+    def assert_conversion_refuses(self, p, why: str):
+        """`perry-conform migrate` refuses, and NOTHING was written.
+
+        Exit code and both files, not just the message: a crash and a refusal
+        both print no declaration, and a conversion that wrote the store and
+        then reported a problem would have already gone through the door."""
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1, f"{why}: the conversion did not refuse ({out})")
+        self.assertIsInstance(out, dict, f"migrate printed no JSON: {out} {err}")
+        self.assertIn("refused", out, why)
+        self.assertFalse(p.marker().exists(),
+                         f"{why}: the store was written anyway")
+        self.assertTrue(p.legacy_marker().exists(),
+                        f"{why}: the markdown record was deleted anyway")
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+
     # ── the control, shared by all three ──────────────────────────────────
 
     def assert_trap_would_have_worked(self):
-        """The undecorated row. If this stops flipping the verdict, every test
-        below is vacuous — so every test below runs it first."""
+        """The undecorated row. If this stops reading as a declaration and
+        converting cleanly, every test below is vacuous — so every test below
+        runs it first."""
+        p, keys, unreadable = self.plant(self.canonical())
         self.assertEqual(
-            self.plant(self.canonical()), (C.CONFORMANT, 0),
-            "the control row no longer declares BOARD.md — the three tests "
+            (keys, unreadable), (["BOARD.md"], 0),
+            "the control row no longer reads as a declaration — the tests "
             "below would pass for the wrong reason")
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"the control conversion refused: {out} {err}")
+        self.assertEqual(p.verdict("BOARD.md").state, C.CONFORMANT,
+                         "the control row did not survive the conversion — "
+                         "the tests below would pass for the wrong reason")
 
     # ── shape 1 ───────────────────────────────────────────────────────────
 
     def test_a_backticked_path_cell_is_not_a_declaration(self):
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             f"| `BOARD.md` | {self.VER} | 2026-08-28 | declare |\n")
-        self.assertEqual(state, C.UNDECLARED,
-                         "a backticked path cell still declares a file")
+        self.assertEqual(keys, [], "a backticked path cell still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
+        self.assert_conversion_refuses(p, "a backticked path cell")
 
     # ── shape 2 ───────────────────────────────────────────────────────────
 
     def test_an_indented_row_is_not_a_declaration(self):
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant("   " + self.canonical())
-        self.assertEqual(state, C.UNDECLARED,
-                         "an indented row still declares a file")
+        p, keys, unreadable = self.plant("   " + self.canonical())
+        self.assertEqual(keys, [], "an indented row still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
+        self.assert_conversion_refuses(p, "an indented row")
 
     # ── shape 3 ───────────────────────────────────────────────────────────
 
     def test_a_row_inside_a_code_fence_is_not_a_declaration(self):
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant("```\n" + self.canonical() + "```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        p, keys, unreadable = self.plant("```\n" + self.canonical() + "```\n")
+        self.assertEqual(keys, [],
                          "a row inside a code fence still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
+        self.assert_conversion_refuses(p, "a fenced row")
 
     # ── the fence has to be markdown's fence ──────────────────────────────
     #
@@ -1311,54 +1379,58 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         different delimiter character cannot close. This is the plainest way a
         document shows a fenced block: wrap it in the other fence character."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "~~~\n```\n" + self.canonical() + "```\n~~~\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a backtick fence inside a tilde fence closed it")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a backtick fence in a tilde fence")
 
     def test_a_three_backtick_line_inside_a_four_backtick_fence_is_still_a_fence(self):
         """The other plain way: open with a LONGER run. A close must be at
         least as long as the open, so ``` inside ```` is content."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "````\n```\n" + self.canonical() + "````\n")
-        self.assertEqual(state, C.UNDECLARED,
-                         "a short fence run closed a longer fence")
+        self.assertEqual(keys, [], "a short fence run closed a longer fence")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a short run inside a longer fence")
 
     def test_a_tilde_fence_nested_in_a_backtick_fence_is_still_a_fence(self):
         """The mirror of the first, and it is not the same test: the toggle was
         symmetric but the rule is not, so a fix that keyed on the character
         could close one direction and leave the other open."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "```\n~~~\n" + self.canonical() + "~~~\n```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a tilde fence inside a backtick fence closed it")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a tilde fence in a backtick fence")
 
     def test_a_fence_line_with_trailing_text_does_not_close_the_fence(self):
         """An info string is allowed on the OPENING fence only. ```` ```x ````
         inside an open fence is a content line — and it is exactly what an
         example showing an opening fence looks like."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "```\n```x\n" + self.canonical() + "```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a fence line with an info string closed a fence")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a fence line with an info string")
 
     def test_a_four_space_indented_fence_line_does_not_close_the_fence(self):
         """A closing fence may be indented at most three spaces. At four it is
         content — which is how a fenced block nested in a list item or a
         blockquote-free indent appears."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "```\n    ```\n" + self.canonical() + "```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a four-space-indented fence line closed a fence")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a four-space-indented fence line")
 
     def test_a_whole_table_inside_a_nested_fence_declares_nothing(self):
         """The shape that decided the mechanism.
@@ -1370,15 +1442,16 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         declaration, because the fenced example brings its own header and so
         starts its own run. Both rows must be refused, and reported."""
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "~~~\n```\n"
             "| File | Shape version | Declared | Route |\n"
             "|---|---|---|---|\n" + self.canonical()
             + "```\n~~~\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "an example table in a nested fence declared a file")
         self.assertEqual(unreadable, 2,
                          "the fenced rows were dropped silently, not reported")
+        self.assert_conversion_refuses(p, "an example table in a nested fence")
 
     # ── and the two the corner sweep says must stay shut ──────────────────
     #
@@ -1391,85 +1464,113 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
 
     def test_a_four_space_indented_fence_still_opens_one(self):
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "    ```\n" + self.canonical() + "    ```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a four-space-indented fence stopped opening one")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a four-space-indented opener")
 
     def test_a_backtick_fence_with_a_backtick_in_its_info_string_still_opens_one(self):
         self.assert_trap_would_have_worked()
-        state, unreadable = self.plant(
+        p, keys, unreadable = self.plant(
             "```a`b\n" + self.canonical() + "```\n")
-        self.assertEqual(state, C.UNDECLARED,
+        self.assertEqual(keys, [],
                          "a backtick in the info string stopped opening a fence")
         self.assertEqual(unreadable, 1)
+        self.assert_conversion_refuses(p, "a backtick in the info string")
+
+    # ── the shape the round trip is blind to BY CONSTRUCTION (TASK-248) ────
+
+    def test_a_canonical_row_inside_an_html_block_is_not_carried_across(self):
+        """**TASK-248's shape, and the reason the conversion is a FILE-level
+        fixed point rather than the per-row round trip.**
+
+        A bare canonical row inside `<pre>`, an HTML comment or `<details>` is
+        byte-for-byte a genuine row, so the round trip honours it and always
+        did: measured `conformant` with 0 unreadable at the fork point, at
+        TASK-241 round 1 and at round 2. It is not a regression and no
+        predicate over the row can see it — what makes it not a declaration is
+        what surrounds it, exactly as for a fenced row.
+
+        Three spellings, one test each would be better and one test here is
+        honest about what it measures: they are one mechanism away, and the
+        mechanism is that the lines around the row are not in `render_legacy`'s
+        output. Each spelling is asserted separately below so a fix that closed
+        one would still go red on the other two."""
+        for name, wrap in (
+                ("<pre>", "<pre>\n%s</pre>\n"),
+                ("an HTML comment", "<!--\n%s-->\n"),
+                ("<details>", "<details>\n%s</details>\n")):
+            with self.subTest(html=name):
+                p, keys, unreadable = self.plant(wrap % self.canonical())
+                # The reader HONOURS it — stated, not hidden, because it is
+                # what makes the file-level check load-bearing rather than
+                # belt-and-braces.
+                self.assertEqual(
+                    keys, ["BOARD.md"],
+                    f"a row inside {name} stopped reading as a row — then this "
+                    f"test no longer measures the shape it exists for")
+                self.assertEqual(unreadable, 0)
+                self.assert_conversion_refuses(p, f"a row inside {name}")
 
     # ── a cell that cannot be written back at all ─────────────────────────
 
     def test_a_path_cell_that_cannot_be_written_back_is_reported_not_crashed(self):
-        """`read_conformance` splits the record on `"\\n"`; `render_row` refuses
-        through `line_break_at`, which uses `str.splitlines()` — **eleven**
-        boundaries, not one. So a path cell holding `U+2028` sits inside a
-        single line for the reader and makes the canonical form unwritable.
+        """`read_legacy_conformance` splits the record on `"\\n"`; `render_row`
+        refuses through `line_break_at`, which uses `str.splitlines()` —
+        **eleven** boundaries, not one. So a path cell holding `U+2028` sits
+        inside a single line for the reader and makes the canonical form
+        unwritable.
 
         Without the `except UnrenderableCell` the round trip raises straight out
-        of `read_conformance` and `perry-conform status` dies with a traceback
-        on a hand-edited record — on the tool the enforce gate calls. This test
+        of the reader and `perry-conform` dies with a traceback on a
+        hand-edited record — on the tool the enforce gate calls. This test
         exists because the RESULT for round 1 claimed nothing it added could be
         deleted with the suite unchanged, and a reviewer deleted this guard with
-        the suite unchanged. Asserts the exit code, not just the report: a crash
-        and a refusal both produce no declaration."""
-        p = Project()
-        p.marker().write_text(
-            "\n".join(C.HEADER) + "\n"
-            + f"| BOARD\u2028.md | {self.VER} | 2026-08-28 | declare |\n")
+        the suite unchanged. Asserts the exit code of BOTH surfaces that read
+        the file: a crash and a refusal both produce no declaration."""
+        p, keys, unreadable = self.plant(
+            f"| BOARD .md | {self.VER} | 2026-08-28 | declare |\n")
+        self.assertEqual(keys, [])
+        self.assertEqual(unreadable, 1,
+                         "the unwritable row was dropped instead of reported")
         rc, out, err = p.run(CONFORM, "status")
         self.assertEqual(rc, 0, f"status crashed on the record: {err}")
         self.assertIsInstance(out, dict, f"status printed no JSON: {out} {err}")
-        self.assertEqual(len(out["unreadable_rows"]), 1,
-                         "the unwritable row was dropped instead of reported")
-        rec = C.P.read_conformance(p.root)
-        self.assertEqual(rec.declarations, {})
+        self.assert_conversion_refuses(p, "a cell that cannot be written back")
 
-    # ── the harm the three shapes lead to ─────────────────────────────────
+    # ── the harm the shapes lead to ───────────────────────────────────────
 
     def test_a_nested_fence_row_is_not_laundered_by_the_next_declare(self):
         """The laundering came back with the nesting, so it is measured again
-        against the shape that reopened it. Same story as the backticked row
-        below: an ordinary declare of a DIFFERENT file, and the record quietly
-        canonicalises a claim nobody made."""
-        p = Project()
-        p.marker().write_text(
-            "\n".join(C.HEADER) + "\n"
-            + "~~~\n```\n"
-            + f"| BOARD.md | {self.VER} | 2026-08-28 | declare |\n"
-            + "```\n~~~\n")
-        rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
-        self.assertEqual(rc, 0, f"the control declare failed: {out} {err}")
-        text = p.marker().read_text()
-        self.assertIn("| .perry/hook.md |", text, "nothing was rewritten")
-        self.assertNotIn(f"| BOARD.md | {self.VER} |", text,
-                         "the fenced row was laundered into a canonical one")
-        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
-
-    def test_a_planted_row_is_not_laundered_by_the_next_declare(self):
-        """The second half of the measured defect, and the worse half: after
-        the rewrite the row is indistinguishable from one a person wrote.
+        against the shape that reopened it — and against the writer that can
+        still do it, which is the conversion `declare` runs before it writes.
 
         The declare here is of a DIFFERENT file — a legitimate one — because
         that is the whole point: the user does something entirely ordinary and
-        the record quietly canonicalises a claim they never made."""
-        p = Project()
-        p.marker().write_text(
-            "\n".join(C.HEADER) + "\n"
-            + f"| `BOARD.md` | {self.VER} | 2026-08-28 | declare |\n")
+        the record quietly canonicalises a claim nobody made."""
+        p, _, _ = self.plant(
+            "~~~\n```\n" + self.canonical() + "```\n~~~\n")
         rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
-        self.assertEqual(rc, 0, f"the control declare failed: {out} {err}")
-        text = p.marker().read_text()
-        self.assertIn("| .perry/hook.md |", text, "nothing was rewritten")
-        self.assertNotIn(f"| BOARD.md | {self.VER} |", text,
-                         "the decorated row was laundered into a canonical one")
+        self.assertEqual(rc, 1, f"the declare went through: {out} {err}")
+        self.assertIn("refused", out)
+        self.assertFalse(p.marker().exists(),
+                         "the fenced row was laundered into a store line")
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+        self.assertEqual(p.verdict(".perry/hook.md").state, C.UNDECLARED,
+                         "a record it refuses to convert must not be half "
+                         "converted with the new declaration on top")
+
+    def test_a_planted_row_is_not_laundered_by_the_next_declare(self):
+        """The second half of the measured defect, and the worse half: after
+        the rewrite the row is indistinguishable from one a person wrote."""
+        p, _, _ = self.plant(
+            f"| `BOARD.md` | {self.VER} | 2026-08-28 | declare |\n")
+        rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
+        self.assertEqual(rc, 1, f"the declare went through: {out} {err}")
+        self.assertFalse(p.marker().exists(),
+                         "the decorated row was laundered into a store line")
         self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
 
     # ── and the case that must NOT change ─────────────────────────────────
@@ -1478,17 +1579,24 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         """``strip("` ")`` never removed asterisks, so `| **BOARD.md** |` has
         always parsed to the decorated key `**BOARD.md**` — inert, because no
         key `state_files()` produces carries asterisks. TASK-226 filed it as an
-        observation and it stays one. This guard is about rows that reach a
+        observation and it stays one. The guard is about rows that reach a
         REAL key; widening it to reject asterisks too would be a different
         change, and the round trip deliberately lets this row through because
-        it is already exactly what `render` would write for that key."""
-        p = Project()
-        p.marker().write_text(
-            "\n".join(C.HEADER) + "\n"
-            + f"| **BOARD.md** | {self.VER} | 2026-08-28 | declare |\n")
-        rec = C.P.read_conformance(p.root)
-        self.assertEqual(list(rec.declarations), ["**BOARD.md**"])
-        self.assertEqual(rec.unreadable, [])
+        it is already exactly what the writer would write for that key.
+
+        **This is also what proves the file-level fixed point is not a
+        substitute for the row round trip.** This row survives the file check —
+        the file IS what `render_legacy` would write — so the only thing
+        standing between a decorated row and a real key is the round trip."""
+        p, keys, unreadable = self.plant(
+            f"| **BOARD.md** | {self.VER} | 2026-08-28 | declare |\n")
+        self.assertEqual(keys, ["**BOARD.md**"])
+        self.assertEqual(unreadable, 0)
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"the conversion refused a fixed point: {out}")
+        self.assertEqual(list(C.P.read_conformance(p.root).declarations),
+                         ["**BOARD.md**"],
+                         "the inert key stopped travelling across unchanged")
         self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED,
                          "the asterisked row started flipping a real verdict")
 
@@ -1497,23 +1605,32 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         Here so that a guard added ABOVE the header check — where it would
         report the header as an unreadable row — cannot land green."""
         p = Project()
-        p.marker().write_text(
+        p.legacy_marker().write_text(
             "# Perry conformance\n\n"
             "| **File** | **Shape version** | **Declared** | **Route** |\n"
             "|---|---|---|---|\n" + self.canonical())
-        rec = C.P.read_conformance(p.root)
+        rec = C.P.read_legacy_conformance(p.root)
         self.assertEqual(list(rec.declarations), ["BOARD.md"])
         self.assertEqual(rec.unreadable, [])
+        # And the conversion still refuses it, because a hand-edited header is
+        # not what the writer wrote — two independent reasons this file is not
+        # carried across, and neither one hides the other.
+        self.assert_conversion_refuses(p, "a hand-edited header")
 
     def test_perrys_own_record_is_read_without_a_single_refusal(self):
         """The guard is strict, and a strict guard that refuses the real file
-        would take the enforce gate down for this repository. Every row of the
-        shipped `.perry/conformance.md` must still read."""
+        would take the enforce gate down for this repository. Every line of the
+        shipped record must still read — and the markdown it was converted from
+        must be gone, because two registers for this fact is the defect
+        TASK-234 exists to remove."""
         rec = C.P.read_conformance(PERRY_HOME)
-        self.assertTrue(rec.exists)
+        self.assertTrue(rec.exists, "Perry's own record was never converted")
         self.assertEqual(rec.unreadable, [],
-                         "the guard refuses rows in Perry's own record")
+                         "the reader refuses lines in Perry's own record")
         self.assertGreater(len(rec.declarations), 0)
+        self.assertIsNone(rec.stray_legacy,
+                          "the markdown record is still on disk beside the "
+                          "store — two registers for the gating fact")
 
 
 # ── 11 · is_adopted still answers its own question ────────────────────────
