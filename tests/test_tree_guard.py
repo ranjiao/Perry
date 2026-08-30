@@ -236,16 +236,89 @@ class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
                         f"{out}")
                     self.assertIn("refusing to run", out)
 
+    def test_a_differently_cased_spelling_of_this_root_is_this_root(self):
+        """**The spelling the `cd … && pwd -P` fix did NOT close.**
 
-class TestTheDocstringSaysWhichMechanismShipped(unittest.TestCase):
-    """**A narrow pin, and narrow on purpose.**
+        `pwd -P` collapses symlinks; it does not canonicalise case, and
+        neither does `Path.resolve()`. So on a case-insensitive filesystem
+        `$ROOT` typed in another case `cd`s into the same real directory,
+        `perry-task` would compute the same differently-cased string and
+        write into that same real directory — inside the tree step 0 hashes —
+        and the resolved-string comparison refused it anyway. Round 3 of the
+        V4 review measured it as a surviving false refusal, of exactly the
+        class the resolution fix was raised to close.
 
-    "the docstring matches the code" is not mechanically checkable, and a test
-    claiming to check it would be the decoration this row keeps finding. This
-    checks exactly one proposition, and it is the one that went wrong.
+        `test A -ef B` asks the question the guard actually cares about —
+        same device, same inode — and answers it for every casing the
+        filesystem folds together, without asserting anything about
+        filesystems that do not fold them.
+
+        Skipped where the filesystem is case-SENSITIVE: there the two
+        spellings are two different directories and refusing is right.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_repo(Path(tmp) / "repo")
+            (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
+            flipped = root.with_name(root.name.upper())
+            if not (flipped.exists()
+                    and os.path.samefile(str(flipped), str(root))):
+                self.skipTest("this filesystem is case-sensitive, so "
+                              f"{flipped} is not {root}")
+            r = run_suite(root, CONTROL_MODULE, perry_project=str(flipped))
+            out = r.stdout + r.stderr
+            self.assertEqual(
+                r.returncode, 0,
+                f"{flipped} is the same directory as {root} on this "
+                f"filesystem — every un-rooted write would land inside the "
+                f"tree step 0 hashes — and the suite refused to run:\n{out}")
+            self.assertIn("nothing under", out)
+
+    def test_a_relative_perry_project_is_refused_and_says_why(self):
+        """**The regression the resolution fix introduced, decided rather
+        than inherited.**
+
+        At `8dfd25e` a raw string comparison refused `.` and `tests/..`.
+        `cd … && pwd -P` accepted them, and so would `-ef`, because this
+        script has already `cd`ed to `$ROOT` — so the fix newly certified as
+        "this tree" a value whose meaning is the reader's cwd. `perry-task`
+        resolves it against each subprocess's cwd, and tests routinely pass
+        `cwd=` a temp directory, so the two resolutions can disagree. Round 3
+        could not construct a live escape in this suite and named it a
+        residual; the answer taken here is that a value whose meaning depends
+        on who reads it cannot be certified by a check whose whole job is to
+        say where the writes will land.
+
+        Both halves are asserted: refused, AND the refusal explains that it
+        is the relativity and not a wrong directory — otherwise the reader of
+        `PERRY_PROJECT=.` inside `$ROOT` is told their own tree is somewhere
+        else.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_repo(Path(tmp) / "repo")
+            (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
+            for value in (".", "tests/.."):
+                with self.subTest(spelling=value):
+                    r = run_suite(root, CONTROL_MODULE, perry_project=value)
+                    out = r.stdout + r.stderr
+                    self.assertEqual(
+                        r.returncode, 2,
+                        f"PERRY_PROJECT={value!r} resolves against whichever "
+                        f"cwd reads it, and the run was allowed:\n{out}")
+                    self.assertIn("refusing to run", out)
+                    self.assertIn(
+                        "relative", out,
+                        f"the refusal must say it is the relativity that is "
+                        f"the problem — {value!r} inside $ROOT is not a "
+                        f"different tree:\n{out}")
+
+
+class TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun(
+        unittest.TestCase):
+    """**What this reads is two STRINGS in `tests/run`. It is not a test of
+    which mechanism shipped, and its old name said it was.**
 
     `tests/run` can close the ambient `$PERRY_PROJECT` case in one of two
-    mutually exclusive ways:
+    ways:
 
         RE-AIM   `export PERRY_PROJECT="$ROOT"`, so that every un-rooted write
                  lands in the tree the guard watches; or
@@ -255,30 +328,54 @@ class TestTheDocstringSaysWhichMechanismShipped(unittest.TestCase):
     "What it does NOT catch, said plainly" list still described the RE-AIM —
     tried, and rejected for reddening nine tests — as the thing that shipped.
     A reader consulting the one list whose job is to say what is uncovered was
-    told a mechanism was in place that was not.
+    told a mechanism was in place that was not. That is the rot this catches:
+    the source is edited from one mechanism to the other and the bullet is
+    left behind. It is cheap and it is worth having.
 
-    So: read which of the two `tests/run` implements, require exactly one, and
-    require the bullet that describes it to name that one and not the other.
-    It fails in both directions — rewriting the bullet back to the RE-AIM is
-    red, and switching `tests/run` to re-aim without touching the bullet is
-    red too.
+    **The claim is narrowed to that, because round 3 measured how much less
+    than "which mechanism shipped" it can see, and the gap is total.** Three
+    mutations of `tests/run` left both tests here GREEN while shipping the
+    other mechanism, and two rewrites of the bullet left them green while
+    describing the shipped one backwards:
 
-    **What it does not check:** every other sentence in either file, and
-    whether the description is any good. One class of rot, caught cheaply.
+    * `export "PERRY_PROJECT=$ROOT"` and `PERRY_PROJECT=…; export
+      PERRY_PROJECT` ahead of the refusal — a live re-aim that made the
+      refusal unreachable. `_implemented` now matches both spellings, so
+      these two are caught today; they are recorded because the class of
+      "a spelling the regex does not know" has no closed form.
+    * `unset PERRY_PROJECT` with the whole refusal left in the file under
+      `if false` — a dead refusal, still read as shipped, and **still not
+      caught**: no substring search can tell a reachable line from an
+      unreachable one.
+    * the bullet rewritten to assert the exact OPPOSITE behaviour, and the
+      bullet cut to the four words `**tests/run refuses.**` — both green,
+      because what is required is the substring `refuses` present and the
+      substring `export` absent, and nothing else.
+
+    **The behaviour tests are what establish which mechanism ships.**
+    `TestTheEnvironmentTheGuardCanSee` runs the real script and asserts on
+    `rc`; all three source mutations above are red there. So this class is a
+    vocabulary check on one bullet, the behaviour tests are the protection,
+    and nothing depends on this one saying more than it does.
     """
 
     BULLET = "- **A write to a DIFFERENT checkout.**"
 
-    #: (name, does `tests/run` implement it, word the bullet must use, word
-    #: the bullet must then NOT use). The two words are each other's forbidden
-    #: word, which is what makes the pair mutually exclusive in prose too.
+    #: Which of the two the source spells, read as text. Both are anchored at
+    #: a line that is not a comment: `tests/run` DISCUSSES both mechanisms at
+    #: length in comment blocks, and discussing is not shipping. The export
+    #: pattern deliberately stops at the variable name rather than requiring
+    #: `=`, so that `export "PERRY_PROJECT=$ROOT"` and a bare `export
+    #: PERRY_PROJECT` after an assignment are both seen — two spellings a
+    #: reviewer used to slip a live re-aim past the earlier pattern.
+    RE_AIM = r"""^[^#\n]*\bexport[ \t]+["']?PERRY_PROJECT\b"""
+    REFUSE = r"^[^#\n]*refusing to run: PERRY_PROJECT"
+
     def _implemented(self, run_src):
         found = []
-        # anchored at a line that is not a comment: `tests/run` DISCUSSES
-        # exporting in a comment block, and discussing is not shipping.
-        if re.search(r"^[^#\n]*\bexport[ \t]+PERRY_PROJECT=", run_src, re.M):
+        if re.search(self.RE_AIM, run_src, re.M):
             found.append("re-aim")
-        if "refusing to run: PERRY_PROJECT" in run_src:
+        if re.search(self.REFUSE, run_src, re.M):
             found.append("refuse")
         return found
 
@@ -292,31 +389,47 @@ class TestTheDocstringSaysWhichMechanismShipped(unittest.TestCase):
             f"occurrence(s) of {self.BULLET!r}) — fix that before trusting "
             f"any verdict here")
         start = doc.index(self.BULLET)
-        self.bullet = doc[start:doc.index("\n- **", start + 1)]
+        # The terminator is the next top-level bullet, and there may not be
+        # one: if this bullet is ever moved to the end of the list, `index`
+        # would raise ValueError and both tests here would ERROR instead of
+        # reporting anything. Run to the end of the docstring in that case.
+        end = doc.find("\n- **", start + 1)
+        self.bullet = doc[start:] if end == -1 else doc[start:end]
 
-    def test_tests_run_implements_exactly_one_of_the_two_mechanisms(self):
+    def test_tests_run_spells_exactly_one_of_the_two_mechanisms(self):
         found = self._implemented(self.run_src)
         self.assertEqual(
             len(found), 1,
-            f"tests/run implements {found or 'neither'} of the two ways to "
+            f"tests/run spells {found or 'neither'} of the two ways to "
             f"close the ambient PERRY_PROJECT case; the docstring can only "
             f"describe one of them, so this test cannot say which is right "
             f"until the source does")
 
-    def test_the_bullet_names_the_mechanism_that_shipped(self):
-        shipped = self._implemented(self.run_src)[0]
+    def test_the_bullet_uses_the_word_of_the_mechanism_the_source_spells(self):
+        found = self._implemented(self.run_src)
+        # Not `found[0]`. When the source spells neither, the reader of this
+        # test deserves the sentence above and not an IndexError from the
+        # subscript — a test whose whole value is what it prints must not
+        # crash on the way to printing it.
+        self.assertEqual(
+            len(found), 1,
+            f"tests/run spells {found or 'neither'} of the two mechanisms, "
+            f"so there is no single word the bullet could be required to "
+            f"use; fix the source, or the sibling test above will tell you "
+            f"the same thing")
+        shipped = found[0]
         says, must_not = {"refuse": ("refuses", "export"),
                           "re-aim": ("export", "refuses")}[shipped]
         low = self.bullet.lower()
         self.assertIn(
             says, low,
-            f"tests/run {shipped}s, and tree_guard.py's '{self.BULLET}' "
+            f"tests/run spells {shipped}, and tree_guard.py's '{self.BULLET}' "
             f"bullet never says so:\n\n{self.bullet}")
         self.assertNotIn(
             must_not, low,
-            f"tests/run {shipped}s, and the bullet still describes the other "
-            f"mechanism — the one that was tried and withdrawn — as the thing "
-            f"that ships:\n\n{self.bullet}")
+            f"tests/run spells {shipped}, and the bullet still describes the "
+            f"other mechanism — the one that was tried and withdrawn — as the "
+            f"thing that ships:\n\n{self.bullet}")
 
 
 class TestThePlantedWrite(unittest.TestCase):
@@ -512,12 +625,14 @@ class TestTheManifest(unittest.TestCase):
         """The set is DERIVED from the tree, and no count is written down.
 
         This docstring and `tree_guard.manifest`'s both said the repository
-        ships **eleven** executables. `git ls-tree -r HEAD | awk '$1=="100755"'
-        | wc -l` says 24, 18 of them under `bin/`; `find . -type f -perm -u+x
-        -not -path './.git/*' | wc -l` agrees. A number in a comment is a claim
-        nothing checks, and replacing 11 with 24 would be the same defect one
-        value later — so this asserts the SHAPE of the set instead and lets the
-        size be whatever it is on the day.
+        ships **eleven** executables, and the tree held rather more. A number
+        in a comment is a claim nothing checks, and writing today's count here
+        instead would be the same defect one value later — so no count is
+        written here either, in prose or in an assertion. This asserts the
+        SHAPE of the set and lets the size be whatever it is on the day; if
+        you want the number, `git ls-tree -r HEAD | awk '$1=="100755"' | wc -l`
+        and `find . -type f -perm -u+x -not -path './.git/*' | wc -l` are the
+        two instruments, and they agree.
         """
         m = TG.manifest(PERRY_HOME)
         execs = {rel for rel, tok in m.items()

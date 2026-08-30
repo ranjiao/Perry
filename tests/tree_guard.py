@@ -78,6 +78,33 @@ that the next reader inherits the list rather than rediscovering it.
   legitimately appears beside any Python file.
 - **A file named `.DS_Store`, at any depth.** Written by the Finder, not by a
   test, and it appears in whatever directory a human opened.
+- **EVERYTHING under a directory named `.claude` or `.gstack`, at any depth —
+  and the directory's own creation.** This is the widest hole on this list;
+  `.DS_Store` and `__pycache__` above are strictly narrower. Three separate
+  scopes, each measured with `compare()` returning `[]` while the control
+  writes beside them were reported normally:
+  1. *A directory that appears mid-run is invisible, and so is the fact that
+     it appeared.* `.claude/worktrees/agent-1/f` created between snapshot and
+     verify reports nothing — including no `+ .claude   (created)`, because
+     `os.walk`'s `dirnames` are filtered before the loop that records
+     directory entries.
+  2. *A write inside an ALREADY-EXISTING ignored directory is invisible too.*
+     With `.claude/` present at snapshot time it is not in the manifest at
+     all, so a test rewriting `.claude/settings.local.json` — the agent
+     harness's own permission allowlist — and creating `.claude/hooks.json`
+     produces an empty report. This is the scope that matters most and it is
+     the one the "a subagent worktree appears mid-run" story does not convey.
+  3. *The match is on the NAME, at any depth, not on the position.* A
+     directory called `.claude` or `.gstack` anywhere is skipped whole:
+     `perry/evidence/.claude/TASK-0NN-result.md` and `perry/.gstack/
+     tasks.jsonl` are as invisible as `./.claude/`. The same writes into
+     `.claudex/` are reported, so it is the name match and not the depth.
+  It is taken knowingly rather than by accident — the harness creates
+  `.claude` itself, from outside the run and in the middle of it, so ignoring
+  only `.claude/worktrees` would leave `+ .claude   (created)` red in a
+  worktree that had none (see *What is ignored*, below). Nothing is tracked
+  under either directory today; `git ls-files .claude .gstack` is empty, and
+  the day it is not, this is the bullet to re-read.
 - **A write that is reverted before the suite ends.** Two writes that cancel
   are one tree.
 

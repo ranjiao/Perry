@@ -61,24 +61,64 @@ fi
 # which `cd "$ROOT"` above just set) and "equal to $ROOT". Both land inside the
 # tree step 0 hashes.
 #
-# **"Equal" has to mean what `perry-task` means by it.** `bin/perry-task` does
-# `Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve()` — symlinks
-# collapsed, a trailing slash gone. Comparing the raw string against `pwd -P`
-# refused two environments that are in fact this very tree: a /tmp symlink
-# alias of $ROOT, and $ROOT with a trailing slash. Both would have written
-# inside the tree step 0 hashes, and both were turned away. That is a false
-# refusal in a guard whose whole argument is that refusing costs nothing, so
-# the comparison resolves first. `cd … && pwd -P` is the shell spelling of
-# `.resolve()`. A value naming nothing resolves to the empty string and is
-# refused — correctly, because `perry-task` would go on to create it.
+# **"Equal" has to mean the same DIRECTORY, not the same string.** The first
+# version compared the raw string against `pwd -P` and refused two environments
+# that are in fact this very tree: a /tmp symlink alias of $ROOT, and $ROOT
+# with a trailing slash. Both would have written inside the tree step 0 hashes,
+# and both were turned away — a false refusal in a guard whose whole argument
+# is that refusing costs nothing. Resolving with `cd … && pwd -P` closed those
+# two and left a third: `pwd -P` collapses symlinks but does NOT canonicalise
+# case, and neither does `Path.resolve()`, so on this case-insensitive
+# filesystem $ROOT spelled in another case `cd`s into the same real directory
+# and was still refused (round-3 V4, sharp edge A).
+#
+# So the comparison is `test A -ef B` — same device, same inode. That is the
+# question actually being asked: would an un-rooted write land inside the tree
+# step 0 hashes? It answers yes for the symlink alias, the trailing slash, the
+# doubled slash, `$ROOT/.`, `$ROOT/tests/..` and any casing the filesystem
+# resolves to $ROOT, and no for everything else. A path that does not exist has
+# no inode and is refused — correctly, because `perry-task` would go on to
+# create it. `PERRY_PROJECT_REAL` is still computed, for the message only.
+#
+# **A RELATIVE value is refused before the comparison is even reached, and
+# that is a decision rather than a side effect.** `cd … && pwd -P` accepted `.`
+# and `tests/..`, which the raw comparison at 8dfd25e had refused; so did
+# `-ef`, since this script has already `cd`ed to $ROOT. Accepting them is
+# wrong: a relative PERRY_PROJECT names a different directory to every process
+# that reads it. This script would resolve it against ITS cwd; `perry-task`
+# resolves it against each subprocess's, and tests routinely pass `cwd=` a temp
+# directory. A value this script certifies as "this tree" is therefore a value
+# `perry-task` may read as another tree, which is the exact hazard step 0a
+# exists to close. Refusing costs a `env -u PERRY_PROJECT` and removes the
+# whole class.
 #
 # What this does NOT reach is a test that builds its own `env=` dict naming a
 # third directory. No tree comparison can; it is declared in tree_guard.py.
 PERRY_PROJECT_REAL=""
+perry_project_verdict="ok"
 if [ -n "${PERRY_PROJECT:-}" ]; then
   PERRY_PROJECT_REAL="$(cd "$PERRY_PROJECT" 2>/dev/null && pwd -P || true)"
+  case "$PERRY_PROJECT" in
+    /*) [ "$PERRY_PROJECT" -ef "$ROOT" ] || perry_project_verdict="elsewhere" ;;
+    *)  perry_project_verdict="relative" ;;
+  esac
 fi
-if [ -n "${PERRY_PROJECT:-}" ] && [ "$PERRY_PROJECT_REAL" != "$ROOT" ]; then
+if [ "$perry_project_verdict" = "relative" ]; then
+  printf '\n\033[31m✗ refusing to run: PERRY_PROJECT is a relative path\033[0m\n'
+  echo "    PERRY_PROJECT = $PERRY_PROJECT"
+  echo "    tests/run     = $ROOT"
+  echo
+  echo "  A relative PERRY_PROJECT names a different directory to every process"
+  echo "  that reads it. This script would resolve it against its own cwd;"
+  echo "  perry-task resolves it against each subprocess's, and tests routinely"
+  echo "  pass cwd= a temp directory. So a relative value this script certified"
+  echo "  as this tree is one perry-task may read as another tree — which is"
+  echo "  the hazard this check exists to close (TASK-249)."
+  echo
+  echo "  Run it as:  env -u PERRY_PROJECT bash tests/run"
+  exit 2
+fi
+if [ "$perry_project_verdict" = "elsewhere" ]; then
   printf '\n\033[31m✗ refusing to run: PERRY_PROJECT points somewhere else\033[0m\n'
   echo "    PERRY_PROJECT = $PERRY_PROJECT"
   if [ -n "$PERRY_PROJECT_REAL" ] && [ "$PERRY_PROJECT_REAL" != "$PERRY_PROJECT" ]; then
