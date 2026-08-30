@@ -273,7 +273,7 @@ the field means one thing — `substituted: 0` on all seven, including the sweep
 
 ## 4. The tests, and every control shown able to fail
 
-`tests/test_register_substitution.py` — **25 tests**, and the module reuses
+`tests/test_register_substitution.py` — **26 tests**, and the module reuses
 `test_register_store_invariant`'s `Fixture`, `build_board` and `REGISTERS` so
 the two rows cannot come to disagree about what a register is.
 
@@ -301,6 +301,7 @@ class of its own here and it runs **before** any behaviour.
 | "the identity really does repeat" | `test_one_of_a_duplicated_pair_deleted_by_hand_is_reported` asserts `len({identity(r)}) == 2` over 3 records first. Under set subtraction the answer is 0 and the test is red; MS4 confirms. |
 | "the board must derive FEWER records" | `test_a_shrink_is_still_refused_on_the_same_board` asserts `assertLess(derived, stored)` before running either command, so the shrink half cannot pass on a board where no shrink is staged. |
 | "the count is preserved" (zh) | asserted on `S.ask_records` before the write, so the localized test cannot silently become a shrink test. |
+| "a substitution wider than the printed cap is staged" | `test_seven_losses_are_counted_seven_and_listed_five` asserts `assertGreater(staged.n, SUBSTITUTION_RECORDS_SHOWN)` **before** anything about the message, and asserts the register is nine rows first. On a four-row board the whole test dies on the control. This is the control the first round of this module did not have, and its absence let three display-path mutations survive (§ 5). |
 | "the staged board is still a readable table" | `test_the_staged_board_is_still_a_readable_table_on_every_register` — a filler that broke the shape would be refused for a reason that has nothing to do with this row. |
 
 ### What the 25 cover
@@ -359,7 +360,43 @@ exit`.
 | MS8 | `identity = REGISTER_IDENTITY[key]` (in `substituted_away`) | `lambda r: 0` — every record has the same identity | **RED** 20 | **12 named** |
 | MS9 | the `--dry-run` print | `if False:` | **RED** 1 | `test_a_dry_run_previews_the_report_and_writes_nothing` |
 
-**Ten of ten died. None survived.** Every verdict above is carried by at least
+### The three the V4 review found alive, and the test that kills them
+
+The first round of mutations missed a whole branch. `SUBSTITUTION_RECORDS_SHOWN`
+is 5 and every board in the module staged at most **3** losses, so the
+`len(lost) > 5` path was never reached and three mutations inside it survived —
+including the one whose docstring names this row's own failure mode.
+
+| # | anchor | mutation | first round | with `WIDE_INTAKE` |
+|---|---|---|---|---|
+| **MS10** | `f"⚠ {len(lost)} canonical {key} record(s) {verb} this write, and the "` | `{len(shown)}` — **the report announces 5 destroyed records when 10 died** | **GREEN — SURVIVED** | **RED** · `test_seven_losses_are_counted_seven_and_listed_five` |
+| MS11 | the `", and {…} more"` tail | `tail = ""` | **GREEN — SURVIVED** | **RED** · same test |
+| MS12 | `verb = "would not survive" if dry_run else "did not survive"` | always `"would not survive"` | **GREEN — SURVIVED** | **RED** · same test |
+
+I re-measured the survivals myself rather than taking them: each of the three
+applied to `980c830` and `test_register_substitution` run alone gives
+**`Ran 25 tests … OK`** on all three, `bin/perry-task` restored and md5-verified
+between each. The reviewer measured the same three green across a wider module
+set (71 tests).
+
+`WIDE_INTAKE` is a nine-row `## Intake`, so seven records can be destroyed in
+one write: five named, two summarised, **seven counted**. The test asserts the
+count is 7 and not 5, that exactly `SUBSTITUTION_RECORDS_SHOWN` identities are
+named, that the tail says `and 2 more`, and that a real write is in the past
+tense — with a control, `assertGreater(staged.n, SUBSTITUTION_RECORDS_SHOWN)`,
+so a board narrower than the cap dies on the control instead of passing.
+
+The shipped code was right the whole time and its own reproduction measured it
+in exactly that regime — 10 destroyed, `⚠ 10 canonical intake record(s)`, `… and
+5 more`. What was missing was the regression test, and it is four assertions
+wide.
+
+Second harness run, on `b96ab35` in its own throwaway git repo:
+**control 265 tests, OK, 73.0 s**; MS10, MS11 and MS12 each **RED with one
+named failure**, `test_seven_losses_are_counted_seven_and_listed_five`, and
+`tree clean at exit`.
+
+**Thirteen of thirteen died. None survived.** Every verdict above is carried by at least
 one **named behavioural** test that drives `perry-task` through the CLI on a
 board where a substitution is possible — not by an assertion about a constant,
 which is the failure mode TASK-203's `MR` demonstrated at round 4.
@@ -375,8 +412,10 @@ so `bash tests/run`'s four state writes (TASK-249, not mine) landed in scratch.
 |---|---|---|---|
 | `bash tests/run` | `main` @ `49d83fc`, `bin/perry-task` md5 `377dec1cfb91e44189679055af159b50` | 2026-08-30 **09:07–09:13**, load ~10 | **103 modules · 3098 tests · 341.5 s · 8 workers · 3 module(s) red, 4 failures** |
 | `bash tests/run` | this branch @ `980c830`, md5 `23e26fc319012fa1dadfe3e1ce361615` | 2026-08-30 **09:31–09:36**, load ~25 (two other worktrees running) | **104 modules · 3123 tests · 287.9 s · 8 workers · 3 module(s) red, 4 failures** |
-| `python3 -m unittest` (6 modules, sequential) | `m_tree` = `980c830` | 2026-08-30 **09:18** | **264 tests, OK, 90.2 s** — the mutation control |
+| `python3 -m unittest` (6 modules, sequential) | `m_tree` = `980c830` | 2026-08-30 **09:18** | **264 tests, OK, 90.2 s** — the first mutation control |
+| `python3 -m unittest` (6 modules, sequential) | `m_tree` = `b96ab35` | 2026-08-30 **10:10** | **265 tests, OK, 73.0 s** — the second mutation control |
 | `python3 -m unittest test_register_substitution` | `980c830` | 2026-08-30 **09:10** | **25 tests, OK, 10.0 s** |
+| `python3 -m unittest test_register_substitution` | `b96ab35` (with the V4 review's regression test) | 2026-08-30 **10:04** | **26 tests, OK, 17.8 s** |
 
 **103 → 104 modules, 3098 → 3123 tests: +1 module, +25 tests, and the red set is
 identical name for name.**
@@ -399,19 +438,48 @@ same committed `perry/`, so the comparison is like for like.
 
 ## 7. What I could not close
 
+0. **THE COST OF THE ENDING I CHOSE: an innocent typo fix prints a data-loss
+   warning.** This is the caveat § 7 omitted in the first draft, and the V4
+   reviewer built the case by construction — `lgoin` → `login` in a Request
+   cell, then any register-touching command: rc 0, the fix persists, and the
+   edit is **set-level identical to a substitution**, which is exactly the
+   argument in § 1(c) confirmed rather than asserted. Under REPORT, that
+   correcting of a spelling mistake now prints
+   `⚠ 1 canonical intake record(s) did not survive this write`.
+
+   **That is correct behaviour and a reader has to be told so in advance.** The
+   information that would separate a typo fix from a row swap was never written
+   down — on `## Intake` a record's identity IS its text — so Perry cannot know
+   which one it just saw, and the alternative was a refusal that hard-blocks the
+   typo fix and names `intake-write --from-board` as the remedy for a spelling
+   correction. The noise is the price of not repeating TASK-095 round 5. It is
+   bounded: the two id-keyed registers are unaffected, because editing the text
+   of a `USER-` or `RX-` row leaves its identity alone and reports nothing.
+
+   The follow-up worth its own row is narrowing it, not removing it: an intake
+   record that carries a minted key would let a text edit at a stable key be
+   told apart from a swap — which is § 7.2's question and § 1(a)'s ending
+   arriving by the back door, and it is a decision, not a patch.
+
 1. **`perry-lint`'s drift count still falls to zero across a substitution.** The
    row's literal property — *"the drift report must not decrease while canonical
    records are being destroyed"* — holds in the form stated in § 2 (the fall is
    now accompanied, and the number the write prints equals the number lost) and
-   **does not hold literally**. Making lint itself carry the loss forward needs
-   a durable record of "N records were destroyed and nobody has acknowledged
-   it", and every version of that I sketched has the same unsolved half: no
-   clearing condition. A warning that can never be cleared is a warning
-   everybody learns to skip, which is the same failure in a slower form. The
-   event log now carries the records (`substituted`), so the raw material for
-   such a check exists; the surface that would let it be acknowledged does not,
-   and inventing one inside this row would be the move this row's history warns
-   against. **This is the honest gap and it deserves its own row.**
+   **does not hold literally**. The V4 reviewer's own words for why that is an
+   acceptable close, carried here verbatim because they are better than mine:
+
+   > *the literal wording would require lint to report a disagreement that no
+   > longer exists. The defect filed was the SILENCE, and that is closed.*
+
+   Making lint itself carry the loss forward needs a durable record of "N
+   records were destroyed and nobody has acknowledged it", and every version of
+   that I sketched has the same unsolved half: no clearing condition. A warning
+   that can never be cleared is a warning everybody learns to skip, which is the
+   same failure in a slower form. The event log now carries the records
+   (`substituted`), so the raw material for such a check exists; the surface
+   that would let it be acknowledged does not, and inventing one inside this row
+   would be the move this row's history warns against. **This is the honest gap
+   and it deserves its own row.**
 
 2. **The fourth ending — "a register write must not honour board rows it did
    not address" — is not evaluated, only argued down** (§ 1). It is the ending
@@ -469,5 +537,5 @@ same committed `perry/`, so the comparison is like for like.
 | file | what changed |
 |---|---|
 | `bin/perry-task` | `REGISTER_IDENTITY`, `SUBSTITUTION_RECORDS_SHOWN`, `substituted_away()`, `substitution_report()`; `carry_forward_is_addressable` reads the shared identity; `register_change` returns the losses; `commit()` prints, plans and records them. **`refuse_to_shrink` and `declared_removal` are byte-identical to `main`.** |
-| `tests/test_register_substitution.py` | new — 25 tests |
+| `tests/test_register_substitution.py` | new — 26 tests |
 | `perry/evidence/2026-08/TASK-243-result.md` | this file |
