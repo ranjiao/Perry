@@ -580,7 +580,7 @@ def record_diff(authored: str, canonical: str) -> str:
     return "\n".join(shown)
 
 
-def migrate_record(project_root: Path) -> dict | None:
+def migrate_record(project_root: Path, *, root_arg: str | None) -> dict | None:
     """`.perry/conformance.md` → `.perry/conformance.jsonl`, once, losslessly.
 
     `None` when there is nothing to do: the store already exists, or the
@@ -617,7 +617,24 @@ def migrate_record(project_root: Path) -> dict | None:
     the wrong rule there: this is a one-way door run once, the consequence of
     refusing is *look at your file*, and the consequence of proceeding is a
     laundered declaration nothing downstream can tell from a real one.
+
+    **`root_arg` is required, and it is required because of what happened when
+    it was absent.** Both refusals below end in `perry-conform migrate` — the
+    wall standard `message_for` states in this same file. Round 3 rewrote those
+    sentences under that banner and named the command WITHOUT the root, while
+    `message_for` forty lines up propagates it through `_root_flag()`. A reader
+    routed here by `perry-conform migrate --root /their/project` copied the
+    command they were handed, and got `rc=0` and *"nothing to convert —
+    `.perry/conformance.jsonl` is already this project's record (or it has
+    none)"* — about whatever project they were standing in, while their own
+    record sat unconverted and still gating every write. Not an error: a
+    success-shaped silence, which is the worst thing a refusal whose whole job
+    is to hand back a working command can do. So the parameter has no default:
+    a caller that has a root must pass it, and a caller that has none must say
+    so. Found by the V4 round 3 reviewer, who ran the command the refusal
+    named, from where the reader was standing.
     """
+    r = _root_flag(root_arg)
     root = Path(project_root)
     store = root / P.CONFORMANCE_FILE
     legacy = root / P.CONFORMANCE_LEGACY_FILE
@@ -631,8 +648,12 @@ def migrate_record(project_root: Path) -> dict | None:
             f"{len(record.unreadable)} row(s) this reader will not honour, and "
             f"converting the file would delete them without asking:\n"
             + "\n".join(f"    line {n}: {t}" for n, t in record.unreadable)
-            + f"\nFix or delete each row by hand, then run `perry-conform "
-              f"migrate` again. **Nothing was written.**")
+            + f"\nFix or delete each row by hand, then run:\n"
+              f"    perry-conform migrate{r}\n"
+              f"A row that is documentation — the record's own format, shown "
+              f"inside a fence — has to come out for the conversion and can go "
+              f"back into the file it belongs in afterwards; the store does "
+              f"not carry prose. **Nothing was written.**")
     canonical = render_legacy(record.declarations)
     if canonical != text:
         raise LegacyRecordRefused(
@@ -648,7 +669,7 @@ def migrate_record(project_root: Path) -> dict | None:
             f"`+` line is one to restore:\n\n"
             + record_diff(text, canonical)
             + f"\n\nFix those lines, then run:\n"
-              f"    perry-conform migrate\n"
+              f"    perry-conform migrate{r}\n"
               f"**Nothing was written.**")
     # **Provenance stays empty on every converted declaration.** The markdown
     # held four columns and none of them was a writer, a moment or a run;
@@ -665,7 +686,8 @@ def migrate_record(project_root: Path) -> dict | None:
 
 def declare(project_root: Path, state_root: Path, keys: list[str],
             schema: dict, dry_run: bool = False, route: str = "declare",
-            writer: str = "perry-conform declare", run: str = "") -> dict:
+            writer: str = "perry-conform declare", run: str = "",
+            *, root_arg: str | None) -> dict:
     """Record the user's declaration for each named file.
 
     `route` is how the declaration was made — `declare` for this command,
@@ -687,7 +709,8 @@ def declare(project_root: Path, state_root: Path, keys: list[str],
     without becoming a second one; `migrate_record` is a no-op on every project
     that has already converted and on every project that never had a markdown
     record, which between them is all of them after this runs once."""
-    converted = migrate_record(project_root) if not dry_run else None
+    converted = (migrate_record(project_root, root_arg=root_arg)
+                 if not dry_run else None)
     record = P.read_conformance(project_root)
     now = shape_version(schema)
     stamped_at = lib.event_stamp()
@@ -856,7 +879,7 @@ def main(argv: list[str]) -> int:
                     "conversion carries the WHOLE record across or refuses; a "
                     "half-converted record would be two registers for the fact "
                     "that gates every write")
-            moved = migrate_record(project_root)
+            moved = migrate_record(project_root, root_arg=root_arg)
             if as_json:
                 print(json.dumps({"converted": moved,
                                   "record": str(project_root / P.CONFORMANCE_FILE)},
@@ -883,7 +906,8 @@ def main(argv: list[str]) -> int:
                 "implicitly: ADR-004 § 4 makes the declaration the user's act, "
                 "so a tool that stamped it on its own initiative would be the "
                 "violation this marker exists to prevent")
-        result = declare(project_root, state_root, keys, schema, dry_run)
+        result = declare(project_root, state_root, keys, schema, dry_run,
+                         root_arg=root_arg)
         if as_json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:

@@ -1817,7 +1817,8 @@ def update_expected_after(point: Path, rel: str, path: Path) -> None:
     write_atomic(point, json.dumps(payload, ensure_ascii=False, indent=1))
 
 
-def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
+def apply_plan(plan: Plan, schema: dict, declare: bool = True,
+               root_arg: str | None = None) -> dict:
     """Write the plan's post-images, then declare what landed. In that order.
 
     Every write is `write_text(edit.after)` — the exact bytes the dry run
@@ -1900,6 +1901,15 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             out = C.declare(plan.project_root, plan.state_root,
                             [e.key for e in applied if e.key != "tasks.jsonl"],
                             schema, route="migrate",
+                            # **The root travels into the refusal too**
+                            # (TASK-234 round 4). `declare` converts the
+                            # markdown record first, and that step can refuse
+                            # with a command for the reader to run. Reached
+                            # from here the reader typed `perry-migrate apply
+                            # --root X`, so the command they are handed has to
+                            # say `--root X` or it acts on whatever project
+                            # they happen to be standing in.
+                            root_arg=root_arg,
                             # **The run travels with the declaration**
                             # (TASK-234). `route: migrate` says a migration
                             # made it; `run` says WHICH ONE, and the id is also
@@ -2206,7 +2216,8 @@ def main(argv: list[str]) -> int:
             # must describe the same source bytes the replacements consume.
             with lib.project_lock(state_root, refused=Refused):
                 plan = plan_project(project_root, state_root, schema, only or None)
-                applied = apply_plan(plan, schema, declare=not no_declare)
+                applied = apply_plan(plan, schema, declare=not no_declare,
+                                     root_arg=root_arg)
         else:
             plan = plan_project(project_root, state_root, schema, only or None)
             applied = None
