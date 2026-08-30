@@ -120,6 +120,7 @@
 | TASK-251 | tests/run's output offers THREE numbers that all look like a failure count, and two of the three are wrong | Coding Agent | not_started | Startable. The live instance is test_diagnose's queue-reconcile test, which prints without a FAIL: prefix on this repository today. Start from evidence/2026-08/TASK-239-v4-review.md, which carries the mechanism and the reviewer's account of walking into it itself. Note the shape of the fix: two numbers of independent origin agreeing is what TASK-230 shipped for --ids after the same class of accounting error, and it is the pattern that works here too. | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-253 | bin/perry-tasks accepts --dry-run and writes anyway | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-254 | bin/perry-lint hands back 22 commands and every one of them drops the root | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-255 | Perry never shell-quotes a path into a command it hands a reader — shlex appears nowhere in bin/ or viewer/ | Coding Agent | not_started | — | — | V4 | TASK-234 | main |  |  |  |  |  |  |
 
 ## P2
 
