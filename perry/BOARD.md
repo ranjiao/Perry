@@ -123,6 +123,7 @@
 | TASK-255 | Perry never shell-quotes a path into a command it hands a reader — shlex appears nowhere in bin/ or viewer/ | Coding Agent | not_started | — | — | V4 | TASK-234 | main |  |  |  |  |  |  |
 | TASK-256 | The mutation harness's md5 restore-check is circular: it compares the file to bytes it just wrote | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-257 | The ignored-name bullet pin asserts a substring, not a bullet, and one satisfying string blinds the guard to BOARD.md | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-258 | tests/test_tree_guard.py copies the LIVE repository, so any concurrent write reddens it | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
