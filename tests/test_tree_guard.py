@@ -539,6 +539,7 @@ class TestTheManifest(unittest.TestCase):
             "shipped bin/ scripts carrying no executable bit")
         # And the ones outside `bin/` that the manifest docstring describes.
         for rel in ("setup", "tests/run", "tests/parallel",
+                    "tests/merge-check",
                     "templates/knowledge-base/bin/kb-lint",
                     "templates/ops/bin/deliverable-lint"):
             self.assertIn(rel, execs,

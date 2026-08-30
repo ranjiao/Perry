@@ -1,7 +1,9 @@
 # TASK-249 — result
 
 > Branch `coding/task-249-suite-writes`, forked from `main` at `49d83fc`.
-> Three commits: the fix and the guard, the guard's own test, this file.
+> The fix and the guard, the guard's own test, this file — and, after V4
+> round 2, one more commit closing the three defects that round found while
+> PASSing the row (§ 8).
 >
 > Everything destructive in here was done on a **copy** of the repository in a
 > scratch directory — the reproduction, the seven mutations of the guard, and
@@ -342,6 +344,11 @@ was pinned by NAME and could be defeated by CONSEQUENCE.**
    (checked: zero hits each). An ignore entry that matches nothing is a blind
    spot held open for no benefit.
 
+   **Round 2 was right that this reasoning contradicted the `.git` bullet nine
+   lines above it, and § 8.4 replaces both with one rule.** Under that rule the
+   deletion stands and `.claude` and `.gstack` join the list; `IGNORE_DIRS` is
+   four names now, and the equality pin moved with it in the same commit.
+
 2. **File mode was not recorded.** `chmod +x` on a shipped script changes what
    the tree is without changing a byte of it, and this repository ships
    executables whose bit is load-bearing. The token now carries the permission
@@ -363,6 +370,12 @@ was pinned by NAME and could be defeated by CONSEQUENCE.**
    step 0 hashes. A companion test asserts `PERRY_PROJECT == $ROOT` is still
    **allowed**, so the refusal cannot be satisfied by refusing everything.
    M11.
+
+   **Two things about this were wrong and § 8 fixes them.** The comparison was
+   raw-string against `pwd -P` while `perry-task` `.resolve()`s, so three
+   spellings of *this very tree* were refused (§ 8.3); and the module docstring
+   went on describing the re-aim — the approach withdrawn in the paragraph
+   above — as the thing that shipped (§ 8.1).
 
 **And one thing the project had already written down.**
 `tests/live_state_expectations.py § _tool_reads_this_project` decides which
@@ -409,11 +422,15 @@ Ordered by how likely each is to matter.
    index and ref mtimes move under any concurrent git command, including a
    reviewer's `git log` in another terminal, and a guard that is red for
    reasons the reader did not cause is a guard that gets switched off.
-5. **`__pycache__`, `*.pyc` / `*.pyo` and `.DS_Store` are ignored at any
-   depth.** Deliberate and unbounded: bytecode legitimately appears beside any
-   Python file, and the Finder writes `.DS_Store` into whatever directory a
-   human opened. This is the residue of the ignore list after § 6 shrank it,
-   and all three lists are now pinned twice — by name and by consequence.
+5. **`__pycache__`, `*.pyc` / `*.pyo`, `.DS_Store`, `.claude` and `.gstack`
+   are ignored at any depth.** Deliberate and unbounded: bytecode legitimately
+   appears beside any Python file, the Finder writes `.DS_Store` into whatever
+   directory a human opened, and `.claude`/`.gstack` belong to the agent
+   harness rather than to the suite (§ 8.4). The `.claude` hole is the widest
+   of the five — a test writing `.claude/settings.local.json` would go unseen —
+   and it is taken knowingly, because the harness creates that directory from
+   outside the run. All three lists are pinned twice, by name and by
+   consequence.
 6. **A write that is reverted before the suite ends is two writes and one
    tree.** The guard compares ends, not the path between them.
 7. **The un-rooted `perry-task` invocations that only READ are left alone.**
@@ -437,3 +454,185 @@ Ordered by how likely each is to matter.
 11. **I did not touch `perry/BOARD.md` or `perry/tasks.jsonl`.** The PMO owns
     them. The flake in § 5.3 and the falsified sentence in § 6 are reported
     here rather than filed for the same reason.
+
+## 8. Round 2 V4 — PASS, three defects, and two decisions asked for
+
+Round 2 (`perry/evidence/2026-08/TASK-249-round2-v4-review.md`) PASSed the row,
+re-derived twelve mutations of its own at 12/12 red, and blocked the merge on
+one documentation defect. It named three more things to fix or file, and two
+to decide either way. All of them are closed here; nothing is deferred.
+
+**Everything below was measured on this machine in this session.** Where round
+2 quotes a figure I re-ran it rather than repeating it, and where my number
+differs from a number I was handed, mine is the one in the table with the
+instrument beside it.
+
+### 8.1 Defect 1 — a withdrawn approach described as shipped (the blocker)
+
+`tests/tree_guard.py:60-67` said, inside **"What it does NOT catch, said
+plainly"**:
+
+> **`tests/run` closes the ambient case** by exporting `PERRY_PROJECT="$ROOT"`
+> for the whole run, which pins every un-rooted write into the tree the guard
+> is watching rather than letting it escape to a neighbour.
+
+`tests/run` does not do that. It refuses — as `tests/run:52-58` and
+`tests/test_tree_guard.py:136-139` both say, and as § 6 item 3 above says. The
+export was tried and rejected. So the file's one list whose entire job is to
+tell the next reader what is *uncovered* told them a mechanism was in place
+that was not, and named a mechanism with different properties from the one
+that shipped: a reader who believed it would conclude that a foreign
+`$PERRY_PROJECT` is silently re-aimed and safe, when the suite in fact stops
+dead at rc=2.
+
+The bullet now describes the refusal. A new section, *Why a refusal and not a
+re-aim*, carries the reason the other approach lost — **re-measured, not
+quoted**, on a `tar` copy of this branch:
+
+    $ env -u PERRY_PROJECT python3 -m unittest discover \
+          -s tests -p test_config_store_readers.py
+      Ran 44 tests in 1.077s
+      OK
+
+    $ PERRY_PROJECT="$COPY" python3 -m unittest discover \
+          -s tests -p test_config_store_readers.py
+      Ran 44 tests in 1.519s
+      FAILED (failures=7, errors=2)
+
+**Nine**, and the figure § 6 carried is confirmed — as 7 failures plus 2
+errors, which is worth saying, because `grep -c '^FAIL:'` on that output
+returns 7. The exported run also wrote `.perry/config.md` into the copy on its
+way past, which is the mechanism in miniature.
+
+**And it is pinned, narrowly.** "The docstring matches the code" is not
+mechanically checkable, and a test claiming to check it would be the
+decoration this row keeps finding. `TestTheDocstringSaysWhichMechanismShipped`
+checks exactly one proposition instead: closing the ambient case has two
+mutually exclusive implementations — RE-AIM (`export PERRY_PROJECT="$ROOT"` on
+a non-comment line) and REFUSE (the `refusing to run: PERRY_PROJECT` banner) —
+so read which one `tests/run` contains, require **exactly one**, and require
+the `- **A write to a DIFFERENT checkout.**` bullet to use that mechanism's
+word and not the other's. Two tests, three mutations, all red (§ 8.5).
+
+Its own docstring says what it does not check: every other sentence in either
+file, and whether the description is any good. It catches one class of rot —
+the two files disagreeing about which of two named mechanisms is in the tree —
+and it catches it in both directions.
+
+### 8.2 Defect 2 — "eleven executables", declared and wrong, twice
+
+`tests/tree_guard.py:129` and `tests/test_tree_guard.py:348` both said this
+repository ships **eleven** executables whose bit is load-bearing. Measured:
+
+    $ git ls-tree -r HEAD | awk '$1=="100755"' | wc -l
+    24
+    $ git ls-tree -r HEAD | awk '$1=="100755" {print $4}' | grep -c '^bin/'
+    18
+    $ find . -type f -perm -u+x -not -path './.git/*' | wc -l
+    24
+
+18 under `bin/`, plus `setup`, `templates/knowledge-base/bin/kb-lint`,
+`templates/ops/bin/deliverable-lint`, and `tests/merge-check`, `tests/parallel`
+and `tests/run`. No grouping gives eleven; the number was invented.
+
+**Changing 11 to 24 would be the same defect one value later**, so the number
+is gone from both places. `manifest`'s docstring describes the set instead and
+says out loud why there is no count in it.
+`test_the_executables_this_repository_ships_carry_their_mode` **derives** it:
+it takes the executables straight out of the manifest of this repository,
+cross-checks each one against `os.access(X_OK)` so the test is not reading its
+own answer back, requires every shipped `bin/perry-*` to be in the set, and
+names all six outside `bin/` that the docstring describes. The size is
+whatever it is on the day.
+
+### 8.3 Defect 3 — the refusal compared raw strings; `perry-task` resolves
+
+`tests/run:30` computes `ROOT` with `pwd -P` and the guard compared
+`"$PERRY_PROJECT" != "$ROOT"` as raw text, while `bin/perry-task` does
+`Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve()`. Reproduced at
+`8dfd25e` on a copy, `bash tests/run --lint` under each spelling:
+
+| `PERRY_PROJECT` | at `8dfd25e` | now |
+|---|---|---|
+| `$ROOT` (already `pwd -P`) | accepted | accepted |
+| `$ROOT/` — one trailing slash | **REFUSED** | accepted |
+| a `/tmp` symlink alias of `$ROOT` | **REFUSED** | accepted |
+| `$ROOT` spelled through `/tmp` → `/private/tmp` | **REFUSED** | accepted |
+| a genuinely foreign directory | refused | refused |
+| a foreign directory through a symlink | — | refused |
+| a path that does not exist | refused | refused, and says so |
+
+Every refused row in the middle three names *this very tree*: `perry-task`
+would resolve it to `$ROOT` and every un-rooted write would land inside the
+tree step 0 hashes. A false refusal, in a guard whose argument for refusing is
+that refusing costs nothing. On this machine, where worktrees live under
+`/private/tmp` and `/tmp` is a symlink to it, the `/tmp` spelling is the
+ordinary one.
+
+`tests/run` now resolves before comparing — `cd … && pwd -P`, the shell
+spelling of `.resolve()` — and prints the resolved value when it differs from
+the raw one. A value naming nothing resolves to the empty string and is still
+refused, correctly, because `perry-task` would go on to create it.
+
+**The test was the worse half of this.** `test_perry_project_equal_to_the_root_
+is_allowed` passed `str(root.resolve())` — the one spelling that cannot trip a
+raw comparison. A test constructed so that it cannot observe the bug it exists
+to catch is not a weak test, it is a different kind of thing. It is kept as the
+plain case, and `test_other_spellings_of_this_root_are_this_root` now runs the
+real `bash tests/run` under six spellings in subTests: symlink alias, trailing
+slash and unresolved root asserted **accepted**; foreign root, foreign root
+through a symlink, and non-existent root asserted **refused** — because
+"accept everything" is exactly how a resolution fix goes wrong.
+
+### 8.4 The two decisions round 2 asked for, recorded
+
+**(a) `.claude/` and `.gstack/` — DECIDED: both ignored.** Both exist in the
+live checkout, both are gitignored, both are written by tooling rather than by
+tests, and neither has a single tracked file (`git ls-files .claude` and
+`git ls-files .gstack` are empty). `.gitignore` describes `.claude/worktrees/`
+verbatim as "Subagent worktrees — temporary, created by the Agent tool", and
+on this machine a subagent starting during a five-minute run creates one from
+*outside* the suite. They join `IGNORE_DIRS`, and the equality pin moved with
+them in the same commit — which is the pin doing its job: it makes the
+addition a deliberate edit with a reason above it rather than a red quietly
+made green.
+
+Ignored **whole** rather than by inner path, because the harness creates
+`.claude` itself: ignoring only `.claude/worktrees` would still leave
+`+ .claude   (created)` red in a worktree that had none. That is a real hole
+and it is the widest of the five — a test writing `.claude/settings.local.json`
+would go unseen — and it is taken knowingly and written into § 7 item 5.
+
+**(b) The `IGNORE_DIRS` deletion versus the `.git` rationale — DECIDED: the
+deletion stands, and the two rationales are replaced by one rule.** Round 2 was
+right that they contradicted each other. The old text justified `.git` with
+*"a guard that is red for reasons the reader did not cause is a guard that gets
+switched off"* and the four cache deletions with *"an entry that matches
+nothing is a blind spot held open for no benefit"* — and taken alone the second
+deletes `.git` the day `.git` stops churning, while the first re-adds
+`.ruff_cache` on the strength of a `ruff` nobody here runs.
+
+The rule that produces every answer, and the one the docstring now states
+once: **this checkout actually produces it while a run is in flight, and no
+test may legitimately write it.** Both halves.
+
+| candidate | produced here? | no test writes it? | verdict |
+|---|---|---|---|
+| `.git` | yes — any concurrent `git log` | yes | ignored |
+| `__pycache__`, `*.pyc`/`*.pyo` | yes — running the suite compiles it | yes | ignored |
+| `.DS_Store` | yes — the Finder | yes | ignored |
+| `.claude`, `.gstack` | yes — the agent harness, mid-run | yes | ignored |
+| `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `node_modules` | **no** — no tool here makes one | yes | **not ignored** |
+
+The "no" in that table is checked, not assumed: zero hits in `git ls-files`, no
+`package.json` / `pyproject.toml` / `requirements*.txt` / `tox.ini`, nothing on
+disk, `.github/workflows/ci.yml` installs nothing, and `.vscode/settings.json`
+sets `python.languageServer` to `None`. Round 2 re-derived the same and agreed.
+
+I record the disagreement rather than hide it: round 2 said it *would* restore
+the four names, on the ground that an entry for a directory no test may
+legitimately write is a scope declaration rather than a blind spot. That is a
+fair reading, and the deliberate reason it is not taken is that the second half
+of the rule is satisfied by nearly anything — it does not by itself bound the
+list — so the first half has to do the bounding, and "a tool that does not
+exist in this repository might appear" does not bound it either.
