@@ -155,13 +155,26 @@ CONFIG_ZH = ("# Perry configuration\n\n- Document language: 中文\n"
 HOOK = "# Hook\n\n## High-stakes operations\n\n- anything that spends money\n"
 
 
+#: **The extractor, the assertion and the hostile fixture root all come
+#: from `tests/handed_back.py`**, which `tests/test_conformance.py` also
+#: uses. This module held its own hand-written spelling of the rule —
+#: `assertIn(f"perry-migrate restore {run_id} --root {p.root}")` — and a
+#: substring assertion cannot tell a runnable command from an unrunnable
+#: one, which is what the round-4 V4 FAIL was.
+_HB = load("perry_handed_back", PERRY_HOME / "tests" / "handed_back.py")
+commands_named = _HB.commands_named
+assert_every_command_carries = _HB.assert_every_command_carries
+HOSTILE_ROOT_NAME = _HB.HOSTILE_ROOT_NAME
+
+
 class Project:
     """A throwaway project holding whatever files a test needs."""
 
     def __init__(self, files: dict[str, str] | None = None,
                  config: str = CONFIG_EN):
         self.dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.dir.name)
+        self.root = Path(self.dir.name) / HOSTILE_ROOT_NAME
+        self.root.mkdir()
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(config)
         (self.root / ".perry" / "hook.md").write_text(HOOK)
@@ -502,14 +515,21 @@ class TestRecoverable(unittest.TestCase):
         p = Project({"BOARD.md": LEGACY_BOARD})
         rc, applied, _ = p.run("apply", json_out=False)
         run_id = list((p.root / ".perry" / "migrate").glob("*.json"))[0].stem
-        self.assertIn(f"perry-migrate restore {run_id} --root {p.root}", applied,
-                      "the line under a finished run names the way back "
-                      "without the root the reader typed")
+        # Both surfaces are asserted by PARSING what was printed. The two
+        # `assertIn(f"… --root {p.root}")` calls that stood here could not
+        # distinguish a runnable command from `--root /home/ada/My Project`.
+        under_run = next(l for l in applied.split("\n") if "undo with:" in l)
+        assert_every_command_carries(
+            self, under_run, p.root, "the line under a finished run")
+        self.assertIn(
+            run_id, under_run,
+            f"the line under a finished run does not name THIS run: "
+            f"{under_run!r}")
 
         rc, listing, _ = p.run("restore", "--list", json_out=False)
         self.assertEqual(rc, 0, listing)
-        self.assertIn(f"perry-migrate restore <run-id> --root {p.root}", listing,
-                      "the restore listing names the command without the root")
+        assert_every_command_carries(
+            self, listing, p.root, "the restore-point listing")
 
     def test_restore_puts_every_byte_back(self):
         """Exercised, not described."""
@@ -938,16 +958,22 @@ class TestTheUserDeclares(unittest.TestCase):
         # The route through `apply_plan` was the ONE member of the class no
         # test held: mutating `root_arg=root_arg` to `root_arg=None` there was
         # GREEN across `tests.test_migrate` and `tests.test_conformance` both.
+        #
+        # **Asserted by parsing, not by a regex over the text** (round 5). The
+        # regex here was `re.escape(cmd) + r"[^\n`]*--root " +
+        # re.escape(str(p.root))`, which is a substring test wearing a regex:
+        # it is satisfied by `--root /home/ada/My Project`, the exact line the
+        # round-4 FAIL handed back, which parses as five arguments and exits 1
+        # about a file the reader never named.
+        named = commands_named(out["refused"])
         for cmd in ("perry-migrate restore", "perry-conform migrate"):
-            self.assertIn(
-                f"{cmd} ", out["refused"],
-                f"the refusal does not name `{cmd}` at all")
-            self.assertRegex(
-                out["refused"],
-                re.escape(cmd) + r"[^\n`]*--root " + re.escape(str(p.root)),
-                f"the refusal hands back `{cmd}` with the `--root {p.root}` "
-                f"the reader's own invocation carried DROPPED — run from "
-                f"where they are standing it addresses a different project")
+            self.assertTrue(
+                any(c.startswith(cmd + " ") for c in named),
+                f"the refusal does not hand back `{cmd}` at all; it names "
+                f"{named!r}")
+        assert_every_command_carries(
+            self, out["refused"], p.root,
+            "the refusal `apply_plan` raises when the record will not convert")
 
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})

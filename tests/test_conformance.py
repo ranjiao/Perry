@@ -61,6 +61,14 @@ def load(name: str, path: Path):
 
 C = load("perry_conform_under_test", CONFORM)
 
+# **The extractor and the assertion live in `tests/handed_back.py`.**
+# `tests/test_migrate.py` asserts the same thing about the same class of
+# message and held its own hand-written copy — `assertIn(f"… --root {root}")`
+# — which is the copy that went stale. One definition, two callers.
+_HB = load("perry_handed_back", PERRY_HOME / "tests" / "handed_back.py")
+commands_named = _HB.commands_named
+assert_every_command_carries = _HB.assert_every_command_carries
+
 BOARD = """# Board — T
 
 ## P0 (must finish this period)
@@ -105,12 +113,19 @@ ADD = ("add", "--title", "a row", "--priority", "P1",
        "--verification", "the suite is green")
 
 
+#: The hostile directory name every fixture project is built under; see
+#: `tests/handed_back.py` for the character-by-character reasoning.
+HOSTILE_ROOT_NAME = _HB.HOSTILE_ROOT_NAME
+
+
 class Project:
     """A throwaway project, unmarked by default — like every project alive."""
 
-    def __init__(self, board: str | None = BOARD, config_extra: str = ""):
+    def __init__(self, board: str | None = BOARD, config_extra: str = "",
+                 dirname: str = HOSTILE_ROOT_NAME):
         self.dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.dir.name)
+        self.root = Path(self.dir.name) / dirname
+        self.root.mkdir()
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
@@ -890,7 +905,17 @@ class TestTheGateEnforces(unittest.TestCase):
         _, out, _ = p.run(TASK, *ADD, enforce=None)
         line = next(l.strip() for l in out["refused"].split("\n")
                     if l.strip().startswith("perry-conform declare"))
-        argv = line.split()[1:] + ["--root", str(p.root)]
+        # **`shlex.split`, and the root the MESSAGE names.** This read
+        # `line.split()[1:] + ["--root", str(p.root)]`: whitespace splitting,
+        # which turns a quoted path into as many arguments as it has spaces,
+        # and then it threw away whatever root the message had named and
+        # supplied its own. A test called "runnable verbatim" that appends the
+        # answer is not running it verbatim. Both halves fixed here; the
+        # fixture root now has a space in it, so the first half is measured
+        # rather than asserted.
+        argv = shlex.split(line)[1:]
+        self.assertIn("--root", argv,
+                      f"the refusal named {line!r}, with no root at all")
         r = subprocess.run(["python3", str(CONFORM), *argv],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -1247,57 +1272,6 @@ class TestLintPointsAtTheDeclaration(unittest.TestCase):
 # Layer 2 is not a substitute for layer 1: a fixed-point check with the reader
 # reverted would convert a decorated row that round-trips to itself, which is
 # exactly `test_an_asterisked_path_reads_exactly_as_it_did_before` below.
-
-
-#: Every `perry-<tool> …` a message hands back, as a reader would copy it —
-#: through the closing backtick, the end of the line, or the sentence's full
-#: stop, whichever comes first.
-_NAMED_COMMAND = re.compile(r"perry-[a-z][a-z-]*(?:[ ][^\n`*]*)?")
-
-
-def commands_named(message: str) -> list[str]:
-    """The commands a refusal hands back, extracted from the TEXT.
-
-    Not from a list the test also wrote: the whole defect this closes was an
-    assertion that constructed what it expected and so could not see what was
-    printed. Only the two shapes this codebase uses to hand back a command are
-    read — an indented line of its own, and a backticked span after `run` /
-    `with` / `is` — so prose that merely NAMES a tool ("`perry-conform declare`
-    would have written") is not mistaken for an instruction.
-    """
-    out = []
-    for line in message.split("\n"):
-        if line.startswith("    ") and line.strip().startswith("perry-"):
-            out.append(line.strip())
-    for m in re.finditer(r"\b(?:run|with|is|try|use)[ :]+`(perry-[^`]+)`",
-                         message, re.IGNORECASE):
-        out.append(m.group(1).strip())
-    return out
-
-
-def assert_every_command_carries(case, message: str, root, why: str) -> None:
-    """**A refusal that names a command must name it with the root the caller
-    used.** This is the class, not the instance.
-
-    `perry-conform` propagates the invocation's `--root` into every branch of
-    `message_for` through `_root_flag()`, and did not into either refusal in
-    `migrate_record`. The consequence is worse than a command that errors: the
-    dropped-root command exits 0 and reports "nothing to convert — already
-    this project's record", about a project the reader never asked about,
-    while their own record stays unconverted and keeps gating every write.
-    """
-    named = commands_named(message)
-    case.assertTrue(named,
-                    f"{why}: no command was found in the refusal, so this "
-                    f"assertion is vacuous — the extractor or the message "
-                    f"changed shape:\n{message}")
-    for cmd in named:
-        case.assertIn(
-            f"--root {root}", cmd,
-            f"{why}: the refusal hands back {cmd!r}, which drops the "
-            f"`--root {root}` the reader's own invocation carried. Run from "
-            f"where the reader is standing it exits 0 with a success-shaped "
-            f"sentence about a different project.")
 
 
 class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
