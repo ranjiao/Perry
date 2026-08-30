@@ -622,6 +622,8 @@ of those nine replayed from the table alone on the next pass.
 | `bash tests/run` | `9d00f1b`, this round's code tip | 102 | **3036** | 3 |
 | `bash tests/run` | `9d00f1b`, a second run after restoring § 9's four files | 102 | **3036** | 3 |
 | `bash tests/run` | `3210248`, the tip after the three review corrections | 102 | **3036** | 3 |
+| `bash tests/run` | `f22fc3f`, the tip after the delta pass — **two hours later** | 102 | **3036** | **4** |
+| `bash tests/run` | **`4c2f07a` again, the base tree, at the same hour** | 102 | **3034** | **4** |
 | `python3 -m unittest … test_header_index_is_the_only_fold.py` | `3210248` | — | 10 | 0 |
 | `python3 -m unittest … test_one_header_rule.py` | `3210248` | — | 13 | 0 |
 | `python3 -m unittest … test_row_integrity.py` | `3210248` | — | 33 | 0 |
@@ -631,7 +633,25 @@ of those nine replayed from the table alone on the next pass.
 `test_header_index_is_the_only_fold.py` (8 → 10). The count on `4c2f07a`
 matches the PMO's and the round 10 reviewer's measurement of that tree exactly.
 
-The three failures are the same three names in all four runs, unchanged:
+**The failure count moved from 3 to 4 during this session, on an UNCHANGED
+tree, and the last row of that table is the proof it is not this round's.** A
+fresh `git archive` export of `4c2f07a` — the tree this round started from,
+with none of its code — run through the same `bash tests/run` at the same hour
+gives the **same four failures**. The new one is `test_contract_key_parity`,
+two assertions about `conformance.in_progress_with_no_live_run[]`, which was an
+EMPTY collection at 04:51 and is not any more: a row on this project's own
+board crossed the "in progress with no live run" threshold while the session
+ran. That is a **third** data-dependent failure on top of the two this row has
+always carried, and the brief's warning — *"do not take a live-board failure
+count from any brief as fixed"* — is now measured rather than quoted.
+
+A fifth failure appeared in one run only,
+`test_host_support.TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`.
+It is green in isolation and absent from the next full run: a load flake in a
+concurrency test, on a machine that had just finished a 213-mutant sweep.
+Recorded, not carried.
+
+The three original failures are the same three names in every run, unchanged:
 
 - `test_diagnose.DecisionsAreCountedPerRecordNotPerMention.test_the_queue_register_reconciles_with_the_queue_on_this_repository`
 - `test_diagnose.TestUserLoadFindings.test_perry_itself_passes_its_own_id_checks`
@@ -821,7 +841,16 @@ produce about itself, and because the next round should not re-run it:
    was running the sweep the bound excluded — which found a second instance of
    the same defect that nobody had asked about.
 
-4. **Three times on this row a table has been published against a state older
+4. **A live-board failure count is not a property of the tree.** This session
+   measured `4c2f07a` at 102/3034/**3** at 04:51 and at 102/3034/**4** at
+   07:10, with no change to the tree in between — the difference is a board row
+   ageing past a conformance threshold. Any round that carries a failure count
+   forward without re-measuring the SAME tree at the SAME hour is carrying a
+   number that has already moved. Two of this row's failures were known to be
+   data-dependent; this is a third, and it is the one that shows the count
+   itself is a measurement with a timestamp.
+
+5. **Three times on this row a table has been published against a state older
    than itself** — round 10's mutation table predated `D32`/`D33`, round 11's
    first draft predated `D42`, and round 11's own corrections shifted three
    anchors by +14 while the table still named the old lines. Each time the
