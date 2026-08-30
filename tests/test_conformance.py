@@ -1955,6 +1955,33 @@ class TestTheMarkdownRecordIsConvertedOnce(unittest.TestCase):
         self.assertEqual(Path(out["stray_legacy_record"]).resolve(),
                          p.legacy_marker().resolve())
 
+    def test_a_stale_markdown_never_overwrites_a_store(self):
+        """The conversion runs on a project that has NO store. A project that
+        has both — a markdown restored from an old backup, a bad merge — must
+        keep the store: the markdown is by definition the older record, and
+        converting it again would silently roll every declaration back to
+        whatever it said then. Found by mutation: nothing stopped it.
+        """
+        p = self.legacy_project()
+        p.run(CONFORM, "migrate")
+        p.run(CONFORM, "declare", ".perry/config.md")
+        store = p.marker().read_text()
+        self.assertIn(".perry/config.md", store)
+        p.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n" + self.LEGACY)
+
+        rc, out, err = p.run(CONFORM, "migrate")
+
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertIsNone(out["converted"], "the store was converted over")
+        self.assertEqual(p.marker().read_text(), store,
+                         "a stale markdown overwrote the store")
+        self.assertTrue(p.legacy_marker().exists(),
+                        "the markdown was deleted by a conversion that did "
+                        "not happen")
+        self.assertEqual(p.verdict(".perry/config.md").state, C.CONFORMANT,
+                         "a declaration the store held was rolled back")
+
     def test_an_unreadable_row_is_refused_rather_than_deleted_at_the_door(self):
         """The conversion will not carry a record it cannot say it is copying,
         and refusing is the only honest answer at a one-way door: the

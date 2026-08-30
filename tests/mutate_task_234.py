@@ -109,7 +109,7 @@ MUTATIONS = [
      '    if store.exists() or not legacy.exists():',
      '    if not legacy.exists():',
      "tests.test_conformance.TestTheMarkdownRecordIsConvertedOnce"
-     ".test_a_markdown_beside_a_store_is_reported_and_not_read"),
+     ".test_a_stale_markdown_never_overwrites_a_store"),
 
     ("M12", "bin/perry-conform",
      '    legacy.unlink()',
@@ -158,7 +158,7 @@ MUTATIONS = [
      '            P.CONFORMANCE_LEGACY_FILE,\n'
      '        )',
      '        pass',
-     "tests.test_migrate.TestApplyPreflight"
+     "tests.test_migrate.TestFileImageFidelity"
      ".test_a_symlinked_markdown_record_is_refused_before_state_writes"),
 
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
