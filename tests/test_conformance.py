@@ -2466,72 +2466,34 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
             self, out["refused"], theirs.root, "the `declare` route")
 
     def test_no_refusal_in_perry_conform_names_a_command_without_the_root(self):
-        """**The class, guarded at the source.** Fixing the two sentences is
-        an instance; this is what stops the next one.
+        """**The class, guarded at the source.** Fixing the two sentences is an
+        instance; this is what stops the next one.
 
         Every `perry-*` command a runtime message HANDS BACK — on an indented
-        line of its own, or backticked after `run` / `with` / `is` — must carry
-        the invocation's root, spelled `{r}` or `{_root_flag(...)}`. Prose that
-        merely names a tool is not an instruction and is not caught: *"is not
-        what `perry-conform declare` would have written"* names a command the
-        reader is being told NOT to run.
+        line of its own, backticked after `run` / `with` / `is`, or built into a
+        variable called `cmd` — must carry the invocation's root, spelled
+        `{r}` or `{_root_flag(...)}`. Prose that merely names a tool is not an
+        instruction and is not caught: *"is not what `perry-conform declare`
+        would have written"* names a command the reader is being told NOT to
+        run.
 
-        Read off the AST rather than by grepping the text, so a docstring
-        discussing the defect — this one, and `migrate_record`'s — is not a
-        finding.
+        **The rule is imported, not retyped.** It lives in
+        `tests/sweep_handed_back_commands.py`, which is also what sweeps the
+        wider tree where the remaining members are recorded rather than fixed
+        (`TASK-234-result.md § 10.9`). A second copy here would be a second
+        definition of the rule, and the first one to go stale would be the one
+        nobody ran.
         """
-        import ast
-
-        tools = ("conform", "lint", "migrate", "task", "tasks", "goals",
-                 "state", "decide", "okr", "config", "knowledge")
-        cmd = re.compile(r"perry-(?:" + "|".join(tools) + r")\b")
-        root = re.compile(r"\{r\}|\{_root_flag\([^)]*\)\}|--root")
-        cue = re.compile(r"(?:(?:^|\n)[ ]{2,}|\b(?:run|with|is|try|use)[ :]+`?)$",
-                         re.IGNORECASE)
-
-        def is_str(n):
-            return isinstance(n, ast.Constant) and isinstance(n.value, str)
-
-        def render(node):
-            """The template, with each `{expr}` left visible as itself."""
-            if is_str(node):
-                return node.value
-            if isinstance(node, ast.JoinedStr):
-                return "".join(
-                    v.value if is_str(v) else "{" + ast.unparse(v.value) + "}"
-                    for v in node.values)
-            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-                a, b = render(node.left), render(node.right)
-                return None if a is None or b is None else a + b
-            return None
-
-        source = (PERRY_HOME / "bin" / "perry-conform").read_text()
-        tree = ast.parse(source)
-        docstrings = set()
-        for node in ast.walk(tree):
-            if isinstance(getattr(node, "body", None), list):
-                for st in node.body:
-                    if isinstance(st, ast.Expr) and is_str(st.value):
-                        docstrings.add(id(st.value))
-
-        seen, handed, bad = set(), [], []
-        for node in ast.walk(tree):
-            if id(node) in seen or id(node) in docstrings:
+        sweep = load("sweep_handed_back_commands",
+                     PERRY_HOME / "tests" / "sweep_handed_back_commands.py")
+        handed, bad = [], []
+        for _, lineno, phrase, ok in sweep.sites(
+                str(PERRY_HOME / "bin" / "perry-conform")):
+            if ok is None:
                 continue
-            text = render(node)
-            if text is None:
-                continue
-            for sub in ast.walk(node):
-                seen.add(id(sub))
-            for m in cmd.finditer(text):
-                if not cue.search(text[:m.start()]):
-                    continue          # a mention, not an instruction
-                tail = re.match(r"[^`\n'\"]*", text[m.end():]).group(0)
-                phrase = (m.group(0) + tail).rstrip()
-                handed.append((node.lineno, phrase))
-                if not root.search(phrase):
-                    bad.append((node.lineno, phrase))
-
+            handed.append((lineno, phrase))
+            if not ok:
+                bad.append((lineno, phrase))
         self.assertEqual(
             bad, [],
             f"these messages hand back a command with the caller's root "

@@ -84,6 +84,21 @@ forward — but it is not what the word said. Corrected in
 `test_a_crlf_record_converts_and_the_wording_does_not_say_byte`, which asserts
 the behaviour **and** that the source has stopped claiming the other one.
 
+**Round 4 — the guard's reach, decided rather than left.** The V4 round-3
+reviewer measured the guard as pinning one literal, `"byte-for-byte what"`, in
+one file: a reworded overclaim ("byte for byte", "byte-for-byte identical to
+what") walked past it, and `bin/README.md` — which documents the same
+conversion, for the same reader, in the same words — was not covered at all.
+**Decision: widen it.** It is now a regex for the phrase *describing what the
+file is compared against*, applied to both files, plus a positive pin on the
+correcting sentence in each, because deleting that sentence passes any
+`assertNotIn`. It is deliberately **not** a ban on the phrase: both files use
+"byte-for-byte" correctly about other things — a row inside an HTML comment IS
+byte-for-byte a genuine row; `perry-tasks risks-diff` DOES byte-compare — and a
+guard that reddened those is a guard the next person to hit it deletes. Both
+halves are pinned by mutation: **M38** (put the overclaim back in
+`bin/README.md`) and **M39** (delete the correcting sentence there).
+
 ### 1.1 · The V4 FAIL — the refusal was a wall, and now it is not
 
 Round 1's refusal said *"diff it against the record and remove what does not
@@ -129,18 +144,143 @@ withdraws a declaration*, which is the edit the file's own header invites and
 must never refuse.
 
 **Why it shipped, which is the more useful finding.** `assert_conversion_refuses`
-— the helper 17 tests route through — asserted only `"refused" in out`. Any
-refusal at all passed it. It now requires the refusal to **locate** the problem
+— the helper **14 test methods route through, at 16 invocations** (one method,
+`test_a_canonical_row_inside_an_html_block_is_not_carried_across`, calls it
+three times under `subTest`) — asserted only `"refused" in out`. Any
+refusal at all passed it.
+
+> **The number was wrong in round 3 and is corrected here.** This said "17",
+> which is § 4.3's count of *moved* tests — a different set — carried into a
+> sentence about *routing*. Measured twice since, both times at runtime by
+> wrapping the helper and running the class: by the V4 round-3 reviewer, and
+> again in round 4 (`scratchpad` harness, 18 tests in the class, all green).
+> **14 methods, 16 invocations.** Corrected in both places it appeared, here
+> and in § 11. It now requires the refusal to **locate** the problem
 (a line number from the unreadable-rows branch, or a diff from the fixed-point
 branch), to name a runnable command, **never** to name `perry-conform status`,
 and — where the caller knows it — to quote the exact offending line, because a
 diff of the *wrong* lines passes every other assertion in the helper.
+
+**The helper is weaker than that sentence sounds, and round 3's write-up did
+not say so.** Of the 16 invocations, only **4** reach the fixed-point refusal
+the FAIL was about — the three HTML spellings and the hand-edited header. The
+other **12** take the unreadable-rows branch and satisfy "locates the problem"
+through the `line N:` it printed all along. So the diff-related teeth bite at 4
+sites, not 16. Measured both ways: at runtime (12 / 4, round 4), and by
+mutation — injecting `perry-conform status` into the fixed-point refusal
+reddens exactly 4, and blanking `line {n}: {t}` reddens exactly 12.
 
 **Measured consequence of the fixed point**, found by the fixture: a record whose
 rows a hand has re-ordered refuses, because the writer sorted by path. Any record
 `perry-conform declare` wrote is sorted, so this bites a hand-edited file only —
 which is exactly the file the check exists for, and the diff now names the moved
 row.
+
+### 1.2 · The round-3 V4 FAIL — the refusal named a command with the root dropped
+
+**The defect.** `bin/perry-conform § message_for` propagates the invocation's
+`--root` into every branch through `_root_flag()`. `migrate_record`'s two
+refusals — including the one round 3 rewrote **under the wall standard's own
+banner** — did not. Measured end to end by the reviewer on a planted project:
+
+```
+$ python3 bin/perry-conform migrate --root $PROJ     # the reader is routed here
+… Fix those lines, then run:
+    perry-conform migrate                            # ← the root is gone
+$ python3 bin/perry-conform migrate                  # the reader copies it
+perry-conform: nothing to convert — .perry/conformance.jsonl is already this
+project's record (or it has none).
+rc=0
+```
+
+**Exit 0, a success-shaped sentence, about a project the reader never asked
+about** — while their own record sits unconverted and still gating every write.
+The row's own rule is *"a named command that errors is worse than none"*; this
+is the worse-still variant, because nothing tells the reader anything happened.
+
+**The fix.** `root_arg` is threaded into `migrate_record` and `declare` as a
+**keyword-only parameter with no default**, so a caller that has a root must
+pass it and a new caller cannot inherit the omission by saying nothing.
+`bin/perry-migrate § apply_plan` passes its own, because `declare` converts the
+record first and that step can refuse.
+
+**The sweep — this is a class, and here is how many members it has.** Mechanical,
+off the AST rather than by grepping text, so a docstring discussing the defect
+is not a finding. A `perry-*` phrase in a non-docstring string literal is
+*handed back* when it is introduced the way this codebase introduces a command
+to copy — at the start of an indented continuation line, or immediately after
+`run` / `with` / `is` / `try` / `use` — and it passes only if `{r}`,
+`{_root_flag(...)}` or a literal `--root` travels inside the phrase. Prose that
+merely names a tool is not an instruction and is not counted: *"is not what
+`perry-conform declare` would have written"* names a command the reader is being
+told **not** to run.
+
+| tree | handed-back commands | without the caller's root |
+|---|---|---|
+| `bin/perry-conform` at `7d3f93f` | 14 | **2** — both `migrate_record` refusals |
+| `bin/perry-conform` now | 14 | **0** |
+| the rest of `perry-conform`'s runtime import closure — `bin/perry-lint`, `viewer/parsers.py`, `viewer/tables.py`, `bin/perry_store.py`, `bin/perry_md_store.py`, `bin/lib/__init__.py` | 0 | 0 |
+| `bin/perry-migrate` at `7d3f93f` | 7 | **5** |
+| `bin/perry-migrate` now | 7 | **3** — named in § 10.9, not fixed |
+
+**7 members at `7d3f93f`; 3 left, all in `bin/perry-migrate` and every one of
+them naming a different tool.** The command that produced every row, run from
+the repository root — the `before` files come from `git show 7d3f93f:<path>`:
+
+```
+python3 tests/sweep_handed_back_commands.py --all \
+    bin/perry-conform bin/perry-lint bin/perry_md_store.py bin/perry_store.py \
+    viewer/parsers.py viewer/tables.py bin/lib/__init__.py bin/perry-migrate
+```
+
+It exits 1 while any member remains, and today that is `bin/perry-migrate`'s
+three. Over `bin/perry-conform` alone it exits 0 with an empty finding list, and
+that is the form the suite runs:
+`test_no_refusal_in_perry_conform_names_a_command_without_the_root` **imports
+this same module** rather than restating the rule — a second copy would be a
+second definition, and the first to go stale would be the one nobody ran — and
+asserts both that the list is empty and that the sweep found at least 12
+commands, so an empty list cannot come from the sweep having stopped working.
+
+**Where the rule under-counts, said out loud rather than left to be found.**
+The ruling is made from the words immediately before the phrase, so
+`bin/perry-lint`'s fix hints — which read *"`perry-tasks render --write` puts
+the file back in line"* rather than *"run `perry-tasks render --write`"* — are
+read as mentions. Under a deliberately crude rule (**any** backticked or
+indented command in a runtime message) `bin/perry-lint` has **22** handed-back
+commands and **all 22** drop the root. That is a real, pre-existing class in a
+tool this row does not own; it reaches a `perry-conform` reader only as
+`findings[].fix` strings inside `--json`; and closing it means threading a root
+through check functions that never had one. **Measured and recorded, not fixed
+here** (§ 10.10). Under the same crude rule `bin/perry-conform` has 5, and all 5
+are prose rather than instructions — `perry-state` three times in *"`perry-task
+list` and `perry-state` work either way"*, the legacy header's *"Written by
+`perry-conform declare`"*, and *"is not what `perry-conform declare` would have
+written"*, which names the one command the reader is being told **not** to run.
+
+**The proof is end to end and constructs no expected string.**
+`test_the_named_command_converts_the_readers_project_from_elsewhere` plants two
+real projects — the reader's, and a *different* one, already converted, that the
+reader is standing in. It **measures the harm** (the bare command exits 0 with
+"nothing to convert" and leaves the reader's record untouched), then takes the
+command **out of the refusal text**, runs it unedited from the other project's
+directory, and asserts the reader's project converted with its date intact and
+the other came back byte-identical. A test that built the expected string by
+hand would pass on the broken implementation; this one runs whatever the message
+says, which is why mutation **M34** — naming a root that is not the caller's —
+reddens it while every string assertion in the suite stays satisfiable.
+
+**Why no test caught it.** All 16 helper invocations asserted this message
+*while themselves running with `--root <tmpdir>`*.
+`assertIn("perry-conform migrate", message)` is true of the broken string and is
+not about the reader's situation in that test. **The assertion checked that A
+command was named, never that it was the command the caller could run.** The
+helper now extracts every command the refusal hands back and requires each to
+carry `--root <the root this caller used>` — generic, so a refusal that grows a
+new command tomorrow is caught by the same assertion. Non-vacuity measured at
+every one of the 16: a command was extracted at all 16, the shortest message is
+536 characters, and mutation **M32** (compute the flag from `None`) reddens all
+16 at once.
 
 ## 2 · Self-reference — moved across explicitly, and split into two questions
 
@@ -298,6 +438,11 @@ hand-edits the record, because a hand edit is what each is about.
 
 ### 4.3 · Subject MOVED to the one-way door, kept and strengthened — 17
 
+> **This 17 is a count of MOVED tests and is a different set from the
+> number of tests that route through `assert_conversion_refuses`** (14
+> methods, 16 invocations — § 1.1). Round 3 carried this number into a
+> sentence about routing, where it was false.
+
 Every § 10b test. Each keeps its planted shape and its own control, and each
 gained a **second, independent** assertion. The two layers can go red alone:
 
@@ -410,7 +555,16 @@ I expected this one to die and it does not. Measured:
   mutation **M10**). A one-way door that destroys a line the user typed is not
   something to leave for a follow-up row.
 
-## 6 · Mutations — 29/29 reddened their named test
+## 6 · Mutations — 40/40 reddened their named test, re-run in round 4
+
+> **"29/29" was, until round 4, one run that nobody had reproduced.** The V4
+> round-3 reviewer re-ran **8** of the 29 (M22-M29) plus M15's branch as a
+> control, added 9 of its own, and said plainly that M1-M14 and M16-M21 were
+> **not** re-run. Round 4 re-ran **the whole harness, all of it, in this
+> session**, and extended it: **40/40 red**, instrument named below, log in the
+> commit message of the round-4 mutation commit. Two of the eleven new ones
+> came back GREEN first — M35 and M36 — and both are recorded as findings in
+> § 6.1 rather than quietly re-pointed.
 
 Harness: `tests/mutate_task_234.py`. Uniquely named; **refuses a dirty tree**;
 anchors on exact text and asserts the anchor is **unique** in the file; resolves
@@ -449,6 +603,47 @@ mutating; restores by `md5` and asserts the digest.
 | M29 | `viewer/parsers.py:655` | drop `try/except OSError` around `read_text` | `…test_a_record_that_exists_but_cannot_be_read_is_not_a_crash` |
 | M19 | `viewer/parsers.py:816` | `if header_index([rel]).column("file", "path") == 0 or not rel:` → `if False:` | `tests.test_one_header_rule … test_a_bolded_header_is_not_reported_as_a_broken_row` |
 | M20 | `viewer/parsers.py:860` | `if canonical != line:` → `if False:` | `test_a_backticked_path_cell_is_not_a_declaration` |
+
+### 6.1 · Round 4 — M30-M40, and the two that came back GREEN
+
+| # | File | Mutation | Named test that went red |
+|---|---|---|---|
+| M30 | `bin/perry-conform` | the fixed-point refusal drops `{r}` — **the shipped defect, put back** | `…test_the_named_command_converts_the_readers_project_from_elsewhere` |
+| M31 | `bin/perry-conform` | the unreadable-rows refusal drops `{r}` | `…test_the_unreadable_rows_refusal_names_it_too` |
+| M32 | `bin/perry-conform` | `_root_flag(root_arg)` → `_root_flag(None)` — the runtime value, which the source guard cannot see | `TestADecoratedRowIsNotADeclaration.test_a_backticked_path_cell_is_not_a_declaration` (and all 16 helper invocations with it) |
+| M33 | `bin/perry-conform` | `declare` stops passing the root into the conversion | `…test_the_declare_route_into_the_conversion_carries_the_root_too` |
+| M34 | `bin/perry-conform` | the refusal names `--root /nowhere-at-all` — **spelled correctly, wrong project** | `…test_the_named_command_converts_the_readers_project_from_elsewhere` |
+| M35 | `bin/perry-migrate` | `apply_plan` stops carrying its root into `C.declare` | `tests.test_migrate … test_an_unconvertible_markdown_record_refuses_and_names_the_way_back` |
+| M36 | `bin/perry-migrate` | `rollback_message` drops the root from `perry-migrate restore <id>` | same |
+| M37 | `bin/perry-migrate` | the restore-point listing drops it | `tests.test_migrate … test_every_way_back_this_tool_names_carries_the_root` |
+| M38 | `bin/README.md` | put the overclaim back — "not **byte-for-byte** what `perry-conform declare` would have written" | `…test_a_crlf_record_converts_and_the_wording_does_not_say_byte` |
+| M39 | `bin/README.md` | delete the sentence that states the difference | same |
+| M40 | `bin/perry-conform` | M30's mutation, named against the SOURCE guard rather than the end-to-end proof | `…test_no_refusal_in_perry_conform_names_a_command_without_the_root` |
+
+**M32, M34 and M40 are three mutations of the same line and they are not
+redundant.** M40 is caught only by reading the source (`{r}` is gone from the
+template). M32 is invisible to the source guard — the template still says
+`{r}`; only the runtime value is wrong — and is caught by the 16 helper
+invocations. M34 is invisible to *both* — the message says `--root` and reads
+correctly — and is caught only by the end-to-end test, which RUNS what the
+message says. Three layers, one per failure mode, each demonstrated by the
+mutation the other two miss.
+
+**M35 came back GREEN, and that is the finding.** `perry-migrate apply --root
+X` is the other way into `migrate_record`'s refusal, and no test held it: with
+`root_arg=None` there, the whole of `tests.test_migrate` **and** the whole of
+`tests.test_conformance` stayed green. Closed by requiring both commands in that
+message — this tool's `perry-migrate restore <id>` and the quoted
+`perry-conform migrate` — to carry the reader's root.
+
+**M36 came back GREEN too, pointed at the wrong test, and the reason is worth
+recording.** `perry-migrate restore <id>` is named on **two different code
+paths**: `render`, under a finished run, and `rollback_message`, under a failed
+one. The first test written for it read the successful path only, so mutating
+the *failure* path changed nothing it could see. Re-pointed at
+`test_an_unconvertible_markdown_record_refuses_and_names_the_way_back`, which is
+the test that makes a run fail; red there. Two surfaces naming one command are
+two guards, not one.
 
 **M23 and M24 are two more defects, and both are the FAIL's own shape.**
 `max(0, len(lines) - DIFF_CAP)` reads as belt-and-braces and is load-bearing:
@@ -538,7 +733,8 @@ of the symptom is not absence of the defect: TASK-249 stands.
 | `.perry/conformance.md` → `.perry/conformance.jsonl` | Perry's own record, 23 declarations |
 | `tests/test_conformance.py` | 69 → 91 |
 | `tests/test_migrate.py`, `tests/test_one_header_rule.py`, `tests/test_header_index_is_the_only_fold.py`, `tests/test_procedures_call_the_tool.py` | see § 4.5 and § 9 |
-| `tests/mutate_task_234.py` | new — 29 mutations |
+| `tests/mutate_task_234.py` | new — **40** mutations (29 in rounds 1-3, M30-M40 in round 4) |
+| `tests/sweep_handed_back_commands.py` | new in round 4 — the class sweep (§ 1.2); the suite imports its rule rather than restating it |
 
 ## 9 · Blast radius beyond "two functions"
 
@@ -595,6 +791,37 @@ needed real work.
    `TestTheDefensiveBranchesAreLoadBearing`'s docstring so a later sweep does
    not re-find and re-file it. The other six survivors are now tested (§ 6).
 
+7. **The `perry-conform status` fenced-example case is a message, not a code
+   change.** The V4 round-3 reviewer's § 3: a project whose
+   `.perry/conformance.md` documents its own table format inside a code fence
+   has no way to convert without deleting the example, because the fenced row
+   lands in `record.unreadable` and the refusal says "fix or delete each row by
+   hand". That is the deliberate fail-closed choice and it stands. **Decision:
+   a sentence, as the reviewer suggested** — the unreadable-rows refusal now
+   says the documentation row has to come out for the conversion and can go
+   back into the file it belongs in afterwards, since the store does not carry
+   prose. No behaviour changed and nothing new is measured about it.
+8. **The 12 unreadable-branch call sites do not exercise the diff.** § 1.1.
+   Stated where the coverage is claimed rather than left implied.
+9. **Three members of the class are left in `bin/perry-migrate`, named and not
+   fixed** (§ 1.2): `perry-goals commit --migrate` in the `Commitments` split
+   finding, and `perry-tasks render --write` / `perry-tasks write --from-board`
+   in the store-baseline refusal. All three name a **different tool**, all three
+   sit in functions with no root in scope, and threading one there is a change
+   to `plan_project`'s signature that this row has no test for. `perry-conform`
+   is at zero and `perry-migrate`'s own two ways back are fixed, which is what
+   the FAIL and the reviewer's § 4.5 were about.
+10. **`bin/perry-lint`'s 22 fix hints all drop the root** (§ 1.2), measured
+   under the crude rule. Pre-existing, in a tool this row does not own, reaching
+   a `perry-conform` reader only through `findings[].fix` in `--json`. Not
+   fixed, not routed around: it is written down with the number and the command
+   that produces it.
+11. **Nothing was measured about a `perry-conform` reader who is NOT in a Perry
+   project at all.** The end-to-end proof stands the reader in a second Perry
+   project, because that is the case where the dropped root is silent. A reader
+   standing in `/tmp` gets the same rc=0 sentence, checked by hand once; it is
+   not pinned by a test.
+
 ## 11 · For the record — the sixth vacuous test in three days
 
 `tests/test_one_header_rule.py § TestTheFifthCopy` (§ 4.5) is the **sixth**
@@ -606,7 +833,24 @@ or an agent reading the code for another reason.
 
 This row added one instance of the same class and caught it the same way. The
 `assert_conversion_refuses` helper (§ 1.1) asserted `"refused" in out` — true of
-every refusal, including one that names a command computing no diff — so 17
-tests routed through a check that could not fail for the reason it existed. It
-was found by the V4 reviewer, not by the suite. The pattern in both: **an
-assertion whose subject moved, left pointing at something that is still true.**
+every refusal, including one that names a command computing no diff — so **14
+test methods, at 16 invocations**, routed through a check that could not fail
+for the reason it existed. It was found by the V4 reviewer, not by the suite.
+The pattern in both: **an assertion whose subject moved, left pointing at
+something that is still true.**
+
+> The count here said "17" until round 4. That is § 4.3's count of *moved*
+> tests, carried into a sentence about *routing*, where it is false — the same
+> defect one register down: **a number whose subject moved**. Corrected in both
+> places, and measured at runtime rather than counted by eye.
+
+**And it happened a third time in this same row, one level deeper.** Round 3
+rewrote both `migrate_record` refusals *under the wall standard's own banner*
+and left the root out of the command they name, while all 16 invocations of the
+now-stricter helper asserted that message **from inside a run that had passed
+`--root`**. `assertIn("perry-conform migrate", message)` was true, and was not
+about the reader. The helper had been hardened to require that a command be
+named; nothing required it to be **the command the caller could run**. That is
+the same class as the two above and the reason § 1.2's proof runs the command
+instead of matching it: an assertion that constructs what it expects cannot see
+what was printed.

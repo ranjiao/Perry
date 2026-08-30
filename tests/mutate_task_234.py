@@ -275,11 +275,16 @@ MUTATIONS = [
      "tests.test_migrate.TestTheUserDeclares"
      ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
 
+    # **`rollback_message` is only reached on a FAILED run**, so the test that
+    # holds it is the one that makes a run fail — not the one that reads a
+    # successful apply, which gets its line from `render`. M36 came back GREEN
+    # pointed at the latter, which is the finding: two surfaces name this
+    # command and they are not the same code.
     ("M36", "bin/perry-migrate",
      '    cmd = f"perry-migrate restore {point.stem}{_root_flag(root_arg)}"',
      '    cmd = f"perry-migrate restore {point.stem}"',
-     "tests.test_migrate.TestRecoverable"
-     ".test_every_way_back_this_tool_names_carries_the_root"),
+     "tests.test_migrate.TestTheUserDeclares"
+     ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
 
     ("M37", "bin/perry-migrate",
      '            print(f"\\n   perry-migrate restore <run-id>'
@@ -287,6 +292,18 @@ MUTATIONS = [
      '            print(f"\\n   perry-migrate restore <run-id>\\n")',
      "tests.test_migrate.TestRecoverable"
      ".test_every_way_back_this_tool_names_carries_the_root"),
+
+    # The SOURCE guard, pinned separately from the end-to-end proof: the two
+    # catch different things. M32 (a wrong runtime value) is invisible to the
+    # guard; M34 (a wrong root, spelled) is invisible to every string
+    # assertion. Only running the command catches that one.
+    ("M40", "bin/perry-conform",
+     '              f"    perry-conform migrate{r}\\n"\n'
+     '              f"**Nothing was written.**")',
+     '              f"    perry-conform migrate\\n"\n'
+     '              f"**Nothing was written.**")',
+     "tests.test_conformance.TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
 
     # ── round 4: the CRLF guard reaches `bin/README.md` and the reworded
     # overclaim, both of which the V4 round-3 reviewer measured it missing.
