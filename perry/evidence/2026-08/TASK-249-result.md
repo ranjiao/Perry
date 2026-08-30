@@ -709,11 +709,25 @@ by `git ls-files -z | xargs -0 md5 -q | md5 -q`.
 
 | tree | modules | tests | seconds | **failures** | red modules | tree guard | tracked md5 |
 |---|---|---|---|---|---|---|---|
-| `main` @ `1274587`, fresh worktree, first run | 104 | 3124 | 260.8 | **4** | 3 | n/a | `63dd005e…` → `63dd005e…` |
+| `main` @ `1274587`, fresh worktree, first run | 104 | 3124 | 260.8 | **4** | 3 | n/a (no guard on `main`) | `63dd005e…` → `63dd005e…` |
 | this branch @ `21ef128` | 104 | 3119 | 257.5 | **4** | 3 | `✓ nothing under … moved` | `d30db46a…` → `d30db46a…` |
-| merge probe `7ef27db` + branch = `f069a51` | 105 | 3145 | 237.4 | **4** | 3 | `✓ nothing under … moved` | `8444ab7c…` → `8444ab7c…` |
+| this branch @ `148c7da` | 104 | 3119 | 265.0 | **4** | 3 | `✓ nothing under … moved` | `db0b48fc…` → `db0b48fc…` |
+| merge probe `7ef27db` + `21ef128` = `f069a51` | 105 | 3145 | 237.4 | **4** | 3 | `✓ nothing under … moved` | `8444ab7c…` → `8444ab7c…` |
+| merge probe `7ef27db` + `148c7da` = `67a6f80` | 105 | 3145 | 271.8 | **4** | 3 | `✓ nothing under … moved` | `6d20f385…` → `6d20f385…` |
 
-`git status --porcelain` was empty at both ends of all three.
+`git status --porcelain` was empty at both ends of all five.
+
+The branch and the merge were each run twice because this document grew
+between them, and two of the four failures scan evidence documents
+(`test_heading_title` and `test_diagnose § test_perry_itself_passes_its_own_
+id_checks`) — so "the result document cannot itself move the number" is a
+claim worth measuring rather than assuming. It does not: 4/3 at both tips, the
+same four by name, `3119` and `3145` unchanged.
+
+**The one thing that cannot be closed by construction:** the last commit on
+this branch is the one adding this table, so no run in it hashes the tree that
+contains it. The md5 bracket in each row is of the tree at the moment of that
+run, and the only delta from the final tree is these rows.
 
 **The same four by name on all three trees**, and none is in a file this branch
 touches:
