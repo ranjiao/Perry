@@ -975,6 +975,59 @@ class TestTheUserDeclares(unittest.TestCase):
             self, out["refused"], p.root,
             "the refusal `apply_plan` raises when the record will not convert")
 
+    def test_a_run_that_converted_a_legacy_record_can_be_restored(self):
+        """**The round trip the `update_expected_after` call exists for, and
+        which nothing exercised** (round 5).
+
+        `apply_plan` records a post-run signature for BOTH records — the store
+        it wrote and the markdown `declare` converted and unlinked. The V4
+        round-4 reviewer's R-N13 deleted the second of those two calls, which
+        this branch added, and the whole of `tests.test_migrate` stayed
+        **GREEN**: `tests/test_migrate.py` names `conformance.md` in exactly
+        two places, the symlink preflight and the unconvertible-record
+        refusal, and **no test applied a migration to a project holding a
+        legacy record and then restored it**.
+
+        Without the call the restore point still holds the PRE-declaration
+        digest for `.perry/conformance.md`, while the run that converted it
+        deleted the file — so `undo` compares the tree against a signature the
+        run itself invalidated, and the recovery path refuses on a project it
+        is supposed to be able to recover.
+        """
+        CF = M.conform()
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        legacy = p.root / ".perry" / "conformance.md"
+        legacy.write_text(
+            "\n".join(CF.LEGACY_HEADER) + "\n"
+            "| OKR.md | 2 | 2026-08-20 | declare |\n", encoding="utf-8")
+        # Canonical by construction: the conversion refuses anything that is
+        # not line-for-line what `render_legacy` writes, and this test is
+        # about the RESTORE, not about the fixed point.
+        legacy.write_text(
+            CF.render_legacy(CF.P.read_legacy_conformance(p.root).declarations),
+            encoding="utf-8")
+        before = p.tree()
+        self.assertIn(".perry/conformance.md", before)
+
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertFalse(legacy.exists(),
+                         "the conversion did not consume the markdown record")
+        self.assertTrue((p.root / ".perry" / "conformance.jsonl").exists())
+
+        rc, out, err = p.run("restore")
+        self.assertEqual(
+            rc, 0,
+            f"the run converted a legacy record and then could not be undone: "
+            f"{out} {err}")
+
+        after = {k: v for k, v in p.tree().items()
+                 if not k.startswith(".perry/migrate/")}
+        self.assertEqual(
+            after, before,
+            "restoring a run that converted a legacy record did not put the "
+            "project back byte for byte")
+
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")
@@ -2020,6 +2073,12 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
                       f"the recovery command is not named:\n{msg}")
         self.assertIn("Restore point:", msg,
                       f"the restore point path is not named:\n{msg}")
+        # **Named is not enough; it has to be the reader's own project.** This
+        # is the V4 round-4 reviewer's R-N3: `root_arg=None` here was GREEN
+        # across both modules, because the test built its plan without a root.
+        assert_every_command_carries(
+            self, msg, p.root,
+            "the refusal raised when a write fails part way")
         # Compare the files that existed before. The restore point itself is
         # NEW and must survive the rollback — it is the thing the refusal just
         # told the user to run, and deleting it would make the message a lie.
@@ -2030,6 +2089,54 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         self.assertTrue(
             [k for k in p.tree() if k.startswith(".perry/migrate/")],
             "the restore point the refusal names was not kept")
+
+    def test_a_write_that_lands_wrong_names_the_way_back_with_the_root(self):
+        """**The digest-mismatch path, which no test reached** (round 5).
+
+        `apply_plan` calls `rollback_message` from three places. Round 4
+        threaded the caller's root into all three and the V4 round-4 reviewer
+        then removed it from two of them — this one and the write-failed path
+        above — with the whole of `tests.test_migrate` and
+        `tests.test_conformance` **GREEN** (its R-N3 and R-N4).
+
+        Green for the reason the round-3 FAIL was invisible: every test that
+        reached these paths built its plan with no root at all, so `None` was
+        `None` on both sides of the mutation and the assertion about the
+        handed-back command was being made from inside a run no reader ever
+        has. The fixtures pass the root now, and this path had no test at all,
+        so it gets one.
+
+        The mismatch is made the way it happens in the world: the bytes on
+        disk after the write are not the bytes the plan printed."""
+        p = self.project()
+        real = M.write_atomic
+        calls = {"n": 0}
+
+        def tamper(path, text):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Published bytes that are not the plan's image, and the
+                # digest of what was really published — so `published == got`
+                # and the run takes the `allow_changed` branch.
+                tail = "\n<not what the plan said>\n"
+                return real(path, text + (tail.encode()
+                                          if isinstance(text, bytes) else tail))
+            return real(path, text)
+
+        M.write_atomic = tamper
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA,
+                                            root_arg=str(p.root)), SCHEMA)
+        finally:
+            M.write_atomic = real
+
+        msg = str(caught.exception)
+        self.assertIn("does not match the plan", msg,
+                      f"this is not the digest-mismatch path: {msg}")
+        assert_every_command_carries(
+            self, msg, p.root,
+            "the refusal raised when a write lands with the wrong digest")
 
     def test_the_restore_point_is_named_even_when_the_rollback_also_fails(self):
         """The worst case must not be the one that says nothing. `undo` writes,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Does every message that HANDS THE READER A COMMAND name it with the root
+r"""Does every message that HANDS THE READER A COMMAND name it with the root
 the reader used?  (TASK-234 round 4.)
 
 The class this sweeps for, stated as the defect that produced it:

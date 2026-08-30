@@ -2383,9 +2383,19 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
         # The reader does what the refusal told them to: fix those lines.
         theirs.legacy_marker().write_text(header + canonical)
 
-        # ── 4 · run it verbatim, from where the reader is standing
+        # ── 4 · run it verbatim, from where the reader is standing —
+        # **through a shell**, because that is what "the reader copies it"
+        # means. `shlex.split` above proves the line PARSES; it does not
+        # perform globbing, `$` expansion or command substitution, and a
+        # fixture root ending in `*` would sail past it and be expanded by
+        # `/bin/sh` into whatever happens to be in the directory. Only the
+        # tool's own name is substituted, and the rest of the line is passed
+        # byte-for-byte, so the quoting under test is the quoting that runs.
+        self.assertTrue(cmd.startswith("perry-conform "), cmd)
+        shell_line = (f"python3 {shlex.quote(str(CONFORM))}"
+                      + cmd[len("perry-conform"):])
         ran = subprocess.run(
-            ["python3", str(CONFORM), *argv[1:]],
+            ["/bin/sh", "-c", shell_line],
             cwd=elsewhere.root, capture_output=True, text=True)
         self.assertEqual(
             ran.returncode, 0,
@@ -2406,6 +2416,63 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
         self.assertEqual(
             self.snapshot(elsewhere.root), before,
             "the command changed the project the reader was standing in")
+
+    def test_a_backtick_in_the_root_is_quoted_and_what_that_costs(self):
+        """**The one residual of the class, measured rather than described.**
+
+        `_q` quotes a backtick correctly — the indented commands in this
+        message are runnable verbatim on a project at `/tmp/a ``b`` c`. But
+        this codebase also hands commands back INLINE, delimited by single
+        backticks, and a backtick inside the argument closes the span early.
+        Two branches of `message_for` do that. So on such a root the same
+        message carries two runnable commands and two truncated ones, and the
+        truncated pair does not even parse.
+
+        **Why it is not fixed here.** The break is in the message's markdown,
+        not in the quoting: closing it means either moving those two commands
+        onto indented lines of their own — which rewrites two sentences to
+        serve a directory name almost nobody has — or emitting a double-backtick
+        span when the argument contains a backtick. Both are real fixes and
+        neither is this row's FAIL. It is written down with its harm instead of
+        being left for the next reviewer to find, and pinned here so it cannot
+        get worse quietly.
+
+        **This test goes red when the residual is closed**, like the TASK-246
+        pin: if the inline spelling starts surviving, delete the second half
+        and say so in `TASK-234-result.md`.
+        """
+        # The branch that hands back four commands — two indented, two inline
+        # — which is what makes the two spellings comparable in one message.
+        root = "/tmp/a `b` c"
+        message = C.message_for(
+            C.Verdict(path="BOARD.md", state=C.UNDECLARED, shape_version=2,
+                      errors=["a shape error"]),
+            "perry-task", root)
+
+        indented = [l.strip() for l in message.split("\n")
+                    if l.startswith("    ") and l.strip().startswith("perry-")]
+        self.assertTrue(indented, f"no indented command at all:\n{message}")
+        for cmd in indented:
+            argv = shlex.split(cmd)
+            self.assertEqual(
+                argv[argv.index("--root") + 1], root,
+                f"the indented command {cmd!r} does not carry the root a "
+                f"backtick and all — that IS a defect in `_q`, not a "
+                f"limitation of the message's markdown")
+
+        # The residual, stated as a measurement.
+        inline = re.findall(r"`(perry-[^`]*--root[^`]*)`", message)
+        broken = []
+        for cmd in inline:
+            try:
+                shlex.split(cmd)
+            except ValueError:
+                broken.append(cmd)
+        self.assertTrue(
+            broken,
+            "an inline backticked command with a backtick in its root now "
+            "parses — the residual named in `TASK-234-result.md § 10.12` is "
+            "closed. Delete this half of the test and say so there.")
 
     def test_the_unreadable_rows_refusal_names_it_too(self):
         """The other branch, and the one reached from `declare` — where the

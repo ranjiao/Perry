@@ -971,7 +971,7 @@ def header_block_span(lines: list[str], spec: dict,
 
 
 def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, bool, bool]:
-    """Where a header field goes, and whether this file bolds its field names.
+    r"""Where a header field goes, and whether this file bolds its field names.
 
     After the last line of the leading `>` block **when that block holds header
     fields**, so a new field joins the ones already there instead of landing in
