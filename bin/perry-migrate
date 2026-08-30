@@ -27,7 +27,10 @@ guarantees are in `perry/evidence/2026-08/TASK-044-spec.md`; three of them are
      back. See § "Dirty tree or restore point" below.
   4. **The user declares.** `apply` is the user's act, and it records the
      declaration through `bin/perry-conform` — the one writer of
-     `.perry/conformance.md` — with `route: migrate`. There is no second record.
+     `.perry/conformance.jsonl` — with `route: migrate`. There is no second
+     record. The run's id travels with each declaration it records, so a row
+     can name the run that made it and the restore point that undoes it
+     (TASK-234); four markdown columns could not.
   5. **Partial migration is a state.** Per file, never per project. A file is
      migrated only if the plan takes it to zero shape errors; otherwise it is
      left byte-identical and its remaining findings are named. So after any
@@ -115,9 +118,12 @@ untracked or ignored, and `git checkout` cannot restore what git never saw.
 
 So recovery is Perry's own, works identically in both cases, and is exercised
 rather than described: `.perry/migrate/<run-id>.json` holds the bytes of every
-file the run touched — including `.perry/conformance.md`, because the run
+file the run touched — including `.perry/conformance.jsonl`, because the run
 wrote that too and a restore that left the record behind would claim
-conformance for files that no longer have it.
+conformance for files that no longer have it. And `.perry/conformance.md` when
+the project still has one, because the run CONVERTS it (TASK-234) and a
+conversion is a deletion: a restore that put the store back and left the
+markdown deleted would take the user's pre-conversion record with it.
 
 The cost, stated: this is state Perry now owns, and it holds a copy of the
 project's own writing. It lives under `.perry/`, which is already Perry's
@@ -1757,10 +1763,18 @@ def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     the declarations standing would leave the record claiming conformance for
     files that no longer have it."""
     record = plan.project_root / P.CONFORMANCE_FILE
+    legacy = plan.project_root / P.CONFORMANCE_LEGACY_FILE
     files = {e.key_rel: (file_image(e.image_before)
                          if e.existed else absent_image()) for e in edits}
     files[P.CONFORMANCE_FILE] = (file_image(record.read_bytes())
                                  if record.exists() else absent_image())
+    # **Both records, because `apply` may convert one into the other.** A
+    # project written before TASK-234 keeps its declarations in
+    # `.perry/conformance.md`; `perry-conform declare` carries them into the
+    # store and DELETES the markdown, which is a write this restore point has
+    # to be able to undo like any other.
+    files[P.CONFORMANCE_LEGACY_FILE] = (file_image(legacy.read_bytes())
+                                        if legacy.exists() else absent_image())
     payload = {
         "version": 1,
         "run": run_id,
@@ -1771,6 +1785,8 @@ def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
         "expected_after": {
             **{e.key_rel: image_signature(e.image_after) for e in edits},
             P.CONFORMANCE_FILE: current_signature(record, P.CONFORMANCE_FILE),
+            P.CONFORMANCE_LEGACY_FILE: current_signature(
+                legacy, P.CONFORMANCE_LEGACY_FILE),
         },
     }
     out = plan.project_root / MIGRATE_DIR / f"{run_id}.json"
@@ -1819,6 +1835,14 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             plan.project_root,
             plan.project_root / P.CONFORMANCE_FILE,
             P.CONFORMANCE_FILE,
+        )
+        # The markdown record too, when the project still has one: `declare`
+        # converts it and then UNLINKS it, and unlinking a symlink Perry did
+        # not put there is the same refusal for the same reason (TASK-234).
+        preflight_file_object(
+            plan.project_root,
+            plan.project_root / P.CONFORMANCE_LEGACY_FILE,
+            P.CONFORMANCE_LEGACY_FILE,
         )
     run_id = next_run_id(plan.project_root)
     try:
@@ -1876,6 +1900,9 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
                             schema, route="migrate")
             update_expected_after(point, P.CONFORMANCE_FILE,
                                   plan.project_root / P.CONFORMANCE_FILE)
+            update_expected_after(
+                point, P.CONFORMANCE_LEGACY_FILE,
+                plan.project_root / P.CONFORMANCE_LEGACY_FILE)
         except (OSError, Refused, ValueError) as exc:
             record = plan.project_root / P.CONFORMANCE_FILE
             raise Refused(rollback_message(

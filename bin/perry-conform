@@ -8,7 +8,7 @@ file at all"*. It answers that correctly and this tool does not replace it.
 ADR-004 needs a different fact, and it is two facts wearing one name:
 
   1. **the declaration** — the user said this file is Perry's, at shape
-     version N. Recorded in `.perry/conformance.md`. Only ever written by
+     version N. Recorded in `.perry/conformance.jsonl`. Only ever written by
      `perry-conform declare` (and by `bin/perry-migrate`, the migration the
      user asked for, which records `route: migrate`). *Adoption proposes; the
      user declares.*
@@ -21,24 +21,50 @@ goes wrong, and a content hash would revoke itself on every legitimate
 `perry-task add`. A stored *decision* plus a live *check* can disagree, and
 that disagreement is a finding — which is exactly what ADR-004 asks for.
 
+The record is a STORE, one JSON object per line, since TASK-234:
+
+    {"kind": "declaration", "path": "BOARD.md", "shape_version": 2,
+     "declared": "2026-08-20", "route": "declare",
+     "writer": "perry-conform declare",
+     "recorded_at": "2026-08-30T09:12:03+08:00", "run": ""}
+
+DESIGN-013 § 5.1 — a fact with a schema lives in exactly one store, a document
+holds what has none — and this record had no prose to hold: it was 23 rows of
+four regular columns under a header that was already a constant here. The
+three fields after `route` are what the columns could not carry, and they are
+the reason to convert rather than a bonus for having done it: `TASK-226` was an
+investigation, not a query, because a row could not say who wrote it.
+
+**There is no rendered markdown, deliberately.** `perry-conform status` is the
+human surface and was already; a ledger nobody reads for pleasure does not need
+a second face, and a second face is a second register to keep in step.
+
 Usage:
   perry-conform status  [--root <project>] [--json]
   perry-conform check   <file> [--root <project>] [--json]
   perry-conform declare (<file> ... | --all) [--root <project>] [--dry-run] [--json]
+  perry-conform migrate [--root <project>] [--json]
 
   <file> is the path as `schema/state-schema.json` declares it: relative to the
   state root for state files (`BOARD.md`, `phase/004-x.md`), relative to the
   project root for the `.perry/` ones (`.perry/hook.md`). `perry-conform
   status` lists every key this project has.
 
+  `migrate` carries a pre-TASK-234 `.perry/conformance.md` into the store,
+  dates and routes unchanged, and deletes the markdown. It DECLARES NOTHING:
+  it writes only rows already in the record, so it is not the act
+  `SKILL.md § Conformance gate` reserves to the user. It refuses rather than
+  convert a file it cannot say it is copying verbatim.
+
 Exit codes:
   0  the request was satisfied
   1  `check` on a file that is not conformant; `declare` on a file that could
-     not be declared
+     not be declared; `migrate` on a record it will not convert
   2  bad invocation
 
 No LLM, no external dependencies (stdlib only). `status` and `check` are
-read-only; `declare` writes `.perry/conformance.md` and nothing else.
+read-only; `declare` and `migrate` write `.perry/conformance.jsonl` (and
+`migrate` deletes `.perry/conformance.md`) and nothing else.
 """
 
 from __future__ import annotations
@@ -130,6 +156,13 @@ class Verdict:
     errors: list = field(default_factory=list)   # perry-lint Findings, errors only
     record_unreadable: int = 0
     file: str = ""                  # absolute path, for the message
+    #: This project still keeps its declarations in `.perry/conformance.md` and
+    #: has no store (TASK-234). NOT a sixth state: the verdict really is
+    #: `undeclared`, because the record this reader reads holds nothing. What it
+    #: changes is the way forward — `perry-conform migrate`, which carries the
+    #: user's existing declarations across, rather than `perry-conform declare`,
+    #: which would mint a new one and lose the date they declared it on.
+    legacy_record: bool = False
 
     @property
     def ok(self) -> bool:
@@ -145,6 +178,7 @@ class Verdict:
             "route": self.route,
             "errors": len(self.errors),
             "record_unreadable_rows": self.record_unreadable,
+            "legacy_record": self.legacy_record,
         }
 
 
@@ -213,7 +247,8 @@ def verdict(project_root: Path, state_root: Path, key: str,
     record = P.read_conformance(project_root)
     decl = record.declarations.get(key)
     v = Verdict(path=key, state=UNDECLARED, shape_version=now,
-                record_unreadable=len(record.unreadable))
+                record_unreadable=len(record.unreadable),
+                legacy_record=record.legacy is not None)
     found = spec_for(project_root, state_root, schema, key)
     if found is None:
         v.state = ABSENT
@@ -229,7 +264,7 @@ def verdict(project_root: Path, state_root: Path, key: str,
     if decl.shape_version != now:
         v.state = STALE
     elif v.errors:
-        # Reported, not revoked. The row stays in `.perry/conformance.md`: the
+        # Reported, not revoked. The line stays in `.perry/conformance.jsonl`:
         # user did declare this file, and a tool that erased the declaration
         # because the file drifted would be deciding on the user's behalf in
         # the one place ADR-004 § 4 says it may not.
@@ -360,8 +395,25 @@ def message_for(v: Verdict, tool: str, root_arg: str | None) -> str:
     a wall — every branch here ends in a command the reader can run."""
     r = _root_flag(root_arg)
     tail = ("" if v.record_unreadable == 0 else
-            f" ({v.record_unreadable} row(s) in .perry/conformance.md could not "
+            f" ({v.record_unreadable} line(s) in {P.CONFORMANCE_FILE} could not "
             f"be read and were not counted as declarations)")
+    if v.legacy_record:
+        # **Before every other branch, because it changes which command is the
+        # right one.** This project's declarations are in the markdown record
+        # TASK-234 replaced. Naming `perry-conform declare` here would be a
+        # correct sentence about the store and a wrong instruction: it would
+        # mint a declaration dated today over one the user made weeks ago.
+        return (
+            f"{v.path} is undeclared in {P.CONFORMANCE_FILE}, and this project "
+            f"still keeps its declarations in {P.CONFORMANCE_LEGACY_FILE} — the "
+            f"markdown record Perry used before the declarations became a store "
+            f"(TASK-234, DESIGN-013 § 5.1). Carry them across, dates and routes "
+            f"unchanged, with:\n"
+            f"    perry-conform migrate{r}\n"
+            f"which declares nothing new — it writes only rows that are already "
+            f"in the record, and refuses rather than convert a file it cannot "
+            f"say it is copying. Reading is unaffected — `{tool} list` and "
+            f"`perry-state` work either way.{tail}")
     if v.state == UNDECLARED and not v.errors:
         return (
             f"{v.path} already matches Perry's shape at version {v.shape_version}, "
@@ -427,9 +479,14 @@ def gate(project_root: Path, state_root: Path, key: str, tool: str,
                       ok=v.ok or mode != ENFORCE, message=msg)
 
 
-# ── declaring ─────────────────────────────────────────────────────────────
+# ── converting the markdown record (TASK-234) ─────────────────────────────
+#
+# `.perry/conformance.md` was the record until TASK-234 and is a conversion
+# SOURCE afterwards. The two constants below are the markdown writer that used
+# to exist, kept for exactly one purpose: to say whether a project's markdown
+# record is byte-for-byte what that writer would have produced.
 
-HEADER = [
+LEGACY_HEADER = [
     "# Perry conformance",
     "",
     "> Written by `perry-conform declare`. Each row records that **the user**",
@@ -447,19 +504,108 @@ HEADER = [
 ]
 
 
-def render(declarations: dict) -> str:
+def render_legacy(declarations: dict) -> str:
+    """The markdown `render()` this tool shipped until TASK-234.
+
+    It writes nothing now. It is the right-hand side of the conversion's fixed
+    point, and it is the ORIGINAL function rather than a re-derivation for the
+    same reason the reader beside it is TASK-241's reader: a check that "this
+    file is what Perry wrote" is worth nothing if the thing it compares against
+    is a second, freshly-typed idea of what Perry wrote."""
     # `render_row`, not an f-string: this file records a project's own paths,
     # and a path is a value Perry does not choose.
     rows = [render_row([d.path, str(d.shape_version), d.declared, d.route])
             for d in sorted(declarations.values(), key=lambda d: d.path)]
-    return "\n".join([*HEADER, *rows, ""])
+    return "\n".join([*LEGACY_HEADER, *rows, ""])
 
 
 write_atomic = lib.write_atomic
 
 
+class LegacyRecordRefused(Refused):
+    """The markdown record is not convertible as it stands. Nothing was written."""
+
+
+def migrate_record(project_root: Path) -> dict | None:
+    """`.perry/conformance.md` → `.perry/conformance.jsonl`, once, losslessly.
+
+    `None` when there is nothing to do: the store already exists, or the
+    project never had a markdown record. Otherwise the store is written, the
+    markdown is deleted, and a summary of what moved is returned.
+
+    **Bootstrap order, which TASK-234 had to settle before any of this was
+    written.** This file gates every write under ADR-004's enforce gate,
+    including the write that migrates it — so the question is whether the
+    conversion can run on a project whose gate does not pass. It can, and the
+    reason is the same decision `schema/state-schema.json` records for the
+    record itself: `.perry/conformance.md` is deliberately NOT a `files[]`
+    entry, so `state_files()` never yields it, `verdict()` has no verdict about
+    it, and no writer has ever called `gate()` before writing it. The record's
+    own write is ungated BY CONSTRUCTION, and it is the self-reference
+    exclusion that makes it so. Nothing here needs an exemption, and none is
+    granted — an exemption would be a hole; this is a file the gate has no
+    opinion about.
+
+    **The conversion refuses unless the whole markdown file is exactly what
+    `render_legacy` would have written for what it parses to.** Per-row round
+    tripping is what `read_legacy_conformance` already does and it is not
+    enough here, because two known classes are invisible to it BY
+    CONSTRUCTION — a row inside a code fence (TASK-241) and a row inside
+    `<pre>`, an HTML comment or `<details>` (TASK-248) are byte-for-byte
+    genuine rows, and what makes them not declarations is what surrounds them.
+    The file-level fixed point sees exactly that: the surrounding lines are not
+    in `render_legacy`'s output.
+
+    TASK-241 round 2 rejected this same fixed point as a READING rule, and was
+    right to — one stray blank line would void all 23 of Perry's declarations
+    and take the gate down. It is the correct rule HERE for the reason it was
+    the wrong rule there: this is a one-way door run once, the consequence of
+    refusing is *look at your file*, and the consequence of proceeding is a
+    laundered declaration nothing downstream can tell from a real one.
+    """
+    root = Path(project_root)
+    store = root / P.CONFORMANCE_FILE
+    legacy = root / P.CONFORMANCE_LEGACY_FILE
+    if store.exists() or not legacy.exists():
+        return None
+    record = P.read_legacy_conformance(root)
+    text = legacy.read_text(errors="replace")
+    if record.unreadable:
+        raise LegacyRecordRefused(
+            f"{P.CONFORMANCE_LEGACY_FILE} has "
+            f"{len(record.unreadable)} row(s) this reader will not honour, and "
+            f"converting the file would delete them without asking:\n"
+            + "\n".join(f"    line {n}: {t}" for n, t in record.unreadable)
+            + f"\nFix or delete each row by hand, then run `perry-conform "
+              f"migrate` again. **Nothing was written.**")
+    if render_legacy(record.declarations) != text:
+        raise LegacyRecordRefused(
+            f"{P.CONFORMANCE_LEGACY_FILE} is not byte-for-byte what "
+            f"`perry-conform declare` would have written for the "
+            f"{len(record.declarations)} declaration(s) in it, so this "
+            f"conversion cannot say it is carrying the record across rather "
+            f"than a reading of it. A row inside a code fence, an HTML "
+            f"comment, `<pre>` or `<details>` looks exactly like a real one "
+            f"and is not one; so does an edited header or a stray blank line. "
+            f"Diff it against the record and remove what does not belong:\n"
+            f"    perry-conform status\n"
+            f"then run `perry-conform migrate` again. **Nothing was written.**")
+    # **Provenance stays empty on every converted declaration.** The markdown
+    # held four columns and none of them was a writer, a moment or a run;
+    # stamping this conversion's own clock onto a decision the user made on
+    # 2026-08-20 would put a fact in the record that nobody recorded.
+    write_atomic(store, P.render_conformance(record.declarations))
+    legacy.unlink()
+    return {"from": str(legacy), "to": str(store),
+            "declarations": len(record.declarations)}
+
+
+# ── declaring ─────────────────────────────────────────────────────────────
+
+
 def declare(project_root: Path, state_root: Path, keys: list[str],
-            schema: dict, dry_run: bool = False, route: str = "declare") -> dict:
+            schema: dict, dry_run: bool = False, route: str = "declare",
+            writer: str = "perry-conform declare", run: str = "") -> dict:
     """Record the user's declaration for each named file.
 
     `route` is how the declaration was made — `declare` for this command,
@@ -474,9 +620,17 @@ def declare(project_root: Path, state_root: Path, keys: list[str],
     Refuses per file rather than in bulk: a project that can declare its board
     and not its risks is a *state*, not a failure (ADR-004 § 5), and the rows
     it could write are written. The exit code still reports that the request
-    was not fully satisfied."""
+    was not fully satisfied.
+
+    **The markdown record is converted first, if there is one.** This is the
+    one writer of the record, so it is the one place the conversion can live
+    without becoming a second one; `migrate_record` is a no-op on every project
+    that has already converted and on every project that never had a markdown
+    record, which between them is all of them after this runs once."""
+    converted = migrate_record(project_root) if not dry_run else None
     record = P.read_conformance(project_root)
     now = shape_version(schema)
+    stamped_at = lib.event_stamp()
     declared, refused = [], []
     for key in keys:
         v = verdict(project_root, state_root, key, schema)
@@ -495,13 +649,22 @@ def declare(project_root: Path, state_root: Path, keys: list[str],
             continue
         record.declarations[key] = P.Declaration(
             path=key, shape_version=now, declared=f"{date.today():%Y-%m-%d}",
-            route=route, line=0)
+            route=route, line=0,
+            # ── the provenance the four columns could not carry (TASK-234).
+            # `route` says how the declaration was made; these say who made it,
+            # at what moment, and — for a migration — under which run, which is
+            # also the name of its restore point in `.perry/migrate/`. This is
+            # the whole point of the conversion: `TASK-226` had to be an
+            # investigation because a row could not answer any of the three.
+            writer=writer, recorded_at=stamped_at, run=run)
         declared.append({"path": key, "shape_version": now})
     if declared and not dry_run:
-        write_atomic(project_root / P.CONFORMANCE_FILE, render(record.declarations))
+        write_atomic(project_root / P.CONFORMANCE_FILE,
+                     P.render_conformance(record.declarations))
     return {"declared": declared, "refused": refused,
             "shape_version": now,
             "record": str(project_root / P.CONFORMANCE_FILE),
+            "converted": converted,
             "dry_run": dry_run}
 
 
@@ -544,9 +707,9 @@ def main(argv: list[str]) -> int:
             files.append(a)
         i += 1
 
-    if cmd not in ("status", "check", "declare"):
-        print("perry-conform: expected one of status / check / declare "
-              "(try --help)", file=sys.stderr)
+    if cmd not in ("status", "check", "declare", "migrate"):
+        print("perry-conform: expected one of status / check / declare / "
+              "migrate (try --help)", file=sys.stderr)
         return 2
 
     try:
@@ -565,6 +728,10 @@ def main(argv: list[str]) -> int:
                     "gate": gate_mode(project_root),
                     "record": str(record.path),
                     "record_exists": record.exists,
+                    "legacy_record": (str(record.legacy) if record.legacy
+                                      else None),
+                    "stray_legacy_record": (str(record.stray_legacy)
+                                            if record.stray_legacy else None),
                     "unreadable_rows": [
                         {"line": n, "text": t} for n, t in record.unreadable],
                     "files": [v.as_dict() for v in verdicts],
@@ -585,7 +752,21 @@ def main(argv: list[str]) -> int:
                            else f" @v{v.declared_version}")
                     print(f"   {mark} {v.path:<44} {v.state}{ver}{extra}")
                 for n, t in record.unreadable:
-                    print(f"   ✗ .perry/conformance.md:{n} unreadable row: {t}")
+                    print(f"   ✗ {P.CONFORMANCE_FILE}:{n} unreadable line: {t}")
+                if record.legacy:
+                    print(f"\n   ! this project's declarations are still in "
+                          f"{P.CONFORMANCE_LEGACY_FILE}, the markdown record "
+                          f"Perry kept before TASK-234. Nothing above counts "
+                          f"them. Carry them across with `perry-conform "
+                          f"migrate{_root_flag(root_arg)}`.")
+                if record.stray_legacy:
+                    # Two registers for the fact that gates every write. The
+                    # store is the record and this file is not read; it is
+                    # named because a user who edits it would be editing
+                    # nothing and would have no way to find that out.
+                    print(f"\n   ! {P.CONFORMANCE_LEGACY_FILE} is present "
+                          f"BESIDE the store and is NOT read. The store is the "
+                          f"record (TASK-234); delete the markdown.")
                 n_ok = sum(1 for v in verdicts if v.state == CONFORMANT)
                 print(f"\n   {n_ok}/{len(verdicts)} declared and matching. "
                       f"Declare one with `perry-conform declare <file>"
@@ -608,6 +789,30 @@ def main(argv: list[str]) -> int:
                     print("  " + msg.replace("\n", "\n  "))
             return 0 if v.state == CONFORMANT else 1
 
+        if cmd == "migrate":
+            if files:
+                raise Refused(
+                    "usage: perry-conform migrate — it takes no file. The "
+                    "conversion carries the WHOLE record across or refuses; a "
+                    "half-converted record would be two registers for the fact "
+                    "that gates every write")
+            moved = migrate_record(project_root)
+            if as_json:
+                print(json.dumps({"converted": moved,
+                                  "record": str(project_root / P.CONFORMANCE_FILE)},
+                                 ensure_ascii=False, indent=2))
+            elif moved is None:
+                print(f"perry-conform: nothing to convert — "
+                      f"{P.CONFORMANCE_FILE} is already this project's record "
+                      f"(or it has none).")
+            else:
+                print(f"  ✓ carried {moved['declarations']} declaration(s) "
+                      f"from {P.CONFORMANCE_LEGACY_FILE} into "
+                      f"{P.CONFORMANCE_FILE}, dates and routes unchanged\n"
+                      f"  ✓ deleted {P.CONFORMANCE_LEGACY_FILE}\n\n"
+                      f"  → {moved['to']}")
+            return 0
+
         # declare
         keys = files
         if do_all:
@@ -623,6 +828,11 @@ def main(argv: list[str]) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             verb = "would declare" if dry_run else "declared"
+            if result["converted"]:
+                c = result["converted"]
+                print(f"  ✓ carried {c['declarations']} declaration(s) from "
+                      f"{P.CONFORMANCE_LEGACY_FILE} into "
+                      f"{P.CONFORMANCE_FILE} first (TASK-234)")
             for d in result["declared"]:
                 print(f"  ✓ {verb} {d['path']} at shape version {d['shape_version']}")
             for r in result["refused"]:
