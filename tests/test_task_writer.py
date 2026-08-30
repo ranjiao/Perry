@@ -1353,10 +1353,31 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
         **docstring**, which is a hand-maintained fourth copy that nothing kept
         in step: `--arrived`, `--owner`, `--commitment` and `--actor` had all
         shipped without it noticing.
+
+        **`--root`, and why it is not decoration (TASK-249).** This loop used
+        to invoke each name with no root at all. `perry-task` resolves its
+        project root from `$PERRY_PROJECT`, else the cwd, and `tests/run` cds
+        to the repository root — so all 29 commands ran against the live
+        checkout. Twenty-eight refused for want of arguments. `intake-sweep`
+        takes none: it discharged a REAL board row and moved four files —
+        `.perry/events.jsonl`, `perry/BOARD.md`, `perry/intake.jsonl` and
+        `perry/journal/<today>.md` — on every run of the suite, in whatever
+        repository the suite ran in. It went unnoticed for months because the
+        sweep is idempotent: the second run finds nothing left to discharge,
+        so the natural check — run it twice and diff — reports nothing. It
+        reached a coding branch's commit once and was caught only because an
+        append-only file conflicted at merge.
+
+        The root here is a throwaway `Project()`, which is what every other
+        subprocess in this module already uses. `tests/tree_guard.py` is the
+        structural half: it fails the suite if the checkout moves at all, for
+        any reason, whether or not the write came through a fixture.
         """
+        p = Project()
+        tool = str(PERRY_HOME / "bin" / "perry-task")
         for name in PT.COMMANDS:
             r = subprocess.run(
-                ["python3", str(PERRY_HOME / "bin" / "perry-task"), name],
+                ["python3", tool, name, "--root", str(p.root)],
                 capture_output=True, text=True)
             self.assertNotEqual(
                 r.returncode, 2,
@@ -1366,7 +1387,7 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
                 f"{name!r} crashed instead of refusing:\n{r.stderr}")
 
         r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "nonesuch"],
+            ["python3", tool, "nonesuch", "--root", str(p.root)],
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
