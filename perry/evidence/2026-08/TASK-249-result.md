@@ -636,3 +636,161 @@ fair reading, and the deliberate reason it is not taken is that the second half
 of the rule is satisfied by nearly anything — it does not by itself bound the
 list — so the first half has to do the bounding, and "a tool that does not
 exist in this repository might appear" does not bound it either.
+
+### 8.5 Mutations — nine, each anchored, each red
+
+On a `tar` copy of the tip (`.git`, `__pycache__`, `*.pyc` excluded), never on
+the live tree. Discipline, and every step of it enforced by the harness rather
+than remembered: refuse to start on a dirty tree; assert the baseline **GREEN**
+(21 tests, rc=0) before the first mutation; assert every anchor **present and
+unique** before replacing it; clear `__pycache__` and sleep past the
+whole-second boundary before every run (CPython validates bytecode on
+mtime-in-whole-seconds plus size, so a same-second edit can be run from stale
+`.pyc`); restore from the captured original bytes and assert **md5 equality**
+against the pre-mutation baseline after each one; re-assert GREEN at the end.
+
+Runner: `python3 -m unittest discover -s tests -p test_tree_guard.py -v` in the
+copy, with `PERRY_PROJECT` popped. Deliberately **not** through `tests/run
+--only`: `tests/parallel:283` truncates a red module's stderr to its last 25
+lines with nothing visibly elided, which eats `FAIL:` headers — the same trap
+that produces § 5.2's three different numbers, in a smaller room.
+
+| # | mutation | verdict | test(s) that died |
+|---|---|---|---|
+| MD-1 | the bullet reverted to the withdrawn "closes the ambient case by exporting" claim | RED | `test_the_bullet_names_the_mechanism_that_shipped` |
+| MD-2 | `tests/run` gains a real `export PERRY_PROJECT="$ROOT"` *as well as* the refusal | RED | `test_tests_run_implements_exactly_one_of_the_two_mechanisms`, `test_the_bullet_names_the_mechanism_that_shipped` |
+| MD-3 | `tests/run` implements neither (refusal banner renamed to "declining to start") | RED | the two above + `test_a_foreign_perry_project_refuses_the_run`, `test_other_spellings_of_this_root_are_this_root` |
+| ME-1 | a shipped `bin/perry-*` loses its executable bit | RED | `test_the_executables_this_repository_ships_carry_their_mode` |
+| ME-2 | `manifest` stops reporting the real mode (`0o644` hardcoded into the token) | RED | that one + `test_a_permission_change_is_a_change` |
+| MR-1 | the comparison reverted to raw strings against `pwd -P` | RED | `test_other_spellings_of_this_root_are_this_root` |
+| MR-2 | the refusal never fires — resolution taken all the way to accept-everything | RED | `test_a_foreign_perry_project_refuses_the_run`, `test_other_spellings_of_this_root_are_this_root` |
+| MR-3 | **half a fix**: trailing slash stripped (`${PERRY_PROJECT%/}`), symlinks not resolved | RED | `test_other_spellings_of_this_root_are_this_root` |
+| MI-1 | `.claude` quietly dropped from `IGNORE_DIRS` | RED | `test_all_three_ignore_lists_are_the_documented_ones` |
+
+**9/9 red, no survivors**, baseline GREEN before and after, every restore
+md5-verified. Run twice: once on the fix commit and once on the final tree, the
+same nine, the same nine verdicts.
+
+Four of these are worth more than the count.
+
+- **MD-1 kills exactly one test, and it is the new one.** The pin is specific
+  to the defect and not a by-product of something else being red.
+- **MD-2 is the direction nobody tests.** It leaves the shipped refusal intact
+  and *adds* the withdrawn mechanism — the shape a "belt and braces" edit
+  would take — and the exactly-one assertion is what catches it.
+- **MR-3 is the plausible wrong fix, not a strawman.** Stripping the trailing
+  slash is what someone reaching for the smallest change would write; it fixes
+  one of the three refused spellings and leaves the symlink alias refused. Only
+  the new test dies. The old `root.resolve()` test is green under it, which is
+  the whole finding restated as a measurement.
+- **ME-1 does not touch a line of Python.** It `chmod -x`es a shipped script,
+  which is precisely the tree change `manifest`'s mode token exists to see, and
+  it is caught by the test that replaced the invented count.
+
+**And one measurement of the ignore decision, rather than an argument for it.**
+`compare()` over a tree where a subagent worktree, a `.gstack/` and a
+`.ruff_cache/` all appear between snapshot and verify:
+
+      + .ruff_cache   (created)
+      + .ruff_cache/0.4.2   (created)
+
+`.claude/worktrees/agent-1/f` and `.gstack` are invisible — including
+`+ .claude` itself, because `os.walk`'s `dirnames` are filtered before the
+directory entries are recorded, so ignoring the parent really does ignore the
+whole subtree. `.ruff_cache` still reddens the run. That is the trade in § 8.4
+made visible: the noise this checkout produces is gone, the noise it does not
+produce is still reported.
+
+### 8.6 Baselines — measured here, in this session, on this machine
+
+Machine shared with other agents' runs; wall times recorded, not comparable.
+`bash tests/run` from each worktree root with `PERRY_PROJECT` unset, bracketed
+by `git ls-files -z | xargs -0 md5 -q | md5 -q`.
+
+| tree | modules | tests | seconds | **failures** | red modules | tree guard | tracked md5 |
+|---|---|---|---|---|---|---|---|
+| `main` @ `1274587`, fresh worktree, first run | 104 | 3124 | 260.8 | **4** | 3 | n/a | `63dd005e…` → `63dd005e…` |
+| this branch @ `21ef128` | 104 | 3119 | 257.5 | **4** | 3 | `✓ nothing under … moved` | `d30db46a…` → `d30db46a…` |
+| merge probe `7ef27db` + branch = `f069a51` | 105 | 3145 | 237.4 | **4** | 3 | `✓ nothing under … moved` | `8444ab7c…` → `8444ab7c…` |
+
+`git status --porcelain` was empty at both ends of all three.
+
+**The same four by name on all three trees**, and none is in a file this branch
+touches:
+
+- `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+- `test_diagnose § test_perry_itself_passes_its_own_id_checks`
+- `test_heading_title § test_none_of_them_contains_its_own_id`
+- `test_kr_progress_provenance § test_no_current_in_the_payload_claims_to_be_a_measurement`
+
+**No `test_host_support`.** § 5.3's flake did not recur in any of the three
+runs. Round 2 saw it once, on a first run in a fresh `main` worktree, and read
+5 across 4 where I read 4 across 3 on the same `main` content an hour or so
+later. My baseline is 4/3, it is the number in the table, and the flake is
+reported present-or-absent rather than reconciled away.
+
+**The counting trap, reproduced on my own logs before I trusted any of them.**
+On all three, the three readings disagree:
+
+    grep -c '^FAIL:'                          -> 3    (wrong: a header was eaten)
+    the "✗ N module(s) red" line              -> 3    (right, but it counts MODULES)
+    sum of the `FAILED (failures=N)` lines    -> 4    (the failure count)
+
+The eaten header is `test_diagnose`'s first, and it is verifiably eaten rather
+than absent: `test_the_queue_register_reconciles_with_the_queue_on_this_
+repository` appears in every log as a bare traceback line, its `FAIL:` header
+gone above the 25-line window. `test_diagnose` reports `FAILED (failures=2)`
+and shows one header. This is TASK-251 and it is still open.
+
+**`3119 < 3124` is not a regression, and the arithmetic closes exactly.**
+Exactly one module differs each way:
+
+    diff <(ls main/tests/test_*.py) <(ls branch/tests/test_*.py)
+    < test_register_substitution.py     (TASK-243's; the branch predates it)
+    > test_tree_guard.py                (this row's)
+
+Counted directly: `test_register_substitution` is **26** tests on `main` today
+(round 2 said 22, which was true of an earlier tip — corrected here because the
+figure is checkable and I checked it), `test_tree_guard` is **21**. So
+`3124 − 26 + 21 = 3119` on the branch, and `3124 + 21 = 3145` merged. Both
+observed numbers, to the test. `test_task_writer` is 281 on both trees, so the
+call-site fix neither added nor removed a case.
+
+**Merge probe.** `git merge coding/task-249-suite-writes` into `main` @
+`7ef27db`: clean, `ort`, 6 files, no conflicts. Nothing in
+`test_register_substitution` reddens under the merge and nothing this branch
+adds reddens against the newer `main`.
+
+### 8.7 What I could not verify this round
+
+1. **`main` moved under me, and I did not re-run it.** My baseline is
+   `1274587`; `main` was `7ef27db` by the time I merged. The delta is one PMO
+   record commit touching `.perry/events.jsonl`, `perry/BOARD.md`,
+   `perry/intake.jsonl` and one journal file — `git diff --name-only 1274587
+   7ef27db -- tests bin` is empty, so the code under test is byte-identical.
+   But three of the four failures are **data-dependent on board state**, which
+   that commit changes, so strictly my `main` figure is for `1274587`'s board
+   and the merge probe's is for `7ef27db`'s. Both read 4; I did not run a
+   fourth suite to prove the board edit is inert.
+2. **One run per tree.** The four agree by name across three independent
+   trees, which is why I did not repeat. A single run cannot tell a fifth flake
+   from a real failure.
+3. **`--serial` was not run.** All three used the default parallel path.
+4. **I did not reproduce the original write.** Same position as round 2: the
+   sweep is idempotent and this tree is already swept, so a clean run cannot
+   re-derive the defect. § 4's M8 on a seeded copy remains the evidence.
+5. **The subagent-worktree scenario is shown, not observed in the wild.** § 8.5
+   demonstrates `.claude/` appearing between snapshot and verify in a temp
+   tree. I did not catch a real subagent doing it during a real run.
+6. **The narrow docstring pin is narrow.** It cannot tell whether the bullet's
+   description is *accurate*, only which of two named mechanisms it claims. A
+   third mechanism invented tomorrow would satisfy `exactly one` only by
+   accident, and the test would need extending — it says so itself.
+7. **I invalidated my own first tip run and had to discard it.** I edited two
+   files in `wt-249` while that run's step 0 snapshot was open; the guard would
+   have reported them, correctly, as the suite's tree moving under it. I killed
+   the run rather than report a red I caused, finished every edit, committed,
+   and re-ran on a tree that then stayed still. Recorded because it is the
+   cheapest possible demonstration that step 0 does what § 0 claims, and
+   because the alternative — reporting that run — is exactly the failure this
+   row exists to prevent.
