@@ -39,8 +39,17 @@
 
 Not by reading. `perry-task` was instrumented in a scratch copy to log `argv`,
 `cwd`, the process chain and a Python stack whenever the resolved
-`project_root` was the repository root, and the suite was run once. 106 such
-invocations, from `bash tests/run` → `tests/parallel` →
+`project_root` was the repository root, and the suite was run once.
+
+**My instrument counted 106 such invocations. Take that as my instrument's
+number, not as the population.** It logs *after* `parse()` and after the
+`COMMANDS` guard, so every argparse refusal is invisible to it; a reviewer
+instrumenting at process start got **88 un-rooted + 22 explicitly repo-rooted =
+110**. The two counts are measuring different sets and neither is wrong. What
+both measured, and what the claim rests on, is the shape: many un-rooted
+invocations, **one writer among them**. Nothing below depends on 106.
+
+The chain, from `bash tests/run` → `tests/parallel` →
 `python3 -m unittest discover -s tests -p test_task_writer.py -v` →
 `bin/perry-task <name>`. Most are reads (`list --json`, `events --json`).
 The write is one line:
@@ -165,18 +174,28 @@ anything, resolves each anchor at run time and asserts it is unique, clears
 no mtime-keyed `.pyc` can be served stale, and restores from the saved bytes
 verified by **md5**.
 
-    baseline: test_tree_guard.py GREEN — Ran 13 tests
+    baseline: test_tree_guard.py GREEN — Ran 17 tests
 
-    ✓ M1 tree_guard.compare is never consulted                RED (3 tests)
-    ✓ M2 verify never runs (the trap calls true)              RED (1)
-    ✓ M3 the EXIT trap is not installed                       RED (2)
-    ✓ M4 a moved tree exits 0 instead of 1                    RED (2)
-    ✓ M5 file contents are recorded without their hash        RED (3)
-    ✓ M6 a created path is reported as changed                RED (3)
-    ✓ M7 the snapshot is taken after the suite, not before    RED (2)
+    ✓ M1  tree_guard.compare is never consulted               RED (3 tests)
+    ✓ M2  verify never runs (the trap calls true)             RED (1)
+    ✓ M3  the EXIT trap is not installed                      RED (3)
+    ✓ M4  a moved tree exits 0 instead of 1                   RED (2)
+    ✓ M5  file contents are recorded without their hash       RED (4)
+    ✓ M6  a created path is reported as changed               RED (3)
+    ✓ M7  the snapshot is taken after the suite, not before   RED (3)
+    ✓ M8  IGNORE_NAMES blinded to two of the four files       RED (2)
+    ✓ M9  IGNORE_DIRS blinded to the state directory          RED (3)
+    ✓ M10 IGNORE_SUFFIXES blinded to the stores               RED (3)
+    ✓ M11 the PERRY_PROJECT refusal is removed                RED (1)
+    ✓ M12 the file token drops the permission bits            RED (1)
 
     restored: test_tree_guard.py GREEN
-    7/7 mutations red
+    12/12 mutations red
+
+M8 through M12 are the V4 corrections, and **M8 is the one that had to be
+added rather than found**: setting `IGNORE_NAMES = {".DS_Store",
+"events.jsonl", "intake.jsonl"}` — blinding the guard to two of this row's own
+four files — left all thirteen of the first version's tests green. See § 7.
 
 **M8 — the one that matters, and it is not in the suite.** Would this guard
 have caught TASK-249 itself? Measured on a scratch copy with one intake row
@@ -198,90 +217,218 @@ Exactly the four files of this row, from a module that was green. The control
 — same copy, same discharged row, fix restored — is `rc=0`, `✓ nothing moved`,
 and all four md5s identical before and after.
 
-## 5. Baselines
+## 5. Baselines — **and a retraction**
 
-Runner `bash tests/run` (module-parallel, 8 workers), this worktree, 2026-08-30
-09:16-09:21 on a machine also running other agents' suites — the wall times are
-not comparable with `main`'s 08:48 figures and are quoted only for the record.
+### 5.1 The retraction
 
-| tree | runner | when | modules | tests | failures |
-|---|---|---|---|---|---|
-| `49d83fc`, as delivered by the PMO | `bash tests/run` | 08:48, quiet | 103 | 3098 | 4 |
-| `49d83fc`, `git archive`d to a scratch dir and re-run here | `bash tests/run` | 09:21-09:26 | 103 | 3098 | **3** |
-| this branch at `fbab26a` | `bash tests/run` | 09:16-09:21 | 104 | 3111 | **3** |
-| this branch at `1a5dedd` (everything committed) | `bash tests/run` | 09:28-09:34 | 104 | 3111 | 3 + one flake |
+**An earlier version of this section reported the fork point at 3 failures and
+concluded that the PMO's 4 "measured a working tree with uncommitted board
+edits — which is this row's own point." Both halves are withdrawn. The PMO's
+number was right, my correction was wrong, and the accusation resting on it was
+unfounded.**
 
-`+1 module / +13 tests` is exactly `tests/test_tree_guard.py`. The same three
-failures, by name, on the fork point and on this branch:
+The fork point, `git archive 49d83fc` into a scratch directory, is **4 failing
+tests in 3 red modules**, deterministically, on the committed tree. `test_diagnose`
+fails **twice**:
 
+    ✗ test_diagnose.py               FAILED (failures=2)
+        test_the_queue_register_reconciles_with_the_queue_on_this_repository
+            AssertionError: 3 != 1 : diagnose and perry-task disagree about
+            how many queue rows are waiting on the user
+        test_perry_itself_passes_its_own_id_checks
+    ✗ test_heading_title.py          FAILED (failures=1)
+    ✗ test_kr_progress_provenance.py FAILED (failures=1)
+
+The one my list dropped — `test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+— is **one of the two board-data-dependent tests this row exists to protect**.
+Of all the failures to lose, it was that one.
+
+This is also already written down: the project's filed intake row of
+2026-08-29 says the `tests/run` baseline is *"4 failures on a clean archive
+copy"*. I did not check the filed number against mine. Had I done so, one line
+of arithmetic would have stopped this.
+
+### 5.2 What actually happened — three numbers that all look like a count
+
+Deleting the wrong number is not enough, because the trap is still there and it
+is now filed as **TASK-251**. `tests/run` offers three readings and two of them
+say 3:
+
+| reading | gives | why |
+|---|---|---|
+| `grep -cE '^FAIL:'` | **3** | what I used |
+| sum of `FAILED (failures=N)` | **4** | correct |
+| `✗ N module(s) red` | **3** | modules, not tests — and it is the line the runner prints last |
+
+The mechanism is `tests/parallel:283`:
+
+    print("\n".join(r["err"].strip().splitlines()[-25:]))
+
+A red module's stderr is **truncated to its last 25 lines**. `test_diagnose`
+fails twice; the second failure's `FAIL:` header survives inside that window and
+**the first one's does not**, so the first failure reaches the log as a bare
+traceback with no `FAIL:` prefix. My grep counted headers. There is no warning,
+nothing is elided visibly, and the surviving output looks complete.
+
+I am the third agent caught by this in twelve hours, and one of the others had
+documented the trap in its own result before walking into it. So, stated as a
+rule rather than as an apology: **on this suite the failure count is the sum of
+the `FAILED (failures=N)` lines, or the module re-run alone. Never a grep for
+`FAIL:`, and never the module-red count.** I have not touched `tests/parallel`
+— TASK-251 is its own row and it is the PMO's to schedule.
+
+### 5.3 The numbers, counted correctly
+
+Runner `bash tests/run` (module-parallel, 8 workers), 2026-08-30, on a machine
+also running other agents' suites — wall times are recorded but not comparable.
+
+| tree | when | modules | tests | failures |
+|---|---|---|---|---|
+| `49d83fc`, per the PMO | 08:48 | 103 | 3098 | **4** |
+| `49d83fc`, `git archive`d to a scratch dir, re-run here | 09:21-09:26 | 103 | 3098 | **4** |
+| this branch at `fbab26a` | 09:16-09:21 | 104 | 3111 | **4** |
+
+**The fork point and the branch agree at 4, and the PMO's figure is reproduced
+exactly.** `+1 module / +13 tests` at `fbab26a` is `tests/test_tree_guard.py`
+(now 17 tests after the V4 corrections). The same four failures by name on both
+trees, none of them in a file this branch changes:
+
+- `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
 - `test_diagnose § test_perry_itself_passes_its_own_id_checks`
 - `test_heading_title § test_none_of_them_contains_its_own_id` — the filed one,
   fires on a legitimate multi-row evidence document. Not touched.
 - `test_kr_progress_provenance § test_no_current_in_the_payload_claims_to_be_a_measurement`
 
-**A flake, found in passing and not filed by me — the board is the PMO's.**
-The 09:28 run added a fourth, `test_host_support §
+**A flake, recorded rather than filed — the board is the PMO's.** A later run
+added a fifth, `test_host_support §
 TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`.
-Re-run alone on this branch three times: **green, green, red**. Re-run once at
-the fork point: green. It is a concurrency test about a global dispatch cap, on
-a machine running several suites at once, in a module this branch does not
-touch. I am recording it as flaky rather than as a regression, and recording
-that I ran it four times and not forty.
+Re-run alone on this branch three times: **green, green, red**; once at the fork
+point: green. A concurrency test about a global dispatch cap, on a machine
+running several suites at once, in a module this branch does not touch. Four
+re-runs, not forty.
 
-**This branch adds no failure.** The fourth failure in the PMO's 08:48 figure
-does not reproduce against the fork point's committed tree an hour later, which
-is what "data-dependent on board state" means in practice — the PMO measured a
-working tree with uncommitted board edits in it. That is a reason to distrust
-the 08:48 number as a comparator, not evidence that anything was fixed here,
-and it is why the row above it exists: the only honest comparison is the fork
-point and the branch, same runner, same machine, same hour.
-
-**The tree guard is green on a full run of this branch**, and the four files
-are byte-identical before and after it:
+**The tree guard is green on a full run of this branch**, and the four files are
+byte-identical before and after it:
 
     19370b5e4817143e6bcf4a8bf564cdb9  .perry/events.jsonl
     084728c777af398acda59fc48dc3e843  perry/BOARD.md
     b73d602268fabb1b647265518de117a0  perry/intake.jsonl
     b9a6eaed43359fe26ffad193ee6f709c  perry/journal/2026-08/2026-08-30.md
 
-## 6. What I could not close
+## 6. What a V4 round defeated, and what changed
+
+The round could not break the core — the call site, the plant, M8, the trap,
+the control — and got past the guard's *edges* three times. All three are
+closed and each is now mutation-covered. They are recorded because the pattern
+matters more than the fixes: **every one of them was a place where the guard
+was pinned by NAME and could be defeated by CONSEQUENCE.**
+
+1. **Two of three ignore lists were pinned.** `IGNORE_NAMES = {".DS_Store",
+   "events.jsonl", "intake.jsonl"}` blinds the guard to two of this row's own
+   four files and left all 13 tests green. Now all three are pinned by
+   equality, *and* `test_the_four_files_of_this_row_are_never_invisible` pins
+   the property by consequence — it plants a change in each of the four files
+   and requires all four to be reported — so a fourth list invented tomorrow is
+   caught without anyone remembering to pin it. M8/M9/M10.
+
+   `IGNORE_DIRS` also **shrank**, six names to two. `.pytest_cache`,
+   `.mypy_cache`, `.ruff_cache` and `node_modules` were carried here from
+   habit; this repository contains none of them and no tool that makes one
+   (checked: zero hits each). An ignore entry that matches nothing is a blind
+   spot held open for no benefit.
+
+2. **File mode was not recorded.** `chmod +x` on a shipped script changes what
+   the tree is without changing a byte of it, and this repository ships
+   executables whose bit is load-bearing. The token now carries the permission
+   bits, for files and directories. M12.
+
+3. **`$PERRY_PROJECT` aimed at a second checkout — live on this machine.**
+   `perry-task` resolves its root from `$PERRY_PROJECT` *before* the cwd, so a
+   suite run in a worktree by an agent that has it exported at the main
+   checkout moves all four files **over there** while step 0 truthfully reports
+   this tree unmoved. The reviewer demonstrated exactly that. `tests/run` now
+   **refuses to start** in that environment, before step 1.
+
+   It does not silently re-point the variable. `export PERRY_PROJECT="$ROOT"`
+   was tried first and reddens **nine** tests in `test_config_store_readers`
+   that need it absent so the cwd walk runs — a guard that has to bend the
+   suite to fit is a guard that will be bent back. Refusing costs nothing:
+   afterwards the only reachable states are unset (→ cwd → `$ROOT`, which
+   `cd "$ROOT"` just set) and equal to `$ROOT`, and both land inside the tree
+   step 0 hashes. A companion test asserts `PERRY_PROJECT == $ROOT` is still
+   **allowed**, so the refusal cannot be satisfied by refusing everything.
+   M11.
+
+**And one thing the project had already written down.**
+`tests/live_state_expectations.py § _tool_reads_this_project` decides which
+project a test's tool call reads from `--root`, then `cwd=`, then a state path,
+and says of a call carrying none of the three:
+
+> "With none of them the answer is no — the tool would in fact inherit the
+> runner's cwd and so read this repository, but `--help` and `--version` runs
+> are the bulk of that population and **none of them touches state**. A stated
+> blind spot, not a claim."
+
+TASK-249's call site is exactly that shape and `intake-sweep` is the
+counterexample to the last sentence. The blind spot was declared honestly and
+the population turned out to have a member that wrote. That is the argument for
+watching the tree instead of reading the call: a static guard can only ever be
+as good as its claim about what the part it cannot analyse contains. I have not
+changed that file — it guards expectations, not writes, and its statement is
+now falsified in a way its owner should decide about.
+
+## 7. What I could not close
+
+Ordered by how likely each is to matter.
 
 1. **The guard cannot see an idempotent write on an already-written tree.**
    The sweep that motivated this row moves nothing on a tree it has already
    swept, so on `main` today the guard is green either way. It catches the
    **first** occurrence — which is the one that would have been caught in the
-   first place, and the one that matters — not the steady state. This is
-   stated in `tests/tree_guard.py`'s docstring rather than left for the next
-   reader to discover.
-2. **The call-site fix has no test of its own on this tree.** Its test is the
+   first place, and the one that matters — not the steady state. Stated in
+   `tests/tree_guard.py`'s docstring, not left for the next reader to find.
+2. **A test that builds its own `env=` dict naming a third directory.** § 6's
+   refusal closes the *ambient* `$PERRY_PROJECT` case, which is the one that is
+   live on this machine. It does not reach a test that constructs an
+   environment for its own subprocess. No comparison of one tree against
+   itself can, and I have not invented a mechanism that would; it is declared
+   in the module docstring and here, and nowhere else did I claim coverage.
+3. **The call-site fix has no test of its own on this tree.** Its test is the
    guard, and the guard only reddens where the sweep has a row to find. § 4's
    M8 is that test, and it is a scratch-copy measurement, not a suite test.
    Making it a suite test means running the longest module in the suite
    (`test_task_writer`, ~95s) inside another test, against a copy seeded with a
-   discharged row. I judged that too expensive to add and have recorded the
-   gap instead of pretending it is covered.
-3. **`.git` is ignored by the manifest**, so a test that runs `git commit` in
-   the live root gets through. Hashing `.git` would make the guard slow and
-   noisy against a live repository. `__pycache__` and `*.pyc` are ignored for
-   the stronger reason that running the suite compiles the suite — a guard red
-   on every first run is a guard switched off by the end of the week.
-   `tests/test_tree_guard.py § test_the_ignore_list_is_the_documented_one`
-   pins the list, so growing it — the cheapest way to make a red run green —
-   has to change a line a reviewer looks at.
-4. **A write that is reverted before the suite ends is two writes and one
+   discharged row. Too expensive to add; recorded rather than pretended.
+4. **`.git` is ignored**, so a test that runs `git commit` in the live root
+   gets through. Hashing `.git` against a live repository is slow and noisy —
+   index and ref mtimes move under any concurrent git command, including a
+   reviewer's `git log` in another terminal, and a guard that is red for
+   reasons the reader did not cause is a guard that gets switched off.
+5. **`__pycache__`, `*.pyc` / `*.pyo` and `.DS_Store` are ignored at any
+   depth.** Deliberate and unbounded: bytecode legitimately appears beside any
+   Python file, and the Finder writes `.DS_Store` into whatever directory a
+   human opened. This is the residue of the ignore list after § 6 shrank it,
+   and all three lists are now pinned twice — by name and by consequence.
+6. **A write that is reverted before the suite ends is two writes and one
    tree.** The guard compares ends, not the path between them.
-5. **The other 105 un-rooted `perry-task` invocations are reads and are left
-   alone.** `list --json`, `events --json` and friends against the live
-   checkout are harmless and several of them are reading this repository's own
-   board on purpose. If the project ever wants them rooted too, that is a
-   separate row; forcing `PERRY_PROJECT` at the top of `tests/run` would have
-   done it in one line and was rejected because it would mask the next
-   occurrence of exactly this bug instead of surfacing it.
-6. **`tests/merge-check` has no guard.** It calls `tests/parallel` and the two
+7. **The un-rooted `perry-task` invocations that only READ are left alone.**
+   `list --json`, `events --json` and friends against the live checkout are
+   harmless, and several are reading this repository's own board on purpose.
+   Rooting them all is a separate row.
+8. **`tests/merge-check` has no guard.** It calls `tests/parallel` and the two
    `bin/perry-lint` gates directly, not `tests/run`, so step 0 does not cover
    it. It merges into a throwaway `git clone --shared` under a temp dir and
    runs there, so an un-rooted write during a merge-check lands in the clone
    rather than in anybody's checkout — which is why this is a note and not a
    second guard. If that isolation ever changes, this becomes a hole.
-7. **I did not touch `perry/BOARD.md` or `perry/tasks.jsonl`.** The PMO owns
-   them.
+9. **`tests/parallel`'s 25-line truncation is untouched.** It is the mechanism
+   behind § 5.2 and it is filed as TASK-251. Fixing the runner that reports
+   failures, from inside a row about the suite corrupting its own state, is
+   the PMO's call and not mine to take mid-round.
+10. **`tests/live_state_expectations.py`'s stated blind spot is now falsified**
+    (§ 6) and I did not change it. It guards expectations, not writes; whether
+    its sentence should be rewritten or its rule widened is a decision about
+    that guard, not about this one.
+11. **I did not touch `perry/BOARD.md` or `perry/tasks.jsonl`.** The PMO owns
+    them. The flake in § 5.3 and the falsified sentence in § 6 are reported
+    here rather than filed for the same reason.
