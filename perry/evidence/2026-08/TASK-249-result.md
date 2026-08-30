@@ -506,7 +506,10 @@ way past, which is the mechanism in miniature.
 
 **And it is pinned, narrowly.** "The docstring matches the code" is not
 mechanically checkable, and a test claiming to check it would be the
-decoration this row keeps finding. `TestTheDocstringSaysWhichMechanismShipped`
+decoration this row keeps finding. The pin class — named
+`TestTheDocstringSaysWhichMechanismShipped` here, renamed
+`TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun` in § 9.2 when
+round 3 showed the old name claimed more than the test reads —
 checks exactly one proposition instead: closing the ambient case has two
 mutually exclusive implementations — RE-AIM (`export PERRY_PROJECT="$ROOT"` on
 a non-comment line) and REFUSE (the `refusing to run: PERRY_PROJECT` banner) —
@@ -808,3 +811,386 @@ adds reddens against the newer `main`.
    cheapest possible demonstration that step 0 does what § 0 claims, and
    because the alternative — reporting that run — is exactly the failure this
    row exists to prevent.
+
+## 9. Round 3 V4 — PASS, one bullet blocking the merge, four to fix or file
+
+Round 3 (`perry/evidence/2026-08/TASK-249-round3-v4-review.md`) PASSed the row,
+re-derived nine mutations of its own at 9/9 red, attacked the docstring pin
+seven ways, and blocked the merge on a single bullet. All five items are closed
+below. **Three of the five fixes were themselves green under the first mutation
+I aimed at them**, and that is § 9.6 rather than something smoothed away.
+
+Everything destructive here ran on a `tar` copy of the branch tip in a scratch
+directory, never on a reviewed tree. `perry/BOARD.md`, `perry/tasks.jsonl` and
+`.perry/events.jsonl` were not touched; no write-side Perry tool was run; no
+identifiers were minted; `perry-conform declare` and `perry-tasks render` were
+never invoked.
+
+### 9.1 The blocker — the widest hole was missing from the list of holes
+
+`tests/tree_guard.py`'s **"What it does NOT catch, said plainly"** had six
+bullets and `.claude` / `.gstack` were not among them, while `.DS_Store` and
+`__pycache__` — strictly narrower holes — each had one. § 8.4 of this document
+calls the `.claude` hole the widest of the five. A list whose job is to state
+the holes, omitting the widest while naming two smaller ones, reads as
+complete; that is worse than no list.
+
+**The bullet is written from scope I re-derived rather than from the row's own
+account, and the real scope is bigger than § 8.4 recorded.** Three experiments
+in temp trees, each with `compare()` returning `[]`, each with a control:
+
+| # | what happens | manifest before | `compare()` |
+|---|---|---|---|
+| 1 | `.claude/worktrees/agent-1/f` and `.gstack/cache` created between snapshot and verify | `['perry', 'perry/BOARD.md']` | `[]` — **including no `+ .claude   (created)`** |
+| 2 | `.claude/` **already present** at snapshot; `settings.local.json` rewritten and `hooks.json` created | `['perry', 'perry/BOARD.md']` — `.claude` is not in it at all | `[]` |
+| 3 | `perry/evidence/.claude/TASK-0NN-result.md` and `perry/.gstack/tasks.jsonl` written | `['perry', 'perry/BOARD.md', 'perry/evidence']` | `[]` |
+| C | control: the same writes into `perry/evidence/.claudex/` and `perry/BOARD.md` | same | `['  M perry/BOARD.md   (changed)', '  + perry/evidence/.claudex   (created)', '  + perry/evidence/.claudex/TASK-0NN-result.md   (created)']` |
+
+Row 1 is the mechanism § 8.4 argues from — and `+ .claude` itself is invisible
+because `os.walk`'s `dirnames` are filtered *before* the loop that records
+directory entries (`tree_guard.py:198-204`). **Rows 2 and 3 are the part the
+row's prose did not convey.** Row 2 is the one that matters: the story told in
+§ 8.4 is "a subagent worktree appears mid-run and is skipped", which sounds
+bounded in time; the truth is that once the directory exists, *nothing under it
+is ever in the manifest*, so a test rewriting the agent harness's own
+permission allowlist reports nothing. Row 3 is the ignore matching on the
+**name at any depth** — `perry/evidence/.claude/` is as invisible as
+`./.claude/` — which the `#:` comment above `IGNORE_DIRS` does say and which no
+example in the prose showed. The control makes it the name match and not the
+experiment.
+
+All three are in the new bullet, numbered, with the control named.
+
+**And the fix is pinned, because a documentation fix that nothing checks is the
+next round's defect.** `test_every_ignored_name_is_a_bullet_in_the_list_of_
+what_is_missed` asserts that every entry of `IGNORE_DIRS`, `IGNORE_NAMES` and
+`IGNORE_SUFFIXES` appears in that section. Deleting the new bullet is red
+(MB1). Adding a fifth ignored directory **with the equality pin moved with it**
+— the realistic way a red run is made green — is red too (MB2), which the
+equality pin alone would not have caught.
+
+### 9.2 The pin claimed more than it reads
+
+`TestTheDocstringSaysWhichMechanismShipped` said it read *which mechanism
+shipped*. It reads which of two **strings** is present in `tests/run`. Round 3
+produced three green mutations that ship the other mechanism and two bullet
+rewrites that describe the shipped one backwards. **I reproduced all five on my
+own copy before changing anything**, whole-module, baseline GREEN (21 tests):
+
+| # | mutation | the pin's 2 tests | rest of the module |
+|---|---|---|---|
+| G1 | re-aim spelled `export "PERRY_PROJECT=$ROOT"` ahead of the refusal | **GREEN** | RED (4) |
+| G2 | `PERRY_PROJECT="$ROOT"` then a bare `export PERRY_PROJECT` | **GREEN** | RED (4) |
+| G3 | `unset PERRY_PROJECT`, the whole refusal left dead under `if false` | **GREEN** | RED (4) |
+| G4 | the bullet rewritten to assert the exact OPPOSITE behaviour | **GREEN** | **GREEN (21/21)** |
+| G5 | the bullet cut to `- **A write to a DIFFERENT checkout.** \`tests/run\` refuses.` | **GREEN** | **GREEN (21/21)** |
+
+The accuracy gap is total: what is required is the substring `refuses` present
+and the substring `export` absent, in one bullet, and nothing else.
+
+**Both halves of the instruction are taken.** The claim is narrowed *and* the
+pin is widened as far as a string search can go:
+
+- **Narrowed.** The class is renamed
+  `TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun` — it is a
+  vocabulary check on one bullet, and the name now says so. Its docstring
+  states the measurement: G1/G2 are caught today and the *class* of unknown
+  spellings is not; G3 is **not caught and cannot be**, because no substring
+  search distinguishes a reachable line from an unreachable one; G4/G5 are not
+  caught because accuracy is not what it reads. It ends by naming
+  `TestTheEnvironmentTheGuardCanSee` as the protection, which runs the real
+  script and asserts on `rc`.
+- **Widened.** The export pattern stops at the variable name instead of
+  requiring `=`, so `export "PERRY_PROJECT=$ROOT"` and a bare `export
+  PERRY_PROJECT` after an assignment are both seen — G1 and G2 are now RED at
+  the pin (MP1, MP2). The refuse token is anchored to a non-comment line too,
+  which is the symmetry round 3 asked for: `tests/run` discusses both
+  mechanisms at length in comment blocks, and discussing is not shipping.
+
+G3 stays green at the pin (MP3) and is red at the behaviour tests. It is
+recorded in the docstring as the thing this test structurally cannot see,
+rather than left for a fourth round to rediscover.
+
+### 9.3 The `IndexError` is a sentence now
+
+`self._implemented(self.run_src)[0]` raised `IndexError: list index out of
+range` when `tests/run` spelled neither token — an unhandled error in a test
+whose entire value is the sentence it prints. It now asserts `len(found) == 1`
+with its own diagnostic first. Measured (MP6): with both banners reworded so
+neither token is present, the two pin tests come back as **two `FAIL`s carrying
+their explanations and no `IndexError` anywhere in the output**.
+
+One more crash on the same path, found by mutating the fix: `setUp` bounded the
+bullet with `doc.index("\n- **", start + 1)`, so moving that bullet to the end
+of its list raised `ValueError` and **ERRORed both tests** (MP8, measured with
+the pre-fix terminator restored). The first repair — run to the end of the
+docstring — was worse, because it swallows the *"Why a refusal and not a
+re-aim"* section whose prose contains both forbidden words. The terminator is
+now the next top-level bullet **or** the next `##` heading, whichever comes
+first; with the bullet moved last the pin is green and nothing raises (MP7).
+
+### 9.4 Case-differing spellings, and the relative paths the fix newly accepted
+
+Round 3's sharp edges A and B are one decision about what "this tree" means.
+
+**A — still falsely refused.** `pwd -P` collapses symlinks but does not
+canonicalise case, and neither does `Path.resolve()`. On this case-insensitive
+filesystem `$ROOT` spelled in another case `cd`s into the same real directory;
+`perry-task` would compute the same differently-cased string and write into
+that same real directory, inside the tree step 0 hashes — and the resolved
+comparison turned it away. That is the same false refusal § 8.3 was raised to
+close, one spelling further out.
+
+**B — newly accepted, and it is a regression the fix introduced.** At `8dfd25e`
+a raw comparison refused `.` and `tests/..`; `cd … && pwd -P` accepts them
+because `tests/run` resolves against **its own** cwd, while `perry-task`
+resolves against **each subprocess's** and tests routinely pass `cwd=` a temp
+directory. Round 3 could not construct a live escape in this suite and named it
+a residual.
+
+**The decision, made explicit rather than left incidental:**
+
+1. **Sameness is inode identity, not string equality.** The comparison is
+   `test "$PERRY_PROJECT" -ef "$ROOT"` — same device, same inode. That is the
+   question the guard actually asks: would an un-rooted write land inside the
+   tree step 0 hashes? It is true for every casing the filesystem folds
+   together, and it asserts nothing about filesystems that do not fold them.
+2. **A relative value is refused before the comparison is reached.** A value
+   whose meaning is whichever cwd reads it cannot be certified by a check whose
+   whole job is to say where the writes will land. It is refused with its own
+   banner — `refusing to run: PERRY_PROJECT is a relative path` — because
+   telling someone who typed `PERRY_PROJECT=.` inside `$ROOT` that it "points
+   somewhere else" is worse than useless.
+
+Re-swept, `bash tests/run --lint` in a copy, all seventeen spellings round 3
+enumerated (rc 2 before step 1 = REFUSED):
+
+| # | spelling | before | now | right? |
+|---|---|---|---|---|
+| 1 | `$ROOT` exactly | ACCEPTED | ACCEPTED | yes |
+| 2 | `$ROOT/` trailing slash | ACCEPTED | ACCEPTED | yes |
+| 3 | symlink alias of `$ROOT` | ACCEPTED | ACCEPTED | yes |
+| 5 | `$ROOT/.` | ACCEPTED | ACCEPTED | yes |
+| 6 | doubled slash | ACCEPTED | ACCEPTED | yes |
+| 7 | `$ROOT/tests/..` | ACCEPTED | ACCEPTED | yes |
+| 8 | **`.` (relative, cwd is `$ROOT`)** | ACCEPTED | **REFUSED** | **fixed** |
+| 9 | **`tests/..` (relative)** | ACCEPTED | **REFUSED** | **fixed** |
+| 10 | `..` (relative, parent) | REFUSED | REFUSED | yes |
+| 11 | **the whole path UPPERCASED** | REFUSED | **ACCEPTED** | **fixed** |
+| 12 | **the last component case-flipped** | REFUSED | **ACCEPTED** | **fixed** |
+| 13 | a genuinely foreign directory | REFUSED | REFUSED | yes |
+| 14 | a path that does not exist | REFUSED | REFUSED | yes |
+| 15 | a **file**, not a directory | REFUSED | REFUSED | yes |
+| 16 | the empty string | ACCEPTED | ACCEPTED | yes — matches `… or Path.cwd()` |
+| 17 | a subdirectory of `$ROOT` | REFUSED | REFUSED | yes |
+| 18 | `$ROOT` with a trailing space | REFUSED | REFUSED | yes |
+
+Four changed, all four in the intended direction, and it did not become
+accept-everything: 10, 13, 14, 15, 17 and 18 are still refused.
+
+Two tests, one per class. `test_a_differently_cased_spelling_of_this_root_is_
+this_root` skips itself where the filesystem is case-SENSITIVE — there the two
+spellings really are two directories and refusing is right — and it did not
+skip on this machine. `test_a_relative_perry_project_is_refused_and_says_why`
+asserts both halves, refused and explained.
+
+### 9.5 `24` and `18` are out of the docstring
+
+`tests/test_tree_guard.py`'s count docstring carried a present-tense `24` /
+`18` that nothing checked, inside the test whose stated reason for existing is
+that *a number in a comment is a claim nothing checks*. § 8.2's claim that the
+number was gone from both places was true of the assertions and false of the
+prose. The sentence now says the old number was wrong, that writing today's
+count here would be the same defect one value later, and names the two
+instruments without their answers. `grep -n '\b24\b\|\b18\b' tests/test_tree_
+guard.py` returns nothing.
+
+`tests/tree_guard.py:188`'s *"eleven"* is left: it is historical, describes a
+value that was wrong, and carries no live count. Round 3 agreed.
+
+### 9.6 Mutations — twenty, and four of them were green
+
+Two sets. **Set A reproduces round 3's five attacks on the unfixed tip**
+(§ 9.2's table). **Set B is fifteen mutations of the fixes themselves**, on a
+fresh `tar` copy of the fixed tip (`.git`, `__pycache__`, `*.pyc`, `*.pyo`
+excluded), never on a reviewed tree.
+
+Discipline, enforced by the harness rather than remembered: refuse to start on
+a copy that is not byte-identical to the tip; assert the baseline **GREEN**
+before the first mutation and re-assert it after the last; assert every anchor
+**present and unique** before replacing; clear `__pycache__` and sleep past the
+whole-second boundary before every run (CPython validates bytecode on
+mtime-in-whole-seconds plus size); restore from the captured original bytes and
+assert **md5 equality**; and `diff -rq` the whole copy against the tip at the
+end. Runner: `python3 -m unittest discover -s tests -p test_tree_guard.py`
+with `PERRY_PROJECT` popped — deliberately not through `tests/run --only`,
+whose 25-line truncation eats `FAIL:` headers (TASK-251).
+
+| # | mutation | verdict | test(s) that died |
+|---|---|---|---|
+| MC1 | `-ef` reverted to the § 8.3 resolved-string comparison | RED | `test_a_differently_cased_spelling_of_this_root_is_this_root`, **alone** |
+| MC2 | every absolute path accepted | RED | `test_a_foreign_perry_project_refuses_the_run` + `test_other_spellings_…` ×3 |
+| MD1 | relative values resolved instead of refused | RED | `test_a_relative_perry_project_is_refused_and_says_why` (both spellings) |
+| MD2 | the relative banner reworded to "points somewhere else" | RED | the same |
+| MP1 | re-aim spelled `export "PERRY_PROJECT=$ROOT"` ahead of the refusal | RED | **both pin tests** + 6 behaviour |
+| MP2 | `PERRY_PROJECT="$ROOT"` then a bare `export PERRY_PROJECT` | RED | **both pin tests** + 6 behaviour |
+| MP3 | `unset PERRY_PROJECT`, the refusal left dead in the file | RED | 6 behaviour — **the pin stays GREEN** |
+| MP4 | the bullet asserts the opposite behaviour | **GREEN** | — |
+| MP5 | the bullet cut to four words | **GREEN** | — |
+| MP6 | `tests/run` spells neither mechanism | RED | both pin tests, as **FAILs with sentences, no `IndexError`** |
+| MP7 | the bullet moved to the end of its list | GREEN | — (correct: the pin still reads the bullet, nothing raises) |
+| MP8 | the same move with the **pre-fix** terminator restored | RED | both pin tests **ERROR** with `ValueError` |
+| MB1 | the `.claude` / `.gstack` bullet deleted | RED | `test_every_ignored_name_is_a_bullet_…` (`.claude`, `.gstack`) |
+| MB2 | a fifth ignored dir added **with the equality pin moved with it**, no bullet | RED | the same (`.ruff_cache`) |
+| MV1 | all three ignore lists emptied | RED | the same, on the non-empty guard |
+
+**MC1 repeats round 3's MR-1/MR-3 finding one layer out**, and it is the most
+useful row here: a full revert of the `-ef` comparison to the string comparison
+this branch shipped in round 2 kills **exactly one test, and it is the new
+one**. `test_other_spellings_of_this_root_are_this_root` — round 2's own fix
+test — is green under it, because none of the six spellings it passes is
+case-differing. The same blindness, one round later, caught by the same method.
+
+**The four green mutations, reported rather than counted around.**
+
+- **MP4 and MP5 are the § 9.2 finding.** They are green because the pin does
+  not read accuracy, and its docstring now says so in those words. They were
+  green before this round too (G4, G5); what changed is that the test no longer
+  claims otherwise.
+- **MP3 is green and cannot be made red by a string search.** A refusal left in
+  the file but unreachable still reads as shipped. The behaviour tests kill it.
+- **MP7 is green and should be**: the terminator fix makes the bullet readable
+  wherever it sits, and MP8 is the control that shows the fix is load-bearing.
+
+### 9.7 Three of my own fixes were green under their first mutation
+
+Recorded because "I mutated every fix" is worth nothing without the ones that
+came back green.
+
+1. **`test_a_relative_perry_project_is_refused_and_says_why` asserted
+   `"relative" in out`** and stayed GREEN when the refusal banner was reworded
+   to "points somewhere else" — the explanatory paragraph below the banner
+   still contained the word. It now reads the line containing `refusing to
+   run`, which is the line a reader acts on. MD2 is red against the tightened
+   version.
+2. **`setUp`'s terminator**, above.
+3. **`test_every_ignored_name_is_a_bullet_…` iterated three sets** and would
+   have passed on three empty ones. It asserts the derived set is non-empty
+   first; MV1 is that assertion firing.
+
+And one failure of my own harness, which the discipline caught rather than
+hid: a mutation making **two edits to the same file** captured the "original"
+bytes once per edit, so the restore wrote back the state after the first edit.
+The tree looked restored — every md5 check compared the file against the bytes
+it had just written. `diff -rq` of the whole copy against the tip is what
+caught it, and it is why that diff is in the checklist above and not just at
+the end. The affected copy was rebuilt from the tip and every mutation on it
+re-run; no reviewed tree was ever involved.
+
+### 9.8 Baselines — four full suites, measured here, in this session
+
+**I took no number from the brief.** `bash tests/run` from each worktree root
+with `PERRY_PROJECT` unset, bracketed at both ends by `git ls-files -z | xargs
+-0 md5 -q | md5 -q` and by `git status --porcelain`. Machine shared with other
+agents' runs and two of these ran concurrently — wall times are recorded, not
+comparable.
+
+**`main` moved again during this round**, from `1cbc025` to `4d21513` (three
+PMO/record commits and one new evidence document; `git diff --name-only
+1cbc025 4d21513 -- tests bin schema viewer templates setup` is empty, so no
+code under test changed). I measured **both** board states rather than assume
+the second inert, and the merge probe is against the newer one.
+
+| tree | modules | tests | seconds | **failures** | red modules | step 0 | tracked md5 (pre → post) |
+|---|---|---|---|---|---|---|---|
+| `main` @ `1cbc025` | 104 | 3124 | 247.6 | **4** | 3 | n/a (no guard on `main`) | `2cd8b847…` → `2cd8b847…` |
+| `main` @ `4d21513` | 104 | 3124 | 309.0 | **4** | 3 | n/a | `f61f323c…` → `f61f323c…` |
+| branch tip `df8d536` | 104 | **3122** | 301.6 | **4** | 3 | `✓ nothing under … moved` | `61695daf…` → `61695daf…` |
+| merge probe `52e6089` (`4d21513` + `df8d536`) | 105 | **3148** | 243.6 | **4** | 3 | `✓ nothing under … moved` | `bc291799…` → `bc291799…` |
+
+`git status --porcelain` empty at both ends of all four.
+
+**The counting rule, and the trap reproduced on my own logs before I trusted
+any of them.** On all four runs the three readings disagree the same way:
+
+    grep -c '^FAIL:'                          -> 3    (wrong: a header was eaten)
+    the "✗ N module(s) red" line              -> 3    (right, but it counts MODULES)
+    sum of the `FAILED (failures=N)` lines    -> 4    (the failure count)
+
+`errors=` was zero on all four and is summed separately. The eaten header is
+`test_diagnose`'s first: `test_the_queue_register_reconciles_with_the_queue_
+on_this_repository` appears in every one of the four logs as a bare traceback
+line with no `FAIL:` header above it, while `test_diagnose` reports `FAILED
+(failures=2)` and prints one header. `tests/parallel:283` is the mechanism and
+it is TASK-251, still open.
+
+**The same four by name on all four trees**, and none is in a file this branch
+touches:
+
+- `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
+- `test_diagnose § test_perry_itself_passes_its_own_id_checks`
+- `test_heading_title § test_none_of_them_contains_its_own_id`
+- `test_kr_progress_provenance § test_no_current_in_the_payload_claims_to_be_a_measurement`
+
+**No `test_host_support`** in any of the four (`grep -c` returns 0 on each
+log). The known intermittent did not recur; that is evidence about its rate,
+not proof it is gone.
+
+**The arithmetic closes exactly, re-derived here.** `diff` of the two
+`tests/test_*.py` listings shows one module each way: `test_register_
+substitution.py` on `main` only, `test_tree_guard.py` on the branch only.
+Counted directly with `python3 -m unittest discover`: `test_register_
+substitution` is **26**, `test_tree_guard` is now **24** — 21 at `03493d6`
+plus the two spelling tests of § 9.4 and the documentation pin of § 9.1. So
+`3124 − 26 + 24 = 3122` on the branch and `3124 + 24 = 3148` merged. Both
+observed to the test.
+
+**Merge probe.** `git merge coding/task-249-suite-writes` into `main` @
+`4d21513`: clean, `ort`, 6 files, no conflicts, `52e6089`. The failure count
+moves nowhere.
+
+### 9.9 What I could not verify this round
+
+1. **The tip measured in § 9.8 is `df8d536`, and this section is a later
+   commit.** No run in this document hashes the tree that contains this
+   document. The md5 bracket in each row is of the tree at the moment of that
+   run, and the only delta from the final tree is § 9 itself. Two of the four
+   failures scan evidence documents, so that is a claim worth measuring rather
+   than assuming; § 8.6 measured it twice on this branch and it did not move
+   the number, and a fifth run on the final tip is reported in the round's
+   hand-back rather than folded back into this table, because folding it back
+   would regress forever.
+2. **One run per tree, four trees.** The four failures agree by name across
+   all four, which is why I did not repeat. A single run cannot separate a
+   fifth flake from a real failure.
+3. **`--serial` was not run.** All four used the default parallel path.
+4. **I did not reproduce the original write**, for the same reason as rounds
+   2 and 3: the sweep is idempotent and every tree here is already swept.
+   § 4's M8 on a seeded copy is still the evidence.
+5. **`test_task_writer`'s count was not re-derived this round.** Round 3
+   measured 281 on both trees; the module takes ~95 s and my attempt to count
+   it standalone timed out against a machine already running two suites.
+   Nothing in this round's diff touches it — `git diff --stat 03493d6..HEAD`
+   is `tests/run`, `tests/tree_guard.py`, `tests/test_tree_guard.py` and this
+   file — and the suite totals close without it.
+6. **MP3 stays green and I did not close it.** A refusal left in the file but
+   unreachable reads as shipped to any string search. It is stated in the
+   pin's docstring as a structural limit and the behaviour tests kill it; I
+   did not attempt shell reachability analysis in a test.
+7. **The relative-path decision is a judgement, not a measurement.** Round 3
+   could not construct a live escape through an accepted relative
+   `$PERRY_PROJECT` in this suite, and neither did I. I refused the class
+   because its meaning depends on who reads it, not because I caught it
+   escaping.
+8. **The case fix is asserted only where the filesystem folds case.** The new
+   test skips itself on a case-sensitive filesystem, and this machine's is
+   case-insensitive, so the skip path is reasoned and not exercised. `-ef` is
+   the right answer on both kinds; only one kind was measured.
+9. **I did not observe a real subagent worktree appearing during a real run.**
+   § 9.1's three rows are the mechanism in temp trees, with controls.
+10. **I did not audit the rest of `tests/tree_guard.py`'s prose** against the
+    code. I fixed the one list round 3 blocked on, the one bullet the pin
+    reads, and the count docstring; I did not check every sentence.
+11. **I did not touch `perry/BOARD.md`, `perry/tasks.jsonl` or
+    `.perry/events.jsonl`.** The PMO owns them. TASK-251 (the 25-line
+    truncation) is still open and still not mine to take mid-round.
