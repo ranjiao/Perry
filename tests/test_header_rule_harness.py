@@ -765,6 +765,20 @@ CLEAN = [
      '    t = {"header": split_row(line), "statuses": statuses}\n'
      '    return [squash(s) for s in t["statuses"]]\n'),
 
+    ("C17 a table dict indexed by a VARIABLE key",
+     "round 11 delta sweep, running past the bound the round declared: the "
+     "`elem` fallback in the subscript branch is what handles `tables[0]`, "
+     "and it is guarded by the key not being a string. Force it to fire "
+     "anyway and `t[which]` — a dict indexed by a computed key, beside a "
+     "real header row — is reported, as is the same shape with a "
+     "non-string constant key. Second instance of the class the round 11 "
+     "review found at `:659`, found by the sweep that finding forced",
+     "bin/perry-probe-c17",
+     'from tables import squash, split_row\n'
+     'def read(line, values, which):\n'
+     '    t = {"header": split_row(line), "statuses": values}\n'
+     '    return [squash(s) for s in t[which]]\n'),
+
     ("C12 a row transformed but never FOLDED",
      "TASK-050 spec, opening: `**Default** rung` lowercases to `default** "
      "rung` and matches nothing — the rule is about the FOLD, and `.upper()` "
