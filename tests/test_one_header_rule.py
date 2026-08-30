@@ -172,7 +172,20 @@ class TestTheDecoratedHeaderIsActuallyRead(unittest.TestCase):
 
 
 class TestTheFifthCopy(unittest.TestCase):
-    """`read_conformance` resolved its header row with `.strip("` ").lower()`.
+    """`read_legacy_conformance` resolves its header row with `squash`.
+
+    **The reader moved and the rule did not** (TASK-234). The record is
+    `.perry/conformance.jsonl` now, which has no header row for anything to
+    resolve; the markdown reader below is still shipped, is still the one thing
+    that reads a pre-TASK-234 record, and still has to tell a header from a
+    declaration. Pointed at `read_legacy_conformance` rather than deleted,
+    because the copy this class is named for is exactly where it always was —
+    if it is ever reverted, a bolded header is a laundered declaration at the
+    one-way door `perry-conform migrate` opens.
+
+    The original text follows, unchanged, because it is the finding:
+
+    `read_conformance` resolved its header row with `.strip("` ").lower()`.
 
     That strips backticks and spaces and **leaves asterisks**, so a bolded
     `| **File** |` header was not recognised as the header — it was read as a
@@ -210,7 +223,16 @@ class TestTheFifthCopy(unittest.TestCase):
             # what `test_a_bolded_header_is_not_reported_as_a_broken_row`
             # catches.
             "| BOARD.md | 2 | 2026-08-18 | migrate |\n")
-        rec = P.read_conformance(tmp)
+        rec = P.read_legacy_conformance(tmp)
+        # A guard rail on the guard rail: this class exists to compare a
+        # DECORATED header against a plain one, and `([], [])` == `([], [])`
+        # is a comparison that holds when the reader has stopped reading. The
+        # plain case must be non-empty or every subTest below is vacuous —
+        # which is what it became the moment `read_conformance` was pointed at
+        # the store and this probe was not.
+        assert rec.declarations or rec.unreadable, (
+            "read_legacy_conformance returned nothing at all for a record it "
+            "should read — the comparisons in this class would be vacuous")
         return list(rec.declarations), rec.unreadable
 
     def test_decoration_on_the_header_changes_nothing(self):
