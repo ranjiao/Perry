@@ -30,6 +30,7 @@ import importlib.util
 import json
 import os
 import re
+import inspect
 import shlex
 import shutil
 import subprocess
@@ -2550,6 +2551,49 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
             f"the sweep found only {len(handed)} handed-back command(s) in "
             f"bin/perry-conform and bin/perry-migrate, so its empty finding "
             f"list means nothing")
+
+
+class TestTheRootIsRequiredNotDefaulted(unittest.TestCase):
+    """**The shape, asserted rather than merely written.**
+
+    `root_arg` is keyword-only with no default on every function that hands a
+    reader a command, so a caller that has a root must pass it and a new caller
+    cannot inherit the omission by saying nothing. That argument is in
+    `TASK-234-result.md § 1.2` and nothing held it: the V4 round-4 reviewer's
+    R-N11 and R-N12 gave both parameters a default back and the whole suite
+    stayed green, because no caller in the tree omits them today. A shape that
+    protects a FUTURE caller cannot be pinned by a test that exercises present
+    ones — but it can be asserted directly, which is what this does.
+
+    It is not pedantry. The reviewer's R-N3 and R-N4 are exactly what a silent
+    default costs: `apply_plan` had `root_arg: str | None = None`, every test
+    called it positionally, and two of three call sites could drop the root
+    with both modules green.
+    """
+
+    def assert_required_keyword(self, fn, name="root_arg"):
+        sig = inspect.signature(fn)
+        self.assertIn(
+            name, sig.parameters,
+            f"{fn.__name__}{sig} has no `{name}` at all")
+        param = sig.parameters[name]
+        self.assertIs(
+            param.kind, inspect.Parameter.KEYWORD_ONLY,
+            f"{fn.__name__}{sig}: `{name}` is not keyword-only, so a caller "
+            f"can supply it positionally and the next parameter added in "
+            f"front of it silently changes what every caller passes")
+        self.assertIs(
+            param.default, inspect.Parameter.empty,
+            f"{fn.__name__}{sig}: `{name}` has a default, so a caller that "
+            f"has a root can decline to pass it and nothing says so. That is "
+            f"the round-3 defect's shape — and, measured, the reason two of "
+            f"`apply_plan`'s three rollback sites could drop the root with "
+            f"the suite green")
+
+    def test_perry_conforms_two_entry_points_require_the_root(self):
+        for fn in (C.declare, C.migrate_record):
+            with self.subTest(fn=fn.__name__):
+                self.assert_required_keyword(fn)
 
 
 class TestTheSweepIsMeasuredNotTrusted(unittest.TestCase):

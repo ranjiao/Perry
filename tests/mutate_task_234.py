@@ -281,8 +281,8 @@ MUTATIONS = [
     # pointed at the latter, which is the finding: two surfaces name this
     # command and they are not the same code.
     ("M36", "bin/perry-migrate",
-     '    cmd = f"perry-migrate restore {point.stem}{_root_flag(root_arg)}"',
-     '    cmd = f"perry-migrate restore {point.stem}"',
+     '    cmd = f"perry-migrate restore {_q(point.stem)}{_root_flag(root_arg)}"',
+     '    cmd = f"perry-migrate restore {_q(point.stem)}"',
      "tests.test_migrate.TestTheUserDeclares"
      ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
 
@@ -322,6 +322,146 @@ MUTATIONS = [
      "(A record saved with CRLF converts.)",
      "tests.test_conformance.TestTheRefusalNamesTheLine"
      ".test_a_crlf_record_converts_and_the_wording_does_not_say_byte"),
+
+    # ── round 5: the argument is quoted, and the rule that says so ───────
+    #
+    # The round-4 V4 FAIL: the root was carried and interpolated RAW, so on a
+    # project at `.../My Project` the handed-back command exits 1 with a usage
+    # error about a file argument the reader never typed. Three layers again,
+    # and this time the layers are measured rather than argued (§ 6.1).
+
+    ("M41", "bin/perry-conform",
+     '    return shlex.quote(str(value))',
+     '    return str(value)',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_the_named_command_converts_the_readers_project_from_elsewhere"),
+
+    # The shipped defect, put back at the choke point. Invisible to the
+    # end-to-end proof's `shlex.split` step? No — but it IS invisible to any
+    # rule that reads only command phrases, because these two lines name no
+    # tool. `FLAG_VALUE` is the rule that reaches them.
+    ("M42", "bin/perry-conform",
+     '    return f" --root {_q(root_arg)}" if root_arg else ""',
+     '    return f" --root {root_arg}" if root_arg else ""',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
+
+    # Not the root: any other argument. `perry-conform check 'My Notes.md'`.
+    ("M43", "bin/perry-conform",
+     '            f"    perry-conform declare {_q(v.path)}{r}\\n"\n'
+     '            f"which refuses if the file does not match the current shape"',
+     '            f"    perry-conform declare {v.path}{r}\\n"\n'
+     '            f"which refuses if the file does not match the current shape"',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
+
+    # The DRIFTED branch's parenthetical, glued back onto the command line —
+    # `syntax error near unexpected token ʼ(ʼ`, rc=2, measured.
+    ("M44", "bin/perry-conform",
+     '            + (f"\\n{tail.lstrip()}" if tail else ""))',
+     '            + f"{tail}")',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
+
+    # ── round 5: the sweep's own rulings, which had no positive control ──
+    #
+    # R-N8: neutering `ROOT` to match everything left the suite GREEN. The
+    # non-vacuity check guarded against the sweep finding NOTHING, never
+    # against it calling EVERYTHING ok.
+
+    ("M45", "tests/sweep_handed_back_commands.py",
+     'ROOT = re.compile(r"\\{r\\}|\\{_root_flag\\([^)]*\\)\\}|--root")',
+     'ROOT = re.compile(r"")',
+     "tests.test_conformance.TestTheSweepIsMeasuredNotTrusted"
+     ".test_the_sweep_reports_every_planted_defect_it_claims_to_see"),
+
+    ("M46", "tests/sweep_handed_back_commands.py",
+     '    r"^(?:r|_q\\(.*\\)|_root_flag\\(.*\\)|(?:shlex\\.)?quote\\(.*\\))$")',
+     '    r"")',
+     "tests.test_conformance.TestTheSweepIsMeasuredNotTrusted"
+     ".test_the_sweep_reports_every_planted_defect_it_claims_to_see"),
+
+    ("M47", "tests/sweep_handed_back_commands.py",
+     '    r"^\\s*perry-(?:" + "|".join(TOOLS) + r")(?:[ ]" + _ARG + r")+\\s*$")',
+     '    r"(?!x)x")',
+     "tests.test_conformance.TestTheSweepIsMeasuredNotTrusted"
+     ".test_the_recall_the_result_quotes_is_the_recall_measured_here"),
+
+    ("M48", "tests/sweep_handed_back_commands.py",
+     'FLAG_VALUE = re.compile(r"--[a-z][a-z-]+[= ]\\{([^{}]*)\\}")',
+     'FLAG_VALUE = re.compile(r"(?!x)x")',
+     "tests.test_conformance.TestTheSweepIsMeasuredNotTrusted"
+     ".test_the_recall_the_result_quotes_is_the_recall_measured_here"),
+
+    # ── round 5: the three sites that were green because nothing reached
+    # them (the V4 round-4 reviewer's R-N3, R-N4 and R-N13).
+
+    ("M49", "bin/perry-migrate",
+     '            raise Refused(rollback_message(point, e.key, exc,\n'
+     '                                           root_arg=root_arg)) from None',
+     '            raise Refused(rollback_message(point, e.key, exc,\n'
+     '                                           root_arg=None)) from None',
+     "tests.test_migrate.TestAFailedWriteIsRecoverableAndSaysSo"
+     ".test_a_failing_write_rolls_back_and_names_the_restore_command"),
+
+    ("M50", "bin/perry-migrate",
+     '                allow_changed=allow_changed, root_arg=root_arg))',
+     '                allow_changed=allow_changed, root_arg=None))',
+     "tests.test_migrate.TestAFailedWriteIsRecoverableAndSaysSo"
+     ".test_a_write_that_lands_wrong_names_the_way_back_with_the_root"),
+
+    ("M51", "bin/perry-migrate",
+     '            update_expected_after(\n'
+     '                point, P.CONFORMANCE_LEGACY_FILE,\n'
+     '                plan.project_root / P.CONFORMANCE_LEGACY_FILE)',
+     '            pass',
+     "tests.test_migrate.TestTheUserDeclares"
+     ".test_a_run_that_converted_a_legacy_record_can_be_restored"),
+
+    # ── round 5: the two members `§ 10.9` excused, now threaded ──────────
+
+    ("M52", "bin/perry-migrate",
+     '                f"`perry-tasks render --write{r}` if the store is "',
+     '                f"`perry-tasks render --write` if the store is "',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
+
+    ("M53", "bin/perry-migrate",
+     '                            f"--migrate{_root_flag(root_arg)}`, which moves "',
+     '                            f"--migrate`, which moves "',
+     "tests.test_conformance"
+     ".TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_no_refusal_in_perry_conform_names_a_command_without_the_root"),
+
+    # ── round 5: the shape, which no behavioural test can hold ───────────
+
+    ("M54", "bin/perry-migrate",
+     '    root_arg: str | None\n    edits: list[Edit]',
+     '    root_arg: str | None = None\n    edits: list[Edit]',
+     "tests.test_migrate.TestTheRootIsRequiredNotDefaulted"
+     ".test_the_plan_carries_the_root_and_cannot_be_built_without_one"),
+
+    ("M55", "bin/perry-conform",
+     '            *, root_arg: str | None) -> dict:',
+     '            *, root_arg: str | None = None) -> dict:',
+     "tests.test_conformance.TestTheRootIsRequiredNotDefaulted"
+     ".test_perry_conforms_two_entry_points_require_the_root"),
+
+    # ── round 5: the extractor and the source sweep are one rule ─────────
+    #
+    # They disagreed: `CUE` accepted two spaces of indentation and
+    # `commands_named` required four, so `do_restore`'s listing was a
+    # handed-back command to one and invisible to the other.
+    ("M56", "tests/handed_back.py",
+     '_INDENTED = re.compile(r"^[ ]{2,}(perry-[a-z][a-z-]*(?:[ ][^\\n]*)?)$",',
+     '_INDENTED = re.compile(r"^[ ]{4,}(perry-[a-z][a-z-]*(?:[ ][^\\n]*)?)$",',
+     "tests.test_migrate.TestRecoverable"
+     ".test_every_way_back_this_tool_names_carries_the_root"),
 
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
     ("M19", "viewer/parsers.py",

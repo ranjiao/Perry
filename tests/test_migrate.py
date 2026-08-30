@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import contextlib
 import importlib.machinery
+import inspect
 import importlib.util
 import json
 import os
@@ -2021,6 +2022,71 @@ class TestAMigratedIdIsReadableByItsOwnReader(unittest.TestCase):
         text = p.text("knowledge/research/digest.md")
         self.assertIn("**Origin**", text)
         self.assertIn("**Fetched**", text)
+
+
+class TestTheRootIsRequiredNotDefaulted(unittest.TestCase):
+    """**`bin/perry-migrate`'s half of the shape** — see the class of the same
+    name in `tests/test_conformance.py`.
+
+    Round 4 gave `perry-conform`'s two entry points a keyword-only parameter
+    with no default and argued for the shape, and then gave `bin/perry-migrate`
+    three parameters that all kept a silent default:
+
+        apply_plan       (plan, schema, declare=True, root_arg=None)
+        rollback_message (point, key, why, allow_changed=None, root_arg=None)
+        do_restore       (project_root, positional, do_list, as_json, root_arg=None)
+
+    The V4 round-4 reviewer's R-N3 and R-N4 are what that cost: two of
+    `apply_plan`'s three rollback sites could drop the root with the whole of
+    both modules green, because every test called `apply_plan(plan, SCHEMA)`
+    and `None` was `None` on both sides.
+
+    **`apply_plan` and `render` are asserted to have NO such parameter.** A
+    required parameter can still be filled with a value that disagrees with
+    the plan; reading it off `plan.root_arg` means there is no second place to
+    say it. That is the difference between "you must answer" and "there is
+    only one answer".
+    """
+
+    def assert_required_keyword(self, fn, name="root_arg"):
+        sig = inspect.signature(fn)
+        self.assertIn(name, sig.parameters, f"{fn.__name__}{sig}: no `{name}`")
+        param = sig.parameters[name]
+        self.assertIs(param.kind, inspect.Parameter.KEYWORD_ONLY,
+                      f"{fn.__name__}{sig}: `{name}` is not keyword-only")
+        self.assertIs(
+            param.default, inspect.Parameter.empty,
+            f"{fn.__name__}{sig}: `{name}` has a default, so a caller that "
+            f"has a root can decline to pass it and nothing says so")
+
+    def test_every_function_that_hands_back_a_command_requires_the_root(self):
+        for fn in (M.plan_project, M.rollback_message, M.do_restore,
+                   M.fix_tables, M.migrate_text):
+            with self.subTest(fn=fn.__name__):
+                self.assert_required_keyword(fn)
+
+    def test_the_plan_carries_the_root_and_cannot_be_built_without_one(self):
+        field = inspect.signature(M.Plan).parameters.get("root_arg")
+        self.assertIsNotNone(
+            field, "`Plan` does not carry the root the caller typed, so every "
+                   "refusal raised while planning is back to having no root "
+                   "in scope — which is what `§ 10.9` excused two members of "
+                   "the class on")
+        self.assertIs(
+            field.default, inspect.Parameter.empty,
+            "`Plan.root_arg` has a default, so a plan can exist without an "
+            "answer and `plan_project`'s required parameter guards nothing")
+
+    def test_apply_plan_and_render_have_no_root_of_their_own(self):
+        """There is one root per plan and no second place to disagree."""
+        for fn in (M.apply_plan, M.render):
+            with self.subTest(fn=fn.__name__):
+                self.assertNotIn(
+                    "root_arg", inspect.signature(fn).parameters,
+                    f"{fn.__name__} takes a root separately from the plan it "
+                    f"is given. A caller can then pass one that disagrees "
+                    f"with `plan.root_arg`, or — as round 4 shipped — pass "
+                    f"nothing and get `None`")
 
 
 class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
