@@ -59,12 +59,16 @@ packs/ modes/` is empty. The code diff is the same three files under `tests/` �
    removing `cmd_intake_write` — now reddens a named test, and so does
    converting a reader, driving it, and not listing it. `WATCHED` was short by
    eight and one of the eight was already being driven (§ 3).
-6. **The corpus plants the shape.** Fourteen new `DRIFT` entries and two new
-   `CLEAN` controls: `DRIFT` 33 → 47, `CLEAN` 12 → 14 (§ 4).
-7. **Twenty-seven mutations, all red, nine of them single-entry** (§ 5).
+6. **The corpus plants the shape.** Fourteen new `DRIFT` entries and five new
+   `CLEAN` controls: `DRIFT` 33 → 47, `CLEAN` 12 → 17 (§ 4).
+7. **Thirty-one mutations, all red, thirteen of them single-entry**, with every
+   anchor resolved from TEXT at run time rather than carried as a line number
+   (§ 5).
 8. **The machinery was swept for branches that survive their own deletion —
-   first by hand (18 probes, 10 deleted) and then MECHANICALLY from the diff
-   (128 candidates, 20 green, none a detection branch)** (§ 1.5).
+   by hand (18 probes, 10 deleted), then MECHANICALLY from the diff (128
+   candidates, 20 green, none a detection branch), and then again past the
+   bound the second sweep declared (85 candidates), which is where criterion
+   4's failure mode was hiding** (§ 1.5).
 9. **R10-2's count is corrected to eight**, as the round 10 review said (§ 8),
    and the round 11 review's three corrections are applied and re-measured
    (§ 2.3, § 5, § 1.5).
@@ -230,16 +234,17 @@ GREEN                                              20
 ```
 
 The first run of it found **four more unpinned DETECTION branches** on top of
-the review's two. Each is now planted with the live shape it is for, and each
-is a single-entry mutation in § 5:
+the review's two. Each is a single-entry mutation in § 5. **Three are the live
+shape; two are not, and the round 11 review was right to ask** — the column is
+headed accordingly rather than claiming a live instance for all five:
 
-| entry | branch it pins | the live shape |
+| entry | branch it pins | shape, and whether this tree contains one |
 |---|---|---|
-| `D43` | the `YieldFrom` step | `yield from` re-yields, so it must NOT add an element level |
-| `D44` | `_rpaths_of` by ATTRIBUTE name | `Board.task_tables()`, minus the cross-module root |
-| `D45` | `_bind_element` on a COMPREHENSION generator | the same list of tables walked by a comprehension |
-| `D46` | the `cell()` half of the tuple unpack | `i, cells = row["line"], row["cells"]` |
-| `D47` | the SUBSCRIPT half of the carried write | `spec["header"] = header`, `D24`'s sibling |
+| `D43` | the `YieldFrom` step | **no live instance.** `yield from` re-yields, so it must NOT add an element level; a step that gets it wrong reads one subscript too deep |
+| `D44` | `_rpaths_of` by ATTRIBUTE name | LIVE: `Board.task_tables()`, `bin/perry_store.py § plan` — minus the cross-module root |
+| `D45` | `_bind_element` on a COMPREHENSION generator | LIVE in family: the list of dicts of `bin/perry_md_store.py:468`, walked by a comprehension |
+| `D46` | the `cell()` half of the tuple unpack | LIVE: `bin/perry_store.py:857`, `i, cells = row["line"], row["cells"]` |
+| `D47` | the SUBSCRIPT half of the carried write | **no live instance.** `D24`'s sibling — a dict assignment built the header index, this one holds the header row |
 
 `ast.Set` was **deleted** rather than planted: a row is a list, a list is not
 hashable, so a row cannot be an element of a set literal — it survived its own
@@ -264,11 +269,78 @@ Two of the twenty — L695 and L418 — were re-verified by hand with
 text-anchored mutations rather than AST ones, because a sweep that disagrees
 with a hand check is a broken sweep. Both agreed.
 
-**What this sweep still does not claim.** It mutates whole `if` tests, not
-individual conjuncts of an `and`; it does not mutate constants, operators or
-f-string contents; and it covers `tests/header_rule.py` only —
-`tests/test_header_index_is_the_only_fold.py`'s new code is probed by the six
-targeted mutations R11-18…R11-23 and by nothing else.
+**What that sweep did not claim** — stated in the first draft of this document,
+in writing: *it mutates whole `if` tests, not individual conjuncts of an `and`;
+it does not mutate constants, operators or f-string contents; and it covers
+`tests/header_rule.py` only.*
+
+### The delta sweep — a declared bound is not a covered class
+
+**[review correction, the delta pass] The round 11 review ran the sweep that
+bound excludes, and the bound was hiding criterion 4's failure mode.** 36 BoolOp
+operands, each replaced by its operator's identity constant. One red: dropping a
+single conjunct at `tests/header_rule.py:659`,
+
+```
+if p and p[0] == f"attr:{node.attr}"        ->        if p:
+```
+
+makes the net **report a legitimate value normalizer** — an object that carries
+a real header row on `.header` and ordinary values on `.statuses`, folded
+`[squash(s) for s in t.statuses]` — **while the entire 47-entry corpus stays
+silent**, `escaped []`, `flagged []`. That is the exact shape round 8 was failed
+for. Reproduced here before anything was changed. The verdict did not turn on
+it because the bound was declared and the shipped code is correct — but a bound
+declared is not a class covered, and the corpus now reaches inside it.
+
+So the sweep was extended to the two classes it excluded, candidates still from
+`git diff`:
+
+- **each operand of an `and`/`or`** replaced by its operator's identity
+  constant — "drop this conjunct" without touching the rest of the test;
+- **every `if` test set to `True`** as well as to `False`. The first sweep only
+  ever WEAKENED a test. A criterion 4 failure is a test that fires too OFTEN,
+  and only a strengthening mutation reaches one. **That is the structural
+  reason the class was invisible — not an oversight about one line**, which is
+  why the answer is a second sweep and not a second patch.
+
+```
+candidates                                         85   (36 operands + 49 if-tests)
+RED in the corpus                                  17
+RED in the watch                                   16
+UNNEUTRALISABLE                                    26
+GREEN                                              26
+```
+
+It found a **second live instance of the same class**, which is the evidence
+that the first was not a one-off: `tests/header_rule.py:654`, `elif p[0] ==
+"elem":` → `elif True:`. The `elem` fallback answers `tables[0]` and is guarded
+by the key not being a string; forced to fire anyway it reports `t[which]` — a
+table dict indexed by a computed key beside a real header row — and the same
+shape with a non-string constant key.
+
+Three `CLEAN` entries close both, and **no machinery changed**:
+
+| entry | shape | pinned by |
+|---|---|---|
+| `C15` | a DECOY ATTRIBUTE beside a real header row | R11-28, `C15` only |
+| `C16` | a DECOY KEY beside a real header row | R11-29, `C16` only |
+| `C17` | a table dict indexed by a VARIABLE key | R11-30, `C17` only |
+
+**26 greens remain, and this document does not claim they are harmless.** Four
+were probed for over-firing with constructed decoy shapes; one produced a false
+positive (`:654`, now `C17`) and three did not — `q[0] == "elem"` in
+`_bind_element`, the non-string dict key, and the `p` truthiness guard at `:659`.
+**The other 22 are unprobed.** They are guards and normalisation of the same
+kinds listed above, but "unexercised" is what this section is for and an
+unprobed green is not a proven-safe one.
+
+**What the delta sweep still does not claim**: it does not mutate constants,
+operators, comparison directions or f-string contents; it does not mutate
+`tests/test_header_index_is_the_only_fold.py`; and it probes over-firing against
+the corpus, so a false positive on a shape nobody planted is still invisible to
+it. That is the same class of bound as the one that hid `:659`, stated in the
+same place, and the next round should assume it hides something too.
 
 ---
 
@@ -432,13 +504,18 @@ Five more came out of the mechanical sweep and the round 11 review (§ 1.5):
 | `D46` | a tuple unpack whose element is one CELL |
 | `D47` | a row written INTO a dict, then folded out of it |
 
-Two new `CLEAN` controls, which are the reason the entries above are not a key-
-name allowlist:
+Five new `CLEAN` controls. The first two are the reason the entries above are
+not a key-name allowlist; the last three are criterion 4's own direction, and
+they exist because the round 11 review showed the corpus could not see it
+(§ 1.5):
 
 | entry | shape |
 |---|---|
 | `C13` | a dict of VALUES, folded by `squash` — silent |
 | `C14` | a generator yielding a dict of VALUES — silent |
+| `C15` | a DECOY ATTRIBUTE beside a real header row — silent |
+| `C16` | a DECOY KEY beside a real header row — silent |
+| `C17` | a table dict indexed by a VARIABLE key — silent |
 
 `D39` and `C14` differ only in whether what went into the dict came off a row.
 That is the provenance the whole design is stated over, and it is now planted on
@@ -448,7 +525,7 @@ both sides.
 
 ```
 DRIFT       caught  : 47 of 47
-CLEAN       flagged : 0 of 14
+CLEAN       flagged : 0 of 17
 SECOND_RULE caught  : 0 of 41 (+2 the reviews do not name)
 ```
 
@@ -456,73 +533,84 @@ SECOND_RULE caught  : 0 of 41 (+2 the reviews do not name)
 
 ---
 
-## 5. Mutations — twenty-seven, all red
+## 5. Mutations — thirty-one, all red
 
 Each anchored by LINE, asserted against the exact old text before replacing,
 run in a **fresh interpreter**, with `__pycache__` cleared and the clock walked
 past the next whole second on **both** sides, and restored from the WHOLE
 original text with the md5 verified. Every restore printed `MATCHES`.
 
-**[review correction 2] The first draft of this table was measured before
-`D42` existed and omitted it from five rows — `R11-5` reddens `D38` AND `D42`,
-not `D38` alone. That is the second time on this row that a mutation table has
-been published against a corpus older than itself**: round 10's table predated
-`D32`/`D33` and its reviewer found the same thing about `R10-2`. Both times the
-error was safe-direction (the guard is broader than advertised) and both times
-it was found by someone else. **The table below is re-measured in full against
-the 47-entry corpus, in one run, after the last entry was added** — which is
-the process change, not the numbers.
+**[review correction 2, and again in the delta pass] A table published against
+a state older than itself — for the THIRD time on this row.** Round 10's
+predated `D32`/`D33`; round 11's first draft predated `D42`; and correction 1
+inserted fourteen lines into `test_header_index_is_the_only_fold.py`, so
+R11-20, R11-21 and R11-22 named lines 435, 126 and 270 while the anchors had
+moved to 449, 140 and 284 — **stale by exactly +14, the lines the correction
+itself added.** Twice a corpus, once a line number; all three times the *entry*
+was fixed by hand and the *pattern* was not.
 
-| # | mutation (anchor) | reddens |
+**So the line number is no longer an input.** Every mutation below is
+identified by the exact TEXT of the line or block it replaces; the harness
+looks the line number up at run time and asserts it is unique, which is how
+`R11-17`'s anchor was caught being ambiguous across three `IfExp` branches. A
+shift can no longer make this table stale, and the number in each row is
+measured in the run that produced the result beside it. That is the fix; the
+three corrected offsets are a consequence of it.
+
+All thirty-one below were re-run in one pass on `87c920d`, against the
+47-entry `DRIFT` corpus and the 17-entry `CLEAN` corpus, with every restore
+md5-verified.
+
+| # | anchor, resolved at run time | reddens |
 |---|---|---|
-| R11-1 | `header_rule.py:698` `source()` no longer consults `_paths` | D34 D35 D36 D37 D39 D40 D41 D42 D43 D44 D45 D46 D47 |
-| R11-2 | `:631` a dict literal carries nothing | D34 D35 D36 D38 D39 D40 D41 D42 D43 D44 D45 D46 |
-| R11-3 | `:659` an attribute carries nothing | **D37 only** |
-| R11-4 | `:415` `yield` is not a producer | D39 D43 |
-| R11-5 | `:470` `out.append(...)` fills nothing | D38 D42 D43 D44 D45 |
-| R11-6 | `:501` a tuple UNPACK carries no paths | **D38 only** |
-| R11-7 | `:575` a tuple LOOP target carries no paths | **D39 only** |
-| R11-8 | `:327` the path fixpoint runs once | D37 D38 D42 D43 D44 D45 |
-| R11-9 | `:530` a carried WRITE carries nothing | D37 D47 |
-| R11-10 | `:532` `self.header = …` never reaches the class | **D37 only** |
-| R11-11 | `:538` a plain name carries no paths | D34 D35 D37 D38 D40 D41 D46 |
-| R11-12 | `:586` a loop target carries no paths | D42 D43 D44 D45 |
-| R11-13 | `:639` a list/tuple literal carries nothing | D36 D38 D39 |
-| R11-14 | `:643` no tuple POSITION on a literal | D38 D39 |
-| R11-15 | `:654` an `elem` subscript yields nothing | D36 D38 |
-| R11-16 | `:666` a call carries nothing from its callee | D35 D36 D37 D38 D39 D42 D43 D44 D45 |
-| R11-17 | `:667` an IfExp carries nothing | **D38 only** |
-| R11-24 | `:420` `yield from` adds an element level | **D43 only** |
-| R11-25 | `:520` a SUBSCRIPT write carries nothing | **D47 only** |
-| R11-26 | `:454` a comprehension generator binds no table | **D45 only** |
-| R11-27 | `:504` a tuple unpack has no `cell()` half | **D46 only** |
+| R11-1 | `header_rule.py:698` `return () in self._paths(node, scope)` | D34 D35 D36 D37 D39 D40 D41 D42 D43 D44 D45 D46 D47 |
+| R11-2 | `:631` `if isinstance(k, ast.Constant) and isinstance(k.value, str):` | D34 D35 D36 D38 D39 D40 D41 D42 D43 D44 D45 D46 |
+| R11-3 | `:659` `if p and p[0] == f"attr:{node.attr}":` → `False` | **D37 only** |
+| R11-4 | `:415` the `Yield`/`YieldFrom` filter | D39 D43 |
+| R11-5 | `:470` `if attr in ("append", "add"):` | D38 D42 D43 D44 D45 |
+| R11-6 | `:501` `sub_p = {q[1:] … f"pos:{i}"}` | **D38 only** |
+| R11-7 | `:575` `if isinstance(target, (ast.Tuple, ast.List)):` | **D39 only** |
+| R11-8 | `:327` `for _ in range(12):` → `range(1)` | D37 D38 D42 D43 D44 D45 |
+| R11-9 | `:530` `carried = {(step,) + q …}` | D37 D47 |
+| R11-10 | `:532` `if holder.id == "self" and self.class_of.get(f):` | **D37 only** |
+| R11-11 | `:538` `self._add_path(f, targets[0].id, …)` | D34 D35 D37 D38 D40 D41 D46 |
+| R11-12 | `:586` `self._add_path(scope, target.id, got)` | D42 D43 D44 D45 |
+| R11-13 | `:639` `if isinstance(node, (ast.List, ast.Tuple)):` | D36 D38 D39 |
+| R11-14 | `:643` `out.add((f"pos:{i}",) + p)` | D38 D39 |
+| R11-15 | `:654` `elif p[0] == "elem":` → `False` | D36 D38 |
+| R11-16 | `:666` `return out | self._rpaths_of(node)` | D35 D36 D37 D38 D39 D42 D43 D44 D45 |
+| R11-17 | `:667` the `IfExp` branch of `_paths` | **D38 only** |
+| R11-24 | `:420` `step = () if isinstance(node, ast.YieldFrom) else ("elem",)` | **D43 only** |
+| R11-25 | `:520` the SUBSCRIPT half of the carried write | **D47 only** |
+| R11-26 | `:454` `self._bind_element(g.target, g.iter, f)` | **D45 only** |
+| R11-27 | `:504` `if self.cell(elts[i], f):` | **D46 only** |
+| R11-31 | `:613` `_rpaths_of` by ATTRIBUTE name | **D44 only** |
+| R11-28 | `:659` `if p and p[0] == f"attr:{node.attr}":` → `if p:` | flags **`C15` only** |
+| R11-29 | `:652` `if p[0] == f"key:{key}":` → `if True:` | flags **`C16` only** |
+| R11-30 | `:654` `elif p[0] == "elem":` → `elif True:` | flags **`C17` only** |
 | R11-18 | `…only_fold.py:100` delete `cmd_intake_write` from `WATCHED` | `test_watched_is_exactly_…` |
 | R11-19 | `:84` convert-and-forget `is_intake_register_header` | `test_watched_is_exactly_…` |
-| R11-20 | `:435` stop driving the carried-row readers | `…_the_measured_one`, `test_watched_is_exactly_…`, `…_actually_folds_one` |
-| R11-21 | `:126` drop one entry from `UNCOVERED` | `test_the_uncovered_remainder_is_the_measured_one` |
-| R11-22 | `:270` `Reach` records nothing | `test_the_uncovered_remainder_is_the_measured_one` |
+| R11-20 | `:449` stop driving the carried-row readers | `…_the_measured_one`, `test_watched_is_exactly_…`, `…_actually_folds_one` |
+| R11-21 | `:140` drop one entry from `UNCOVERED` | `test_the_uncovered_remainder_is_the_measured_one` |
+| R11-22 | `:284` `Reach` records nothing | `test_the_uncovered_remainder_is_the_measured_one` |
 | R11-23 | `header_rule.py:881` call every carried site static | `test_the_uncovered_remainder_is_the_measured_one` |
 
-**Twenty-seven mutations, all red, nine of them single-entry.** **No mutation
-flagged a `CLEAN` entry.** The anchor is given for every row so the next
-reviewer can replay them: the round 11 reviewer could not verify 9 of the 23 in
-the first draft of this table, because the table named the mutation and not the
-line it was made at, and substituted an exhaustive plant sweep and a
-twelve-branch hunt of its own. That substitution is what found corrections 1
-and 3. The fixpoint keeps earning its place
-(R11-8 → two entries). R11-1 does not redden `D38` because the tuple-unpack
-branch writes into `self.scope` directly rather than through `source()`, which
-is defence in depth and is reported rather than tidied.
+**Thirty-one mutations, all red. Thirteen single-entry**: ten reddening one
+`DRIFT` entry (R11-3, 6, 7, 10, 17, 24, 25, 26, 27 and **R11-31**, which the
+round 11 review asked for — `D44` pins a branch that is single-entry and had no
+row saying so) and three flagging one `CLEAN` entry (R11-28, 29, 30), the three
+that make criterion 4 measurable rather than asserted.
 
-R11-22 and R11-23 are the two that make § 2 readable: they neutralise the
-DYNAMIC half of the measurement and the STATIC half of it in turn, and each
-reddens the remainder test — so neither half of the number is vacuous.
+**No mutation of the catching direction flagged a `CLEAN` entry, and no
+mutation of the over-firing direction let a `DRIFT` entry escape.** Those are
+two different claims and until the delta pass only the first one had a
+measurement behind it.
 
-The corpus probe used for the code mutations analyses only the planted file.
-That is exactly what `_hits` already does (it filters offenders to the planted
-path) and it keeps `readers_under`'s own `is_python`, which `D20` and `D21`
-exist to discriminate. It was validated against the full `measure()` on the
-unmutated tree: both report 0 escaped, 0 flagged.
+The round 11 reviewer could not verify 9 of the 23 rows in the first draft of
+this table, because it named each mutation and not the line it was made at, and
+substituted an exhaustive plant sweep and a twelve-branch hunt of its own —
+which is what produced the corrections in § 1.5 and § 2.3. With anchors, five
+of those nine replayed from the table alone on the next pass.
 
 ---
 
@@ -585,58 +673,86 @@ one that changed is limit 1.
 3. **The remainder neither half covers is 8**, listed by name in § 2.3 and
    recomputed by a named test. It is not zero and this round does not claim it
    is — and **five of the eight, not eight, are the cross-module limit.**
-3. **The `carried` half of the census is a SPELLING**, `CARRIED_KEYS =
+4. **The `carried` half of the census is a SPELLING**, `CARRIED_KEYS =
    ("header", "headers", "hdr")`. It is used only to COUNT, never by
    `offenders_by_symbol`, and it is documented as such at its definition — but
    a census that undercounts overstates coverage, so a row held under a fourth
    key name is uncounted. The `convert` half (59 of the 76 sites) is
    spelling-free.
-4. **The dynamic half measures FUNCTION entry, not line execution.** A plant on
+5. **The dynamic half measures FUNCTION entry, not line execution.** A plant on
    a branch the workload does not take, inside a function it does enter, is
    counted as covered and would not be. A line-level trace of the same workload
    returns the same remainder today (§ 2.2), so nothing is hiding behind the
    coarser question — but that is a measurement, not a guarantee.
-5. **A second RULE — a reader that invents its own fold — is invisible to the
+6. **A second RULE — a reader that invents its own fold — is invisible to the
    static net by construction.** That is `SECOND_RULE`, 41 planted shapes
    asserted to escape, covered by
    `test_every_decorated_header_cell_reached_header_index`. Round 9's ruling
    that `0 of 41` is acceptable under option C is carried, not re-litigated.
-6. **A rebinding through a container (`FOLDS["k"] = squash`) and a function that
+7. **A rebinding through a container (`FOLDS["k"] = squash`) and a function that
    RETURNS the rule (`def picker(): return squash`) are still not resolved as
    aliases.** Round 10's limit, unchanged; both are a second-rule shape by
    another road.
-7. **`WATCHED` records bare function names.** `header_language` exists in both
+8. **`WATCHED` records bare function names.** `header_language` exists in both
    `bin/perry-goals` and `bin/perry-task`, so one entry can be satisfied by
    either. The converse check in § 3 matches by file as well as name, so the
    equality is not fooled — but the forward check
    (`test_every_reader_this_module_claims_to_watch_actually_folds_one`) still
    is. Recorded by the round 10 review; not load-bearing today.
-8. **`viewer/parsers.py § parse_decisions`** is still a live instance of the
+9. **`viewer/parsers.py § parse_decisions`** is still a live instance of the
    scalar second-rule class and still dead code. Agreed out of scope.
-9. **The write side, localized headers and non-Python readers are not audited.**
-10. **Eleven branches were deleted for being unmeasured** (§ 1.5) — the ten the
+10. **The write side, localized headers and non-Python readers are not audited.**
+11. **Eleven branches were deleted for being unmeasured** (§ 1.5) — the ten the
     hand sweep found plus `ast.Set`. Each was dead on this tree; a future reader
     that writes `d.setdefault("header", row)` or `tables[1:]` would escape until
     someone plants it. That is a deliberate trade — an unmeasured half is what
     failed round 8 — and it is stated here so the next round can widen it *with*
     an entry rather than without one.
-11. **`test_the_row_splitter_half_is_owned_by_criterion_3` still asserts half
+12. **`test_the_row_splitter_half_is_owned_by_criterion_3` still asserts half
     its docstring**: it checks `SPLIT_RE` and not that the scan covers `bin/`
     and `viewer/`. Carried from round 10.
-12. **No reader was driven end-to-end from `argv`.** Round 8's four-CLI
+13. **No reader was driven end-to-end from `argv`.** Round 8's four-CLI
     byte-identical differential is carried, not re-measured.
-13. **`bash tests/run` writes Perry state into the repository it runs in**
+14. **`bash tests/run` writes Perry state into the repository it runs in**
     (§ 9). Observed, reproduced under control, confirmed independently by the
     round 11 reviewer in its own export, and filed as `TASK-249`. Not this row.
-14. **The census's `carried` half has an ATTRIBUTE branch that is unexercised.**
-    All seventeen live carried sites are subscripts, so neutralising the
-    attribute branch of `header_sites` moves nothing (§ 1.5). It is kept so the
-    census does not silently under-report the day one appears, and it is named
-    here because an unexercised branch of the MEASUREMENT is exactly the kind of
-    thing this row has been failed for leaving unsaid.
-15. **The mechanical sweep is bounded and says so** (§ 1.5, last paragraph): it
-    mutates whole `if` tests rather than individual conjuncts, does not mutate
-    constants or operators, and covers `tests/header_rule.py` only.
+15. **The census's `carried` half has an ATTRIBUTE branch that is unexercised
+    — kept, where `ast.Set` was deleted, and the reasons are different.** All
+    seventeen live carried sites are subscripts, so neutralising the attribute
+    branch of `header_sites` moves nothing (§ 1.5). The round 11 review
+    confirmed the 0 of 17 and ruled that declaring this one is right where
+    deleting `ast.Set` was right, and the distinction is worth stating because
+    "survives its own deletion" is not by itself a verdict:
+
+    - `ast.Set` is **unreachable in principle** — a row is a list, a list is
+      not hashable, so no row can ever be an element of a set literal. Nothing
+      would pin it, ever. Deleted.
+    - The census's attribute branch is **reachable in principle** — a reader
+      that holds its header row on an attribute is ordinary Python, this tree
+      simply has none today — and its detection-side sibling is pinned by
+      `D37`. Kept and declared, so the census does not silently under-report
+      the day one appears.
+
+    An unexercised branch of the MEASUREMENT is exactly the kind of thing this
+    row has been failed for leaving unsaid, which is why it is here and not
+    only in a commit message.
+16. **A declared bound is not a covered class, and there is still a bound.**
+    The first sweep declared, in writing, that it did not mutate individual
+    conjuncts — and that bound was hiding criterion 4's failure mode at
+    `:659`, which the round 11 review found by running exactly the sweep the
+    bound excluded (§ 1.5). The bound is now smaller, not gone: the delta sweep
+    does not mutate constants, operators, comparison directions or f-string
+    contents, does not cover
+    `tests/test_header_index_is_the_only_fold.py`, and probes over-firing only
+    against the corpus — so a false positive on a shape nobody planted is
+    invisible to it. **The next round should assume this bound hides something
+    too**, and the way to find out is to run the sweep it excludes rather than
+    to trust the sentence.
+17. **Twenty-six mutants of the delta sweep are green and only four of them
+    were probed** for over-firing with constructed decoy shapes (§ 1.5). One of
+    the four produced a false positive and is now `C17`. The other twenty-two
+    are unexercised, not proven harmless, and this document does not say
+    otherwise.
 
 ---
 
@@ -697,6 +813,23 @@ produce about itself, and because the next round should not re-run it:
    human writes is a claim about their own code, and this row has been failed
    three times for claims wider than their measurement.** The candidate list now
    comes from `git diff`.
+
+   And the second half of the same finding, which took two more passes to
+   see: the sweep that replaced my hand list came with a **declared bound**,
+   and the bound was where criterion 4's failure mode was. A bound written
+   down honestly is still an uncovered class. The only thing that closed it
+   was running the sweep the bound excluded — which found a second instance of
+   the same defect that nobody had asked about.
+
+4. **Three times on this row a table has been published against a state older
+   than itself** — round 10's mutation table predated `D32`/`D33`, round 11's
+   first draft predated `D42`, and round 11's own corrections shifted three
+   anchors by +14 while the table still named the old lines. Each time the
+   entry was corrected and the mechanism was not. It is fixed structurally now:
+   § 5's anchors are the exact TEXT of what is replaced, the line number is
+   looked up at run time and asserted unique, and the harness refuses an
+   ambiguous anchor — which is how `R11-17` was caught matching three
+   different `IfExp` branches.
 3. **`bash tests/run` writes Perry state into the repository it runs in, and
    it is reproducible.** After this session's baseline run, `git status` in the
    worktree showed four tracked files modified — `.perry/events.jsonl`,
