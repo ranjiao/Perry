@@ -1347,6 +1347,49 @@ needed real work.
    reason to believe 19 spellings exhaust the ways a Python program can put a
    command into a message. Every "N members / M left" in this document is a
    count under one rule.
+14. **The class is much larger outside the two tools this row owns, measured
+   and not fixed.** The round-5 rule over all twelve other `bin/perry-*` tools:
+
+       63 handed-back command(s), 232 mention(s);
+       25 handed back without the caller's root, 19 interpolating a value raw
+
+   `bin/perry-conform` and `bin/perry-migrate` contribute **0 and 0**; the
+   other twelve carry all of it — `perry-tasks` 11, `perry-task` 9,
+   `perry-decide` 2, `perry-goals`, `perry-lint` and `perry-state` 1 each. Most
+   of the rootless ones are `perry-tasks render --write` and `… write
+   --from-board`, the same two commands `§ 10.9` was about, handed back from
+   six more places. **They write.**
+
+   **The 19 over-reports outside these two tools and the split is stated
+   rather than glossed**: 3 are a raw value inside a genuine command phrase
+   (all in `bin/perry-task`) and **16 are `FLAG_VALUE` reading a long flag in
+   ordinary prose** — *"`--prefix {requested}` is not an id prefix"*. That rule
+   is deliberately blunt because it is the only one that can reach the choke
+   point (§ 1.3), and outside a message that hands back a command its
+   precision is poor. Anyone extending the suite guard past these two tools has
+   to sharpen it first; this row does not, and does not pretend the number is
+   clean.
+
+   Not fixed here for the same reason `§ 10.10` gives: a different tool, a
+   different row, and a root threaded through functions that never had one.
+   Written down with the number and the command that produces it.
+
+15. **The widened overclaim guard has a false-positive shape and it is named.**
+   A genuine byte comparison in `bin/perry-conform` or `bin/README.md`
+   described as *"compared byte-for-byte with the record it derived"* would be
+   flagged. There is none today. The looser widening that would have avoided
+   nothing and caught more was tried and rejected on measurement: it fires on
+   `bin/README.md`'s true claim about `perry-config` and on the correcting
+   comment itself (§ 6, M57).
+
+16. **Nothing write-side was run against the repository.** Every suite run,
+   mutation and probe was in a private detached worktree; the end-to-end
+   demonstration in § 1.3 was on a throwaway project under
+   `scratchpad/r5space` that this round created. `perry-conform declare` was
+   run only inside test fixtures' own temporary directories and inside that
+   throwaway. `perry-tasks render --write` and `perry-tasks --dry-run` were
+   never run anywhere. `perry/BOARD.md`, `perry/tasks.jsonl` and
+   `.perry/events.jsonl` are untouched and no identifier was minted.
 
 ## 11 · For the record — the sixth vacuous test in three days
 
