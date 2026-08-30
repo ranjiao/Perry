@@ -410,7 +410,7 @@ I expected this one to die and it does not. Measured:
   mutation **M10**). A one-way door that destroys a line the user typed is not
   something to leave for a follow-up row.
 
-## 6 · Mutations — 21/21 reddened their named test
+## 6 · Mutations — 29/29 reddened their named test
 
 Harness: `tests/mutate_task_234.py`. Uniquely named; **refuses a dirty tree**;
 anchors on exact text and asserts the anchor is **unique** in the file; resolves
@@ -439,8 +439,26 @@ mutating; restores by `md5` and asserts the digest.
 | M17 | `bin/perry-migrate:1776` | drop the legacy record from the restore point | `tests.test_migrate … test_restore_also_withdraws_the_declarations_the_run_wrote` |
 | M18 | `bin/perry-migrate:1842` | drop the legacy `preflight_file_object` | `tests.test_migrate … test_a_symlinked_markdown_record_is_refused_before_state_writes` |
 | M21 | `bin/perry-migrate:1921` | `except (OSError, Refused, C.Refused, ValueError)` → drop `C.Refused` | `tests.test_migrate … test_an_unconvertible_markdown_record_refuses_and_names_the_way_back` |
+| M22 | `bin/perry-conform:649` | replace the diff with `perry-conform status` — round 1's message | `TestTheRefusalNamesTheLine.test_the_refusal_carries_a_diff_and_not_a_command_that_computes_none` |
+| M23 | `bin/perry-conform:574` | `max(0, len(lines) - DIFF_CAP)` → drop the `max` | `TestTheDefensiveBranchesAreLoadBearing.test_a_short_diff_does_not_claim_it_dropped_a_negative_number` |
+| M24 | `bin/perry-conform:577` | the dropped count → `0` | `TestTheRefusalNamesTheLine.test_a_wholly_rewritten_record_is_capped_and_says_how_much_it_dropped` |
+| M25 | `viewer/parsers.py:694` | `if not isinstance(path, str) or not path.strip():` → `if False:` | `TestTheDefensiveBranchesAreLoadBearing.test_a_non_string_path_is_refused_rather_than_used_as_a_key` |
+| M26 | `viewer/parsers.py:698` | `if not isinstance(declared, str) or not isinstance(route, str):` → `if False:` | `…test_a_non_string_declared_or_route_is_refused` |
+| M27 | `viewer/parsers.py:703` | `route=route or "declare"` → `route=route` | `…test_an_empty_route_reads_as_declare_rather_than_as_blank` |
+| M28 | `viewer/parsers.py:700` | the provenance `isinstance` guard → `rec.get(key) or ""` | `…test_non_string_provenance_reads_as_empty_rather_than_as_itself` |
+| M29 | `viewer/parsers.py:655` | drop `try/except OSError` around `read_text` | `…test_a_record_that_exists_but_cannot_be_read_is_not_a_crash` |
 | M19 | `viewer/parsers.py:816` | `if header_index([rel]).column("file", "path") == 0 or not rel:` → `if False:` | `tests.test_one_header_rule … test_a_bolded_header_is_not_reported_as_a_broken_row` |
 | M20 | `viewer/parsers.py:860` | `if canonical != line:` → `if False:` | `test_a_backticked_path_cell_is_not_a_declaration` |
+
+**M23 and M24 are two more defects, and both are the FAIL's own shape.**
+`max(0, len(lines) - DIFF_CAP)` reads as belt-and-braces and is load-bearing:
+without it `dropped` is negative for every diff shorter than the cap, `if
+dropped:` is true for a negative number, and **every ordinary refusal would have
+ended "… and -37 more diff line(s)"** — a false statement on the one message the
+FAIL was about. And M24 caught the cap test asserting that the notice *exists*
+while never checking the *number*, so replacing the count with a constant stayed
+green. Both are an assertion sitting beside the thing that matters, which is
+what `assert_conversion_refuses` was doing too.
 
 **M21 is a defect this row introduced, found by reading the handler.**
 `apply_plan`'s `except (OSError, Refused, ValueError)` around the declaration
@@ -517,7 +535,7 @@ of the symptom is not absence of the defect: TASK-249 stands.
 | `.perry/conformance.md` → `.perry/conformance.jsonl` | Perry's own record, 23 declarations |
 | `tests/test_conformance.py` | 69 → 91 |
 | `tests/test_migrate.py`, `tests/test_one_header_rule.py`, `tests/test_header_index_is_the_only_fold.py`, `tests/test_procedures_call_the_tool.py` | see § 4.5 and § 9 |
-| `tests/mutate_task_234.py` | new — 21 mutations |
+| `tests/mutate_task_234.py` | new — 29 mutations |
 
 ## 9 · Blast radius beyond "two functions"
 
