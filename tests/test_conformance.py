@@ -1649,9 +1649,6 @@ class TestIsAdoptedIsNotReplaced(unittest.TestCase):
                             "the two predicates collapsed into one")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 # ── 12 · the record is a store (TASK-234) ─────────────────────────────────
 
@@ -2025,3 +2022,7 @@ class TestWhatTheConversionDoesNotDissolve(unittest.TestCase):
                          "TASK-246 is dissolved — rewrite this test and close "
                          "the row rather than leaving it open")
         self.assertEqual(C.P.read_conformance(p.root).unreadable, [])
+
+
+if __name__ == "__main__":
+    unittest.main()
