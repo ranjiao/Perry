@@ -407,7 +407,8 @@ independent rather than asserting it.
 | | Runner | Tree | Hour (CST) | Result |
 |---|---|---|---|---|
 | Baseline | `bash tests/run`, python 3.11.15, worktree `wt-234` | `49d83fc` (`main`) | 2026-08-30 08:53 → 08:58 | **103 modules · 3098 tests · 4 failures** |
-| After | `bash tests/run`, python 3.11.15, worktree `wt-234` | `0762a0b` (branch HEAD) | 2026-08-30 09:32 → 09:37 | **103 modules · 3122 tests · 4 failures** |
+| After | `bash tests/run`, python 3.11.15, worktree `wt-234` | `0762a0b` | 2026-08-30 09:32 → 09:37 | **103 modules · 3122 tests · 4 failures** |
+| After (final) | `bash tests/run`, python 3.11.15, worktree `wt-234` | `601b651` (branch HEAD) | 2026-08-30 09:40 → 09:45 | **103 modules · 3123 tests · 4 failures** |
 
 **The four failures are the same four, by name, in both runs** — diffed, not
 counted: `test_no_current_in_the_payload_claims_to_be_a_measurement` and
@@ -417,7 +418,8 @@ counted: `test_no_current_in_the_payload_claims_to_be_a_measurement` and
 `test_kr_progress_provenance.py`. **No new failure.** 3098 → 3122 is +24: +22 in
 `test_conformance.py`, +1 in `test_migrate.py` (the symlink preflight became two
 tests), +1 in `test_procedures_call_the_tool.py`. A 22nd landed after that run
-(`test_migrate.py`, the M21 defect below), so the branch head carries 3123.
+(`test_migrate.py`, the M21 defect below), which is the 3123 of the final run —
+same three red modules, same four failures, by name.
 
 An earlier run at 09:25 had a **fifth** red module, `test_claims.py`, and it was
 this row's own defect: § 12 was appended AFTER `if __name__ == "__main__":`, so
