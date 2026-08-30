@@ -161,6 +161,12 @@ MUTATIONS = [
      "tests.test_migrate.TestFileImageFidelity"
      ".test_a_symlinked_markdown_record_is_refused_before_state_writes"),
 
+    ("M21", "bin/perry-migrate",
+     '        except (OSError, Refused, C.Refused, ValueError) as exc:',
+     '        except (OSError, Refused, ValueError) as exc:',
+     "tests.test_migrate.TestTheUserDeclares"
+     ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
+
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
     ("M19", "viewer/parsers.py",
      '        if header_index([rel]).column("file", "path") == 0 or not rel:',

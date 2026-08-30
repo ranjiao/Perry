@@ -865,6 +865,35 @@ class TestTheUserDeclares(unittest.TestCase):
                         callers.append(f"{tool.name}: {line.strip()}")
         self.assertEqual(callers, [])
 
+    def test_an_unconvertible_markdown_record_refuses_and_names_the_way_back(self):
+        """`declare` converts a pre-TASK-234 record before it writes, and that
+        step can REFUSE — with `bin/perry-conform`'s `Refused`, which is a
+        different class from this module's. It walked straight past the handler
+        around the declaration, which is Site 3's own failure mode verbatim:
+        fully migrated, restore point on disk and never named, raw traceback.
+
+        Asserts the shape of the refusal, not just that one happened: a
+        traceback is also a non-zero exit."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        (p.root / ".perry").mkdir(exist_ok=True)
+        # A record with a row inside an HTML comment — a genuine row by every
+        # per-row property, and not what `perry-conform declare` would write.
+        (p.root / ".perry" / "conformance.md").write_text(
+            "# Perry conformance\n\n"
+            "| File | Shape version | Declared | Route |\n"
+            "|---|---|---|---|\n"
+            "<!--\n| OKR.md | 2 | 2026-08-20 | declare |\n-->\n",
+            encoding="utf-8")
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, f"the run did not refuse: {out} {err}")
+        self.assertIsInstance(out, dict, f"a traceback, not a refusal: {err}")
+        self.assertIn("refused", out, out)
+        self.assertIn("perry-migrate restore", out["refused"],
+                      "the refusal does not name the way back")
+        self.assertNotIn("Traceback", err)
+
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")

@@ -1911,7 +1911,14 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             update_expected_after(
                 point, P.CONFORMANCE_LEGACY_FILE,
                 plan.project_root / P.CONFORMANCE_LEGACY_FILE)
-        except (OSError, Refused, ValueError) as exc:
+        # **`C.Refused`, not just this module's** (TASK-234). `Refused` here
+        # is `bin/perry-migrate`'s own class, so a refusal raised INSIDE
+        # `perry-conform` is a different type and walked straight past this
+        # handler. That became reachable the moment `declare` gained a step
+        # that can refuse — the record conversion — and it is Site 3's own
+        # failure mode verbatim: fully migrated, restore point on disk and
+        # never named, raw traceback.
+        except (OSError, Refused, C.Refused, ValueError) as exc:
             record = plan.project_root / P.CONFORMANCE_FILE
             raise Refused(rollback_message(
                 point, P.CONFORMANCE_FILE,
