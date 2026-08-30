@@ -389,6 +389,15 @@ its track and the linter called it clean. **A new tool composes and reshapes wha
 Tests live in [`tests/`](../tests/) and run with:
 
 ```bash
-bash tests/run            # everything
-bash tests/run --lint     # just the schema drift guard (fast)
+bash tests/run                # everything
+bash tests/run --lint         # just the schema drift guard (fast)
+bash tests/run --serial       # step 2 one module at a time (ordering hunts)
+bash tests/run --only PREFIX  # steps 0-2 only, step 2 narrowed to PREFIX
 ```
+
+Every one of those ends with **step 0**, `tests/tree_guard.py`: the tree the
+suite started in must be the tree it ends in, byte for byte, or the suite is
+red. A test that writes into the checkout instead of a temp root is a defect
+even when it passes — TASK-249, where one un-rooted `perry-task intake-sweep`
+discharged a real board row on every run of the suite for months, and went
+unnoticed because the sweep is idempotent and a second run looks clean.
