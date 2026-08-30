@@ -217,6 +217,10 @@ Exactly the four files of this row, from a module that was green. The control
 — same copy, same discharged row, fix restored — is `rc=0`, `✓ nothing moved`,
 and all four md5s identical before and after.
 
+**Re-run after § 6's corrections** (`42e8213`, with the shrunken `IGNORE_DIRS`,
+the mode in the token and the `PERRY_PROJECT` refusal in front of it): same
+result, `rc=1`, module `✓ all green`, guard red naming the same four `M` lines.
+
 ## 5. Baselines — **and a retraction**
 
 ### 5.1 The retraction
@@ -287,10 +291,11 @@ also running other agents' suites — wall times are recorded but not comparable
 | `49d83fc`, per the PMO | 08:48 | 103 | 3098 | **4** |
 | `49d83fc`, `git archive`d to a scratch dir, re-run here | 09:21-09:26 | 103 | 3098 | **4** |
 | this branch at `fbab26a` | 09:16-09:21 | 104 | 3111 | **4** |
+| this branch at `42e8213`, after the V4 corrections | 10:31-10:39 | 104 | 3115 | **4** |
 
 **The fork point and the branch agree at 4, and the PMO's figure is reproduced
-exactly.** `+1 module / +13 tests` at `fbab26a` is `tests/test_tree_guard.py`
-(now 17 tests after the V4 corrections). The same four failures by name on both
+exactly.** `+1 module / +17 tests` is `tests/test_tree_guard.py` (13 tests at
+`fbab26a`, 17 after § 6's corrections). The same four failures by name on both
 trees, none of them in a file this branch changes:
 
 - `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
@@ -307,8 +312,8 @@ point: green. A concurrency test about a global dispatch cap, on a machine
 running several suites at once, in a module this branch does not touch. Four
 re-runs, not forty.
 
-**The tree guard is green on a full run of this branch**, and the four files are
-byte-identical before and after it:
+**The tree guard is green on both full runs of this branch**, the working tree
+is clean afterwards, and the four files are byte-identical before and after:
 
     19370b5e4817143e6bcf4a8bf564cdb9  .perry/events.jsonl
     084728c777af398acda59fc48dc3e843  perry/BOARD.md
