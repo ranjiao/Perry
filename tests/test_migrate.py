@@ -481,6 +481,30 @@ class TestRecoverable(unittest.TestCase):
         points = list((p.root / ".perry" / "migrate").glob("*.json"))
         self.assertEqual(len(points), 1)
 
+    def test_every_way_back_this_tool_names_carries_the_root(self):
+        """**A command handed back names the root the reader used, or it
+        addresses a different project** (TASK-234 round 4).
+
+        The V4 round-3 reviewer measured this on `perry-conform migrate` and
+        listed `perry-migrate restore` as the thing it had NOT checked. It had
+        the same omission on both surfaces that name it: the line under a
+        successful `apply`, and the restore-point listing. Neither errors
+        without the flag — `restore` run from another Perry project looks for a
+        run id under THAT project's `.perry/migrate/` — so the failure is a
+        refusal about the wrong tree, or a rollback of it.
+        """
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, applied, _ = p.run("apply", json_out=False)
+        run_id = list((p.root / ".perry" / "migrate").glob("*.json"))[0].stem
+        self.assertIn(f"perry-migrate restore {run_id} --root {p.root}", applied,
+                      "the line under a finished run names the way back "
+                      "without the root the reader typed")
+
+        rc, listing, _ = p.run("restore", "--list", json_out=False)
+        self.assertEqual(rc, 0, listing)
+        self.assertIn(f"perry-migrate restore <run-id> --root {p.root}", listing,
+                      "the restore listing names the command without the root")
+
     def test_restore_puts_every_byte_back(self):
         """Exercised, not described."""
         p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
@@ -893,6 +917,29 @@ class TestTheUserDeclares(unittest.TestCase):
         self.assertIn("perry-migrate restore", out["refused"],
                       "the refusal does not name the way back")
         self.assertNotIn("Traceback", err)
+
+        # **Both commands in this message have to be runnable from where the
+        # reader is standing** (TASK-234 round 4). This message carries two:
+        # `perry-migrate restore <id>`, this tool's own way back, and — quoted
+        # inside it — `bin/perry-conform`'s refusal, which names
+        # `perry-conform migrate`. The reader typed `--root` on `perry-migrate
+        # apply`; a command handed back without it acts on whatever project
+        # they happen to be in, and in `perry-conform migrate`'s case exits 0
+        # saying "nothing to convert" about that other project.
+        #
+        # The route through `apply_plan` was the ONE member of the class no
+        # test held: mutating `root_arg=root_arg` to `root_arg=None` there was
+        # GREEN across `tests.test_migrate` and `tests.test_conformance` both.
+        for cmd in ("perry-migrate restore", "perry-conform migrate"):
+            self.assertIn(
+                f"{cmd} ", out["refused"],
+                f"the refusal does not name `{cmd}` at all")
+            self.assertRegex(
+                out["refused"],
+                re.escape(cmd) + r"[^\n`]*--root " + re.escape(str(p.root)),
+                f"the refusal hands back `{cmd}` with the `--root {p.root}` "
+                f"the reader's own invocation carried DROPPED — run from "
+                f"where they are standing it addresses a different project")
 
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})

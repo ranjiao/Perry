@@ -196,6 +196,17 @@ def conform():
     return _load("perry_conform", "perry-conform")
 
 
+def _root_flag(root_arg: str | None) -> str:
+    """`bin/perry-conform § _root_flag`, imported rather than re-typed.
+
+    This module had its own copy inline in `render`. One rule with two
+    spellings is how the second one goes stale, and the rule here is the one
+    every refusal in both tools depends on: a command handed back to a reader
+    names the root that reader used, or it acts on a different project.
+    """
+    return conform()._root_flag(root_arg)
+
+
 def lint():
     """`bin/perry-lint`, and specifically **the instance `perry-conform` armed**.
 
@@ -1871,7 +1882,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True,
             # point existed and was **never named**, and the declaration never
             # ran. `TASK-044-spec.md` guarantee 3 requires the recovery path be
             # named in the output; a traceback names nothing.
-            raise Refused(rollback_message(point, e.key, exc)) from None
+            raise Refused(rollback_message(point, e.key, exc,
+                                           root_arg=root_arg)) from None
         if got != sha(e.image_after):
             # Roll back this image only when it is provably the one our atomic
             # writer published. A different digest may be a non-cooperating
@@ -1882,7 +1894,7 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True,
                 point, e.key,
                 f"written but does not match the plan "
                 f"({got[:12]} vs {sha(e.image_after)[:12]})",
-                allow_changed=allow_changed))
+                allow_changed=allow_changed, root_arg=root_arg))
         applied.append(e)
     result = {"applied": [e.key for e in applied], "restore_point": str(point),
               "run": run_id, "declared": [], "refused": []}
@@ -1937,7 +1949,7 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True,
                 allow_changed={
                     P.CONFORMANCE_FILE: current_signature(
                         record, P.CONFORMANCE_FILE),
-                })) from None
+                }, root_arg=root_arg)) from None
         result["declared"] = [d["path"] for d in out["declared"]]
         result["refused"] = out["refused"]
         result["record"] = out["record"]
@@ -1945,7 +1957,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True,
 
 
 def rollback_message(point: Path, key: str, why,
-                     allow_changed: dict[str, dict] | None = None) -> str:
+                     allow_changed: dict[str, dict] | None = None,
+                     root_arg: str | None = None) -> str:
     """Roll the run back and say so — **and name the restore point either way.**
 
     `undo` writes, so it can fail for the same reason the run did. If the
@@ -1955,7 +1968,12 @@ def rollback_message(point: Path, key: str, why,
     named first, unconditionally, and whether the automatic rollback worked is
     reported as a separate fact.
     """
-    cmd = f"perry-migrate restore {point.stem}"
+    # **With the root the caller used** (TASK-234 round 4). A refusal that
+    # names a command names it for a reader standing where they were when
+    # they ran it; without the flag, `perry-migrate restore <id>` copied out
+    # of this message looks for a restore point under whatever project the
+    # reader happens to be in.
+    cmd = f"perry-migrate restore {point.stem}{_root_flag(root_arg)}"
     try:
         back = undo(point, allow_partial=True, allow_changed=allow_changed)
         rolled = (f"The run was rolled back — {len(back)} file(s) restored. "
@@ -2082,7 +2100,7 @@ def diff(edit: Edit) -> str:
 def render(plan: Plan, applied: dict | None, root_arg: str | None) -> None:
     """The complete diff. Not a summary and not a count — TASK-044 § 1."""
     verb = "migrated" if applied else "would migrate"
-    r = f" --root {root_arg}" if root_arg else ""
+    r = _root_flag(root_arg)
     print(f"\n🔧 Migration · {plan.project_root.name} · shape version "
           f"{plan.shape_version} · {'apply' if applied else 'dry run'}\n")
     if not plan.edits and not plan.skipped:
@@ -2192,7 +2210,8 @@ def main(argv: list[str]) -> int:
 
         if cmd == "restore":
             with lib.project_lock(state_root, refused=Refused):
-                return do_restore(project_root, positional, do_list, as_json)
+                return do_restore(project_root, positional, do_list,
+                                  as_json, root_arg=root_arg)
 
         if not lint().is_adopted(project_root, state_root):
             # One sentence, not a wall. The near-empty project is the other
@@ -2258,7 +2277,7 @@ def perry_written_findings(project_root: Path, state_root: Path,
 
 
 def do_restore(project_root: Path, positional: list[str], do_list: bool,
-               as_json: bool) -> int:
+               as_json: bool, root_arg: str | None = None) -> int:
     base = project_root / MIGRATE_DIR
     points = sorted(base.glob("*.json")) if base.is_dir() else []
     if do_list or not positional and len(points) != 1:
@@ -2278,7 +2297,7 @@ def do_restore(project_root: Path, positional: list[str], do_list: bool,
             for p, payload in summaries:
                 n = len([k for k in payload["files"]])
                 print(f"   {p.stem}   {n} file(s)   {payload['created']}")
-            print(f"\n   perry-migrate restore <run-id>\n")
+            print(f"\n   perry-migrate restore <run-id>{_root_flag(root_arg)}\n")
         return 0 if do_list else 1
     point = base / f"{positional[0]}.json" if positional else points[0]
     if not point.exists():

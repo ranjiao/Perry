@@ -2275,11 +2275,36 @@ class TestTheRefusalNamesTheLine(unittest.TestCase):
         self.assertEqual(rc, 0, f"a CRLF record refused: {out} {err}")
         self.assertEqual(sorted(C.P.read_conformance(p.root).declarations),
                          [".perry/hook.md", "BOARD.md"])
-        source = (PERRY_HOME / "bin" / "perry-conform").read_text()
-        self.assertNotIn(
-            "byte-for-byte what", source,
-            "the refusal or its docstring claims a byte comparison it does not "
-            "make — `read_text` translates newlines")
+        # **The guard pinned one literal in one file, and the V4 round-3
+        # reviewer said so: `"byte-for-byte what"` in `bin/perry-conform`
+        # only.** A reworded overclaim — "byte for byte", "byte-for-byte
+        # identical to what" — walked past it, and `bin/README.md`, which
+        # documents the same conversion for the same reader, was not covered at
+        # all. Decided in round 4: widen it rather than leave it, because the
+        # sentence it protects lives in both files.
+        #
+        # It is a REGEX and not a ban on the phrase, deliberately. Both files
+        # use "byte-for-byte" correctly about other things — a row inside an
+        # HTML comment IS byte-for-byte a genuine row, `perry-tasks risks-diff`
+        # DOES byte-compare — and a guard that made those red would be deleted
+        # by the next person who hit it. What is banned is the phrase
+        # describing what the file is compared AGAINST.
+        overclaim = re.compile(
+            r"byte[- ]for[- ]byte(\s+identical)?\s+(to\s+)?what", re.IGNORECASE)
+        for rel in ("bin/perry-conform", "bin/README.md"):
+            text = (PERRY_HOME / rel).read_text()
+            found = overclaim.search(text)
+            self.assertIsNone(
+                found,
+                f"{rel} claims a byte comparison it does not make "
+                f"({found.group(0) if found else ''!r}) — `read_text` "
+                f"translates newlines, which is why a CRLF record converts")
+            # And the correction itself is pinned, in both places: deleting the
+            # sentence that states the difference passes a NotIn assertion.
+            self.assertIn(
+                "ine-for-line, not byte-for-byte", text,
+                f"{rel} no longer states the difference between what the "
+                f"comparison does and what the word would have claimed")
 
 
 class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):

@@ -119,7 +119,8 @@ MUTATIONS = [
 
     # ── bin/perry-conform § declare ───────────────────────────────────────
     ("M13", "bin/perry-conform",
-     '    converted = migrate_record(project_root) if not dry_run else None',
+     '    converted = (migrate_record(project_root, root_arg=root_arg)\n'
+     '                 if not dry_run else None)',
      '    converted = None',
      "tests.test_conformance.TestTheMarkdownRecordIsConvertedOnce"
      ".test_declaring_converts_first_and_says_so"),
@@ -218,6 +219,92 @@ MUTATIONS = [
      '    text = path.read_text(encoding="utf-8", errors="replace")',
      "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
      ".test_a_record_that_exists_but_cannot_be_read_is_not_a_crash"),
+
+    # ── round 4: a refusal names the command with the ROOT THE CALLER USED
+    #
+    # `message_for` propagates it through `_root_flag()`; `migrate_record`'s
+    # two refusals did not, and the command they handed back exits 0 with
+    # "nothing to convert" about a different project. Each of these mutates the
+    # SOURCE so one requirement has to fire on its own.
+
+    ("M30", "bin/perry-conform",
+     '              f"    perry-conform migrate{r}\\n"\n'
+     '              f"**Nothing was written.**")',
+     '              f"    perry-conform migrate\\n"\n'
+     '              f"**Nothing was written.**")',
+     "tests.test_conformance.TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_the_named_command_converts_the_readers_project_from_elsewhere"),
+
+    ("M31", "bin/perry-conform",
+     '              f"    perry-conform migrate{r}\\n"\n'
+     '              f"A row that is documentation',
+     '              f"    perry-conform migrate\\n"\n'
+     '              f"A row that is documentation',
+     "tests.test_conformance.TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_the_unreadable_rows_refusal_names_it_too"),
+
+    # The runtime value, not the template — the source guard cannot see this
+    # one, and the 16 helper invocations are what catch it.
+    ("M32", "bin/perry-conform",
+     "    r = _root_flag(root_arg)\n    root = Path(project_root)",
+     "    r = _root_flag(None)\n    root = Path(project_root)",
+     "tests.test_conformance.TestADecoratedRowIsNotADeclaration"
+     ".test_a_backticked_path_cell_is_not_a_declaration"),
+
+    ("M33", "bin/perry-conform",
+     "    converted = (migrate_record(project_root, root_arg=root_arg)",
+     "    converted = (migrate_record(project_root, root_arg=None)",
+     "tests.test_conformance.TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_the_declare_route_into_the_conversion_carries_the_root_too"),
+
+    # **A root that is not the caller's.** Every assertion that reads the
+    # message is still satisfiable by eye; only RUNNING the command notices.
+    ("M34", "bin/perry-conform",
+     '              f"    perry-conform migrate{r}\\n"\n'
+     '              f"**Nothing was written.**")',
+     '              f"    perry-conform migrate --root /nowhere-at-all\\n"\n'
+     '              f"**Nothing was written.**")',
+     "tests.test_conformance.TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun"
+     ".test_the_named_command_converts_the_readers_project_from_elsewhere"),
+
+    # **The one member of the class no test held**, found by this mutation
+    # coming back GREEN in round 4 before the assertion below was written.
+    ("M35", "bin/perry-migrate",
+     "                            root_arg=root_arg,",
+     "                            root_arg=None,",
+     "tests.test_migrate.TestTheUserDeclares"
+     ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
+
+    ("M36", "bin/perry-migrate",
+     '    cmd = f"perry-migrate restore {point.stem}{_root_flag(root_arg)}"',
+     '    cmd = f"perry-migrate restore {point.stem}"',
+     "tests.test_migrate.TestRecoverable"
+     ".test_every_way_back_this_tool_names_carries_the_root"),
+
+    ("M37", "bin/perry-migrate",
+     '            print(f"\\n   perry-migrate restore <run-id>'
+     '{_root_flag(root_arg)}\\n")',
+     '            print(f"\\n   perry-migrate restore <run-id>\\n")',
+     "tests.test_migrate.TestRecoverable"
+     ".test_every_way_back_this_tool_names_carries_the_root"),
+
+    # ── round 4: the CRLF guard reaches `bin/README.md` and the reworded
+    # overclaim, both of which the V4 round-3 reviewer measured it missing.
+
+    ("M38", "bin/README.md",
+     "It refuses rather than convert a file that is not line-for-line\n"
+     "what `perry-conform declare` would have written",
+     "It refuses rather than convert a file that is not byte-for-byte\n"
+     "what `perry-conform declare` would have written",
+     "tests.test_conformance.TestTheRefusalNamesTheLine"
+     ".test_a_crlf_record_converts_and_the_wording_does_not_say_byte"),
+
+    ("M39", "bin/README.md",
+     "(Line-for-line, not byte-for-byte: the comparison applies Python's\n"
+     "universal-newline translation, so a record saved with CRLF converts.)",
+     "(A record saved with CRLF converts.)",
+     "tests.test_conformance.TestTheRefusalNamesTheLine"
+     ".test_a_crlf_record_converts_and_the_wording_does_not_say_byte"),
 
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
     ("M19", "viewer/parsers.py",
