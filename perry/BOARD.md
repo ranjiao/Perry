@@ -121,6 +121,7 @@
 | TASK-253 | bin/perry-tasks accepts --dry-run and writes anyway | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-254 | bin/perry-lint hands back 22 commands and every one of them drops the root | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-255 | Perry never shell-quotes a path into a command it hands a reader — shlex appears nowhere in bin/ or viewer/ | Coding Agent | not_started | — | — | V4 | TASK-234 | main |  |  |  |  |  |  |
+| TASK-256 | The mutation harness's md5 restore-check is circular: it compares the file to bytes it just wrote | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
