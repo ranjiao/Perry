@@ -2461,24 +2461,131 @@ class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
         sweep = load("sweep_handed_back_commands",
                      PERRY_HOME / "tests" / "sweep_handed_back_commands.py")
         handed, bad = [], []
-        for _, lineno, phrase, ok in sweep.sites(
-                str(PERRY_HOME / "bin" / "perry-conform")):
-            if ok is None:
-                continue
-            handed.append((lineno, phrase))
-            if not ok:
-                bad.append((lineno, phrase))
+        for tool in ("perry-conform", "perry-migrate"):
+            for _, lineno, phrase, problems in sweep.sites(
+                    str(PERRY_HOME / "bin" / tool)):
+                if problems is None:
+                    continue
+                handed.append((tool, lineno, phrase))
+                if problems:
+                    bad.append((tool, lineno, phrase, problems))
         self.assertEqual(
             bad, [],
-            f"these messages hand back a command with the caller's root "
-            f"dropped — run from where the reader is standing each acts on a "
-            f"different project: {bad}")
+            f"these messages hand back a command a reader cannot copy — the "
+            f"caller's root dropped (run from where the reader is standing it "
+            f"acts on a different project), or an argument interpolated raw "
+            f"(on a path with a space in it the line is not a command at "
+            f"all): {bad}")
         # Non-vacuous: the sweep has to be FINDING the commands, not returning
         # an empty set because the shapes it looks for stopped existing.
         self.assertGreaterEqual(
-            len(handed), 12,
+            len(handed), 20,
             f"the sweep found only {len(handed)} handed-back command(s) in "
-            f"bin/perry-conform, so its empty finding list means nothing")
+            f"bin/perry-conform and bin/perry-migrate, so its empty finding "
+            f"list means nothing")
+
+
+class TestTheSweepIsMeasuredNotTrusted(unittest.TestCase):
+    """**A positive control for `tests/sweep_handed_back_commands.py`, and the
+    number its census is a lower bound of.**
+
+    The V4 round-4 reviewer's mutation R-N8: neuter the sweep's `ROOT` regex to
+    `re.compile(r"")` so it matches everything, and the whole of
+    `tests.test_conformance` stays **GREEN**. The test above asserts the
+    finding list is empty and that at least N commands were found — which
+    guards against the sweep finding *nothing*, and not at all against it
+    calling *everything* ok. The half of the decision that matters had no
+    control.
+
+    It has one now, and the same fixture answers the other question the RESULT
+    was asserting rather than measuring: **how much of the class the sweep can
+    see.** `tests/fixtures/handed_back_spellings.py` plants one defect per
+    plausible spelling, each in a function whose name carries the measured
+    verdict, so recall is recomputed here rather than quoted from a review
+    nobody can re-derive.
+    """
+
+    FIXTURE = PERRY_HOME / "tests" / "fixtures" / "handed_back_spellings.py"
+
+    def regions(self):
+        """Each planted spelling and the lines it owns.
+
+        The regions are contiguous — a spelling owns everything from the end of
+        the previous one — so a module-level constant placed just above its
+        function (`MIGRATE_HINT`, `FIXES`) belongs to that spelling. Those two
+        are exactly the shapes the round-4 sweep could not see, so attributing
+        them by proximity rather than by nesting is the point, not a shortcut.
+        """
+        import ast
+        tree = ast.parse(self.FIXTURE.read_text())
+        out, prev = [], 0
+        for node in tree.body:
+            if (isinstance(node, ast.FunctionDef)
+                    and node.name.startswith("spelling_")):
+                out.append((node.name, prev + 1, node.end_lineno,
+                            node.name.rsplit("_", 1)[-1]))
+                prev = node.end_lineno
+        return out
+
+    def findings(self, sweep):
+        return [(lineno, phrase, problems) for _, lineno, phrase, problems
+                in sweep.sites(str(self.FIXTURE)) if problems]
+
+    def test_the_sweep_reports_every_planted_defect_it_claims_to_see(self):
+        """**The control R-N8 asked for.** Every `_found` spelling has to
+        produce a finding and every `_clean` one has to produce none, so a
+        sweep that called everything ok fails here even though the real tools
+        are at zero and its census is still non-empty."""
+        sweep = load("sweep_handed_back_commands",
+                     PERRY_HOME / "tests" / "sweep_handed_back_commands.py")
+        found = self.findings(sweep)
+        self.assertTrue(found, "the sweep reported nothing about a file of "
+                               "nothing but planted defects")
+        for name, lo, hi, verdict in self.regions():
+            with self.subTest(spelling=name):
+                hit = [f for f in found if lo <= f[0] <= hi]
+                if verdict == "found":
+                    self.assertTrue(
+                        hit,
+                        f"{name} plants a command the reader cannot copy and "
+                        f"the sweep reported nothing about it — its census "
+                        f"over the real tools is worth that much less")
+                else:
+                    self.assertEqual(
+                        hit, [],
+                        f"{name} is a {verdict} ruling: the sweep is expected "
+                        f"to stay silent and reported {hit!r}. A sweep that "
+                        f"reports everything has perfect recall and no value")
+
+    def test_the_recall_the_result_quotes_is_the_recall_measured_here(self):
+        """**The census is a lower bound and this is the bound.**
+
+        `TASK-234-result.md § 1.2` prints `7 members / 3 left` and round 5
+        prints `0 left`. Those are counts under ONE rule, not a census of the
+        class: what the rule cannot see it does not count. The rate is
+        measured, on the fixture, and asserted here so the RESULT's number and
+        the code cannot drift apart silently.
+
+        18 of the 19 planted defects, and 14 of the 15 the V4 round-4 reviewer
+        planted (the round-4 sweep found 10 of those 15). The one residual is
+        `spelling_13`, whose reasoning is in the fixture.
+        """
+        sweep = load("sweep_handed_back_commands",
+                     PERRY_HOME / "tests" / "sweep_handed_back_commands.py")
+        found = self.findings(sweep)
+        seen = missed = 0
+        for _name, lo, hi, verdict in self.regions():
+            if verdict not in ("found", "missed"):
+                continue
+            hit = any(lo <= f[0] <= hi for f in found)
+            seen += hit
+            missed += not hit
+        self.assertEqual(
+            (seen, missed), (18, 1),
+            f"the sweep's recall on the planted spellings is {seen}/"
+            f"{seen + missed}; `TASK-234-result.md § 1.2` says 18/19. One of "
+            f"the two is now wrong, and a recall number in a document nobody "
+            f"recomputes is the kind of claim this row exists to stop")
 
 
 class TestTheDefensiveBranchesAreLoadBearing(unittest.TestCase):
