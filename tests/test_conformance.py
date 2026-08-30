@@ -30,6 +30,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1248,6 +1249,57 @@ class TestLintPointsAtTheDeclaration(unittest.TestCase):
 # exactly `test_an_asterisked_path_reads_exactly_as_it_did_before` below.
 
 
+#: Every `perry-<tool> …` a message hands back, as a reader would copy it —
+#: through the closing backtick, the end of the line, or the sentence's full
+#: stop, whichever comes first.
+_NAMED_COMMAND = re.compile(r"perry-[a-z][a-z-]*(?:[ ][^\n`*]*)?")
+
+
+def commands_named(message: str) -> list[str]:
+    """The commands a refusal hands back, extracted from the TEXT.
+
+    Not from a list the test also wrote: the whole defect this closes was an
+    assertion that constructed what it expected and so could not see what was
+    printed. Only the two shapes this codebase uses to hand back a command are
+    read — an indented line of its own, and a backticked span after `run` /
+    `with` / `is` — so prose that merely NAMES a tool ("`perry-conform declare`
+    would have written") is not mistaken for an instruction.
+    """
+    out = []
+    for line in message.split("\n"):
+        if line.startswith("    ") and line.strip().startswith("perry-"):
+            out.append(line.strip())
+    for m in re.finditer(r"\b(?:run|with|is|try|use)[ :]+`(perry-[^`]+)`",
+                         message, re.IGNORECASE):
+        out.append(m.group(1).strip())
+    return out
+
+
+def assert_every_command_carries(case, message: str, root, why: str) -> None:
+    """**A refusal that names a command must name it with the root the caller
+    used.** This is the class, not the instance.
+
+    `perry-conform` propagates the invocation's `--root` into every branch of
+    `message_for` through `_root_flag()`, and did not into either refusal in
+    `migrate_record`. The consequence is worse than a command that errors: the
+    dropped-root command exits 0 and reports "nothing to convert — already
+    this project's record", about a project the reader never asked about,
+    while their own record stays unconverted and keeps gating every write.
+    """
+    named = commands_named(message)
+    case.assertTrue(named,
+                    f"{why}: no command was found in the refusal, so this "
+                    f"assertion is vacuous — the extractor or the message "
+                    f"changed shape:\n{message}")
+    for cmd in named:
+        case.assertIn(
+            f"--root {root}", cmd,
+            f"{why}: the refusal hands back {cmd!r}, which drops the "
+            f"`--root {root}` the reader's own invocation carried. Run from "
+            f"where the reader is standing it exits 0 with a success-shaped "
+            f"sentence about a different project.")
+
+
 class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
     """`read_legacy_conformance` stripped each cell with ``strip("` ")``, so a
     row whose path cell was in BACKTICKS parsed to the same plain key as a row a
@@ -1336,6 +1388,17 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         message = out["refused"]
         self.assertIn("perry-conform migrate", message,
                       f"{why}: the refusal names no command to run — a wall")
+        # **Named is not enough: it has to be the command THIS reader can
+        # run.** Every invocation of this helper runs with `--root <tmpdir>`,
+        # and for three rounds every one of them asserted only that some
+        # `perry-conform migrate` appeared in the message — which was true, and
+        # was not about the reader's situation in the test. The shipped
+        # refusal named the command with the root DROPPED, so a reader who
+        # copied it got `rc=0` and "nothing to convert" about a different
+        # project. Checked generically rather than for `migrate` alone: a
+        # refusal that grows a NEW command tomorrow is caught by the same
+        # assertion.
+        assert_every_command_carries(self, message, p.root, why)
         self.assertNotIn(
             "perry-conform status", message,
             f"{why}: the refusal points at `status`, which computes no diff "
@@ -2217,6 +2280,244 @@ class TestTheRefusalNamesTheLine(unittest.TestCase):
             "byte-for-byte what", source,
             "the refusal or its docstring claims a byte comparison it does not "
             "make — `read_text` translates newlines")
+
+
+class TestTheCommandTheRefusalNamesIsTheOneTheReaderCanRun(unittest.TestCase):
+    """**The round-3 V4 FAIL: the refusal named the command with the root
+    dropped, and the dropped-root command succeeds against a DIFFERENT
+    project.**
+
+    `bin/perry-conform § message_for` propagates the invocation's `--root`
+    into every branch through `_root_flag()`. `migrate_record`'s two refusals
+    did not — including the one round 3 rewrote under the wall standard's own
+    banner. A reader routed there by `perry-conform migrate --root $PROJ`, who
+    copied the command they were handed, got:
+
+        $ perry-conform migrate
+        perry-conform: nothing to convert — .perry/conformance.jsonl is
+        already this project's record (or it has none).
+        rc=0
+
+    **Exit 0 and a success-shaped sentence**, about a project they never asked
+    about, while their own record sat unconverted and still gating every
+    write. A named command that errors is worse than none; this is the worse
+    still variant, because nothing tells the reader anything went wrong.
+
+    Sixteen invocations of `assert_conversion_refuses` asserted this message
+    while themselves running with `--root <tmpdir>`, and every one of them was
+    green: `assertIn("perry-conform migrate", message)` is true of the broken
+    string. **The assertion checked that A command was named, never that it was
+    the command the caller could actually run.** So this test does not
+    construct what it expects. It:
+
+      1. plants two REAL projects — the reader's, and a different one the
+         reader is standing in, which has already converted;
+      2. measures the harm the dropped root causes, so the test states what it
+         is preventing rather than asserting a substring;
+      3. takes the command OUT OF THE REFUSAL TEXT and runs it, unedited;
+      4. asserts it converted the reader's project and left the other one
+         byte-identical.
+
+    A test that built the expected string by hand would pass on the broken
+    implementation. This one cannot: step 3 runs whatever the message says.
+    """
+
+    def snapshot(self, root: Path) -> dict:
+        return {f.relative_to(root).as_posix(): f.read_bytes()
+                for f in sorted(root.rglob("*")) if f.is_file()}
+
+    def test_the_named_command_converts_the_readers_project_from_elsewhere(self):
+        # ── the reader's project: a record with one real declaration and a
+        # stray line under it, which is the edit the record's own header
+        # invites and one of the two that survive the row round trip.
+        theirs = Project()
+        canonical = f"| BOARD.md | {C.shape_version(SCHEMA)} | 2026-08-20 | declare |\n"
+        header = "\n".join(C.LEGACY_HEADER) + "\n"
+        theirs.legacy_marker().write_text(
+            header + canonical + "\nreminder: check OKR.md\n")
+
+        # ── a DIFFERENT project, and the one the reader is standing in. It has
+        # already converted, so `perry-conform migrate` run here is a no-op
+        # that exits 0 — which is exactly what makes the dropped root silent
+        # rather than loud.
+        elsewhere = Project()
+        rc, _, _ = elsewhere.run(CONFORM, "declare", "BOARD.md")
+        self.assertEqual(rc, 0, "the second project would not declare")
+        self.assertTrue(elsewhere.marker().exists())
+        before = self.snapshot(elsewhere.root)
+
+        # ── 1 · the refusal, reached the way the reader reaches it
+        rc, out, err = theirs.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1, f"the conversion did not refuse: {out} {err}")
+        message = out["refused"]
+
+        # ── 2 · the harm, measured on this tree rather than asserted. The
+        # command the BROKEN refusal named, run from where the reader stands.
+        harm = subprocess.run(
+            ["python3", str(CONFORM), "migrate"],
+            cwd=elsewhere.root, capture_output=True, text=True)
+        self.assertEqual(harm.returncode, 0,
+                         "the dropped-root command is expected to SUCCEED — "
+                         "that is what makes it dangerous; if it now errors "
+                         "this test is measuring something else")
+        self.assertIn("nothing to convert", harm.stdout)
+        self.assertTrue(
+            theirs.legacy_marker().exists(),
+            "the dropped-root command converted the reader's project after "
+            "all — then there is no defect and this test is vacuous")
+        self.assertFalse(theirs.marker().exists())
+
+        # ── 3 · the command, taken out of the message
+        named = commands_named(message)
+        self.assertEqual(
+            len(named), 1,
+            f"expected exactly one command in the refusal, got {named!r}")
+        cmd = named[0]
+        argv = shlex.split(cmd)
+        self.assertEqual(argv[0], "perry-conform",
+                         f"the refusal names something other than this tool: {cmd!r}")
+        self.assertNotEqual(
+            argv[1:], ["migrate"],
+            "the refusal hands back the bare command measured in step 2, "
+            "which exits 0 about a different project")
+
+        # The reader does what the refusal told them to: fix those lines.
+        theirs.legacy_marker().write_text(header + canonical)
+
+        # ── 4 · run it verbatim, from where the reader is standing
+        ran = subprocess.run(
+            ["python3", str(CONFORM), *argv[1:]],
+            cwd=elsewhere.root, capture_output=True, text=True)
+        self.assertEqual(
+            ran.returncode, 0,
+            f"the command the refusal named failed: {ran.stdout} {ran.stderr}")
+        self.assertIn("carried 1 declaration(s)", ran.stdout,
+                      f"it did not convert anything: {ran.stdout}")
+
+        # ── the RIGHT project, and only it
+        self.assertTrue(theirs.marker().exists(),
+                        "the reader's record was not converted")
+        self.assertFalse(theirs.legacy_marker().exists(),
+                         "the markdown record was left behind")
+        decls = C.P.read_conformance(theirs.root).declarations
+        self.assertEqual(sorted(decls), ["BOARD.md"])
+        self.assertEqual(decls["BOARD.md"].declared, "2026-08-20",
+                         "the date was not carried across unchanged")
+        self.assertEqual(theirs.verdict("BOARD.md").state, C.CONFORMANT)
+        self.assertEqual(
+            self.snapshot(elsewhere.root), before,
+            "the command changed the project the reader was standing in")
+
+    def test_the_unreadable_rows_refusal_names_it_too(self):
+        """The other branch, and the one reached from `declare` — where the
+        old wording also said "again", which the reader had not done."""
+        theirs = Project()
+        theirs.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n"
+            + "| OKR.md | v-two | 2026-08-20 | declare |\n")
+        rc, out, _ = theirs.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1)
+        message = out["refused"]
+        self.assertIn("will not honour", message)
+        assert_every_command_carries(
+            self, message, theirs.root, "the unreadable-rows branch")
+        self.assertNotIn(
+            "migrate` again", message,
+            "reached from `declare` or `perry-migrate apply` the reader ran "
+            "neither `migrate` nor it twice, so `again` is a false sentence")
+
+    def test_the_declare_route_into_the_conversion_carries_the_root_too(self):
+        """`declare` converts the record first, so the same refusal is reached
+        from a command that is not `migrate`. It has to name the root the
+        reader typed on THAT command."""
+        theirs = Project()
+        theirs.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n"
+            + f"| BOARD.md | {C.shape_version(SCHEMA)} | 2026-08-20 | declare |\n"
+            + "\nreminder: check OKR.md\n")
+        rc, out, _ = theirs.run(CONFORM, "declare", "BOARD.md")
+        self.assertEqual(rc, 1, f"declare did not refuse: {out}")
+        assert_every_command_carries(
+            self, out["refused"], theirs.root, "the `declare` route")
+
+    def test_no_refusal_in_perry_conform_names_a_command_without_the_root(self):
+        """**The class, guarded at the source.** Fixing the two sentences is
+        an instance; this is what stops the next one.
+
+        Every `perry-*` command a runtime message HANDS BACK — on an indented
+        line of its own, or backticked after `run` / `with` / `is` — must carry
+        the invocation's root, spelled `{r}` or `{_root_flag(...)}`. Prose that
+        merely names a tool is not an instruction and is not caught: *"is not
+        what `perry-conform declare` would have written"* names a command the
+        reader is being told NOT to run.
+
+        Read off the AST rather than by grepping the text, so a docstring
+        discussing the defect — this one, and `migrate_record`'s — is not a
+        finding.
+        """
+        import ast
+
+        tools = ("conform", "lint", "migrate", "task", "tasks", "goals",
+                 "state", "decide", "okr", "config", "knowledge")
+        cmd = re.compile(r"perry-(?:" + "|".join(tools) + r")\b")
+        root = re.compile(r"\{r\}|\{_root_flag\([^)]*\)\}|--root")
+        cue = re.compile(r"(?:(?:^|\n)[ ]{2,}|\b(?:run|with|is|try|use)[ :]+`?)$",
+                         re.IGNORECASE)
+
+        def is_str(n):
+            return isinstance(n, ast.Constant) and isinstance(n.value, str)
+
+        def render(node):
+            """The template, with each `{expr}` left visible as itself."""
+            if is_str(node):
+                return node.value
+            if isinstance(node, ast.JoinedStr):
+                return "".join(
+                    v.value if is_str(v) else "{" + ast.unparse(v.value) + "}"
+                    for v in node.values)
+            if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                a, b = render(node.left), render(node.right)
+                return None if a is None or b is None else a + b
+            return None
+
+        source = (PERRY_HOME / "bin" / "perry-conform").read_text()
+        tree = ast.parse(source)
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(getattr(node, "body", None), list):
+                for st in node.body:
+                    if isinstance(st, ast.Expr) and is_str(st.value):
+                        docstrings.add(id(st.value))
+
+        seen, handed, bad = set(), [], []
+        for node in ast.walk(tree):
+            if id(node) in seen or id(node) in docstrings:
+                continue
+            text = render(node)
+            if text is None:
+                continue
+            for sub in ast.walk(node):
+                seen.add(id(sub))
+            for m in cmd.finditer(text):
+                if not cue.search(text[:m.start()]):
+                    continue          # a mention, not an instruction
+                tail = re.match(r"[^`\n'\"]*", text[m.end():]).group(0)
+                phrase = (m.group(0) + tail).rstrip()
+                handed.append((node.lineno, phrase))
+                if not root.search(phrase):
+                    bad.append((node.lineno, phrase))
+
+        self.assertEqual(
+            bad, [],
+            f"these messages hand back a command with the caller's root "
+            f"dropped — run from where the reader is standing each acts on a "
+            f"different project: {bad}")
+        # Non-vacuous: the sweep has to be FINDING the commands, not returning
+        # an empty set because the shapes it looks for stopped existing.
+        self.assertGreaterEqual(
+            len(handed), 12,
+            f"the sweep found only {len(handed)} handed-back command(s) in "
+            f"bin/perry-conform, so its empty finding list means nothing")
 
 
 class TestTheDefensiveBranchesAreLoadBearing(unittest.TestCase):
