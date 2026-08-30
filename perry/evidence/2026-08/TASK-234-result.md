@@ -395,7 +395,23 @@ independent rather than asserting it.
 | | Runner | Tree | Hour (CST) | Result |
 |---|---|---|---|---|
 | Baseline | `bash tests/run`, python 3.11.15, worktree `wt-234` | `49d83fc` (`main`) | 2026-08-30 08:53 → 08:58 | **103 modules · 3098 tests · 4 failures** |
-| After | `bash tests/run`, python 3.11.15, worktree `wt-234` | `<HEAD>` | 2026-08-30 09:25 → <END> | **<AFTER>** |
+| After | `bash tests/run`, python 3.11.15, worktree `wt-234` | `0762a0b` (branch HEAD) | 2026-08-30 09:32 → 09:37 | **103 modules · 3122 tests · 4 failures** |
+
+**The four failures are the same four, by name, in both runs** — diffed, not
+counted: `test_no_current_in_the_payload_claims_to_be_a_measurement` and
+`test_perry_itself_passes_its_own_id_checks` (`test_diagnose.py`),
+`test_none_of_them_contains_its_own_id` (`test_heading_title.py`, still the one
+`TASK-050` multi-row document and nothing this row added), and one in
+`test_kr_progress_provenance.py`. **No new failure.** 3098 → 3122 is +24: +22 in
+`test_conformance.py`, +1 in `test_migrate.py` (the symlink preflight became two
+tests), +1 in `test_procedures_call_the_tool.py`.
+
+An earlier run at 09:25 had a **fifth** red module, `test_claims.py`, and it was
+this row's own defect: § 12 was appended AFTER `if __name__ == "__main__":`, so
+`python3 tests/test_conformance.py` ran 15 of 19 classes and reported `OK`.
+`tests/test_claims.py § TestNoTestFileEndsEarly` caught it — TASK-209's guard,
+landed on 2026-08-30, firing on the next row. Fixed at `0762a0b`; the entry point
+is the last statement again.
 
 The baseline reproduces the PMO's figure exactly, including the fourth failure —
 `test_heading_title`, firing on a legitimate multi-row evidence document, filed
