@@ -3,14 +3,23 @@
 > Branch `coding/task-234-conformance-store`, forked from `main` at `49d83fc`.
 > Serves `perry/design/DESIGN-013-one-place-per-fact.md` § 5.1, which is locked.
 >
-> **Four V4 rounds.** Round 1's FAIL was a refusal that named a command
-> computing no diff (§ 1.1). Round 3's was the same standard broken one level
-> down: the refusal round 3 rewrote to satisfy it named the command **with the
-> root dropped**, and the dropped-root command exits 0 with a success-shaped
-> sentence about a different project (§ 1.2). Round 4 fixes that, sweeps the
-> class it belongs to, and corrects three numbers this document was carrying —
-> the helper's routing count (§ 1.1, § 11), what the helper actually covers
-> (§ 1.1), and "29/29" (§ 6).
+> **Five V4 rounds, and three of the five FAILs are one sentence one register
+> apart.** Round 1: the refusal named a command that computed no diff (§ 1.1).
+> Round 3: the refusal round 1 rewrote named the command **with the root
+> dropped**, and that command exits 0 with a success-shaped sentence about a
+> different project (§ 1.2). Round 4: the refusal round 3 rewrote named the
+> root **unquoted**, so on a project at `.../My Project` the reader who copies
+> it gets `rc=1` and a usage error about a file argument they never typed
+> (§ 1.3).
+>
+> Round 5 fixes that, and treats the third repetition as the finding. The one
+> line is `shlex.quote`; the work is § 1.3 — one choke point every argument
+> goes through, a source rule that makes the bypass spelling RED rather than
+> discouraged, fixture roots that are shell-hostile so the row's own proof
+> stops only ever seeing friendly input, and four green mutations closed. It
+> also corrects two claims this document was making that do not survive
+> measurement (§ 6.1, § 10.9) and restates the census as the lower bound it is
+> (§ 1.2).
 
 ## 0 · What landed, in one paragraph
 
@@ -170,6 +179,15 @@ branch), to name a runnable command, **never** to name `perry-conform status`,
 and — where the caller knows it — to quote the exact offending line, because a
 diff of the *wrong* lines passes every other assertion in the helper.
 
+> **"A runnable command" was a substring test until round 5.** The helper
+> checked `assertIn(f"--root {root}", cmd)`, which is satisfied by
+> `--root /home/ada/My Project` — a line that parses as five arguments. It
+> `shlex.split`s the phrase now and compares the parsed root, so "runnable" is
+> a property of the command rather than of the text (§ 1.3). The helper and its
+> extractor moved to `tests/handed_back.py`, which `tests/test_migrate.py` uses
+> too: that module held a second, hand-written spelling of the same rule, and
+> the second copy is the one that went stale.
+
 **The helper is weaker than that sentence sounds, and round 3's write-up did
 not say so.** Of the 16 invocations, only **4** reach the fixed-point refusal
 the FAIL was about — the three HTML spellings and the hand-edited header. The
@@ -224,17 +242,19 @@ merely names a tool is not an instruction and is not counted: *"is not what
 `perry-conform declare` would have written"* names a command the reader is being
 told **not** to run.
 
-| tree | handed-back commands | without the caller's root |
-|---|---|---|
-| `bin/perry-conform` at `7d3f93f` | 14 | **2** — both `migrate_record` refusals |
-| `bin/perry-conform` now | 14 | **0** |
-| the rest of `perry-conform`'s runtime import closure — `bin/perry-lint`, `viewer/parsers.py`, `viewer/tables.py`, `bin/perry_store.py`, `bin/perry_md_store.py`, `bin/lib/__init__.py` | 0 | 0 |
-| `bin/perry-migrate` at `7d3f93f` | 7 | **5** |
-| `bin/perry-migrate` now | 7 | **3** — named in § 10.9, not fixed |
+Round 5 adds the second ruling — **`unquoted {expr}`**, § 1.3 — so the table
+below is the whole class under one rule, measured with the round-5 sweep over
+all three trees rather than with each round's own:
 
-**7 members at `7d3f93f`; 3 left, all in `bin/perry-migrate` and every one of
-them naming a different tool.** The command that produced every row, run from
-the repository root — the `before` files come from `git show 7d3f93f:<path>`:
+| tree | handed back | without the caller's root | interpolating a value raw |
+|---|---|---|---|
+| `7d3f93f` (round-3 tip), both tools | 23 | **7** | **8** |
+| `f783dd5` (round-4 tip), both tools | 22 | **3** | **7** |
+| round-5 tip, both tools | 21 | **0** | **0** |
+| the rest of `perry-conform`'s runtime import closure — `bin/perry-lint`, `viewer/parsers.py`, `viewer/tables.py`, `bin/perry_store.py`, `bin/perry_md_store.py`, `bin/lib/__init__.py` | 0 | 0 | 0 |
+
+The command that produced every row, run from the repository root — the
+`before` files come from `git show <rev>:<path>`:
 
 ```
 python3 tests/sweep_handed_back_commands.py --all \
@@ -242,14 +262,52 @@ python3 tests/sweep_handed_back_commands.py --all \
     viewer/parsers.py viewer/tables.py bin/lib/__init__.py bin/perry-migrate
 ```
 
-It exits 1 while any member remains, and today that is `bin/perry-migrate`'s
-three. Over `bin/perry-conform` alone it exits 0 with an empty finding list, and
-that is the form the suite runs:
+It exits 1 while any member remains and today it exits 0. **Both tools are in
+the suite guard now**, not `bin/perry-conform` alone:
 `test_no_refusal_in_perry_conform_names_a_command_without_the_root` **imports
 this same module** rather than restating the rule — a second copy would be a
 second definition, and the first to go stale would be the one nobody ran — and
-asserts both that the list is empty and that the sweep found at least 12
-commands, so an empty list cannot come from the sweep having stopped working.
+asserts both that the finding list is empty and that the sweep found at least
+20 commands, so an empty list cannot come from the sweep having stopped
+working.
+
+> **The counts moved for a reason and it is not that commands appeared and
+> vanished.** 23 → 22 → 21 is the `{tail}` that used to be glued to the DRIFTED
+> branch's command (§ 1.3) coming off, plus `IS_WHOLLY_A_COMMAND` reading a
+> handful of literals differently. The numbers to compare across rows are the
+> two right-hand columns.
+
+**This is a lower bound, not a census, and that has to be said wherever the
+number is quoted.** What the rule cannot see it does not count. Round 5
+measures the size of that blind spot instead of asserting there is one:
+`tests/fixtures/handed_back_spellings.py` plants one defect per plausible
+spelling and `TestTheSweepIsMeasuredNotTrusted` recomputes the rate every run.
+**18 of 19 found**, and **14 of the 15** the V4 round-4 reviewer planted — where
+the round-4 sweep scored **10 of 15**. The four it gained are one shape: a
+command reaching the message through a NAME (module constant, local, dict
+value, helper return), which `IS_WHOLLY_A_COMMAND` reads because a string that
+is nothing but a command has no sentence around it to carry a cue word. The one
+residual is a cue word outside the list, and the fixture says why adding cue
+words does not close it.
+
+    python3 - <<'EOF'
+    import ast, importlib.machinery, importlib.util, sys
+    l = importlib.machinery.SourceFileLoader(
+        "sw", "tests/sweep_handed_back_commands.py")
+    s = importlib.util.spec_from_loader("sw", l)
+    sw = importlib.util.module_from_spec(s); sys.modules["sw"] = sw
+    l.exec_module(sw)
+    f = "tests/fixtures/handed_back_spellings.py"
+    tree, prev = ast.parse(open(f).read()), 0
+    hits = [(n, pr) for _, n, _, pr in sw.sites(f) if pr]
+    for node in tree.body:
+        if not (isinstance(node, ast.FunctionDef)
+                and node.name.startswith("spelling_")):
+            continue
+        got = any(prev < n <= node.end_lineno for n, _ in hits)
+        prev = node.end_lineno
+        print(("found " if got else "MISSED"), node.name)
+    EOF
 
 **Where the rule under-counts, said out loud rather than left to be found.**
 The ruling is made from the words immediately before the phrase, so
@@ -290,6 +348,167 @@ new command tomorrow is caught by the same assertion. Non-vacuity measured at
 every one of the 16: a command was extracted at all 16, the shortest message is
 536 characters, and mutation **M32** (compute the flag from `None`) reddens all
 16 at once.
+
+### 1.3 · The round-4 V4 FAIL — the root was there and the line was not a command
+
+**The defect.** `_root_flag` built ` --root {root_arg}` by raw interpolation.
+`shlex.quote` appeared nowhere in `bin/` or `viewer/` — checked, not assumed.
+So on a project at `.../My Project` the refusal § 1.2 had just fixed handed the
+reader:
+
+```
+Fix those lines, then run:
+    perry-conform migrate --root /…/r4space/My Project
+```
+
+and copying that line, verbatim, from where they were standing:
+
+```
+perry-conform: refused — usage: perry-conform migrate — it takes no file. …
+rc=1
+```
+
+`Project` was parsed as a file argument. The record stayed unconverted and the
+error was about a mistake the reader did not make. **The same sentence, the
+same standard, found the same way — by running the command the refusal hands
+back.** § 1.2's own rule names it: *a named command that errors is worse than
+none*.
+
+It is strictly less harmful than § 1.2's defect — it fails loudly instead of
+succeeding about someone else's project — and that is not the point. The point
+is that this is the third round in which the fix to a handed-back command
+produced a new handed-back command that does not work.
+
+**The fix is one line, and the fix is not the work.**
+
+```python
+def _q(value) -> str:
+    return shlex.quote(str(value))
+
+def _root_flag(root_arg: str | None) -> str:
+    return f" --root {_q(root_arg)}" if root_arg else ""
+```
+
+#### Why this shape cannot be routed around the way `_root_flag` was
+
+`_root_flag` was already the single choke point for the root. It did not fail
+because it was the wrong shape; it failed because **a choke point is a
+convention, and a convention is enforced by whoever remembers it.** Round 3
+forgot to call it. Round 4 called it and wrote the interpolation wrong inside
+it. Putting `shlex.quote` in the same two lines and stopping there would leave
+round 6 free to write `--root {root_arg}` at the next site, exactly as round 3
+wrote `perry-conform migrate` at that site.
+
+So the shape is the choke point **plus a rule that makes the bypass spelling
+red**, and it is the second half that is new:
+
+1. **`_q` is the one place an argument is quoted**, and `_root_flag` is built
+   out of it. Every other argument of every handed-back command in both tools
+   goes through it too — four `{v.path}` sites in `bin/perry-conform`
+   (`perry-conform check 'My Notes.md'` is a file a reader can really have and
+   was handed back raw), and `{point.stem}` / `{applied['run']}` in
+   `bin/perry-migrate`.
+2. **`tests/sweep_handed_back_commands.py` reads every handed-back command off
+   the AST and reports any `{...}` inside one that is not `_q(...)`,
+   `_root_flag(...)`, `shlex.quote(...)`, or the `r` those produce.** The
+   sanctioned set is closed and tiny on purpose.
+3. **A separate rule, `FLAG_VALUE`, reads a long flag's value in *any*
+   template, command phrase or not** — because `_root_flag`'s own body names no
+   tool, so no command-phrase rule can reach the place round 4's defect
+   actually lived. This is the rule that would have caught it.
+4. **`test_no_refusal_in_perry_conform_names_a_command_without_the_root` runs
+   that sweep over both tools** and fails the suite on either ruling.
+
+Measured, not argued: mutation **M42** puts round 4's defect back in
+`_root_flag` and the source guard goes red; **M43** un-quotes one `{v.path}`
+and it goes red; **M44** re-glues the `{tail}` below and it goes red. All three
+are red on the source guard **and nothing else** — see § 6.1.
+
+#### A second member, found by the new rule and not by anyone reading the branch
+
+`message_for`'s DRIFTED branch is the only one whose last line IS the command,
+and it appended the unreadable-lines parenthetical to it:
+
+```
+    perry-conform declare BOARD.md --root '/…/My Project' (2 line(s) in
+    .perry/conformance.jsonl could not be read and were not counted as
+    declarations)
+```
+
+Pasted into `/bin/sh`: `syntax error near unexpected token '('`, **rc=2**.
+Parsed with `shlex.split`: the command plus eighteen junk arguments. Measured
+both ways. `{tail}` now goes on a line of its own.
+
+#### The proof stops only ever seeing friendly input
+
+**The row's own end-to-end proof already ran `shlex.split` on the handed-back
+command — the exact parser that exposes this — and was green**, because
+`tempfile.TemporaryDirectory()` never yields a path with a space in it. One
+character in a fixture was the difference between a proof and a ritual.
+
+Every fixture project in `tests/test_conformance.py` and `tests/test_migrate.py`
+is now built under a directory named:
+
+```
+My Project (v2) & 'draft' "q" $x; echo hi #1 *
+```
+
+— word splitting, the four metacharacters that turn a paste into a syntax error
+or a backgrounded fragment, both quote characters, parameter expansion, a
+comment marker and a glob. **19 tests went red on that change alone.** Two
+characters are deliberately absent and both are recorded as limitations rather
+than oversights: a newline (a root containing one cannot be handed back on a
+single line at all) and a backtick (§ 10.12).
+
+And the proof now runs the command through **`/bin/sh -c`**, not only through
+`subprocess` with a split argv. `shlex.split` proves the line parses; it does
+not glob, expand `$`, or substitute — and the fixture root ends in `*`. Only
+the tool's own name is substituted; the rest of the line is passed
+byte-for-byte, so the quoting under test is the quoting that runs.
+
+The whole thing, on a planted throwaway project, copied into a real shell:
+
+```
+$ cd .../r5space/elsewhere
+$ python3 bin/perry-conform migrate --root ".../r5space/My Project (v2) & 'draft'"
+    …
+Fix those lines, then run:
+    perry-conform migrate --root '/…/r5space/My Project (v2) & '"'"'draft'"'"''
+**Nothing was written.**
+
+  # the reader fixes those lines and pastes that line, unedited
+  ✓ carried 1 declaration(s) from .perry/conformance.md into
+    .perry/conformance.jsonl, dates and routes unchanged
+  ✓ deleted .perry/conformance.md
+rc=0
+```
+
+The reader's record converted with its 2026-08-20 date intact; the project they
+were standing in was untouched.
+
+#### The assertion that could not see it
+
+`assert_every_command_carries` read `assertIn(f"--root {root}", cmd)` — the
+assertion written in round 4 to catch round 3's defect. A substring test is
+satisfied by `--root /home/ada/My Project`. It **parses** now:
+`shlex.split(cmd)`, then exactly one `--root`, then its value equal to the
+caller's root. A phrase that does not survive `shlex.split` is not a command,
+whatever it looks like.
+
+The extractor and the assertion moved to **`tests/handed_back.py`**, because
+`tests/test_migrate.py` held a second, hand-written spelling of the same rule
+(`assertIn(f"perry-migrate restore {run_id} --root {p.root}")`) and the second
+copy is the one that went stale. Moving them surfaced a disagreement neither
+file could see: `commands_named` required **four** spaces of indentation and
+the source sweep's `CUE` required **two**, so `bin/perry-migrate § do_restore`
+prints its listing's command under three spaces — a handed-back command to one
+rule and invisible to the other. `test_every_way_back_this_tool_names_carries
+_the_root` was asserting over an empty extraction. Both are `[ ]{2,}` now, and
+mutation **M56** puts the disagreement back and reddens that test.
+
+`test_the_declare_command_the_refusal_names_is_runnable_verbatim` was also not
+running it verbatim: it split the line on whitespace and then appended a
+`--root` of its own, discarding whatever the message named. Both halves fixed.
 
 ## 2 · Self-reference — moved across explicitly, and split into two questions
 
@@ -564,16 +783,18 @@ I expected this one to die and it does not. Measured:
   mutation **M10**). A one-way door that destroys a line the user typed is not
   something to leave for a follow-up row.
 
-## 6 · Mutations — 40/40 reddened their named test, re-run in round 4
+## 6 · Mutations — 57/57 reddened their named test, re-run whole in round 5
 
 > **"29/29" was, until round 4, one run that nobody had reproduced.** The V4
 > round-3 reviewer re-ran **8** of the 29 (M22-M29) plus M15's branch as a
 > control, added 9 of its own, and said plainly that M1-M14 and M16-M21 were
-> **not** re-run. Round 4 re-ran **the whole harness, all of it, in this
-> session** — `python3 tests/mutate_task_234.py`, whole, in a private detached
-> worktree — and extended it: **40/40 red** (§ 7.1 for the run). Two of the
-> eleven new ones came back GREEN first, M35 and M36, and both are recorded as
-> findings in § 6.1 rather than quietly re-pointed.
+> **not** re-run. Round 4 re-ran the whole harness and extended it to 40. Round
+> 5 re-ran it whole again, in a private detached worktree, and extended it to
+> **57 — all red** (§ 7.1 for the run). Seventeen are new: M41-M44 for the
+> quoting choke point, M45-M48 for the sweep's own rulings, M49-M51 for the
+> three sites the V4 round-4 reviewer found GREEN, M52-M53 for the two members
+> `§ 10.9` had excused, M54-M56 for the shape and for the extractor/sweep
+> agreement, M57 for the widened overclaim guard.
 
 Harness: `tests/mutate_task_234.py`. Uniquely named; **refuses a dirty tree**;
 anchors on exact text and asserts the anchor is **unique** in the file; resolves
@@ -629,14 +850,58 @@ mutating; restores by `md5` and asserts the digest.
 | M39 | `bin/README.md` | delete the sentence that states the difference | same |
 | M40 | `bin/perry-conform` | M30's mutation, named against the SOURCE guard rather than the end-to-end proof | `…test_no_refusal_in_perry_conform_names_a_command_without_the_root` |
 
-**M32, M34 and M40 are three mutations of the same line and they are not
-redundant.** M40 is caught only by reading the source (`{r}` is gone from the
-template). M32 is invisible to the source guard — the template still says
-`{r}`; only the runtime value is wrong — and is caught by the 16 helper
-invocations. M34 is invisible to *both* — the message says `--root` and reads
-correctly — and is caught only by the end-to-end test, which RUNS what the
-message says. Three layers, one per failure mode, each demonstrated by the
-mutation the other two miss.
+**The three-layer argument, rewritten to match what is measured.** The
+paragraph that stood here said *"M40 is caught only by reading the source …
+M34 is invisible to both … Three layers, one per failure mode, each
+demonstrated by the mutation the other two miss."* The V4 round-4 reviewer
+measured it and **two of those three claims are false**: M34 reddens the
+helper — `assert_every_command_carries` asserts the *exact* root, so a
+correctly-spelled wrong root reddens every helper invocation reaching the
+fixed-point branch — and **M40 is byte-for-byte the same mutation as M30**
+(same anchor, same replacement; verified by comparing the two harness entries),
+so "caught only by reading the source" cannot be true of either.
+
+Re-measured at the round-5 tip, whole of `tests.test_conformance` +
+`tests.test_migrate`, distinct failing methods in brackets, and which of the
+three layers went red:
+
+| mutation | failures | methods | source guard | helper | end-to-end |
+|---|---|---|---|---|---|
+| M30 / M40 — `{r}` deleted from the fixed-point template | 8 | 6 | **yes** | yes (4) | yes |
+| M34 — `--root /nowhere-at-all`, spelled correctly | 7 | 5 | no | yes (4) | yes |
+| M32 — `_root_flag(None)`, the runtime value | 20 | 18 | no | yes (16) | yes |
+| M41 — `_q` stops quoting | 25 | 23 | no | yes (16) | yes |
+| M42 — `_root_flag` interpolates the root raw | 26 | 24 | **yes** | yes (16) | yes |
+| M44 — `{tail}` re-glued to the DRIFTED command | 1 | 1 | **yes** | no | no |
+| M52 — `perry-tasks render --write` drops the root | 1 | 1 | **yes** | no | no |
+| M53 — `perry-goals commit --migrate` drops the root | 1 | 1 | **yes** | no | no |
+
+**No mutation of that line is caught by exactly one layer, and the argument
+that said so was wrong.** What the measurement supports instead is narrower and
+stands on its own:
+
+* **The source guard is the only layer that can see a site no test exercises.**
+  M44, M52 and M53 redden it and **nothing else in either module** — one
+  failure, one method, each. All three are real defects in messages no fixture
+  reaches: the DRIFTED branch's parenthetical, and the two `bin/perry-migrate`
+  refusals `§ 10.9` used to excuse. That is the source guard earning its keep,
+  measured, rather than being the layer that happens to catch what the others
+  do too.
+* **The helper is the only layer with breadth, and the source guard is blind to
+  what it sees.** M32 and M41 leave the template correct and the runtime value
+  wrong; the source guard stays green and 16 helper invocations plus the
+  end-to-end proof go red together.
+* **The end-to-end proof is the only layer that RUNS the command**, which is
+  what found § 1.3's FAIL in the first place — by a reviewer, not by the suite,
+  because the fixture roots had no spaces. What it uniquely covers now is
+  shell-level behaviour that `shlex.split` does not perform: globbing, `$`
+  expansion, substitution. I did not construct a mutation caught by *only* that
+  layer, and say so rather than claim one.
+
+**M34's 7 / 5 and M32's 20 / 18 are the reviewer's own figures reproduced at a
+different tip**, which is also an independent confirmation of § 1.1's corrected
+**14 methods / 16 invocations** and its 4 / 12 split: M34 mutates only the
+fixed-point branch and produces exactly 4 helper failures.
 
 **M35 came back GREEN, and that is the finding.** `perry-migrate apply --root
 X` is the other way into `migrate_record`'s refusal, and no test held it: with
@@ -686,6 +951,83 @@ Two other findings from the harness itself: **M18**'s named test was in the wron
 class (the harness said `ALREADY RED`, which is the failure mode it exists to
 catch), and **M9/M20** together are what let § 4.3 claim the two layers are
 independent rather than asserting it.
+
+### 6.2 · Round 5 — the four the V4 round-4 reviewer found GREEN, and why each was
+
+All four were green for one reason with three faces: **an assertion was being
+made from inside a run the reader never has.** That is the round-3 defect's own
+sentence, and the reason it kept recurring is that each round closed the
+instance and left the shape.
+
+**R-N3 and R-N4 — two of `rollback_message`'s three call sites could drop the
+caller's root with both modules green.** These are TASK-044 guarantee 3's own
+paths: a write that fails (read-only directory, full disk, permission revoked
+mid-run) and a write that lands with the wrong digest. Both hand the reader
+`perry-migrate restore <run-id>` as the way back.
+
+Green because every test that reached them called `M.apply_plan(plan, SCHEMA)`
+positionally, so `root_arg` was `None` on both sides of the mutation and
+`_root_flag` returned `""` either way. **Why the round-3 fix did not reach
+here**, which the round-4 reviewer asked and this document owes an answer to:
+round 4 gave `bin/perry-conform`'s two entry points a keyword-only parameter
+with no default and *argued for that shape in this file*, and then gave
+`bin/perry-migrate` three parameters that all kept a silent default —
+`apply_plan`, `rollback_message`, `do_restore`. The discipline stopped at the
+file boundary, and the RESULT's own argument for it (*"a new caller cannot
+inherit the omission by saying nothing"*) applied to none of the three.
+
+Closed three ways, because the parameter shape alone would not have done it:
+
+1. **`apply_plan` and `render` no longer take a root at all.** `Plan` carries
+   `root_arg` — the root the caller *typed* — and `plan_project` requires it
+   with no default, so a plan cannot exist without an answer and these two
+   functions cannot hold a different one. A required parameter still lets a
+   caller fill it with the wrong value; **one root per plan** removes the
+   second place to say it.
+2. **`rollback_message` and `do_restore` are keyword-only with no default**,
+   matching `declare` and `migrate_record`.
+3. **The fixtures pass the root**, so the assertion is finally about a run a
+   reader could have, and the digest-mismatch path — which had **no test at
+   all** — has one. Mutations **M49** and **M50** are red.
+
+**R-N8 — the sweep's ok/bad decision could be disarmed with the suite green.**
+`assertGreaterEqual(len(handed), 12)` guards against the sweep finding
+*nothing*; nothing guarded against it calling *everything* ok, so neutering
+`ROOT` to `re.compile(r"")` left `tests.test_conformance` green while the source
+guard became a no-op and the census in § 1.2 became a table of zeros.
+
+`tests/fixtures/handed_back_spellings.py` is the control, and it is the same
+fixture the recall number comes from: 19 planted defects that must be reported
+and 4 correct rulings that must not. A sweep that reports everything now fails
+on the second half; a sweep that reports nothing fails on the first.
+**M45-M48** neuter `ROOT`, `SAFE_INTERP`, `IS_WHOLLY_A_COMMAND` and
+`FLAG_VALUE` in turn; all four are red.
+
+**R-N13 — the restore point's expected-after entry for the legacy record was
+unpinned.** The call is on the recovery path and this branch added it. Without
+it the restore point keeps the pre-declaration digest for
+`.perry/conformance.md` while the run that converted the record deleted the
+file, so `undo` compares the tree against a signature the run itself
+invalidated.
+
+Green because **no test applied a migration to a project holding a legacy
+record and then restored it** — `tests/test_migrate.py` named `conformance.md`
+in exactly two places, the symlink preflight and the unconvertible-record
+refusal. That round trip is
+`test_a_run_that_converted_a_legacy_record_can_be_restored` now: plant a
+canonical markdown record, apply, assert the markdown is gone and the store is
+there, restore, and assert the tree comes back byte for byte. **M51** deletes
+the call and it is red.
+
+**R-N10, R-N11 and R-N12, which the reviewer recorded rather than charged.**
+R-N10 mutates a test's own matcher and is not addressable. R-N11 and R-N12 gave
+`declare` and `migrate_record` their defaults back and were green because no
+caller omits them today — a shape that protects a *future* caller cannot be
+held by a test that exercises present ones. The reviewer named the remedy and
+round 5 took it: `TestTheRootIsRequiredNotDefaulted`, in both modules, asserts
+via `inspect` that every such parameter is keyword-only with no default, that
+`Plan.root_arg` has no default, and that `apply_plan` and `render` have no such
+parameter at all. **M54** and **M55** are red.
 
 ## 7 · Baselines — runner, tree, hour
 
@@ -796,8 +1138,11 @@ of the symptom is not absence of the defect: TASK-249 stands.
 | `.perry/conformance.md` → `.perry/conformance.jsonl` | Perry's own record, 23 declarations |
 | `tests/test_conformance.py` | 69 → 91 |
 | `tests/test_migrate.py`, `tests/test_one_header_rule.py`, `tests/test_header_index_is_the_only_fold.py`, `tests/test_procedures_call_the_tool.py` | see § 4.5 and § 9 |
-| `tests/mutate_task_234.py` | new — **40** mutations (29 in rounds 1-3, M30-M40 in round 4) |
-| `tests/sweep_handed_back_commands.py` | new in round 4 — the class sweep (§ 1.2); the suite imports its rule rather than restating it |
+| `tests/mutate_task_234.py` | **57** mutations (29 in rounds 1-3, M30-M40 in round 4, M41-M57 in round 5) |
+| `tests/sweep_handed_back_commands.py` | new in round 4 — the class sweep (§ 1.2); round 5 adds the `unquoted {expr}` ruling, `FLAG_VALUE` and `IS_WHOLLY_A_COMMAND`; the suite imports its rule rather than restating it, over **both** tools |
+| `tests/handed_back.py` | new in round 5 — one definition of "the command a refusal hands back", for the two test modules that assert about one, plus the hostile fixture root |
+| `tests/fixtures/handed_back_spellings.py` | new in round 5 — 19 planted defects and 4 correct rulings; the sweep's positive control and the source of its measured recall |
+| `tests/test_header_index_is_the_only_fold.py` | one `fix_tables` call site, for the new keyword-only `root_arg` |
 
 ## 9 · Blast radius beyond "two functions"
 
@@ -866,14 +1211,44 @@ needed real work.
    prose. No behaviour changed and nothing new is measured about it.
 8. **The 12 unreadable-branch call sites do not exercise the diff.** § 1.1.
    Stated where the coverage is claimed rather than left implied.
-9. **Three members of the class are left in `bin/perry-migrate`, named and not
-   fixed** (§ 1.2): `perry-goals commit --migrate` in the `Commitments` split
-   finding, and `perry-tasks render --write` / `perry-tasks write --from-board`
-   in the store-baseline refusal. All three name a **different tool**, all three
-   sit in functions with no root in scope, and threading one there is a change
-   to `plan_project`'s signature that this row has no test for. `perry-conform`
-   is at zero and `perry-migrate`'s own two ways back are fixed, which is what
-   the FAIL and the reviewer's § 4.5 were about.
+9. **~~Three members of the class are left in `bin/perry-migrate`~~ — all
+   three are fixed in round 5, and the sentence that excused them was wrong.**
+
+   Round 4 wrote: *"all three name a different tool, all three sit in functions
+   with no root in scope"*. The V4 round-4 reviewer resolved each enclosing
+   function off the AST and **two of the three had a root in scope**:
+   `_plan_task_store(plan)` has `plan.project_root` and `plan.state_root` two
+   lines above the refusal. The half of the sentence that was true — the
+   caller's *typed* `root_arg` is not in scope, and threading it changes
+   `plan_project`'s signature — is the half that made the exemption sound
+   structural when it was a decision not to do the work.
+
+   **And the harm was understated, in the direction that matters.**
+   `perry-tasks render --write` accepts `--root` (`bin/perry-tasks:1258`) and
+   **without it writes `state_root / "BOARD.md"` under the reader's current
+   directory** (`bin/perry-tasks:220`). `_plan_task_store` is reached from
+   `plan_project` on both the dry run and the apply. So a reader who ran
+   `perry-migrate --root /their/project` from elsewhere, hit the store-baseline
+   refusal and copied what they were handed **rewrote a different project's
+   board** — strictly worse than the `rc=0` no-op § 1.2's FAIL was about, and
+   filed here as lower priority than the ones that were fixed. `perry-goals
+   commit --migrate` writes `OKR.md § Commitments` and is the same shape one
+   register down.
+
+   **All three carry the root now.** `Plan` holds the root the caller typed;
+   `plan_project` requires it with no default; `_plan_task_store` reads
+   `plan.root_arg`, and `fix_tables` takes it keyword-only through
+   `migrate_text`. Both tools are at zero on both rulings and both are in the
+   suite guard. Mutations **M52** and **M53** drop the flag again and are red —
+   on the source guard alone, because no fixture in this suite triggers either
+   refusal (§ 6.1), which is the whole reason a source rule exists.
+
+   **What is still not verified**: neither refusal is exercised end to end. I
+   did not build a project whose task store disagrees with its board, nor one
+   whose `Commitments` table still carries the pre-split `By when` column, and
+   watch the message come out. The reviewer did not either. The flag is in the
+   template and the template is guarded; the message has not been read off a
+   running tool.
 10. **`bin/perry-lint`'s 22 fix hints all drop the root** (§ 1.2), measured
    under the crude rule. Pre-existing, in a tool this row does not own, reaching
    a `perry-conform` reader only through `findings[].fix` in `--json`. Not
@@ -884,6 +1259,28 @@ needed real work.
    project, because that is the case where the dropped root is silent. A reader
    standing in `/tmp` gets the same rc=0 sentence, checked by hand once; it is
    not pinned by a test.
+12. **A backtick in the project's path is quoted correctly and truncates two
+   INLINE commands in the same message.** `_q` handles it — the indented
+   commands in a refusal are runnable verbatim on a project at ``/tmp/a `b` c``
+   and that is asserted. But this codebase also hands commands back inline,
+   delimited by single backticks, and a backtick inside the argument closes the
+   span early: two branches of `message_for` then print
+   ``` `perry-lint --root '/tmp/a` ``` and the extractor sees the same
+   truncation the reader does. **The break is in the message's markdown, not in
+   the quoting.** Closing it means moving those two commands onto indented
+   lines of their own, or emitting a double-backtick span when the argument
+   contains a backtick — both real fixes, neither this row's FAIL. Measured and
+   pinned by `test_a_backtick_in_the_root_is_quoted_and_what_that_costs`, which
+   **goes red when it is closed**, like the TASK-246 pin. A newline in the path
+   is the same family and is not measured at all: a command carrying one cannot
+   be handed back on a single line, and every extractor here is line-based.
+
+13. **The sweep's census is a lower bound and the bound is now measured, not
+   the class.** 18 of 19 planted spellings, 14 of the round-4 reviewer's 15
+   (§ 1.2). The residual is a cue word outside the closed list, and there is no
+   reason to believe 19 spellings exhaust the ways a Python program can put a
+   command into a message. Every "N members / M left" in this document is a
+   count under one rule.
 
 ## 11 · For the record — the sixth vacuous test in three days
 
@@ -917,3 +1314,30 @@ named; nothing required it to be **the command the caller could run**. That is
 the same class as the two above and the reason § 1.2's proof runs the command
 instead of matching it: an assertion that constructs what it expects cannot see
 what was printed.
+
+**A fourth time, in round 4, and the fourth one is the one worth stopping at.**
+Round 4 built the layer that runs the command instead of matching it — and the
+fixtures it ran it on were `tempfile.TemporaryDirectory()` paths, which never
+contain a space. So the proof executed `shlex.split` on every handed-back
+command, ran what came out, and stayed green over an argument that does not
+survive `shlex.split` on any path a person would call a project. The assertion
+written to stop constructing the expected input was still choosing the input.
+
+The four instances differ, and the difference is the useful part:
+
+| round | what the assertion did | why it could not see the defect |
+|---|---|---|
+| the helper (§ 1.1) | `"refused" in out` | its subject had moved: any refusal satisfied it |
+| round 3 (§ 1.2) | `assertIn("perry-conform migrate", …)` | true of the broken string; not about the reader |
+| round 4 (§ 1.3) | `assertIn(f"--root {root}", …)` | a substring test cannot tell a command from a fragment |
+| round 4's proof (§ 1.3) | ran the command it extracted | **the input never exercised the failure** |
+
+The first three are assertions that stopped measuring. The fourth is a
+*fixture* that never presented the case, and it is a different failure with the
+same effect — which is why round 5's answer is not another assertion but a
+hostile default in the fixture itself, and 19 tests going red the moment it
+landed. **The corresponding half on the source side is the same idea**: the
+sweep's rulings had no positive control at all, so the rule could be turned off
+and the suite would say the class was closed (§ 6.2, R-N8). A guard whose
+inputs are all friendly and a guard whose verdict is never checked are the same
+defect from two sides.
