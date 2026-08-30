@@ -305,11 +305,19 @@ class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
                         f"PERRY_PROJECT={value!r} resolves against whichever "
                         f"cwd reads it, and the run was allowed:\n{out}")
                     self.assertIn("refusing to run", out)
+                    # The HEADLINE, not the paragraph under it. A first draft
+                    # of this asserted "relative" anywhere in the output and
+                    # stayed green when the banner was reworded to "points
+                    # somewhere else", because the explanation below it still
+                    # used the word. The banner is the line a reader acts on.
+                    banner = next(l for l in out.splitlines()
+                                  if "refusing to run" in l)
                     self.assertIn(
-                        "relative", out,
+                        "relative", banner,
                         f"the refusal must say it is the relativity that is "
                         f"the problem — {value!r} inside $ROOT is not a "
-                        f"different tree:\n{out}")
+                        f"different tree, and the banner it prints is "
+                        f"{banner.strip()!r}:\n{out}")
 
 
 class TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun(
@@ -389,12 +397,17 @@ class TestTheBulletUsesTheVocabularyOfTheMechanismSpelledInTestsRun(
             f"occurrence(s) of {self.BULLET!r}) — fix that before trusting "
             f"any verdict here")
         start = doc.index(self.BULLET)
-        # The terminator is the next top-level bullet, and there may not be
-        # one: if this bullet is ever moved to the end of the list, `index`
-        # would raise ValueError and both tests here would ERROR instead of
-        # reporting anything. Run to the end of the docstring in that case.
-        end = doc.find("\n- **", start + 1)
-        self.bullet = doc[start:] if end == -1 else doc[start:end]
+        # The bullet ends at the next top-level bullet OR at the next section
+        # heading, whichever comes first — and there may be neither. The
+        # first version terminated on `doc.index("\n- **", ...)` alone, so
+        # moving this bullet to the end of its list would raise ValueError
+        # and ERROR both tests here instead of reporting anything; and
+        # running to the end of the docstring instead would swallow the "Why
+        # a refusal and not a re-aim" section below, whose prose contains
+        # both forbidden words. Bound it to its own bullet, always.
+        ends = [i for i in (doc.find("\n- **", start + 1),
+                            doc.find("\n## ", start + 1)) if i != -1]
+        self.bullet = doc[start:min(ends)] if ends else doc[start:]
 
     def test_tests_run_spells_exactly_one_of_the_two_mechanisms(self):
         found = self._implemented(self.run_src)
@@ -614,8 +627,14 @@ class TestTheManifest(unittest.TestCase):
         start = doc.index(head)
         end = doc.find("\n## ", start + 1)
         section = doc[start:] if end == -1 else doc[start:end]
-        for name in sorted(set(TG.IGNORE_DIRS) | set(TG.IGNORE_NAMES)
-                           | set(TG.IGNORE_SUFFIXES)):
+        names = sorted(set(TG.IGNORE_DIRS) | set(TG.IGNORE_NAMES)
+                       | set(TG.IGNORE_SUFFIXES))
+        # Otherwise three emptied lists would satisfy this by iterating over
+        # nothing, which is how a derived assertion becomes decoration.
+        self.assertTrue(names, "the guard ignores nothing at all — either "
+                               "the three lists were emptied or this test is "
+                               "reading the wrong module")
+        for name in names:
             with self.subTest(ignored=name):
                 self.assertIn(
                     name, section,
