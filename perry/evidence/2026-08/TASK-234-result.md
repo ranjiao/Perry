@@ -1142,13 +1142,22 @@ grep -oE 'FAILED \(errors=[0-9]+'   <log> | grep -oE '[0-9]+$' | paste -sd+ - | 
 | tree | modules | tests | seconds | modules red | **test failures** | errors | `grep -c '^FAIL:'` (the trap) |
 |---|---|---|---|---|---|---|---|
 | `main` @ `4716e39` | 104 | 3124 | 226.5 | 3 | **4** | 0 | 3 |
+| **`main` @ `5b69572`** | 105 | 3148 | 236.0 | 3 | **4** | 0 | 3 |
 | tip `35e0336` | 103 | 3150 | 223.0 | 3 | **4** | 0 | 3 |
 | merge probe `4716e39` + `35e0336` = `f4aff0d` | 104 | 3176 | 226.9 | 3 | **4** | 0 | 3 |
+| **merge probe `5b69572` + `1706a0e` = `8c8cb87`** | 105 | 3200 | 235.4 | 3 | **4** | 0 | 3 |
 
-Sequential on one machine, 15:24 → 15:41 CST, so the seconds are comparable.
-`main` moved during the round; **`4716e39`** is where it stood when all three
-trees were cut and where it still stood when the last run finished. The merge
-is clean — no conflicts.
+Sequential on one machine, 15:24 → 15:51 CST, so the seconds are comparable.
+
+**`main` moved twice during this round and both bases are measured rather than
+one being assumed to stand for the other.** `4716e39` is where it stood when
+the worktrees were cut. It moved to **`5b69572`** while the first three runs
+were finishing, and that move is not cosmetic — it brings TASK-249's tree guard
+(`tests/tree_guard.py`, a rewritten `tests/run`) and 24 tests with it, which is
+new machinery watching the suite for writes to the working tree. So `main` was
+re-baselined at `5b69572` and the probe re-cut against it. **Both merges are
+clean, both probes read 4, and the red set is the same three modules by name in
+all five runs.** Nothing this branch adds trips the new guard.
 
 **Red set, by name.** `main` and the tip: `test_diagnose.py` (failures=2 —
 `test_perry_itself_passes_its_own_id_checks` and the one whose header the
@@ -1170,8 +1179,8 @@ about a number, and because a count that has only ever been seen once is worth
 less than a count that has been seen twice with its exception named. It appears
 in none of the three runs above.
 
-**3124 → 3176 on the probe is +52**: 26 tests on `main` since this branch
-forked, and 26 from the branch. The tip's 3141 → 3150 across round 5 is **+9**,
+**3148 → 3200 on the second probe is +52**: 26 tests on `main` since this
+branch forked, and 26 from the branch. The tip's 3141 → 3150 across round 5 is **+9**,
 enumerated: `test_conformance.py` +4 (the backtick residual, two in
 `TestTheSweepIsMeasuredNotTrusted`, one in `TestTheRootIsRequiredNotDefaulted`)
 and `test_migrate.py` +5 (three in `TestTheRootIsRequiredNotDefaulted`, the
@@ -1183,8 +1192,10 @@ each run, with `git status --porcelain` **empty** after all three:
 | run | before | after |
 |---|---|---|
 | `main` @ `4716e39` | `58f92a848290d83a60dec80dfc66d471` | `58f92a848290d83a60dec80dfc66d471` |
+| `main` @ `5b69572` | `0f633f440b4fc37ad5e479fe44fbe47b` | `0f633f440b4fc37ad5e479fe44fbe47b` |
 | tip `35e0336` | `9da47f2da6d50b6846637307a15aba42` | `9da47f2da6d50b6846637307a15aba42` |
 | probe `f4aff0d` | `e9b6b32ce6d8cd4b7dace14f9c402691` | `e9b6b32ce6d8cd4b7dace14f9c402691` |
+| probe `8c8cb87` | `b4933f98a66f4dc8b8655be47b16e390` | `b4933f98a66f4dc8b8655be47b16e390` |
 
 **Mutations, round 5**: `python3 tests/mutate_task_234.py` run whole, in a
 private detached worktree at `debdee8`, **57/57 red**, `git status --porcelain`
@@ -1193,8 +1204,9 @@ empty afterwards and the tree digest re-checked against the pre-run value
 in `/Users/bytedance/proj/Perry`. The only commits after `debdee8` edit this
 document, which no mutation targets.
 
-**The tip and probe runs are at `35e0336`; the only commit after it is the one
-that writes these numbers into this subsection.** `test_heading_title` and
+**The runs are at `35e0336` (tip) and `1706a0e` (the probe's branch side);
+every commit after those two edits this subsection of this document and nothing
+else.** `test_heading_title` and
 `test_diagnose` both read `perry/` documents, so a RESULT edit is inside their
 subject and the run that covers this document is the one at the commit that
 carries it.
