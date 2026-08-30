@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import contextlib
 import importlib.machinery
+import inspect
 import importlib.util
 import json
 import os
@@ -155,13 +156,26 @@ CONFIG_ZH = ("# Perry configuration\n\n- Document language: 中文\n"
 HOOK = "# Hook\n\n## High-stakes operations\n\n- anything that spends money\n"
 
 
+#: **The extractor, the assertion and the hostile fixture root all come
+#: from `tests/handed_back.py`**, which `tests/test_conformance.py` also
+#: uses. This module held its own hand-written spelling of the rule —
+#: `assertIn(f"perry-migrate restore {run_id} --root {p.root}")` — and a
+#: substring assertion cannot tell a runnable command from an unrunnable
+#: one, which is what the round-4 V4 FAIL was.
+_HB = load("perry_handed_back", PERRY_HOME / "tests" / "handed_back.py")
+commands_named = _HB.commands_named
+assert_every_command_carries = _HB.assert_every_command_carries
+HOSTILE_ROOT_NAME = _HB.HOSTILE_ROOT_NAME
+
+
 class Project:
     """A throwaway project holding whatever files a test needs."""
 
     def __init__(self, files: dict[str, str] | None = None,
                  config: str = CONFIG_EN):
         self.dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.dir.name)
+        self.root = Path(self.dir.name) / HOSTILE_ROOT_NAME
+        self.root.mkdir()
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(config)
         (self.root / ".perry" / "hook.md").write_text(HOOK)
@@ -195,7 +209,13 @@ class Project:
         return json.loads(r.stdout)["errors"]
 
     def plan(self):
-        return M.plan_project(self.root, self.root, SCHEMA)
+        # `root_arg` is the root the CLI would have been given — the same
+        # string `Project.run` puts on the command line. An in-process plan
+        # built with `root_arg=None` is a plan no reader ever has, and every
+        # assertion about a handed-back command made from inside one is an
+        # assertion about a situation that does not occur (TASK-234 r5).
+        return M.plan_project(self.root, self.root, SCHEMA,
+                              root_arg=str(self.root))
 
     def __del__(self):
         self.dir.cleanup()
@@ -481,6 +501,37 @@ class TestRecoverable(unittest.TestCase):
         points = list((p.root / ".perry" / "migrate").glob("*.json"))
         self.assertEqual(len(points), 1)
 
+    def test_every_way_back_this_tool_names_carries_the_root(self):
+        """**A command handed back names the root the reader used, or it
+        addresses a different project** (TASK-234 round 4).
+
+        The V4 round-3 reviewer measured this on `perry-conform migrate` and
+        listed `perry-migrate restore` as the thing it had NOT checked. It had
+        the same omission on both surfaces that name it: the line under a
+        successful `apply`, and the restore-point listing. Neither errors
+        without the flag — `restore` run from another Perry project looks for a
+        run id under THAT project's `.perry/migrate/` — so the failure is a
+        refusal about the wrong tree, or a rollback of it.
+        """
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        rc, applied, _ = p.run("apply", json_out=False)
+        run_id = list((p.root / ".perry" / "migrate").glob("*.json"))[0].stem
+        # Both surfaces are asserted by PARSING what was printed. The two
+        # `assertIn(f"… --root {p.root}")` calls that stood here could not
+        # distinguish a runnable command from `--root /home/ada/My Project`.
+        under_run = next(l for l in applied.split("\n") if "undo with:" in l)
+        assert_every_command_carries(
+            self, under_run, p.root, "the line under a finished run")
+        self.assertIn(
+            run_id, under_run,
+            f"the line under a finished run does not name THIS run: "
+            f"{under_run!r}")
+
+        rc, listing, _ = p.run("restore", "--list", json_out=False)
+        self.assertEqual(rc, 0, listing)
+        assert_every_command_carries(
+            self, listing, p.root, "the restore-point listing")
+
     def test_restore_puts_every_byte_back(self):
         """Exercised, not described."""
         p = Project({"BOARD.md": LEGACY_BOARD, "design/DESIGN-001-x.md": LEGACY_DESIGN})
@@ -498,9 +549,9 @@ class TestRecoverable(unittest.TestCase):
         claim conformance for files that no longer have it."""
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")
-        self.assertTrue((p.root / ".perry" / "conformance.md").exists())
+        self.assertTrue((p.root / ".perry" / "conformance.jsonl").exists())
         p.run("restore")
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists(),
                          "the record was created by the run and must go back "
                           "to not existing")
 
@@ -697,20 +748,36 @@ class TestFileImageFidelity(unittest.TestCase):
         self.assertFalse((p.root / "tasks.jsonl").exists())
 
     def test_a_symlinked_declaration_record_is_refused_before_state_writes(self):
+        """The store — what a declaration is written INTO."""
+        self._symlinked_record_is_refused("conformance.jsonl")
+
+    def test_a_symlinked_markdown_record_is_refused_before_state_writes(self):
+        """The markdown a pre-TASK-234 project still has — what the run
+        converts and then UNLINKS. Its own test, not a second assertion in the
+        one above, because the two are preflighted by two calls and one of them
+        can be deleted with the other green."""
+        self._symlinked_record_is_refused("conformance.md")
+
+    def _symlinked_record_is_refused(self, name: str):
         p = Project({"BOARD.md": LEGACY_BOARD})
         plan = p.plan()
         board = p.root / "BOARD.md"
         before = board.read_bytes()
-        record = p.root / ".perry" / "conformance.md"
+        # **Both records, because `apply` writes one and deletes the other**
+        # (TASK-234): the store is what a declaration is written into, and the
+        # markdown is what a pre-conversion project has and the run UNLINKS.
+        # Unlinking a symlink Perry did not put there is the same refusal for
+        # the same reason, so the preflight has to cover both names.
+        record = p.root / ".perry" / name
         record.parent.mkdir(exist_ok=True)
-        target = p.root / "outside-conformance.md"
+        target = p.root / f"outside-{name}"
         target.write_text("outside\n", encoding="utf-8")
         record.symlink_to(target)
 
         with self.assertRaises(M.Refused) as caught:
             M.apply_plan(plan, SCHEMA)
 
-        self.assertIn("conformance.md is a symlink", str(caught.exception))
+        self.assertIn(f"{name} is a symlink", str(caught.exception))
         self.assertEqual(board.read_bytes(), before)
         self.assertTrue(record.is_symlink())
         self.assertEqual(target.read_text(encoding="utf-8"), "outside\n")
@@ -779,11 +846,13 @@ class TestRestoreTransactionProtocol(unittest.TestCase):
         M.datetime = Frozen
         try:
             board_run = M.apply_plan(
-                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"]),
+                M.plan_project(p.root, p.root, SCHEMA, ["BOARD.md"],
+                               root_arg=str(p.root)),
                 SCHEMA, declare=False)
             design_run = M.apply_plan(
                 M.plan_project(p.root, p.root, SCHEMA,
-                               ["design/DESIGN-001-x.md"]),
+                               ["design/DESIGN-001-x.md"],
+                               root_arg=str(p.root)),
                 SCHEMA, declare=False)
         finally:
             M.datetime = real_datetime
@@ -849,15 +918,139 @@ class TestTheUserDeclares(unittest.TestCase):
                         callers.append(f"{tool.name}: {line.strip()}")
         self.assertEqual(callers, [])
 
+    def test_an_unconvertible_markdown_record_refuses_and_names_the_way_back(self):
+        """`declare` converts a pre-TASK-234 record before it writes, and that
+        step can REFUSE — with `bin/perry-conform`'s `Refused`, which is a
+        different class from this module's. It walked straight past the handler
+        around the declaration, which is Site 3's own failure mode verbatim:
+        fully migrated, restore point on disk and never named, raw traceback.
+
+        Asserts the shape of the refusal, not just that one happened: a
+        traceback is also a non-zero exit."""
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        (p.root / ".perry").mkdir(exist_ok=True)
+        # A record with a row inside an HTML comment — a genuine row by every
+        # per-row property, and not what `perry-conform declare` would write.
+        (p.root / ".perry" / "conformance.md").write_text(
+            "# Perry conformance\n\n"
+            "| File | Shape version | Declared | Route |\n"
+            "|---|---|---|---|\n"
+            "<!--\n| OKR.md | 2 | 2026-08-20 | declare |\n-->\n",
+            encoding="utf-8")
+
+        rc, out, err = p.run("apply")
+
+        self.assertEqual(rc, 1, f"the run did not refuse: {out} {err}")
+        self.assertIsInstance(out, dict, f"a traceback, not a refusal: {err}")
+        self.assertIn("refused", out, out)
+        self.assertIn("perry-migrate restore", out["refused"],
+                      "the refusal does not name the way back")
+        self.assertNotIn("Traceback", err)
+
+        # **Both commands in this message have to be runnable from where the
+        # reader is standing** (TASK-234 round 4). This message carries two:
+        # `perry-migrate restore <id>`, this tool's own way back, and — quoted
+        # inside it — `bin/perry-conform`'s refusal, which names
+        # `perry-conform migrate`. The reader typed `--root` on `perry-migrate
+        # apply`; a command handed back without it acts on whatever project
+        # they happen to be in, and in `perry-conform migrate`'s case exits 0
+        # saying "nothing to convert" about that other project.
+        #
+        # The route through `apply_plan` was the ONE member of the class no
+        # test held: mutating `root_arg=root_arg` to `root_arg=None` there was
+        # GREEN across `tests.test_migrate` and `tests.test_conformance` both.
+        #
+        # **Asserted by parsing, not by a regex over the text** (round 5). The
+        # regex here was `re.escape(cmd) + r"[^\n`]*--root " +
+        # re.escape(str(p.root))`, which is a substring test wearing a regex:
+        # it is satisfied by `--root /home/ada/My Project`, the exact line the
+        # round-4 FAIL handed back, which parses as five arguments and exits 1
+        # about a file the reader never named.
+        named = commands_named(out["refused"])
+        for cmd in ("perry-migrate restore", "perry-conform migrate"):
+            self.assertTrue(
+                any(c.startswith(cmd + " ") for c in named),
+                f"the refusal does not hand back `{cmd}` at all; it names "
+                f"{named!r}")
+        assert_every_command_carries(
+            self, out["refused"], p.root,
+            "the refusal `apply_plan` raises when the record will not convert")
+
+    def test_a_run_that_converted_a_legacy_record_can_be_restored(self):
+        """**The round trip the `update_expected_after` call exists for, and
+        which nothing exercised** (round 5).
+
+        `apply_plan` records a post-run signature for BOTH records — the store
+        it wrote and the markdown `declare` converted and unlinked. The V4
+        round-4 reviewer's R-N13 deleted the second of those two calls, which
+        this branch added, and the whole of `tests.test_migrate` stayed
+        **GREEN**: `tests/test_migrate.py` names `conformance.md` in exactly
+        two places, the symlink preflight and the unconvertible-record
+        refusal, and **no test applied a migration to a project holding a
+        legacy record and then restored it**.
+
+        Without the call the restore point still holds the PRE-declaration
+        digest for `.perry/conformance.md`, while the run that converted it
+        deleted the file — so `undo` compares the tree against a signature the
+        run itself invalidated, and the recovery path refuses on a project it
+        is supposed to be able to recover.
+        """
+        CF = M.conform()
+        p = Project({"BOARD.md": LEGACY_BOARD})
+        legacy = p.root / ".perry" / "conformance.md"
+        legacy.write_text(
+            "\n".join(CF.LEGACY_HEADER) + "\n"
+            "| OKR.md | 2 | 2026-08-20 | declare |\n", encoding="utf-8")
+        # Canonical by construction: the conversion refuses anything that is
+        # not line-for-line what `render_legacy` writes, and this test is
+        # about the RESTORE, not about the fixed point.
+        legacy.write_text(
+            CF.render_legacy(CF.P.read_legacy_conformance(p.root).declarations),
+            encoding="utf-8")
+        before = p.tree()
+        self.assertIn(".perry/conformance.md", before)
+
+        rc, out, err = p.run("apply")
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertFalse(legacy.exists(),
+                         "the conversion did not consume the markdown record")
+        self.assertTrue((p.root / ".perry" / "conformance.jsonl").exists())
+
+        rc, out, err = p.run("restore")
+        self.assertEqual(
+            rc, 0,
+            f"the run converted a legacy record and then could not be undone: "
+            f"{out} {err}")
+
+        after = {k: v for k, v in p.tree().items()
+                 if not k.startswith(".perry/migrate/")}
+        self.assertEqual(
+            after, before,
+            "restoring a run that converted a legacy record did not put the "
+            "project back byte for byte")
+
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")
-        record = p.root / ".perry" / "conformance.md"
+        record = p.root / ".perry" / "conformance.jsonl"
         self.assertTrue(record.exists())
-        self.assertIn("| BOARD.md | 2 | ", record.read_text())
-        self.assertIn("| migrate |", record.read_text(),
-                      "the route field exists so a declaration says how it was "
-                      "made; a migration's is not a hand `declare`")
+        stored = [json.loads(l) for l in
+                  record.read_text().split("\n") if l.strip()]
+        board = next(r for r in stored if r["path"] == "BOARD.md")
+        self.assertEqual(board["shape_version"], 2)
+        self.assertEqual(board["route"], "migrate",
+                         "the route field exists so a declaration says how it "
+                         "was made; a migration's is not a hand `declare`")
+        # **Provenance the four markdown columns could not carry** (TASK-234).
+        # `run` is this run's id, which is also the name of its restore point:
+        # a declaration can now say which migration made it, which is what made
+        # TASK-226 an investigation rather than a query.
+        self.assertEqual(board["writer"], "perry-migrate apply")
+        self.assertTrue(board["run"], "the declaration does not name its run")
+        self.assertTrue(
+            (p.root / ".perry" / "migrate" / f"{board['run']}.json").exists(),
+            "the run a declaration names is not a restore point on disk")
+        self.assertTrue(board["recorded_at"])
         others = [f for f in (p.root / ".perry").rglob("*")
                   if f.is_file() and "conform" in f.name and f != record]
         self.assertEqual(others, [], "there must be exactly one record")
@@ -865,14 +1058,14 @@ class TestTheUserDeclares(unittest.TestCase):
     def test_a_dry_run_declares_nothing(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run()
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists())
 
     def test_no_declare_migrates_without_declaring(self):
         """The two acts are separable: a user may want the shape fixed and
         want to read it before saying it is theirs."""
         p = Project({"BOARD.md": LEGACY_BOARD})
         rc, out, _ = p.run("apply", "--no-declare")
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists())
         self.assertEqual(p.lint_errors(), 0)
 
     def test_the_gate_refusal_names_the_migration_and_the_dry_run(self):
@@ -1373,7 +1566,7 @@ A legend, not a task table:
         self.assertEqual(p.text("BOARD.md"), before,
                          "the legend was widened into a task table")
         self.assertNotIn("| ID | Meaning | Title |", p.text("BOARD.md"))
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists(),
                          "a board that was correctly refused must not be "
                          "declared conformant")
 
@@ -1831,6 +2024,71 @@ class TestAMigratedIdIsReadableByItsOwnReader(unittest.TestCase):
         self.assertIn("**Fetched**", text)
 
 
+class TestTheRootIsRequiredNotDefaulted(unittest.TestCase):
+    """**`bin/perry-migrate`'s half of the shape** — see the class of the same
+    name in `tests/test_conformance.py`.
+
+    Round 4 gave `perry-conform`'s two entry points a keyword-only parameter
+    with no default and argued for the shape, and then gave `bin/perry-migrate`
+    three parameters that all kept a silent default:
+
+        apply_plan       (plan, schema, declare=True, root_arg=None)
+        rollback_message (point, key, why, allow_changed=None, root_arg=None)
+        do_restore       (project_root, positional, do_list, as_json, root_arg=None)
+
+    The V4 round-4 reviewer's R-N3 and R-N4 are what that cost: two of
+    `apply_plan`'s three rollback sites could drop the root with the whole of
+    both modules green, because every test called `apply_plan(plan, SCHEMA)`
+    and `None` was `None` on both sides.
+
+    **`apply_plan` and `render` are asserted to have NO such parameter.** A
+    required parameter can still be filled with a value that disagrees with
+    the plan; reading it off `plan.root_arg` means there is no second place to
+    say it. That is the difference between "you must answer" and "there is
+    only one answer".
+    """
+
+    def assert_required_keyword(self, fn, name="root_arg"):
+        sig = inspect.signature(fn)
+        self.assertIn(name, sig.parameters, f"{fn.__name__}{sig}: no `{name}`")
+        param = sig.parameters[name]
+        self.assertIs(param.kind, inspect.Parameter.KEYWORD_ONLY,
+                      f"{fn.__name__}{sig}: `{name}` is not keyword-only")
+        self.assertIs(
+            param.default, inspect.Parameter.empty,
+            f"{fn.__name__}{sig}: `{name}` has a default, so a caller that "
+            f"has a root can decline to pass it and nothing says so")
+
+    def test_every_function_that_hands_back_a_command_requires_the_root(self):
+        for fn in (M.plan_project, M.rollback_message, M.do_restore,
+                   M.fix_tables, M.migrate_text):
+            with self.subTest(fn=fn.__name__):
+                self.assert_required_keyword(fn)
+
+    def test_the_plan_carries_the_root_and_cannot_be_built_without_one(self):
+        field = inspect.signature(M.Plan).parameters.get("root_arg")
+        self.assertIsNotNone(
+            field, "`Plan` does not carry the root the caller typed, so every "
+                   "refusal raised while planning is back to having no root "
+                   "in scope — which is what `§ 10.9` excused two members of "
+                   "the class on")
+        self.assertIs(
+            field.default, inspect.Parameter.empty,
+            "`Plan.root_arg` has a default, so a plan can exist without an "
+            "answer and `plan_project`'s required parameter guards nothing")
+
+    def test_apply_plan_and_render_have_no_root_of_their_own(self):
+        """There is one root per plan and no second place to disagree."""
+        for fn in (M.apply_plan, M.render):
+            with self.subTest(fn=fn.__name__):
+                self.assertNotIn(
+                    "root_arg", inspect.signature(fn).parameters,
+                    f"{fn.__name__} takes a root separately from the plan it "
+                    f"is given. A caller can then pass one that disagrees "
+                    f"with `plan.root_arg`, or — as round 4 shipped — pass "
+                    f"nothing and get `None`")
+
+
 class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
     """Guarantee 3 of `TASK-044-spec.md`: the recovery path is **named in the
     output**, and shown working rather than described.
@@ -1853,7 +2111,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         p = self.project()
         before = p.tree()
         target = None
-        for e in M.plan_project(p.root, p.root, SCHEMA).writable:
+        for e in M.plan_project(p.root, p.root, SCHEMA,
+                                root_arg=str(p.root)).writable:
             target = e.path
             break
         self.assertIsNotNone(target, "nothing writable in the fixture")
@@ -1870,7 +2129,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         M.write_atomic = flaky
         try:
             with self.assertRaises(M.Refused) as caught:
-                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA), SCHEMA)
+                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA,
+                                            root_arg=str(p.root)), SCHEMA)
         finally:
             M.write_atomic = real
 
@@ -1879,6 +2139,12 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
                       f"the recovery command is not named:\n{msg}")
         self.assertIn("Restore point:", msg,
                       f"the restore point path is not named:\n{msg}")
+        # **Named is not enough; it has to be the reader's own project.** This
+        # is the V4 round-4 reviewer's R-N3: `root_arg=None` here was GREEN
+        # across both modules, because the test built its plan without a root.
+        assert_every_command_carries(
+            self, msg, p.root,
+            "the refusal raised when a write fails part way")
         # Compare the files that existed before. The restore point itself is
         # NEW and must survive the rollback — it is the thing the refusal just
         # told the user to run, and deleting it would make the message a lie.
@@ -1890,6 +2156,54 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
             [k for k in p.tree() if k.startswith(".perry/migrate/")],
             "the restore point the refusal names was not kept")
 
+    def test_a_write_that_lands_wrong_names_the_way_back_with_the_root(self):
+        """**The digest-mismatch path, which no test reached** (round 5).
+
+        `apply_plan` calls `rollback_message` from three places. Round 4
+        threaded the caller's root into all three and the V4 round-4 reviewer
+        then removed it from two of them — this one and the write-failed path
+        above — with the whole of `tests.test_migrate` and
+        `tests.test_conformance` **GREEN** (its R-N3 and R-N4).
+
+        Green for the reason the round-3 FAIL was invisible: every test that
+        reached these paths built its plan with no root at all, so `None` was
+        `None` on both sides of the mutation and the assertion about the
+        handed-back command was being made from inside a run no reader ever
+        has. The fixtures pass the root now, and this path had no test at all,
+        so it gets one.
+
+        The mismatch is made the way it happens in the world: the bytes on
+        disk after the write are not the bytes the plan printed."""
+        p = self.project()
+        real = M.write_atomic
+        calls = {"n": 0}
+
+        def tamper(path, text):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Published bytes that are not the plan's image, and the
+                # digest of what was really published — so `published == got`
+                # and the run takes the `allow_changed` branch.
+                tail = "\n<not what the plan said>\n"
+                return real(path, text + (tail.encode()
+                                          if isinstance(text, bytes) else tail))
+            return real(path, text)
+
+        M.write_atomic = tamper
+        try:
+            with self.assertRaises(M.Refused) as caught:
+                M.apply_plan(M.plan_project(p.root, p.root, SCHEMA,
+                                            root_arg=str(p.root)), SCHEMA)
+        finally:
+            M.write_atomic = real
+
+        msg = str(caught.exception)
+        self.assertIn("does not match the plan", msg,
+                      f"this is not the digest-mismatch path: {msg}")
+        assert_every_command_carries(
+            self, msg, p.root,
+            "the refusal raised when a write lands with the wrong digest")
+
     def test_the_restore_point_is_named_even_when_the_rollback_also_fails(self):
         """The worst case must not be the one that says nothing. `undo` writes,
         so the failure that broke the run can break the repair — and then the
@@ -1900,7 +2214,8 @@ class TestAFailedWriteIsRecoverableAndSaysSo(unittest.TestCase):
         M.undo = lambda _p, **_kwargs: (_ for _ in ()).throw(
             PermissionError(13, "Permission denied"))
         try:
-            msg = M.rollback_message(point, "BOARD.md", "boom")
+            msg = M.rollback_message(point, "BOARD.md", "boom",
+                                     root_arg=str(point.parent))
         finally:
             M.undo = real
         self.assertIn("rollback also failed", msg)
@@ -1921,7 +2236,8 @@ class TestIOFailuresAreStructuredRefusals(unittest.TestCase):
         M.shutil.copy2 = denied
         try:
             with self.assertRaises(M.Refused) as caught:
-                M.plan_project(p.root, p.root, SCHEMA)
+                M.plan_project(p.root, p.root, SCHEMA,
+                               root_arg=str(p.root))
         finally:
             M.shutil.copy2 = real
 
@@ -1963,7 +2279,8 @@ class TestNothingWritableIsNotACrash(unittest.TestCase):
         p = Project(files={"BOARD.md": M.render_board_from_template()
                            if hasattr(M, "render_board_from_template")
                            else LEGACY_BOARD})
-        plan = M.plan_project(p.root, p.root, SCHEMA)
+        plan = M.plan_project(p.root, p.root, SCHEMA,
+                              root_arg=str(p.root))
         plan.edits = [e for e in plan.edits if False]
         out = M.apply_plan(plan, SCHEMA)
         self.assertIn("run", out)

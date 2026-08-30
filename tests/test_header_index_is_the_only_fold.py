@@ -80,7 +80,12 @@ HEADER_KEYS = {tables.squash(c) for c in HEADER_CELLS}
 WATCHED = [
     # viewer/parsers.py
     "_table_rows", "_parse_intake", "_parse_user_input", "_parse_cadence",
-    "_parse_task_table", "read_conformance", "is_risk_register_header",
+    # `read_legacy_conformance` since TASK-234: the conformance record is a
+    # jsonl store now, and the markdown reader that had to tell its header row
+    # from a declaration is still shipped, still reads a pre-TASK-234 record
+    # once at `perry-conform migrate`, and still folds a header cell. The site
+    # was RENAMED, not removed, so it stays watched under its new name.
+    "_parse_task_table", "read_legacy_conformance", "is_risk_register_header",
     "is_intake_register_header", "is_user_register_header",
     # bin/
     "parse_tracks",            # bin/perry-state
@@ -418,7 +423,7 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         state.parse_tracks(CONFIG)
         P.parse_board(BOARD)
         P.parse_okr(OKR)
-        P.read_conformance(self.tmp)
+        P.read_legacy_conformance(self.tmp)
         P._parse_intake(BOARD)
         P._parse_user_input(BOARD)
         P._parse_cadence(BOARD)
@@ -444,7 +449,7 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         import perry_md_store                    # noqa: E402
         perry_md_store.scan_okr(OKR)
         load("perry-migrate").fix_tables(
-            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [])
+            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [], root_arg=None)
         self.drive_intake_write()
         self.drive_the_carried_row_readers()
 
@@ -713,7 +718,7 @@ class TestTheDecoratedHeaderReachesTheOneFold(unittest.TestCase):
             P._table_rows(OKR)
             P.parse_okr(OKR)
             P.parse_board(BOARD)
-            P.read_conformance(self._conformance_root())
+            P.read_legacy_conformance(self._conformance_root())
             load("perry-state").parse_tracks(CONFIG)
         via = {w.real(arg) for stack, arg in w.folds_of_a_header_cell()
                if "header_index" in stack}

@@ -118,7 +118,12 @@ Adoption asks this question during `confirm`, before anything is materialized (`
 Under [ADR-004](perry/decisions/ADR-004-mandatory-migration.md) a project
 migrates to Perry's shape once, and every writer then gates on a **declared**
 marker: *this file matches Perry's shape, at shape version N, and the user said
-so*. The declarations live in `.perry/conformance.md`; `bin/perry-conform`
+so*. The declarations live in `.perry/conformance.jsonl` — a store, one JSON
+object per line, since TASK-234, with no rendered markdown beside it because
+`perry-conform status` is the human surface. A project written before that keeps
+its `.perry/conformance.md` and converts it once with `perry-conform migrate`,
+which declares nothing and carries every date and route across unchanged.
+`bin/perry-conform`
 computes the verdict and is the only thing that writes them.
 
 The gate **enforces** — `perry-task`, `perry-goals` and `perry-decide` refuse a

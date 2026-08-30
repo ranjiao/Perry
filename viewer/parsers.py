@@ -518,7 +518,7 @@ STATE_ROOT = resolve_state_root(PROJECT_ROOT)
 
 # ── the conformance declaration (ADR-004) ─────────────────────────────────
 #
-# `.perry/conformance.md` records, per state file, that **the user declared**
+# `.perry/conformance.jsonl` records, per state file, that **the user declared**
 # this file to match Perry's shape at a given shape version. It is only ever
 # half the fact: the other half is whether the file still matches, and that is
 # computed live by `bin/perry-conform` from `bin/perry-lint`'s schema
@@ -528,8 +528,48 @@ STATE_ROOT = resolve_state_root(PROJECT_ROOT)
 # The reader lives here, beside `resolve_state_root`, for the same reason that
 # one does: `bin/perry-lint`, `bin/perry-conform` and any front-end must read
 # the declaration identically, and a second parser is how they stop agreeing.
+#
+# **It was a markdown table until TASK-234.** DESIGN-013 § 5.1 — a fact with a
+# schema lives in exactly one store; a document holds what has none — and this
+# file had no prose at all to hold: 24 rows of four regular columns under a
+# ten-line header that was already a constant in the writer. What the table
+# cost was a parser, and that parser was where two defect classes lived. Both
+# are gone by construction rather than by a predicate:
+#
+#   - a row could be DECORATED into or out of a declaration — backticked,
+#     indented, fenced (TASK-241), or wrapped in `<pre>` / an HTML comment /
+#     `<details>` (TASK-248, invisible to TASK-241's round trip BY
+#     CONSTRUCTION, because the row inside is byte-for-byte a genuine one).
+#     A JSON object has no inside to hide in and no decoration to wear.
+#   - the header row itself had to be told apart from a declaration, which is
+#     why the reader carried TASK-050's `squash` rule (the fifth live copy of
+#     it, found by an AST sweep). A jsonl has no header.
+#
+# And the point of the conversion, rather than a side effect of it: **a record
+# can now say who wrote it, when, and under which run.** Four regular columns
+# could not, which is why `TASK-226` — "where did this row come from" — was an
+# investigation rather than a query.
 
-CONFORMANCE_FILE = ".perry/conformance.md"
+CONFORMANCE_FILE = ".perry/conformance.jsonl"
+
+#: The markdown record every project written before TASK-234 carries.
+#:
+#: **It is a conversion SOURCE, never a register.** `read_conformance` does not
+#: read it and no gate consults it; the one reader below is called by
+#: `bin/perry-conform migrate`, which converts it once and deletes it. Keeping
+#: it readable as a fallback was the other option and was rejected: a fallback
+#: is a second live register for the fact that gates every write, and it would
+#: have carried TASK-248's hole — a row hidden in an HTML block, still
+#: declaring — for as long as any project left the markdown in place.
+CONFORMANCE_LEGACY_FILE = ".perry/conformance.md"
+
+#: One stored declaration, field order fixed. Everything after `route` is
+#: PROVENANCE and is new with the store: the four markdown columns could
+#: record what was declared and not who recorded it.
+CONFORMANCE_FIELDS = ("kind", "path", "shape_version", "declared", "route",
+                      "writer", "recorded_at", "run")
+
+CONFORMANCE_KIND = "declaration"
 
 _CONFORMANCE_ROW = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
 
@@ -552,12 +592,18 @@ _FENCE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
 
 @dataclass
 class Declaration:
-    """One row of `.perry/conformance.md`."""
+    """One line of `.perry/conformance.jsonl`."""
     path: str            # as the schema declares it, relative to that spec's anchor
     shape_version: int
     declared: str        # ISO date the user declared it
     route: str           # "declare" (already conformant) or "migrate" (TASK-044)
     line: int
+    #: ── provenance. New with the store (TASK-234); "" on every declaration
+    #: converted from a markdown record, because the markdown never held it and
+    #: a value invented at conversion time would be a fact Perry made up.
+    writer: str = ""      # the command that recorded it: `perry-conform declare`
+    recorded_at: str = ""  # `lib.event_stamp()` — the moment, not just the day
+    run: str = ""         # `perry-migrate`'s run id, which names its restore point
 
 
 @dataclass
@@ -565,18 +611,144 @@ class ConformanceRecord:
     path: Path
     exists: bool
     declarations: dict[str, Declaration] = field(default_factory=dict)
-    #: Rows present in the file that this reader could not turn into a
-    #: declaration. Reported, never guessed at — a mangled row must not read as
+    #: Lines present in the file that this reader could not turn into a
+    #: declaration. Reported, never guessed at — a mangled line must not read as
     #: "declared" and must not read as "absent" either.
     unreadable: list[tuple[int, str]] = field(default_factory=list)
+    #: The `.perry/conformance.md` this project still carries, if any. Set
+    #: **only** when there is no store — a project mid-conversion. It is not a
+    #: source of declarations here; it is the reason `bin/perry-conform` names
+    #: `perry-conform migrate` instead of `perry-conform declare`.
+    legacy: Path | None = None
+    #: A `.perry/conformance.md` left BESIDE a store. The store is the record
+    #: and the markdown is reported rather than read, because two registers for
+    #: the fact that gates every write is the defect DESIGN-013 § 5.1 names.
+    stray_legacy: Path | None = None
 
 
 def read_conformance(project_root: Path) -> ConformanceRecord:
     """The declarations recorded for this project. Never writes, never infers.
 
     A project with no file has no declarations — which is every project that
-    existed before ADR-004, including Perry's own."""
-    path = Path(project_root) / CONFORMANCE_FILE
+    existed before ADR-004, including Perry's own.
+
+    **One line, one declaration, and a line is honoured or reported alone.**
+    A malformed line does not void its neighbours. That is deliberate and it
+    is TASK-241 round 2's measurement, carried across the format change: under
+    an all-or-nothing rule one stray line voids all 23 of Perry's real
+    declarations and takes the enforce gate down with them, where under the
+    per-line rule it voids one and says which.
+    """
+    root = Path(project_root)
+    path = root / CONFORMANCE_FILE
+    legacy = root / CONFORMANCE_LEGACY_FILE
+    rec = ConformanceRecord(path=path, exists=path.exists())
+    if not rec.exists:
+        # No store. A markdown record is not read — it is named, so the caller
+        # can name `perry-conform migrate` rather than tell a user who has
+        # declared 24 files that they have declared none.
+        if legacy.exists():
+            rec.legacy = legacy
+        return rec
+    if legacy.exists():
+        rec.stray_legacy = legacy
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return rec
+    for i, line in enumerate(text.split("\n"), start=1):
+        if not line.strip():
+            continue
+        decl = _declaration_from(line, i)
+        if decl is None or decl.path in rec.declarations:
+            # A duplicate `path` is unreadable, not last-one-wins: two lines
+            # claiming one file disagree about when it was declared, and a
+            # reader that silently picked one would make the record's answer
+            # depend on line order.
+            rec.unreadable.append((i, line.strip()))
+            continue
+        rec.declarations[decl.path] = decl
+    return rec
+
+
+def _declaration_from(line: str, number: int) -> "Declaration | None":
+    """One jsonl line → one `Declaration`, or `None` if it is not one.
+
+    Every branch here refuses rather than repairs. The four required fields
+    are checked for TYPE as well as presence: `"shape_version": "2"` is a
+    string where a number belongs, and coercing it would let a hand edit
+    reintroduce exactly the ambiguity `\\d+` had to police in the table.
+    """
+    try:
+        rec = json.loads(line)
+    except ValueError:
+        return None
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("kind") != CONFORMANCE_KIND:
+        return None
+    path = rec.get("path")
+    version = rec.get("shape_version")
+    declared = rec.get("declared")
+    route = rec.get("route")
+    if not isinstance(path, str) or not path.strip():
+        return None
+    if not isinstance(version, int) or isinstance(version, bool):
+        return None
+    if not isinstance(declared, str) or not isinstance(route, str):
+        return None
+    text = lambda key: (rec.get(key) if isinstance(rec.get(key), str) else "")
+    return Declaration(
+        path=path, shape_version=version, declared=declared,
+        route=route or "declare", line=number,
+        writer=text("writer"), recorded_at=text("recorded_at"),
+        run=text("run"))
+
+
+def declaration_line(decl: "Declaration") -> str:
+    """One `Declaration` → the line the store holds for it.
+
+    Beside the reader, and the only place a declaration is serialised — the
+    same arrangement `read_conformance` has always had with its writer, for the
+    same reason: two spellings of one record is how a store and its reader stop
+    agreeing. `bin/perry-conform § render` used to be that writer and used
+    `viewer/tables.py § render_row`; there is no row to render any more.
+    """
+    return json.dumps(
+        {"kind": CONFORMANCE_KIND, "path": decl.path,
+         "shape_version": decl.shape_version, "declared": decl.declared,
+         "route": decl.route, "writer": decl.writer,
+         "recorded_at": decl.recorded_at, "run": decl.run},
+        ensure_ascii=False)
+
+
+def render_conformance(declarations: dict) -> str:
+    """The whole store, sorted by path. Rebuilt from the declarations on every
+    write, exactly as the markdown was."""
+    return "".join(declaration_line(d) + "\n"
+                   for d in sorted(declarations.values(), key=lambda d: d.path))
+
+
+def read_legacy_conformance(project_root: Path) -> ConformanceRecord:
+    """`.perry/conformance.md` — the markdown record, read ONCE, to convert it.
+
+    This is TASK-241's reader, unchanged. It is kept rather than deleted
+    because deleting it would make every project written before TASK-234 lose
+    24 declarations it had made, and it is *only* reachable from
+    `bin/perry-conform migrate` because a second live register for this fact is
+    the thing the conversion exists to remove.
+
+    `migrate` holds it to a stricter contract than any reader ever could: it
+    refuses unless the whole file is `render(parse(file)) == file`. That is the
+    whole-file fixed point TASK-241 round 2 rejected as a READING rule — one
+    stray blank line voids all 23 of Perry's declarations — and it is the right
+    rule at a one-way door, where the answer to "this file is not exactly what
+    Perry would have written" is *look at your file*, not *lose your record*.
+    It is also what closes TASK-248 across the conversion: a row hidden in an
+    HTML block is invisible to the per-row round trip and is not invisible to
+    the file-level one, because the HTML around it is not in `render`'s output.
+    """
+    path = Path(project_root) / CONFORMANCE_LEGACY_FILE
     rec = ConformanceRecord(path=path, exists=path.exists())
     if not rec.exists:
         return rec

@@ -27,7 +27,10 @@ guarantees are in `perry/evidence/2026-08/TASK-044-spec.md`; three of them are
      back. See § "Dirty tree or restore point" below.
   4. **The user declares.** `apply` is the user's act, and it records the
      declaration through `bin/perry-conform` — the one writer of
-     `.perry/conformance.md` — with `route: migrate`. There is no second record.
+     `.perry/conformance.jsonl` — with `route: migrate`. There is no second
+     record. The run's id travels with each declaration it records, so a row
+     can name the run that made it and the restore point that undoes it
+     (TASK-234); four markdown columns could not.
   5. **Partial migration is a state.** Per file, never per project. A file is
      migrated only if the plan takes it to zero shape errors; otherwise it is
      left byte-identical and its remaining findings are named. So after any
@@ -115,9 +118,12 @@ untracked or ignored, and `git checkout` cannot restore what git never saw.
 
 So recovery is Perry's own, works identically in both cases, and is exercised
 rather than described: `.perry/migrate/<run-id>.json` holds the bytes of every
-file the run touched — including `.perry/conformance.md`, because the run
+file the run touched — including `.perry/conformance.jsonl`, because the run
 wrote that too and a restore that left the record behind would claim
-conformance for files that no longer have it.
+conformance for files that no longer have it. And `.perry/conformance.md` when
+the project still has one, because the run CONVERTS it (TASK-234) and a
+conversion is a deletion: a restore that put the store back and left the
+markdown deleted would take the user's pre-conversion record with it.
 
 The cost, stated: this is state Perry now owns, and it holds a copy of the
 project's own writing. It lives under `.perry/`, which is already Perry's
@@ -188,6 +194,29 @@ def _load(name: str, filename: str):
 
 def conform():
     return _load("perry_conform", "perry-conform")
+
+
+def _q(value) -> str:
+    """`bin/perry-conform § _q`, imported rather than re-typed.
+
+    One argument of a handed-back command, shell-quoted. Same reason as
+    `_root_flag` below: one rule, one spelling. A run id looks safe and a
+    restore point's stem is derived from a clock, but "looks safe today" is
+    what `--root {root_arg}` was, so every interpolation inside a command this
+    tool hands back goes through here and the sweep reports any that does not.
+    """
+    return conform()._q(value)
+
+
+def _root_flag(root_arg: str | None) -> str:
+    """`bin/perry-conform § _root_flag`, imported rather than re-typed.
+
+    This module had its own copy inline in `render`. One rule with two
+    spellings is how the second one goes stale, and the rule here is the one
+    every refusal in both tools depends on: a command handed back to a reader
+    names the root that reader used, or it acts on a different project.
+    """
+    return conform()._root_flag(root_arg)
 
 
 def lint():
@@ -612,7 +641,12 @@ def is_the_schemas_table(tspec: dict, got: list[str], satisfied) -> bool:
 
 
 def fix_tables(lines: list[str], spec: dict, schema: dict,
-               changes: list[Change], rewritten: list[str]) -> list[str]:
+               changes: list[Change], rewritten: list[str], *,
+               root_arg: str | None) -> list[str]:
+    """`root_arg` is keyword-only with no default for the reason every other
+    one on this path is: the `split-needed` change below hands the reader
+    `perry-goals commit --migrate`, which WRITES `OKR.md`, and a caller that
+    can say nothing is a caller that will."""
     L = lint()
     for tspec in spec.get("tables", []):
         matcher = re.compile(tspec["under"])
@@ -652,12 +686,13 @@ def fix_tables(lines: list[str], spec: dict, schema: dict,
                     if not any(c.kind == "split-needed" for c in changes):
                         changes.append(Change(
                             "split-needed",
-                            "`Commitments` still carries the pre-split "
-                            "`By when` column. That is a column SPLIT, not a "
-                            "column add — run `perry-goals commit --migrate`, "
-                            "which moves each cell into `Due` or `By when "
-                            "note` by its value and drops nothing. Left "
-                            "byte-identical here.",
+                            f"`Commitments` still carries the pre-split "
+                            f"`By when` column. That is a column SPLIT, not a "
+                            f"column add — run `perry-goals commit "
+                            f"--migrate{_root_flag(root_arg)}`, which moves "
+                            f"each cell into `Due` or `By when note` by its "
+                            f"value and drops nothing. Left byte-identical "
+                            f"here.",
                             hdr_i + 1))
                     continue
                 if not missing:
@@ -936,7 +971,7 @@ def header_block_span(lines: list[str], spec: dict,
 
 
 def header_block_end(lines: list[str], spec: dict, schema: dict) -> tuple[int, bool, bool]:
-    """Where a header field goes, and whether this file bolds its field names.
+    r"""Where a header field goes, and whether this file bolds its field names.
 
     After the last line of the leading `>` block **when that block holds header
     fields**, so a new field joins the ones already there instead of landing in
@@ -1340,6 +1375,15 @@ class Plan:
     project_root: Path
     state_root: Path
     shape_version: int
+    #: **The root the caller TYPED**, not `project_root`. Every refusal raised
+    #: while planning hands the reader a command, and a command handed back
+    #: without the reader's own `--root` acts on whatever project they are
+    #: standing in. `project_root` is resolved and absolute and would work as
+    #: a value, but it is not what the reader typed, and § 10.9 of
+    #: `TASK-234-result.md` excused two members of that class on the ground
+    #: that "no root is in scope" — which was true of the function and false
+    #: of the plan it was handed. It is in scope now.
+    root_arg: str | None
     edits: list[Edit] = field(default_factory=list)
     skipped: list[dict] = field(default_factory=list)
     dirty_git: bool = False
@@ -1411,7 +1455,7 @@ class Linter:
 
 
 def migrate_text(text: str, key: str, spec: dict, schema: dict, lang: str,
-                 linter: Linter, mint) -> Edit:
+                 linter: Linter, mint, *, root_arg: str | None) -> Edit:
     """One file's whole plan: the post-image, what changed, and what is left.
 
     Runs the transforms until the linter stops finding anything they can fix,
@@ -1432,7 +1476,8 @@ def migrate_text(text: str, key: str, spec: dict, schema: dict, lang: str,
         lines = fix_missing_fields(lines, spec, schema, lang, edit.changes,
                                    mint, edit.minted)
         lines = fix_sections(lines, spec, schema, lang, errors, edit.changes)
-        lines = fix_tables(lines, spec, schema, edit.changes, edit.rewritten)
+        lines = fix_tables(lines, spec, schema, edit.changes,
+                           edit.rewritten, root_arg=root_arg)
         if lines == before_pass:
             break
     edit.after = "\n".join(lines)
@@ -1574,11 +1619,17 @@ def preflight_file_objects(project_root: Path, state_root: Path, schema: dict,
 
 
 def plan_project(project_root: Path, state_root: Path, schema: dict,
-                 only: list[str] | None = None) -> Plan:
+                 only: list[str] | None = None, *,
+                 root_arg: str | None) -> Plan:
+    """**`root_arg` is keyword-only with no default, like `declare`'s.**
+    Planning refuses in two places that hand the reader a command, and both
+    were handing one back with the root dropped. A default of `None` here
+    would let a new caller inherit that omission by saying nothing, which is
+    exactly how `apply_plan`'s two green mutations happened one file over."""
     C = conform()
     preflight_file_objects(project_root, state_root, schema, only)
     plan = Plan(project_root=project_root, state_root=state_root,
-                shape_version=C.shape_version(schema))
+                shape_version=C.shape_version(schema), root_arg=root_arg)
     plan.dirty_git = git_dirty(project_root)
     linter = Linter(schema, project_root)
     lang = doc_language(project_root)
@@ -1602,7 +1653,8 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
             continue
         image = path.read_bytes()
         text, newline = decode_image(image, key)
-        edit = migrate_text(text, key, spec, schema, lang, linter, mint)
+        edit = migrate_text(text, key, spec, schema, lang, linter, mint,
+                            root_arg=plan.root_arg)
         edit.path = path
         edit.key_rel = path.relative_to(project_root).as_posix()
         edit.before_bytes = image
@@ -1660,12 +1712,21 @@ def _plan_task_store(plan: Plan) -> None:
                           f"migration refuses before changing BOARD.md")
         if (_board_projected_task_records(valid) !=
                 _board_projected_task_records(baseline)):
+            # **With the reader's own root** (TASK-234 round 5).
+            # `TASK-234-result.md § 10.9` excused this site as a function
+            # "with no root in scope"; `plan.project_root` was two lines up,
+            # and `plan.root_arg` — the root the reader TYPED — is on the plan
+            # now. It matters more here than anywhere else the row fixed:
+            # `perry-tasks render --write` without `--root` WRITES
+            # `BOARD.md` under the reader's current directory, so the copied
+            # command does not no-op about the wrong project, it rewrites it.
+            r = _root_flag(plan.root_arg)
             raise Refused(
                 f"{store_path} differs from the current BOARD.md-derived "
                 f"baseline. Migration will not choose a winner: run "
-                f"`perry-tasks render --write` if the store is authoritative, "
-                f"or explicitly import the board with `perry-tasks write "
-                f"--from-board`, then retry.")
+                f"`perry-tasks render --write{r}` if the store is "
+                f"authoritative, or explicitly import the board with "
+                f"`perry-tasks write --from-board{r}`, then retry.")
         summaries = {record["id"]: record["summary"] for record in valid}
 
     board_edit = next((e for e in plan.writable if e.path == board_path), None)
@@ -1752,15 +1813,25 @@ def current_signature(path: Path, rel: str) -> dict:
 def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
     """The bytes of every file this run is about to touch, before it touches it.
 
-    Includes `.perry/conformance.md`: the run writes that too, through
+    Includes `.perry/conformance.jsonl`: the run writes that too, through
     `perry-conform`, and a restore that put the state files back while leaving
     the declarations standing would leave the record claiming conformance for
-    files that no longer have it."""
+    files that no longer have it. And `.perry/conformance.md` when the project
+    still has one, because the run CONVERTS it (TASK-234) and a conversion is a
+    deletion."""
     record = plan.project_root / P.CONFORMANCE_FILE
+    legacy = plan.project_root / P.CONFORMANCE_LEGACY_FILE
     files = {e.key_rel: (file_image(e.image_before)
                          if e.existed else absent_image()) for e in edits}
     files[P.CONFORMANCE_FILE] = (file_image(record.read_bytes())
                                  if record.exists() else absent_image())
+    # **Both records, because `apply` may convert one into the other.** A
+    # project written before TASK-234 keeps its declarations in
+    # `.perry/conformance.md`; `perry-conform declare` carries them into the
+    # store and DELETES the markdown, which is a write this restore point has
+    # to be able to undo like any other.
+    files[P.CONFORMANCE_LEGACY_FILE] = (file_image(legacy.read_bytes())
+                                        if legacy.exists() else absent_image())
     payload = {
         "version": 1,
         "run": run_id,
@@ -1771,6 +1842,8 @@ def restore_point(plan: Plan, run_id: str, edits: list[Edit]) -> Path:
         "expected_after": {
             **{e.key_rel: image_signature(e.image_after) for e in edits},
             P.CONFORMANCE_FILE: current_signature(record, P.CONFORMANCE_FILE),
+            P.CONFORMANCE_LEGACY_FILE: current_signature(
+                legacy, P.CONFORMANCE_LEGACY_FILE),
         },
     }
     out = plan.project_root / MIGRATE_DIR / f"{run_id}.json"
@@ -1802,9 +1875,22 @@ def update_expected_after(point: Path, rel: str, path: Path) -> None:
 def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
     """Write the plan's post-images, then declare what landed. In that order.
 
+    **The root comes off the plan and there is no parameter for it.** Round 4
+    gave this function `root_arg: str | None = None` and threaded it into all
+    three `rollback_message` calls; the V4 round-4 reviewer then dropped it
+    from two of the three with the whole of `test_conformance` and
+    `test_migrate` green, because every test that reaches those two paths
+    calls `apply_plan(plan, SCHEMA)` positionally and `None` is `None` on both
+    sides of the mutation. That is the round-3 defect one file over: a
+    parameter a caller can decline to fill is a parameter that will be
+    unfilled. `plan.root_arg` is set in `plan_project`, which has no default
+    for it, so a plan cannot exist without an answer and this function cannot
+    hold a different one.
+
     Every write is `write_text(edit.after)` — the exact bytes the dry run
     printed. Nothing is recomputed here, which is the whole reason the plan
     carries post-images instead of instructions."""
+    root_arg = plan.root_arg
     edits = plan.writable
     if not edits:
         # `run` is present here too. It was not, and `perry-migrate apply` on a
@@ -1819,6 +1905,14 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             plan.project_root,
             plan.project_root / P.CONFORMANCE_FILE,
             P.CONFORMANCE_FILE,
+        )
+        # The markdown record too, when the project still has one: `declare`
+        # converts it and then UNLINKS it, and unlinking a symlink Perry did
+        # not put there is the same refusal for the same reason (TASK-234).
+        preflight_file_object(
+            plan.project_root,
+            plan.project_root / P.CONFORMANCE_LEGACY_FILE,
+            P.CONFORMANCE_LEGACY_FILE,
         )
     run_id = next_run_id(plan.project_root)
     try:
@@ -1844,7 +1938,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
             # point existed and was **never named**, and the declaration never
             # ran. `TASK-044-spec.md` guarantee 3 requires the recovery path be
             # named in the output; a traceback names nothing.
-            raise Refused(rollback_message(point, e.key, exc)) from None
+            raise Refused(rollback_message(point, e.key, exc,
+                                           root_arg=root_arg)) from None
         if got != sha(e.image_after):
             # Roll back this image only when it is provably the one our atomic
             # writer published. A different digest may be a non-cooperating
@@ -1855,7 +1950,7 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
                 point, e.key,
                 f"written but does not match the plan "
                 f"({got[:12]} vs {sha(e.image_after)[:12]})",
-                allow_changed=allow_changed))
+                allow_changed=allow_changed, root_arg=root_arg))
         applied.append(e)
     result = {"applied": [e.key for e in applied], "restore_point": str(point),
               "run": run_id, "declared": [], "refused": []}
@@ -1873,10 +1968,35 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         try:
             out = C.declare(plan.project_root, plan.state_root,
                             [e.key for e in applied if e.key != "tasks.jsonl"],
-                            schema, route="migrate")
+                            schema, route="migrate",
+                            # **The root travels into the refusal too**
+                            # (TASK-234 round 4). `declare` converts the
+                            # markdown record first, and that step can refuse
+                            # with a command for the reader to run. Reached
+                            # from here the reader typed `perry-migrate apply
+                            # --root X`, so the command they are handed has to
+                            # say `--root X` or it acts on whatever project
+                            # they happen to be standing in.
+                            root_arg=root_arg,
+                            # **The run travels with the declaration**
+                            # (TASK-234). `route: migrate` says a migration
+                            # made it; `run` says WHICH ONE, and the id is also
+                            # the name of the restore point that undoes it, so
+                            # a row can be traced to the bytes it replaced.
+                            writer="perry-migrate apply", run=run_id)
             update_expected_after(point, P.CONFORMANCE_FILE,
                                   plan.project_root / P.CONFORMANCE_FILE)
-        except (OSError, Refused, ValueError) as exc:
+            update_expected_after(
+                point, P.CONFORMANCE_LEGACY_FILE,
+                plan.project_root / P.CONFORMANCE_LEGACY_FILE)
+        # **`C.Refused`, not just this module's** (TASK-234). `Refused` here
+        # is `bin/perry-migrate`'s own class, so a refusal raised INSIDE
+        # `perry-conform` is a different type and walked straight past this
+        # handler. That became reachable the moment `declare` gained a step
+        # that can refuse — the record conversion — and it is Site 3's own
+        # failure mode verbatim: fully migrated, restore point on disk and
+        # never named, raw traceback.
+        except (OSError, Refused, C.Refused, ValueError) as exc:
             record = plan.project_root / P.CONFORMANCE_FILE
             raise Refused(rollback_message(
                 point, P.CONFORMANCE_FILE,
@@ -1885,7 +2005,7 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
                 allow_changed={
                     P.CONFORMANCE_FILE: current_signature(
                         record, P.CONFORMANCE_FILE),
-                })) from None
+                }, root_arg=root_arg)) from None
         result["declared"] = [d["path"] for d in out["declared"]]
         result["refused"] = out["refused"]
         result["record"] = out["record"]
@@ -1893,7 +2013,8 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
 
 
 def rollback_message(point: Path, key: str, why,
-                     allow_changed: dict[str, dict] | None = None) -> str:
+                     allow_changed: dict[str, dict] | None = None, *,
+                     root_arg: str | None) -> str:
     """Roll the run back and say so — **and name the restore point either way.**
 
     `undo` writes, so it can fail for the same reason the run did. If the
@@ -1903,7 +2024,12 @@ def rollback_message(point: Path, key: str, why,
     named first, unconditionally, and whether the automatic rollback worked is
     reported as a separate fact.
     """
-    cmd = f"perry-migrate restore {point.stem}"
+    # **With the root the caller used** (TASK-234 round 4). A refusal that
+    # names a command names it for a reader standing where they were when
+    # they ran it; without the flag, `perry-migrate restore <id>` copied out
+    # of this message looks for a restore point under whatever project the
+    # reader happens to be in.
+    cmd = f"perry-migrate restore {_q(point.stem)}{_root_flag(root_arg)}"
     try:
         back = undo(point, allow_partial=True, allow_changed=allow_changed)
         rolled = (f"The run was rolled back — {len(back)} file(s) restored. "
@@ -2027,10 +2153,10 @@ def diff(edit: Edit) -> str:
         fromfile=f"a/{edit.key}", tofile=f"b/{edit.key}", n=2))
 
 
-def render(plan: Plan, applied: dict | None, root_arg: str | None) -> None:
+def render(plan: Plan, applied: dict | None) -> None:
     """The complete diff. Not a summary and not a count — TASK-044 § 1."""
     verb = "migrated" if applied else "would migrate"
-    r = f" --root {root_arg}" if root_arg else ""
+    r = _root_flag(plan.root_arg)
     print(f"\n🔧 Migration · {plan.project_root.name} · shape version "
           f"{plan.shape_version} · {'apply' if applied else 'dry run'}\n")
     if not plan.edits and not plan.skipped:
@@ -2078,7 +2204,7 @@ def render(plan: Plan, applied: dict | None, root_arg: str | None) -> None:
               "will.")
     if applied:
         print(f"   · restore point: {applied['restore_point']}")
-        print(f"     undo with: perry-migrate restore {applied['run']}{r}")
+        print(f"     undo with: perry-migrate restore {_q(applied['run'])}{r}")
         if applied["declared"]:
             print(f"   · declared conformant ({len(applied['declared'])}): "
                   f"{', '.join(applied['declared'])}")
@@ -2140,7 +2266,8 @@ def main(argv: list[str]) -> int:
 
         if cmd == "restore":
             with lib.project_lock(state_root, refused=Refused):
-                return do_restore(project_root, positional, do_list, as_json)
+                return do_restore(project_root, positional, do_list,
+                                  as_json, root_arg=root_arg)
 
         if not lint().is_adopted(project_root, state_root):
             # One sentence, not a wall. The near-empty project is the other
@@ -2163,10 +2290,13 @@ def main(argv: list[str]) -> int:
             # The lock begins before planning: every post-image and drift check
             # must describe the same source bytes the replacements consume.
             with lib.project_lock(state_root, refused=Refused):
-                plan = plan_project(project_root, state_root, schema, only or None)
-                applied = apply_plan(plan, schema, declare=not no_declare)
+                plan = plan_project(project_root, state_root, schema,
+                                    only or None, root_arg=root_arg)
+                applied = apply_plan(plan, schema,
+                                     declare=not no_declare)
         else:
-            plan = plan_project(project_root, state_root, schema, only or None)
+            plan = plan_project(project_root, state_root, schema,
+                                only or None, root_arg=root_arg)
             applied = None
 
         if as_json:
@@ -2182,7 +2312,7 @@ def main(argv: list[str]) -> int:
                 "applied": applied,
             }, ensure_ascii=False, indent=2))
         else:
-            render(plan, applied, root_arg)
+            render(plan, applied)
         return 0 if not plan.blocked and not plan.skipped else 1
     except Refused as exc:
         if as_json:
@@ -2205,7 +2335,7 @@ def perry_written_findings(project_root: Path, state_root: Path,
 
 
 def do_restore(project_root: Path, positional: list[str], do_list: bool,
-               as_json: bool) -> int:
+               as_json: bool, *, root_arg: str | None) -> int:
     base = project_root / MIGRATE_DIR
     points = sorted(base.glob("*.json")) if base.is_dir() else []
     if do_list or not positional and len(points) != 1:
@@ -2225,7 +2355,7 @@ def do_restore(project_root: Path, positional: list[str], do_list: bool,
             for p, payload in summaries:
                 n = len([k for k in payload["files"]])
                 print(f"   {p.stem}   {n} file(s)   {payload['created']}")
-            print(f"\n   perry-migrate restore <run-id>\n")
+            print(f"\n   perry-migrate restore <run-id>{_root_flag(root_arg)}\n")
         return 0 if do_list else 1
     point = base / f"{positional[0]}.json" if positional else points[0]
     if not point.exists():
