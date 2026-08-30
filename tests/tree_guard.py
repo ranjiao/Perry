@@ -60,11 +60,14 @@ that the next reader inherits the list rather than rediscovering it.
   `$ROOT`. A tool that resolves its root from `$PERRY_PROJECT` would write into
   whatever tree that names while the guard reports `$ROOT` unmoved — and this
   machine runs several worktrees, so it is not hypothetical. **`tests/run`
-  closes the ambient case** by exporting `PERRY_PROJECT="$ROOT"` for the whole
-  run, which pins every un-rooted write into the tree the guard is watching
-  rather than letting it escape to a neighbour. What remains uncovered is a
-  test that builds its own `env=` dict naming a third directory; nothing a
-  tree comparison can do reaches that, and it is named here instead.
+  refuses to start** when `$PERRY_PROJECT` names any tree but `$ROOT`: it
+  prints both paths and the command that recovers, and exits 2 before step 1.
+  It does not silently re-aim the variable — see *Why a refusal and not a
+  re-aim*, below. Its comparison resolves both sides the way `perry-task`
+  does, so a symlink alias of `$ROOT`, or `$ROOT` with a trailing slash, is
+  this tree and is allowed through. What remains uncovered is a test that
+  builds its own `env=` dict naming a third directory; nothing a tree
+  comparison can do reaches that, and it is named here instead.
 - **`.git`.** A test that runs `git commit` in the live root gets through.
   Hashing `.git` against a live repository would be slow and noisy — index and
   ref mtimes move under any concurrent git command, including a reviewer's
@@ -78,14 +81,65 @@ that the next reader inherits the list rather than rediscovering it.
 - **A write that is reverted before the suite ends.** Two writes that cancel
   are one tree.
 
-The ignore list is **two directory names and two suffixes and one filename**,
-and it was cut down to that: `.pytest_cache`, `.mypy_cache`, `.ruff_cache` and
-`node_modules` were carried here from habit, and this repository contains none
-of them and no tool that makes one. An ignore entry that matches nothing is a
-blind spot held open for no benefit, so they are gone. All three lists are
-pinned by `tests/test_tree_guard.py`, and separately the four files of TASK-249
-are asserted to be visible to the manifest — because pinning a list by equality
-catches a list that GREW and the thing to fear is a list that grew.
+## Why a refusal and not a re-aim
+
+The other way to close the ambient case is to export `PERRY_PROJECT="$ROOT"`
+for the whole run, pinning every un-rooted write into the tree the guard
+watches. It was tried first and rejected, and the reason is a measurement, not
+a preference. Instrument, re-run on a `tar` copy of this branch on 2026-08-30:
+
+    env -u PERRY_PROJECT python3 -m unittest discover \
+        -s tests -p test_config_store_readers.py     ->  Ran 44 tests   OK
+    PERRY_PROJECT=<copy> python3 -m unittest discover \
+        -s tests -p test_config_store_readers.py     ->  FAILED (failures=7,
+                                                                 errors=2)
+
+**Nine tests**, which read the variable's ABSENCE as the signal to walk up
+from the cwd; the exported run also wrote `.perry/config.md` into the copy on
+its way past. A guard that has to bend nine tests to fit is a guard that will
+be bent back. Refusing costs nothing instead, because after the refusal the
+only two reachable states are "unset" and "resolves to `$ROOT`", and both land
+inside the tree step 0 hashes.
+
+## What is ignored, and the one rule that decides it
+
+The rule is: **this checkout actually produces it while a run is in flight,
+and no test may legitimately write it.** Both halves. Stating only one of them
+is how the earlier version of this paragraph came to contradict the `.git`
+bullet nine lines above it.
+
+- `.git`, `__pycache__`, `*.pyc` / `*.pyo`, `.DS_Store` — produced here,
+  constantly: a concurrent `git log` in another terminal, compiling the suite,
+  the Finder.
+- `.claude`, `.gstack` — produced here by the agent harness this project is
+  developed under, from OUTSIDE the suite and in the middle of it.
+  `.gitignore` describes `.claude/worktrees/` as "Subagent worktrees —
+  temporary, created by the Agent tool", and on this machine a subagent
+  starting during a five-minute run creates one. Nothing is tracked under
+  either directory. They are ignored whole rather than by inner path because
+  the harness creates `.claude` itself, so ignoring only `.claude/worktrees`
+  would still leave `+ .claude   (created)` red in a worktree that had none.
+- `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `node_modules` — NOT
+  produced here. They were carried in from habit; this repository has no tool
+  that makes one (`.github/workflows/ci.yml` installs nothing,
+  `.vscode/settings.json` sets `python.languageServer` to `None`). They fail
+  the first half of the rule and they are gone.
+
+One rule, three answers. The earlier text justified `.git` with "a guard that
+is red for reasons the reader did not cause is a guard that gets switched off"
+and justified the four deletions with "an entry that matches nothing is a
+blind spot held open for no benefit" — and a V4 reviewer was right that those
+two, stated that way, pull against each other: the second deletes `.git` the
+day `.git` stops churning, and the first re-adds `.ruff_cache` on the strength
+of a `ruff` nobody here runs. "Does this checkout produce it" is the question
+that separates them, and unlike either slogan it is answerable by looking.
+
+Every entry is a permanent hole, so all three lists are pinned by
+`tests/test_tree_guard.py`, and separately the four files of TASK-249 are
+asserted to be visible to the manifest — because pinning a list by equality
+catches a list that GREW and the thing to fear is a list that grew. That pin
+is also what makes `.claude` and `.gstack` a deliberate edit with a reason
+above it, rather than a red quietly made green.
 
 Usage:
 
@@ -105,11 +159,13 @@ import os
 import sys
 from pathlib import Path
 
-#: Directories never descended into. Each one is here for a reason, and the
-#: reason is in the docstring above — do not extend this list to make a red
-#: run green. A red run means the suite wrote into the checkout, and the fix
-#: is the write, not the guard.
-IGNORE_DIRS = frozenset({".git", "__pycache__"})
+#: Directories never descended into, matched by name at any depth. Each one
+#: is here for a reason and the reason is in the docstring above — do not
+#: extend this list to make a red run green. A red run means the suite wrote
+#: into the checkout, and the fix is the write, not the guard. `.claude` and
+#: `.gstack` are the harness's, not the suite's, and nothing is tracked under
+#: either.
+IGNORE_DIRS = frozenset({".git", "__pycache__", ".claude", ".gstack"})
 
 #: Files never hashed. Compiled bytecode is a build artefact of running the
 #: suite at all, and `.DS_Store` is written by the Finder, not by a test.
@@ -126,7 +182,13 @@ def manifest(root: str | os.PathLike) -> dict[str, str]:
 
     Files hash their bytes AND carry their permission bits: `chmod +x` on a
     shipped script changes what the tree is without changing a byte of it, and
-    this repository ships eleven executables whose bit is load-bearing.
+    what this repository ships is executable — everything under `bin/`, plus
+    `setup`, the two template linters, and the runner scripts in `tests/`.
+    **The size of that set is deliberately not written here.** It was written
+    here, as *eleven*, and the tree held two dozen; a hardcoded count in a
+    comment is a claim nothing checks. `tests/test_tree_guard.py §
+    test_the_executables_this_repository_ships_carry_their_mode` derives the
+    set from the tree instead.
     Symlinks record their target rather than following it — a relinked symlink
     is a change even when both targets are identical. Directories are recorded
     too, with their mode, so that creating an empty one counts.

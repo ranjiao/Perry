@@ -35,6 +35,7 @@ failure about nothing.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -162,7 +163,13 @@ class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
     def test_perry_project_equal_to_the_root_is_allowed(self):
         """The refusal must not be satisfied by refusing everything. Pointed
         at the tree the guard watches, the variable is harmless — that is the
-        state `cd "$ROOT"` already produces — and the run proceeds."""
+        state `cd "$ROOT"` already produces — and the run proceeds.
+
+        Note what this passes: `root.resolve()`, which is the ONE spelling
+        that cannot trip a raw string comparison against `pwd -P`. It is kept
+        as the plain case; the test below is the one that exercises the
+        spellings a reviewer found refused.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             root = copy_repo(Path(tmp) / "repo")
             (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
@@ -171,6 +178,145 @@ class TestTheEnvironmentTheGuardCanSee(unittest.TestCase):
             out = r.stdout + r.stderr
             self.assertEqual(r.returncode, 0, out)
             self.assertIn("nothing under", out)
+
+    def test_other_spellings_of_this_root_are_this_root(self):
+        """**The test above was built so that it could not observe the bug.**
+
+        `tests/run` computed `$ROOT` with `pwd -P` and compared
+        `$PERRY_PROJECT` to it as a raw string, while `bin/perry-task` does
+        `Path(...).resolve()`. Two environments that name this very tree were
+        therefore refused, measured on `8dfd25e`: a symlink alias of the root,
+        and the root with a trailing slash. Both would have written INSIDE the
+        tree step 0 hashes — a false refusal in a guard whose argument for
+        refusing is that it costs nothing — and the test above could not see
+        either, because `root.resolve()` is exactly the spelling that survives
+        a raw comparison.
+
+        So: each accepted spelling asserted accepted, and — in the same test,
+        because "accept everything" is the way a resolution fix goes wrong —
+        a genuinely foreign root and a foreign root reached through a symlink
+        asserted still refused.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = copy_repo(Path(tmp) / "repo")
+            (root / "tests" / CONTROL_MODULE).write_text(CONTROL)
+            alias = Path(tmp) / "alias"
+            alias.symlink_to(root, target_is_directory=True)
+            foreign = Path(tmp) / "victim"
+            foreign.mkdir()
+            foreign_alias = Path(tmp) / "victim-alias"
+            foreign_alias.symlink_to(foreign, target_is_directory=True)
+
+            for label, value in (("a symlink alias of the root", str(alias)),
+                                 ("the root with a trailing slash",
+                                  str(root) + "/"),
+                                 ("the unresolved root", str(root))):
+                with self.subTest(spelling=label):
+                    r = run_suite(root, CONTROL_MODULE, perry_project=value)
+                    out = r.stdout + r.stderr
+                    self.assertEqual(
+                        r.returncode, 0,
+                        f"{label} names the tree the guard watches and every "
+                        f"un-rooted write would land inside it, and the suite "
+                        f"refused to run:\n{out}")
+                    self.assertIn("nothing under", out)
+
+            for label, value in (("a foreign root", str(foreign)),
+                                 ("a foreign root through a symlink",
+                                  str(foreign_alias)),
+                                 ("a root that does not exist",
+                                  str(Path(tmp) / "nowhere"))):
+                with self.subTest(spelling=label):
+                    r = run_suite(root, CONTROL_MODULE, perry_project=value)
+                    out = r.stdout + r.stderr
+                    self.assertEqual(
+                        r.returncode, 2,
+                        f"resolving the comparison must not turn it into "
+                        f"accept-everything: {label} was allowed to run:\n"
+                        f"{out}")
+                    self.assertIn("refusing to run", out)
+
+
+class TestTheDocstringSaysWhichMechanismShipped(unittest.TestCase):
+    """**A narrow pin, and narrow on purpose.**
+
+    "the docstring matches the code" is not mechanically checkable, and a test
+    claiming to check it would be the decoration this row keeps finding. This
+    checks exactly one proposition, and it is the one that went wrong.
+
+    `tests/run` can close the ambient `$PERRY_PROJECT` case in one of two
+    mutually exclusive ways:
+
+        RE-AIM   `export PERRY_PROJECT="$ROOT"`, so that every un-rooted write
+                 lands in the tree the guard watches; or
+        REFUSE   print and `exit 2` before step 1.
+
+    Round 2 of the V4 review found `tests/run` REFUSING while `tree_guard.py`'s
+    "What it does NOT catch, said plainly" list still described the RE-AIM —
+    tried, and rejected for reddening nine tests — as the thing that shipped.
+    A reader consulting the one list whose job is to say what is uncovered was
+    told a mechanism was in place that was not.
+
+    So: read which of the two `tests/run` implements, require exactly one, and
+    require the bullet that describes it to name that one and not the other.
+    It fails in both directions — rewriting the bullet back to the RE-AIM is
+    red, and switching `tests/run` to re-aim without touching the bullet is
+    red too.
+
+    **What it does not check:** every other sentence in either file, and
+    whether the description is any good. One class of rot, caught cheaply.
+    """
+
+    BULLET = "- **A write to a DIFFERENT checkout.**"
+
+    #: (name, does `tests/run` implement it, word the bullet must use, word
+    #: the bullet must then NOT use). The two words are each other's forbidden
+    #: word, which is what makes the pair mutually exclusive in prose too.
+    def _implemented(self, run_src):
+        found = []
+        # anchored at a line that is not a comment: `tests/run` DISCUSSES
+        # exporting in a comment block, and discussing is not shipping.
+        if re.search(r"^[^#\n]*\bexport[ \t]+PERRY_PROJECT=", run_src, re.M):
+            found.append("re-aim")
+        if "refusing to run: PERRY_PROJECT" in run_src:
+            found.append("refuse")
+        return found
+
+    def setUp(self):
+        self.run_src = (PERRY_HOME / "tests" / "run").read_text()
+        doc = TG.__doc__ or ""
+        self.assertEqual(
+            doc.count(self.BULLET), 1,
+            f"the bullet this test reads is not uniquely identifiable in "
+            f"tree_guard.py's docstring ({doc.count(self.BULLET)} "
+            f"occurrence(s) of {self.BULLET!r}) — fix that before trusting "
+            f"any verdict here")
+        start = doc.index(self.BULLET)
+        self.bullet = doc[start:doc.index("\n- **", start + 1)]
+
+    def test_tests_run_implements_exactly_one_of_the_two_mechanisms(self):
+        found = self._implemented(self.run_src)
+        self.assertEqual(
+            len(found), 1,
+            f"tests/run implements {found or 'neither'} of the two ways to "
+            f"close the ambient PERRY_PROJECT case; the docstring can only "
+            f"describe one of them, so this test cannot say which is right "
+            f"until the source does")
+
+    def test_the_bullet_names_the_mechanism_that_shipped(self):
+        shipped = self._implemented(self.run_src)[0]
+        says, must_not = {"refuse": ("refuses", "export"),
+                          "re-aim": ("export", "refuses")}[shipped]
+        low = self.bullet.lower()
+        self.assertIn(
+            says, low,
+            f"tests/run {shipped}s, and tree_guard.py's '{self.BULLET}' "
+            f"bullet never says so:\n\n{self.bullet}")
+        self.assertNotIn(
+            must_not, low,
+            f"tests/run {shipped}s, and the bullet still describes the other "
+            f"mechanism — the one that was tried and withdrawn — as the thing "
+            f"that ships:\n\n{self.bullet}")
 
 
 class TestThePlantedWrite(unittest.TestCase):
@@ -316,8 +462,17 @@ class TestTheManifest(unittest.TestCase):
         "events.jsonl", "intake.jsonl"}` — blinding the guard to two of the
         four files this whole row is about — and all thirteen tests stayed
         green. Naming two of three is how a pin becomes decoration.
+
+        `.claude` and `.gstack` joined `IGNORE_DIRS` deliberately and this
+        assertion is what made that deliberate: both are created by the agent
+        harness this project is developed under, from outside the suite and in
+        the middle of a run, and neither has a tracked file. The rule they
+        satisfy — *this checkout actually produces it, and no test may
+        legitimately write it* — is stated once in `tree_guard.py`'s docstring
+        and is the same rule that keeps `.pytest_cache` and friends OUT.
         """
-        self.assertEqual(set(TG.IGNORE_DIRS), {".git", "__pycache__"})
+        self.assertEqual(set(TG.IGNORE_DIRS),
+                         {".git", "__pycache__", ".claude", ".gstack"})
         self.assertEqual(TG.IGNORE_SUFFIXES, (".pyc", ".pyo"))
         self.assertEqual(set(TG.IGNORE_NAMES), {".DS_Store"})
 
@@ -345,13 +500,50 @@ class TestTheManifest(unittest.TestCase):
 
     def test_a_permission_change_is_a_change(self):
         """`chmod +x` on a shipped script changes what the tree is without
-        changing a byte of it, and this repository ships eleven executables
-        whose bit is load-bearing."""
+        changing a byte of it, and what this repository ships is executable.
+        How many is not stated here — see the test below."""
         import os as _os
         before = TG.manifest(self.root)
         _os.chmod(self.root / "a.txt", 0o755)
         self.assertEqual(TG.compare(before, TG.manifest(self.root)),
                          ["  M a.txt   (changed)"])
+
+    def test_the_executables_this_repository_ships_carry_their_mode(self):
+        """The set is DERIVED from the tree, and no count is written down.
+
+        This docstring and `tree_guard.manifest`'s both said the repository
+        ships **eleven** executables. `git ls-tree -r HEAD | awk '$1=="100755"'
+        | wc -l` says 24, 18 of them under `bin/`; `find . -type f -perm -u+x
+        -not -path './.git/*' | wc -l` agrees. A number in a comment is a claim
+        nothing checks, and replacing 11 with 24 would be the same defect one
+        value later — so this asserts the SHAPE of the set instead and lets the
+        size be whatever it is on the day.
+        """
+        m = TG.manifest(PERRY_HOME)
+        execs = {rel for rel, tok in m.items()
+                 if tok.startswith("f:") and int(tok.split(":")[1], 8) & 0o111}
+        self.assertTrue(execs, "the manifest recorded no executable at all")
+        # The bit the manifest reports is the bit on disk — otherwise this
+        # test would be reading its own answer back.
+        for rel in sorted(execs):
+            self.assertTrue(os.access(PERRY_HOME / rel, os.X_OK),
+                            f"manifest says {rel} is executable; the "
+                            f"filesystem disagrees")
+        # Every shipped `bin/perry-*` is one. A stripped bit there is a
+        # broken install, which is exactly why the mode is in the token.
+        shipped = {rel for rel, tok in m.items()
+                   if rel.startswith("bin/perry-") and tok.startswith("f:")}
+        self.assertTrue(shipped, "no bin/perry-* files found at all")
+        self.assertEqual(
+            shipped - execs, set(),
+            "shipped bin/ scripts carrying no executable bit")
+        # And the ones outside `bin/` that the manifest docstring describes.
+        for rel in ("setup", "tests/run", "tests/parallel",
+                    "templates/knowledge-base/bin/kb-lint",
+                    "templates/ops/bin/deliverable-lint"):
+            self.assertIn(rel, execs,
+                          f"{rel} is described as a shipped executable and "
+                          f"the manifest does not see its bit")
 
 
 class TestTheCLI(unittest.TestCase):

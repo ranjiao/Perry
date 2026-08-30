@@ -61,11 +61,32 @@ fi
 # which `cd "$ROOT"` above just set) and "equal to $ROOT". Both land inside the
 # tree step 0 hashes.
 #
+# **"Equal" has to mean what `perry-task` means by it.** `bin/perry-task` does
+# `Path(os.environ.get("PERRY_PROJECT") or Path.cwd()).resolve()` — symlinks
+# collapsed, a trailing slash gone. Comparing the raw string against `pwd -P`
+# refused two environments that are in fact this very tree: a /tmp symlink
+# alias of $ROOT, and $ROOT with a trailing slash. Both would have written
+# inside the tree step 0 hashes, and both were turned away. That is a false
+# refusal in a guard whose whole argument is that refusing costs nothing, so
+# the comparison resolves first. `cd … && pwd -P` is the shell spelling of
+# `.resolve()`. A value naming nothing resolves to the empty string and is
+# refused — correctly, because `perry-task` would go on to create it.
+#
 # What this does NOT reach is a test that builds its own `env=` dict naming a
 # third directory. No tree comparison can; it is declared in tree_guard.py.
-if [ -n "${PERRY_PROJECT:-}" ] && [ "$PERRY_PROJECT" != "$ROOT" ]; then
+PERRY_PROJECT_REAL=""
+if [ -n "${PERRY_PROJECT:-}" ]; then
+  PERRY_PROJECT_REAL="$(cd "$PERRY_PROJECT" 2>/dev/null && pwd -P || true)"
+fi
+if [ -n "${PERRY_PROJECT:-}" ] && [ "$PERRY_PROJECT_REAL" != "$ROOT" ]; then
   printf '\n\033[31m✗ refusing to run: PERRY_PROJECT points somewhere else\033[0m\n'
   echo "    PERRY_PROJECT = $PERRY_PROJECT"
+  if [ -n "$PERRY_PROJECT_REAL" ] && [ "$PERRY_PROJECT_REAL" != "$PERRY_PROJECT" ]; then
+    echo "    resolves to   = $PERRY_PROJECT_REAL"
+  fi
+  if [ -z "$PERRY_PROJECT_REAL" ]; then
+    echo "    resolves to   = (nothing — no such directory)"
+  fi
   echo "    tests/run     = $ROOT"
   echo
   echo "  perry-task resolves its project root from PERRY_PROJECT BEFORE the"
