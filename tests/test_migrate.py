@@ -498,9 +498,9 @@ class TestRecoverable(unittest.TestCase):
         claim conformance for files that no longer have it."""
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")
-        self.assertTrue((p.root / ".perry" / "conformance.md").exists())
+        self.assertTrue((p.root / ".perry" / "conformance.jsonl").exists())
         p.run("restore")
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists(),
                          "the record was created by the run and must go back "
                           "to not existing")
 
@@ -697,20 +697,36 @@ class TestFileImageFidelity(unittest.TestCase):
         self.assertFalse((p.root / "tasks.jsonl").exists())
 
     def test_a_symlinked_declaration_record_is_refused_before_state_writes(self):
+        """The store — what a declaration is written INTO."""
+        self._symlinked_record_is_refused("conformance.jsonl")
+
+    def test_a_symlinked_markdown_record_is_refused_before_state_writes(self):
+        """The markdown a pre-TASK-234 project still has — what the run
+        converts and then UNLINKS. Its own test, not a second assertion in the
+        one above, because the two are preflighted by two calls and one of them
+        can be deleted with the other green."""
+        self._symlinked_record_is_refused("conformance.md")
+
+    def _symlinked_record_is_refused(self, name: str):
         p = Project({"BOARD.md": LEGACY_BOARD})
         plan = p.plan()
         board = p.root / "BOARD.md"
         before = board.read_bytes()
-        record = p.root / ".perry" / "conformance.md"
+        # **Both records, because `apply` writes one and deletes the other**
+        # (TASK-234): the store is what a declaration is written into, and the
+        # markdown is what a pre-conversion project has and the run UNLINKS.
+        # Unlinking a symlink Perry did not put there is the same refusal for
+        # the same reason, so the preflight has to cover both names.
+        record = p.root / ".perry" / name
         record.parent.mkdir(exist_ok=True)
-        target = p.root / "outside-conformance.md"
+        target = p.root / f"outside-{name}"
         target.write_text("outside\n", encoding="utf-8")
         record.symlink_to(target)
 
         with self.assertRaises(M.Refused) as caught:
             M.apply_plan(plan, SCHEMA)
 
-        self.assertIn("conformance.md is a symlink", str(caught.exception))
+        self.assertIn(f"{name} is a symlink", str(caught.exception))
         self.assertEqual(board.read_bytes(), before)
         self.assertTrue(record.is_symlink())
         self.assertEqual(target.read_text(encoding="utf-8"), "outside\n")
@@ -852,12 +868,25 @@ class TestTheUserDeclares(unittest.TestCase):
     def test_the_declaration_goes_through_perry_conform_and_is_the_only_record(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run("apply")
-        record = p.root / ".perry" / "conformance.md"
+        record = p.root / ".perry" / "conformance.jsonl"
         self.assertTrue(record.exists())
-        self.assertIn("| BOARD.md | 2 | ", record.read_text())
-        self.assertIn("| migrate |", record.read_text(),
-                      "the route field exists so a declaration says how it was "
-                      "made; a migration's is not a hand `declare`")
+        stored = [json.loads(l) for l in
+                  record.read_text().split("\n") if l.strip()]
+        board = next(r for r in stored if r["path"] == "BOARD.md")
+        self.assertEqual(board["shape_version"], 2)
+        self.assertEqual(board["route"], "migrate",
+                         "the route field exists so a declaration says how it "
+                         "was made; a migration's is not a hand `declare`")
+        # **Provenance the four markdown columns could not carry** (TASK-234).
+        # `run` is this run's id, which is also the name of its restore point:
+        # a declaration can now say which migration made it, which is what made
+        # TASK-226 an investigation rather than a query.
+        self.assertEqual(board["writer"], "perry-migrate apply")
+        self.assertTrue(board["run"], "the declaration does not name its run")
+        self.assertTrue(
+            (p.root / ".perry" / "migrate" / f"{board['run']}.json").exists(),
+            "the run a declaration names is not a restore point on disk")
+        self.assertTrue(board["recorded_at"])
         others = [f for f in (p.root / ".perry").rglob("*")
                   if f.is_file() and "conform" in f.name and f != record]
         self.assertEqual(others, [], "there must be exactly one record")
@@ -865,14 +894,14 @@ class TestTheUserDeclares(unittest.TestCase):
     def test_a_dry_run_declares_nothing(self):
         p = Project({"BOARD.md": LEGACY_BOARD})
         p.run()
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists())
 
     def test_no_declare_migrates_without_declaring(self):
         """The two acts are separable: a user may want the shape fixed and
         want to read it before saying it is theirs."""
         p = Project({"BOARD.md": LEGACY_BOARD})
         rc, out, _ = p.run("apply", "--no-declare")
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists())
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists())
         self.assertEqual(p.lint_errors(), 0)
 
     def test_the_gate_refusal_names_the_migration_and_the_dry_run(self):
@@ -1373,7 +1402,7 @@ A legend, not a task table:
         self.assertEqual(p.text("BOARD.md"), before,
                          "the legend was widened into a task table")
         self.assertNotIn("| ID | Meaning | Title |", p.text("BOARD.md"))
-        self.assertFalse((p.root / ".perry" / "conformance.md").exists(),
+        self.assertFalse((p.root / ".perry" / "conformance.jsonl").exists(),
                          "a board that was correctly refused must not be "
                          "declared conformant")
 

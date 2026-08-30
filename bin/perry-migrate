@@ -1897,7 +1897,13 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
         try:
             out = C.declare(plan.project_root, plan.state_root,
                             [e.key for e in applied if e.key != "tasks.jsonl"],
-                            schema, route="migrate")
+                            schema, route="migrate",
+                            # **The run travels with the declaration**
+                            # (TASK-234). `route: migrate` says a migration
+                            # made it; `run` says WHICH ONE, and the id is also
+                            # the name of the restore point that undoes it, so
+                            # a row can be traced to the bytes it replaced.
+                            writer="perry-migrate apply", run=run_id)
             update_expected_after(point, P.CONFORMANCE_FILE,
                                   plan.project_root / P.CONFORMANCE_FILE)
             update_expected_after(
