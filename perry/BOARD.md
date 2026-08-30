@@ -118,6 +118,7 @@
 | TASK-250 | ADR-004's 'every writer gates on it' is false of at least three writers, and nothing sweeps for the rest | Coding Agent | not_started | Blocked until TASK-239 lands. Start from evidence/2026-08/TASK-239-v4-review.md, which carries both measurements and the count of gate() call sites. Note the framing the reviewer gave and do not lose it: the UNGATED_BY_DESIGN surface currently reads as exhaustive while naming one lane of at least three, which is the same failure as the count line it was built to correct. | — | V4 | TASK-239 | main |  |  |  |  |  |  |
 | TASK-251 | tests/run's output offers THREE numbers that all look like a failure count, and two of the three are wrong | Coding Agent | not_started | Startable. The live instance is test_diagnose's queue-reconcile test, which prints without a FAIL: prefix on this repository today. Start from evidence/2026-08/TASK-239-v4-review.md, which carries the mechanism and the reviewer's account of walking into it itself. Note the shape of the fix: two numbers of independent origin agreeing is what TASK-230 shipped for --ids after the same class of accounting error, and it is the pattern that works here too. | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-253 | bin/perry-tasks accepts --dry-run and writes anyway | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
+| TASK-254 | bin/perry-lint hands back 22 commands and every one of them drops the root | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 
 ## P2
 
