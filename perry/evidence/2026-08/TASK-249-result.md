@@ -1089,7 +1089,7 @@ re-run; no reviewed tree was ever involved.
 
 ### 9.8 Baselines — four full suites, measured here, in this session
 
-**I took no number from the brief.** `bash tests/run` from each worktree root
+**I took no number from the brief.** Five full suites. `bash tests/run` from each worktree root
 with `PERRY_PROJECT` unset, bracketed at both ends by `git ls-files -z | xargs
 -0 md5 -q | md5 -q` and by `git status --porcelain`. Machine shared with other
 agents' runs and two of these ran concurrently — wall times are recorded, not
@@ -1107,24 +1107,25 @@ the second inert, and the merge probe is against the newer one.
 | `main` @ `4d21513` | 104 | 3124 | 309.0 | **4** | 3 | n/a | `f61f323c…` → `f61f323c…` |
 | branch tip `df8d536` | 104 | **3122** | 301.6 | **4** | 3 | `✓ nothing under … moved` | `61695daf…` → `61695daf…` |
 | merge probe `52e6089` (`4d21513` + `df8d536`) | 105 | **3148** | 243.6 | **4** | 3 | `✓ nothing under … moved` | `bc291799…` → `bc291799…` |
+| branch tip `e374307` — **the tree containing this section** | 104 | **3122** | 229.9 | **4** | 3 | `✓ nothing under … moved` | `347c9b81…` → `347c9b81…` |
 
-`git status --porcelain` empty at both ends of all four.
+`git status --porcelain` empty at both ends of all five.
 
 **The counting rule, and the trap reproduced on my own logs before I trusted
-any of them.** On all four runs the three readings disagree the same way:
+any of them.** On all five runs the three readings disagree the same way:
 
     grep -c '^FAIL:'                          -> 3    (wrong: a header was eaten)
     the "✗ N module(s) red" line              -> 3    (right, but it counts MODULES)
     sum of the `FAILED (failures=N)` lines    -> 4    (the failure count)
 
-`errors=` was zero on all four and is summed separately. The eaten header is
+`errors=` was zero on all five and is summed separately. The eaten header is
 `test_diagnose`'s first: `test_the_queue_register_reconciles_with_the_queue_
-on_this_repository` appears in every one of the four logs as a bare traceback
+on_this_repository` appears in every one of the five logs as a bare traceback
 line with no `FAIL:` header above it, while `test_diagnose` reports `FAILED
 (failures=2)` and prints one header. `tests/parallel:283` is the mechanism and
 it is TASK-251, still open.
 
-**The same four by name on all four trees**, and none is in a file this branch
+**The same four by name on all five runs**, and none is in a file this branch
 touches:
 
 - `test_diagnose § test_the_queue_register_reconciles_with_the_queue_on_this_repository`
@@ -1132,7 +1133,7 @@ touches:
 - `test_heading_title § test_none_of_them_contains_its_own_id`
 - `test_kr_progress_provenance § test_no_current_in_the_payload_claims_to_be_a_measurement`
 
-**No `test_host_support`** in any of the four (`grep -c` returns 0 on each
+**No `test_host_support`** in any of the five (`grep -c` returns 0 on each
 log). The known intermittent did not recur; that is evidence about its rate,
 not proof it is gone.
 
@@ -1151,19 +1152,19 @@ moves nowhere.
 
 ### 9.9 What I could not verify this round
 
-1. **The tip measured in § 9.8 is `df8d536`, and this section is a later
-   commit.** No run in this document hashes the tree that contains this
-   document. The md5 bracket in each row is of the tree at the moment of that
-   run, and the only delta from the final tree is § 9 itself. Two of the four
-   failures scan evidence documents, so that is a claim worth measuring rather
-   than assuming; § 8.6 measured it twice on this branch and it did not move
-   the number, and a fifth run on the final tip is reported in the round's
-   hand-back rather than folded back into this table, because folding it back
-   would regress forever.
-2. **One run per tree, four trees.** The four failures agree by name across
-   all four, which is why I did not repeat. A single run cannot separate a
+1. **The last row of § 9.8's table is added by a commit whose only content is
+   that row**, so no run hashes the exact bytes of the final tree. This is the
+   one thing that cannot be closed by construction, and it is one paragraph
+   smaller than it was: the `e374307` run is on the tree that already contains
+   all of § 9 except this sentence and its table row. Two of the four failures
+   scan evidence documents, so "the result document cannot move the number" is
+   a claim worth measuring rather than assuming — and it is now measured on
+   this branch four times (§ 8.6 twice, § 9.8's `df8d536` and `e374307`),
+   reading 4 / 3 and 3122 tests before and after 388 lines of document.
+2. **One run per tree, five runs.** The four failures agree by name across all
+   five, which is why I did not repeat. A single run cannot separate a
    fifth flake from a real failure.
-3. **`--serial` was not run.** All four used the default parallel path.
+3. **`--serial` was not run.** All five used the default parallel path.
 4. **I did not reproduce the original write**, for the same reason as rounds
    2 and 3: the sweep is idempotent and every tree here is already swept.
    § 4's M8 on a seeded copy is still the evidence.
