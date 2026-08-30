@@ -412,13 +412,14 @@ so `bash tests/run`'s four state writes (TASK-249, not mine) landed in scratch.
 |---|---|---|---|
 | `bash tests/run` | `main` @ `49d83fc`, `bin/perry-task` md5 `377dec1cfb91e44189679055af159b50` | 2026-08-30 **09:07–09:13**, load ~10 | **103 modules · 3098 tests · 341.5 s · 8 workers · 3 module(s) red, 4 failures** |
 | `bash tests/run` | this branch @ `980c830`, md5 `23e26fc319012fa1dadfe3e1ce361615` | 2026-08-30 **09:31–09:36**, load ~25 (two other worktrees running) | **104 modules · 3123 tests · 287.9 s · 8 workers · 3 module(s) red, 4 failures** |
+| `bash tests/run` | this branch @ `f14b14c` (after the V4 review's regression test), md5 unchanged at `23e26fc319012fa1dadfe3e1ce361615` | 2026-08-30 **10:29–10:34**, quiet | **104 modules · 3124 tests · 305.6 s · 8 workers · 3 module(s) red, 4 failures** |
 | `python3 -m unittest` (6 modules, sequential) | `m_tree` = `980c830` | 2026-08-30 **09:18** | **264 tests, OK, 90.2 s** — the first mutation control |
 | `python3 -m unittest` (6 modules, sequential) | `m_tree` = `b96ab35` | 2026-08-30 **10:10** | **265 tests, OK, 73.0 s** — the second mutation control |
 | `python3 -m unittest test_register_substitution` | `980c830` | 2026-08-30 **09:10** | **25 tests, OK, 10.0 s** |
 | `python3 -m unittest test_register_substitution` | `b96ab35` (with the V4 review's regression test) | 2026-08-30 **10:04** | **26 tests, OK, 17.8 s** |
 
-**103 → 104 modules, 3098 → 3123 tests: +1 module, +25 tests, and the red set is
-identical name for name.**
+**103 → 104 modules, 3098 → 3124 tests: +1 module, +26 tests, and the red set is
+identical name for name at every measurement.**
 
 ```
 test_diagnose (2)            test_perry_itself_passes_its_own_id_checks
