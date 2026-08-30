@@ -548,13 +548,18 @@ needed real work.
    them.** The decision not to add a seventh keeps them true today; the tripwire
    test tells the goals lane the day that changes. `perry/phase/003-linkage.md`
    is untouched.
-3. **No `perry-conform migrate` was run against any project other than this
-   worktree.** I have no second real project here to convert, so the conversion
-   is measured on Perry's own 23-row record and on fixtures. A reviewer with
-   `~/proj/gimegime-pmo` should run `perry-conform migrate` on a **copy** and say
-   whether the fixed point refuses a record written by hand over months — that is
-   the one population I could not sample, and the fixed point is deliberately
-   strict.
+3. **The fixed point has never met a record hand-maintained by anyone but
+   Perry, and that is a substitute, not a sample.** Round 1 said a reviewer with
+   `~/proj/gimegime-pmo` should convert a copy. The reviewer checked: that
+   project has **no conformance record at all**, and **no project on this
+   machine has a `.perry/conformance.md`**. It substituted the five historical
+   versions of Perry's own record from git plus a nine-case hand-edit sweep, and
+   **labelled it a substitute**; this row records it the same way. The
+   population that matters — a record a person other than Perry edited by hand
+   over months — has not been sampled by anyone, and the fixed point is
+   deliberately strict. What that risk now costs is bounded rather than
+   open-ended: § 1.1's diff means a refusal on such a record names the lines,
+   which is the difference between *strict* and *stuck*.
 4. **`.perry/hook.md § High-stakes operations` lists `state-schema.json` and
    `claims` as the claim surface**, and this row edits that file. The edit is a
    `note` **string** only: no path was added to or removed from `claims[]` or
@@ -562,3 +567,25 @@ needed real work.
    territory. Flagged rather than waved through, because the hook says to.
 5. **The board and `perry/tasks.jsonl` are untouched**, as briefed. TASK-246 and
    TASK-248 are still open rows; § 5 is the input for closing one of them.
+6. **One defensive branch is named rather than pinned**, per the reviewer's
+   ruling: `legacy_record=record.legacy is not None` versus
+   `bool(record.legacy)`. They are the same predicate on every reachable input,
+   so it is an equivalent mutant and no test can distinguish them. Recorded in
+   `TestTheDefensiveBranchesAreLoadBearing`'s docstring so a later sweep does
+   not re-find and re-file it. The other six survivors are now tested (§ 6).
+
+## 11 · For the record — the sixth vacuous test in three days
+
+`tests/test_one_header_rule.py § TestTheFifthCopy` (§ 4.5) is the **sixth**
+vacuous or self-satisfying test found on this project in three days, and like
+the other five it was found by an agent doing something else — here, sweeping
+call sites of a function it was renaming. Nothing in the suite reports a test
+that has stopped measuring anything; every one of the six was found by a human
+or an agent reading the code for another reason.
+
+This row added one instance of the same class and caught it the same way. The
+`assert_conversion_refuses` helper (§ 1.1) asserted `"refused" in out` — true of
+every refusal, including one that names a command computing no diff — so 17
+tests routed through a check that could not fail for the reason it existed. It
+was found by the V4 reviewer, not by the suite. The pattern in both: **an
+assertion whose subject moved, left pointing at something that is still true.**

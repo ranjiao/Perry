@@ -167,6 +167,58 @@ MUTATIONS = [
      "tests.test_migrate.TestTheUserDeclares"
      ".test_an_unconvertible_markdown_record_refuses_and_names_the_way_back"),
 
+    # ── the V4 FAIL: the refusal has to name the line ─────────────────────
+
+    ("M22", "bin/perry-conform",
+     '            + record_diff(text, canonical)',
+     '            + "    perry-conform status"',
+     "tests.test_conformance.TestTheRefusalNamesTheLine"
+     ".test_the_refusal_carries_a_diff_and_not_a_command_that_computes_none"),
+
+    ("M23", "bin/perry-conform",
+     '    dropped = max(0, len(lines) - DIFF_CAP)',
+     '    dropped = len(lines) - DIFF_CAP',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_a_short_diff_does_not_claim_it_dropped_a_negative_number"),
+
+    ("M24", "bin/perry-conform",
+     '        shown.append(f"    … and {dropped} more diff line(s); the whole file "',
+     '        shown.append(f"    … and 0 more diff line(s); the whole file "',
+     "tests.test_conformance.TestTheRefusalNamesTheLine"
+     ".test_a_wholly_rewritten_record_is_capped_and_says_how_much_it_dropped"),
+
+    # ── the six defensive branches that survived their own deletion ───────
+
+    ("M25", "viewer/parsers.py",
+     '    if not isinstance(path, str) or not path.strip():\n        return None',
+     '    if False:\n        return None',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_a_non_string_path_is_refused_rather_than_used_as_a_key"),
+
+    ("M26", "viewer/parsers.py",
+     '    if not isinstance(declared, str) or not isinstance(route, str):\n        return None',
+     '    if False:\n        return None',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_a_non_string_declared_or_route_is_refused"),
+
+    ("M27", "viewer/parsers.py",
+     '        route=route or "declare", line=number,',
+     '        route=route, line=number,',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_an_empty_route_reads_as_declare_rather_than_as_blank"),
+
+    ("M28", "viewer/parsers.py",
+     '    text = lambda key: (rec.get(key) if isinstance(rec.get(key), str) else "")',
+     '    text = lambda key: rec.get(key) or ""',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_non_string_provenance_reads_as_empty_rather_than_as_itself"),
+
+    ("M29", "viewer/parsers.py",
+     '    try:\n        text = path.read_text(encoding="utf-8", errors="replace")\n    except OSError:\n        return rec',
+     '    text = path.read_text(encoding="utf-8", errors="replace")',
+     "tests.test_conformance.TestTheDefensiveBranchesAreLoadBearing"
+     ".test_a_record_that_exists_but_cannot_be_read_is_not_a_crash"),
+
     # ── tests/test_one_header_rule.py — the vacuity guard ─────────────────
     ("M19", "viewer/parsers.py",
      '        if header_index([rel]).column("file", "path") == 0 or not rel:',
