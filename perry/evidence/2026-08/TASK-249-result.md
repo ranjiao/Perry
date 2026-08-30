@@ -208,7 +208,8 @@ not comparable with `main`'s 08:48 figures and are quoted only for the record.
 |---|---|---|---|---|---|
 | `49d83fc`, as delivered by the PMO | `bash tests/run` | 08:48, quiet | 103 | 3098 | 4 |
 | `49d83fc`, `git archive`d to a scratch dir and re-run here | `bash tests/run` | 09:21-09:26 | 103 | 3098 | **3** |
-| this branch, this worktree | `bash tests/run` | 09:16-09:21 | 104 | 3111 | **3** |
+| this branch at `fbab26a` | `bash tests/run` | 09:16-09:21 | 104 | 3111 | **3** |
+| this branch at `1a5dedd` (everything committed) | `bash tests/run` | 09:28-09:34 | 104 | 3111 | 3 + one flake |
 
 `+1 module / +13 tests` is exactly `tests/test_tree_guard.py`. The same three
 failures, by name, on the fork point and on this branch:
@@ -217,6 +218,15 @@ failures, by name, on the fork point and on this branch:
 - `test_heading_title § test_none_of_them_contains_its_own_id` — the filed one,
   fires on a legitimate multi-row evidence document. Not touched.
 - `test_kr_progress_provenance § test_no_current_in_the_payload_claims_to_be_a_measurement`
+
+**A flake, found in passing and not filed by me — the board is the PMO's.**
+The 09:28 run added a fourth, `test_host_support §
+TestOpenCodeDispatchLimit.test_concurrent_mixed_registers_do_not_exceed_global_cap`.
+Re-run alone on this branch three times: **green, green, red**. Re-run once at
+the fork point: green. It is a concurrency test about a global dispatch cap, on
+a machine running several suites at once, in a module this branch does not
+touch. I am recording it as flaky rather than as a regression, and recording
+that I ran it four times and not forty.
 
 **This branch adds no failure.** The fourth failure in the PMO's 08:48 figure
 does not reproduce against the fork point's committed tree an hour later, which
