@@ -2160,9 +2160,31 @@ class TestTheRefusalNamesTheLine(unittest.TestCase):
         # Reversed, so the file differs from the record almost everywhere — a
         # stray line at the end of a long file makes a two-line hunk, which is
         # the point of the tight context and not a case the cap has to handle.
-        message = self.refusal("".join(reversed(rows)))
-        self.assertIn("more diff line(s)", message,
-                      "the hunk was not capped")
+        body = "".join(reversed(rows))
+        p = self.record(body)
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1, f"the conversion did not refuse: {out} {err}")
+        message = out["refused"]
+        self.assertIn("more diff line(s)", message, "the hunk was not capped")
+
+        # **The NUMBER, not just the notice.** Asserting the sentence exists
+        # let a mutation replace the count with a constant and stay green — the
+        # same shape as the FAIL itself: an assertion sitting beside the thing
+        # that matters. Recomputed from the file on disk and the shipped
+        # reader, the way a reader checking the message would.
+        import difflib
+        authored = p.legacy_marker().read_text()
+        canonical = C.render_legacy(
+            C.P.read_legacy_conformance(p.root).declarations)
+        total = len(list(difflib.unified_diff(
+            authored.splitlines(), canonical.splitlines(),
+            fromfile=C.P.CONFORMANCE_LEGACY_FILE,
+            tofile="what Perry reads out of it", lineterm="", n=1)))
+        expected = total - C.DIFF_CAP
+        self.assertGreater(expected, 0, "the fixture does not reach the cap")
+        self.assertIn(f"and {expected} more diff line(s)", message,
+                      f"the refusal miscounts what it dropped (expected "
+                      f"{expected} of {total})")
         # The diff BLOCK, not every indented line in the message — the
         # `perry-conform migrate` the last sentence names is indented too, and
         # counting it made this assertion off by one in the direction that

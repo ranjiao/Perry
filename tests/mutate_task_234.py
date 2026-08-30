@@ -94,7 +94,7 @@ MUTATIONS = [
 
     # ── bin/perry-conform § migrate_record ────────────────────────────────
     ("M9", "bin/perry-conform",
-     '    if render_legacy(record.declarations) != text:',
+     '    if canonical != text:',
      '    if False:',
      "tests.test_conformance.TestADecoratedRowIsNotADeclaration"
      ".test_a_canonical_row_inside_an_html_block_is_not_carried_across"),
