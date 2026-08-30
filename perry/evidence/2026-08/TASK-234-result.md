@@ -1126,6 +1126,72 @@ of the symptom is not absence of the defect: TASK-249 stands.
 
 **`bin/perry-tasks --dry-run` was not used anywhere in this row.**
 
+### 7.2 · Round 5 — three trees at one base, counted the same way
+
+Counted as § 7.1 says, because the runner makes every other reading wrong: the
+summary line counts MODULES, `grep -c '^FAIL:'` UNDERCOUNTS (`tests/parallel:283`
+truncates a red module's stderr to its last 25 lines with nothing visibly
+elided, and `test_diagnose`'s first header falls outside that window), and
+`failures` and `errors` are different words. Both were summed.
+
+```
+grep -oE 'FAILED \(failures=[0-9]+' <log> | grep -oE '[0-9]+$' | paste -sd+ - | bc
+grep -oE 'FAILED \(errors=[0-9]+'   <log> | grep -oE '[0-9]+$' | paste -sd+ - | bc
+```
+
+| tree | modules | tests | seconds | modules red | **test failures** | errors | `grep -c '^FAIL:'` (the trap) |
+|---|---|---|---|---|---|---|---|
+| `main` @ `4716e39` | 104 | 3124 | 226.5 | 3 | **4** | 0 | 3 |
+| tip `cd88312` | 103 | 3150 | 241.0 | 3 | **4** | 0 | 3 |
+| merge probe `4716e39` + `cd88312` = `cd3309c` | 104 | 3176 | 262.7 | 4 | **5** | 0 | 4 |
+
+Sequential on one machine, 15:13 → 15:28 CST, so the seconds are comparable.
+`main` moved during the round; **`4716e39`** is where it stood when all three
+trees were cut and is the base of the probe. The merge is clean — no conflicts.
+
+**Red set, by name.** `main` and the tip: `test_diagnose.py` (failures=2 —
+`test_perry_itself_passes_its_own_id_checks` and the one whose header the
+25-line window eats), `test_heading_title.py` (1), and
+`test_kr_progress_provenance.py` (1). Identical in both, and
+`test_heading_title`'s failure is still the single `TASK-050` multi-row review
+document — checked in the log, not assumed, because this round writes a long
+document with many headings into `perry/evidence/`.
+
+**The probe's fifth failure is the known intermittent and it is stated rather
+than netted out.** `test_host_support §
+test_concurrent_registers_do_not_exceed_opencode_cap` appeared in the probe run
+and in neither of the other two. Re-run three times on the probe tree
+afterwards: **OK, OK, OK.** So the probe's comparable number is 4, the same
+four by name — but the honest report is *the probe run read 5, one of which was
+the flake*, not *the probe read 4*. A count that only matches when the flake is
+quiet is a count the next reader will disagree with.
+
+**3124 → 3176 on the probe is +52**: 26 tests on `main` since this branch
+forked, and 26 from the branch. The tip's 3141 → 3150 across round 5 is **+9**,
+enumerated: `test_conformance.py` +4 (the backtick residual, two in
+`TestTheSweepIsMeasuredNotTrusted`, one in `TestTheRootIsRequiredNotDefaulted`)
+and `test_migrate.py` +5 (three in `TestTheRootIsRequiredNotDefaulted`, the
+digest-mismatch rollback, the legacy-record restore round trip).
+
+**md5 bracket** (`git ls-files -z | xargs -0 md5 -q | md5 -q`), before and after
+each run, with `git status --porcelain` **empty** after all three:
+
+| run | before | after |
+|---|---|---|
+| `main` @ `4716e39` | `58f92a848290d83a60dec80dfc66d471` | `58f92a848290d83a60dec80dfc66d471` |
+| tip `cd88312` | `312bff79441e463b150dae125c2f8736` | `312bff79441e463b150dae125c2f8736` |
+| probe `cd3309c` | `c99a7a1aab7f09f15e22633758f7ab12` | `c99a7a1aab7f09f15e22633758f7ab12` |
+
+**Mutations, round 5**: `python3 tests/mutate_task_234.py` run whole, in a
+private detached worktree, **57/57 red**, `git status --porcelain` empty
+afterwards and the tree digest re-checked against the pre-run value. Not run in
+`wt-234` and never in `/Users/bytedance/proj/Perry`.
+
+**The three runs above are at `cd88312`; the only commit after it adds this
+subsection.** `test_heading_title` and `test_diagnose` both read `perry/`
+documents, so a RESULT edit is inside their subject and the run that covers this
+document is the one at the commit that carries it.
+
 ## 8 · Files changed
 
 | File | What |
