@@ -1651,3 +1651,350 @@ class TestIsAdoptedIsNotReplaced(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── 12 · the record is a store (TASK-234) ─────────────────────────────────
+
+
+class TestTheRecordIsAStore(unittest.TestCase):
+    """DESIGN-013 § 5.1 on the cheapest file it applies to.
+
+    The record was 23 rows of four regular columns under a header that was
+    already a constant in the writer, with no per-row prose at all — so the
+    rule's document side has nothing to weigh. What the table cost was a
+    parser, and the parser is where TASK-241 and TASK-248 lived.
+    """
+
+    def stored(self, p) -> list[dict]:
+        return [json.loads(l) for l in p.marker().read_text().split("\n")
+                if l.strip()]
+
+    def test_one_json_object_per_line_with_the_declared_fields(self):
+        p = Project()
+        p.run(CONFORM, "declare", "BOARD.md")
+        rows = self.stored(p)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(list(rows[0]), list(C.P.CONFORMANCE_FIELDS),
+                         "the store's field order is not the declared one")
+        self.assertEqual(rows[0]["kind"], C.P.CONFORMANCE_KIND)
+        self.assertEqual(rows[0]["path"], "BOARD.md")
+        self.assertIsInstance(rows[0]["shape_version"], int,
+                              "the version is a JSON number, not a string — "
+                              "storing it as text would put back the ambiguity "
+                              "the table's `\\d+` had to police")
+
+    def test_a_declaration_records_who_wrote_it_and_when(self):
+        """**The point of the conversion, not a bonus for having done it.**
+
+        `TASK-226` — where did this row come from — was an investigation
+        because four regular columns could not answer it. A record that can is
+        the reason DESIGN-013 § 5.1 was worth applying to this file."""
+        p = Project()
+        p.run(CONFORM, "declare", "BOARD.md")
+        row = self.stored(p)[0]
+        self.assertEqual(row["writer"], "perry-conform declare")
+        self.assertTrue(row["recorded_at"], "the moment was not recorded")
+        self.assertIsNotNone(
+            __import__("datetime").datetime.fromisoformat(row["recorded_at"]),
+            "the moment is not an ISO timestamp")
+        self.assertNotEqual(
+            row["recorded_at"], row["declared"],
+            "`recorded_at` is the MOMENT and `declared` is the day — a store "
+            "that made them the same string would have carried nothing new")
+
+    def test_a_malformed_line_does_not_void_its_neighbours(self):
+        """**Per line, not all-or-nothing**, and this is TASK-241 round 2's
+        measurement carried across the format change: under a whole-file rule
+        one stray line voids all 23 of Perry's real declarations and takes the
+        enforce gate down with them. Here it voids one and says which."""
+        p = Project()
+        p.marker().parent.mkdir(exist_ok=True)
+        p.marker().write_text(
+            "{ not json at all\n"
+            + p.line("BOARD.md")
+            + p.line(".perry/hook.md"))
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(sorted(rec.declarations), [".perry/hook.md", "BOARD.md"],
+                         "a malformed line voided the lines around it")
+        self.assertEqual([n for n, _ in rec.unreadable], [1],
+                         "the malformed line was dropped silently")
+        self.assertEqual(p.verdict("BOARD.md").state, C.CONFORMANT)
+
+    def test_a_line_that_is_not_a_declaration_is_reported_not_skipped(self):
+        """Four shapes, one property: refused, and said out loud. A line that
+        is neither `declared` nor `absent` must not read as either."""
+        for name, line in (
+                ("not JSON", "{ not json at all\n"),
+                ("not an object", '["BOARD.md", 2]\n'),
+                ("a foreign kind", '{"kind": "setting", "path": "BOARD.md", '
+                                   '"shape_version": 2, "declared": "2026-08-28", '
+                                   '"route": "declare"}\n'),
+                ("a string version", '{"kind": "declaration", "path": "BOARD.md", '
+                                     '"shape_version": "2", "declared": '
+                                     '"2026-08-28", "route": "declare"}\n')):
+            with self.subTest(shape=name):
+                p = Project()
+                p.marker().parent.mkdir(exist_ok=True)
+                p.marker().write_text(line)
+                rec = C.P.read_conformance(p.root)
+                self.assertEqual(rec.declarations, {}, name)
+                self.assertEqual(len(rec.unreadable), 1,
+                                 f"{name} was dropped silently")
+                self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+
+    def test_two_lines_for_one_path_are_unreadable_rather_than_last_one_wins(self):
+        """They disagree about when the file was declared. A reader that
+        silently picked one would make the record's answer depend on line
+        order, which is the shape of a defect nobody can reproduce."""
+        p = Project()
+        p.marker().parent.mkdir(exist_ok=True)
+        p.marker().write_text(p.line(declared="2026-08-01")
+                              + p.line(declared="2026-08-28"))
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(len(rec.unreadable), 1)
+        self.assertEqual(rec.declarations["BOARD.md"].declared, "2026-08-01",
+                         "the SECOND line won, so the record's answer depends "
+                         "on the order somebody typed two lines in")
+
+    def test_a_blank_line_is_layout_and_not_a_finding(self):
+        """A trailing newline is how every jsonl this project writes ends, and
+        a store that reported its own last byte as unreadable would report a
+        finding against every correct file."""
+        p = Project()
+        p.marker().parent.mkdir(exist_ok=True)
+        p.marker().write_text("\n" + p.line() + "\n\n")
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(rec.unreadable, [])
+        self.assertEqual(list(rec.declarations), ["BOARD.md"])
+
+
+class TestTheRecordIsNotDeclarableAboutItself(unittest.TestCase):
+    """`schema/state-schema.json` says the record is deliberately NOT a
+    `files[]` entry: *"it is a record of the user's decisions ABOUT state, not
+    state, and listing it here would make it declarable-conformant about
+    itself."* TASK-234 had to carry that across a format change EXPLICITLY
+    rather than let it lapse, and it is what makes the conversion possible at
+    all — the gate has no opinion about a file that is not a `files[]` entry,
+    so the write that migrates the record needs no exemption.
+    """
+
+    def test_the_record_is_not_a_files_entry(self):
+        paths = {spec["path"] for spec in SCHEMA["files"]}
+        for name in (C.P.CONFORMANCE_FILE, C.P.CONFORMANCE_LEGACY_FILE):
+            with self.subTest(record=name):
+                self.assertNotIn(
+                    name, paths,
+                    f"{name} became a files[] entry, so it is now declarable "
+                    f"conformant about itself and the write that migrates it "
+                    f"is gated on its own verdict")
+
+    def test_no_writer_gates_on_the_record(self):
+        """The bootstrap property, measured rather than asserted: `state_files`
+        never yields the record, so no `gate()` call can ever be about it."""
+        p = Project()
+        p.run(CONFORM, "declare", "BOARD.md")
+        keys = [k for k, _, _ in
+                C.state_files(p.root, p.root, SCHEMA)]
+        self.assertIn("BOARD.md", keys, "the fixture yields no files at all")
+        for name in (C.P.CONFORMANCE_FILE, C.P.CONFORMANCE_LEGACY_FILE):
+            self.assertNotIn(name, keys)
+        self.assertEqual(C.verdict(p.root, p.root, C.P.CONFORMANCE_FILE,
+                                   SCHEMA).state, C.ABSENT,
+                         "the record has a verdict of its own")
+
+    def test_the_record_is_not_a_claim_of_its_own_and_does_not_need_one(self):
+        """The SEPARATE question, with its own answer (TASK-234).
+
+        `claims[]` asks what territory Perry occupies in someone else's
+        project, and `.perry/` is already claimed as a dir — so the store is
+        covered exactly as the markdown was, which
+        `TestTheRecordIsReadHonestly § test_the_record_is_not_reported_as_
+        someone_elses_file` measures. An entry of its own would add nothing the
+        collision check can see and would add a seventh store to the six that
+        `perry/phase/003-linkage.md`'s KR1, KR2 and KR3 are each phrased
+        *"of 6"* over. Moving that denominator is the goals lane's decision,
+        not a side effect of a format change."""
+        claimed = {c["path"] for c in SCHEMA["claims"]}
+        self.assertNotIn(C.P.CONFORMANCE_FILE, claimed)
+        self.assertIn(".perry/", claimed,
+                      "the territory that covers the record is unclaimed")
+        stores = sorted(c["path"] for c in SCHEMA["claims"]
+                        if c["path"].endswith(".jsonl")
+                        and c["path"] != ".perry/events.jsonl")
+        self.assertEqual(
+            len(stores), 6,
+            f"the number of claimed stores moved to {len(stores)} ({stores}); "
+            f"perry/phase/003-linkage.md's KR1, KR2 and KR3 are each phrased "
+            f"'of 6' and are now wrong")
+
+
+class TestTheMarkdownRecordIsConvertedOnce(unittest.TestCase):
+    """Bootstrap order, which the row had to settle before any code (§ 5.1).
+
+    A project written before TASK-234 keeps its declarations in
+    `.perry/conformance.md`. The store reader does not read it — a fallback
+    would be a second live register for the fact that gates every write, and
+    would carry TASK-248's hole for as long as any project left the markdown in
+    place. So the project is `undeclared` until it converts, and the refusal
+    names `perry-conform migrate` rather than `perry-conform declare`, because
+    `declare` would mint a declaration dated today over one the user made weeks
+    ago.
+    """
+
+    #: **Sorted by path, because that is what the writer wrote.** The
+    #: conversion's fixed point is byte-for-byte, so a record whose rows a hand
+    #: has reordered is one this tool cannot say it is copying — measured here
+    #: the first time this fixture was written the other way round.
+    LEGACY = ("| .perry/hook.md | 2 | 2026-08-21 | declare |\n"
+              "| BOARD.md | 2 | 2026-08-20 | migrate |\n")
+
+    def legacy_project(self) -> Project:
+        p = Project()
+        p.legacy_marker().write_text("\n".join(C.LEGACY_HEADER) + "\n" + self.LEGACY)
+        return p
+
+    def test_the_markdown_alone_declares_nothing(self):
+        p = self.legacy_project()
+        self.assertEqual(C.P.read_conformance(p.root).declarations, {},
+                         "the markdown is still being read as a register")
+        self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+
+    def test_the_refusal_names_migrate_and_not_declare(self):
+        p = self.legacy_project()
+        rc, out, _ = p.run(TASK, *ADD, enforce=True)
+        self.assertEqual(rc, 1)
+        self.assertIn("perry-conform migrate", out["refused"])
+        self.assertNotIn("perry-conform declare", out["refused"],
+                         "the refusal names the command that would mint a new "
+                         "declaration over the user's own")
+        self.assertIn(".perry/conformance.md", out["refused"],
+                      "the refusal does not say which file it is talking about")
+
+    def test_the_conversion_carries_every_date_and_route_unchanged(self):
+        p = self.legacy_project()
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"{out} {err}")
+        stored = C.P.read_conformance(p.root).declarations
+        self.assertEqual(
+            {k: (d.shape_version, d.declared, d.route) for k, d in stored.items()},
+            {"BOARD.md": (2, "2026-08-20", "migrate"),
+             ".perry/hook.md": (2, "2026-08-21", "declare")})
+        self.assertFalse(p.legacy_marker().exists(),
+                         "two registers for the gating fact")
+        self.assertEqual(p.verdict("BOARD.md").state, C.CONFORMANT)
+
+    def test_the_conversion_invents_no_provenance(self):
+        """The three new fields stay EMPTY on a converted row. The markdown
+        never held them, and a value stamped at conversion time would put a
+        fact in the record that nobody recorded — a writer of
+        `perry-conform migrate` and a moment weeks after the user decided."""
+        p = self.legacy_project()
+        p.run(CONFORM, "migrate")
+        for row in [json.loads(l) for l in
+                    p.marker().read_text().split("\n") if l.strip()]:
+            self.assertEqual((row["writer"], row["recorded_at"], row["run"]),
+                             ("", "", ""), row["path"])
+
+    def test_the_conversion_declares_nothing_the_record_did_not_hold(self):
+        """`SKILL.md § Conformance gate` reserves the declaration to the user.
+        `migrate` is runnable by an agent precisely because it cannot mint one:
+        it writes the parsed record and nothing else, so a file the markdown
+        did not declare is undeclared afterwards."""
+        p = self.legacy_project()
+        p.run(CONFORM, "migrate")
+        self.assertEqual(sorted(C.P.read_conformance(p.root).declarations),
+                         [".perry/hook.md", "BOARD.md"])
+        self.assertEqual(p.verdict(".perry/config.md").state, C.UNDECLARED)
+
+    def test_declaring_converts_first_and_says_so(self):
+        """The one writer of the record is the one place the conversion can
+        live without becoming a second one."""
+        p = self.legacy_project()
+        rc, out, err = p.run(CONFORM, "declare", ".perry/config.md")
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertEqual(out["converted"]["declarations"], 2,
+                         "the conversion was silent")
+        stored = C.P.read_conformance(p.root).declarations
+        self.assertEqual(sorted(stored),
+                         [".perry/config.md", ".perry/hook.md", "BOARD.md"])
+        self.assertEqual(stored["BOARD.md"].declared, "2026-08-20",
+                         "the user's own date was overwritten")
+        self.assertEqual(stored[".perry/config.md"].writer,
+                         "perry-conform declare")
+
+    def test_a_dry_run_converts_nothing(self):
+        p = self.legacy_project()
+        rc, out, _ = p.run(CONFORM, "declare", ".perry/config.md", "--dry-run")
+        self.assertEqual(rc, 0)
+        self.assertFalse(p.marker().exists())
+        self.assertTrue(p.legacy_marker().exists())
+
+    def test_converting_twice_is_a_no_op_and_deletes_nothing(self):
+        p = self.legacy_project()
+        p.run(CONFORM, "migrate")
+        before = p.marker().read_text()
+        rc, out, _ = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0)
+        self.assertIsNone(out["converted"])
+        self.assertEqual(p.marker().read_text(), before)
+
+    def test_a_markdown_beside_a_store_is_reported_and_not_read(self):
+        """Two registers for the fact that gates every write. The store is the
+        record; the markdown is named because a user editing it would be
+        editing nothing and would have no way to find that out."""
+        p = self.legacy_project()
+        p.run(CONFORM, "migrate")
+        p.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n"
+            + "| .perry/config.md | 2 | 2026-08-20 | declare |\n")
+        rec = C.P.read_conformance(p.root)
+        self.assertEqual(rec.stray_legacy, p.legacy_marker())
+        self.assertNotIn(".perry/config.md", rec.declarations,
+                         "the markdown beside the store is being read")
+        rc, out, _ = p.run(CONFORM, "status")
+        self.assertEqual(Path(out["stray_legacy_record"]).resolve(),
+                         p.legacy_marker().resolve())
+
+    def test_an_unreadable_row_is_refused_rather_than_deleted_at_the_door(self):
+        """The conversion will not carry a record it cannot say it is copying,
+        and refusing is the only honest answer at a one-way door: the
+        alternative is a rewrite that deletes a line the user typed."""
+        p = Project()
+        p.legacy_marker().write_text(
+            "\n".join(C.LEGACY_HEADER) + "\n" + self.LEGACY
+            + "| OKR.md | v-two | 2026-08-20 | declare |\n")
+        rc, out, _ = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1)
+        self.assertIn("will not honour", out["refused"])
+        self.assertFalse(p.marker().exists())
+        self.assertTrue(p.legacy_marker().exists(),
+                        "the record was deleted anyway")
+
+
+class TestWhatTheConversionDoesNotDissolve(unittest.TestCase):
+    """**TASK-246 survives the format change, and this is where that is said.**
+
+    TASK-246: *an unreadable row is DELETED by the next declare, not reported.*
+    The writer rebuilds the whole record from the parsed declarations, exactly
+    as the markdown writer did, so a line it could not read is not carried
+    forward. Converting the record shrinks the POPULATION of such lines — a
+    backticked, indented or fenced row is ordinary markdown and a person could
+    plausibly type one, where a broken JSON line is rarer — and it does not
+    touch the mechanism.
+
+    Asserted as it IS rather than as it should be, so that the day TASK-246 is
+    fixed this test goes red and is rewritten deliberately, instead of the
+    project believing a row died when it did not.
+    """
+
+    def test_an_unreadable_line_is_still_dropped_by_the_next_declare(self):
+        p = Project()
+        p.marker().parent.mkdir(exist_ok=True)
+        p.marker().write_text(p.line("BOARD.md") + "{ not json at all\n")
+        self.assertEqual(len(C.P.read_conformance(p.root).unreadable), 1)
+        rc, out, err = p.run(CONFORM, "declare", ".perry/hook.md")
+        self.assertEqual(rc, 0, f"{out} {err}")
+        self.assertNotIn("not json at all", p.marker().read_text(),
+                         "TASK-246 is dissolved — rewrite this test and close "
+                         "the row rather than leaving it open")
+        self.assertEqual(C.P.read_conformance(p.root).unreadable, [])

@@ -24,7 +24,7 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies at all.
 | [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `decisions/`, mint ADRs, supersede, set status, list. |
 | [`perry-knowledge`](perry-knowledge) | **write** + read | The knowledge-card write path (DESIGN-006 phase B). `propose` is read-only and answers whether a capture point should fire; `promote` writes `knowledge/<topic>/<slug>.md` and **refuses a card that cannot say where its claim came from**. |
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
-| [`perry-conform`](perry-conform) | read + writes `.perry/conformance.md` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. |
+| [`perry-conform`](perry-conform) | read + writes `.perry/conformance.jsonl` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. The record is a **store**, one JSON object per line, since TASK-234 — `perry-conform status` is the human surface and there is deliberately no rendered markdown. |
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
 | [`perry-state-cost`](perry-state-cost) | read | What a project's Perry state costs it: bytes, file count, share of tracked bytes and the growth trend, per claimed path, at a named commit. The paths come from `schema/state-schema.json § claims`, so a directory cannot fall out of the report by being forgotten. Reads `evidence/` and `journal/` to size them and writes nothing anywhere. |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P<NNN>-O<n>-KR<n>`) to what it actually means, where it was defined, and everywhere it is referenced. |
@@ -188,13 +188,23 @@ question.
 "$PERRY_HOME/bin/perry-conform" check BOARD.md          # one file; exit 1 if not conformant
 "$PERRY_HOME/bin/perry-conform" declare BOARD.md        # the user's declaration
 "$PERRY_HOME/bin/perry-conform" declare --all
+"$PERRY_HOME/bin/perry-conform" migrate                 # a pre-TASK-234 record -> the store
 ```
+
+`migrate` carries a project's `.perry/conformance.md` into
+`.perry/conformance.jsonl` with its dates and routes unchanged and deletes the
+markdown. It **declares nothing** — it writes only rows already in the record —
+so it is not the act `SKILL.md § Conformance gate` reserves to the user, and an
+agent may run it. It refuses rather than convert a file that is not byte-for-byte
+what `perry-conform declare` would have written for what it parses to: a row
+inside a code fence, an HTML comment, `<pre>` or `<details>` is byte-for-byte a
+genuine row, and the only thing that can tell it apart is what surrounds it.
 
 Two facts, kept apart on purpose:
 
 | | Where it lives | Who produces it |
 |---|---|---|
-| **the declaration** — the user said this file is Perry's, at shape version N | `.perry/conformance.md` | only `perry-conform declare`, or a migration the user asked for. **No tool stamps it on its own initiative.** |
+| **the declaration** — the user said this file is Perry's, at shape version N | `.perry/conformance.jsonl` | only `perry-conform declare`, or a migration the user asked for. **No tool stamps it on its own initiative.** Each line also records **who** wrote it, **when** to the second, and **which migration run** — three facts the four markdown columns could not carry, which is why `TASK-226` was an investigation rather than a query. |
 | **the shape** — does it still match `schema/state-schema.json` | nowhere; recomputed every call | `perry-lint`'s own `check_file`, imported rather than reimplemented |
 
 A stored verdict would be a cache that goes wrong, and a content hash would
