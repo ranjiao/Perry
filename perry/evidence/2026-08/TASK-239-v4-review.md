@@ -264,7 +264,7 @@ reads; and the printed line is one unwrapped paragraph.
 |---|---|---|---|
 | `python3 -m unittest` (3 modules) | `git archive 49d83fc` → `scratchpad/rv239-fork`, **730 files, pristine, no git** | 2026-08-30 ~09:52 | 187 tests, **the same 4 failures** |
 | `python3 -m unittest` (3 modules) | the same tree + `main`'s **uncommitted** `perry/BOARD.md` and `perry/tasks.jsonl` overlaid | 2026-08-30 ~09:57 | 187 tests, **the same 4 failures** |
-| `bash tests/run` | `scratchpad/rv239-copy` @ `506ab72` (branch tip) | launched 2026-08-30 09:59 CST, load 42–48 | **did not land inside the review window — see not-checked** |
+| `bash tests/run` | `scratchpad/rv239-copy` @ `506ab72` (branch tip) | 2026-08-30 09:59:12 → 10:08:02 CST, load 20 at launch, 42–48 mid-run | **103 modules · 3105 tests · 529.9s · 8 workers · 3 modules red · 4 failures** |
 
 The four, by name, identical to the author's list:
 
@@ -277,8 +277,40 @@ FAIL: tests.test_kr_progress_provenance.TestBothOfTodaysWrongReadingsFlip
 FAIL: tests.test_heading_title.PerrysOwnHeadingTitles.test_none_of_them_contains_its_own_id
 ```
 
-**Ruling on the dispute: the author is right, and the number IS a property of
-the commit.** `49d83fc` extracted with `git archive` — no working tree, no
+**Ruling on the dispute: the author is right, the number IS a property of the
+commit, and I can name the mechanism that produces a 3.**
+
+**The fourth failure is invisible to a `FAIL:`/`ERROR:` grep.** `tests/run`
+prints `test_diagnose.…test_the_queue_register_reconciles_with_the_queue_on_this
+_repository` as a **bare traceback with no prefix**, while the other three carry
+`FAIL:`. From my own branch-tip run:
+
+```
+✗ test_diagnose.py
+Traceback (most recent call last):
+  File ".../tests/test_diagnose.py", line 1161, in test_the_queue_register_reconciles_with_the_queue_on_this_repository
+AssertionError: 3 != 1 : diagnose and perry-task disagree about how many queue rows are waiting on the user
+
+FAIL: test_perry_itself_passes_its_own_id_checks (test_diagnose.TestUserLoadFindings…)
+FAIL: test_none_of_them_contains_its_own_id (test_heading_title.PerrysOwnHeadingTitles…)
+FAIL: test_no_current_in_the_payload_claims_to_be_a_measurement (test_kr_progress_provenance…)
+```
+
+Count the prefixed lines and you get **3**. Count the failures and you get
+**4** — and `tests/run`'s own summary says `3 module(s) red`, which a reader can
+also mistake for a failure count. **That is almost certainly where TASK-249's
+agent's 3 came from, and it has nothing to do with the working tree.**
+
+The irony is worth recording: **this is the exact defect the author disclosed
+about their own harness** in `TASK-239-result.md § 4` — *"`rj239-mutate.py §
+named_failures` collects lines prefixed `FAIL:` / `ERROR:`, and `tests/run`
+prints one of the pre-existing failures … as a bare traceback with no such
+prefix. So every 'named failures' list in the harness output is short by that
+one."* They found the trap, said so out loud, corrected for it by using deltas
+instead of absolute counts — and it is the same trap that produced the number
+they were being second-guessed on. I walked into it myself on my first grep.
+
+Independent of that mechanism, the tree evidence points the same way: `49d83fc` extracted with `git archive` — no working tree, no
 uncommitted anything — gives **4**. Overlaying `main`'s uncommitted board edits
 gives **4**. So the "uncommitted board edits inflated it" hypothesis is
 falsified in both directions: I could not produce 3 from that commit's tree by
@@ -293,6 +325,28 @@ TASK-249's agent's 3 is therefore not explained by the working tree. Most
 likely it counted the three standing failures and set the fourth aside as the
 already-filed finding — but that is inference, and I say so rather than assert
 it.
+
+**The branch tip reproduces the author's figure exactly.** My own
+`bash tests/run` on the copy at `506ab72`: **103 modules · 3105 tests · 529.9s ·
+8 workers · 3 modules red**, and the four failures are the same four, with the
+same assertion messages:
+
+```
+AssertionError: 3 != 1 : diagnose and perry-task disagree about how many queue rows are waiting on the user
+AssertionError: Lists differ: ['ACTION-7', 'D009-1', 'D010-2', 'PROJ-003', 'SPEC-007'] != []
+AssertionError: Lists differ: [('TASK-050', 'V4 review — TASK-050 / 053 / 057 / 060')] != []
+AssertionError: [] is not true : the register carries no asserted `current`
+```
+
+The third is `test_heading_title`, naming the same 2026-08-18 document
+`49d83fc`'s commit message names. Wall time 529.9s against the author's 383.5s
+is load, not content: load 20 at launch rising to 48, against their 22–28.
+
+**`bash tests/run` wrote nothing into the tree it ran in.** I md5'd all **728**
+non-`.pyc` files in the copy before the run and after: **zero digests moved.**
+That independently corroborates the author's report, and says TASK-249's
+`intake-sweep` warning does not reproduce on this tree in this state — which is
+what the author said, in those terms.
 
 **The `+7` arithmetic checks out independently.** `tests.test_conformance` runs
 **69** at `49d83fc` and **76** at `506ab72` — exactly +7, exactly the seven
@@ -455,8 +509,9 @@ mint, the `bootstrap` refusal and `wrote None`, all on a throwaway; `find` and
 write-site checks for a re-added index, plus an attempt to defeat
 `TestNothingWritesAnIndex` by construction; ten mutations on a copy with md5
 restore verification, including four the author did not run; the full suite at
-the branch tip on a copy; the fork point extracted with `git archive` and run
-clean, then re-run with `main`'s uncommitted board state overlaid, to settle the
+the branch tip on a copy (**103 / 3105 / the same 4**), with all 728 of that
+copy's files md5'd before and after it to test TASK-249's write warning; the
+fork point extracted with `git archive` and run clean, then re-run with `main`'s uncommitted board state overlaid, to settle the
 baseline dispute; per-module test counts at both ends to verify `+7`;
 `perry-lint` on the branch tip (**0 errors, 4 warnings**, the four pre-existing
 `NS-01` notices); `perry-conform status` in both renders; `SKILL.md:197`,
@@ -465,20 +520,6 @@ baseline dispute; per-module test counts at both ends to verify `+7`;
 source; `git status --porcelain` on the reviewed worktree empty at start and end.
 
 **not checked** —
-- **The full `bash tests/run` at the branch tip.** Launched on the copy at
-  09:59 CST; the machine went to load 42–48 (other work on the box) and it had
-  not finished when this round closed. **So I did not independently confirm
-  "103 modules · 3105 tests · the same 4 failures" as one number.** What I did
-  confirm instead, and what makes the author's figure credible: the branch
-  touches exactly two test modules, both green at the tip
-  (`test_conformance` 76/76 OK, run eleven times across the mutation rounds;
-  `test_procedures_call_the_tool` 22/22 OK); the counts go 69 → 76 and 22 → 22,
-  so `+7` is arithmetically exactly the seven added tests; the fork point's four
-  failures are reproduced by name from a pristine `git archive`; and the only
-  non-test files the branch changes are `bin/perry-conform`, a comment block in
-  `bin/perry-decide`, and one reference page — the three files I mutated ten
-  ways, seeing exactly which tests in the suite notice each. A re-run of the
-  full suite at the tip on a quiet machine would close this properly.
 - **`unittest discover` on either tree.** Same gap the author and TASK-235's
   reviewer left open. I ran `bash tests/run` and per-module `unittest`.
 - **A full-suite run at `49d83fc` with the parallel runner.** I ran the four
