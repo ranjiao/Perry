@@ -195,10 +195,18 @@ question.
 `.perry/conformance.jsonl` with its dates and routes unchanged and deletes the
 markdown. It **declares nothing** — it writes only rows already in the record —
 so it is not the act `SKILL.md § Conformance gate` reserves to the user, and an
-agent may run it. It refuses rather than convert a file that is not byte-for-byte
+agent may run it. It refuses rather than convert a file that is not line-for-line
 what `perry-conform declare` would have written for what it parses to: a row
 inside a code fence, an HTML comment, `<pre>` or `<details>` is byte-for-byte a
 genuine row, and the only thing that can tell it apart is what surrounds it.
+(Line-for-line, not byte-for-byte: the comparison applies Python's
+universal-newline translation, so a record saved with CRLF converts.)
+
+**The refusal prints the diff.** `-` is the file, `+` is what Perry reads out of
+it, so a `-` line alone is a line to delete and a `+` line is one to restore —
+because on such a project nothing can write until the record is fixed, and a
+refusal that named no line would be the wall `perry-conform § message_for`
+forbids.
 
 Two facts, kept apart on purpose:
 

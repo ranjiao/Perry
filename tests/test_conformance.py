@@ -29,6 +29,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1301,12 +1302,27 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
     def canonical(self) -> str:
         return f"| BOARD.md | {self.VER} | 2026-08-28 | declare |\n"
 
-    def assert_conversion_refuses(self, p, why: str):
-        """`perry-conform migrate` refuses, and NOTHING was written.
+    def assert_conversion_refuses(self, p, why: str, names: str | None = None):
+        """`perry-conform migrate` refuses, NOTHING was written, **and the
+        refusal names the offending line and a command that fixes it.**
 
         Exit code and both files, not just the message: a crash and a refusal
         both print no declaration, and a conversion that wrote the store and
-        then reported a problem would have already gone through the door."""
+        then reported a problem would have already gone through the door.
+
+        **The last two assertions were missing and that is why the FAIL
+        happened.** This helper checked only `"refused" in out`, so a refusal
+        that named `perry-conform status` — a command that computes no diff and
+        reports nothing about the markdown's contents — shipped past the whole
+        suite. `bin/perry-conform § message_for` states the standard in the
+        same file the violation was in: *"a gate that says 'not conformant' and
+        stops is a wall — every branch here ends in a command the reader can
+        run."* Applying it here is what the helper is for.
+
+        `names` is the exact text the reader has to find in their file, when
+        the caller knows it. A refusal that prints a diff of the WRONG lines is
+        a refusal that passes every assertion above.
+        """
         rc, out, err = p.run(CONFORM, "migrate")
         self.assertEqual(rc, 1, f"{why}: the conversion did not refuse ({out})")
         self.assertIsInstance(out, dict, f"migrate printed no JSON: {out} {err}")
@@ -1316,6 +1332,29 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertTrue(p.legacy_marker().exists(),
                         f"{why}: the markdown record was deleted anyway")
         self.assertEqual(p.verdict("BOARD.md").state, C.UNDECLARED)
+
+        message = out["refused"]
+        self.assertIn("perry-conform migrate", message,
+                      f"{why}: the refusal names no command to run — a wall")
+        self.assertNotIn(
+            "perry-conform status", message,
+            f"{why}: the refusal points at `status`, which computes no diff "
+            f"and reports nothing about the markdown's contents")
+        # **The refusal must LOCATE the problem**, by one of the two shapes
+        # this tool has: a numbered line (the unreadable-rows branch, which
+        # always did) or a unified diff (the fixed-point branch, which did not
+        # and is the FAIL this helper failed to catch).
+        self.assertRegex(
+            message,
+            r"(--- " + re.escape(C.P.CONFORMANCE_LEGACY_FILE) + r"|line \d+:)",
+            f"{why}: the refusal locates nothing — neither a line number nor a "
+            f"diff — so the way forward is reading the file by eye while "
+            f"`declare`, `perry-migrate apply` and every gate call site refuse")
+        if names is not None:
+            self.assertIn(names, message,
+                          f"{why}: the refusal does not quote the offending "
+                          f"line {names!r} — locating the WRONG line passes "
+                          f"every other assertion here")
 
     # ── the control, shared by all three ──────────────────────────────────
 
@@ -1343,7 +1382,8 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [], "a backticked path cell still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
-        self.assert_conversion_refuses(p, "a backticked path cell")
+        self.assert_conversion_refuses(
+            p, "a backticked path cell", names="| `BOARD.md` |")
 
     # ── shape 2 ───────────────────────────────────────────────────────────
 
@@ -1353,7 +1393,8 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [], "an indented row still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
-        self.assert_conversion_refuses(p, "an indented row")
+        self.assert_conversion_refuses(
+            p, "an indented row", names=self.canonical().strip())
 
     # ── shape 3 ───────────────────────────────────────────────────────────
 
@@ -1364,7 +1405,8 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
                          "a row inside a code fence still declares a file")
         self.assertEqual(unreadable, 1,
                          "the row was dropped silently instead of reported")
-        self.assert_conversion_refuses(p, "a fenced row")
+        self.assert_conversion_refuses(
+            p, "a fenced row", names=self.canonical().strip())
 
     # ── the fence has to be markdown's fence ──────────────────────────────
     #
@@ -1384,7 +1426,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a backtick fence inside a tilde fence closed it")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a backtick fence in a tilde fence")
+        self.assert_conversion_refuses(
+            p, "a backtick fence in a tilde fence",
+            names=self.canonical().strip())
 
     def test_a_three_backtick_line_inside_a_four_backtick_fence_is_still_a_fence(self):
         """The other plain way: open with a LONGER run. A close must be at
@@ -1394,7 +1438,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
             "````\n```\n" + self.canonical() + "````\n")
         self.assertEqual(keys, [], "a short fence run closed a longer fence")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a short run inside a longer fence")
+        self.assert_conversion_refuses(
+            p, "a short run inside a longer fence",
+            names=self.canonical().strip())
 
     def test_a_tilde_fence_nested_in_a_backtick_fence_is_still_a_fence(self):
         """The mirror of the first, and it is not the same test: the toggle was
@@ -1406,7 +1452,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a tilde fence inside a backtick fence closed it")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a tilde fence in a backtick fence")
+        self.assert_conversion_refuses(
+            p, "a tilde fence in a backtick fence",
+            names=self.canonical().strip())
 
     def test_a_fence_line_with_trailing_text_does_not_close_the_fence(self):
         """An info string is allowed on the OPENING fence only. ```` ```x ````
@@ -1418,7 +1466,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a fence line with an info string closed a fence")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a fence line with an info string")
+        self.assert_conversion_refuses(
+            p, "a fence line with an info string",
+            names=self.canonical().strip())
 
     def test_a_four_space_indented_fence_line_does_not_close_the_fence(self):
         """A closing fence may be indented at most three spaces. At four it is
@@ -1430,7 +1480,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a four-space-indented fence line closed a fence")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a four-space-indented fence line")
+        self.assert_conversion_refuses(
+            p, "a four-space-indented fence line",
+            names=self.canonical().strip())
 
     def test_a_whole_table_inside_a_nested_fence_declares_nothing(self):
         """The shape that decided the mechanism.
@@ -1451,7 +1503,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
                          "an example table in a nested fence declared a file")
         self.assertEqual(unreadable, 2,
                          "the fenced rows were dropped silently, not reported")
-        self.assert_conversion_refuses(p, "an example table in a nested fence")
+        self.assert_conversion_refuses(
+            p, "an example table in a nested fence",
+            names=self.canonical().strip())
 
     # ── and the two the corner sweep says must stay shut ──────────────────
     #
@@ -1469,7 +1523,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a four-space-indented fence stopped opening one")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a four-space-indented opener")
+        self.assert_conversion_refuses(
+            p, "a four-space-indented opener",
+            names=self.canonical().strip())
 
     def test_a_backtick_fence_with_a_backtick_in_its_info_string_still_opens_one(self):
         self.assert_trap_would_have_worked()
@@ -1478,7 +1534,9 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
         self.assertEqual(keys, [],
                          "a backtick in the info string stopped opening a fence")
         self.assertEqual(unreadable, 1)
-        self.assert_conversion_refuses(p, "a backtick in the info string")
+        self.assert_conversion_refuses(
+            p, "a backtick in the info string",
+            names=self.canonical().strip())
 
     # ── the shape the round trip is blind to BY CONSTRUCTION (TASK-248) ────
 
@@ -1512,7 +1570,8 @@ class TestADecoratedRowIsNotADeclaration(unittest.TestCase):
                     f"a row inside {name} stopped reading as a row — then this "
                     f"test no longer measures the shape it exists for")
                 self.assertEqual(unreadable, 0)
-                self.assert_conversion_refuses(p, f"a row inside {name}")
+                self.assert_conversion_refuses(
+                    p, f"a row inside {name}", names="-" + wrap.split("%s")[0].strip())
 
     # ── a cell that cannot be written back at all ─────────────────────────
 
@@ -1993,6 +2052,149 @@ class TestTheMarkdownRecordIsConvertedOnce(unittest.TestCase):
         self.assertFalse(p.marker().exists())
         self.assertTrue(p.legacy_marker().exists(),
                         "the record was deleted anyway")
+
+
+class TestTheRefusalNamesTheLine(unittest.TestCase):
+    """**The V4 FAIL, and the standard it broke.**
+
+    The first version of this row shipped a refusal that told the reader to run
+    `perry-conform status`. Measured by the reviewer: `status` computes no
+    diff, reports nothing about the markdown's contents, and names
+    `perry-conform migrate` — the command that had just refused. No shipped
+    surface named the offending line, in text or `--json`; `status`, `check`,
+    `migrate`, `declare` and `perry-lint` were all checked. Meanwhile every
+    write path on such a project is closed: `declare` calls `migrate_record`
+    first and raises, `perry-migrate apply` refuses and rolls back, and all
+    three gate call sites refuse for want of a store.
+
+    So the claim *"the cost of refusing is look at your file"* was false. The
+    measured cost was: read 37 lines by eye, with no tool help, while nothing
+    can write. And `bin/perry-conform § message_for` states the standard in the
+    same file: *"a gate that says 'not conformant' and stops is a wall — every
+    branch here ends in a command the reader can run."*
+
+    It is reachable by ordinary editing: 7 of 9 plausible hand edits refuse,
+    and the edit the record's own header invites — *"delete a row to withdraw a
+    declaration"* — is one of the two that survive.
+    """
+
+    HEADER = None  # set in setUp
+
+    def record(self, body: str) -> Project:
+        p = Project()
+        p.legacy_marker().write_text("\n".join(C.LEGACY_HEADER) + "\n" + body)
+        return p
+
+    CANON = ("| .perry/hook.md | 2 | 2026-08-21 | declare |\n"
+             "| BOARD.md | 2 | 2026-08-20 | declare |\n")
+
+    def refusal(self, body: str) -> str:
+        p = self.record(body)
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 1, f"the conversion did not refuse: {out} {err}")
+        return out["refused"]
+
+    def test_the_canonical_record_still_converts(self):
+        """The control. Every test below asserts a REFUSAL, and a refusal is
+        free if the conversion refuses everything."""
+        p = self.record(self.CANON)
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"the control record refused: {out} {err}")
+
+    def test_deleting_a_row_still_withdraws_a_declaration(self):
+        """The second control, and it is the edit the file's own header
+        invites. If this ever refuses, the header is lying to the user."""
+        p = self.record("| BOARD.md | 2 | 2026-08-20 | declare |\n")
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"deleting a row refused: {out} {err}")
+        self.assertEqual(list(C.P.read_conformance(p.root).declarations),
+                         ["BOARD.md"])
+
+    def test_the_refusal_carries_a_diff_and_not_a_command_that_computes_none(self):
+        message = self.refusal(self.CANON + "\nre-declare OKR.md later\n")
+        self.assertIn("--- .perry/conformance.md", message,
+                      "the refusal carries no diff")
+        self.assertIn("+++ what Perry reads out of it", message)
+        self.assertIn("-re-declare OKR.md later", message,
+                      "the diff does not name the line the reader must delete")
+        self.assertIn("perry-conform migrate", message,
+                      "the refusal names no command to run")
+        self.assertNotIn("perry-conform status", message,
+                         "the refusal still points at a command that computes "
+                         "no diff and says nothing about this file")
+
+    def test_the_diff_says_which_direction_is_which(self):
+        """A hunk with no legend is a hunk the reader has to guess at."""
+        message = self.refusal(self.CANON + "stray\n")
+        self.assertIn("`-` is your file", message)
+        self.assertIn("`+` is what Perry reads out of it", message)
+
+    def test_each_plausible_hand_edit_is_located_by_the_diff(self):
+        """One subTest per edit, so a fix that located one would still go red
+        on the others."""
+        for name, body, must_name in (
+                ("a trailing blank line", self.CANON + "\n", "@@"),
+                ("a note under the table",
+                 self.CANON + "\nreminder: check OKR.md\n",
+                 "-reminder: check OKR.md"),
+                ("rows re-ordered by hand",
+                 "| BOARD.md | 2 | 2026-08-20 | declare |\n"
+                 "| .perry/hook.md | 2 | 2026-08-21 | declare |\n",
+                 "-| .perry/hook.md | 2 | 2026-08-21 | declare |"),
+                ("a row hidden in an HTML comment",
+                 self.CANON + "<!--\n| OKR.md | 2 | 2026-08-20 | declare |\n-->\n",
+                 "-<!--")):
+            with self.subTest(edit=name):
+                message = self.refusal(body)
+                self.assertIn("--- .perry/conformance.md", message, name)
+                self.assertIn(must_name, message,
+                              f"{name}: the diff does not locate it")
+
+    def test_a_wholly_rewritten_record_is_capped_and_says_how_much_it_dropped(self):
+        """A refusal is read in a terminal. A whole record replaced by hand
+        would print two lines per row and bury its own last sentence — the
+        command to run — so the hunk is capped, and the cap says how many lines
+        it dropped rather than trailing off."""
+        rows = [f"| phase/{i:03d}-x.md | 2 | 2026-08-20 | declare |\n"
+                for i in range(60)]
+        # Reversed, so the file differs from the record almost everywhere — a
+        # stray line at the end of a long file makes a two-line hunk, which is
+        # the point of the tight context and not a case the cap has to handle.
+        message = self.refusal("".join(reversed(rows)))
+        self.assertIn("more diff line(s)", message,
+                      "the hunk was not capped")
+        # The diff BLOCK, not every indented line in the message — the
+        # `perry-conform migrate` the last sentence names is indented too, and
+        # counting it made this assertion off by one in the direction that
+        # hides a cap one line too loose.
+        block = message[message.index("    --- "):message.index("\n\nFix those")]
+        self.assertLessEqual(len(block.split("\n")), C.DIFF_CAP + 1,
+                             "the cap did not hold")
+        self.assertTrue(message.rstrip().endswith("**Nothing was written.**"),
+                        "the diff buried the message's last sentence")
+
+    def test_a_crlf_record_converts_and_the_wording_does_not_say_byte(self):
+        """**"Byte-for-byte" overclaimed and the phrase is gone.** The
+        comparison is against `Path.read_text()`, which applies universal
+        newline translation, so a record saved with CRLF converts. That is the
+        behaviour we want — a CRLF record is still Perry's record — but the
+        docstring said "byte-for-byte", which it is not. Pinned so the sentence
+        and the code cannot drift apart again."""
+        p = Project()
+        p.legacy_marker().write_text(
+            ("\n".join(C.LEGACY_HEADER) + "\n" + self.CANON).replace("\n", "\r\n"),
+            newline="")
+        self.assertIn(b"\r\n", p.legacy_marker().read_bytes(),
+                      "the fixture is not CRLF, so this measures nothing")
+        rc, out, err = p.run(CONFORM, "migrate")
+        self.assertEqual(rc, 0, f"a CRLF record refused: {out} {err}")
+        self.assertEqual(sorted(C.P.read_conformance(p.root).declarations),
+                         [".perry/hook.md", "BOARD.md"])
+        source = (PERRY_HOME / "bin" / "perry-conform").read_text()
+        self.assertNotIn(
+            "byte-for-byte what", source,
+            "the refusal or its docstring claims a byte comparison it does not "
+            "make — `read_text` translates newlines")
 
 
 class TestWhatTheConversionDoesNotDissolve(unittest.TestCase):

@@ -69,6 +69,7 @@ read-only; `declare` and `migrate` write `.perry/conformance.jsonl` (and
 
 from __future__ import annotations
 
+import difflib
 import importlib.machinery
 import importlib.util
 import json
@@ -484,7 +485,17 @@ def gate(project_root: Path, state_root: Path, key: str, tool: str,
 # `.perry/conformance.md` was the record until TASK-234 and is a conversion
 # SOURCE afterwards. The two constants below are the markdown writer that used
 # to exist, kept for exactly one purpose: to say whether a project's markdown
-# record is byte-for-byte what that writer would have produced.
+# record is line-for-line what that writer would have produced.
+#
+# **Line-for-line, not byte-for-byte, and the difference is stated because the
+# first version of this row claimed the stronger thing.** The comparison is
+# against `Path.read_text()`, which applies Python's universal-newline
+# translation, so a record saved with CRLF converts. That is the behaviour we
+# want — a CRLF record is still Perry's record, and refusing it would strand a
+# Windows checkout with no way forward — but "byte-for-byte" was not what the
+# code did. Pinned by `tests/test_conformance.py § TestTheRefusalNamesTheLine
+# .test_a_crlf_record_converts_and_the_wording_does_not_say_byte`, which
+# asserts the behaviour AND that this file has stopped claiming the other one.
 
 LEGACY_HEADER = [
     "# Perry conformance",
@@ -526,6 +537,49 @@ class LegacyRecordRefused(Refused):
     """The markdown record is not convertible as it stands. Nothing was written."""
 
 
+#: How many diff lines a refusal prints before it stops.
+#:
+#: A refusal is read in a terminal. Perry's own record is 37 lines, so a whole
+#: record replaced by hand would print 74 and bury its own last sentence — the
+#: command to run. Forty is more than any plausible hand edit and less than a
+#: file; past it the message says how many it dropped, which is a number the
+#: reader can act on where a truncated hunk is not.
+DIFF_CAP = 40
+
+
+def record_diff(authored: str, canonical: str) -> str:
+    """What is in the file and not in the record, and the other way round.
+
+    **This is the mitigation the refusal below depends on, and the first
+    version of this row shipped without it.** That refusal told the reader to
+    run `perry-conform status`, and `status` computes no diff, says nothing
+    about the markdown's contents, and names `perry-conform migrate` — the
+    command that had just refused. So the way forward was *read 37 lines by
+    eye*, while `declare`, `perry-migrate apply` and all three gate call sites
+    were refusing for want of a store. `bin/perry-conform § message_for` states
+    the standard this violated in this same file: *"a gate that says 'not
+    conformant' and stops is a wall — every branch here ends in a command the
+    reader can run."* Found by the V4 reviewer, who measured that 7 of 9
+    plausible hand edits refuse and that one of the survivors is the edit the
+    record's own header invites.
+
+    `-` is the authored file and `+` is what the record parses to, which is the
+    direction that makes the fix obvious: a `-` line with no `+` beside it is a
+    line to delete, and a `+` line is one to restore.
+    """
+    lines = list(difflib.unified_diff(
+        authored.splitlines(), canonical.splitlines(),
+        fromfile=P.CONFORMANCE_LEGACY_FILE, tofile="what Perry reads out of it",
+        lineterm="", n=1))
+    dropped = max(0, len(lines) - DIFF_CAP)
+    shown = ["    " + line for line in lines[:DIFF_CAP]]
+    if dropped:
+        shown.append(f"    … and {dropped} more diff line(s); the whole file "
+                     f"differs, so compare it yourself rather than by this "
+                     f"excerpt")
+    return "\n".join(shown)
+
+
 def migrate_record(project_root: Path) -> dict | None:
     """`.perry/conformance.md` → `.perry/conformance.jsonl`, once, losslessly.
 
@@ -546,8 +600,9 @@ def migrate_record(project_root: Path) -> dict | None:
     granted — an exemption would be a hole; this is a file the gate has no
     opinion about.
 
-    **The conversion refuses unless the whole markdown file is exactly what
-    `render_legacy` would have written for what it parses to.** Per-row round
+    **The conversion refuses unless the whole markdown file is line-for-line
+    what `render_legacy` would have written for what it parses to** (newline
+    style excepted; see the note above `LEGACY_HEADER`). Per-row round
     tripping is what `read_legacy_conformance` already does and it is not
     enough here, because two known classes are invisible to it BY
     CONSTRUCTION — a row inside a code fence (TASK-241) and a row inside
@@ -578,18 +633,23 @@ def migrate_record(project_root: Path) -> dict | None:
             + "\n".join(f"    line {n}: {t}" for n, t in record.unreadable)
             + f"\nFix or delete each row by hand, then run `perry-conform "
               f"migrate` again. **Nothing was written.**")
-    if render_legacy(record.declarations) != text:
+    canonical = render_legacy(record.declarations)
+    if canonical != text:
         raise LegacyRecordRefused(
-            f"{P.CONFORMANCE_LEGACY_FILE} is not byte-for-byte what "
-            f"`perry-conform declare` would have written for the "
-            f"{len(record.declarations)} declaration(s) in it, so this "
-            f"conversion cannot say it is carrying the record across rather "
-            f"than a reading of it. A row inside a code fence, an HTML "
-            f"comment, `<pre>` or `<details>` looks exactly like a real one "
-            f"and is not one; so does an edited header or a stray blank line. "
-            f"Diff it against the record and remove what does not belong:\n"
-            f"    perry-conform status\n"
-            f"then run `perry-conform migrate` again. **Nothing was written.**")
+            f"{P.CONFORMANCE_LEGACY_FILE} is not what `perry-conform declare` "
+            f"would have written for the {len(record.declarations)} "
+            f"declaration(s) in it, so this conversion cannot say it is "
+            f"carrying the record across rather than a reading of it. A row "
+            f"inside a code fence, an HTML comment, `<pre>` or `<details>` "
+            f"looks exactly like a real one and is not one; so does an edited "
+            f"header, a reordered row or a stray blank line.\n\n"
+            f"Here is the difference. `-` is your file; `+` is what Perry "
+            f"reads out of it, so a `-` line alone is a line to delete and a "
+            f"`+` line is one to restore:\n\n"
+            + record_diff(text, canonical)
+            + f"\n\nFix those lines, then run:\n"
+              f"    perry-conform migrate\n"
+              f"**Nothing was written.**")
     # **Provenance stays empty on every converted declaration.** The markdown
     # held four columns and none of them was a writer, a moment or a run;
     # stamping this conversion's own clock onto a decision the user made on
