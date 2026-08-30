@@ -2191,6 +2191,142 @@ REGISTER_SPEC = {
              perry_store.ask_section_shape),
 }
 
+#: **What identifies a record of each register, for the substitution report.**
+#:
+#: This is NOT the invariant and it gates nothing (TASK-243). `refuse_to_shrink`
+#: asks one question about two integers and USER-906 chose that deliberately;
+#: a fifth predicate on it is the door the amendment forbids by name. What
+#: lives here is the other question — not "are there fewer" but "are they the
+#: same ones" — and its only consumer is a REPORT.
+#:
+#: Two of the three registers already carry an identity the board row can be
+#: matched against, and it did not save them: measured 2026-08-30, a hand
+#: substitution on `## User Input Queue` destroyed `USER-014`'s canonical
+#: record at rc 0 with the id sitting in both the store and the board. So the
+#: missing half was never the identity — it was that nobody compared the two
+#: sets across a write, and nobody said anything when they differed.
+#:
+#: `intake` has no id, so its identity is its content, and it is the SAME
+#: tuple `carry_forward_is_addressable` joins on. One tuple, one place: if the
+#: two came apart, a row this file called "the same request" for the purpose
+#: of carrying `discharged` would be a different request for the purpose of
+#: reporting a loss, and both answers would be printed by the same command.
+REGISTER_IDENTITY = {
+    "risks": lambda r: r.get("id"),
+    "asks": lambda r: r.get("id"),
+    "intake": lambda r: (r.get("request"), r.get("arrived")),
+}
+
+#: How many of a substitution's lost records are named before the tail is
+#: summarised. `bin/perry-lint § DRIFT_ROWS_SHOWN` caps its listing for the
+#: same reason and by the same rule: the cap is on the OUTPUT, never on the
+#: count — a report that shortened its own number to fit the terminal would be
+#: the exact failure this row exists to close.
+SUBSTITUTION_RECORDS_SHOWN = 5
+
+
+def substituted_away(key: str, current: list[dict],
+                     records: list[dict]) -> list[dict]:
+    """Stored records this write does not carry forward, **by identity**.
+
+    **A count-preserving substitution destroys canonical records silently, and
+    the drift report goes DOWN as it happens.** Swap N `## Intake` rows on the
+    board by hand — same count, different rows — and every register-touching
+    command persists the swap. Measured 2026-08-30 on this repository's own
+    data: 10 records lost, 10 gained, rc 0, `perry-lint` going from
+    `10 row(s) drifted` to `0 row(s) drifted` **as the records are destroyed**.
+    Also on `asks.jsonl` and `risks.jsonl`, and on the `zh` fixture.
+
+    `refuse_to_shrink` is not wrong about this and is not asked about it: 32 to
+    32 is not fewer, the amendment is a count rule, and it is correct as one.
+
+    **Matched as a MULTISET, not a set.** Two intake rows with the same Request
+    on the same day is the ordinary shape of a thing filed twice — it is why
+    `dropped — duplicate` exists — and under set subtraction two stored copies
+    would be answered by one derived copy, so deleting one of a pair by hand
+    would report nothing. Every stored record needs its own counterpart.
+
+    Iterating `current` in file order makes WHICH record is reported
+    deterministic when identities repeat. It cannot be the right one in that
+    case, because in that case there is no right one; it can be stable, and a
+    report that names a different record on every run is a report nobody can
+    act on.
+    """
+    identity = REGISTER_IDENTITY[key]
+    available: dict = {}
+    for record in records:
+        ident = identity(record)
+        available[ident] = available.get(ident, 0) + 1
+    lost: list[dict] = []
+    for record in current:
+        ident = identity(record)
+        if available.get(ident, 0) > 0:
+            available[ident] -= 1
+        else:
+            lost.append(record)
+    return lost
+
+
+def substitution_report(key: str, path: Path, lost: list[dict],
+                        declared: int, dry_run: bool = False) -> str | None:
+    """The loud line, or `None` when every lost record was declared removed.
+
+    **Reported, never refused, and the choice is forced rather than
+    conventional (TASK-243).** Perry cannot tell a destructive hand edit from a
+    legitimate one here, and the reason is structural: on `## Intake` a record's
+    identity IS its text, so fixing a typo in a Request cell and swapping the
+    row out from under a stored record are the same edit at the set level.
+    A refusal would block the typo fix and name `perry-tasks intake-write
+    --from-board` as the remedy for it — which is TASK-095 round 5's defect
+    exactly, an ordinary hand-edit workflow hard-blocked by a widened refusal.
+    A tool that cannot tell the two apart must say what it sees and let the
+    person who made the edit decide. That is `ADR-007`'s posture and
+    `perry-state § reconcile_drift`'s, and here it is the only honest one.
+
+    **The declaration is subtracted, and only the excess is a finding.**
+    `intake-sweep` removes the rows it swept, and those records are lost by
+    identity because they are supposed to be — reporting them would make every
+    ordinary sweep print a destruction notice, and a report that cries wolf on
+    the ordinary case is a report that gets piped to `/dev/null`. The number
+    read here is `declared_removal(event)`'s, so the report and the invariant
+    cannot come to disagree about what a command removes.
+
+    The message names both integers and lists the whole loss rather than
+    guessing which records the declaration covered. On `intake-sweep` with a
+    hand substitution underneath it, "which of these eleven were the one you
+    swept" is a question about the board, and answering it by guessing would
+    put a wrong record's text in a report about data loss.
+    """
+    unaccounted = len(lost) - declared
+    if unaccounted <= 0:
+        return None
+    identity = REGISTER_IDENTITY[key]
+    shown = [str(identity(r)) for r in lost[:SUBSTITUTION_RECORDS_SHOWN]]
+    tail = ("" if len(lost) <= SUBSTITUTION_RECORDS_SHOWN else
+            f", and {len(lost) - SUBSTITUTION_RECORDS_SHOWN} more")
+    verb = "would not survive" if dry_run else "did not survive"
+    declared_note = (
+        "" if not declared else
+        f"This command declares it removes {declared} record(s), so "
+        f"{unaccounted} of them {'are' if unaccounted != 1 else 'is'} "
+        f"unaccounted for. ")
+    return (
+        f"⚠ {len(lost)} canonical {key} record(s) {verb} this write, and the "
+        f"board carries no row for them: {'; '.join(shown)}{tail}. "
+        f"{declared_note}"
+        f"Nothing removed them — `## {REGISTER_SPEC[key][0]}` was edited by "
+        f"hand so that the rows they were derived from are gone, and this "
+        f"write persisted that edit. The count did not fall, so USER-906's "
+        f"invariant is silent here and `perry-lint` will now report "
+        f"`0 row(s) drifted` against {path.name}: the disagreement is real "
+        f"and it has just been resolved in the board's favour. The lost "
+        f"records are in the `substituted` field of this write's event in "
+        f"`.perry/events.jsonl`. To put them back, restore the rows on "
+        f"`## {REGISTER_SPEC[key][0]}` and re-run "
+        f"`perry-tasks {key}-write --from-board`. That is the same "
+        f"board-to-store direction `refuse_to_shrink` names, and it is gated.")
+
+
 #: **How many records each removal command DECLARES that it removes.**
 #:
 #: The permission is to remove WHAT THE COMMAND REMOVES, not to persist
@@ -2409,7 +2545,11 @@ def carry_forward_is_addressable(key: str, derived: list[dict],
     stored = {r.get("order"): r for r in current
               if isinstance(r.get("order"), int)
               and not isinstance(r.get("order"), bool)}
-    identity = lambda r: (r.get("request"), r.get("arrived"))  # noqa: E731
+    # `REGISTER_IDENTITY["intake"]`, not a second copy of the tuple. TASK-243
+    # put the same join in the substitution report, and two spellings of "the
+    # same request" would let one command carry a flag forward and the other
+    # call the record lost, in the same write.
+    identity = REGISTER_IDENTITY[key]
     identities = [identity(r) for r in stored.values()]
     if len(set(identities)) != len(identities):
         return False
@@ -2421,8 +2561,8 @@ def carry_forward_is_addressable(key: str, derived: list[dict],
 
 
 def register_change(state_root: Path, board: Board,
-                    event: dict) -> tuple[Path, str, str, int] | None:
-    """`(path, text, key, count)` for the register this event touched, or None.
+                    event: dict) -> tuple[Path, str, str, int, list[dict]] | None:
+    """`(path, text, key, count, lost)` for the register this event touched, or None.
 
     Derived from the board AS MUTATED, merging the stored record for each
     surviving key — the same two-source shape `commit()` uses for tasks, and
@@ -2467,7 +2607,12 @@ def register_change(state_root: Path, board: Board,
             f"`## {_section}` produces a {key} store this tool cannot read "
             f"back, so nothing was written. First finding: "
             f"{json.dumps(bad[0], ensure_ascii=False)}")
-    return path, perry_store.store_text(records), key, len(records)
+    # `records`, not `derived`: what a write destroys is measured against what
+    # the write actually persists, so the answer cannot drift from the bytes.
+    # This asks a different question from the line above it and does not gate
+    # anything — `substituted_away` returns a list and `commit` reports it.
+    return (path, perry_store.store_text(records), key, len(records),
+            substituted_away(key, current, records))
 
 
 def replace_canonical_pair(state_root: Path,
@@ -2731,6 +2876,26 @@ def commit(project_root: Path, state_root: Path, board: Board,
     # staged, so a register the board cannot produce a readable store for
     # refuses the whole write rather than half of it (TASK-203).
     register = register_change(state_root, board, event)
+    # **The loud half of TASK-243.** A shrink is refused; a count-preserving
+    # substitution is REPORTED, because Perry cannot tell it from a legitimate
+    # hand edit and a tool that cannot tell must not refuse. The lost records
+    # go into the EVENT, not only onto the terminal: stderr is read once and
+    # `.perry/events.jsonl` is what `load_register_records` already names as
+    # the place a canonical store is restored from, so this is the difference
+    # between a warning and a way back.
+    lost = register[4] if register else []
+    warning = (substitution_report(register[2], register[0], lost,
+                                   declared_removal(event), dry_run)
+               if lost else None)
+    # Only when the report fires. `intake-sweep` does not carry its swept rows
+    # forward either, and they are accounted for by the command itself, which
+    # is already in this event — putting them under the same key would make
+    # `substituted` mean "left the store" in one line and "left the store and
+    # nothing asked it to" in the next, and a reader would have to re-derive
+    # the difference to know which it had.
+    substituted = lost if warning else []
+    if substituted:
+        event["substituted"] = substituted
 
     spath = perry_store.store_path(state_root)
     jpath = state_root / "journal" / f"{date.today():%Y-%m}" / f"{date.today():%Y-%m-%d}.md"
@@ -2743,7 +2908,14 @@ def commit(project_root: Path, state_root: Path, board: Board,
         # the success line reads it, and the reason this row exists is that the
         # line used to assert a store write nothing had performed.
         "register_store": ({"name": register[2], "path": str(register[0]),
-                            "records": register[3]} if register else None),
+                            "records": register[3],
+                            # The report, in the payload as well as on stderr:
+                            # a `--json` caller reads this and never sees the
+                            # stream. Empty is the ordinary answer and it is
+                            # still present, so "the key is missing" and "no
+                            # record was destroyed" cannot be confused.
+                            "substituted": substituted}
+                           if register else None),
         "board": str(board.path),
         "journal": str(jpath),
         "events": str(events_path(project_root)),
@@ -2774,6 +2946,8 @@ def commit(project_root: Path, state_root: Path, board: Board,
         if earlier:
             plan["projection"][key] = earlier + plan["projection"][key]
     if dry_run:
+        if warning:
+            print(f"perry-task: {warning}", file=sys.stderr)
         return plan
 
     jtext = ""
@@ -2812,6 +2986,13 @@ def commit(project_root: Path, state_root: Path, board: Board,
         canonical.append((register[0], register[1]))
     canonical.append((jpath, jtext))
     replace_canonical_pair(state_root, canonical)
+    # After the write, not before it: this sentence is in the past tense and a
+    # report of a destruction that then failed to happen would be the same
+    # class of false claim the row is about. The refusal path is the opposite
+    # and stays where it is — `refuse_to_shrink` raises before anything is
+    # staged, because a refusal must mean nothing was written.
+    if warning:
+        print(f"perry-task: {warning}", file=sys.stderr)
 
     # `BOARD.md`, re-rendered from what was just stored. Outside the pair for
     # the same reason the event log is: it is derived, one command regenerates
