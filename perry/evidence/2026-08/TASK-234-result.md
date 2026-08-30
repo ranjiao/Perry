@@ -347,7 +347,7 @@ I expected this one to die and it does not. Measured:
   mutation **M10**). A one-way door that destroys a line the user typed is not
   something to leave for a follow-up row.
 
-## 6 · Mutations — 20/20 reddened their named test
+## 6 · Mutations — 21/21 reddened their named test
 
 Harness: `tests/mutate_task_234.py`. Uniquely named; **refuses a dirty tree**;
 anchors on exact text and asserts the anchor is **unique** in the file; resolves
@@ -375,8 +375,20 @@ mutating; restores by `md5` and asserts the digest.
 | M16 | `bin/perry-migrate:1906` | `run=run_id` → `run=""` | `tests.test_migrate … test_the_declaration_goes_through_perry_conform_and_is_the_only_record` |
 | M17 | `bin/perry-migrate:1776` | drop the legacy record from the restore point | `tests.test_migrate … test_restore_also_withdraws_the_declarations_the_run_wrote` |
 | M18 | `bin/perry-migrate:1842` | drop the legacy `preflight_file_object` | `tests.test_migrate … test_a_symlinked_markdown_record_is_refused_before_state_writes` |
+| M21 | `bin/perry-migrate:1921` | `except (OSError, Refused, C.Refused, ValueError)` → drop `C.Refused` | `tests.test_migrate … test_an_unconvertible_markdown_record_refuses_and_names_the_way_back` |
 | M19 | `viewer/parsers.py:816` | `if header_index([rel]).column("file", "path") == 0 or not rel:` → `if False:` | `tests.test_one_header_rule … test_a_bolded_header_is_not_reported_as_a_broken_row` |
 | M20 | `viewer/parsers.py:860` | `if canonical != line:` → `if False:` | `test_a_backticked_path_cell_is_not_a_declaration` |
+
+**M21 is a defect this row introduced, found by reading the handler.**
+`apply_plan`'s `except (OSError, Refused, ValueError)` around the declaration
+uses `bin/perry-migrate`'s own `Refused`. `declare()` gained a step that can
+refuse — the record conversion — so `bin/perry-conform`'s refusal is a different
+class and walked straight past it: fully migrated, restore point on disk and
+**never named**, raw traceback. That is Site 3's own documented failure mode,
+verbatim, made reachable by this row. Fixed, tested
+(`test_an_unconvertible_markdown_record_refuses_and_names_the_way_back`, which
+asserts the refusal names `perry-migrate restore` and that stderr carries no
+`Traceback`), and pinned.
 
 **M11 found a real hole and it is the reason to run these.** The first pass had
 no test that called `migrate` on a project holding *both* records. With the guard
@@ -404,7 +416,8 @@ counted: `test_no_current_in_the_payload_claims_to_be_a_measurement` and
 `TASK-050` multi-row document and nothing this row added), and one in
 `test_kr_progress_provenance.py`. **No new failure.** 3098 → 3122 is +24: +22 in
 `test_conformance.py`, +1 in `test_migrate.py` (the symlink preflight became two
-tests), +1 in `test_procedures_call_the_tool.py`.
+tests), +1 in `test_procedures_call_the_tool.py`. A 22nd landed after that run
+(`test_migrate.py`, the M21 defect below), so the branch head carries 3123.
 
 An earlier run at 09:25 had a **fifth** red module, `test_claims.py`, and it was
 this row's own defect: § 12 was appended AFTER `if __name__ == "__main__":`, so
@@ -439,7 +452,7 @@ of the symptom is not absence of the defect: TASK-249 stands.
 | `.perry/conformance.md` → `.perry/conformance.jsonl` | Perry's own record, 23 declarations |
 | `tests/test_conformance.py` | 69 → 91 |
 | `tests/test_migrate.py`, `tests/test_one_header_rule.py`, `tests/test_header_index_is_the_only_fold.py`, `tests/test_procedures_call_the_tool.py` | see § 4.5 and § 9 |
-| `tests/mutate_task_234.py` | new |
+| `tests/mutate_task_234.py` | new — 21 mutations |
 
 ## 9 · Blast radius beyond "two functions"
 
