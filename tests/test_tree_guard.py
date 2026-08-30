@@ -589,6 +589,40 @@ class TestTheManifest(unittest.TestCase):
         self.assertEqual(TG.IGNORE_SUFFIXES, (".pyc", ".pyo"))
         self.assertEqual(set(TG.IGNORE_NAMES), {".DS_Store"})
 
+    def test_every_ignored_name_is_a_bullet_in_the_list_of_what_is_missed(self):
+        """**Every entry on those three lists is a permanent hole, and the
+        list of holes has to contain all of them.**
+
+        This is the round-3 V4 blocker turned into a test rather than a
+        promise. `.claude` and `.gstack` were in `IGNORE_DIRS` and absent
+        from *"What it does NOT catch, said plainly"* — while `.DS_Store` and
+        `__pycache__`, strictly narrower holes, each had a bullet. A list
+        whose entire job is to say what is uncovered, that omits the widest
+        entry while naming two smaller ones, is worse than no list: it reads
+        as complete. The section says so itself — *"They are listed so that
+        the next reader inherits the list rather than rediscovering it"*.
+
+        The pin above catches a list that GREW. This catches a list that grew
+        **without the reader being told**, which is the same edit one step
+        earlier and the one that actually happened.
+        """
+        doc = TG.__doc__ or ""
+        head = "## What it does NOT catch, said plainly"
+        self.assertEqual(doc.count(head), 1,
+                         "the section this test reads is not uniquely "
+                         "identifiable in tree_guard.py's docstring")
+        start = doc.index(head)
+        end = doc.find("\n## ", start + 1)
+        section = doc[start:] if end == -1 else doc[start:end]
+        for name in sorted(set(TG.IGNORE_DIRS) | set(TG.IGNORE_NAMES)
+                           | set(TG.IGNORE_SUFFIXES)):
+            with self.subTest(ignored=name):
+                self.assertIn(
+                    name, section,
+                    f"{name!r} is ignored by the guard — a permanent hole — "
+                    f"and the one list whose job is to tell the next reader "
+                    f"what is uncovered does not mention it")
+
     def test_the_four_files_of_this_row_are_never_invisible(self):
         """The pin above catches a list that GREW, by name. This catches the
         same attack by CONSEQUENCE, and it does not care which of the three
