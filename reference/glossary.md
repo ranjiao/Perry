@@ -145,11 +145,6 @@ A named stream of work inside one project, declared in `.perry/config.md §
 Tracks`. A blank `Track` cell means the implicit `main` track.
 Implemented: schema/state-schema.json
 
-### restore point
-The copy `perry-migrate` takes before it writes, so a migration can be undone
-as a unit.
-Implemented: bin/perry-migrate
-
 ### knowledge card
 A reusable claim about how to do something correctly, with mandatory
 provenance. Distinguished from a digest by its `Kind:`.

@@ -101,7 +101,6 @@ WATCHED = [
     "replace_row",             # bin/perry-task
     "canonical_of",            # bin/perry-goals
     "markdown_tables",         # bin/perry_store.py
-    "fix_tables",              # bin/perry-migrate
     "cmd_intake_write",        # bin/perry-tasks
 ]
 
@@ -448,8 +447,6 @@ class TestOnlyHeaderIndexFoldsAHeaderCell(unittest.TestCase):
         perry_store.markdown_tables(OKR_TABLE, 0, len(OKR_TABLE), lambda s: s)
         import perry_md_store                    # noqa: E402
         perry_md_store.scan_okr(OKR)
-        load("perry-migrate").fix_tables(
-            MIGRATE_LINES, MIGRATE_SPEC, {}, [], [], root_arg=None)
         self.drive_intake_write()
         self.drive_the_carried_row_readers()
 

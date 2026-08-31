@@ -1,7 +1,7 @@
 ---
 linkage: 1
 phase: "003-storage-code"
-updated: "2026-08-30T02:22:30Z"
+updated: "2026-08-31T02:53:21Z"
 objectives:
   - id: O1
     title: "Every declared store exists, and one command checks all of them"
@@ -52,13 +52,6 @@ objectives:
   - id: O3
     title: "The phase's KRs cover the work that actually runs"
     krs:
-      - id: P003-O3-KR1
-        title: "Open `main`-track rows in neither `objectives[].krs[].tasks[]` nor a declared `unlinked[]` — the never-asked state"
-        metric: "0 (baseline 45 of 45 at phase start, measured by `perry-state --section attribution` on 2026-08-28)"
-        target: 0
-        stretch: false
-        linked: "KR-O2.3"
-        tasks: []
       - id: P003-O3-KR2
         title: "Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add`"
         metric: "100% of rows added this phase (baseline 0 — the edge is a separate step nobody takes)"
