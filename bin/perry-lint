@@ -56,8 +56,13 @@ otherwise be no way to accept one.
   --reviews     advisory pass over V4 VERDICT blocks (work/reference/review.md
                 section 3): every block readable, every FAIL naming a file, every
                 V4 close carrying one, and no row left at `review` after its
-                own verdict already failed it. Prints the block count even at
-                zero findings.
+                own verdict already failed it. Also reports a row that has
+                FAILed TWICE without escalating (`review-rounds-exhausted`) —
+                round 3 is where this board stopped converging. That limit is
+                `schema § thresholds.review_fail_rounds_before_escalation`,
+                overridable per project (`- Review rounds before escalation:`)
+                and per run (`PERRY_REVIEW_ROUNDS`); the finding names its
+                source. Prints the block count even at zero findings.
   --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
                 the four provenance fields present, `Source:` resolving to
                 something a reader can re-open, and staleness against
@@ -1970,6 +1975,68 @@ def check_glossary(project_root: Path) -> list["Finding"]:
     return findings
 
 
+#: The store key `- Review rounds before escalation: N` mints, per the same
+#: label→key rule every other setting follows (`Document language` →
+#: `document_language`).
+ROUNDS_SETTING_KEY = "review_rounds_before_escalation"
+
+
+def rounds_before_escalation(project_root: Path) -> tuple[int, str]:
+    """How many V4 FAILs a row may take, and WHERE that number came from.
+
+    Most specific wins, the same order `perry-conform § gate_mode` established
+    for `Conformance gate`: env `PERRY_REVIEW_ROUNDS` beats the project's
+    declared `Review rounds before escalation` beats the shipped default in
+    `schema § thresholds`.
+
+    **The source is returned beside the number** because a threshold that
+    fires without saying which register set it is the shape this repository
+    keeps re-finding — a rule stated in one place and implemented from
+    another. A reader who disagrees with the gate needs to know which file to
+    edit.
+
+    **The store answering without the key is an ANSWER**, not a reason to read
+    the markdown: the store is derived from the preamble, so a key it does not
+    carry is a line the file does not have. Falling through there would
+    reintroduce the two-registers problem TASK-233 removed.
+    """
+    # **A limit below 1 is not a limit, it is an inversion.** `len(fails) <
+    # 0` is never true, so a declared 0 would fire this finding on every live
+    # row carrying any verdict block at all — including rows with zero FAILs.
+    # Values under 1 are refused here rather than clamped, so the report names
+    # the register that actually set the number in force.
+    #
+    # **Every return below is >= 1, and the caller relies on exactly that.**
+    # A second guard at the comparison was written first and then deleted: it
+    # was unreachable while this holds, and two implementations of one rule is
+    # the defect this repository finds most often. The invariant is pinned by
+    # `test_the_resolver_never_returns_a_limit_below_one` instead.
+    env = (os.environ.get("PERRY_REVIEW_ROUNDS") or "").strip()
+    if env.isdigit() and int(env) >= 1:
+        return int(env), "PERRY_REVIEW_ROUNDS"
+
+    declared, register = None, ""
+    stored, _why = P.config_store_settings(Path(project_root))
+    if stored is not None:
+        declared = (stored.get(ROUNDS_SETTING_KEY) or "").strip()
+        register = ".perry/config.jsonl"
+    else:
+        cfg = Path(project_root) / ".perry" / "config.md"
+        if cfg.exists():
+            m = re.search(r"Review rounds before escalation\s*[:：]\s*([^\n]+)",
+                          cfg.read_text(errors="replace"), re.I)
+            declared = m.group(1).strip().strip("*` ") if m else None
+            register = ".perry/config.md"
+    if declared and declared.isdigit() and int(declared) >= 1:
+        return int(declared), register
+
+    value = (SCHEMA_THRESHOLDS.get("review_fail_rounds_before_escalation")
+             or {}).get("value")
+    if isinstance(value, int) and value >= 1:
+        return value, "schema § thresholds"
+    return 2, "built-in default"
+
+
 def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     """A V4 verdict that a tool can read, and a row that moved when it arrived.
 
@@ -1987,7 +2054,8 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     documents written in prose, and promoting those to errors would retroactive
     -ly condemn every review it ever ran. What it reports is a worklist.
 
-    Four findings, and the fourth is the one that matters:
+    Six findings, and the last one is about the cost of the round rather than
+    its shape:
 
     - `verdict-malformed` — a block missing a required key, or a `result` that
       is neither `PASS` nor `FAIL`.
@@ -2000,6 +2068,11 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     - `fail-verdict-left-at-review` — a FAIL exists and the row is still at
       `review`. `review` means *out for verification*; a row whose verdict has
       arrived is no longer there in either direction.
+    - `review-with-no-verdict` — the symmetric half: a row at `review` at V4
+      for which no round was ever dispatched.
+    - `review-rounds-exhausted` — two FAILs and no PASS, with no open ask
+      blocking the row. The third round is where this board stopped
+      converging and started re-deriving; see the comment on the check.
     """
     findings: list[Finding] = []
     seen: dict[str, list[tuple[str, dict, int]]] = {}
@@ -2199,6 +2272,82 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
             f"verdict block naming it. It moved there {how_long}. Either a "
             f"round is in flight, or one was never sent — `review` is not a "
             f"resting place, and only you can tell those apart"))
+
+    # **Two FAILs is a decision, not a third round.** Measured on this board:
+    # 20 rows entered V4, 74 rounds were burned, and 10 rows needed three or
+    # more. TASK-050 and TASK-249 each reached round 11; TASK-095 FAILed five
+    # times and the escalation that ended it (USER-905) was filed by hand at
+    # round 5. Every one of the five reads the same in the journal — "two
+    # situations answered as one, one step to the left of the last" — so the
+    # rounds after the second were not finding new defects, they were
+    # re-deriving one principle differently. The agent could already name that
+    # shape at round 2; nothing ASKED it to stop there.
+    #
+    # The trigger moves to two, and this is the check that moves it. A round
+    # costs a full dispatch, a fresh-context review and a fix cycle, and the
+    # session pays its whole context on every turn of all three — so the
+    # rounds after the second are the most expensive thing Perry does and the
+    # least likely to converge.
+    #
+    # **No new field.** `round` was measured and refused a bearer
+    # (`bin/perry-task.evidence_relations`) because it lived only in some
+    # filenames. It does not need one: a round that returned is a verdict
+    # block, so the count is the FAILs already on disk. A PASS anywhere ends
+    # the row's history and the question with it.
+    #
+    # **An escalation clears it.** The out is the one TASK-095 took — file the
+    # ask, name the options, let the user pick a principle. An open ask in
+    # `asks.jsonl` whose `blocks` names the row IS that escalation, so the
+    # finding reports rows that have neither converged nor escalated, and goes
+    # quiet the moment either happens.
+    limit, limit_from = rounds_before_escalation(project_root)
+    asks = state_root / "asks.jsonl"
+    escalated: set[str] = set()
+    if asks.exists():
+        for raw in asks.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ask = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ask.get("answered"):
+                continue
+            for tid in re.findall(r"\b[A-Z]+-\d+\b", str(ask.get("blocks") or "")):
+                escalated.add(tid)
+
+    # **Only a row that can still RECEIVE a round.** The first cut of this
+    # check asked the evidence directory alone and reported five rows, four of
+    # them long closed — TASK-037 and TASK-203 `done`, TASK-042 `dropped`,
+    # TASK-050 `done` after eleven rounds. Their round counts are history, and
+    # history is not a worklist. `done` removes the row, so `live` is exactly
+    # the set a next round could be dispatched against.
+    #
+    # (That those four closed carrying FAILs and no PASS block is a real and
+    # separate finding — it is `v4-close-without-verdict`'s territory, not
+    # this one's, and widening here would answer two questions with one rule,
+    # which is the defect five TASK-095 rounds were spent on.)
+    for tid, blocks in sorted(seen.items()):
+        if not tid or tid in escalated or tid not in live:
+            continue
+        results = [f.get("result") for _, f, _ in blocks]
+        if "PASS" in results:
+            continue
+        fails = [b for b in blocks if b[1].get("result") == "FAIL"]
+        if len(fails) < limit:
+            continue
+        where = ", ".join(r for r, _, _ in fails)
+        findings.append(Finding(
+            "warn", "BOARD.md", "review-rounds-exhausted",
+            f"{tid} has FAILed {len(fails)} V4 rounds and never PASSed "
+            f"({where}); the limit is {limit} (from {limit_from}). Another "
+            f"round is not the next step — a row that has failed {limit} "
+            f"times is failing on a PRINCIPLE nobody has picked, and each "
+            f"further round re-derives it differently. File "
+            f"the ask: name the two readings, say which one you recommend and "
+            f"why, and let the user choose. An open ask blocking this row "
+            f"clears this finding"))
 
     check_reviews.blocks_seen = sum(len(v) for v in seen.values())
     return findings

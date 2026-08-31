@@ -44,6 +44,8 @@ When B is in effect, `.perry/config.md` records both paths so every child skill 
 - State root: <. | relative path>
 - Packs: <comma-separated pack names, or absent for software-ops>
 - Conformance gate: <advisory | enforce>   (optional; default enforce)
+- Review rounds before escalation: <N>    (optional; default 2)
+- Session context ceiling: <200k | N>     (optional; default 200k)
 - PMO repo path: <absolute path>
 - Code repo path: <absolute path or — if single>
 - Last updated: <YYYY-MM-DD>
@@ -112,6 +114,31 @@ Two shapes in circulation is two code paths a reader can disagree about, and one
 `.perry/` itself **never moves**: it is the anchor that marks the folder as a Perry project and it holds this pointer, so it cannot sit behind the pointer. Every reader resolves the root the same way — `viewer/parsers.py § resolve_state_root` is the one implementation, and `schema/state-schema.json` declares which files are anchored at the project root (`anchor: project`) rather than the state root.
 
 Adoption asks this question during `confirm`, before anything is materialized (`reference/adoption.md`).
+
+### The two cost budgets — `Review rounds before escalation`, `Session context ceiling`
+
+Both are **measured defaults, not laws**, and both follow the precedence
+`Conformance gate` established: the environment beats this file, which beats
+the shipped value in `schema/state-schema.json § thresholds`. Every consumer
+reports which of the three answered, so a budget that stops work can be argued
+with by editing the register that actually set it.
+
+| | default | env | read by |
+|---|---|---|---|
+| `Review rounds before escalation` | 2 | `PERRY_REVIEW_ROUNDS` | `perry-lint --reviews` |
+| `Session context ceiling` | 200000 | `PERRY_CONTEXT_CEILING` | `perry-context-budget`, and `autopilot` through it |
+
+**Where the two numbers come from.** On this repository, 20 rows entered V4 and
+**74 rounds** were burned; ten rows needed three or more and two reached round
+11. Separately, 25 sessions over 18,941 turns spent **8.43 billion tokens, 99.1%
+of it `cache_read`** — the accumulated context, re-read every turn — so the
+bill is `Σ over turns (context at that turn)` and a long run is superlinear.
+Replaying those turns against a cap, 200k costs 58.3% less for the same work.
+
+Raise `Review rounds before escalation` for a project whose reviews genuinely
+converge by accretion; `1` makes every FAIL a decision point. Raise
+`Session context ceiling` for a project doing genuinely wide reads, knowing the
+cost of doing so does not grow linearly.
 
 ### `Conformance gate` — and the one thing the agent must not do
 

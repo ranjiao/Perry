@@ -19,12 +19,14 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import pathlib
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINT = ROOT / "bin" / "perry-lint"
@@ -59,6 +61,26 @@ def verdict(task, result="PASS", checked="the refusal path on a copy",
     return VERDICT.format(
         task=task, result=result, checked=checked, not_checked=not_checked,
         proof=f"proof: {proof}\n" if proof else "")
+
+
+
+def lint_module():
+    """`bin/perry-lint` as a module, for unit-testing its pure resolvers.
+
+    The precedence tests below used to spawn the linter once each. perry-lint
+    loads the schema and the viewer package on every start, and 8-worker
+    `tests/run` already sits close enough to the machine's limits that the
+    added spawns made `test_host_support`'s global-concurrency-cap assertion
+    flake — a test measuring contention, perturbed by a test suite creating
+    it. The wiring is still checked end-to-end below; only the arithmetic
+    moved in-process.
+    """
+    spec = importlib.util.spec_from_loader(
+        "perry_lint",
+        importlib.machinery.SourceFileLoader("perry_lint", str(LINT)))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
 
 
 class ReviewLintCase(unittest.TestCase):
@@ -394,6 +416,243 @@ class TestItIsOptIn(unittest.TestCase):
         for r in ("v4-close-without-verdict", "fail-verdict-left-at-review",
                   "verdict-malformed", "fail-without-proof"):
             self.assertNotIn(r, rules)
+
+
+
+
+class TestTwoFailsIsADecisionNotAThirdRound(ReviewLintCase):
+    """The most expensive thing this board does, and nothing asked it to stop.
+
+    Measured on Perry's own state: 20 rows entered V4, **74 rounds** were
+    burned, 10 rows needed three or more, and TASK-050 and TASK-249 each
+    reached round 11. TASK-095 FAILed five times and the escalation that
+    finally ended it (USER-905) was filed BY HAND at round 5 — after which the
+    user picked a principle and round 6 PASSed.
+
+    All five of those FAILs read the same in the journal: *two situations
+    answered as one, one step to the left of the last*. The rounds after the
+    second were not finding new defects; they were re-deriving one principle
+    differently. The agent could name that shape at round 2. Nothing asked it
+    to stop there, so this is the thing that asks.
+    """
+
+    def two_fails(self, tid="TASK-500", status="in_progress"):
+        self.board([self.row(tid, status)])
+        self.evidence(f"{tid}-r1.md", verdict(tid, "FAIL"))
+        self.evidence(f"{tid}-r2.md", verdict(tid, "FAIL"))
+        return tid
+
+    def test_two_fails_and_no_pass_is_reported(self):
+        self.two_fails()
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_one_fail_is_not(self):
+        self.board([self.row("TASK-500", "in_progress")])
+        self.evidence("TASK-500-r1.md", verdict("TASK-500", "FAIL"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_a_pass_anywhere_ends_the_question(self):
+        tid = self.two_fails()
+        self.evidence(f"{tid}-r3.md", verdict(tid, "PASS"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_open_ask_blocking_the_row_clears_it(self):
+        """The out is the one TASK-095 took: escalate, do not re-round."""
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "pick a principle",
+            "blocks": tid, "answered": False}) + "\n")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_ANSWERED_ask_does_not_clear_it(self):
+        """An answered ask is a decision already taken; it cannot license the
+        next unexamined round the way a pending one licenses waiting."""
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "pick a principle",
+            "blocks": tid, "answered": True}) + "\n")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_an_ask_blocking_a_DIFFERENT_row_does_not_clear_it(self):
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "x",
+            "blocks": "TASK-999", "answered": False}) + "\n")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_a_closed_row_is_history_not_a_worklist(self):
+        """The first cut reported five rows and four were long closed —
+        TASK-037/TASK-203 `done`, TASK-042 `dropped`, TASK-050 `done` after
+        eleven rounds. `done` removes the row, so a row absent from the board
+        can receive no next round and this check has nothing to say about it.
+        """
+        self.board([])                       # the row has closed and left
+        self.evidence("TASK-500-r1.md", verdict("TASK-500", "FAIL"))
+        self.evidence("TASK-500-r2.md", verdict("TASK-500", "FAIL"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_it_names_every_failing_round_not_just_the_last(self):
+        tid = self.two_fails()
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-rounds-exhausted")
+        self.assertIn(f"{tid}-r1.md", msg)
+        self.assertIn(f"{tid}-r2.md", msg)
+
+    def test_it_does_not_claim_a_round_NUMBER(self):
+        """`round` was measured and refused a bearer — it lives only in some
+        filenames (`bin/perry-task.evidence_relations`). The FAIL count and the
+        filename numbering disagree on this repo's own TASK-067, whose two
+        FAILs sit in files named round3 and round4, so a message asserting
+        'round 3 is next' would be wrong on the row that prompted the check.
+        """
+        tid = self.two_fails()
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-rounds-exhausted")
+        self.assertIn("Another round", msg)
+        self.assertNotRegex(msg, r"Round \d")
+
+class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
+    """Two is a measured default, not a law, and a project may disagree.
+
+    Same precedence `perry-conform § gate_mode` established for `Conformance
+    gate`: env beats the project's declared field beats the shipped default in
+    `schema § thresholds`. The finding names its source, because a gate that
+    stops work without saying which register set it is one nobody can argue
+    with — and this one stops the third round, which is exactly when somebody
+    will want to.
+
+    **The arithmetic is unit-tested and the wiring is spawned once.** These
+    used to be one linter subprocess each; see `lint_module`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.tid = "TASK-500"
+        self.board([self.row(self.tid, "in_progress")])
+        for n in (1, 2):
+            self.evidence(f"{self.tid}-r{n}.md", verdict(self.tid, "FAIL"))
+        self.M = lint_module()
+        self.M.SCHEMA_THRESHOLDS.update(json.loads(
+            (ROOT / "schema" / "state-schema.json").read_text())["thresholds"])
+
+    def store(self, value, key="review_rounds_before_escalation"):
+        (self.dir / ".perry" / "config.jsonl").write_text(json.dumps({
+            "kind": "setting", "key": key,
+            "label": "Review rounds before escalation",
+            "value": value}) + "\n")
+
+    def markdown(self, body):
+        (self.dir / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n" + body + "\n")
+
+    def resolved(self, **env):
+        with mock.patch.dict(os.environ, env, clear=False):
+            for k, v in list(env.items()):
+                if v is None:
+                    os.environ.pop(k, None)
+            return self.M.rounds_before_escalation(self.dir)
+
+    # ── the arithmetic, in-process ───────────────────────────────────────
+
+    def test_the_shipped_default_is_the_schema_value(self):
+        schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
+        declared = schema["thresholds"][
+            "review_fail_rounds_before_escalation"]["value"]
+        self.assertEqual(declared, 2)
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_env_wins_and_is_named(self):
+        self.assertEqual(self.resolved(PERRY_REVIEW_ROUNDS="5"),
+                         (5, "PERRY_REVIEW_ROUNDS"))
+
+    def test_the_project_may_declare_it_in_the_store(self):
+        self.store("5")
+        self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
+
+    def test_the_markdown_is_the_fallback_when_there_is_no_store(self):
+        self.markdown("- Review rounds before escalation: 5")
+        self.assertEqual(self.resolved(), (5, ".perry/config.md"))
+
+    def test_the_two_registers_are_named_apart(self):
+        """Reporting a store value as `.perry/config.md` sends the reader to
+        edit a projection instead of the register that answered."""
+        self.store("5")
+        self.markdown("- Review rounds before escalation: 9")
+        self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
+
+    def test_a_store_without_the_key_does_NOT_fall_through_to_the_markdown(self):
+        """The store is derived from the preamble, so a key it does not carry
+        is a line the file does not have. Falling through would put one
+        setting in two registers — the drift TASK-233 removed."""
+        self.store("English", key="document_language")
+        self.markdown("- Review rounds before escalation: 5")
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_env_beats_the_declared_field(self):
+        self.store("5")
+        self.assertEqual(self.resolved(PERRY_REVIEW_ROUNDS="3"),
+                         (3, "PERRY_REVIEW_ROUNDS"))
+
+    def test_a_non_numeric_declaration_falls_back_rather_than_crashing(self):
+        self.store("lots")
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_the_resolver_never_returns_a_limit_below_one(self):
+        """The invariant the comparison relies on, pinned where it is made.
+
+        `len(fails) < limit` inverts at 0: a limit of 0 would fire the finding
+        on every live row carrying any verdict block, INCLUDING rows with zero
+        FAILs. The caller carries no second guard — two implementations of one
+        rule is the defect this repository finds most often — so this is the
+        only thing standing between a declared 0 and that inversion. Asserted
+        across every register that can set it, because a guard on one branch
+        is not a guard on the others.
+        """
+        cases = [("env zero", {"PERRY_REVIEW_ROUNDS": "0"}, None),
+                 ("env negative", {"PERRY_REVIEW_ROUNDS": "-3"}, None),
+                 ("store zero", {}, "0"),
+                 ("store junk", {}, "none")]
+        for where, env, store in cases:
+            with self.subTest(where=where):
+                cfg = self.dir / ".perry" / "config.jsonl"
+                cfg.unlink(missing_ok=True)
+                if store is not None:
+                    self.store(store)
+                limit, src = self.resolved(**env)
+                self.assertGreaterEqual(limit, 1)
+                self.assertEqual((limit, src), (2, "schema § thresholds"))
+
+    def test_a_schema_declaring_zero_is_refused_as_well(self):
+        """The third register, and the one the docstring above claims."""
+        self.M.SCHEMA_THRESHOLDS["review_fail_rounds_before_escalation"] = {
+            "value": 0}
+        self.assertEqual(self.resolved(), (2, "built-in default"))
+
+    # ── the wiring, spawned ──────────────────────────────────────────────
+
+    def test_the_limit_reaches_the_finding_and_is_named_in_it(self):
+        """One end-to-end spawn: the resolver's answer has to arrive at the
+        message, or every test above is checking arithmetic nothing reads."""
+        import os as _os
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--json"],
+            capture_output=True, text=True, cwd=ROOT,
+            env={**_os.environ, "PERRY_REVIEW_ROUNDS": "3"})
+        hit = [f for f in json.loads(proc.stdout)["findings"]
+               if f["rule"] == "review-rounds-exhausted"]
+        self.assertEqual(hit, [], "limit 3 must silence a row with 2 FAILs")
+
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--json"],
+            capture_output=True, text=True, cwd=ROOT,
+            env={**_os.environ, "PERRY_REVIEW_ROUNDS": "2"})
+        hit = [f for f in json.loads(proc.stdout)["findings"]
+               if f["rule"] == "review-rounds-exhausted"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("the limit is 2 (from PERRY_REVIEW_ROUNDS)",
+                      hit[0]["message"])
 
 
 if __name__ == "__main__":

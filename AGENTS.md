@@ -54,6 +54,7 @@ the live project state is rooted at `perry/` through `.perry/config.md`.
 - Follow `work/reference/git-boundaries.md` for commit, push, PR, and merge
   authority. Never merge your own implementation.
 - Green on your own base is not green merged — `tests/merge-check --help`.
+- Calling a tool costs more than its output (52% of context vs 26%): cwd persists, so no `cd <repo> &&`; a long or repeated step goes in a scratchpad file, not the prompt. `perry-context-budget`.
 
 Keep this file under roughly 60 lines. It is the always-loaded startup protocol,
 not a second copy of `SKILL.md`, the dashboard, or the architecture record.

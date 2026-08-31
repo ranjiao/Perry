@@ -156,3 +156,55 @@ FAIL → "$PERRY_HOME/bin/perry-task" status <ID> --status in_progress \
 `review` means *a result is out for verification*. A row whose verdict has
 arrived is no longer at `review` in either direction, and a row still sitting
 there after its round returned is the defect this page was written for.
+
+## 6 · Two FAILs is a decision, not a third round
+
+**After the second FAIL on a row — two being the default limit, see the end of
+this section — you may not dispatch another round.** File the ask instead.
+`perry-lint --reviews` reports the row as `review-rounds-exhausted` until an
+open ask in `asks.jsonl` names it in `blocks`.
+
+This is the most expensive rule on the page and it was bought with the whole
+board. Measured on Perry's own state: **20 rows entered V4 and 74 rounds were
+burned.** Ten rows needed three or more. TASK-050 and TASK-249 each reached
+**round 11**. TASK-095 FAILed five times, and the escalation that ended it —
+USER-905 — was filed by hand at round 5, after which the user picked a
+principle and round 6 PASSed on the first try.
+
+Read the five TASK-095 FAILs in the journal and they are one sentence:
+
+> Every one is the same shape: two situations answered as one, one step to
+> the left of the last.
+
+Rounds 3, 4 and 5 were not finding new defects. They were re-deriving one
+undecided principle differently each time — and each round costs a dispatch, a
+fresh-context review and a fix cycle, with the session paying its entire
+context on every turn of all three. **Rounds after the second are the most
+expensive thing Perry does and the least likely to converge.**
+
+The second FAIL is the signal, and it is legible at the second FAIL. Rule 1
+says enumerate the category rather than find the next instance; **two FAILs
+means the category is not a category — it is a fork nobody has taken.** The
+deliverable is no longer a fix, it is the choice:
+
+```
+"$PERRY_HOME/bin/perry-task" ask --needed "<A vs B, and which you recommend>" \
+                                 --blocks <TASK-ID>
+```
+
+Write it the way USER-905 was written, because that is the one that worked:
+state the two readings so each is defensible **applied consistently**, show
+that the current code holds both, name your recommendation with its reason,
+and say what is already true (which tool computes the rule today, what is
+merged, what is not). The user picks a principle; the next round applies it
+everywhere and PASSes.
+
+**Two is a measured default, not a law.** It is
+`schema § thresholds.review_fail_rounds_before_escalation`; a project sets its
+own with `- Review rounds before escalation: N` in `.perry/config.md`, and a
+single run overrides both with `PERRY_REVIEW_ROUNDS=N`. The finding names
+which of the three set the limit it is enforcing. Raise it for work that
+genuinely converges by accretion; `1` makes every FAIL a decision point.
+
+A `review-rounds-exhausted` finding is never cleared by running the round
+anyway.
