@@ -21,6 +21,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -96,8 +97,31 @@ class ReviewLintCase(unittest.TestCase):
     def row(self, tid, status, rung="V4", ev=""):
         return (f"| {tid} | a thing | Claude | {status} | — | {ev} | {rung} |")
 
-    def evidence(self, name, text):
+    def evidence(self, name, text, make_criteria=True):
+        """Write a review document, and by default make its exhibit honest.
+
+        `verdict()` cites `evidence/2026-08/<TASK>-spec.md`, and until this
+        fixture created it the citation named a file the temp tree did not
+        carry — which `citation-not-on-branch` reports, correctly, on every
+        test in this file. These tests are about the verdict's SHAPE; the
+        exhibit pre-check has its own class below and passes
+        `make_criteria=False` to say so deliberately.
+
+        The generated spec carries a `## Bound` for the same reason
+        (`review.md § 1`): a fixture that trips a check it is not testing
+        makes every unrelated assertion in the file depend on that check.
+        """
         (self.dir / "evidence" / "2026-08" / name).write_text(text)
+        if not make_criteria:
+            return
+        for m in re.finditer(r"^criteria:\s*(\S+)\s*$", text, re.M):
+            path = self.dir / m.group(1)
+            if path.exists():
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "# criteria\n\n## Bound\nEnumeration: ls bin/\nSize: 1\n"
+                "Remainder: none\n")
 
     def run_lint(self):
         proc = subprocess.run(
@@ -653,6 +677,283 @@ class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
         self.assertEqual(len(hit), 1)
         self.assertIn("the limit is 2 (from PERRY_REVIEW_ROUNDS)",
                       hit[0]["message"])
+
+
+class ExhibitCase(ReviewLintCase):
+    """Shared setup for the two pre-check findings.
+
+    `review.md § 2 · What V4 does not judge`. Both of these were found by a
+    fresh-context reviewer, at a full round each, when a regex knew: "three
+    citations point at a file the branch does not carry", "a claimed filing,
+    on the branch, that is not there". The round is the most expensive place
+    on this board to learn either one.
+    """
+
+    def open_row(self, tid="TASK-001"):
+        self.board([self.row(tid, "review")])
+
+    def closed_row(self, tid="TASK-001"):
+        self.board([self.row(tid, "done")])
+        (self.dir / ".perry" / "events.jsonl").write_text(
+            json.dumps({"event": "done", "task": tid, "rung": "V4"}) + "\n")
+
+    def block(self, task="TASK-001", criteria="evidence/2026-08/spec.md",
+              proof="", result="FAIL"):
+        return (f"=== VERDICT ===\ntask: {task}\nrung: V4\n"
+                f"result: {result}\ncriteria: {criteria}\n"
+                f"checked: a thing\nnot-checked: another\n"
+                f"proof: {proof or 'evidence/2026-08/spec.md:1 the line'}\n"
+                f"=== END VERDICT ===\n")
+
+    def spec(self, name="spec.md", bound=True):
+        body = "# criteria\n"
+        if bound:
+            body += "\n## Bound\nEnumeration: ls bin/\nSize: 1\nRemainder: none\n"
+        (self.dir / "evidence" / "2026-08" / name).write_text(body)
+
+
+class TestTheExhibitIsCheckedBeforeTheRound(ExhibitCase):
+    """`citation-not-on-branch` — a path the branch does not carry.
+
+    Reported on OPEN rows only. A closed row's exhibit cannot be re-filed, so
+    reporting it condemns retroactively — the thing this whole mode's docstring
+    refuses to do.
+    """
+
+    def test_a_criteria_path_the_branch_does_not_carry_is_reported(self):
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertIn("citation-not-on-branch", self.rules())
+
+    def test_a_criteria_path_that_exists_is_not(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_proof_path_the_branch_does_not_carry_is_reported(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/2026-08/gone.md:4 x"),
+                      make_criteria=False)
+        hit = [f for f in self.run_lint()["findings"]
+               if f["rule"] == "citation-not-on-branch"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("`proof:`", hit[0]["message"])
+
+    def test_a_closed_row_is_not_condemned_retroactively(self):
+        self.closed_row()
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    # ── the exclusions, each one a token this board's own reviews produced ──
+
+    def test_a_bare_filename_is_a_mention_not_a_citation(self):
+        """`checked: tables.py` names a file, not a path, and the repository
+        carries `viewer/tables.py`. Reporting it taught the check to report
+        correct prose, which is how a guard gets switched off (§ 1)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="tables.py:12 the fold"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_command_name_is_not_a_path(self):
+        """`/pmo` and `/architecture` are commands. The first version split on
+        `/`, got an empty head, and `self.dir / ""` is a directory that always
+        exists — so every command name in a proof line was a broken path."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="/pmo /architecture are routed"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_possessive_is_stripped(self):
+        self.open_row()
+        self.spec()
+        self.evidence(
+            "r.md", self.block(proof="evidence/2026-08/spec.md's first line"),
+            make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_trailing_paren_is_stripped(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08/spec.md:1) the line"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_line_range_resolves(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08/spec.md:1-9 the line"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_two_line_refs_on_one_path_is_prose(self):
+        """`bin/perry-goals:927/:908/` is a sentence about two lines. A `:`
+        surviving the suffix strip means the token is not a path."""
+        self.open_row()
+        self.spec()
+        # No trailing `/`: a token ending in one is already stopped by the
+        # empty-last-segment rule, so the first version of this test never
+        # reached the clause it names. Mutation M8.
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08:927/:908 both"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_scratch_copy_is_the_convention_working(self):
+        """`review-constraints.md` REQUIRES destructive checks to run on a
+        copy. Citing the copy is the reviewer obeying the rule."""
+        self.open_row()
+        self.spec()
+        # The exclusion is only REACHED when `scratchpad/` is a real directory
+        # — otherwise the head-is-a-directory rule stops the token first and
+        # this test passes without testing anything. Mutation M7.
+        (self.dir / "scratchpad" / "probe").mkdir(parents=True)
+        self.evidence("r.md",
+                      self.block(proof="scratchpad/probe/rj.py:4 reproduced"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_trailing_count_is_not_a_path(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/3 of them escape"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_colon_inside_a_path_is_prose(self):
+        """A `:` that SURVIVES the line-suffix strip means the token is a
+        sentence about a line, not a path — `bin/perry-goals:927/:908` was
+        written on this board. The token must keep a real last segment or an
+        earlier rule catches it first and this test proves nothing (M8)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08:927/notes.md and"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_directory_fragment_is_not_a_missing_file(self):
+        """A token ending in `/` names a folder in prose. Without the
+        empty-last-segment rule it is looked up whole, misses, and is reported
+        as a broken citation (M5)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/gone/ was swept"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_bracketed_link_fragment_is_prose(self):
+        self.open_row()
+        self.spec()
+        self.evidence(
+            "r.md",
+            self.block(proof="ADR-007](decisions/ADR-007-probe.md is cited"),
+            make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_checked_is_prose_and_is_not_mined(self):
+        """`checked:` is a sentence by design — the convention's own example is
+        "guarantees 1,2,4,5 on gimegime-pmo (365→380 ids)". Mining it for paths
+        is guessing, and guessing is what makes a check unusable."""
+        self.open_row()
+        self.spec()
+        text = self.block().replace(
+            "checked: a thing", "checked: evidence/2026-08/never-existed.md")
+        self.evidence("r.md", text, make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+
+class TestTheCriteriaMustBeBounded(ExhibitCase):
+    """`criteria-unbounded` — no `## Bound`, so the round has no last element.
+
+    TASK-050 ran **eleven** rounds against "no reader resolves a header cell by
+    its own rule", a universal negative over a live tree. Rounds 8, 9 and 10
+    each found a real escape — a pruned corpus, a one-line alias, a dict key —
+    and round 11 PASSed on `a measured remainder of 8 out of 76`. It ended on
+    the round the criterion became decidable, not on the round the last hole
+    closed. `review.md § 1`.
+    """
+
+    def test_a_criteria_file_with_no_bound_is_reported(self):
+        self.open_row()
+        self.spec(bound=False)
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertIn("criteria-unbounded", self.rules())
+
+    def test_a_criteria_file_with_a_bound_is_not(self):
+        self.open_row()
+        self.spec(bound=True)
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_nested_bound_still_counts(self):
+        """The requirement is that the bound is WRITTEN DOWN, not where. A spec
+        that puts it under a section heading has satisfied § 1."""
+        self.open_row()
+        (self.dir / "evidence" / "2026-08" / "spec.md").write_text(
+            "# criteria\n\n## What must be true\n\n### Bound\nSize: 4\n")
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_closed_row_is_not_condemned_retroactively(self):
+        self.closed_row()
+        self.spec(bound=False)
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_missing_criteria_file_is_one_finding_not_two(self):
+        """An absent file cannot be read for a bound. Reporting both would
+        make the fix look like two problems when it is one."""
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        rules = self.rules()
+        self.assertIn("citation-not-on-branch", rules)
+        self.assertNotIn("criteria-unbounded", rules)
+
+
+class TestStrictCanStopADispatch(ExhibitCase):
+    """`--reviews --strict` exits non-zero, or the pre-check cannot gate.
+
+    `review.md § 2` tells the dispatcher to run this before spawning the
+    agent. A mode that always returns 0 makes that one more rule stated in
+    prose that nothing implements — which is this repository's own most-found
+    defect and the reason `review.md` exists at all.
+    """
+
+    def run_strict(self):
+        return subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--strict", "--quiet"],
+            capture_output=True, text=True, cwd=ROOT).returncode
+
+    def test_strict_is_red_when_the_exhibit_is(self):
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertEqual(self.run_strict(), 1)
+
+    def test_strict_is_green_when_it_is_clean(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertEqual(self.run_strict(), 0)
+
+    def test_without_strict_it_stays_advisory(self):
+        """The DEFAULT stays 0 on findings. A project that predates the
+        convention has prose reviews, and promoting those to a failing exit
+        would condemn every round it ever ran."""
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--quiet"],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.returncode, 0)
 
 
 if __name__ == "__main__":

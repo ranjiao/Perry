@@ -62,7 +62,13 @@ otherwise be no way to accept one.
                 `schema § thresholds.review_fail_rounds_before_escalation`,
                 overridable per project (`- Review rounds before escalation:`)
                 and per run (`PERRY_REVIEW_ROUNDS`); the finding names its
-                source. Prints the block count even at zero findings.
+                source. Also runs the two PRE-CHECK findings review.md
+                section 2 moves out of the round itself: a cited path the
+                branch does not carry (`citation-not-on-branch`) and a
+                criteria file with no `## Bound` (`criteria-unbounded`). With
+                --strict this mode EXITS NON-ZERO, which is what lets a red
+                exhibit stop a dispatch instead of costing a round. Prints the
+                block count even at zero findings.
   --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
                 the four provenance fields present, `Source:` resolving to
                 something a reader can re-open, and staleness against
@@ -1878,6 +1884,80 @@ def parse_verdicts(text: str) -> list[tuple[dict, int]]:
     return out
 
 
+#: A trailing `:1204` or `:1204-1210` on a cited path. Stripped before the
+#: existence test, and the token is rejected if a `:` survives — a `proof:`
+#: reading `bin/perry-goals:927/:908/` is prose about two lines, not a path.
+_CITE_LINE = re.compile(r":\d+(?:-\d+)?$")
+
+#: Anything that cannot appear in a path Perry would cite. `bin/+viewer/` and
+#: `ADR-007](decisions/ADR-007-probe.md` are both real tokens from this board's
+#: own reviews, and both are prose.
+_CITE_BAD = re.compile(r"[+\[\]()<>*`\s]")
+
+#: Reviewers verify destructively on a COPY (`review-constraints.md § You are
+#: a reader`), so a citation into the scratch tree is the convention working,
+#: not a broken reference. Never reported.
+_CITE_SCRATCH = ("scratchpad", "scratch", "tmp", "/tmp")
+
+
+def verdict_citations(src: str, state_root: Path, project_root: Path
+                      ) -> list[tuple[str, bool]]:
+    """Path claims inside one verdict field, each with whether it resolves.
+
+    `work/reference/review.md § 2 · What V4 does not judge`. Rounds on this
+    board spent a full fresh-context review discovering that a citation named
+    a file the branch does not carry — "three citations point at a file the
+    branch does not carry", "a claimed filing, on the branch, that is not
+    there". A regex knew, and it cost a round each time.
+
+    **What counts as a path claim is bounded on purpose**, because a check that
+    reports correct prose is one people switch off (§ 1's own table). Read only
+    from `criteria:` and `proof:`, which the convention REQUIRES to be a path;
+    `checked:` is a sentence by design and scanning it is guessing. A token is
+    a claim only when ALL of these hold:
+
+    - its first segment is non-empty. `/pmo` is a command, and the first
+      version split on `/`, got an empty head, and `root / ""` is a directory
+      that always exists — so every command name was a broken path.
+    - no `+`, bracket, paren, backtick or angle in it.
+    - no `:` survives the line-suffix strip.
+    - its last segment is not all digits — `tests/3` is a count.
+    - the first segment is a directory that exists.
+    - it is not under a scratch tree.
+
+    Every one of those exclusions is a token this board's own 79 reviews
+    actually produced. The rule is deliberately narrower than "looks like a
+    path": a missed citation costs nothing (the round still runs), and a false
+    one costs the check its credibility.
+    """
+    out: list[tuple[str, bool]] = []
+    for tok in re.split(r"[\s,;·|]+", src.strip()):
+        tok = tok.strip("*`()[]<>\"")
+        for suf in ("'s", "\u2019s"):
+            if tok.endswith(suf):
+                tok = tok[:-len(suf)]
+        tok = tok.rstrip(",.;:)]}\'\"")
+        if not tok:
+            continue
+        bare = _CITE_LINE.sub("", tok)
+        if not bare or ":" in bare or _CITE_BAD.search(bare):
+            continue
+        segs = [s for s in bare.split("/")]
+        head = segs[0]
+        if not head or not segs[-1] or segs[-1].isdigit():
+            continue
+        if head in _CITE_SCRATCH or bare.startswith("/tmp"):
+            continue
+        if not ((state_root / head).is_dir() or (project_root / head).is_dir()):
+            continue
+        out.append((bare, (state_root / bare).exists() or
+                          (project_root / bare).exists()))
+    return out
+
+
+_BOUND_RE = re.compile(r"^#{2,}\s*Bound\b", re.M)
+
+
 #: `reference/glossary.md` — one entry per concept, and the `Implemented:` line
 #: is the brake. See that file's own header for why this is a constraint rather
 #: than documentation.
@@ -2054,8 +2134,10 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     documents written in prose, and promoting those to errors would retroactive
     -ly condemn every review it ever ran. What it reports is a worklist.
 
-    Six findings, and the last one is about the cost of the round rather than
-    its shape:
+    Eight findings. The last three are about the cost of the round rather
+    than its shape — two of them are the pre-check `review.md § 2` moves OUT
+    of the round, because a full fresh-context review is the most expensive
+    way this board has found to discover a broken citation:
 
     - `verdict-malformed` — a block missing a required key, or a `result` that
       is neither `PASS` nor `FAIL`.
@@ -2073,9 +2155,39 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     - `review-rounds-exhausted` — two FAILs and no PASS, with no open ask
       blocking the row. The third round is where this board stopped
       converging and started re-deriving; see the comment on the check.
+    - `citation-not-on-branch` — a `criteria:`, `proof:` or `checked:` path
+      the branch does not carry. Found four times by a reviewer, at a round
+      each, when a regex knew.
+    - `criteria-unbounded` — the criteria file carries no `## Bound`, so the
+      round has no finite set to check. TASK-050 ran ELEVEN rounds against a
+      universal negative and passed on the round the criterion became
+      decidable, not on the round the last hole closed (`review.md § 1`).
     """
     findings: list[Finding] = []
     seen: dict[str, list[tuple[str, dict, int]]] = {}
+
+    # The two pre-check findings below are scoped to rows that are still OPEN.
+    # A closed row's criteria cannot be re-bounded and its exhibit cannot be
+    # re-filed, so reporting them condemns every review this project ran before
+    # the convention existed — the exact retroactive verdict this mode's
+    # docstring refuses. It also keeps `--reviews --strict` able to gate a
+    # dispatch: a backlog nobody can clear is a gate that is red forever, which
+    # is a gate people delete.
+    closed_rows: set[str] = set()
+    _log = project_root / ".perry" / "events.jsonl"
+    if _log.exists():
+        for raw in _log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ev.get("event") in ("done", "drop"):
+                tid = str(ev.get("task") or ev.get("id") or "")
+                if tid:
+                    closed_rows.add(tid)
 
     edir = state_root / "evidence"
     for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
@@ -2103,6 +2215,42 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"{tid or 'this block'} FAILs with no `proof:` naming a "
                     f"file — a FAIL that cannot point at a line is a "
                     f"suspicion, not a verdict", line))
+
+            # ── the two pre-check findings ────────────────────────────────
+            # The ones a round must NEVER spend itself on: `review.md § 2 ·
+            # What V4 does not judge`. Both are cheap and both are decidable,
+            # and this board discovered them four and eleven rounds late.
+            #
+            # `criteria:` and `proof:` only. `checked:` is a sentence by
+            # design — "guarantees 1,2,4,5 on gimegime-pmo (365→380 ids)" is
+            # the shape the convention asks for — and mining a sentence for
+            # paths is how this check first reported `tables.py`, `/pmo` and
+            # `bin/perry-lint:812's` as broken references.
+            if tid and tid not in closed_rows:
+                for key in ("criteria", "proof"):
+                    for tok, ok in verdict_citations(
+                            fields.get(key, ""), state_root, project_root):
+                        if ok:
+                            continue
+                        findings.append(Finding(
+                            "warn", rel, "citation-not-on-branch",
+                            f"`{key}:` cites {tok} — the branch does not "
+                            f"carry it. Fix the exhibit before dispatching, "
+                            f"not in a round", line))
+
+                for tok, ok in verdict_citations(
+                        fields.get("criteria", ""), state_root, project_root):
+                    if not ok or not tok.endswith(".md"):
+                        continue
+                    cpath = (state_root / tok if (state_root / tok).exists()
+                             else project_root / tok)
+                    if not _BOUND_RE.search(
+                            strip_comments(cpath.read_text(errors="replace"))):
+                        findings.append(Finding(
+                            "warn", rel, "criteria-unbounded",
+                            f"{tok} carries no `## Bound` — the round has no "
+                            f"finite set to check and no last element. "
+                            f"work/reference/review.md § 1", line))
 
     board = state_root / "BOARD.md"
     if not board.exists():
@@ -3995,7 +4143,13 @@ def main(argv: list[str]) -> int:
                   f"and acted on" if blocks else
                   "\n  \u00b7 no verdict blocks yet \u2014 see "
                   "work/reference/review.md \u00a7 3")
-        return 0
+        # `--reviews` stays advisory by DEFAULT for the reason its docstring
+        # gives — a project predating the convention would be condemned
+        # retroactively. `--strict` is opt-in and is what `review.md § 2` tells
+        # the dispatcher to run: a red exhibit must be able to STOP a round,
+        # or the pre-check is one more rule stated in prose that nothing
+        # implements, which is the defect this whole page exists over.
+        return 1 if (strict and findings) else 0
 
     if mode_knowledge:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg

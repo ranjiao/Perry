@@ -52,6 +52,69 @@ to infer the bar; an inferred bar is the failure mode above.
 The criteria are written **by the author, before the round**. Criteria written
 after a FAIL are a negotiation with the result.
 
+### The criteria must be bounded
+
+A criterion is bounded when the author can name, **before the round**, the
+finite set the round will check and its size. "Every reader in `bin/` and
+`viewer/`" is not a set until someone says which readers those are and counts
+them.
+
+An unbounded criterion does not fail a round. It fails to **end** one.
+TASK-050 asked for a category:
+
+> "No reader resolves a header cell by its own rule. The check is a
+> **category** — an enumeration over the tree — not a list of file names."
+
+Proving that no reader *anywhere* does X is a search with no last element, and
+the rounds are that search:
+
+| round | what escaped the guard |
+|---|---|
+| 8 | the corpus was pruned — "30 of 30" was measured on a subset of itself |
+| 9 | a one-line alias |
+| 10 | a header row carried through a dict key |
+| 11 | **PASS** |
+
+Round 11 did not pass because round 10 named the last hole. It passed because
+round 10 **changed the criterion** — from *the set is empty* to *the remainder
+is measured and listed* — and the PASS says so in its own words:
+
+> "A measured, listed remainder of 8 out of 76 DOES discharge the amendment."
+
+**Eleven rounds ended on the round the criterion became decidable.** Ten of
+them were spent proving a universal negative over a live tree, by a reviewer
+who was right every single time. That is the shape to recognise: the rounds
+were not failing to find the answer, the question had no last answer.
+
+So the criteria file carries this block, and `perry-lint --reviews` reports its
+absence as `criteria-unbounded`:
+
+```
+## Bound
+Enumeration: grep -rn 'header_index(' bin/ viewer/   ← the command that produces the set
+Size:        58 call sites on 68e63cf
+Remainder:   readers reached only through `perry_store.load()`; out of scope
+             because they never see a raw header row
+```
+
+Three criterion shapes, and what to write instead:
+
+| written as | why it cannot end | write instead |
+|---|---|---|
+| "no X anywhere in the tree" | universal negative over a growing set | "these N sites, listed; the remainder is M, listed" |
+| "every X does Y" | "every" is not a set | the command that enumerates X, and the number it returns **today** |
+| "the guard cannot be evaded" | evasions are not a finite set | "these K evasion shapes, enumerated; a K+1th is a new row, not this round" |
+
+This does not soften § 2 rule 1. Rule 1 says enumerate the category rather than
+chase the next instance, and it is right — the failure it names is real and
+cost TASK-044 three rounds. **The bound is what makes rule 1 finishable.**
+Without it, "enumerate the category" and "prove a universal negative" are the
+same instruction, and TASK-050 is what that costs.
+
+A round may only widen the bound by **filing a new row**, never by re-opening
+this one. A remainder that turns out to matter is a defect with its own ID,
+its own criteria, and its own bound.
+
 ## 2 · The prompt
 
 Reference the standing constraints, do not retype them. Retyping is how one
@@ -104,6 +167,53 @@ not converge.
    it, the next round re-covers the ground this one covered and misses the
    ground it skipped, which is the whole shape of a review that will not
    converge.
+
+### What V4 does not judge
+
+V4 answers one question: **does this code do the wrong thing on an input the
+user can produce?** Everything else the round can see is somebody else's job,
+and giving it to V4 is the second reason rounds do not converge.
+
+Measured on this board — 79 review documents, 54 `## Finding` headlines, 5 of
+them meta — **22 of the remaining 49 are about the round's own artifact rather
+than the product**:
+
+> "the harness is a regression corpus, not a harness" · "the corpus was pruned"
+> · "the reported baseline was incomplete" · "the commit record misreports a
+> mutation" · "three citations point at a file the branch does not carry" · "a
+> claimed filing, on the branch, that is not there" · "the code comment's
+> factual claim is false" · "the KR reframing must become an edit"
+
+Not one of those is a defect a user could hit. They are real — every one was
+correctly found — and they exist because the protocol **manufactures an
+artifact**, and the artifact has more failure modes than the code does. Round
+N+1 then audits round N's artifact, which is a loop with no product in it.
+
+So the line, and it is not "stop caring about test quality":
+
+| finding | rung | why |
+|---|---|---|
+| a mutation comes back **green** | **V4** | the guard does not work, or the test does not test it. § 2 rule 2. This is a product finding wearing a test's clothes. |
+| a guard reports **correct** code | **V4** | a false positive is a defect users switch the guard off over |
+| the cited path is not on the branch | **pre-check** | `perry-lint --reviews` → `citation-not-on-branch` |
+| the criteria carry no bound | **pre-check** | `criteria-unbounded` |
+| the baseline / corpus / mutation table is incomplete | **the author, before dispatch** | it is the author's exhibit; an incomplete exhibit is not sent |
+| a comment, a KR or a commit message misstates something | **file a row** | a documentation defect with its own ID, never a FAIL on this one |
+
+**The pre-check runs before the round is dispatched, not inside it.**
+
+```
+"$PERRY_HOME/bin/perry-lint" --reviews --strict     # red → fix the exhibit, do not dispatch
+```
+
+A round dispatched over a red pre-check pays a full fresh-context review to
+learn something a regex knew. That is the most expensive way this board has
+found to discover a broken citation, and it found it four times.
+
+**A FAIL must name a behaviour.** `proof:` points at the line that is wrong and
+`checked:` names the input that reaches it. A FAIL whose proof is "the evidence
+does not establish this" is not a FAIL — it is the pre-check, arriving late and
+costing a round.
 
 ## 3 · The verdict block — one per row, fixed shape
 
