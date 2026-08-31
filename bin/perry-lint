@@ -4323,18 +4323,6 @@ def main(argv: list[str]) -> int:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
         if not adopted:
             label += " — not a Perry project yet"
-        # The declaration ADR-004 needs is a DIFFERENT fact from anything above:
-        # this loop answers "does the shape hold", and that answers "did the user
-        # say so". Reported as a note rather than as a Finding — a project that
-        # has simply not run `perry-conform declare` yet is not malformed, and
-        # promoting it to a warning would make `--strict` red on every project
-        # in existence for a reason lint cannot fix.
-        declared = P.read_conformance(project_root).declarations
-        conformance_note = {
-            "declared": len(declared),
-            "shape_version": schema.get("schema_version"),
-            "command": "perry-conform status",
-        }
 
     errors = [f for f in findings if f.severity == "error"]
     warns = [f for f in findings if f.severity == "warn"]
@@ -4346,7 +4334,6 @@ def main(argv: list[str]) -> int:
             "findings": [f.as_dict() for f in findings],
         }
         if not mode_templates:
-            payload["conformance"] = conformance_note
             payload["store_drift"] = dict(getattr(
                 check_store_drift, "stats", _empty_store_drift_stats()))
             payload["risk_store_drift"] = dict(getattr(
@@ -4465,11 +4452,6 @@ def main(argv: list[str]) -> int:
                 else:
                     print(f"  · {_label}: {_s['records']} record(s), "
                           f"{_s['drifted']} row(s) drifted")
-        if not mode_templates:
-            n = conformance_note["declared"]
-            print(f"  · {n} file(s) declared conformant at shape version "
-                  f"{conformance_note['shape_version']} "
-                  f"(`perry-conform status` for the per-file verdict)")
 
     if errors:
         return 1

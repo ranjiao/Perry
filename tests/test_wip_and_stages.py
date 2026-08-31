@@ -27,7 +27,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
@@ -37,7 +36,7 @@ STATE = PERRY_HOME / "bin" / "perry-state"
 TASK = PERRY_HOME / "bin" / "perry-task"
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n" + GATE_OFF
+CONFIG = ("# Perry configuration\n\n- State root: perry\n"
           + "\n## Tracks\n\n"
           "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
           "|---|---|---|---|---|---|---|---|\n{rows}")

@@ -3,7 +3,7 @@
   "findings": [
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 170,
+      "lineno": 183,
       "test": "TestParseConfigReadsTheStore.test_every_setting_comes_from_the_store_when_both_are_there",
       "assertion": "assertEqual",
       "actual": "cfg['language']",
@@ -13,7 +13,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 171,
+      "lineno": 184,
       "test": "TestParseConfigReadsTheStore.test_every_setting_comes_from_the_store_when_both_are_there",
       "assertion": "assertEqual",
       "actual": "cfg['chat_language']",
@@ -23,7 +23,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 172,
+      "lineno": 185,
       "test": "TestParseConfigReadsTheStore.test_every_setting_comes_from_the_store_when_both_are_there",
       "assertion": "assertEqual",
       "actual": "cfg['layout']",
@@ -33,7 +33,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 173,
+      "lineno": 186,
       "test": "TestParseConfigReadsTheStore.test_every_setting_comes_from_the_store_when_both_are_there",
       "assertion": "assertEqual",
       "actual": "cfg['state_root']",
@@ -43,7 +43,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 174,
+      "lineno": 187,
       "test": "TestParseConfigReadsTheStore.test_every_setting_comes_from_the_store_when_both_are_there",
       "assertion": "assertEqual",
       "actual": "cfg['pmo_repo']",
@@ -53,7 +53,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 184,
+      "lineno": 197,
       "test": "TestParseConfigReadsTheStore.test_a_stored_blank_comes_back_as_the_marker_not_as_empty",
       "assertion": "assertEqual",
       "actual": "self.cfg(self.project())['code_repo']",
@@ -63,7 +63,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 191,
+      "lineno": 204,
       "test": "TestParseConfigReadsTheStore.test_every_setting_still_resolves_with_no_markdown_at_all",
       "assertion": "assertEqual",
       "actual": "[cfg['language'], cfg['chat_language'], cfg['layout'], cfg['state_root'], cfg['pmo_repo'], cfg[\u2026",
@@ -73,7 +73,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 203,
+      "lineno": 216,
       "test": "TestParseConfigReadsTheStore.test_the_source_says_which_register_answered",
       "assertion": "assertEqual",
       "actual": "self.cfg(self.project())['settings_source']",
@@ -83,7 +83,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 204,
+      "lineno": 217,
       "test": "TestParseConfigReadsTheStore.test_the_source_says_which_register_answered",
       "assertion": "assertEqual",
       "actual": "self.cfg(self.project(store=False))['settings_source']",
@@ -93,7 +93,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 215,
+      "lineno": 228,
       "test": "TestParseConfigReadsTheStore.test_a_project_with_no_store_still_reads_its_markdown",
       "assertion": "assertEqual",
       "actual": "cfg['language']",
@@ -103,7 +103,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 216,
+      "lineno": 229,
       "test": "TestParseConfigReadsTheStore.test_a_project_with_no_store_still_reads_its_markdown",
       "assertion": "assertEqual",
       "actual": "cfg['state_root']",
@@ -113,7 +113,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 235,
+      "lineno": 248,
       "test": "TestParseConfigReadsTheStore.test_an_unusable_store_answers_from_the_markdown_and_says_so",
       "assertion": "assertEqual",
       "actual": "cfg['language']",
@@ -123,57 +123,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 251,
-      "test": "TestTheGateReadsTheStore.test_the_store_wins_over_the_markdown",
-      "assertion": "assertEqual",
-      "actual": "PC.gate_mode(self.project())",
-      "expected": "'enforce'",
-      "verdict": "false positive",
-      "why": "the expected literal is a value THIS test wrote into its own throwaway project moments earlier \u2014 `tests/test_config_store_readers.py \u00a7 Fixture.project` mints a tempdir, writes a `.perry/config.jsonl` out of `STORE_SETTINGS` and a `.perry/config.md` out of `MD_SAYS`, and the assertion is that the reader answered from the first and not the second. Nothing about this repository is read. The sweep flags it because `PS` and `PC` are bound at module level by `load_bin_module`, which reads `bin/perry-state` and `bin/perry-conform` out of the repo \u2014 so every value those modules return is tainted live, including one computed entirely from a fixture. Arrived 2026-08-30 with TASK-233."
-    },
-    {
-      "module": "tests/test_config_store_readers.py",
-      "lineno": 267,
-      "test": "TestTheGateReadsTheStore.test_the_store_wins_in_the_other_direction_too",
-      "assertion": "assertEqual",
-      "actual": "PC.gate_mode(d)",
-      "expected": "'advisory'",
-      "verdict": "false positive",
-      "why": "the expected literal is a value THIS test wrote into its own throwaway project moments earlier \u2014 `tests/test_config_store_readers.py \u00a7 Fixture.project` mints a tempdir, writes a `.perry/config.jsonl` out of `STORE_SETTINGS` and a `.perry/config.md` out of `MD_SAYS`, and the assertion is that the reader answered from the first and not the second. Nothing about this repository is read. The sweep flags it because `PS` and `PC` are bound at module level by `load_bin_module`, which reads `bin/perry-state` and `bin/perry-conform` out of the repo \u2014 so every value those modules return is tainted live, including one computed entirely from a fixture. Arrived 2026-08-30 with TASK-233."
-    },
-    {
-      "module": "tests/test_config_store_readers.py",
-      "lineno": 278,
-      "test": "TestTheGateReadsTheStore.test_the_declared_gate_survives_the_markdown_being_deleted",
-      "assertion": "assertEqual",
-      "actual": "PC.gate_mode(d)",
-      "expected": "'advisory'",
-      "verdict": "false positive",
-      "why": "the expected literal is a value THIS test wrote into its own throwaway project moments earlier \u2014 `tests/test_config_store_readers.py \u00a7 Fixture.project` mints a tempdir, writes a `.perry/config.jsonl` out of `STORE_SETTINGS` and a `.perry/config.md` out of `MD_SAYS`, and the assertion is that the reader answered from the first and not the second. Nothing about this repository is read. The sweep flags it because `PS` and `PC` are bound at module level by `load_bin_module`, which reads `bin/perry-state` and `bin/perry-conform` out of the repo \u2014 so every value those modules return is tainted live, including one computed entirely from a fixture. Arrived 2026-08-30 with TASK-233."
-    },
-    {
-      "module": "tests/test_config_store_readers.py",
-      "lineno": 284,
-      "test": "TestTheGateReadsTheStore.test_a_project_with_no_store_still_reads_its_markdown",
-      "assertion": "assertEqual",
-      "actual": "PC.gate_mode(self.project(store=False))",
-      "expected": "'advisory'",
-      "verdict": "false positive",
-      "why": "the expected literal is a value THIS test wrote into its own throwaway project moments earlier \u2014 `tests/test_config_store_readers.py \u00a7 Fixture.project` mints a tempdir, writes a `.perry/config.jsonl` out of `STORE_SETTINGS` and a `.perry/config.md` out of `MD_SAYS`, and the assertion is that the reader answered from the first and not the second. Nothing about this repository is read. The sweep flags it because `PS` and `PC` are bound at module level by `load_bin_module`, which reads `bin/perry-state` and `bin/perry-conform` out of the repo \u2014 so every value those modules return is tainted live, including one computed entirely from a fixture. Arrived 2026-08-30 with TASK-233."
-    },
-    {
-      "module": "tests/test_config_store_readers.py",
-      "lineno": 306,
-      "test": "TestTheGateReadsTheStore.test_the_environment_still_beats_both",
-      "assertion": "assertEqual",
-      "actual": "PC.gate_mode(d)",
-      "expected": "'advisory'",
-      "verdict": "false positive",
-      "why": "the expected literal is a value THIS test wrote into its own throwaway project moments earlier \u2014 `tests/test_config_store_readers.py \u00a7 Fixture.project` mints a tempdir, writes a `.perry/config.jsonl` out of `STORE_SETTINGS` and a `.perry/config.md` out of `MD_SAYS`, and the assertion is that the reader answered from the first and not the second. Nothing about this repository is read. The sweep flags it because `PS` and `PC` are bound at module level by `load_bin_module`, which reads `bin/perry-state` and `bin/perry-conform` out of the repo \u2014 so every value those modules return is tainted live, including one computed entirely from a fixture. Arrived 2026-08-30 with TASK-233."
-    },
-    {
-      "module": "tests/test_config_store_readers.py",
-      "lineno": 508,
+      "lineno": 664,
       "test": "TestTheScaffoldIsCheckedNotTrusted.test_a_scaffold_that_drops_a_record_refuses",
       "assertion": "assertEqual",
       "actual": "rc",
@@ -183,7 +133,7 @@
     },
     {
       "module": "tests/test_config_store_readers.py",
-      "lineno": 526,
+      "lineno": 682,
       "test": "TestTheScaffoldIsCheckedNotTrusted.test_a_scaffold_whose_bytes_do_not_round_trip_refuses",
       "assertion": "assertEqual",
       "actual": "rc",
@@ -203,7 +153,7 @@
     },
     {
       "module": "tests/test_md_store.py",
-      "lineno": 413,
+      "lineno": 464,
       "test": "TestAMutatedStoreMovesTheFile.test_an_okr_kr_field",
       "assertion": "assertEqual",
       "actual": "drift[0]['store']",
@@ -213,7 +163,7 @@
     },
     {
       "module": "tests/test_md_store.py",
-      "lineno": 427,
+      "lineno": 478,
       "test": "TestAMutatedStoreMovesTheFile.test_a_config_setting",
       "assertion": "assertEqual",
       "actual": "[d['key'] for d in drift]",
@@ -223,7 +173,7 @@
     },
     {
       "module": "tests/test_md_store.py",
-      "lineno": 508,
+      "lineno": 559,
       "test": "TestARepairedLineCarriesNoWhitespaceTheInputDidNotHave.test_a_config_setting_slot_ends_without_a_trailing_space",
       "assertion": "assertEqual",
       "actual": "line",

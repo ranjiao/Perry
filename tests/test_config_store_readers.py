@@ -64,7 +64,6 @@ def load_bin_module(name: str):
 
 
 PS = load_bin_module("perry-state")
-PC = load_bin_module("perry-conform")
 
 
 #: What the MARKDOWN says. Every value here is one the store contradicts, so
@@ -249,80 +248,6 @@ class TestParseConfigReadsTheStore(Fixture):
         self.assertEqual(cfg["language"], "Klingon")
 
 
-class TestTheGateReadsTheStore(Fixture):
-    """`bin/perry-conform § gate_mode`, the second reader the spec names.
-
-    The markdown in every fixture here says `advisory` and the store says
-    `enforce`, so `enforce` can only have come from the store. That direction
-    is on purpose: a fixture where the store said `advisory` would pass against
-    a reader that lost the setting entirely, because `advisory` is also what a
-    reader answering nothing at all would eventually... not produce — the
-    shipped default is `enforce`. Either direction alone is ambiguous with one
-    of the two failure modes, so `TestTheGateReadsTheStore` asserts BOTH.
-    """
-
-    def test_the_store_wins_over_the_markdown(self):
-        self.assertEqual(PC.gate_mode(self.project()), "enforce")
-
-    def test_the_store_wins_in_the_other_direction_too(self):
-        """`advisory` out of the store, over an `enforce` markdown.
-
-        Without this case the class above is satisfied by a reader that dropped
-        the setting on the floor, since the shipped default is `enforce`.
-        """
-        settings = [dict(r) for r in STORE_SETTINGS]
-        for rec in settings:
-            if rec["key"] == "conformance_gate":
-                rec["value"] = "advisory"
-        d = self.project(
-            markdown=MD_SAYS.replace("- Conformance gate: advisory",
-                                     "- Conformance gate: enforce"),
-            store=store_text(settings + STORE_TRACKS))
-        self.assertEqual(PC.gate_mode(d), "advisory")
-
-    def test_the_declared_gate_survives_the_markdown_being_deleted(self):
-        """V4 step 1: *"`perry-conform` still reports the declared gate rather
-        than the default"*."""
-        settings = [dict(r) for r in STORE_SETTINGS]
-        for rec in settings:
-            if rec["key"] == "conformance_gate":
-                rec["value"] = "advisory"
-        d = self.project(markdown=None,
-                         store=store_text(settings + STORE_TRACKS))
-        self.assertEqual(PC.gate_mode(d), "advisory")
-        self.assertNotEqual(PC.gate_mode(d), PC.DEFAULT_MODE,
-                            "the fixture no longer distinguishes the declared "
-                            "gate from the shipped default")
-
-    def test_a_project_with_no_store_still_reads_its_markdown(self):
-        self.assertEqual(PC.gate_mode(self.project(store=False)), "advisory")
-
-    def test_a_usable_store_with_no_gate_record_declares_nothing(self):
-        """Not a fallback to the markdown — an answer.
-
-        The store is derived from the preamble, so a key it does not carry is a
-        line the file does not have. Falling through here would reintroduce the
-        two-registers problem on the one setting that decides whether every
-        other write is allowed.
-        """
-        settings = [r for r in STORE_SETTINGS
-                    if r["key"] != "conformance_gate"]
-        d = self.project(store=store_text(settings + STORE_TRACKS))
-        self.assertEqual(PC.gate_mode(d), PC.DEFAULT_MODE)
-
-    def test_the_environment_still_beats_both(self):
-        """Most specific wins, and the env var is still the most specific."""
-        import os
-        d = self.project()
-        old = os.environ.get("PERRY_CONFORMANCE")
-        os.environ["PERRY_CONFORMANCE"] = "advisory"
-        try:
-            self.assertEqual(PC.gate_mode(d), "advisory")
-        finally:
-            if old is None:
-                os.environ.pop("PERRY_CONFORMANCE", None)
-            else:
-                os.environ["PERRY_CONFORMANCE"] = old
 
 
 class TestTheStateRootReadsTheStore(Fixture):

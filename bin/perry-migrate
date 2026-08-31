@@ -192,8 +192,8 @@ def _load(name: str, filename: str):
     return _MODULES[name]
 
 
-def conform():
-    return _load("perry_conform", "perry-conform")
+def schema_helpers():
+    return _load("perry_schema", "perry_schema.py")
 
 
 def _q(value) -> str:
@@ -205,7 +205,7 @@ def _q(value) -> str:
     what `--root {root_arg}` was, so every interpolation inside a command this
     tool hands back goes through here and the sweep reports any that does not.
     """
-    return conform()._q(value)
+    return schema_helpers()._q(value)
 
 
 def _root_flag(root_arg: str | None) -> str:
@@ -216,7 +216,7 @@ def _root_flag(root_arg: str | None) -> str:
     every refusal in both tools depends on: a command handed back to a reader
     names the root that reader used, or it acts on a different project.
     """
-    return conform()._root_flag(root_arg)
+    return schema_helpers()._root_flag(root_arg)
 
 
 def lint():
@@ -228,7 +228,7 @@ def lint():
     this file its own unarmed globals, and the first symptom was the migration
     creating a `| 编号 | 标题 | …` header on a Chinese board and then reporting
     its own output as missing every column."""
-    return conform().lint()
+    return schema_helpers().lint()
 
 
 def task():
@@ -1626,7 +1626,7 @@ def plan_project(project_root: Path, state_root: Path, schema: dict,
     were handing one back with the root dropped. A default of `None` here
     would let a new caller inherit that omission by saying nothing, which is
     exactly how `apply_plan`'s two green mutations happened one file over."""
-    C = conform()
+    C = schema_helpers()
     preflight_file_objects(project_root, state_root, schema, only)
     plan = Plan(project_root=project_root, state_root=state_root,
                 shape_version=C.shape_version(schema), root_arg=root_arg)
@@ -1955,7 +1955,7 @@ def apply_plan(plan: Plan, schema: dict, declare: bool = True) -> dict:
     result = {"applied": [e.key for e in applied], "restore_point": str(point),
               "run": run_id, "declared": [], "refused": []}
     if declare:
-        C = conform()
+        C = schema_helpers()
         # Through `bin/perry-conform`, never beside it: ADR-004 § 4 makes the
         # declaration one fact with one record, and `declare()` re-checks each
         # file rather than trusting this tool's word for it.
@@ -2261,7 +2261,7 @@ def main(argv: list[str]) -> int:
         i += 1
 
     try:
-        schema = conform().load_schema()
+        schema = schema_helpers().load_schema()
         project_root, state_root = _roots(root_arg)
 
         if cmd == "restore":
@@ -2327,7 +2327,7 @@ def perry_written_findings(project_root: Path, state_root: Path,
     """Errors in the files Perry writes for itself — the YAML-frontmatter ones."""
     linter = Linter(schema, project_root)
     n = 0
-    for key, path, spec in conform().state_files(project_root, state_root, schema):
+    for key, path, spec in schema_helpers().state_files(project_root, state_root, schema):
         if spec.get("format") != "yaml-frontmatter":
             continue
         n += len(linter.errors(path.read_text(errors="replace"), key, spec))

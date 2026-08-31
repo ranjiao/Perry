@@ -27,7 +27,6 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-task"
@@ -91,7 +90,7 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
         (self.root / "BOARD.md").write_text(board)
 
     def run(self, *argv):

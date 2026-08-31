@@ -49,7 +49,6 @@ import perry_md_store as M                                     # noqa: E402
 import perry_store as S                                        # noqa: E402
 import tables as T                                             # noqa: E402
 
-from gate import GATE_OFF, gate_off                            # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 SECOND_PROJECT = pathlib.Path("~/proj/gimegime-pmo").expanduser()
@@ -690,7 +689,7 @@ class TestTheTableAndBulletPathsStaySeparated(unittest.TestCase):
         self.path.write_text(
             SEPARATED_CONFIG.format(bullet=SEPARATED,
                                     cell=SEPARATED.replace("|", "\\|"),
-                                    gate=GATE_OFF),
+                                    gate=""),
             encoding="utf-8")
         proc = self.config("write", "--from-file")
         self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -876,18 +875,12 @@ class Project:
         (self.root / "perry").mkdir()
         (self.root / ".perry").mkdir()
         shutil.copy2(ROOT / "perry" / "OKR.md", self.root / "perry" / "OKR.md")
-        # The conformance gate reads `.perry/config.md` to decide its own mode,
-        # and `.perry/config.md` is one of the two files under test — so a
-        # fixture here is writing the very file the gate consults about
-        # itself. `GATE_OFF` is the documented way out (tests/gate.py); the
-        # gate's own branches are `tests/test_conformance.py`'s subject.
-        # `gate_off`, not `+ GATE_OFF`: Perry's own config carries `## Tracks`
-        # and prose, and an appended bullet lands outside the preamble
-        # `perry_md_store § scan_config` reads — so it would mint no record,
-        # and `gate_mode` reads the store first since TASK-233.
+        # Perry's own `.perry/config.md`, verbatim. The ADR-004 gate used to
+        # read this file to decide its own mode, which made a fixture writing
+        # it the file the gate consulted about itself; the gate is gone
+        # (TASK-261) and the copy is now just a copy.
         (self.root / ".perry" / "config.md").write_text(
-            gate_off((ROOT / ".perry" / "config.md").read_text()),
-            encoding="utf-8")
+            (ROOT / ".perry" / "config.md").read_text(), encoding="utf-8")
 
     def okr(self, *args):
         return run("perry-okr", *args, root=self.root)
@@ -1170,7 +1163,7 @@ class TestTheWriterWritesTheStore(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
         shutil.copytree(FIXTURES / "second-project", d, dirs_exist_ok=True)
         cfg = d / ".perry" / "config.md"
-        cfg.write_text(gate_off(cfg.read_text()), encoding="utf-8")
+        cfg.write_text(cfg.read_text(), encoding="utf-8")
         return d
 
     def test_commit_writes_okr_and_the_store_together(self):

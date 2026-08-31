@@ -6893,42 +6893,22 @@ def perry_state():
     return _PERRY_STATE
 
 
-_PERRY_CONFORM = None
-
-
-def perry_conform():
-    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
-    global _PERRY_CONFORM
-    if _PERRY_CONFORM is None:
-        import importlib.machinery
-        import importlib.util
-        sys.path.insert(0, str(PERRY_HOME / "bin"))
-        spec = importlib.util.spec_from_loader(
-            "perry_conform", importlib.machinery.SourceFileLoader(
-                "perry_conform", str(PERRY_HOME / "bin" / "perry-conform")))
-        mod = importlib.util.module_from_spec(spec)
-        # Registered BEFORE exec: `perry-conform` declares dataclasses under
-        # `from __future__ import annotations`, and `dataclasses` resolves
-        # those string annotations through `sys.modules[cls.__module__]`. An
-        # unregistered module makes that lookup return None and the import dies
-        # inside the decorator, several frames from anything that names it.
-        sys.modules["perry_conform"] = mod
-        spec.loader.exec_module(mod)
-        _PERRY_CONFORM = mod
-    return _PERRY_CONFORM
-
-
-#: The commands that only read. Everything else writes `BOARD.md` and is gated
-#: on `BOARD.md` — on that file and on nothing else, because ADR-004 § 5 makes
-#: conformance per-file so a project can migrate its board and not its risks.
-#: `list` is a published contract (`schema/task-list-contract.md`) and reading
-#: is never gated, so it is not merely excluded here — `tests/test_conformance`
-#: asserts it still answers on an undeclared project with the gate enforcing.
+#: The commands that only read. `list` is a published contract
+#: (`schema/task-list-contract.md`); the rest write `BOARD.md`.
+#:
+#: **The ADR-004 conformance gate was removed here (TASK-261).** It read a
+#: DECLARATION out of `.perry/conformance.jsonl` and refused a write when the
+#: file no longer matched its declared shape. On this repository that ledger
+#: held 23 records, every one `route: declare`, every one Perry's own file:
+#: zero migrations and zero disagreements, because the gate's whole value is a
+#: stored decision DISAGREEING with a live check and that needs a foreign
+#: project which Perry has never been pointed at. `perry-decide` removed its
+#: own gate first, for a different reason, and named the hole rather than
+#: faking it; this is the same move with the measurement attached.
 READ_ONLY_COMMANDS = {"list", "events", "signoff-offer"}
 TASK_ROW_COMMANDS = {"start", "stage", "track", "done", "drop", "purge",
                      "status", "depends", "next", "retitle", "summary",
                      "rung", "evidence", "prioritize"}
-GATED_FILE = "BOARD.md"
 
 
 def split_stages(cell: str) -> list[str]:
@@ -7367,23 +7347,6 @@ def main(argv: list[str]) -> int:
                     f"disagreement — or remove it to fall back to the file "
                     f"deliberately.")
             config = {"tracks": tracks}
-        # ADR-004. Taken before the lock and before any command runs: a refusal
-        # must mean nothing was written, and a dry run must preview the refusal
-        # rather than the write it would not be allowed to perform.
-        gate = None
-        if args.cmd not in READ_ONLY_COMMANDS:
-            gate = perry_conform().gate(project_root, state_root, GATED_FILE,
-                                        tool="perry-task", root_arg=args.root)
-            if not gate.ok:
-                raise Refused(gate.message)
-            if gate.message and not args.as_json:
-                # `gate.mode`, not the literal "advisory": reaching this line
-                # means the gate found something AND let the write through, so
-                # the mode is the reason it was let through and is the one word
-                # the reader needs. Hardcoding it survived only because the
-                # shipped default made it true by construction (TASK-047).
-                print(f"perry-task: ⚠ conformance ({gate.mode}) — "
-                      f"{gate.message}", file=sys.stderr)
         with project_lock(state_root):
             recovered = recover_transaction(state_root)
             records = load_task_records(state_root)
@@ -7426,12 +7389,6 @@ def main(argv: list[str]) -> int:
                 command_args = copy.copy(args)
                 command_args.all = True
             result = COMMANDS[args.cmd](command_args, ctx)
-        # `list` is a published contract and gets nothing added to it. Every
-        # other subcommand's payload is Perry-internal, so the verdict rides
-        # along there — an agent reading `--json` should not have to shell out
-        # to a second tool to learn its write was allowed under protest.
-        if gate is not None and isinstance(result, dict):
-            result["conformance"] = gate.as_dict()
     # A value a markdown table row cannot carry. Translated into the ordinary
     # refusal channel here, at the boundary, rather than checked per
     # subcommand: the previous version of this rule lived inside `render_row`
