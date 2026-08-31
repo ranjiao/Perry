@@ -122,7 +122,6 @@
 | TASK-257 | The ignored-name bullet pin asserts a substring, not a bullet, and one satisfying string blinds the guard to BOARD.md | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-258 | tests/test_tree_guard.py copies the LIVE repository, so any concurrent write reddens it | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
 | TASK-259 | Nothing asserts the TASK-234 fixture root is shell-hostile, and 8 of 19 bypass spellings get past the source rule | Coding Agent | not_started | — | — | V4 |  | main |  |  |  |  |  |  |
-| TASK-261 | Tier A — the ADR-004 declaration gate comes out; perry-conform keeps only its shared helpers | Coding Agent | blocked | blocked on migration fork: perry-migrate's output is the deleted ledger | — | V4 | USER-910 | main |  |  |  |  |  |  |
 
 ## P2
 

@@ -119,10 +119,10 @@ board.
 Implemented: schema/state-schema.json
 
 ### conformance
-Two unrelated things, and the collision is deliberate only in that both are
-named in the schema: (a) the block in a read contract naming what the board did
-**not** parse cleanly; (b) a file's declared shape version under
-`perry-conform`.
+The block in a read contract naming what the board did **not** parse cleanly.
+It used to be two unrelated things under one word; the other — a file's
+declared shape version under `perry-conform` — is deleted (`TASK-261`), and the
+collision went with it.
 Implemented: schema/task-list-contract.md
 
 ### the hand-off contract
