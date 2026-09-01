@@ -40,8 +40,9 @@ not about the live read path.
 
 What did NOT change, and is therefore not deleted: `perry-lint` still reads
 `BOARD.md` as a document and `ragged-row` is still the finding that catches a
-destroyed row; `render_row` still writes `DECISIONS.md`, phase files and every
-foreign project a migration touches; and four registers of `BOARD.md`
+destroyed row; `render_row` still writes phase files and every foreign project
+a migration touches — it stopped writing the decisions index when TASK-235
+deleted that file, which is why `bin/perry-decide` no longer imports it; and four registers of `BOARD.md`
 — `## Cadence`, `## Intake`, `## User Input Queue`, `## Top risks` — have no
 store of their own yet, so their readers are counted here as a pinned residual
 rather than quietly excused. **A test file that lost those assertions would
@@ -63,7 +64,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
@@ -194,7 +194,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
                                                       encoding="utf-8")
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n" + GATE_OFF, encoding="utf-8")
+            "# Config\n\nState root: perry/\n", encoding="utf-8")
         self.addCleanup(self.tmp.cleanup)
 
     def run_add(self, next_action: str):

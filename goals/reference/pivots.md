@@ -9,7 +9,7 @@ For mid-phase goal changes (market shift, big learning, capital change). High-fr
 1. Restate the affected O / KR.
 2. Walk through: change title? change metric? drop entirely? add a new one? **Use `AskUserQuestion`** (header `"Pivot kind"`, options = `Change title | Change metric (Recommended) | Drop entirely | Add new KR`) for each affected KR.
 3. If pivoting the overall OKR → run `revise` to bump the version. If only the current phase → first run `/okr snapshot` to preserve the pre-pivot state, then write a `## Changes` line in `phase/<NNN>-<slug>.md` with `YYYY-MM-DD — <what> — <reason>`. Old text stays as strikethrough.
-4. Hand off to **`decide`**, which owns `DECISIONS.md` and `decisions/`: print `/perry decide adr <slug> --type Process` with the pivot rationale and which Operating Principle (if any) it tested. Not PMO — those files moved on 2026-08-16 by the signed hand-off contract.
+4. Hand off to **`decide`**, which owns `decisions/`: print `/perry decide adr <slug> --type Process` with the pivot rationale and which Operating Principle (if any) it tested. Not PMO — those files moved on 2026-08-16 by the signed hand-off contract.
 
 The friction is the feature. Never silently edit `OKR.md` — a goal that changes without a recorded reason is a goal nobody can score against later.
 

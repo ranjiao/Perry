@@ -53,7 +53,7 @@ PERRY_HOME = Path(os.environ.get("PERRY_HOME") or HERE.parent).resolve()
 
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
-from tables import split_row, squash  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
 import lib  # noqa: E402
 
 # ── thresholds (calibrated defaults; see project-archetypes.md § Part 5) ──
@@ -129,6 +129,13 @@ SPINE_NAMES = [
 ]
 SPINE_DIRS = ["phase", "phases", "specs", "sprints", "milestones"]
 
+# **These are OTHER projects' filenames and TASK-235 deliberately left them.**
+# Perry deleted its own `DECISIONS.md` (DESIGN-013 § 5.3) because the rule is
+# "a fact with a schema lives in exactly one store" and Perry has the store.
+# A project `/perry diagnose` is pointed at has no store, so a document IS the
+# right home for its decisions under the same rule — which is why the FIT-02
+# and TRK-04 prescriptions below still name the file. Detecting a name Perry
+# no longer uses itself is not a stale reference; it is the whole job.
 DECISION_NAMES = ["DECISIONS.md", "ADR.md", "CHANGELOG.md"]
 DECISION_DIRS = ["decisions", "adr", "adrs", "docs/adr", "docs/decisions", "rfcs"]
 
@@ -920,7 +927,7 @@ def perry_owned_globs() -> list[str]:
     what kind of project this is."""
     globs = [
         # Fallback, used when the schema is unreadable (tarball install, etc).
-        "BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md",
+        "BOARD.md", "OKR.md", "PROJECT_STATE.md",
         "ARCHITECTURE.md", "phase/*", "design/*", "runbook/*", ".perry/*",
     ]
     schema = PERRY_HOME / "schema" / "state-schema.json"
@@ -1596,6 +1603,11 @@ WHY = {
         "that label — so it will keep asking what is aging in review when the "
         "real question is what came in and never got answered, and the check "
         "that would have caught something never runs.",
+    "MODE-02":
+        "There are two copies of the track list — one Perry reads and one you "
+        "read — and they no longer say the same thing. Every tool answers "
+        "from the one you do not see, so the settings written in the table "
+        "you are looking at are not the settings anything is using.",
     "FIT-02":
         "This project is small enough that three files would cover it: the "
         "rules, what's true right now, and what you've decided. Anything "
@@ -1817,12 +1829,23 @@ def md_table(lines: list[str], aliases: dict[str, set[str]]):
             continue
         if set(s) <= set("|- :"):
             continue
-        cells = [c.strip("*` ") for c in split_row(s)]
-        # `squash` resolves the header; `cells` keeps the values verbatim.
-        # `.lower()` alone reads `| **Default** rung |` as `default** rung`,
-        # so a project that bolded half a header loses that column entirely —
-        # and `md_table` reads the USER's board and OKR.
-        low = [squash(c) for c in cells]
+        raw = split_row(s)
+        cells = [c.strip("*` ") for c in raw]
+        # The VALUES get their own rule — a value normalizer, criterion 4.
+        # The HEADER goes to `header_index` **unstripped**. `.lower()` alone
+        # reads `| **Default** rung |` as `default** rung`, so a project that
+        # bolded half a header loses that column entirely — and `md_table`
+        # reads the USER's board and OKR.
+        #
+        # TASK-050 round 9: this passed the pre-stripped `cells`. Behaviourally
+        # that is the same key (`squash` treats `*` and a backtick as
+        # whitespace, so `squash(c.strip("*` ")) == squash(c)`) — but it is
+        # half of a second rule applied before the one rule, and it made this
+        # reader INVISIBLE to `tests/test_header_index_is_the_only_fold.py`:
+        # round 8 listed `md_table` among the twelve readers that test watches
+        # while it contributed ZERO recorded folds, because the watch's
+        # discriminator never saw a decorated argument from it.
+        low = header_index(raw)
         if not header:
             header = {canon: i for canon, names in aliases.items()
                       for i, c in enumerate(low) if c in names}
@@ -1891,12 +1914,32 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
         # while a FOREIGN project — the ones this tool exists to read — has no
         # store at all and the table is the register. `declared_tracks` is that
         # one decision, made once.
-        tracks = state.declared_tracks(root)
+        # **`_detail`, not the plain reader.** This is the FOURTH converted
+        # call site, and the V4 round 2 review found it still falling back
+        # silently while the other three had learned to say so: on a store
+        # holding `main` and `intake` with one torn line, this reported
+        # `tracks: ['main']`, `register_declared: True`, and nothing anywhere
+        # named which register it had read.
+        #
+        # `perry-diagnose` is the worst of the four to leave silent — reporting
+        # structural problems is its entire purpose and it already has a
+        # findings channel — so the provenance travels on the payload the same
+        # way `perry-state` carries `tracks_source`.
+        tracks, tracks_source = state.declared_tracks_detail(root)
+        # **The drift signal, so this reader is not the silent one.** The V4
+        # round 5 review measured `perry-diagnose` carrying `tracks_source`
+        # with no drift signal at all: on a table declaring `main` beside a
+        # trackless store it reported `store-default` / `['main']` with empty
+        # stderr while the other three warned or refused. Same function, same
+        # rule — `perry-lint`'s own comparison, asked once.
+        tracks_contradicted = state.tracks_the_register_contradicts(
+            root, tracks_source)
     except Exception:
         # Reported absent rather than defaulted. A fallback here would make
         # every project read as one implicit `project` track, and MODE-01 would
         # go quiet instead of red.
-        return {"available": False, "register_declared": False, "tracks": []}
+        return {"available": False, "register_declared": False, "tracks": [],
+                "tracks_source": "unavailable", "tracks_contradicted": []}
 
     aliases = column_aliases()
     board = read_text(state_root / "BOARD.md")
@@ -2126,6 +2169,14 @@ def scan_work_modes(root: Path, state_root: Path) -> dict:
     return {
         "available": True,
         "register_declared": any(t.get("declared") for t in tracks),
+        # WHICH register was read. `register_declared` says a register was
+        # found; without this, it does not say whether that was the store or
+        # its projection — and on a store present-but-unusable the two give
+        # different track lists. See the `_detail` call above.
+        "tracks_source": tracks_source,
+        # Which declared rows that register CONTRADICTS. `MODE-02` is the
+        # finding; this is the machine-readable half, beside the label.
+        "tracks_contradicted": tracks_contradicted,
         "tracks": out,
     }
 
@@ -2170,6 +2221,25 @@ def derive_findings(ctx, docs, con, trk, arch, inv, load, ns=None,
             f"picks the review questions, so a wrong one asks about the wrong "
             f"thing every single time.",
             t["evidence"].get(t["mode"], [])[:6],
+        ))
+
+    # The register and its table disagree about a row the table declares.
+    # Reported once for the file, not once per row: it is one hand edit or one
+    # interrupted write, and the rows are named in the detail.
+    _contradicted = (modes or {}).get("tracks_contradicted") or []
+    if _contradicted:
+        out.append(finding(
+            "MODE-02", "warn",
+            f"`.perry/config.md` and `.perry/config.jsonl` disagree about "
+            f"{', '.join(_contradicted)}",
+            f"Perry answers from `.perry/config.jsonl`, so what the table in "
+            f"`.perry/config.md` says about "
+            f"{', '.join(_contradicted)} is not in force. Pick the side that "
+            f"is right and make the other match it: `perry-config write "
+            f"--from-file` takes the table as correct, `perry-config render "
+            f"--write` takes the stored one as correct. `perry-lint` reports "
+            f"the same disagreement.",
+            [f"`{n}`" for n in _contradicted][:6],
         ))
 
     # ── namespace ──

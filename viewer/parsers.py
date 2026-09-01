@@ -40,7 +40,8 @@ from pathlib import Path
 #
 # `tests/test_risks.py::TestOneNormalizationForAHeaderCell` compares the
 # reader's predicate against the writer's over a corpus of header forms.
-from tables import split_row, squash  # noqa: E402
+from tables import (UnrenderableCell, header_index, render_row,  # noqa: E402
+                    split_row, squash)
 
 # ── localization glossary ─────────────────────────────────────────────────
 #
@@ -170,7 +171,7 @@ def is_risk_register_header(header: list[str]) -> bool:
     closed, and the user's live risks invisible in every one. There is one
     predicate now because that defect is only reachable while there are two.
     """
-    return bool(set(_column_keys("Risk")) & {squash(c) for c in header})
+    return header_index(header).column(_column_keys("Risk")) >= 0
 
 
 #: What counts as a risk bullet on a section that has not migrated, and what
@@ -241,6 +242,166 @@ def status_cleared_date(status_cell: str) -> str:
     return m.group(0) if m else ""
 
 
+# ── `.perry/config.jsonl`, read in ONE place ──────────────────────────────
+#
+# TASK-233 / P003-O2-KR1. `.perry/config.md` is a PROJECTION of
+# `.perry/config.jsonl` wherever that store exists, and until this row three
+# readers scanned the markdown as truth: `resolve_state_root` below,
+# `bin/perry-state § parse_config` and `bin/perry-conform § gate_mode`. Each of
+# them now asks the two functions here.
+#
+# **This file, not `bin/perry-state`, because this file is the bottom of the
+# import graph** — `perry-conform` cannot import a hyphenated `perry-state`
+# without loading `perry-lint` on the way, and `resolve_state_root` is called
+# before anything else in every tool. It is the same move `ask_is_answered`
+# made one register over, for the same reason: two halves that both need one
+# rule meet here or they meet nowhere.
+#
+# `bin/perry-state`'s track-register constants spell these same three strings —
+# `_validated_config_records` there is now a delegate to `config_store_records`
+# here, so "what went wrong with the store" has one answer for tracks and
+# settings alike.
+
+#: There is legitimately no store. **This is the adoption path and reading the
+#: markdown here is CORRECT** — it is the register a project that has never run
+#: `perry-config write --from-file` actually has, and P003-O2-KR1 excludes it by
+#: name. The other two below both occur with `.perry/config.jsonl` present on
+#: disk, which is the condition that KR counts.
+CONFIG_STORE_ABSENT = "absent"
+CONFIG_STORE_UNREADABLE = "unreadable"
+CONFIG_STORE_INVALID = "invalid"
+
+#: The store answered and holds no record for the key that was asked for. Not
+#: an error and not a fallback: a projection whose store has no line for a
+#: setting is a file that does not declare it.
+CONFIG_STORE_DEFAULT = "store-default"
+
+#: The store answered from its own records.
+CONFIG_FROM_STORE = "store"
+
+#: The two that mean "a store is sitting right there and cannot be used", so a
+#: caller reading the markdown instead must say so rather than answer silently.
+CONFIG_STORE_UNUSABLE = frozenset({CONFIG_STORE_UNREADABLE, CONFIG_STORE_INVALID})
+
+
+def config_store_records(project_root: Path) -> tuple[list[dict] | None, str]:
+    """`.perry/config.jsonl` loaded and validated. `(records, why)`.
+
+    `records` is `None` exactly when `why` is one of `absent` / `unreadable` /
+    `invalid`, and a list otherwise (`why` is then the empty string, because
+    nothing went wrong).
+
+    A malformed store never raises from here. `perry-state` is the
+    read-everything tool and exits 0 on a project with no state at all, and
+    `resolve_state_root` runs before any tool can report anything — neither may
+    be the thing that turns an unreadable store into a crash. What the caller
+    gets instead is the reason, so it can decide.
+    """
+    path = Path(project_root) / ".perry" / "config.jsonl"
+    if not path.exists():
+        return None, CONFIG_STORE_ABSENT
+    try:
+        # Imported here, not at module scope: `perry_md_store` imports THIS
+        # file, reads the schema at import time and refuses a bad one. A module
+        # -scope import would be a cycle, and a schema problem must not turn
+        # every state-root resolution in every tool into an ImportError before
+        # anything can report it.
+        import sys                                            # noqa: PLC0415
+        _bin = str(Path(__file__).resolve().parent.parent / "bin")
+        if _bin not in sys.path:
+            sys.path.insert(0, _bin)
+        import perry_md_store as md_store                     # noqa: PLC0415
+        good, findings = md_store.validate_records(
+            md_store.load_store(path))
+    except Exception:                                         # noqa: BLE001
+        return None, CONFIG_STORE_UNREADABLE
+    if findings:
+        return None, CONFIG_STORE_INVALID
+    if not good:
+        # **An EMPTY store is broken.** A file that parsed to zero records has
+        # answered nothing, and an interrupted write does produce one. The
+        # classification is `bin/perry-state § _validated_config_records`'s and
+        # travelled here with it.
+        return None, CONFIG_STORE_INVALID
+    return good, ""
+
+
+def config_store_settings(project_root: Path) -> tuple[dict[str, str] | None, str]:
+    """`{setting key: stored value}` from `.perry/config.jsonl`, or `(None, why)`.
+
+    The values are the STORE's, which means a declared blank is the empty
+    string: `perry_md_store § stored_value` normalises `—` / `n/a` / `无` on the
+    way in, because the marker is layout and the value is "nothing". A caller
+    that renders the answer back to a human puts the marker back
+    (`bin/perry-state § parse_config`); a caller that only asks whether a field
+    was declared does not have to care.
+
+    **A key with no record means the file does not declare it**, which is a
+    complete answer and not a reason to go read the markdown. That distinction
+    is why `why` comes back as `store-default` rather than as one of the
+    failure reasons when the store is usable and simply carries no settings.
+    """
+    records, why = config_store_records(project_root)
+    if records is None:
+        return None, why
+    out = {}
+    for rec in records:
+        if rec.get("kind") != "setting":
+            continue
+        key = (rec.get("key") or "").strip()
+        if not key:
+            continue
+        value = rec.get("value")
+        out[key] = value if isinstance(value, str) else (
+            "" if value is None else str(value))
+    return out, (CONFIG_FROM_STORE if out else CONFIG_STORE_DEFAULT)
+
+
+def declared_state_root(project_root: Path) -> tuple[str, str]:
+    """The raw `State root` value this project declares, and where it came from.
+
+    Store first, `.perry/config.md` as the fallback for a project that has no
+    store. Split out of `resolve_state_root` so the source is inspectable by a
+    test — the resolved `Path` alone cannot tell a store answer from a markdown
+    one, and TASK-233's whole subject is that they can differ.
+    """
+    stored, why = config_store_settings(project_root)
+    if stored is not None:
+        return stored.get("state_root", ""), why
+    cfg = Path(project_root) / ".perry" / "config.md"
+    if not cfg.exists():
+        return "", why
+    m = re.search(r"State root\s*[:：]\s*([^\n]+)",
+                  cfg.read_text(errors="replace"), re.I)
+    return (m.group(1).strip().strip("*`  ") if m else ""), why
+
+
+def configured(project_root: Path) -> bool:
+    """Has this project been configured at all? **Either register counts.**
+
+    The one predicate behind "is there a `.perry/config.md`", which stopped
+    being the right question when the file became a projection (TASK-233): a
+    project whose markdown has been deleted, or that was cloned before
+    `perry-config render --write` put it back, is configured and its store says
+    so. `bin/perry-goals § tracks_of` already asked it the wide way.
+
+    **Six call sites ask it here; that is not all of them.** Round 1 converted
+    four — `bin/perry-lint § is_adopted` and its project-root walk,
+    `bin/perry-explain`, `parsers § _resolve_project_root` — and claimed they
+    were the rest. They were not: `bin/perry-state § build` and its own copy of
+    the walk kept the markdown test, in the file the row is about, and the V4
+    reviewer reproduced both. Round 2 converted those two.
+    `bin/perry-diagnose § scan_tracking` and `§ diagnose` still ask it the
+    narrow way and are NOT converted — see `TASK-233-result.md § 4`.
+
+    It answers about `.perry/` only. Every caller ORs it with the state files
+    it also accepts — `BOARD.md`, `OKR.md`, `phase/` — because those differ per
+    caller and this does not.
+    """
+    perry = Path(project_root) / ".perry"
+    return (perry / "config.jsonl").exists() or (perry / "config.md").exists()
+
+
 def resolve_state_root(project_root: Path) -> Path:
     """Where this project's Perry state files live.
 
@@ -252,14 +413,17 @@ def resolve_state_root(project_root: Path) -> Path:
     `.perry/` itself never moves: it is the anchor that says "this is a Perry
     project" and it is where the pointer lives, so it cannot be behind the
     pointer. Every reader must resolve the root the same way, which is why this
-    lives here and not in a caller."""
-    cfg = project_root / ".perry" / "config.md"
-    if not cfg.exists():
-        return project_root
-    m = re.search(r"State root\s*[:：]\s*([^\n]+)", cfg.read_text(errors="replace"), re.I)
-    if not m:
-        return project_root
-    raw = m.group(1).strip().strip("*`  ")
+    lives here and not in a caller.
+
+    **The value comes out of `.perry/config.jsonl` when that store exists**
+    (TASK-233), with the markdown as the fallback. Before that it came out of
+    the markdown alone, and deleting the markdown on a project whose store said
+    `State root: perry` moved every Perry file the tools looked for from
+    `perry/` to the project root in silence — measured: `perry-state --json`
+    then reports *"No Perry state found — run /perry for first-time setup"* on a
+    fully populated project. That is the same failure the six settings had, on
+    the one setting every other read is relative to."""
+    raw, _why = declared_state_root(project_root)
     if not raw or raw in {".", "./", "—", "-"}:
         return project_root
     root = (project_root / raw).resolve()
@@ -336,7 +500,7 @@ def _resolve_project_root() -> Path:
         return Path(env).expanduser().resolve()
     cur = Path.cwd().resolve()
     for d in [cur, *cur.parents]:
-        if ((d / ".perry" / "config.md").exists()
+        if (configured(d)
                 or (d / "BOARD.md").exists() or (d / "OKR.md").exists()):
             return d
     return cur  # fall back to CWD; load_snapshot will just find nothing
@@ -354,7 +518,7 @@ STATE_ROOT = resolve_state_root(PROJECT_ROOT)
 
 # ── the conformance declaration (ADR-004) ─────────────────────────────────
 #
-# `.perry/conformance.md` records, per state file, that **the user declared**
+# `.perry/conformance.jsonl` records, per state file, that **the user declared**
 # this file to match Perry's shape at a given shape version. It is only ever
 # half the fact: the other half is whether the file still matches, and that is
 # computed live by `bin/perry-conform` from `bin/perry-lint`'s schema
@@ -364,20 +528,82 @@ STATE_ROOT = resolve_state_root(PROJECT_ROOT)
 # The reader lives here, beside `resolve_state_root`, for the same reason that
 # one does: `bin/perry-lint`, `bin/perry-conform` and any front-end must read
 # the declaration identically, and a second parser is how they stop agreeing.
+#
+# **It was a markdown table until TASK-234.** DESIGN-013 § 5.1 — a fact with a
+# schema lives in exactly one store; a document holds what has none — and this
+# file had no prose at all to hold: 24 rows of four regular columns under a
+# ten-line header that was already a constant in the writer. What the table
+# cost was a parser, and that parser was where two defect classes lived. Both
+# are gone by construction rather than by a predicate:
+#
+#   - a row could be DECORATED into or out of a declaration — backticked,
+#     indented, fenced (TASK-241), or wrapped in `<pre>` / an HTML comment /
+#     `<details>` (TASK-248, invisible to TASK-241's round trip BY
+#     CONSTRUCTION, because the row inside is byte-for-byte a genuine one).
+#     A JSON object has no inside to hide in and no decoration to wear.
+#   - the header row itself had to be told apart from a declaration, which is
+#     why the reader carried TASK-050's `squash` rule (the fifth live copy of
+#     it, found by an AST sweep). A jsonl has no header.
+#
+# And the point of the conversion, rather than a side effect of it: **a record
+# can now say who wrote it, when, and under which run.** Four regular columns
+# could not, which is why `TASK-226` — "where did this row come from" — was an
+# investigation rather than a query.
 
-CONFORMANCE_FILE = ".perry/conformance.md"
+CONFORMANCE_FILE = ".perry/conformance.jsonl"
+
+#: The markdown record every project written before TASK-234 carries.
+#:
+#: **It is a conversion SOURCE, never a register.** `read_conformance` does not
+#: read it and no gate consults it; the one reader below is called by
+#: `bin/perry-conform migrate`, which converts it once and deletes it. Keeping
+#: it readable as a fallback was the other option and was rejected: a fallback
+#: is a second live register for the fact that gates every write, and it would
+#: have carried TASK-248's hole — a row hidden in an HTML block, still
+#: declaring — for as long as any project left the markdown in place.
+CONFORMANCE_LEGACY_FILE = ".perry/conformance.md"
+
+#: One stored declaration, field order fixed. Everything after `route` is
+#: PROVENANCE and is new with the store: the four markdown columns could
+#: record what was declared and not who recorded it.
+CONFORMANCE_FIELDS = ("kind", "path", "shape_version", "declared", "route",
+                      "writer", "recorded_at", "run")
+
+CONFORMANCE_KIND = "declaration"
 
 _CONFORMANCE_ROW = re.compile(r"^\s*\|(?!\s*-)(.+)\|\s*$")
+
+#: A markdown code fence — ``` or ~~~, three or more, any indent, any info
+#: string. `read_conformance` tracked none, so a row written INSIDE a fenced
+#: block — an example in prose, or a row someone hid there — read as a real
+#: declaration (TASK-241). It cannot be caught by any property of the row
+#: itself: a fenced row is byte-for-byte identical to a genuine one, and what
+#: makes it not a declaration is where it sits, not how it is written.
+#:
+#: Three groups, because the *first* version of this guard had none and was a
+#: boolean toggle flipped by any line that looked like a fence. That is not
+#: markdown's rule, and it was defeated by the ordinary way a document shows a
+#: fenced block — a NESTED fence. `~~~` then ``` ``` ``` closed the toggle on
+#: the inner line, and the row under it was a live declaration again, laundered
+#: into a canonical row by the next legitimate `declare`, exactly as before the
+#: guard existed. Measured on four nestings (TASK-241 round 2).
+_FENCE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
 
 
 @dataclass
 class Declaration:
-    """One row of `.perry/conformance.md`."""
+    """One line of `.perry/conformance.jsonl`."""
     path: str            # as the schema declares it, relative to that spec's anchor
     shape_version: int
     declared: str        # ISO date the user declared it
     route: str           # "declare" (already conformant) or "migrate" (TASK-044)
     line: int
+    #: ── provenance. New with the store (TASK-234); "" on every declaration
+    #: converted from a markdown record, because the markdown never held it and
+    #: a value invented at conversion time would be a fact Perry made up.
+    writer: str = ""      # the command that recorded it: `perry-conform declare`
+    recorded_at: str = ""  # `lib.event_stamp()` — the moment, not just the day
+    run: str = ""         # `perry-migrate`'s run id, which names its restore point
 
 
 @dataclass
@@ -385,18 +611,144 @@ class ConformanceRecord:
     path: Path
     exists: bool
     declarations: dict[str, Declaration] = field(default_factory=dict)
-    #: Rows present in the file that this reader could not turn into a
-    #: declaration. Reported, never guessed at — a mangled row must not read as
+    #: Lines present in the file that this reader could not turn into a
+    #: declaration. Reported, never guessed at — a mangled line must not read as
     #: "declared" and must not read as "absent" either.
     unreadable: list[tuple[int, str]] = field(default_factory=list)
+    #: The `.perry/conformance.md` this project still carries, if any. Set
+    #: **only** when there is no store — a project mid-conversion. It is not a
+    #: source of declarations here; it is the reason `bin/perry-conform` names
+    #: `perry-conform migrate` instead of `perry-conform declare`.
+    legacy: Path | None = None
+    #: A `.perry/conformance.md` left BESIDE a store. The store is the record
+    #: and the markdown is reported rather than read, because two registers for
+    #: the fact that gates every write is the defect DESIGN-013 § 5.1 names.
+    stray_legacy: Path | None = None
 
 
 def read_conformance(project_root: Path) -> ConformanceRecord:
     """The declarations recorded for this project. Never writes, never infers.
 
     A project with no file has no declarations — which is every project that
-    existed before ADR-004, including Perry's own."""
-    path = Path(project_root) / CONFORMANCE_FILE
+    existed before ADR-004, including Perry's own.
+
+    **One line, one declaration, and a line is honoured or reported alone.**
+    A malformed line does not void its neighbours. That is deliberate and it
+    is TASK-241 round 2's measurement, carried across the format change: under
+    an all-or-nothing rule one stray line voids all 23 of Perry's real
+    declarations and takes the enforce gate down with them, where under the
+    per-line rule it voids one and says which.
+    """
+    root = Path(project_root)
+    path = root / CONFORMANCE_FILE
+    legacy = root / CONFORMANCE_LEGACY_FILE
+    rec = ConformanceRecord(path=path, exists=path.exists())
+    if not rec.exists:
+        # No store. A markdown record is not read — it is named, so the caller
+        # can name `perry-conform migrate` rather than tell a user who has
+        # declared 24 files that they have declared none.
+        if legacy.exists():
+            rec.legacy = legacy
+        return rec
+    if legacy.exists():
+        rec.stray_legacy = legacy
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return rec
+    for i, line in enumerate(text.split("\n"), start=1):
+        if not line.strip():
+            continue
+        decl = _declaration_from(line, i)
+        if decl is None or decl.path in rec.declarations:
+            # A duplicate `path` is unreadable, not last-one-wins: two lines
+            # claiming one file disagree about when it was declared, and a
+            # reader that silently picked one would make the record's answer
+            # depend on line order.
+            rec.unreadable.append((i, line.strip()))
+            continue
+        rec.declarations[decl.path] = decl
+    return rec
+
+
+def _declaration_from(line: str, number: int) -> "Declaration | None":
+    """One jsonl line → one `Declaration`, or `None` if it is not one.
+
+    Every branch here refuses rather than repairs. The four required fields
+    are checked for TYPE as well as presence: `"shape_version": "2"` is a
+    string where a number belongs, and coercing it would let a hand edit
+    reintroduce exactly the ambiguity `\\d+` had to police in the table.
+    """
+    try:
+        rec = json.loads(line)
+    except ValueError:
+        return None
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("kind") != CONFORMANCE_KIND:
+        return None
+    path = rec.get("path")
+    version = rec.get("shape_version")
+    declared = rec.get("declared")
+    route = rec.get("route")
+    if not isinstance(path, str) or not path.strip():
+        return None
+    if not isinstance(version, int) or isinstance(version, bool):
+        return None
+    if not isinstance(declared, str) or not isinstance(route, str):
+        return None
+    text = lambda key: (rec.get(key) if isinstance(rec.get(key), str) else "")
+    return Declaration(
+        path=path, shape_version=version, declared=declared,
+        route=route or "declare", line=number,
+        writer=text("writer"), recorded_at=text("recorded_at"),
+        run=text("run"))
+
+
+def declaration_line(decl: "Declaration") -> str:
+    """One `Declaration` → the line the store holds for it.
+
+    Beside the reader, and the only place a declaration is serialised — the
+    same arrangement `read_conformance` has always had with its writer, for the
+    same reason: two spellings of one record is how a store and its reader stop
+    agreeing. `bin/perry-conform § render` used to be that writer and used
+    `viewer/tables.py § render_row`; there is no row to render any more.
+    """
+    return json.dumps(
+        {"kind": CONFORMANCE_KIND, "path": decl.path,
+         "shape_version": decl.shape_version, "declared": decl.declared,
+         "route": decl.route, "writer": decl.writer,
+         "recorded_at": decl.recorded_at, "run": decl.run},
+        ensure_ascii=False)
+
+
+def render_conformance(declarations: dict) -> str:
+    """The whole store, sorted by path. Rebuilt from the declarations on every
+    write, exactly as the markdown was."""
+    return "".join(declaration_line(d) + "\n"
+                   for d in sorted(declarations.values(), key=lambda d: d.path))
+
+
+def read_legacy_conformance(project_root: Path) -> ConformanceRecord:
+    """`.perry/conformance.md` — the markdown record, read ONCE, to convert it.
+
+    This is TASK-241's reader, unchanged. It is kept rather than deleted
+    because deleting it would make every project written before TASK-234 lose
+    24 declarations it had made, and it is *only* reachable from
+    `bin/perry-conform migrate` because a second live register for this fact is
+    the thing the conversion exists to remove.
+
+    `migrate` holds it to a stricter contract than any reader ever could: it
+    refuses unless the whole file is `render(parse(file)) == file`. That is the
+    whole-file fixed point TASK-241 round 2 rejected as a READING rule — one
+    stray blank line voids all 23 of Perry's declarations — and it is the right
+    rule at a one-way door, where the answer to "this file is not exactly what
+    Perry would have written" is *look at your file*, not *lose your record*.
+    It is also what closes TASK-248 across the conversion: a row hidden in an
+    HTML block is invisible to the per-row round trip and is not invisible to
+    the file-level one, because the HTML around it is not in `render`'s output.
+    """
+    path = Path(project_root) / CONFORMANCE_LEGACY_FILE
     rec = ConformanceRecord(path=path, exists=path.exists())
     if not rec.exists:
         return rec
@@ -404,9 +756,45 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         text = path.read_text(errors="replace")
     except OSError:
         return rec
+    # ── which lines are inside a code fence ───────────────────────────────
+    #
+    # `fence` is the OPEN fence's `(delimiter character, run length)`, not a
+    # boolean. A boolean was the first version and it was wrong: any
+    # fence-looking line flipped it, so a fence nested inside a longer or
+    # differently-charactered one — ``` inside ~~~, ``` inside ````, a
+    # ```` ```x ```` line inside ``` — turned tracking OFF and handed the row
+    # below it back to the parser as a real declaration.
+    #
+    # **Opening is liberal, closing is strict, and each direction is chosen
+    # fail-closed.** Any run of three or more backticks or tildes at any indent
+    # OPENS — including the two shapes CommonMark says are not openers (a
+    # backtick fence whose info string contains a backtick; a fence indented
+    # four or more spaces, which is an indented code block) — because refusing
+    # a row we are unsure about costs a loud `unreadable`, while parsing one
+    # costs a false `conformant` on the file that gates every write. A fence
+    # CLOSES only on CommonMark's terms (§ 4.5): the same delimiter character,
+    # a run at least as long as the opener's, indented at most three, and
+    # nothing after it but whitespace. Every line that is not that is content.
+    fence: tuple[str, int] | None = None
     for i, line in enumerate(text.split("\n"), start=1):
+        f = _FENCE.match(line)
+        if f:
+            run, rest = f.group(2), f.group(3)
+            if fence is None:
+                fence = (run[0], len(run))
+            elif (run[0] == fence[0] and len(run) >= fence[1]
+                  and len(f.group(1).expandtabs(4)) < 4 and not rest.strip()):
+                fence = None
+            continue
         m = _CONFORMANCE_ROW.match(line)
         if not m:
+            continue
+        if fence is not None:
+            # Reported, not skipped. A row nobody can see the effect of is how
+            # this class stayed live: `ConformanceRecord.unreadable` exists so
+            # a row that is neither `declared` nor `absent` says so out loud,
+            # and `perry-conform status` prints it.
+            rec.unreadable.append((i, line.strip()))
             continue
         # `split_row` — the SIXTH implementation of this, found by a V4
         # reviewer after five were unified. It reads a row out of a regex
@@ -425,9 +813,51 @@ def read_conformance(project_root: Path) -> ConformanceRecord:
         # The fifth live copy of this rule, in the file the first pass claimed
         # to have unified, found by a reviewer running an AST sweep over all
         # 111 lowercasing sites rather than by grepping for the ones it knew.
-        if squash(rel) in ("file", "path") or not rel:
+        if header_index([rel]).column("file", "path") == 0 or not rel:
             continue           # the header row
         if not re.fullmatch(r"\d+", ver or ""):
+            rec.unreadable.append((i, line.strip()))
+            continue
+        # ── the round trip: a row is a declaration only if it is ALREADY the
+        # row `bin/perry-conform:render` would write for what we just parsed.
+        #
+        # `strip("` ")` above removes backticks, `_CONFORMANCE_ROW` allows
+        # leading whitespace, and this reader tracks no code fences — so a
+        # path cell in BACKTICKS, an INDENTED row, and a row inside a ``` ```
+        # ``` FENCE each parsed to the same plain key as a row a person had
+        # declared on purpose. Measured (TASK-241, found by the TASK-226 V4
+        # reviewer): one hand-written backticked row flipped a real file from
+        # `undeclared` to `conformant`, and because `declare` rewrites the
+        # whole file from the parsed declarations, the next legitimate
+        # `perry-conform declare` LAUNDERED it into a plain canonical row that
+        # nothing downstream could tell from a real one. This is the file that
+        # gates every write under ADR-004's enforce gate.
+        #
+        # This is ONE PROPERTY, not a list of decorations, and that is the
+        # whole reason it is written this way: `render(parse(row)) == row`
+        # closes the class, including the shapes nobody has thought of yet.
+        # A list of known decorations closes the three that have been found
+        # and is defeated by the fourth — TASK-050 spent eight V4 rounds
+        # learning that on this same file.
+        #
+        # It is not a new normalization rule either: the canonical form is
+        # `render_row`, the same writer the record's only writer uses, so
+        # "what a declaration looks like" still has exactly one definition.
+        #
+        # ASTERISKS survive, deliberately: `strip("` ")` never removed them,
+        # so `| **path** |` round-trips to itself and still reads as a
+        # declaration under the key `**path**` — inert, because no key from
+        # `state_files()` carries asterisks, and unchanged by this guard. A
+        # bolded `| **File** |` HEADER is squashed to `file` above and skipped
+        # before we get here; that is TASK-050's rule and it still stands.
+        try:
+            canonical = render_row([rel, str(int(ver)), declared,
+                                    route or "declare"])
+        except UnrenderableCell:
+            # A cell that cannot be written back at all — a `\n` smuggled in,
+            # say. Refused for the same reason: unreadable, never guessed at.
+            canonical = None
+        if canonical != line:
             rec.unreadable.append((i, line.strip()))
             continue
         rec.declarations[rel] = Declaration(
@@ -642,6 +1072,13 @@ class Objective:
     title: str
     raw_body: str = ""
     intro: str = ""    # prose between the heading and the first KR bullet
+    #: `"1"` for `## Objective 1 — …` in a phase document, `""` everywhere
+    #: else. Recorded rather than re-derived from position because
+    #: `phase_key_results_by_objective` attaches a register's KRs by the
+    #: objective number their **id** carries (`P003-O2-KR1` → `O2`), and
+    #: matching by position would put a KR under the wrong heading the moment
+    #: a document's objectives are not `1, 2, 3 …` in order.
+    number: str = ""
     krs: list[KR] = field(default_factory=list)
 
 
@@ -709,6 +1146,15 @@ class LinkageKR:
     current: float | None = None
     due: str = ""
     stretch: bool = False
+    #: The overall KR this phase KR serves — the `Linked overall KR` column of
+    #: the KR table the phase document used to carry. TASK-157 moved it here
+    #: rather than dropping it with the table: it is the only one of that
+    #: table's four columns the register had no field for, and DESIGN-013 § 5.1
+    #: puts a schema'd fact in exactly one store rather than in a document.
+    #: **Additive and optional**, so `linkage: 1` is unchanged: a register
+    #: written before this field existed carries `""`, which is what an empty
+    #: `Linked overall KR` cell always meant.
+    linked: str = ""
     tasks: list[str] = field(default_factory=list)
 
 
@@ -1122,8 +1568,8 @@ def _parse_task_table(section: str, priority: str,
     idx: dict[str, int] = {}
     for line in lines:
         if re.match(r"^\|\s*---", line):
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             # Project-defined groups may contain reference tables beside work.
             # The writer treats only tables with resolvable ID + Title columns
             # as task tables, so the state reader must apply the gate per table.
@@ -1170,7 +1616,7 @@ def _parse_task_table(section: str, priority: str,
             return cells[i] if 0 <= i < len(cells) else ""
 
         tid = cell("ID", 0)
-        if not tid or squash(tid) in _column_keys("ID"):
+        if not tid or header_index([tid]).column(_column_keys("ID")) == 0:
             continue
         base_status, status_note = _split_status(cell("Status", 3))
         tasks.append(
@@ -1370,7 +1816,7 @@ def is_intake_register_header(header: list[str]) -> bool:
     block up. Resolved by NAME through the glossary so `| 到达 | 请求 |`
     counts, and by `squash` so `| Arrived | **Request** |` counts.
     """
-    return bool(set(_column_keys("Request")) & {squash(c) for c in header})
+    return header_index(header).column(_column_keys("Request")) >= 0
 
 
 def intake_is_discharged(outcome: str) -> bool:
@@ -1474,8 +1920,8 @@ def _parse_cadence(section: str) -> list[Cadence]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("ID", "Recurring task", "Title", "Owner", "Frequency",
                          "Next due", "Last run", "Last evidence", "Evidence"):
@@ -1504,7 +1950,7 @@ def _parse_cadence(section: str) -> list[Cadence]:
             return cells[i] if 0 <= i < len(cells) else ""
 
         cid = cell("ID", 0)
-        if not cid or squash(cid) in _column_keys("ID"):
+        if not cid or header_index([cid]).column(_column_keys("ID")) == 0:
             continue
         items.append(
             Cadence(
@@ -1564,8 +2010,8 @@ def is_user_register_header(header: list[str]) -> bool:
     this register is for — the same reading `is_risk_register_header` gives one
     block up, taken here for the same reason rather than by analogy.
     """
-    return bool(set(_column_keys("Needed from user"))
-                & {squash(c) for c in header})
+    return header_index(header).column(
+        _column_keys("Needed from user")) >= 0
 
 
 #: A `Status` cell that means "this question is still on the user". Matched as a
@@ -1658,8 +2104,8 @@ def _parse_user_input(section: str) -> list[UserInput]:
     for line in section.split("\n"):
         if re.match(r"^\|\s*---", line):
             in_table = True
-            header = ([squash(c) for c in split_row(prev)]
-                      if prev.strip().startswith("|") else [])
+            header = header_index(
+                split_row(prev) if prev.strip().startswith("|") else [])
             idx = {}
             for name in ("USER-id", "Needed from user", "Blocks", "Asked",
                          "Idle", "Status"):
@@ -1676,7 +2122,7 @@ def _parse_user_input(section: str) -> list[UserInput]:
         cells = split_row(line)
         if len(cells) < 4:
             continue
-        if squash(cells[0]) in {"", *_column_keys("USER-id")}:
+        if header_index(cells[:1]).column("", _column_keys("USER-id")) == 0:
             continue
 
         def cell(name: str, fallback: int = -1) -> str:
@@ -1734,11 +2180,12 @@ def _parse_intake(section: str) -> list[dict]:
         cells = split_row(s)
         if not cells:
             continue
-        if not header and squash(cells[0]) in set(_column_keys("Arrived")) | {"arrived"}:
-            header = [squash(c) for c in cells]
+        if not header and header_index(cells[:1]).column(
+                set(_column_keys("Arrived")) | {"arrived"}) == 0:
+            header = header_index(cells)
             continue
         if not header:
-            header = [squash(c) for c in cells]
+            header = header_index(cells)
             continue
         row = dict(zip(header, cells))
         outcome = (row.get("outcome") or "").strip()
@@ -1815,8 +2262,13 @@ _RE_KR_BULLET = re.compile(
 def _table_rows(section: str) -> list[dict[str, str]]:
     """Parse every markdown table in `section` into header-keyed row dicts.
 
-    Header keys are `squash`ed — the one rule every Perry tool normalizes a
-    header cell by. Rows shorter than the header are padded; longer rows are
+    Header keys come from `viewer/tables.py § header_index` — **the one
+    function allowed to fold a header cell**, not merely the one rule. This
+    line spelled the fold itself until TASK-050 round 8, and round 7 measured
+    what that cost: reverted to `.strip("*` ").lower()` it silently dropped a
+    KR out of a user's OKR while 2882 tests stayed green, because the guard of
+    the day gated on an allowlist of variable names that did not contain
+    `prev_cells`. Rows shorter than the header are padded; longer rows are
     truncated. Returns [] when no table is present."""
     rows: list[dict[str, str]] = []
     header: list[str] = []
@@ -1824,7 +2276,7 @@ def _table_rows(section: str) -> list[dict[str, str]]:
     for line in section.split("\n"):
         stripped = line.strip()
         if re.match(r"^\|\s*:?-{2,}", stripped):
-            header = [squash(c) for c in prev_cells]
+            header = header_index(prev_cells)
             continue
         if not stripped.startswith("|"):
             prev_cells = []
@@ -2141,8 +2593,14 @@ def parse_phase(slug: str, text: str) -> Phase:
         if not m:
             continue
         title = _clean_heading_title(m.group(2), f"Objective {m.group(1)}")
+        # `_parse_krs` still runs, and TASK-157 did not make it dead code:
+        # a phase document Perry writes carries no KR table any more, but an
+        # ADOPTED project's does, and so does a Perry project that has not
+        # migrated. `phase_key_results` is what chooses between the two — one
+        # source at a time, never merged.
         phase.objectives.append(
-            Objective(title=title, raw_body=chunk, krs=_parse_krs(chunk))
+            Objective(title=title, raw_body=chunk, number=m.group(1),
+                      krs=_parse_krs(chunk))
         )
 
     return phase
@@ -2223,7 +2681,7 @@ def _parse_legacy_tripwire_table(section: str) -> list[ScopeTrigger]:
         # What remains is reachable and is not a header question at all: a DATA
         # row whose first cell is empty. `squash` rather than `.lower()` so the
         # two rules stay one, at no cost.
-        if squash(cells[0]) == "":
+        if header_index(cells[:1]).column("") == 0:
             continue
         idx += 1
         # Heuristic: status from response wording.
@@ -2550,50 +3008,129 @@ def parse_top_risks(text: str) -> list[TopRisk]:
     return risks
 
 
-# ── DECISIONS.md ──────────────────────────────────────────────────────────
+# ── decisions/ADR-*.md ────────────────────────────────────────────────────
+#
+# **The ADR files are the record and there is no index.** `DECISIONS.md` was a
+# rendered projection of exactly these files, and TASK-235 deleted it under
+# DESIGN-013 § 5.3 — so the reader that used to parse its `## Active` table
+# reads the directory instead. Nothing replaces the file (§ 4.1: the link
+# surface it gave a web reader is given up, deliberately, and must not be
+# re-added under another name).
+#
+# **This lives here rather than in `bin/perry-decide`, and that is the point.**
+# `perry-decide` carried its own tolerant header parser while this module
+# carried a table parser for the rendering of it — two readers of one record.
+# With the table gone there is one reader, and `bin/perry-decide` imports it
+# (`import parsers as P`). A second implementation is the defect this project
+# has now caught six times; `split_row` reached six copies before TASK-234
+# found the last one.
+
+ADR_ID_RE = re.compile(r"\bADR-(\d+)\b")
 
 
-def parse_decisions(text: str) -> list[ADR]:
-    adrs: list[ADR] = []
-    in_active = False
-    in_table = False
+def adr_header_fields(text: str) -> dict:
+    """The `> Key: value` block at the top of an ADR, normalized.
+
+    Tolerant by construction. Every one of these is real, from files in this
+    repo and its templates:
+
+        > **Status**: active          > Status: active
+        > **Sunset criteria**: —      > Sunset: —
+        > Deciders: Ran Jiao          (absent entirely)
+
+    Keys are lowercased with punctuation stripped, so `Sunset criteria` and
+    `Sunset` land on the same key and a caller does not need to know which
+    generation of the template produced the file.
+    """
+    out: dict[str, str] = {}
     for line in text.split("\n"):
-        if line.startswith("## "):
-            in_active = heading_is(line[3:].strip(), "Active")
-            in_table = False
-            continue
-        if not in_active:
-            continue
-        if re.match(r"^\|\s*---", line):
-            in_table = True
-            continue
-        if not in_table or not line.startswith("|"):
-            continue
-        cells = split_row(line)
-        if len(cells) < 4:
-            continue
-        first = cells[0]
-        if first.lower().startswith("adr") and "id" in first.lower():
-            continue
-        link_match = re.match(r"\[(ADR-\d+)\]\(([^)]+)\)", first)
-        if link_match:
-            adr_id = link_match.group(1)
-            adr_path = link_match.group(2)
-        else:
-            adr_id = first
-            adr_path = ""
-        adrs.append(
-            ADR(
-                id=adr_id,
-                title=cells[1] if len(cells) > 1 else "",
-                type=cells[2] if len(cells) > 2 else "",
-                date=cells[3] if len(cells) > 3 else "",
-                sunset_or_notes=cells[4] if len(cells) > 4 else "",
-                file_path=adr_path,
-            )
-        )
+        s = line.strip()
+        if not s.startswith(">"):
+            if s.startswith("#") or not s:
+                continue
+            break
+        # Two fields share one line in every ADR this repo has written:
+        # `> Supersedes: —   · Superseded by: —`. Reading to end-of-line gives
+        # `Supersedes` the value "· Superseded by: —", which is not a wrong
+        # format on the file's part — it is a wrong assumption on the reader's.
+        for part in re.split(r"\s+·\s+|\s+\|\s+", s.lstrip("> ").strip()):
+            m = re.match(r"\**\s*([A-Za-z][\w ]*?)\s*\**\s*[:：]\s*(.*)$", part)
+            if not m:
+                continue
+            key = re.sub(r"\s+", " ", m.group(1)).strip().lower()
+            key = {"sunset criteria": "sunset", "superseded by": "superseded_by",
+                   "status date": "status_date"}.get(key, key)
+            out.setdefault(key, m.group(2).strip().strip("*` "))
+    return out
 
-    # Sort newest first by ADR number (e.g. ADR-024 before ADR-001).
+
+def read_adr_records(state_root: Path) -> list[dict]:
+    """Every `decisions/ADR-*.md`, as records, id-sorted.
+
+    The record `perry-decide list` publishes, and the source `parse_decisions`
+    below projects for the snapshot. Reading is tolerant and reports what the
+    file says — an off-enum `status` is named by the caller, never corrected
+    here.
+    """
+    out: list[dict] = []
+    d = state_root / "decisions"
+    if not d.is_dir():
+        return out
+    for p in sorted(d.glob("ADR-*.md")):
+        text = p.read_text(errors="replace")
+        h = adr_header_fields(text)
+        title = ""
+        first = next((l for l in text.split("\n") if l.startswith("# ")), "")
+        if first:
+            # `# ADR-001: Title`, `# ADR-001 — Title`, and a bare `# Title` are
+            # all in circulation; strip the id and whichever separator follows.
+            title = re.sub(r"^ADR-\d+\s*[—:–-]?\s*", "", first[2:].strip()).strip()
+        m = ADR_ID_RE.search(p.name)
+        out.append({
+            "id": f"ADR-{int(m.group(1)):03d}" if m else p.stem,
+            "title": title,
+            "type": h.get("type", ""),
+            "status": (h.get("status") or "active").lower(),
+            "date": h.get("date", ""),
+            "deciders": h.get("deciders", ""),
+            "supersedes": h.get("supersedes", "").strip("—- ") or "",
+            "superseded_by": h.get("superseded_by", "").strip("—- ") or "",
+            "sunset": h.get("sunset", "").strip("—- ") or "",
+            "path": str(p.relative_to(state_root)),
+            "lines": len(text.split("\n")),
+        })
+    return out
+
+
+def parse_decisions(state_root: Path) -> list[ADR]:
+    """The snapshot's `adrs` — **active decisions, newest first**.
+
+    Active-only and newest-first are not new: the reader this replaces parsed
+    the `## Active` section of `DECISIONS.md` and sorted descending by number,
+    and `bin/perry-state § expired_sunsets` says so in its own docstring —
+    "Active ADRs whose date-based sunset criteria have passed". Feeding it the
+    superseded ones too would start warning about the sunset of a decision that
+    is no longer in force.
+
+    It takes the **state root**, not text: there is no document to hand it any
+    more. That signature change is why the one other caller,
+    `bin/perry-migrate § records_in`, drops its `DECISIONS.md` branch instead
+    of being ported — a before/after reading of a file neither side can have.
+    """
+    adrs = [
+        ADR(
+            id=r["id"],
+            title=r["title"],
+            type=r["type"],
+            date=r["date"],
+            sunset_or_notes=r["sunset"],
+            file_path=r["path"],
+        )
+        for r in read_adr_records(state_root)
+        if r["status"] == "active"
+    ]
+
+    # Newest first by ADR number (e.g. ADR-024 before ADR-001).
     def _adr_num(a: ADR) -> int:
         m = re.search(r"(\d+)", a.id)
         return int(m.group(1)) if m else 0
@@ -2881,7 +3418,7 @@ def parse_project_state(text: str) -> ProjectState:
             if not in_table or not line.startswith("|"):
                 continue
             cells = split_row(line)
-            if len(cells) < 5 or squash(cells[0]) == "id":
+            if len(cells) < 5 or header_index(cells[:1]).column("id") == 0:
                 continue
             ps.carry_forwards.append(
                 CarryForward(
@@ -3232,6 +3769,7 @@ def parse_linkage(text: str) -> Linkage:
                 current=_num(kr.get("current")),
                 due=str(kr.get("due") or ""),
                 stretch=bool(kr.get("stretch")),
+                linked=str(kr.get("linked") or ""),
                 tasks=[str(t) for t in _as_list(kr.get("tasks"))],
             ))
         link.objectives.append(LinkageObjective(
@@ -3252,6 +3790,94 @@ def parse_linkage(text: str) -> Linkage:
             status=str(pr.get("status") or "active").lower(),
         ))
     return link
+
+
+#: `P003-O2-KR1` → `O2`. A phase KR id names the objective it belongs to, so
+#: attaching a register's KRs to a document's headings needs no position match
+#: and no second field to keep in sync.
+_KR_OBJECTIVE_RE = re.compile(r"^P\d{3}-(O\d+)-KR\d+$")
+
+
+def kr_objective_id(kr_id: str) -> str:
+    m = _KR_OBJECTIVE_RE.match((kr_id or "").strip())
+    return m.group(1) if m else ""
+
+
+def phase_key_results(phase, linkage) -> list["KR"]:
+    """A phase's key results, from the ONE place that declares them — TASK-157.
+
+    The id, title, metric and target of a phase KR used to be written **twice**:
+    as a row of a markdown table in `phase/<NNN>-<slug>.md`, and as a `krs[]`
+    entry in `phase/<NNN>-linkage.md`. Nothing compared the two, the markdown
+    copy is the one that went stale, and it had — `P003-O2-KR1` read a target
+    the register did not.
+
+    DESIGN-013 § 5.1, locked 2026-08-29: *a fact that has a schema lives in
+    exactly one store; a document holds what has no schema; no field lives in
+    both.* Those four fields are schema'd (`files[id=linkage].frontmatter`), so
+    they live in the register and the phase document carries no KR table.
+
+    **The document is still read, and only when there is no register.** An
+    adopted project's phase file carries a table (that is what adoption reads),
+    and so does a Perry project written before this row. `linkage` answering
+    with objectives is the test, so the two sources are never merged and never
+    both consulted: a project has a register or it has a table, and which one
+    answered is observable in `perry-goals list --json § conformance`.
+
+    Returned as `KR` — the same shape the document's table produced — so every
+    consumer downstream of this function is unchanged by where the values came
+    from. `linked` is carried because TASK-157 moved that column into the
+    register rather than dropping it with the table.
+    """
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return list(getattr(phase, "krs", None) or [])
+    return [KR(id=k.id, text=k.title, metric=kr_metric_cell(k),
+               linked=k.linked, stretch=bool(k.stretch)) for k in declared]
+
+
+def kr_metric_cell(kr: "LinkageKR") -> str:
+    """The register's two target fields → the one string a reader is shown.
+
+    `metric` is *"prose; always safe to display"* in the schema and is what the
+    `Metric / Target` column always held. `target` is *"NUMBER ONLY. Omit for
+    prose targets"*, so it is what there is to show exactly when there is no
+    prose — a register carrying only a number must not display an empty metric.
+    """
+    if kr.metric:
+        return kr.metric
+    if kr.target is None:
+        return ""
+    return f"{kr.target:g}"
+
+
+def phase_key_results_by_objective(phase, linkage) -> list[list["KR"]]:
+    """`phase_key_results`, grouped to match `phase.objectives` one for one.
+
+    A KR is attached to the objective its **id** names (`P003-O2-KR1` → the
+    document's `## Objective 2`). A registered KR whose objective the document
+    has no heading for is appended to the last objective rather than dropped:
+    losing it would make `kr_total` disagree with the sum of the groups, and a
+    payload that cannot add up is worse than one whose grouping is approximate.
+    """
+    objectives = list(getattr(phase, "objectives", None) or [])
+    krs = phase_key_results(phase, linkage)
+    if not objectives:
+        return []
+    declared = [k for o in (getattr(linkage, "objectives", None) or [])
+                for k in (getattr(o, "krs", None) or [])]
+    if not declared:
+        return [list(o.krs) for o in objectives]
+    slots: dict[str, int] = {}
+    for n, o in enumerate(objectives):
+        slots.setdefault(o.number or str(n + 1), n)
+    out: list[list[KR]] = [[] for _ in objectives]
+    for kr in krs:
+        oid = kr_objective_id(kr.id)
+        at = slots.get(oid.lstrip("O"), len(objectives) - 1)
+        out[at].append(kr)
+    return out
 
 
 def _load_ops_counts(root: Path) -> OpsCounts:
@@ -3860,7 +4486,6 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
 
     board_text = read(root / "BOARD.md")
     okr_text = read(root / "OKR.md")
-    decisions_text = read(root / "DECISIONS.md")
     project_state_text = read(root / "PROJECT_STATE.md")
     architecture_text = read(root / "ARCHITECTURE.md")
 
@@ -3934,7 +4559,7 @@ def load_snapshot(root: Path = STATE_ROOT) -> PMOSnapshot:
         okr=parse_okr(okr_text, krs=load_okr_store(root)) if okr_text else OKR(),
         phase=phase,
         top_risks=deduped,
-        adrs=parse_decisions(decisions_text) if decisions_text else [],
+        adrs=parse_decisions(root),
         evidence=walk_evidence(root),
         journal=walk_journal(root),
         handoff=walk_handoff(root),
@@ -3964,7 +4589,12 @@ if __name__ == "__main__":
     print(f"Phase: {s.phase.slug if s.phase else '(none)'} #{s.phase.number if s.phase else ''}")
     if s.phase:
         print(f"  · day: {s.phase.day if s.phase.day is not None else '—'}")
-        print(f"  · objectives: {len(s.phase.objectives)} · KRs: {len(s.phase.krs)}")
+        # Through the resolver, not `s.phase.krs`: TASK-157 moved the
+        # phase's KRs into `phase/<NNN>-linkage.md`, so the document's
+        # own list is empty on every migrated project and this smoke
+        # print would report a phase with no key results.
+        print(f"  · objectives: {len(s.phase.objectives)} · KRs: "
+              f"{len(phase_key_results(s.phase, getattr(s, 'linkage', None)))}")
         print(f"  · scope triggers: {len(s.phase.scope_triggers)}")
         print(f"  · cost-ceiling lines: {len(s.phase.cost_ceiling_lines)}")
     print(f"ADRs: {len(s.adrs)} · Evidence: {len(s.evidence)} · Journal: {len(s.journal)}")

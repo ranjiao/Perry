@@ -77,8 +77,9 @@ table for the second time.
 - **V5 sign-off on the adoption-reader fence** (`P003-O2-KR2`). It changes
   which code path a foreign project goes through, and phase 002's carried DoD
   item exists because that path has never been tested on a real project.
-- **Attribution answers for the 40 rows still never asked** (`P003-O3-KR1`). Perry
-  never guesses a KR; these can only be declared.
+- ~~**Attribution answers for the 40 rows still never asked** (`P003-O3-KR1`). Perry
+  never guesses a KR; these can only be declared.~~ **Withdrawn 2026-08-31** —
+  the backfill is phase 004's; see `## Changes / Pivots`.
 - **`git push`.** `feat/work-modes` is several hundred commits ahead of
   `origin/main`; the remote and CI have seen none of this phase's predecessor.
 - Phase scope-reduction trigger review, and phase-scoring participation.
@@ -89,19 +90,24 @@ If user input is missing for >5 calendar days, work continues in this order:
 **TASK-209 → TASK-095 → TASK-099 → TASK-050 → TASK-199**. Objectives 1 and 2
 are fully reachable without the user.
 
-**Objective 3 stalls by design, and that is not a defect.** `P003-O3-KR1` is
+~~**Objective 3 stalls by design, and that is not a defect.** `P003-O3-KR1` is
 resolved by declaring an attribution, and `reference/okr-linkage.md` forbids
 guessing one. An agent that filled `unlinked[]` to clear the number would be
-recording a decision nobody made. New rows opened in the interim still take
-`P003-O3-KR2`'s gate, because declaring a row unlinked at `add` time is the
-author's own statement about their own row.
+recording a decision nobody made.~~ **Rewritten 2026-08-31, and the conclusion
+inverts.** With `P003-O3-KR1` withdrawn, Objective 3 is the `add`-time gate
+alone and it does **not** stall on an absent user: declaring a row unlinked at
+`add` time is the author's own statement about their own row, so the gate is
+reachable by an agent working through the degradation order above.
 
 ## Phase Scope Reduction Rule
 
-- **KR-progress trigger**: if at phase day 10 the commit KRs of Objectives 1
+- **KR-progress trigger**: ~~if at phase day 10 the commit KRs of Objectives 1
   and 2 are <50% achieved, Objective 3 collapses to its Must-Have — the
   `add`-time linkage gate (`P003-O3-KR2`) — and the backfill of the existing
-  never-asked rows defers to phase 004.
+  never-asked rows defers to phase 004.~~ **Spent 2026-08-31, phase day 4.**
+  The user took this exact collapse deliberately rather than waiting for the
+  condition; it cannot fire again. Recorded so a day-10 reader does not evaluate
+  a trigger whose cut has already been applied.
 - **Phase-day trigger**: if by phase day 14 the read-side decision on
   `.perry/config.md` is still open, `P003-O2-KR1` collapses to the two call
   sites that are unambiguously internal (`bin/perry-state:139`,
@@ -117,11 +123,8 @@ difference is invisible unless you read the tail of a lint run.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O1-KR1 | Stores declared in `claims[]` that exist on disk (baseline 4 of 6 — `intake.jsonl` and `asks.jsonl` were built by TASK-196 / TASK-197 and never imported) | 6 of 6 | KR-O2.1 |
-| P003-O1-KR2 | Stores for which one run of `perry-lint --root .` prints a drift verdict (baseline 2 of 6 — tasks and risks; `perry-okr diff` and `perry-config diff` both work and the census calls neither) | 6 of 6 | KR-O2.3 |
-| P003-O1-KR3 | Stores that report `unchecked` rather than `clean` when the store file is removed, measured by removing each one (baseline: true for `intake.jsonl` and `asks.jsonl`, **unmeasured** for the other four) | 6 of 6 | KR-O2.3 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -134,11 +137,8 @@ difference is invisible unless you read the tail of a lint run.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O2-KR1 | Call sites in `bin/` that read a projected markdown file **as truth** while its store exists — excluding the adoption/migration reader and the drift-comparison reader (baseline 4, all `parse_tracks`: `bin/perry-task:6680`, `bin/perry-diagnose:1888`, `bin/perry-goals:2102`, `bin/perry-state:139`) | 0 | KR-O2.1 |
-| P003-O2-KR2 | The adoption/migration reader is fenced into one named module, with a mechanical guard that fails when a non-adoption call site parses a projected file — and the guard is shown able to go red by restoring one removed call site (baseline: no boundary; `viewer/parsers.py` is 3,973 lines serving both roles) | guard live · reverting one call site turns it red | KR-O2.3 |
-| P003-O2-KR3 | `BOARD.md`'s two truth models are marked in the file, so a reader can tell which sections are projected from a store and which are still canonical markdown (baseline: nothing marks the boundary — TASK-199) | boundary marked | KR-O2.1 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 **Two exclusions in `P003-O2-KR1`, both deliberate.** `bin/perry-tasks:1473`
 parses `BOARD.md` to *compare* it against the store — a drift check must read
@@ -179,10 +179,8 @@ about.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P003-O3-KR1 | Open `main`-track rows in neither `objectives[].krs[].tasks[]` nor a declared `unlinked[]` — the never-asked state (baseline 45 of 45 at phase start, measured by `perry-state --section attribution` on 2026-08-28; the 5 carry-over edges declared with this file are the first movement) | 0 | KR-O2.3 |
-| P003-O3-KR2 | Rows opened during phase 003 that take a KR edge or an `unlinked` declaration in the same action as `add` (baseline 0 — the edge is a separate step nobody takes) | 100% of rows added this phase | KR-O2.3 |
+> Declared in `phase/003-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -190,7 +188,10 @@ about.
   - Owner: Coding Agent + User
   - User role: declaring which KR a row serves — never guessed
   - Deliverable: `add` resolves to exactly one KR or writes a declared `unlinked`
-  - Verification: `perry-state --section attribution` reports 0 never-asked rows
+  - Verification: ~~`perry-state --section attribution` reports 0 never-asked
+    rows~~ **restated 2026-08-31** — every `main`-track row opened after the gate
+    lands carries a `link-edge` or `link-unlinked` event in `.perry/events.jsonl`
+    written by the same action as its `add`
 
 ## Definition of Done
 
@@ -201,7 +202,10 @@ about.
 2. `intake.jsonl` and `asks.jsonl` exist, imported by their own commands.
 3. The four named `parse_tracks` call sites read `.perry/config.jsonl`.
 4. The adoption-reader guard exists **and has been shown to go red**.
-5. `perry-state --section attribution` reports 0 never-asked `main`-track rows.
+5. ~~`perry-state --section attribution` reports 0 never-asked `main`-track
+   rows.~~ **Restated 2026-08-31**: every `main`-track row opened after the gate
+   lands carries a KR edge or an `unlinked` declaration written by its own `add`.
+   The rows that were never asked before the gate are phase 004's.
 
 **Nice-to-Have** (failure allowed, explained in retro):
 
@@ -238,6 +242,22 @@ noted here only so the phase is not planned as though the queue were empty.
 documented as machine-written* — is about the command that wrote this file.
 
 ## Changes / Pivots     <!-- append-only -->
+
+2026-08-31 — **`P003-O3-KR1` withdrawn; Objective 3 keeps `P003-O3-KR2` only.**
+*What*: the backfill KR — open `main`-track rows in neither `tasks[]` nor
+`unlinked[]` — is removed from `phase/003-linkage.md`; the `add`-time linkage
+gate stays. Phase KR count 8 → 7. *Why*: the gate is the mechanism that makes
+attribution happen as ordinary project work; the backfill is a one-off cleanup
+that the gate makes cheap afterwards. Doing the cleanup first spends the phase
+on 45 answers and leaves the next 45 rows arriving the same way. The population
+moved 45 → 7 during phase 003 **without the backfill being worked at all**, and
+those 7 (TASK-253…TASK-259) are exactly the rows the gate would have caught at
+`add`. *Who*: the user, asked directly and answering "去掉 KR1, 留下 KR2". The
+cut is the one this phase's own KR-progress trigger already describes, taken at
+day 4 instead of day 10. *Consequences*: DoD Must-Have 5 restated above;
+PROJ-003-LINK's verification restated; the KR-progress trigger marked spent.
+Pre-pivot state preserved at
+`phase/snapshots/2026-08-31-003-storage-code.md`.
 
 ## Mid-phase check     <!-- filled by `okr dashboard` or `pmo mid-phase-review` -->
 

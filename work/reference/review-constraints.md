@@ -40,13 +40,12 @@ purpose of.
 
 ## Do not run the write side against what you are reviewing
 
-A Perry tool that writes — `perry-task`, `perry-goals`, `perry-decide`,
-`perry-migrate apply`, `perry-conform declare` — changes board rows, journal
-lines and the event log. Running one against the project under review injects
+A Perry tool that writes — `perry-task`, `perry-goals`, `perry-decide` —
+changes board rows, journal lines and the event log. Running one against the project under review injects
 your own events into the history you are checking.
 
 Read tools are safe and are the point: `perry-task list --json`,
-`perry-state --json`, `perry-lint`, `perry-migrate --dry-run`.
+`perry-state --json`, `perry-lint`.
 
 **Never run `setup`.** Its `sweep_legacy_links` step removes symlinks under the
 host's skills directory, and on a developer machine those are real installs.

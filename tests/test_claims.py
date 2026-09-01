@@ -438,7 +438,7 @@ class TestEveryToolResolvesTheStateRoot(unittest.TestCase):
     make one function the only way to find it.
     """
 
-    STATE_FILES = ("BOARD.md", "OKR.md", "DECISIONS.md", "PROJECT_STATE.md")
+    STATE_FILES = ("BOARD.md", "OKR.md", "PROJECT_STATE.md")
     TOOLS = ("perry-task", "perry-goals", "perry-decide", "perry-state")
 
     def test_no_tool_joins_a_state_file_onto_the_project_root(self):

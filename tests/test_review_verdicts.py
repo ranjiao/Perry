@@ -19,12 +19,15 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LINT = ROOT / "bin" / "perry-lint"
@@ -61,6 +64,26 @@ def verdict(task, result="PASS", checked="the refusal path on a copy",
         proof=f"proof: {proof}\n" if proof else "")
 
 
+
+def lint_module():
+    """`bin/perry-lint` as a module, for unit-testing its pure resolvers.
+
+    The precedence tests below used to spawn the linter once each. perry-lint
+    loads the schema and the viewer package on every start, and 8-worker
+    `tests/run` already sits close enough to the machine's limits that the
+    added spawns made `test_host_support`'s global-concurrency-cap assertion
+    flake — a test measuring contention, perturbed by a test suite creating
+    it. The wiring is still checked end-to-end below; only the arithmetic
+    moved in-process.
+    """
+    spec = importlib.util.spec_from_loader(
+        "perry_lint",
+        importlib.machinery.SourceFileLoader("perry_lint", str(LINT)))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
 class ReviewLintCase(unittest.TestCase):
     def setUp(self):
         self.dir = pathlib.Path(tempfile.mkdtemp())
@@ -74,8 +97,31 @@ class ReviewLintCase(unittest.TestCase):
     def row(self, tid, status, rung="V4", ev=""):
         return (f"| {tid} | a thing | Claude | {status} | — | {ev} | {rung} |")
 
-    def evidence(self, name, text):
+    def evidence(self, name, text, make_criteria=True):
+        """Write a review document, and by default make its exhibit honest.
+
+        `verdict()` cites `evidence/2026-08/<TASK>-spec.md`, and until this
+        fixture created it the citation named a file the temp tree did not
+        carry — which `citation-not-on-branch` reports, correctly, on every
+        test in this file. These tests are about the verdict's SHAPE; the
+        exhibit pre-check has its own class below and passes
+        `make_criteria=False` to say so deliberately.
+
+        The generated spec carries a `## Bound` for the same reason
+        (`review.md § 1`): a fixture that trips a check it is not testing
+        makes every unrelated assertion in the file depend on that check.
+        """
         (self.dir / "evidence" / "2026-08" / name).write_text(text)
+        if not make_criteria:
+            return
+        for m in re.finditer(r"^criteria:\s*(\S+)\s*$", text, re.M):
+            path = self.dir / m.group(1)
+            if path.exists():
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "# criteria\n\n## Bound\nEnumeration: ls bin/\nSize: 1\n"
+                "Remainder: none\n")
 
     def run_lint(self):
         proc = subprocess.run(
@@ -394,6 +440,520 @@ class TestItIsOptIn(unittest.TestCase):
         for r in ("v4-close-without-verdict", "fail-verdict-left-at-review",
                   "verdict-malformed", "fail-without-proof"):
             self.assertNotIn(r, rules)
+
+
+
+
+class TestTwoFailsIsADecisionNotAThirdRound(ReviewLintCase):
+    """The most expensive thing this board does, and nothing asked it to stop.
+
+    Measured on Perry's own state: 20 rows entered V4, **74 rounds** were
+    burned, 10 rows needed three or more, and TASK-050 and TASK-249 each
+    reached round 11. TASK-095 FAILed five times and the escalation that
+    finally ended it (USER-905) was filed BY HAND at round 5 — after which the
+    user picked a principle and round 6 PASSed.
+
+    All five of those FAILs read the same in the journal: *two situations
+    answered as one, one step to the left of the last*. The rounds after the
+    second were not finding new defects; they were re-deriving one principle
+    differently. The agent could name that shape at round 2. Nothing asked it
+    to stop there, so this is the thing that asks.
+    """
+
+    def two_fails(self, tid="TASK-500", status="in_progress"):
+        self.board([self.row(tid, status)])
+        self.evidence(f"{tid}-r1.md", verdict(tid, "FAIL"))
+        self.evidence(f"{tid}-r2.md", verdict(tid, "FAIL"))
+        return tid
+
+    def test_two_fails_and_no_pass_is_reported(self):
+        self.two_fails()
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_one_fail_is_not(self):
+        self.board([self.row("TASK-500", "in_progress")])
+        self.evidence("TASK-500-r1.md", verdict("TASK-500", "FAIL"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_a_pass_anywhere_ends_the_question(self):
+        tid = self.two_fails()
+        self.evidence(f"{tid}-r3.md", verdict(tid, "PASS"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_open_ask_blocking_the_row_clears_it(self):
+        """The out is the one TASK-095 took: escalate, do not re-round."""
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "pick a principle",
+            "blocks": tid, "answered": False}) + "\n")
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_an_ANSWERED_ask_does_not_clear_it(self):
+        """An answered ask is a decision already taken; it cannot license the
+        next unexamined round the way a pending one licenses waiting."""
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "pick a principle",
+            "blocks": tid, "answered": True}) + "\n")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_an_ask_blocking_a_DIFFERENT_row_does_not_clear_it(self):
+        tid = self.two_fails()
+        (self.dir / "asks.jsonl").write_text(json.dumps({
+            "id": "USER-905", "needed": "x",
+            "blocks": "TASK-999", "answered": False}) + "\n")
+        self.assertIn("review-rounds-exhausted", self.rules())
+
+    def test_a_closed_row_is_history_not_a_worklist(self):
+        """The first cut reported five rows and four were long closed —
+        TASK-037/TASK-203 `done`, TASK-042 `dropped`, TASK-050 `done` after
+        eleven rounds. `done` removes the row, so a row absent from the board
+        can receive no next round and this check has nothing to say about it.
+        """
+        self.board([])                       # the row has closed and left
+        self.evidence("TASK-500-r1.md", verdict("TASK-500", "FAIL"))
+        self.evidence("TASK-500-r2.md", verdict("TASK-500", "FAIL"))
+        self.assertNotIn("review-rounds-exhausted", self.rules())
+
+    def test_it_names_every_failing_round_not_just_the_last(self):
+        tid = self.two_fails()
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-rounds-exhausted")
+        self.assertIn(f"{tid}-r1.md", msg)
+        self.assertIn(f"{tid}-r2.md", msg)
+
+    def test_it_does_not_claim_a_round_NUMBER(self):
+        """`round` was measured and refused a bearer — it lives only in some
+        filenames (`bin/perry-task.evidence_relations`). The FAIL count and the
+        filename numbering disagree on this repo's own TASK-067, whose two
+        FAILs sit in files named round3 and round4, so a message asserting
+        'round 3 is next' would be wrong on the row that prompted the check.
+        """
+        tid = self.two_fails()
+        msg = next(f["message"] for f in self.run_lint()["findings"]
+                   if f["rule"] == "review-rounds-exhausted")
+        self.assertIn("Another round", msg)
+        self.assertNotRegex(msg, r"Round \d")
+
+class TestTheRoundLimitIsDeclaredNotHardcoded(ReviewLintCase):
+    """Two is a measured default, not a law, and a project may disagree.
+
+    Same precedence `perry-conform § gate_mode` established for `Conformance
+    gate`: env beats the project's declared field beats the shipped default in
+    `schema § thresholds`. The finding names its source, because a gate that
+    stops work without saying which register set it is one nobody can argue
+    with — and this one stops the third round, which is exactly when somebody
+    will want to.
+
+    **The arithmetic is unit-tested and the wiring is spawned once.** These
+    used to be one linter subprocess each; see `lint_module`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.tid = "TASK-500"
+        self.board([self.row(self.tid, "in_progress")])
+        for n in (1, 2):
+            self.evidence(f"{self.tid}-r{n}.md", verdict(self.tid, "FAIL"))
+        self.M = lint_module()
+        self.M.SCHEMA_THRESHOLDS.update(json.loads(
+            (ROOT / "schema" / "state-schema.json").read_text())["thresholds"])
+
+    def store(self, value, key="review_rounds_before_escalation"):
+        (self.dir / ".perry" / "config.jsonl").write_text(json.dumps({
+            "kind": "setting", "key": key,
+            "label": "Review rounds before escalation",
+            "value": value}) + "\n")
+
+    def markdown(self, body):
+        (self.dir / ".perry" / "config.md").write_text(
+            "# Perry configuration\n\n" + body + "\n")
+
+    def resolved(self, **env):
+        with mock.patch.dict(os.environ, env, clear=False):
+            for k, v in list(env.items()):
+                if v is None:
+                    os.environ.pop(k, None)
+            return self.M.rounds_before_escalation(self.dir)
+
+    # ── the arithmetic, in-process ───────────────────────────────────────
+
+    def test_the_shipped_default_is_the_schema_value(self):
+        schema = json.loads((ROOT / "schema" / "state-schema.json").read_text())
+        declared = schema["thresholds"][
+            "review_fail_rounds_before_escalation"]["value"]
+        self.assertEqual(declared, 2)
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_env_wins_and_is_named(self):
+        self.assertEqual(self.resolved(PERRY_REVIEW_ROUNDS="5"),
+                         (5, "PERRY_REVIEW_ROUNDS"))
+
+    def test_the_project_may_declare_it_in_the_store(self):
+        self.store("5")
+        self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
+
+    def test_the_markdown_is_the_fallback_when_there_is_no_store(self):
+        self.markdown("- Review rounds before escalation: 5")
+        self.assertEqual(self.resolved(), (5, ".perry/config.md"))
+
+    def test_the_two_registers_are_named_apart(self):
+        """Reporting a store value as `.perry/config.md` sends the reader to
+        edit a projection instead of the register that answered."""
+        self.store("5")
+        self.markdown("- Review rounds before escalation: 9")
+        self.assertEqual(self.resolved(), (5, ".perry/config.jsonl"))
+
+    def test_a_store_without_the_key_does_NOT_fall_through_to_the_markdown(self):
+        """The store is derived from the preamble, so a key it does not carry
+        is a line the file does not have. Falling through would put one
+        setting in two registers — the drift TASK-233 removed."""
+        self.store("English", key="document_language")
+        self.markdown("- Review rounds before escalation: 5")
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_env_beats_the_declared_field(self):
+        self.store("5")
+        self.assertEqual(self.resolved(PERRY_REVIEW_ROUNDS="3"),
+                         (3, "PERRY_REVIEW_ROUNDS"))
+
+    def test_a_non_numeric_declaration_falls_back_rather_than_crashing(self):
+        self.store("lots")
+        self.assertEqual(self.resolved(), (2, "schema § thresholds"))
+
+    def test_the_resolver_never_returns_a_limit_below_one(self):
+        """The invariant the comparison relies on, pinned where it is made.
+
+        `len(fails) < limit` inverts at 0: a limit of 0 would fire the finding
+        on every live row carrying any verdict block, INCLUDING rows with zero
+        FAILs. The caller carries no second guard — two implementations of one
+        rule is the defect this repository finds most often — so this is the
+        only thing standing between a declared 0 and that inversion. Asserted
+        across every register that can set it, because a guard on one branch
+        is not a guard on the others.
+        """
+        cases = [("env zero", {"PERRY_REVIEW_ROUNDS": "0"}, None),
+                 ("env negative", {"PERRY_REVIEW_ROUNDS": "-3"}, None),
+                 ("store zero", {}, "0"),
+                 ("store junk", {}, "none")]
+        for where, env, store in cases:
+            with self.subTest(where=where):
+                cfg = self.dir / ".perry" / "config.jsonl"
+                cfg.unlink(missing_ok=True)
+                if store is not None:
+                    self.store(store)
+                limit, src = self.resolved(**env)
+                self.assertGreaterEqual(limit, 1)
+                self.assertEqual((limit, src), (2, "schema § thresholds"))
+
+    def test_a_schema_declaring_zero_is_refused_as_well(self):
+        """The third register, and the one the docstring above claims."""
+        self.M.SCHEMA_THRESHOLDS["review_fail_rounds_before_escalation"] = {
+            "value": 0}
+        self.assertEqual(self.resolved(), (2, "built-in default"))
+
+    # ── the wiring, spawned ──────────────────────────────────────────────
+
+    def test_the_limit_reaches_the_finding_and_is_named_in_it(self):
+        """One end-to-end spawn: the resolver's answer has to arrive at the
+        message, or every test above is checking arithmetic nothing reads."""
+        import os as _os
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--json"],
+            capture_output=True, text=True, cwd=ROOT,
+            env={**_os.environ, "PERRY_REVIEW_ROUNDS": "3"})
+        hit = [f for f in json.loads(proc.stdout)["findings"]
+               if f["rule"] == "review-rounds-exhausted"]
+        self.assertEqual(hit, [], "limit 3 must silence a row with 2 FAILs")
+
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--json"],
+            capture_output=True, text=True, cwd=ROOT,
+            env={**_os.environ, "PERRY_REVIEW_ROUNDS": "2"})
+        hit = [f for f in json.loads(proc.stdout)["findings"]
+               if f["rule"] == "review-rounds-exhausted"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("the limit is 2 (from PERRY_REVIEW_ROUNDS)",
+                      hit[0]["message"])
+
+
+class ExhibitCase(ReviewLintCase):
+    """Shared setup for the two pre-check findings.
+
+    `review.md § 2 · What V4 does not judge`. Both of these were found by a
+    fresh-context reviewer, at a full round each, when a regex knew: "three
+    citations point at a file the branch does not carry", "a claimed filing,
+    on the branch, that is not there". The round is the most expensive place
+    on this board to learn either one.
+    """
+
+    def open_row(self, tid="TASK-001"):
+        self.board([self.row(tid, "review")])
+
+    def closed_row(self, tid="TASK-001"):
+        self.board([self.row(tid, "done")])
+        (self.dir / ".perry" / "events.jsonl").write_text(
+            json.dumps({"event": "done", "task": tid, "rung": "V4"}) + "\n")
+
+    def block(self, task="TASK-001", criteria="evidence/2026-08/spec.md",
+              proof="", result="FAIL"):
+        return (f"=== VERDICT ===\ntask: {task}\nrung: V4\n"
+                f"result: {result}\ncriteria: {criteria}\n"
+                f"checked: a thing\nnot-checked: another\n"
+                f"proof: {proof or 'evidence/2026-08/spec.md:1 the line'}\n"
+                f"=== END VERDICT ===\n")
+
+    def spec(self, name="spec.md", bound=True):
+        body = "# criteria\n"
+        if bound:
+            body += "\n## Bound\nEnumeration: ls bin/\nSize: 1\nRemainder: none\n"
+        (self.dir / "evidence" / "2026-08" / name).write_text(body)
+
+
+class TestTheExhibitIsCheckedBeforeTheRound(ExhibitCase):
+    """`citation-not-on-branch` — a path the branch does not carry.
+
+    Reported on OPEN rows only. A closed row's exhibit cannot be re-filed, so
+    reporting it condemns retroactively — the thing this whole mode's docstring
+    refuses to do.
+    """
+
+    def test_a_criteria_path_the_branch_does_not_carry_is_reported(self):
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertIn("citation-not-on-branch", self.rules())
+
+    def test_a_criteria_path_that_exists_is_not(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_proof_path_the_branch_does_not_carry_is_reported(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/2026-08/gone.md:4 x"),
+                      make_criteria=False)
+        hit = [f for f in self.run_lint()["findings"]
+               if f["rule"] == "citation-not-on-branch"]
+        self.assertEqual(len(hit), 1)
+        self.assertIn("`proof:`", hit[0]["message"])
+
+    def test_a_closed_row_is_not_condemned_retroactively(self):
+        self.closed_row()
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    # ── the exclusions, each one a token this board's own reviews produced ──
+
+    def test_a_bare_filename_is_a_mention_not_a_citation(self):
+        """`checked: tables.py` names a file, not a path, and the repository
+        carries `viewer/tables.py`. Reporting it taught the check to report
+        correct prose, which is how a guard gets switched off (§ 1)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="tables.py:12 the fold"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_command_name_is_not_a_path(self):
+        """`/pmo` and `/architecture` are commands. The first version split on
+        `/`, got an empty head, and `self.dir / ""` is a directory that always
+        exists — so every command name in a proof line was a broken path."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="/pmo /architecture are routed"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_possessive_is_stripped(self):
+        self.open_row()
+        self.spec()
+        self.evidence(
+            "r.md", self.block(proof="evidence/2026-08/spec.md's first line"),
+            make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_trailing_paren_is_stripped(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08/spec.md:1) the line"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_line_range_resolves(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08/spec.md:1-9 the line"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_two_line_refs_on_one_path_is_prose(self):
+        """`bin/perry-goals:927/:908/` is a sentence about two lines. A `:`
+        surviving the suffix strip means the token is not a path."""
+        self.open_row()
+        self.spec()
+        # No trailing `/`: a token ending in one is already stopped by the
+        # empty-last-segment rule, so the first version of this test never
+        # reached the clause it names. Mutation M8.
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08:927/:908 both"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_scratch_copy_is_the_convention_working(self):
+        """`review-constraints.md` REQUIRES destructive checks to run on a
+        copy. Citing the copy is the reviewer obeying the rule."""
+        self.open_row()
+        self.spec()
+        # The exclusion is only REACHED when `scratchpad/` is a real directory
+        # — otherwise the head-is-a-directory rule stops the token first and
+        # this test passes without testing anything. Mutation M7.
+        (self.dir / "scratchpad" / "probe").mkdir(parents=True)
+        self.evidence("r.md",
+                      self.block(proof="scratchpad/probe/rj.py:4 reproduced"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_trailing_count_is_not_a_path(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/3 of them escape"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_colon_inside_a_path_is_prose(self):
+        """A `:` that SURVIVES the line-suffix strip means the token is a
+        sentence about a line, not a path — `bin/perry-goals:927/:908` was
+        written on this board. The token must keep a real last segment or an
+        earlier rule catches it first and this test proves nothing (M8)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md",
+                      self.block(proof="evidence/2026-08:927/notes.md and"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_directory_fragment_is_not_a_missing_file(self):
+        """A token ending in `/` names a folder in prose. Without the
+        empty-last-segment rule it is looked up whole, misses, and is reported
+        as a broken citation (M5)."""
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(proof="evidence/gone/ was swept"),
+                      make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_a_bracketed_link_fragment_is_prose(self):
+        self.open_row()
+        self.spec()
+        self.evidence(
+            "r.md",
+            self.block(proof="ADR-007](decisions/ADR-007-probe.md is cited"),
+            make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+    def test_checked_is_prose_and_is_not_mined(self):
+        """`checked:` is a sentence by design — the convention's own example is
+        "guarantees 1,2,4,5 on gimegime-pmo (365→380 ids)". Mining it for paths
+        is guessing, and guessing is what makes a check unusable."""
+        self.open_row()
+        self.spec()
+        text = self.block().replace(
+            "checked: a thing", "checked: evidence/2026-08/never-existed.md")
+        self.evidence("r.md", text, make_criteria=False)
+        self.assertNotIn("citation-not-on-branch", self.rules())
+
+
+class TestTheCriteriaMustBeBounded(ExhibitCase):
+    """`criteria-unbounded` — no `## Bound`, so the round has no last element.
+
+    TASK-050 ran **eleven** rounds against "no reader resolves a header cell by
+    its own rule", a universal negative over a live tree. Rounds 8, 9 and 10
+    each found a real escape — a pruned corpus, a one-line alias, a dict key —
+    and round 11 PASSed on `a measured remainder of 8 out of 76`. It ended on
+    the round the criterion became decidable, not on the round the last hole
+    closed. `review.md § 1`.
+    """
+
+    def test_a_criteria_file_with_no_bound_is_reported(self):
+        self.open_row()
+        self.spec(bound=False)
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertIn("criteria-unbounded", self.rules())
+
+    def test_a_criteria_file_with_a_bound_is_not(self):
+        self.open_row()
+        self.spec(bound=True)
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_nested_bound_still_counts(self):
+        """The requirement is that the bound is WRITTEN DOWN, not where. A spec
+        that puts it under a section heading has satisfied § 1."""
+        self.open_row()
+        (self.dir / "evidence" / "2026-08" / "spec.md").write_text(
+            "# criteria\n\n## What must be true\n\n### Bound\nSize: 4\n")
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_closed_row_is_not_condemned_retroactively(self):
+        self.closed_row()
+        self.spec(bound=False)
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertNotIn("criteria-unbounded", self.rules())
+
+    def test_a_missing_criteria_file_is_one_finding_not_two(self):
+        """An absent file cannot be read for a bound. Reporting both would
+        make the fix look like two problems when it is one."""
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        rules = self.rules()
+        self.assertIn("citation-not-on-branch", rules)
+        self.assertNotIn("criteria-unbounded", rules)
+
+
+class TestStrictCanStopADispatch(ExhibitCase):
+    """`--reviews --strict` exits non-zero, or the pre-check cannot gate.
+
+    `review.md § 2` tells the dispatcher to run this before spawning the
+    agent. A mode that always returns 0 makes that one more rule stated in
+    prose that nothing implements — which is this repository's own most-found
+    defect and the reason `review.md` exists at all.
+    """
+
+    def run_strict(self):
+        return subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--strict", "--quiet"],
+            capture_output=True, text=True, cwd=ROOT).returncode
+
+    def test_strict_is_red_when_the_exhibit_is(self):
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        self.assertEqual(self.run_strict(), 1)
+
+    def test_strict_is_green_when_it_is_clean(self):
+        self.open_row()
+        self.spec()
+        self.evidence("r.md", self.block(result="PASS"), make_criteria=False)
+        self.assertEqual(self.run_strict(), 0)
+
+    def test_without_strict_it_stays_advisory(self):
+        """The DEFAULT stays 0 on findings. A project that predates the
+        convention has prose reviews, and promoting those to a failing exit
+        would condemn every round it ever ran."""
+        self.open_row()
+        self.evidence("r.md", self.block(), make_criteria=False)
+        proc = subprocess.run(
+            [sys.executable, str(LINT), "--reviews", "--root", str(self.dir),
+             "--state-root", ".", "--quiet"],
+            capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual(proc.returncode, 0)
 
 
 if __name__ == "__main__":

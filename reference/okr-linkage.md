@@ -32,6 +32,22 @@ This is a hard gate, the same class as `pmo` "no `done` without evidence" and
 and reports the result: `linked`, `unlinked` (couldn't resolve), and
 `declared_unlinked` (the graph says outright that this work serves no KR).
 
+**The three are disjoint, and `unlinked` is the NEVER-ASKED set.** A row named
+in the register's `unlinked[]` is reported in `declared_unlinked` and nowhere
+else: the question was put and the answer was "no KR", which is a resolution,
+not a failure to resolve. So `unlinked` counts only rows nobody has been asked
+about — the number a standup renders as *"N tasks awaiting KR attribution"*,
+and the number `phase/<NNN>` KRs of this kind drive to zero.
+
+Until TASK-228 the code implemented two states where this page described
+three: `unlinked` meant "did not resolve to a KR", which is true of a declared
+row too, so every declared id was counted in both buckets. Measured on Perry's
+own board after declaring 48 rows — `linked=8, unlinked=48,
+declared_unlinked=48`, the two sets byte-identical — and on 2026-08-29 that
+number was read off the payload and reported to the user as 52 rows owing an
+answer when the true count was 0. `tests/test_attribution_buckets.py` is the
+agreement between this paragraph and the payload.
+
 ### When resolution fails — the ask
 
 Render `AskUserQuestion` (header `"KR attribution"`), listing the candidate KRs as

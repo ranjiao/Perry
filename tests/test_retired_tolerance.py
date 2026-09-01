@@ -56,7 +56,6 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 import parsers as P  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gate import GATE_OFF  # noqa: E402
 
 
 #: A project that never migrated, and never will unless someone asks it to.
@@ -163,7 +162,7 @@ class Project:
     """A throwaway project. Advisory by default, because § 1 and § 2 are not
     about the gate — they are about what the tools do once past it."""
 
-    def __init__(self, board: str = CONFORMANT, gate: str = GATE_OFF,
+    def __init__(self, board: str = CONFORMANT, gate: str = "",
                  store: bool = False):
         self.dir = tempfile.TemporaryDirectory()
         self.root = Path(self.dir.name)
@@ -252,16 +251,6 @@ class TestTheIdColumnFallbackIsRetired(unittest.TestCase):
               "--reason", "it stopped")
         self.assertEqual(p.board(), board)
 
-    def test_a_declared_board_never_reaches_the_refusal(self):
-        """The branch is unreachable for a conformant file, which is why it can
-        go. Same three sections, Perry's shape, all three commands succeed."""
-        p = Project(board=CONFORMANT)
-        for argv in (("risk-clear", "RX-001", "--reason", "it stopped"),
-                     ("answer", "USER-001", "--answer", "the second one"),
-                     ("cadence-done", "CAD-001",
-                      "--evidence", "evidence/2026-08/run.md")):
-            rc, out, err = p.run(TASK, *argv)
-            self.assertEqual(rc, 0, f"{argv[0]}: {out!r} {err}")
 
     def test_the_localized_spelling_still_resolves(self):
         """`编号` is the declared Chinese spelling of `ID`, so it must resolve
@@ -361,25 +350,6 @@ class TestAProjectThatNeverMigratedStillReads(unittest.TestCase):
 # ── 3 · what the enforce flip was supposed to buy ─────────────────────────
 
 
-class TestADeclaredFileThatViolatesItsShapeIsRefused(unittest.TestCase):
-
-    def test_a_declared_board_that_stops_matching_is_refused_not_tolerated(self):
-        p = Project(board=CONFORMANT, gate="")
-        rc, _, err = p.run(CONFORM, "declare", "BOARD.md")
-        self.assertEqual(rc, 0, err)
-        # The user edits it afterwards — a legitimate thing to do, and the
-        # declaration is reported rather than revoked.
-        (p.root / "BOARD.md").write_text(
-            without_id_column(CONFORMANT, "Top risks"))
-        before = p.board()
-        rc, out, err = p.run(TASK, "risk-add", "--title", "a new risk")
-        self.assertEqual(rc, 1, f"the write should have been refused: {out!r}")
-        self.assertEqual(p.board(), before)
-        # The road, named: a drifted declaration is re-checked and
-        # re-declared, not migrated — the file was Perry's shape once.
-        msg = out.get("refused", "") if isinstance(out, dict) else err
-        self.assertIn("no longer matches", msg)
-        self.assertIn("perry-conform declare", msg)
 
 
 if __name__ == "__main__":

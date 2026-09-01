@@ -18,15 +18,15 @@ Python 3 or POSIX-ish bash, with no install step and no dependencies at all.
 | [`perry-state`](perry-state) | read | The single full read of a project's state — board, phase, OKR, design, attribution. Every standup number comes from here. |
 | [`perry-task`](perry-task) | **write** | The one deterministic way board state changes: add / start / stage / status / done / drop, plus the intake queue, the user-input queue and the recurrence register. |
 | [`perry-tasks`](perry-tasks) | **write** + read | The task STORE (`perry/tasks.jsonl`) and the projection of it: `build` / `verify` derive and check it, `write` migrates a project onto it, `render` / `diff` regenerate `BOARD.md` from it and byte-compare. ADR-007's first slice; `perry-task` is what writes the store on every ordinary command. Four of the same verbs, prefixed `risks-`, reach the **risks register** (`BOARD.md § Top risks`, TASK-040): `risks-build` derives, `risks-diff` byte-compares, `risks-render --write` puts the section back in line with the store, and `risks-write --from-board` is the one-way import that mints `risks.jsonl` for a project that has none. The import refuses unless `risks.jsonl` is declared in `schema/state-schema.json § claims`, unless `## Top risks` is a table it can read, and unless the records it derived render that section back byte for byte. Four more, prefixed `intake-`, reach the **intake register** (`BOARD.md § Intake`, TASK-196), whose store keys on `order` — the row's position — because an intake row has no id and `perry-task resolve-intake <n>` addresses it by one. The byte gate is run there too and cannot fail (nothing collapses two lines into one record), so the load-bearing check is the one beside it: the store and `Board.section_rows` must count the section's rows identically, or one integer has two meanings. |
-| [`perry-goals`](perry-goals) | **write** + read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. Two write paths, both in place: `commit` edits `OKR.md § Commitments` and writes the OKR store the file is now a projection of; `link` writes the phase's `phase/<NNN>-linkage.md` — a task→KR edge, an alias, a declared-unlinked task, a new Project — refusing any attribution that does not resolve to exactly one KR. |
+| [`perry-goals`](perry-goals) | **write** + read | Goals reshaped for a front-end — objectives, and a flat array of every KR with its level and progress. Two write paths, both in place: `commit` edits `OKR.md § Commitments` and writes the OKR store the file is now a projection of; `link` writes the phase's `phase/<NNN>-linkage.md` — a task→KR edge, an alias, a declared-unlinked task, a new Project — refusing any attribution that does not resolve to exactly one KR. `krs` is the read-only render of the phase's key results from that register — TASK-157 removed the KR table from `phase/<NNN>-<slug>.md`, where the same four facts were written a second time by hand. |
 | [`perry-okr`](perry-okr) | **write** + read | The OKR STORE (`okr.jsonl`, beside `OKR.md` in the state root) and the projection of it, in `perry-tasks`' shape: `build` / `verify` derive and check it, `write --from-file` migrates a project onto it, `render` / `diff` regenerate `OKR.md` and byte-compare. ADR-007's second slice (TASK-092). |
-| [`perry-config`](perry-config) | **write** + read | The same five commands over `.perry/config.md` and `.perry/config.jsonl` — the preamble's settings and the `## Tracks` register. Every prose section of that file is layout and is reproduced byte for byte. |
-| [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `DECISIONS.md`, mint ADRs, supersede, set status, list. |
+| [`perry-config`](perry-config) | **write** + read | The same five commands over `.perry/config.md` and `.perry/config.jsonl` — the preamble's settings and the `## Tracks` register. Every prose section of that file is layout and is reproduced byte for byte **while the file is on disk**; `render` with no file rebuilds the settings and the table from the store alone and refuses if that does not round-trip (`reference/config.md § Prose in this file is layout`). |
+| [`perry-decide`](perry-decide) | **write** + read | The `decide` lane's writer: bootstrap `decisions/`, mint ADRs, supersede, set status, list. |
 | [`perry-knowledge`](perry-knowledge) | **write** + read | The knowledge-card write path (DESIGN-006 phase B). `propose` is read-only and answers whether a capture point should fire; `promote` writes `knowledge/<topic>/<slug>.md` and **refuses a card that cannot say where its claim came from**. |
 | [`perry-lint`](perry-lint) | read | Validates state files against `schema/state-schema.json`. Run it after every write to a tier‑1 file. |
-| [`perry-conform`](perry-conform) | read + writes `.perry/conformance.md` | The conformance marker (ADR-004): *this file matches Perry's shape, at shape version N, and the user declared it.* The gate every writer calls, and the one command that records a declaration. |
 | [`perry-diagnose`](perry-diagnose) | read | How a project is *structured* for agent work — context load, document graph, tracking spine. Works on any folder, Perry or not. |
 | [`perry-state-cost`](perry-state-cost) | read | What a project's Perry state costs it: bytes, file count, share of tracked bytes and the growth trend, per claimed path, at a named commit. The paths come from `schema/state-schema.json § claims`, so a directory cannot fall out of the report by being forgotten. Reads `evidence/` and `journal/` to size them and writes nothing anywhere. |
+| [`perry-context-budget`](perry-context-budget) | read | What the SESSION costs per turn, from the host's own transcript accounting — not what the state costs on disk, which is `perry-state-cost`. Measured over 25 sessions and 18,941 turns: 99.1% of this project's 8.43B tokens was `cache_read`, the accumulated context re-read every turn, so the bill is `Σ over turns (context at that turn)`. Exit 1 at the ceiling in `schema § thresholds.session_context_ceiling`, which is how `autopilot` knows to hand off; `--composition` says what the context is made of. Abstains loudly on a host with no transcript rather than reporting a clean bill it never measured. |
 | [`perry-explain`](perry-explain) | read | Resolves an ID (`REL-002`, `ADR-003`, `P<NNN>-O<n>-KR<n>`) to what it actually means, where it was defined, and everywhere it is referenced. |
 | [`perry-detect-host`](perry-detect-host) | read | Prints `claude-code` \| `codex-cli` \| `unknown`, so SKILL.md branches pick the right host capability. |
 | [`perry-update-check`](perry-update-check) | writes to the *skill*, not the project | Weekly throttled check that the Perry install is current with `origin/main`. |
@@ -159,131 +159,47 @@ spellings real ADRs use (`Sunset` vs `Sunset criteria`, an extra `Deciders` line
 its writer is strict.
 
 ```bash
-"$PERRY_HOME/bin/perry-decide" bootstrap                     # creates DECISIONS.md + decisions/
+"$PERRY_HOME/bin/perry-decide" bootstrap                     # creates decisions/
 "$PERRY_HOME/bin/perry-decide" new <slug> --title "…" --type <T>
 "$PERRY_HOME/bin/perry-decide" supersede ADR-003 ADR-007
 "$PERRY_HOME/bin/perry-decide" list --json
 ```
 
-`DECISIONS.md` is **rendered** from the ADR files on every write. Never hand-edit
-it, never append to it.
+`decisions/ADR-*.md` are the whole record and **`perry-decide list` is the whole
+view of them**. There is no index file: `DECISIONS.md` was a rendered projection
+of these same files and TASK-235 deleted it under
+[DESIGN-013](../perry/design/DESIGN-013-one-place-per-fact.md) § 5.3. § 4.1 of
+that design records what goes with it — a reader browsing this repository on the
+web used its rows as links into `decisions/` and now lands in the directory
+listing instead — and says the implementing row must not re-add an index under
+another name.
 
-### Both writers gate on the conformance marker
+### Nothing gates on a conformance marker any more
 
-Under [ADR-004](../perry/decisions/ADR-004-mandatory-migration.md) a project
-migrates to Perry's shape once, and after that both the reader and the writer
-may assume that shape. The fact that makes it safe to assume is **declared and
-checkable**, and it is not `perry-lint`'s `is_adopted()` — that answers "does
-this folder hold any Perry file at all", which is a different and still-correct
-question.
+`perry-task`, `perry-goals` and `perry_md_store § render --write` used to call
+an ADR-004 gate before every write: it read a **declaration** out of
+`.perry/conformance.jsonl` — *this file matches Perry's shape, at shape version
+N, and the user said so* — and refused when the file's live shape no longer
+matched what had been declared. Keeping the stored decision and the live check
+apart was the design, because the two disagreeing was supposed to be a finding.
 
-```bash
-"$PERRY_HOME/bin/perry-conform" status                  # every file, every verdict
-"$PERRY_HOME/bin/perry-conform" check BOARD.md          # one file; exit 1 if not conformant
-"$PERRY_HOME/bin/perry-conform" declare BOARD.md        # the user's declaration
-"$PERRY_HOME/bin/perry-conform" declare --all
-```
+They never disagreed. The ledger held 23 records, all `route: declare`, all
+files in this repository. The disagreement needs a foreign project that drifts,
+and Perry has never been pointed at one. `bin/perry-conform`, the ledger, the
+three gate call sites and `bin/perry-migrate` are all deleted (`TASK-261`,
+`USER-910`) — about 10,600 lines with their tests.
 
-Two facts, kept apart on purpose:
+**What replaced it: nothing, deliberately.** A writer that can render a file
+writes it. `perry-lint` still answers whether a file matches the schema, which
+was always a different question from whether anyone had declared it.
 
-| | Where it lives | Who produces it |
-|---|---|---|
-| **the declaration** — the user said this file is Perry's, at shape version N | `.perry/conformance.md` | only `perry-conform declare`, or a migration the user asked for. **No tool stamps it on its own initiative.** |
-| **the shape** — does it still match `schema/state-schema.json` | nowhere; recomputed every call | `perry-lint`'s own `check_file`, imported rather than reimplemented |
+Two things kept the word and are unrelated to any of the above:
 
-A stored verdict would be a cache that goes wrong, and a content hash would
-revoke itself on every legitimate `perry-task add`. A stored *decision* plus a
-live *check* can disagree — and that disagreement (`drifted`) is a finding, not
-a crash and not a silent correction.
+- `perry-task list --json`'s `conformance.*` block — `evidence_not_found`,
+  `depends_on_unknown`, `blocked_by_closed_rows` — is read-time integrity
+  reporting and a published contract (`schema/task-list-contract.md`).
+- `perry-lint`'s schema pass, untouched.
 
-Five verdicts: `conformant`, `undeclared`, `stale` (declared at an older shape
-version), `drifted` (declared, no longer matches), `absent` (nothing there yet,
-so nothing is gated). Conformance means **zero lint errors** for that one file —
-warnings are quality signals and one of them, `stale-run`, becomes true with the
-passage of time alone.
-
-Conformance is **per file**: a project may migrate its board and not its risks,
-so `perry-task` gates on `BOARD.md` and `perry-decide` on `DECISIONS.md`, and
-neither looks at the other.
-
-**Reading is never gated.** `perry-state`, `perry-task list`, `perry-goals list`,
-and `perry-decide list` answer on an unmarked project, whatever the gate is set
-to.
-
-The gate ships **enforce**: a writer refuses a state file that is not declared
-conformant, naming the file, the shape version it was checked against, and the
-command that fixes it. Set `- Conformance gate: advisory` in `.perry/config.md`,
-or `PERRY_CONFORMANCE=advisory` in the environment, to make it proceed and say
-what it found instead — on stderr and in the `conformance` block of its
-(non-contract) `--json` result.
-
-#### The switch-over checklist — what the flip to `enforce` costs
-
-ADR-004's decision was to flip once the migration existed. `bin/perry-migrate`
-landed with TASK-044 on 2026-08-19, so TASK-047 flipped `DEFAULT_MODE`. Every
-refusal now names a road: `perry-conform declare` for a file that already
-matches Perry's shape, `perry-migrate` for one that does not.
-
-The flip was **measured on a copy of a real project** rather than argued, and
-two costs came out of that measurement. Neither is a missing road; both are
-places a user meets the gate on day one, so both are stated here rather than
-discovered in the field.
-
-| | What it costs | What removes the cost |
-|---|---|---|
-| **1 · migration does not always reach zero on a real board** | On a `~/proj/gimegime-pmo` copy, `perry-migrate` takes `BOARD.md` from 3 errors to **1**, and the residue is a row reading `Status: 半解`. That file stays refused until a human edits it and runs `perry-conform declare BOARD.md`. The refusal names both commands, so it is a door that needs a hand — not a wall. | A path for the residue that is not a hand edit. The three classes seen were: a `Status` cell in the user's own words, a tier-1 file over its size cap, and a KR table whose columns are the project's. **Not** widening the enums — `半解` is a real distinction the user drew, and coercing it to `in_progress` is the confidently-wrong-value class. |
-| **2 · every new file is born undeclared, in a new project and an old one alike** | A file with **zero** lint errors is still `undeclared`, and undeclared is refused. `SKILL.md § Conformance gate` forbids an agent from running `perry-conform declare` on the user's behalf (`perry/OKR.md` — *adoption proposes; the user declares*), so the first `perry-task add` on a project Perry itself just wrote asks the user for one command. **This is not confined to first runs** — see the measurement below. | Setup or adopt ending in the user's own declaration — one prompt, at the point where the files are created. That is a better first run than a refusal, but it is a convenience, not a road: the road already exists and the refusal names it. |
-
-Both are checked by `tests/test_conformance.py § TestTheGateEnforces`, so the day
-either becomes false a test says so rather than the paragraph going stale.
-
-**Cost 2 was first written at the wrong scope, and the correction is the part
-worth keeping.** It read *a brand-new project asks for one declaration*, which
-is true and too narrow: the same thing happens to **every file Perry creates
-after the last declaration, in a project that has been declared for weeks**.
-Measured 2026-08-20 on a declared scratch project with the gate enforcing:
-
-```
-perry-decide bootstrap        →  wrote ['decisions/', 'DECISIONS.md']
-perry-conform status          →  · DECISIONS.md   undeclared
-perry-decide new <slug> …     →  refused — DECISIONS.md already matches Perry's
-                                 shape at version 2, but no one has declared it
-```
-
-Two facts hold that together, and only both make it survivable:
-
-- **Creation is not gated.** The file is written. A gate that refused creation
-  would leave a project unable to open a phase, a decision or a knowledge card
-  at all, which is not a door needing a hand — it is the wall this checklist
-  exists to avoid.
-- **The next write to it is.** The refusal names `perry-conform declare` with
-  the exact path, so the road is one command, exactly as in row 1.
-
-Concretely, in Perry's own repository on the day of the flip: `phase/002`,
-`DESIGN-007` and one knowledge card were undeclared, because the last
-declaration ran 2026-08-17 and all three were created on the 18th and 19th. None
-of them was malformed. They were simply younger than the last time a human said
-*yes, this is Perry's shape*.
-
-This is a **consequence of the design, not a gap in it.** A writer that declared
-its own output would be certifying its own work, which is the thing ADR-004's
-*adoption proposes; the user declares* exists to prevent. Naming the real scope
-does not argue for changing it — it argues that "one declaration at setup" is
-the wrong mental model, and "a declaration each time the shape of your state
-grows" is the right one.
-
-**Going back is per project, not per release.** A project that wants the old
-behaviour sets `- Conformance gate: advisory` in `.perry/config.md`; a single
-command gets `PERRY_CONFORMANCE=advisory`. Both branches stay live and both stay
-exercised by the suite — a guard that cannot be made to fire is not a guard, and
-neither is one that cannot be turned off.
-
-What is **not** affected: reading. `perry-state`, `perry-task list`, `perry-goals
-list` and `perry-decide list` were re-run at every step of that migration with
-the gate enforcing, on an undeclared project, on a half-migrated one and on a
-declared one, and answered `rc=0` with all 41 rows every time. `perry-lint` and
-`perry-migrate` are ungated for the same reason — they are the commands a
-refusal names, and a gated one would close the loop.
 
 ### Lint after every tier‑1 write
 
@@ -366,6 +282,15 @@ its track and the linter called it clean. **A new tool composes and reshapes wha
 Tests live in [`tests/`](../tests/) and run with:
 
 ```bash
-bash tests/run            # everything
-bash tests/run --lint     # just the schema drift guard (fast)
+bash tests/run                # everything
+bash tests/run --lint         # just the schema drift guard (fast)
+bash tests/run --serial       # step 2 one module at a time (ordering hunts)
+bash tests/run --only PREFIX  # steps 0-2 only, step 2 narrowed to PREFIX
 ```
+
+Every one of those ends with **step 0**, `tests/tree_guard.py`: the tree the
+suite started in must be the tree it ends in, byte for byte, or the suite is
+red. A test that writes into the checkout instead of a temp root is a defect
+even when it passes — TASK-249, where one un-rooted `perry-task intake-sweep`
+discharged a real board row on every run of the suite for months, and went
+unnoticed because the sweep is idempotent and a second run looks clean.

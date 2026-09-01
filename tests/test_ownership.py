@@ -102,9 +102,8 @@ class TestTheTwoMovedFiles(unittest.TestCase):
         s = contract_section()
         row = next((l for l in s.split("\n") if "**`decide`**" in l), "")
         self.assertTrue(row, "no `decide` row in the ownership table")
-        self.assertIn("DECISIONS.md", row,
-                      "decision 6 moves DECISIONS.md to the decide lane")
-        self.assertIn("decisions/", row)
+        self.assertIn("decisions/", row,
+                      "decision 6 moves the decision record to the decide lane")
 
     def test_commitments_is_owned_by_the_goals_lane_in_the_contract(self):
         s = contract_section()
@@ -140,7 +139,7 @@ class TestRefusalCasesAreNamed(unittest.TestCase):
     def test_the_contract_names_concrete_refusal_cases(self):
         s = contract_section()
         self.assertIn("asks in chat and stops", s)
-        for case in ("`BOARD.md`", "`DECISIONS.md`", "`journal/`"):
+        for case in ("`BOARD.md`", "`decisions/`", "`journal/`"):
             self.assertIn(case, s, f"refusal case for {case} not named")
 
     def test_each_lane_skill_still_forbids_writing_outside_itself(self):
@@ -296,7 +295,6 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         "phase/[0-9][0-9][0-9]-*.md": "phase/<NNN>-<slug>.md",
         "phase/[0-9][0-9][0-9]-linkage.md": "phase/<NNN>-<slug>.md",
         "design/*.md": "design/<DESIGN-ID>-<slug>.md",
-        "DECISIONS.md": "DECISIONS.md",
         "decisions/ADR-NNN-<slug>.md": "decisions/",
         # Moved from `user` to `work` on 2026-08-20 under a fresh V5
         # signature (TASK-128, DESIGN-007 decision #2 and step 2). The
@@ -387,22 +385,50 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
             f"more and they must not fall through")
 
     def test_decisions_specifically_is_owned_by_decide_everywhere(self):
-        """The file the contract moved, checked in every place it is declared —
-        this is the one that was green while broken."""
-        f = next(x for x in SCHEMA["files"] if x["id"] == "decisions")
-        self.assertEqual(f["owner"], "decide")
-        for path in ("DECISIONS.md", "decisions/"):
-            c = next(x for x in SCHEMA["claims"] if x["path"] == path)
-            self.assertEqual(c["owner"], "decide", f"claims[] still gives {path} to {c['owner']}")
-        self.assertIn("DECISIONS.md", self.contract_rows()["decide"])
+        """The record the contract moved, checked in every place it is declared
+        — this is the one that was green while broken.
 
-    def test_a_moved_files_template_moves_with_it(self):
+        It used to check three places: `files[id=decisions]`, two `claims[]`
+        rows, and the contract cell. TASK-235 deleted `DECISIONS.md`, so the
+        `files[]` entry and one of the claims went with it and there are two
+        left. **Asserted as an exact set, not as a membership test**, because
+        the failure this class exists for is a declaration going unchecked —
+        and a `for path in (...)` loop over a hardcoded list is how the
+        original one missed five files.
+        """
+        decide_claims = {c["path"] for c in SCHEMA["claims"]
+                         if c["owner"] == "decide"}
+        self.assertEqual(decide_claims, {"decisions/", "design/"},
+                         "the decide lane's claim set changed; the contract "
+                         "cell below and `SCHEMA_PATH_TO_CONTRACT` above have "
+                         "to change with it")
+        self.assertNotIn(
+            "DECISIONS.md", {c["path"] for c in SCHEMA["claims"]},
+            "the decisions index is claimed again — TASK-235 removed it and "
+            "DESIGN-013 § 4.1 forbids re-adding an index under any name")
+        self.assertNotIn("decisions", {f.get("id") for f in SCHEMA["files"]},
+                         "`files[id=decisions]` declared a shape for a file "
+                         "that no longer exists")
+        self.assertIn("decisions/", self.contract_rows()["decide"])
+
+    def test_the_decide_lanes_templates_live_in_its_own_tree(self):
         """`decide/reference/decisions.md` sourced templates from `work/state/`
-        after the move — a lane reaching into another lane's tree."""
-        f = next(x for x in SCHEMA["files"] if x["id"] == "decisions")
-        tmpl = f.get("template", "")
-        self.assertTrue(tmpl.startswith("decide/"), f"template still at {tmpl}")
-        self.assertTrue((PERRY_HOME / tmpl).exists(), f"{tmpl} does not exist")
+        after the move — a lane reaching into another lane's tree.
+
+        It used to be asserted on `files[id=decisions].template`, which TASK-235
+        removed with the file. `design/*.md` is the decide-owned entry that is
+        left, and the rule was never about which file: no `decide` entry may
+        name a template outside `decide/`.
+        """
+        entries = [f for f in SCHEMA["files"] if f.get("owner") == "decide"]
+        self.assertTrue(entries, "no decide-owned files[] entry at all")
+        for f in entries:
+            tmpl = f.get("template", "")
+            with self.subTest(id=f.get("id")):
+                self.assertTrue(tmpl.startswith("decide/"),
+                                f"{f.get('id')}: template at {tmpl}")
+                self.assertTrue((PERRY_HOME / tmpl).exists(),
+                                f"{tmpl} does not exist")
 
     def test_only_one_lane_bootstraps_the_decision_files(self):
         """The regex used to be anchored to the file bullet — `DECISIONS.md
@@ -432,7 +458,7 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                 continue  # the bullet that forbids, in full
             created += re.findall(r"`([^`]+)`", body)
 
-        for path in ("DECISIONS.md", "decisions/", "design/"):
+        for path in ("decisions/", "design/"):
             self.assertNotIn(
                 path, created,
                 f"work's bootstrap creates `{path}`, which the contract gives "
@@ -442,16 +468,55 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
     # instructed to write. Derived from the signed contract table, not restated.
     FOREIGN_WRITES = {
         "goals": ("BOARD.md", "journal/", "evidence/", "weekly/", "handoff/",
-                  "DECISIONS.md", "decisions/"),
-        "work": ("OKR.md", "phase/", "DECISIONS.md", "decisions/"),
+                  "decisions/"),
+        "work": ("OKR.md", "phase/", "decisions/"),
         "decide": ("BOARD.md", "journal/", "OKR.md", "phase/", "evidence/"),
     }
 
     # Verbs that make a sentence an instruction to write rather than to read.
+    #
+    # **Third-person tolerant** (TASK-216). The shipped form matched `write`
+    # and not `writes`, and a summary table is written in the third person —
+    # "`work` writes `DECISIONS.md`" walked straight past a guard built to
+    # catch exactly that sentence. Every verb takes the `s`.
     WRITE_VERBS = re.compile(
-        r"\b(append|write|add a row|tick|update|create|edit|record)\b", re.I)
+        r"\b(appends?|writes?|adds? a row|ticks?|updates?|creates?|edits?"
+        r"|records?)\b", re.I)
 
-    def test_no_lane_reference_page_instructs_a_write_it_may_not_perform(self):
+    #: A line that FORBIDS, hands off, or narrates history is the fix, not the
+    #: defect. Two entries were added by TASK-216's widening, and each is a
+    #: measured false positive rather than a precaution:
+    #:
+    #: `no longer` — `work/reference/subcommands.md` reads "**`work` no
+    #: longer writes `decisions/` at all**", which is the refusal the contract
+    #: asks for. The existing `\bnot\b` does not cover it.
+    #:
+    #: `hands off` — `decide/SKILL.md:26` reads "`design` hands off to `pmo`:
+    #: print a list of proposed implementation tasks", which is the hand-off,
+    #: not the write. The shipped carve-out had `hand (it |the |off)` and so
+    #: matched `hand off` but not `hands off` — the same third-person blind
+    #: spot as the verb list, one clause over.
+    CARVE_OUT = re.compile(
+        r"\bnot\b|\bdon'?t\b|\bdoesn'?t\b|never|belong|no longer|"
+        r"hands? (it |the |off)|owned by|moved to|refuse|"
+        r"instead of|used to|for a release|read(s)? ", re.I)
+
+    def lane_pages(self, lane: str):
+        """`<lane>/reference/*.md` **plus `<lane>/SKILL.md`**.
+
+        The reference pages are where procedures live, which is why the
+        original scan looked there. But a lane's SKILL.md carries the summary
+        TABLE, and a summary table is exactly where a stale ownership claim
+        survives longest: it is read on every invocation and edited least.
+        `goals/SKILL.md:126` claimed `evidence/retro.md` for the wrong lane for
+        weeks while the correction sat two files away in
+        `goals/reference/phases.md:229`.
+        """
+        pages = sorted((PERRY_HOME / lane / "reference").glob("*.md"))
+        skill = PERRY_HOME / lane / "SKILL.md"
+        return pages + ([skill] if skill.exists() else [])
+
+    def test_no_lane_page_instructs_a_write_it_may_not_perform(self):
         """The reviewers kept finding these, and the tests kept missing them
         because every ownership check scanned `<lane>/SKILL.md` only.
 
@@ -467,16 +532,11 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
         """
         offenders = []
         for lane, forbidden in self.FOREIGN_WRITES.items():
-            for page in sorted((PERRY_HOME / lane / "reference").glob("*.md")):
+            for page in self.lane_pages(lane):
                 for n, line in enumerate(page.read_text().splitlines(), 1):
                     if not self.WRITE_VERBS.search(line):
                         continue
-                    # A line that forbids, hands off, or narrates history is
-                    # the fix, not the defect.
-                    if re.search(r"\bnot\b|\bdon'?t\b|\bdoesn'?t\b|never|belong|"
-                                 r"hand (it |the |off)|owned by|moved to|refuse|"
-                                 r"instead of|used to|for a release|read(s)? ",
-                                 line, re.I):
+                    if self.CARVE_OUT.search(line):
                         continue
                     # Match any backticked span that STARTS with the forbidden
                     # path, not the bare path alone. The first version compared
@@ -488,13 +548,14 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                         for path in forbidden:
                             if span == path or span.startswith(path):
                                 offenders.append(
-                                    f"{lane}/reference/{page.name}:{n} → writes "
-                                    f"`{span}`\n      {line.strip()[:110]}")
+                                    f"{page.relative_to(PERRY_HOME)}:{n} → "
+                                    f"writes `{span}`\n      "
+                                    f"{line.strip()[:110]}")
                                 break
         self.assertFalse(
             offenders,
-            "a lane's reference page instructs a write the signed contract "
-            "forbids:\n    " + "\n    ".join(offenders))
+            "a lane's page instructs a write the signed contract forbids:\n    "
+            + "\n    ".join(offenders))
 
     # Every way a shared page names a lane, mapped to the lane it names. The
     # aliases are here on purpose: a page that still says `/pmo decide` is
@@ -585,7 +646,7 @@ class TestSchemaAgreesWithTheSignedContract(unittest.TestCase):
                                 text)
             self.assertTrue(claims, f"{lane}/SKILL.md: no claim list parsed")
             for claim in claims:
-                for path in ("DECISIONS.md", "decisions/"):
+                for path in ("decisions/",):
                     self.assertNotIn(
                         path, claim,
                         f"{lane}/SKILL.md still claims `{path}`, which moved to "

@@ -70,11 +70,11 @@ The table is that sentence applied to a file list. It is a **file-ownership** co
 |---|---|---|
 | **`goals`** (`goals/`) | `OKR.md` — **including `## Commitments`** — and `phase/<NNN>-<slug>.md` | weekly tasks, handed to `work` |
 | **`work`** (`work/`) | `BOARD.md` (incl. `## Intake`, `## Cadence`), `journal/`, `PROJECT_STATE.md`, `evidence/`, `weekly/`, `handoff/`, **`.perry/agents.jsonl` → `.perry/roles/`** | KR attribution edges, handed to `goals` |
-| **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md`, **`DECISIONS.md` and `decisions/`** | implementation tasks on lock, handed to `work` |
+| **`decide`** (`decide/`) | `design/<DESIGN-ID>-<slug>.md` and **`decisions/`** | implementation tasks on lock, handed to `work` |
 
-**Two changes from the previous contract** — `DECISIONS.md` + `decisions/` moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.
+**Two changes from the previous contract** — `decisions/` + its then-index moved from `work` to `decide`, and `OKR.md § Commitments` became explicitly `goals`. **The lane names and the directories now agree**, an edit needing no second signature because the ownership set above is byte-identical across it. Both accounts: `reference/hand-off-contract.md`.
 
-**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `BOARD.md`; `work` writing `DECISIONS.md`; `decide` writing `journal/`.
+**What "only writer" forbids.** A lane needing a change in another lane's file **asks in chat and stops** — it does not write and apologise, and not "just this once" because the other lane is not loaded. Three cases that must refuse: `goals` writing `BOARD.md`; `work` writing `decisions/`; `decide` writing `journal/`.
 
 ## Mandatory first move: combined snapshot
 
@@ -86,7 +86,7 @@ Always run this first. Steps −2 to 3 are ordering-critical; the rest is `refer
 
 0. **Auto-update check**: run `bash "$PERRY_HOME/bin/perry-update-check"`. It is throttled to once per 7 days; surface output verbatim. OpenCode and Codex may run this bounded check synchronously.
 
-1. **Read `.perry/config.md`** for document language, chat language and repo layout. If absent and any state file exists, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
+1. **Read `.perry/config.jsonl`**, else `.perry/config.md`, for document language, chat language and repo layout. If neither exists and a state file does, prompt for first-time setup. **Everything rendered from here uses the chat language**; files use `Document language`. Contract: `reference/i18n.md`.
 
 2. **Check for an interrupted run, but only after recovery safety — before anything else reads project state.**
 
@@ -192,9 +192,9 @@ Moves every path Perry claims under a new state root and rewrites `State root:` 
 
 ## Configuration
 
-`.perry/config.md` is where a project's preferences live; every lane and script reads it. First-time setup creates it. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
+`.perry/config.md` projects `.perry/config.jsonl`; prose belongs in `.perry/hook.md`. First-time setup creates both. Field **names** stay English in every language, because this file declares the language and must be readable before it is known. An optional `## Tracks` table turns on `pipeline` / `queue` / `inquiry` mode; absent means one implicit `main` track, mode `project`.
 
-The field list and the four subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), **tracks**, and the **conformance gate** (enforces — never run `perry-conform declare` for the user; adoption proposes, the user declares).
+The field list and the three subjects with consequences worth reading before you change them are `reference/config.md`: **repo layout** (single, or the two-repo PMO ↔ code split), **state root** (`perry` is what setup writes; the *code* fallback is still the project root and must stay that way), and **tracks**. The ADR-004 **conformance gate** was a fourth; it is deleted (`TASK-261`) — nothing refuses a write now.
 
 ## Style rules
 

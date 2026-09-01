@@ -12,6 +12,7 @@ objectives:
         target: 3
         current: 0
         stretch: false
+        linked: "KR-O1.1"
         tasks: ["TASK-019", "TASK-021", "TASK-028"]
       - id: P001-O1-KR2
         title: "Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance"
@@ -19,11 +20,13 @@ objectives:
         target: 3
         current: 0
         stretch: false
+        linked: "KR-O1.2"
         tasks: ["TASK-020", "TASK-046"]
       - id: P001-O1-KR3
         title: "Switching a track's mode edits one file and rewrites no state, shown by a revert test"
         metric: "1 file, 0 state rewrites; baseline unproven. Two numbers, no single scalar — target omitted deliberately."
         stretch: false
+        linked: "KR-O1.3"
         tasks: []
       - id: P001-O1-KR4
         title: "Blocking review findings open against the mode work"
@@ -31,6 +34,7 @@ objectives:
         target: 0
         current: 3
         stretch: false
+        linked: "KR-O1.1"
         tasks: ["TASK-027", "TASK-053", "TASK-056", "TASK-062"]
   - id: O2
     title: "The `goals` lane can write its own state"
@@ -41,6 +45,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
+        linked: "KR-O2.1"
         tasks: ["TASK-037", "TASK-042"]
       - id: P001-O2-KR2
         title: "`perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships"
@@ -48,6 +53,7 @@ objectives:
         target: 1
         current: 1
         stretch: false
+        linked: "KR-O2.1"
         tasks: []
   - id: O3
     title: "A real project can become Perry-shaped, once"
@@ -58,6 +64,7 @@ objectives:
         target: 3
         current: 3
         stretch: false
+        linked: "KR-O3.4"
         tasks: ["TASK-043", "TASK-045", "TASK-047"]
       - id: P001-O3-KR2
         title: "Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project"
@@ -65,6 +72,7 @@ objectives:
         target: 1
         current: 0
         stretch: false
+        linked: "KR-O3.4"
         tasks: ["TASK-044", "TASK-051", "TASK-052", "TASK-068"]
 unlinked:
   - "TASK-034"

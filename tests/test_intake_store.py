@@ -722,18 +722,34 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         self.assertIn("row 4", drifted[0]["message"])
         self.assertEqual(payload["intake_store_drift"]["drifted"], 1)
 
-    def test_a_row_deleted_by_hand_reports_every_row_it_renumbered(self):
-        """**Not amplification — the truth.** For a task an inserted line moves
-        `order` and nothing else, because the rows keep their names, so
-        `_order_drift` reports it once. Here the position IS the name: deleting
-        the first row really does mean `resolve-intake 2` now addresses what
-        `resolve-intake 3` addressed yesterday, for every row below it."""
-        p = self._imported()
+    def _hand_delete_the_first_intake_row(self, p: Project) -> None:
+        """Delete `## Intake`'s first row from the board and nothing else.
+
+        Extracted so the two tests below run on the SAME state: one asks what
+        `perry-lint` says about it, and one asks what happens if you then run a
+        command on it. Round 4's suite had the first and not the second.
+        """
         board = p.root / "BOARD.md"
         lines = board.read_text().split("\n")
         del lines[next(i for i, l in enumerate(lines)
                        if "two test modules import" in l)]
         board.write_text("\n".join(lines))
+
+    def test_a_row_deleted_by_hand_reports_every_row_it_renumbered(self):
+        """**Not amplification — the truth.** For a task an inserted line moves
+        `order` and nothing else, because the rows keep their names, so
+        `_order_drift` reports it once. Here the position IS the name: deleting
+        the first row really does mean `resolve-intake 2` now addresses what
+        `resolve-intake 3` addressed yesterday, for every row below it.
+
+        **This test is deliberately lint-only, and that is now stated rather
+        than left to be inferred.** It asks one question — does `perry-lint`
+        report the renumbering — and the V4 round-4 review's finding was that
+        the suite built this state and then asked nothing else of it. The
+        question it does not ask is asked directly below, on the same state.
+        """
+        p = self._imported()
+        self._hand_delete_the_first_intake_row(p)
         payload = self._lint(p.root)
         # 3 rows survive, every one of them at a position whose stored record
         # is a different request; the 4th stored record now has no row at all.
@@ -742,6 +758,39 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
                  if f["rule"] == "intake-store-drift"]
         self.assertIn("row 1", rules[0]["message"])
         self.assertIn("resolve-intake 1", rules[0]["message"])
+
+    def test_a_shrink_permitted_command_on_that_same_board_is_refused(self):
+        """**The line the suite stopped one short of.** TASK-203 round 5.
+
+        The test above builds the dangerous state — a hand-deleted `## Intake`
+        row against a minted 4-record store — and then asserts something safe
+        about it. The V4 round-4 review found the defect by taking exactly one
+        more step: running a shrink-PERMITTED command on that board. Under
+        round 4's unbounded exemption `resolve-intake` returned rc 0 and
+        persisted a 3-record store, destroying a record it never addressed,
+        with `perry-lint` then reporting `0 row(s) drifted`.
+
+        A test that constructs the dangerous state and asserts only the safe
+        thing about it reads as coverage and is not. This is that same state
+        with the missing question asked.
+        """
+        p = self._imported()
+        store = p.root / "intake.jsonl"
+        self.assertEqual(len(store.read_text().strip().split("\n")), 4,
+                         "control: the store holds four records")
+        self._hand_delete_the_first_intake_row(p)
+        before = store.read_bytes()
+        task = PERRY_HOME / "bin" / "perry-task"
+        out = subprocess.run(
+            [sys.executable, str(task), "resolve-intake", "1",
+             "--outcome", "dropped", "--reason", "a request we will not take",
+             "--root", str(p.root)], capture_output=True, text=True)
+        self.assertNotEqual(out.returncode, 0,
+                            "resolve-intake persisted a store it shrank by a "
+                            "record it never touched:\n" + out.stdout + out.stderr)
+        self.assertIn("removes 0 record(s)", out.stdout + out.stderr)
+        self.assertEqual(store.read_bytes(), before,
+                         "the store changed on a refused write")
 
     def test_a_sweep_moves_n_and_the_store_is_what_says_so(self):
         """**The mutation this whole row exists to make visible.**
@@ -781,16 +830,25 @@ class TestTheCostOfNIsReportedRatherThanSilent(unittest.TestCase):
         after = numbering()
         self.assertNotEqual(before[2], after[2],
                             "the point of the test: n=2 is a different row")
-        payload = self._lint(p.root)
-        self.assertEqual(payload["intake_store_drift"]["drifted"], 3)
-        self.assertTrue([f for f in payload["findings"]
-                         if f["rule"] == "intake-store-drift"])
-        # And the fix is the import, which is what re-numbers the store.
-        self.assertEqual(
-            self._tasks(p.root, "intake-write", "--from-board").returncode, 0)
+        # **Converted by TASK-203.** This asserted `drifted: 3` and then ran
+        # the import to fix it. `intake-sweep` now writes the store inside the
+        # same transaction as the board — it is one of the three commands
+        # `bin/perry-task § SHRINK_ALLOWANCE` permits to make a canonical store
+        # smaller, and by exactly the rows it swept — so the renumbering is recorded as it happens and there is
+        # no window in which the two disagree. The reading this test exists
+        # for is unchanged: `n = 2` addresses a different request than it did
+        # five commands ago, and the store is what says so.
+        #
+        # The drift half is not lost. It belongs to a hand edit, not to the
+        # sweep, and `test_a_row_deleted_by_hand_reports_every_row_it_renumbered`
+        # thirty lines up is where it is proved.
         self.assertEqual(self._lint(p.root)["intake_store_drift"],
                          {"store_present": True, "comparison_performed": True,
                           "records": 2, "drifted": 0})
+        stored = [json.loads(l) for l in
+                  (p.root / "intake.jsonl").read_text().split("\n") if l.strip()]
+        self.assertEqual([r["request"] for r in stored], [after[1], after[2]])
+        self.assertEqual([r["order"] for r in stored], [0, 1])
 
     def test_the_shift_is_reported_rather_than_absorbed_by_a_re_render(self):
         """`intake-render --write` is the fix, and it puts the STORE back —

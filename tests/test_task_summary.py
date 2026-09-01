@@ -8,7 +8,6 @@ import sys
 import unittest
 from pathlib import Path
 
-from tests.gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 from tests.test_store_is_the_write_target import Project, task_module
 
 
@@ -182,11 +181,11 @@ class TaskSummaryContract(unittest.TestCase):
             "|---|---|---|---|---|---|---|---|",
         ).replace("| — | — |", "| — | — | ops | brief |")
         project = Project(self, board=board)
-        # Overwrites the config `Project` wrote, so it carries `GATE_OFF`
+        # Overwrites the config `Project` wrote, so it carries `""`
         # forward itself — see tests/gate.py.
         (project.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF
+            "- Repo layout: single\n- State root: .\n"
             + "\n## Tracks\n\n"
             "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
             "|---|---|---|---|---|---|---|---|\n"

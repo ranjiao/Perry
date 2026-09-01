@@ -43,8 +43,8 @@ from pathlib import Path
 # until 2026-08-18 — see the table-row branch below for what that cost.
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
-from tables import split_row, squash  # noqa: E402
-from parsers import resolve_state_root  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
+from parsers import configured, resolve_state_root  # noqa: E402
 
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import perry_store  # noqa: E402
@@ -391,7 +391,7 @@ def harvest(root: Path) -> dict:
                 # because both were written against a hardcoded file list that
                 # did not name this file.
                 cells = split_row(raw)
-                low = [squash(c) for c in cells]
+                low = header_index(cells)
                 if any(c in ("id", "adr", "#", "task", "design") for c in low[:2]):
                     header_cells = low
                     continue
@@ -514,7 +514,7 @@ def typed_task_lookup(root: Path, token: str) -> dict | None:
         return None
     state_root = resolve_state_root(root)
     store = perry_store.store_path(state_root)
-    adopted = ((root / ".perry" / "config.md").exists()
+    adopted = (configured(root)
                or (state_root / "BOARD.md").exists()
                or (state_root / "OKR.md").exists()
                or (state_root / "phase").is_dir())

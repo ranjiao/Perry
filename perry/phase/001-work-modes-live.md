@@ -66,12 +66,8 @@ Close the review debt blocking the mode work, then declare and exercise a `pipel
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P001-O1-KR1 | Non-`project` modes running on a live, non-fixture track (baseline 0 of 3) | 3 of 3 modes live | KR-O1.1 |
-| P001-O1-KR2 | Each live track's mode-specific triage question answers from real state — pipeline WIP, queue SLA age, inquiry provenance (baseline 0 of 3) | 3 of 3 produce output | KR-O1.2 |
-| P001-O1-KR3 | Switching a track's mode edits one file and rewrites no state, shown by a revert test (baseline: unproven) | 1 file · 0 rewrites | KR-O1.3 |
-| P001-O1-KR4 | Blocking review findings open against the mode work (baseline 6 — 3 on TASK-019, 3 on TASK-020) | 0 open | KR-O1.1 |
+> Declared in `phase/001-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -113,10 +109,8 @@ Close the review debt blocking the mode work, then declare and exercise a `pipel
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P001-O2-KR1 | Lanes with a deterministic write tool (baseline 2 of 3 — `goals` has none) | 3 of 3 | KR-O2.1 |
-| P001-O2-KR2 | `perry-goals` write path proven non-destructive by a byte-identity test against the existing `OKR.md`, run before any write path ships (baseline: no such test) | 1 passing test | KR-O2.1 |
+> Declared in `phase/001-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 ### Projects
 
@@ -139,10 +133,8 @@ and creates work that serves no KR this phase had.
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P001-O3-KR1 | A state file can declare it is Perry-shaped, at a version, and every writer gates on that declaration (baseline: `is_adopted()` answers only "is there any Perry file here") | 1 marker, all 3 writers gating | KR-O3.4 |
-| P001-O3-KR2 | Migration is dry-runnable, lossless and recoverable, shown against a copy of a real project (baseline: `risk-add` rewrote nine of gimegime-pmo's bullets unasked) | id set before == id set after | KR-O3.4 |
+> Declared in `phase/001-linkage.md`; `bin/perry-goals krs` prints them. Not written
+> here — TASK-157 / DESIGN-013 § 5.1, a fact with a schema lives in one store.
 
 `ADR-004`'s own reopening criterion is that migration proves unbuildable to its
 five guarantees. P001-O3-KR2 is that criterion, made measurable — it is the KR whose

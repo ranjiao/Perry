@@ -43,9 +43,17 @@ What each store holds
     kind `track`       one row of `## Tracks`.
 
 Everything else — the mission, the operating principles, the rationale
-paragraphs, `## Why the state root is not .`, gimegime-pmo's nine screens of
-dispatch lessons — is layout. It is never parsed, never re-rendered, and never
-at risk.
+paragraphs, gimegime-pmo's nine screens of dispatch lessons — is layout. It is
+never parsed and never re-rendered.
+
+**"Never at risk" was true of a renderer that always had the file in front of
+it, and `scaffold_config` below is the one that does not** (TASK-233).
+`perry-config render` with no `.perry/config.md` on disk rebuilds the document
+from the store alone, which is the settings, the table, and the fixed lines of
+the shape — so layout survives a render and does not survive a deletion.
+`reference/config.md § Prose in this file is layout` states that to a user and
+points at `.perry/hook.md`, which is where Perry's own `## Why the state root is
+not .` went.
 """
 
 from __future__ import annotations
@@ -62,7 +70,7 @@ sys.path.insert(0, str(HERE))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
 import perry_store  # noqa: E402
-from tables import split_row, squash  # noqa: E402
+from tables import render_row, split_row, squash  # noqa: E402
 
 markdown_tables = perry_store.markdown_tables
 
@@ -572,6 +580,95 @@ def scan_config(text: str) -> tuple[list[str], list[dict]]:
 # ── the two documents, as one interface ───────────────────────────────────
 
 
+# ── rebuilding a projection that is not there ─────────────────────────────
+#
+# TASK-233. Everything above renders the store INTO a file that exists: `plan`
+# scans the file for the lines the store fills, and every other byte comes back
+# untouched. That is the right contract while there is a file, and it is the
+# whole of `cmp` being the bar. It also means that until this section existed,
+# `perry-config render` on a project whose `.perry/config.md` had been deleted
+# printed `no .perry/config.md` and wrote nothing — an in-place cell updater,
+# not the projection `BOARD.md` is.
+#
+# **A scaffold is a stated contract, not a recovery.** What comes back is the
+# canonical shape and the stored values, and nothing else: the title, the
+# `## Tracks` heading and the table header are fixed parts of the shape
+# (`reference/config.md § .perry/config.md shape`), and PROSE IS NOT
+# RECOVERABLE — DESIGN-013 § 5.1 puts a schema'd fact in exactly one store and
+# § 5.5 rejects moving prose into one, so a store that could rebuild the prose
+# would be the design's own rejected alternative. `reference/config.md § Prose
+# in this file is layout` is where that is written for a user, and it is the
+# reason Perry's own commentary moved to `.perry/hook.md`.
+
+#: The first line of `.perry/config.md`. Layout, and fixed: `SKILL.md § 195`
+#: records why the field names stay English in every language — this is the
+#: file that declares the language, so it has to be readable before the
+#: language is known — and the title is that argument's first line.
+CONFIG_TITLE = "# Perry configuration"
+
+#: The heading `scan_config` matches `## Tracks` under. Spelled once so the
+#: scaffold and the scanner cannot come to disagree about it.
+TRACKS_HEADING = "## Tracks"
+
+
+def scaffold_config(records: list[dict]) -> str:
+    """`.perry/config.jsonl` → a complete `.perry/config.md`, from the store ALONE.
+
+    For the case there is no file to project onto. Settings become the
+    preamble in stored order, tracks become the `## Tracks` table in stored
+    order, and a store carrying no track record writes no section at all —
+    DESIGN-003 reads an absent `## Tracks` as one implicit `main`, so writing
+    an empty table would state something the store does not.
+
+    A stored blank comes back as the blank marker, because that is how the file
+    writes "empty" and `stored_value` normalised it away on the way in. The
+    marker is `lib.blank_marker`'s, not a literal here.
+
+    **The caller must check that this round-trips.** `main` renders the result
+    through `plan`/`render` and refuses when the bytes move or when a record
+    finds no line — a scaffold that cannot express a record would otherwise
+    write a file that silently drops it, which is the failure mode this whole
+    file exists to make impossible.
+    """
+    blank = lib.blank_marker()
+
+    def shown(value) -> str:
+        text = value if isinstance(value, str) else (
+            "" if value is None else str(value))
+        return text or blank
+
+    settings = sorted((r for r in records if r.get("kind") == "setting"),
+                      key=lambda r: (r.get("order") if isinstance(
+                          r.get("order"), int) else 0))
+    tracks = sorted((r for r in records if r.get("kind") == "track"
+                     and (r.get("track") or "").strip()),
+                    key=lambda r: (r.get("order") if isinstance(
+                        r.get("order"), int) else 0))
+
+    out = [CONFIG_TITLE, ""]
+    for rec in settings:
+        label = (rec.get("label") or "").strip()
+        if not label:
+            # A record with no label cannot be written as `- Label: value`.
+            # Refusing here rather than inventing one from the key: the key is
+            # `setting_key`'s lossy squash of the label — `PMO repo path` and
+            # `pmo repo path` mint the same key — so reconstructing it would
+            # guess at the user's own capitalisation.
+            raise Refused(
+                f"the store holds a setting with no label "
+                f"({rec.get('key')!r}); `.perry/config.md` cannot be rebuilt "
+                f"from it, because the label is the line")
+        out.append(f"- {label}: {shown(rec.get('value'))}")
+    if tracks:
+        columns = list(TRACK_COLUMNS)
+        out += ["", TRACKS_HEADING, "",
+                render_row(columns),
+                "|" + "---|" * len(columns)]
+        out += [render_row([shown(rec.get(TRACK_COLUMNS[c])) for c in columns])
+                for rec in tracks]
+    return "\n".join(out) + "\n"
+
+
 class Doc:
     """One markdown file that has become a projection of a store.
 
@@ -582,12 +679,22 @@ class Doc:
     cell model rather than carrying one.
     """
 
-    def __init__(self, name, rel_file, rel_store, scan, under_state_root):
+    def __init__(self, name, rel_file, rel_store, scan, under_state_root,
+                 scaffold=None):
         self.name = name
         self.rel_file = rel_file
         self.rel_store = rel_store
         self.scan = scan
         self.under_state_root = under_state_root
+        #: How to rebuild the whole file from the store when there is no file
+        #: to project onto, or `None` for a document that has no declared
+        #: shape to rebuild into. `OKR.md` is the `None` case and stays one:
+        #: its file is mostly mission, principles and per-objective narrative,
+        #: and a scaffold there would emit a KR table under headings the store
+        #: has no record of — a file that looks like an `OKR.md` and asserts
+        #: nothing the project wrote. `perry-okr render` on a project with no
+        #: `OKR.md` still refuses, and says why.
+        self.scaffold = scaffold
 
     def base(self, project_root: Path, state_root: Path) -> Path:
         return state_root if self.under_state_root else project_root
@@ -602,7 +709,7 @@ class Doc:
 OKR = Doc("okr", "OKR.md", "okr.jsonl", scan_okr, under_state_root=True)
 CONFIG = Doc("config", Path(".perry") / "config.md",
              Path(".perry") / "config.jsonl", scan_config,
-             under_state_root=False)
+             under_state_root=False, scaffold=scaffold_config)
 DOCS = {"okr": OKR, "config": CONFIG}
 
 
@@ -836,10 +943,18 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             print(f"{tool}: refused — {exc}", file=sys.stderr)
             return 1
 
-    if not path.exists():
+    # **`render` is the one command that does not need the file** (TASK-233).
+    # Every other command is about what the file says; `render` is about what
+    # the store says, and a projection that can only be produced when a copy of
+    # it already exists is an in-place cell updater rather than a projection.
+    # `text` stays `None` until the store has been read and validated, and the
+    # scaffold is built from the records — never from a file that is not there.
+    text: str | None = None
+    if path.exists():
+        text = path.read_text(encoding="utf-8")
+    elif cmd != "render":
         print(f"{tool}: no {doc.rel_file} at {path}", file=sys.stderr)
         return 2
-    text = path.read_text(encoding="utf-8")
 
     if cmd == "build":
         records = derive(doc, text)
@@ -885,12 +1000,43 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
                              ensure_ascii=False, indent=2), file=sys.stderr)
             return 2
 
-        rendered, report = render(doc, text, records)
+        if text is None:
+            scaffold = getattr(doc, "scaffold", None)
+            if scaffold is None:
+                print(f"{tool}: no {doc.rel_file} at {path}, and this document "
+                      f"has no scaffold — there is no declared shape to rebuild "
+                      f"it into from {doc.rel_store} alone.", file=sys.stderr)
+                return 2
+            try:
+                text = scaffold(records)
+            except Refused as exc:
+                print(f"{tool}: cannot rebuild {doc.rel_file} from "
+                      f"{doc.rel_store} — {exc}", file=sys.stderr)
+                return 2
+            # **The scaffold is checked, not trusted.** It is written
+            # independently of `scan_config` and `render_lines`, so passing it
+            # back through them is a real round trip: a column written in the
+            # wrong order comes back with the cells rewritten, and a record the
+            # scaffold cannot express lands in `records_not_in_the_file`.
+            # Either way this refuses instead of writing a file that silently
+            # says less than the store does.
+            rendered, report = render(doc, text, records)
+            missing = report["records_not_in_the_file"]
+            if rendered != text or missing:
+                print(json.dumps({
+                    "refused": f"the shape rebuilt from {doc.rel_store} does "
+                               f"not round-trip through this tool's own reader; "
+                               f"nothing was written",
+                    "records_not_in_the_file": missing,
+                    "first_difference": _first_difference(text, rendered),
+                }, ensure_ascii=False, indent=2), file=sys.stderr)
+                return 2
+        else:
+            rendered, report = render(doc, text, records)
         if cmd == "render":
             if "--write" not in argv:
                 sys.stdout.write(rendered)
                 return 0
-            _gate_or_refuse(doc, root, state_root, tool, argv)
             lib.write_atomic(path, rendered)
             print(f"{tool}: rendered {path} from {len(records)} stored "
                   f"record(s)")
@@ -991,65 +1137,19 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     return 0
 
 
-def _gate_or_refuse(doc: Doc, root: Path, state_root: Path, tool: str,
-                    argv: list[str]) -> None:
-    """ADR-004's conformance gate, on the one file about to be written.
-
-    **`.perry/config.md` is gated through the same call as `OKR.md`, and that
-    is a small circularity worth naming:** `perry-conform § gate_mode` reads
-    `Conformance gate` out of `.perry/config.md` to decide the mode, so this
-    file's own contents decide whether this file may be rendered. It is benign
-    — the mode is read from the bytes on disk before the write, exactly as it
-    is for every other file — but it means a fixture that writes a
-    `.perry/config.md` is writing the file the gate consults about itself, and
-    `tests/gate.py § GATE_OFF` is the documented way out.
-    """
-    conform = _conform_module()
-    if conform is None:
-        return
-    gate = conform.gate(root, state_root, str(doc.rel_file).replace("\\", "/"),
-                        tool=tool,
-                        root_arg=argv[argv.index("--root") + 1]
-                        if "--root" in argv else None)
-    if not gate.ok:
-        raise Refused(gate.message)
-    if gate.message:
-        print(f"{tool}: ⚠ conformance ({gate.mode}) — {gate.message}",
-              file=sys.stderr)
+# **The ADR-004 conformance gate stood here and is gone (TASK-261).**
+# `render --write` used to consult a stored DECLARATION about the file it was
+# about to render and refuse when the shape no longer matched. On this
+# repository that ledger held 23 records, all `route: declare`, all Perry's
+# own files — zero disagreements, because a disagreement needs a foreign
+# project and Perry has never been pointed at one. `tests/gate.py § GATE_OFF`,
+# the documented way out of the self-referential case this function's own
+# docstring described, goes with it.
 
 
-_CONFORM = None
-
-
-def _conform_module():
-    """`bin/perry-conform` as a module — hyphenated, so not importable."""
-    global _CONFORM
-    if _CONFORM is not None:
-        return _CONFORM
-    import importlib.machinery
-    import importlib.util
-    path = HERE / "perry-conform"
-    if not path.exists():
-        return None
-    spec = importlib.util.spec_from_loader(
-        "perry_conform", importlib.machinery.SourceFileLoader(
-            "perry_conform", str(path)))
-    mod = importlib.util.module_from_spec(spec)
-    # **Registered BEFORE it is executed**, the same note `bin/perry-goals §
-    # _sibling` and `bin/perry-task` both carry: `dataclasses` resolves the
-    # annotation strings that `from __future__ import annotations` leaves
-    # behind by looking the class's own module up in `sys.modules`, and
-    # `perry-conform` decorates a dataclass at import time. Without this line
-    # the load dies inside `dataclasses._is_type` with an `AttributeError` on
-    # `None`, several frames away from anything that names the cause.
-    sys.modules["perry_conform"] = mod
-    spec.loader.exec_module(mod)
-    _CONFORM = mod
-    return mod
-
-
-__all__ = ["CONFIG", "COMMANDS", "DOCS", "OKR", "Doc", "Refused", "STORED",
-           "derive", "field_map", "load_store", "main", "plan", "record",
-           "record_key", "render", "scan_config", "scan_okr", "setting_key",
+__all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "OKR", "Doc",
+           "Refused", "STORED", "TRACKS_HEADING", "derive", "field_map",
+           "load_store", "main", "plan", "record", "record_key", "render",
+           "scaffold_config", "scan_config", "scan_okr", "setting_key",
            "store_text", "stored_value", "touches", "validate_records",
            "would_discard"]

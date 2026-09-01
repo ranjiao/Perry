@@ -79,6 +79,11 @@ Default budget (override via flags):
   --max-dispatches=10    cumulative dispatches per run
   --max-duration=2h      wall clock
   --max-failures=3       cumulative failures (any kind)
+  --max-context=200k     session context ceiling; at or past it, hand off and
+                         exit. Measured by `bin/perry-context-budget`. Most
+                         specific wins: this flag, env PERRY_CONTEXT_CEILING,
+                         the project's `- Session context ceiling:`, then
+                         `schema § thresholds.session_context_ceiling`
   --dry-run              print the plan, don't execute
 
 How to stop autopilot mid-run:
@@ -101,6 +106,20 @@ First-run protection:
   This run is forced to --dry-run mode. After you see the plan, you'll
   be asked whether to execute for real. Subsequent runs skip this gate.
 ```
+
+**Why context is a budget line and not a footnote.** Measured across 25 Perry
+sessions and 18,941 turns: **8.43 billion tokens, 99.1% of it `cache_read`** —
+the accumulated context, re-read on every single turn. Output was 0.3%. So the
+bill is `Σ over turns (context at that turn)`, and both factors grow together
+inside one run: the largest session held a mean context of 504,651 tokens and
+peaked at 997,717 across 8,174 turns.
+
+That makes a long autopilot run superlinear, not linear — which is why the
+other three budgets did not contain it. Replaying those same turns against a
+cap: **200k costs 58.3% less, 300k 42.3% less**, for exactly the same work.
+Crossing the ceiling is not a failure and nothing is lost: the run hands off,
+and the next session resumes from the handoff at a fresh baseline. That is
+what `handoff/` has always been for.
 
 ## Pre-flight (every invocation, before AskUserQuestion confirm)
 
@@ -157,7 +176,7 @@ First-run protection:
    - Title, current time, project name
    - **Will dispatch** (numbered list with TASK-ID / Title / Executor / Estimated cycle)
    - **Skipped** (grouped by reason)
-   - **Budget**: dispatches=X/10, duration=~Ym estimated / 120m cap, failures=0/3
+   - **Budget**: dispatches=X/10, duration=~Ym estimated / 120m cap, failures=0/3, context=Nk/200k (or `unknown — not gating` on a host with no transcript)
    - **Stop signals reminder**: close session, or `touch ~/.cache/perry/autopilot.stop`
 8. **First run only**: this is the dry-run; proceed to AskUserQuestion `First run` (see above).
 9. **Subsequent runs**: AskUserQuestion (header `"Autopilot"`, options): `Proceed (Recommended) | Edit task list | Cancel`.
@@ -173,6 +192,23 @@ Repeat:
    - `dispatches_done >= max_dispatches` → exit
    - `now - start_time >= max_duration` → exit
    - `failures >= max_failures` → exit
+   - **Context ceiling** — run the gate; a non-zero exit means stop:
+
+     ```
+     "$PERRY_HOME/bin/perry-context-budget" ${max_context:+--ceiling $max_context}
+     ```
+
+     Exit 1 → **write the handoff first, then exit** with stop reason
+     `context ceiling`. The handoff is not optional here and not a courtesy:
+     it is the only thing that makes stopping cheap rather than lossy, and a
+     run that exits on this check without one has converted a budget stop into
+     dropped work. Run `/pmo handoff`, then tell the user in one line that a
+     fresh session resumes from it.
+
+     Verdict `unknown` (exit 0) means the host keeps no transcript this tool
+     can read — it does **not** mean the context is fine. Say so once in the
+     run summary and fall back to `--max-dispatches`, which is the proxy that
+     does not need a transcript.
    - No remaining eligible tasks → exit (success)
 
 2. **Saturate dispatch slots**:
@@ -218,7 +254,7 @@ Sections:
 ## Plan (frozen at start)
 - Will dispatch: <list>
 - Skipped: <grouped by reason>
-- Budget: dispatches=X/10, duration=~Ym/120m, failures=0/3
+- Budget: dispatches=X/10, duration=~Ym/120m, failures=0/3, context=Nk/200k
 
 ## Per-task timeline
 | Task | Executor | Dispatched | Completed | Status | Evidence | Notes |
@@ -232,7 +268,7 @@ Sections:
 - ...
 
 ## Stop reason
-<one of: All eligible tasks dispatched / max-dispatches hit / max-duration hit / max-failures hit / autopilot.stop signal / session closed mid-run / stalled (no completion in 10m)>
+<one of: All eligible tasks dispatched / max-dispatches hit / max-duration hit / max-failures hit / context ceiling (handoff written: <path>) / autopilot.stop signal / session closed mid-run / stalled (no completion in 10m)>
 
 ## Left for user
 - DATA-008-B (review): user verifies pipeline-002 §1.2.A R-2 result reproducibility

@@ -27,7 +27,6 @@ import sys
 import tempfile
 import unittest
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "viewer"))
@@ -142,7 +141,7 @@ class TestTheRefusalNamesTheFlag(unittest.TestCase):
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
         (self.root / "BOARD.md").write_text(BOARD)
         seed = subprocess.run(
             [sys.executable, str(ROOT / "bin" / "perry-tasks"), "write",
@@ -225,7 +224,8 @@ GOALS_CONFIG = """# Perry configuration
 """
 
 #: Schema-shaped, because the fixture is DECLARED rather than gate-exempt and
-#: `perry-conform declare` refuses a file that does not match Perry's shape.
+#: The fixture used to `perry-conform declare` this file so the ADR-004 gate
+#: would let the write through. That gate is gone (TASK-261).
 #: The `## Commitments` table starts empty and with `Discharged by` already
 #: present, so no test here is also exercising a widening.
 GOALS_OKR = """# OKR — fixture
@@ -276,10 +276,6 @@ def declare(root: pathlib.Path) -> None:
     (root / ".perry").mkdir()
     (root / ".perry" / "config.md").write_text(GOALS_CONFIG)
     (root / "OKR.md").write_text(GOALS_OKR)
-    d = subprocess.run(
-        [sys.executable, str(ROOT / "bin" / "perry-conform"), "declare",
-         "OKR.md", "--root", str(root)], capture_output=True, text=True)
-    assert d.returncode == 0, d.stdout + d.stderr
 
 
 class TestPerryGoalsRefusalNamesTheFlagToo(unittest.TestCase):

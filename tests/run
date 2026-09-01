@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # tests/run — Perry's test suite. Python 3 stdlib only; no venv, no pip.
 #
-#   bash tests/run            # everything
-#   bash tests/run --lint     # just the schema drift guard (fast)
-#   bash tests/run --serial   # step 2 one module at a time (ordering hunts)
+#   bash tests/run                # everything
+#   bash tests/run --lint         # just the schema drift guard (fast)
+#   bash tests/run --serial       # step 2 one module at a time (ordering hunts)
+#   bash tests/run --only PREFIX  # steps 0-2 only, step 2 narrowed to PREFIX
 #
 # What it covers:
+#   0. tests/tree_guard.py — the tree the suite starts in is the tree it ends
+#      in, byte for byte. TASK-249: one test invoked `bin/perry-task <name>`
+#      with no `--root`, `perry-task` resolved its project root from the cwd,
+#      and `intake-sweep` discharged a REAL board row in the checkout — four
+#      files moved on every run, and nobody noticed for months because the
+#      sweep is idempotent and a second run looks clean. This step runs on
+#      EVERY exit path, `--lint` included, and it fails the suite.
 #   1. bin/perry-lint --templates — the shipped templates still match
 #      schema/state-schema.json (the drift guard).
 #   2. tests/test_parsers.py — viewer/parsers.py, bin/perry-state, and
@@ -25,6 +33,145 @@ cd "$ROOT"
 fail=0
 step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+only=""
+if [ "${1:-}" = "--only" ]; then
+  only="${2:-}"
+  if [ -z "$only" ]; then
+    echo "tests/run --only needs a module name prefix" >&2
+    exit 2
+  fi
+fi
+
+# ── step 0a: the environment the guard can see ─────────────────────────
+# **The guard hashes $ROOT and only $ROOT, so every write has to be aimed at
+# $ROOT for it to see them.** `perry-task` resolves its project root from
+# $PERRY_PROJECT BEFORE falling back to the cwd, so a suite run in a worktree
+# by an agent that has $PERRY_PROJECT exported at the main checkout sends
+# every un-rooted write into that OTHER tree — four files move over there
+# while step 0 truthfully reports this one unmoved. Several worktrees are live
+# on this machine and a PERRY_PROJECT/PERRY_HOME mismatch has already cost one
+# agent a check that appeared to refute its own reviewer.
+#
+# So the suite REFUSES to start in that environment. It does not quietly
+# re-point the variable: exporting PERRY_PROJECT="$ROOT" was tried first and
+# reddens nine tests in `test_config_store_readers` that depend on the variable
+# being ABSENT so the cwd walk runs — a guard that has to bend the suite to fit
+# is a guard that will be bent back. Refusing costs nothing, because after it
+# the only two reachable states are "unset" (perry-task falls back to the cwd,
+# which `cd "$ROOT"` above just set) and "equal to $ROOT". Both land inside the
+# tree step 0 hashes.
+#
+# **"Equal" has to mean the same DIRECTORY, not the same string.** The first
+# version compared the raw string against `pwd -P` and refused two environments
+# that are in fact this very tree: a /tmp symlink alias of $ROOT, and $ROOT
+# with a trailing slash. Both would have written inside the tree step 0 hashes,
+# and both were turned away — a false refusal in a guard whose whole argument
+# is that refusing costs nothing. Resolving with `cd … && pwd -P` closed those
+# two and left a third: `pwd -P` collapses symlinks but does NOT canonicalise
+# case, and neither does `Path.resolve()`, so on this case-insensitive
+# filesystem $ROOT spelled in another case `cd`s into the same real directory
+# and was still refused (round-3 V4, sharp edge A).
+#
+# So the comparison is `test A -ef B` — same device, same inode. That is the
+# question actually being asked: would an un-rooted write land inside the tree
+# step 0 hashes? It answers yes for the symlink alias, the trailing slash, the
+# doubled slash, `$ROOT/.`, `$ROOT/tests/..` and any casing the filesystem
+# resolves to $ROOT, and no for everything else. A path that does not exist has
+# no inode and is refused — correctly, because `perry-task` would go on to
+# create it. `PERRY_PROJECT_REAL` is still computed, for the message only.
+#
+# **A RELATIVE value is refused before the comparison is even reached, and
+# that is a decision rather than a side effect.** `cd … && pwd -P` accepted `.`
+# and `tests/..`, which the raw comparison at 8dfd25e had refused; so did
+# `-ef`, since this script has already `cd`ed to $ROOT. Accepting them is
+# wrong: a relative PERRY_PROJECT names a different directory to every process
+# that reads it. This script would resolve it against ITS cwd; `perry-task`
+# resolves it against each subprocess's, and tests routinely pass `cwd=` a temp
+# directory. A value this script certifies as "this tree" is therefore a value
+# `perry-task` may read as another tree, which is the exact hazard step 0a
+# exists to close. Refusing costs a `env -u PERRY_PROJECT` and removes the
+# whole class.
+#
+# What this does NOT reach is a test that builds its own `env=` dict naming a
+# third directory. No tree comparison can; it is declared in tree_guard.py.
+PERRY_PROJECT_REAL=""
+perry_project_verdict="ok"
+if [ -n "${PERRY_PROJECT:-}" ]; then
+  PERRY_PROJECT_REAL="$(cd "$PERRY_PROJECT" 2>/dev/null && pwd -P || true)"
+  case "$PERRY_PROJECT" in
+    /*) [ "$PERRY_PROJECT" -ef "$ROOT" ] || perry_project_verdict="elsewhere" ;;
+    *)  perry_project_verdict="relative" ;;
+  esac
+fi
+if [ "$perry_project_verdict" = "relative" ]; then
+  printf '\n\033[31m✗ refusing to run: PERRY_PROJECT is a relative path\033[0m\n'
+  echo "    PERRY_PROJECT = $PERRY_PROJECT"
+  echo "    tests/run     = $ROOT"
+  echo
+  echo "  A relative PERRY_PROJECT names a different directory to every process"
+  echo "  that reads it. This script would resolve it against its own cwd;"
+  echo "  perry-task resolves it against each subprocess's, and tests routinely"
+  echo "  pass cwd= a temp directory. So a relative value this script certified"
+  echo "  as this tree is one perry-task may read as another tree — which is"
+  echo "  the hazard this check exists to close (TASK-249)."
+  echo
+  echo "  Run it as:  env -u PERRY_PROJECT bash tests/run"
+  exit 2
+fi
+if [ "$perry_project_verdict" = "elsewhere" ]; then
+  printf '\n\033[31m✗ refusing to run: PERRY_PROJECT points somewhere else\033[0m\n'
+  echo "    PERRY_PROJECT = $PERRY_PROJECT"
+  if [ -n "$PERRY_PROJECT_REAL" ] && [ "$PERRY_PROJECT_REAL" != "$PERRY_PROJECT" ]; then
+    echo "    resolves to   = $PERRY_PROJECT_REAL"
+  fi
+  if [ -z "$PERRY_PROJECT_REAL" ]; then
+    echo "    resolves to   = (nothing — no such directory)"
+  fi
+  echo "    tests/run     = $ROOT"
+  echo
+  echo "  perry-task resolves its project root from PERRY_PROJECT BEFORE the"
+  echo "  cwd, so any test that invokes it without --root would write into"
+  echo "  that other checkout — and step 0 hashes this one, so it would report"
+  echo "  a clean tree while four files moved over there (TASK-249)."
+  echo
+  echo "  Run it as:  env -u PERRY_PROJECT bash tests/run"
+  exit 2
+fi
+
+# ── step 0: the tree guard ──────────────────────────────────────────────
+# The manifest lives OUTSIDE $ROOT on purpose: a manifest written into the
+# tree it describes is itself a change to that tree.
+#
+# The verify half runs from an EXIT trap rather than at the bottom of this
+# file, so that `--lint`'s early exit and any `set -e` abort are covered too.
+# A guard with an exit path around it is a guard that reports on the runs
+# that were fine. The trap owns the final banner for the same reason: a
+# "✓ all green" printed before the guard has spoken is a lie half the time.
+GUARD_MANIFEST="$(mktemp "${TMPDIR:-/tmp}/perry-tree-guard.XXXXXX")"
+step "0. tree guard — recording $ROOT"
+python3 tests/tree_guard.py snapshot "$ROOT" "$GUARD_MANIFEST"
+echo "  · recorded"
+
+finish() {
+  local rc=$?
+  set +e
+  step "0. tree guard — the tree the suite started in is the tree it ends in"
+  if python3 tests/tree_guard.py verify "$ROOT" "$GUARD_MANIFEST"; then
+    echo "  ✓ nothing under $ROOT moved"
+  else
+    fail=1
+  fi
+  rm -f "$GUARD_MANIFEST"
+  [ "$fail" = 0 ] || rc=1
+  if [ "$rc" = 0 ]; then
+    printf '\n\033[32m✓ all green\033[0m\n'
+  else
+    printf '\n\033[31m✗ failures above\033[0m\n'
+  fi
+  exit "$rc"
+}
+trap finish EXIT
+
 step "1. schema drift guard (templates vs schema/state-schema.json)"
 python3 bin/perry-lint --templates || fail=1
 
@@ -33,13 +180,27 @@ if [ "${1:-}" = "--lint" ]; then
 fi
 
 step "2. parser / extractor / linter contract tests"
-# Module-parallel: 34 independent modules, 181s serial → ~75s across 8 workers.
+# Module-parallel: 99 independent modules. Measured 2026-08-30, same machine,
+# same hour: 589.6s serial → 133-285s across 8 workers, median 149.7s of seven
+# runs; the spread is machine load, not the runner (TASK-230). The floor is
+# one module — test_task_writer.py runs alone for most of that.
 # `--serial` falls back to plain discover; use it when a failure looks like it
 # might be ordering-dependent, since parallel changes the order modules finish.
 if [ "${PERRY_TEST_SERIAL:-}" = "1" ] || [ "${1:-}" = "--serial" ]; then
   python3 -m unittest discover -s tests || fail=1
+elif [ -n "$only" ]; then
+  python3 tests/parallel "$only" || fail=1
 else
   python3 tests/parallel || fail=1
+fi
+
+if [ -n "$only" ]; then
+  # `--only` is a narrowing flag and it narrows honestly: steps 3 and 4 are
+  # about all of `bin/` and the two fixture projects, neither of which the
+  # named module has anything to do with. Saying so beats a run that looks
+  # whole and was not.
+  step "3, 4. skipped — --only $only narrows this run to step 2"
+  exit "$fail"
 fi
 
 step "3. bin/ scripts are syntactically valid and self-documenting"
@@ -58,9 +219,5 @@ step "4. sample projects lint clean (English and Chinese)"
 python3 bin/perry-lint --root tests/fixtures/sample-project || fail=1
 python3 bin/perry-lint --root tests/fixtures/sample-project-zh || fail=1
 
-if [ "$fail" = 0 ]; then
-  printf '\n\033[32m✓ all green\033[0m\n'
-else
-  printf '\n\033[31m✗ failures above\033[0m\n'
-fi
+# The banner and the exit status are `finish`'s, on the EXIT trap above.
 exit "$fail"

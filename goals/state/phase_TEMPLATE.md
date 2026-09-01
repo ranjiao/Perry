@@ -64,11 +64,14 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P{{NNN}}-O1-KR1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.1 |
-| P{{NNN}}-O1-KR2 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O1.2 |
-| P{{NNN}}-O1-KR3 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O2.1 |
+> **Declared in `phase/{{NNN}}-linkage.md`, and printed by
+> `bin/perry-goals krs`.** Do not write a KR table here. A KR's id, title,
+> metric, target and linked overall KR are schema'd fields
+> (`schema/state-schema.json`, `files[id=linkage]`), and DESIGN-013 § 5.1 puts
+> a fact with a schema in exactly one store. This file used to carry a second
+> copy of all four, authored by hand alongside the register, with nothing
+> comparing the two — TASK-157, and the markdown copy was already stale when
+> the row was opened.
 
 ### Projects (seed for PMO TASK-IDs)
 
@@ -92,9 +95,14 @@ Choose **one or both** triggers (whichever fires first cuts scope). NO calendar-
 
 ### Key Results
 
-| Id | KR text | Metric / Target | Linked overall KR |
-|----|---------|-----------------|---------------------|
-| P{{NNN}}-O2-KR1 | {{kr text}} | {{metric}} ≥ {{target}} | KR-O3.1 |
+> **Declared in `phase/{{NNN}}-linkage.md`, and printed by
+> `bin/perry-goals krs`.** Do not write a KR table here. A KR's id, title,
+> metric, target and linked overall KR are schema'd fields
+> (`schema/state-schema.json`, `files[id=linkage]`), and DESIGN-013 § 5.1 puts
+> a fact with a schema in exactly one store. This file used to carry a second
+> copy of all four, authored by hand alongside the register, with nothing
+> comparing the two — TASK-157, and the markdown copy was already stale when
+> the row was opened.
 
 ### Projects
 

@@ -57,9 +57,9 @@ asking, and it is honest, so nothing is measured against a number.
 **After creation it is a warning, not a refusal.** `perry-lint` reports
 `no-default` on a queue or pipeline row whose `SLA` or `Cycle` is undeclared,
 and stops there: a project that already has such a track predates this rule,
-and under ADR-004 an error would make the whole of `.perry/config.md`
-undeclarable and therefore unwritable — one blank cell taking the entire track
-register read-only. The hard stops live where the missing value is actually
+and an error would report the whole track register red over one blank cell.
+(It used to do worse: under ADR-004 it made `.perry/config.md` undeclarable and
+therefore unwritable. That gate is deleted — `TASK-261`.) The hard stops live where the missing value is actually
 used instead: `goals/reference/phases.md` refuses to write a queue commitment
 while the track has no `SLA` cell, and triage below reports the gap rather than
 skipping the breach step.

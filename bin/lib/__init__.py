@@ -22,7 +22,7 @@ importable rather than to ask people not to retype them.
 **Each tool keeps its own `Refused`.** These functions take the exception class
 to raise rather than defining one here, because a shared `Refused` would make
 `perry-task`'s `except Refused` start catching refusals raised inside
-`perry-conform` when one tool loads another — a real change in control flow,
+another tool it loads — a real change in control flow,
 and this extraction is supposed to change none.
 """
 
@@ -227,6 +227,31 @@ ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 #: edit. Three tools carried three different hardcoded lists and only one of
 #: them had 无 — see the schema note for what that cost.
 _BLANK_CELLS: set = set()
+
+
+_BLANK_MARKER: str | None = None
+
+
+def blank_marker() -> str:
+    """How this project's files spell "this cell says nothing": `—`.
+
+    `schema § i18n.blank_cell.en`, first entry — the same list `is_blank_cell`
+    matches against, so the spelling this hands back cannot become one that
+    function would not recognise. It lives here rather than in a caller because
+    three of them need it: `bin/perry-state § track_from_record` puts the marker
+    back on a stored blank, `stored_settings` does the same for a setting, and
+    `perry_md_store § scaffold_config` writes it into a file being rebuilt from
+    the store with no file on disk to copy it from.
+    """
+    global _BLANK_MARKER
+    if _BLANK_MARKER is None:
+        try:
+            blank = (load_schema().get("i18n") or {}).get("blank_cell") or {}
+            en = [v for v in (blank.get("en") or []) if isinstance(v, str)]
+        except Exception:                                        # noqa: BLE001
+            en = []
+        _BLANK_MARKER = en[0] if en else "\u2014"
+    return _BLANK_MARKER
 
 
 def normalize_typed_cell(value: str) -> str:
@@ -435,8 +460,8 @@ def resolve_state_root(project_root: Path) -> Path:
 
     **The implementation is `viewer/parsers.py`'s and stays there**, because
     that is where every other reader already gets it — `perry-lint`,
-    `perry-state`, `perry-task`, `perry-goals`, `perry-decide`, `perry-conform`,
-    `perry-knowledge` and `perry-migrate` all call `P.resolve_state_root`. This
+    `perry-state`, `perry-task`, `perry-goals`, `perry-decide` and
+    `perry-knowledge` all call `P.resolve_state_root`. This
     is a re-export so that `bin/` has one import site rather than one function
     with two bodies; it is not a second implementation and must never become
     one.

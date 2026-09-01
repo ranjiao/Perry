@@ -52,13 +52,21 @@ longer match the log is a **hand edit**: reported and reconciled with the
 user's value, never overwritten with the log's.
 
 **This tool writes `OKR.md` and `phase/` and nothing else.** `BOARD.md`,
-`journal/` and `DECISIONS.md` belong to other lanes, and `SKILL.md § The
+`journal/` and `decisions/` belong to other lanes, and `SKILL.md § The
 hand-off contract` names all three as cases that must refuse. `assert_owned`
 is that rule as code, and the board-side link — a `Commitment` cell carrying an
 `Id` from this table — is printed as a hand-off for `/perry work` to write.
 
 Usage:
   perry-goals list [--json] [--level overall|phase]
+
+  perry-goals krs [--json] [--phase <NNN>]
+      The current phase's key results, printed from `phase/<NNN>-linkage.md`.
+      READ-ONLY, and the only surface for them: TASK-157 removed the KR table
+      from `phase/<NNN>-<slug>.md` because those four facts were written there
+      AND in the register, with nothing comparing the two and the markdown copy
+      already stale. DESIGN-013 § 5.1 — a fact with a schema lives in exactly
+      one store.
 
   perry-goals commit --track <t> --promise <text> --to <whom> --due <when>
                      [--by-when-note <prose>]
@@ -121,7 +129,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import parsers as P  # noqa: E402
 from tables import (UnrenderableCell, append_cell, cell_spans,  # noqa: E402
-                    render_row, splice_cell, split_row, squash)
+                    header_index, render_row, splice_cell, split_row, squash)
 import lib  # noqa: E402
 # TASK-092. The store `OKR.md` is now a projection of, and its renderer. This
 # tool does not carry a second copy of either, for the same reason it parses
@@ -261,11 +269,7 @@ def column_spellings(canonical: str) -> list[str]:
 
 def column_at(header: list[str], canonical: str) -> int:
     """Index of `canonical` in `header`, or -1. By NAME, never by position."""
-    want = set(column_spellings(canonical))
-    for i, cell in enumerate(header):
-        if squash(cell) in want:
-            return i
-    return -1
+    return header_index(header).column(column_spellings(canonical))
 
 
 def header_language(header: list[str], declared: list[str]) -> str:
@@ -277,7 +281,7 @@ def header_language(header: list[str], declared: list[str]) -> str:
     asking the wrong scope.
     """
     i18n = load_schema().get("i18n", {}).get("columns", {}) or {}
-    cells = {squash(c) for c in header}
+    cells = set(header_index(header))
     for canonical in declared:
         for lang, spellings in (i18n.get(canonical) or {}).items():
             if cells & {squash(s) for s in spellings}:
@@ -412,7 +416,7 @@ class Okr:
     def rows(self, lo: int, hi: int) -> list[tuple[int, dict]]:
         """(line index, cells keyed by squashed header) for each data row."""
         sep, header = self.table(lo, hi)
-        keys = [squash(h) for h in header]
+        keys = header_index(header)
         out = []
         for i in range(sep + 1, hi):
             line = self.lines[i]
@@ -548,13 +552,6 @@ LIST_SEMANTICS = [
              "not now."},
 ]
 
-#: `list` only reads, and reading is never gated (ADR-004). Every other
-#: subcommand writes `OKR.md`, which is the one file this lane gates on — one
-#: key, one file, per ADR-004 § 5.
-READ_ONLY_COMMANDS = {"list"}
-GATED_FILE = "OKR.md"
-
-_PERRY_CONFORM = None
 _PERRY_STATE = None
 
 
@@ -575,14 +572,6 @@ def _sibling(name: str):
     sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
     return mod
-
-
-def perry_conform():
-    """`bin/perry-conform` as a module — the conformance gate (ADR-004)."""
-    global _PERRY_CONFORM
-    if _PERRY_CONFORM is None:
-        _PERRY_CONFORM = _sibling("perry-conform")
-    return _PERRY_CONFORM
 
 
 def perry_state():
@@ -613,7 +602,7 @@ def owned_by_goals(relative: str) -> bool:
 HANDOFF = {
     "BOARD.md": "work", "journal": "work", "PROJECT_STATE.md": "work",
     "evidence": "work", "weekly": "work", "handoff": "work",
-    "DECISIONS.md": "decide", "decisions": "decide", "design": "decide",
+    "decisions": "decide", "design": "decide",
 }
 
 
@@ -898,11 +887,24 @@ def kr_rows(snap, events: list | None = None,
     status_by_id = lib.task_status_index(
         getattr(snap, "project_root", "."), getattr(snap, "board", None))
 
+    # **The phase's KRs come from the register, not from the phase document.**
+    # TASK-157: they used to be declared in both, in full, with nothing
+    # comparing them — so this loop read the markdown copy and then overwrote
+    # its numbers from the register, which meant a stale title or metric was
+    # published and a stale target was not. `phase_key_results` is the one
+    # resolver; it reads the document only on a project that has no register.
+    phase_objectives = [
+        (o, krs) for o, krs in zip(
+            getattr(getattr(snap, "phase", None), "objectives", None) or [],
+            P.phase_key_results_by_objective(getattr(snap, "phase", None), lk))]
     out = []
-    for level, src in (("overall", getattr(snap, "okr", None)),
-                       ("phase", getattr(snap, "phase", None))):
-        for o in (getattr(src, "objectives", None) or []):
-            for k in (getattr(o, "krs", None) or []):
+    for level, groups in (
+            ("overall", [(o, list(o.krs)) for o in
+                         (getattr(getattr(snap, "okr", None), "objectives",
+                                  None) or [])]),
+            ("phase", phase_objectives)):
+        for o, group in groups:
+            for k in group:
                 r = reg.get(k.id, {})
                 target, current = r.get("target"), r.get("current")
                 out.append({
@@ -983,7 +985,10 @@ def build(project_root: Path, state_root: Path, level: str | None) -> dict:
     # explicitly, from fields that do exist.
     okr_present = bool(okr and (okr.version or okr.mission or okr.objectives))
     phase_day = days_since(ph.started) if ph else None
-    phase_krs = sum(len(o.krs or []) for o in (ph.objectives or [])) if ph else None
+    # From the register, for the reason `kr_rows` gives: TASK-157 removed the
+    # KR table from the phase document, and counting its objectives' `krs`
+    # would report 0 on every migrated project.
+    phase_krs = len(P.phase_key_results(ph, lk)) if ph else None
 
     # The event log answers ONE question here: has a linked task moved since
     # the register asserted its numbers. `present` is carried separately from
@@ -1783,8 +1788,49 @@ def link_edge(reg: Register, expect: dict, task: str, token: str) -> dict:
     return out
 
 
+#: What a task id looks like: one `PREFIX-NUMBER` handle, no whitespace.
+#: Deliberately a SHAPE check and not a lookup — see `link_unlinked`.
+TASK_ID_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*-\d+$")
+
+
 def link_unlinked(reg: Register, expect: dict, task: str) -> dict:
-    """3 — unresolved → declare it unlinked. A DECLARATION, never inferred."""
+    """3 — unresolved → declare it unlinked. A DECLARATION, never inferred.
+
+    **The argument is validated as a shape before anything is written**
+    (TASK-227). This path validated nothing at all, and `perry-lint` did not
+    check `unlinked[]` either, so two malformed declarations went in on
+    2026-08-28 and the lint reported 0 errors over both:
+
+    - the literal string `NOT-A-TASK-ID at all`, and
+    - **48 task ids space-joined into one argument** — `--unlinked` takes one
+      positional, word splitting was off in that shell, and the whole sweep
+      landed as a single list entry.
+
+    The second is the one that matters: it is not a typo, it is the ordinary
+    way this command gets called by a loop, and it failed silently while
+    reporting success 48 times.
+
+    A SHAPE check, not a store lookup, and the difference is the point. Two
+    ids that both exist would pass a lookup and still be wrong when joined;
+    whitespace is what tells them apart. And a declaration about a row that is
+    later purged must not become unwritable — `perry-lint`'s
+    `linkage-unlinked-exists` is where the store question is asked, at `warn`,
+    because a stale declaration is a record to correct rather than a file to
+    refuse.
+    """
+    if " " in task or "\t" in task:
+        count = len(task.split())
+        raise Refused(
+            f"`--unlinked` takes ONE task id and got {count} whitespace-"
+            f"separated values in a single argument: {task!r}. This is the "
+            f"shape that put 48 ids on one line of `unlinked[]` on "
+            f"2026-08-28 — a shell with word splitting off hands the whole "
+            f"loop over as one string. Run it once per id. Nothing was written")
+    if not TASK_ID_SHAPE.match(task):
+        raise Refused(
+            f"{task!r} is not a task id. `--unlinked` declares that a KNOWN "
+            f"row serves no KR, so the argument has to be a handle something "
+            f"can be looked up by — `TASK-123`, `REL-007`. Nothing was written")
     holder = reg.model.kr_for_task(task)
     if holder:
         raise Refused(
@@ -2111,7 +2157,44 @@ def tracks_of(project_root: Path) -> list[dict]:
     perry = project_root / ".perry"
     if not (perry / "config.jsonl").exists() and not (perry / "config.md").exists():
         return []
-    return perry_state().declared_tracks(project_root)
+    ps = perry_state()
+    tracks, source = ps.declared_tracks_detail(project_root)
+    # **The store is present and unusable → refuse, do not fall back.**
+    # TASK-095's V4 round 1 review: three of `stored_tracks`' four `None`
+    # conditions occur with `.perry/config.jsonl` on disk, and reading the
+    # projection in those states is the condition `P003-O2-KR1` counts. This
+    # lane writes `phase/` and the linkage register off the track list, so a
+    # register quietly missing a track lands in a file the user reads as
+    # authoritative.
+    # State 7 — the store answered by DEFAULT while the table declares tracks
+    # it has no row for at all; this lane writes `phase/` and the linkage
+    # register off the track list. `store-default` only, per USER-905 decision
+    # 2 — see `bin/perry-task § main` for why the wider version was reverted.
+    lost = ps.tracks_the_register_cannot_place(project_root, tracks, source)
+    if lost:
+        raise Refused(
+            f"the track register does not carry {', '.join(sorted(lost))}, "
+            f"which `.perry/config.md § Tracks` declares. The store is the "
+            f"register. Nothing was written. `perry-config write --from-file` "
+            f"rebuilds the store from the table; `perry-lint` reports the same "
+            f"disagreement as `config-store-drift`.")
+    # Allowed, and not in silence — the same rule, the same wording, the same
+    # one function `perry-state` and `perry-task` ask.
+    drift = ps.tracks_the_register_contradicts(project_root, source)
+    if drift:
+        print(f"⚠ the track register disagrees with `.perry/config.md § "
+              f"Tracks` on {', '.join(drift)}. This lane writes off the "
+              f"REGISTER. `perry-lint` reports the same disagreement as "
+              f"`config-store-drift`.", file=sys.stderr)
+    if source in ps.TRACKS_STORE_UNUSABLE:
+        raise Refused(
+            f"the track register cannot be read from the store: "
+            f"{ps.TRACKS_STORE_WHY[source]}. `.perry/config.md § Tracks` is a "
+            f"PROJECTION of that store and is not authoritative while the "
+            f"store exists. Nothing was written. Repair the store — "
+            f"`perry-lint` and `perry-config diff` name the disagreement — or "
+            f"remove it to fall back to the file deliberately.")
+    return tracks
 
 
 def track_named(tracks: list[dict], name: str, flag: str = "") -> dict:
@@ -2219,11 +2302,7 @@ def legacy_due_at(header: list[str]) -> int:
     the whole lesson of the deleted regex's fifth round, applied to its
     replacement.
     """
-    want = {squash(LEGACY_DUE_COLUMN)}
-    for i, cell in enumerate(header):
-        if squash(cell) in want:
-            return i
-    return -1
+    return header_index(header).column(squash(LEGACY_DUE_COLUMN))
 
 
 def unsplit_rows(okr: Okr, tracks: list[dict]) -> list[str]:
@@ -2893,13 +2972,134 @@ def canonical_of(header_cell: str, names: list[str]) -> str:
     from `values` if the caller named it and left empty otherwise — never
     dropped, and never shifted into by position.
     """
+    key = header_index([header_cell])[0]
     for name in names:
-        if squash(header_cell) in set(column_spellings(name)):
+        if key in set(column_spellings(name)):
             return name
-    return squash(header_cell)
+    return key
 
 
-COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link}
+# ── `krs` — the phase's key results, printed from the one place they live ──
+#
+# TASK-157, under DESIGN-013 § 5.1 (locked 2026-08-29): *a fact that has a
+# schema lives in exactly one store; a document holds what has no schema; no
+# field lives in both.*
+#
+# A phase KR's id, title, metric, target and linked overall KR are schema'd
+# fields of `phase/<NNN>-linkage.md`. They were ALSO written into a markdown
+# table in `phase/<NNN>-<slug>.md`, by hand, by `plan-phase` — the same four
+# facts twice, in two files in one directory, with nothing comparing them.
+# `perry-lint` reported drift for six declared stores and nothing for this
+# pair, and the markdown copy is the one that went stale: `P003-O2-KR1` read a
+# target its register did not.
+#
+# The table is gone from the document. This is where a human reads it now, and
+# it is READ-ONLY: it prints, it never writes, and there is nothing for a hand
+# edit to drift from because there is no second copy to edit. That is the whole
+# difference between this and the reconcile the row was originally scoped to
+# build — see `perry/evidence/2026-08/TASK-157-result.md`.
+
+def kr_table_columns() -> list[str]:
+    """The header the phase document's KR table carried.
+
+    A reader who knew that table meets the same four columns here. Read out of
+    the schema rather than retyped: `perry-lint` still validates an adopted
+    project's table against that list, and a second copy would disagree the day
+    a column is added — silently, because an extra column would simply not be
+    printed.
+    """
+    for spec in load_schema().get("files", []):
+        if spec.get("path", "").startswith("phase/[0"):
+            for table in spec.get("tables", []):
+                if "Objective" in (table.get("under") or ""):
+                    return list(table.get("columns") or [])
+    raise Refused("schema/state-schema.json declares no phase KR table; this "
+                  "tool cannot invent a header for one")
+
+
+def phase_register(state_root: Path, phase: str | None) -> Path:
+    """The register to read — the current phase's, or the one `--phase` names.
+
+    `--phase` takes the number (`003`) rather than the slug, because that is
+    what the file is named by and it is the half of `<NNN>-<slug>` that cannot
+    be misremembered.
+    """
+    if not phase:
+        return register_path(state_root)
+    number = str(phase).strip()
+    if not re.fullmatch(r"\d{3}", number):
+        raise Refused(f"--phase takes a three-digit phase number such as "
+                      f"`003`, not {phase!r}")
+    path = state_root / "phase" / f"{number}-linkage.md"
+    if not path.exists():
+        raise Refused(f"no linkage register at "
+                      f"{path.relative_to(state_root).as_posix()}")
+    return path
+
+
+def cmd_krs(args, ctx) -> dict:
+    """`krs` — every KR of one phase, from `phase/<NNN>-linkage.md`.
+
+    Read-only by construction: it takes no write path, appends no event and
+    holds no `--write`. `perry-goals link` is still the register's only writer.
+    """
+    if args.rest:
+        raise Refused(f"`krs` takes no positional arguments and no `--write`; "
+                      f"got {' '.join(args.rest)!r}. It is a READ — the phase "
+                      f"document has no KR table for it to write into, which "
+                      f"is the whole of TASK-157. Nothing was printed")
+    path = phase_register(ctx["state_root"], args.phase)
+    model = P.parse_linkage(path.read_text(encoding="utf-8"))
+    if model.error:
+        raise Refused(f"{path.name} does not parse as a linkage register "
+                      f"({model.error}). A half-read graph would print a KR "
+                      f"table missing whichever rows it dropped, which is the "
+                      f"one thing this command must never do")
+    objectives = []
+    for obj in model.objectives:
+        objectives.append({
+            "id": obj.id, "title": obj.title,
+            "krs": [{"id": k.id, "text": k.title,
+                     "metric": P.kr_metric_cell(k), "linked": k.linked,
+                     "target": k.target, "current": k.current,
+                     "stretch": bool(k.stretch), "tasks": list(k.tasks or [])}
+                    for k in obj.krs],
+        })
+    return {"register": path.name, "phase": model.phase,
+            "updated": model.updated, "objectives": objectives,
+            "counts": {"objectives": len(objectives),
+                       "krs": sum(len(o["krs"]) for o in objectives)}}
+
+
+def render_krs(result: dict) -> str:
+    """The payload → the markdown the phase document used to carry.
+
+    Rendered through `tables.render_row`, which is the one row renderer in this
+    repository: a cell holding a `|` is escaped so it reads back as itself, and
+    a cell holding a line break is REFUSED rather than written as a row that
+    silently swallows the rest of the table.
+    """
+    columns = kr_table_columns()
+    out = [f"# Phase {result['phase'] or '—'} — key results",
+           f"> Declared in `phase/{result['register']}` · updated "
+           f"{result['updated'] or '—'}. This is a render, not a file: the "
+           f"register is the only place these values live."]
+    for obj in result["objectives"]:
+        out += ["", f"## {obj['id']} — {obj['title']}", ""]
+        if not obj["krs"]:
+            out.append("_no key results declared under this objective_")
+            continue
+        out.append(render_row(columns))
+        out.append("|" + "|".join("---" for _ in columns) + "|")
+        for kr in obj["krs"]:
+            out.append(render_row([kr["id"], kr["text"],
+                                   kr["metric"] or "—",
+                                   kr["linked"] or "—"]))
+    return "\n".join(out)
+
+
+COMMANDS = {"list": None, "commit": cmd_commit, "link": cmd_link,
+            "krs": cmd_krs}
 
 
 class Args:
@@ -2908,7 +3108,7 @@ class Args:
 
 def parse(argv: list[str]) -> Args:
     a = Args()
-    a.cmd = a.root = a.level = None
+    a.cmd = a.root = a.level = a.phase = None
     a.id = a.track = a.promise = a.to = a.due = a.by_when_note = None
     a.close = a.miss = a.reason = a.discharged_by = None
     a.actor = "agent"
@@ -2922,6 +3122,7 @@ def parse(argv: list[str]) -> Args:
     a.alias = a.unlinked = a.project = False
     a.rest = []
     flags = {"--root": "root", "--level": "level", "--id": "id",
+             "--phase": "phase",
              "--track": "track", "--promise": "promise", "--to": "to",
              "--due": "due", "--by-when-note": "by_when_note",
              "--close": "close", "--miss": "miss",
@@ -3008,47 +3209,28 @@ def main(argv: list[str]) -> int:
         state_root = P.resolve_state_root(project_root)
         if args.cmd == "list":
             result = build(project_root, state_root, args.level)
+        elif args.cmd == "krs":
+            # **On the read path, deliberately.** `krs` prints a register; it
+            # opens no lock and passes no conformance gate because both belong
+            # to writing. Routing it through the `else` branch below would take
+            # the project lock to print a table and would REFUSE to print one
+            # on a project whose `OKR.md` is out of shape — a read that cannot
+            # answer while the file it does not touch is malformed.
+            result = cmd_krs(args, {"project_root": project_root,
+                                    "state_root": state_root})
         else:
-            # ADR-004, before the lock and before the command runs: a refusal
-            # must mean nothing was written, and a dry run must preview the
-            # refusal rather than the write it would not be allowed to perform.
-            # **The gate is about the file this command writes**, which is
-            # not always `OKR.md` any more: `link` writes the phase's linkage
-            # register. ADR-004 § 5 is one key, one file — passing the gated
-            # name of a file the command does not touch would refuse a write
-            # for the shape of something unrelated, and pass one for a file
-            # nobody checked.
-            gate_file = GATED_FILE
+            # **The file this command writes is not always `OKR.md`**: `link`
+            # writes the phase's linkage register instead. The ADR-004 gate
+            # that used to stand here is gone (TASK-261) — it read a stored
+            # DECLARATION and refused a write whose file no longer matched its
+            # declared shape, and on this repository its ledger held 23
+            # records, all `route: declare`, all Perry's own files. Zero
+            # disagreements, because a disagreement needs a foreign project.
+            # `--migrate`'s exemption went with it: with no gate to be exempt
+            # from, a migration is just a write.
             register_file = None
             if args.cmd == "link":
                 register_file = register_path(state_root)
-                gate_file = register_file.relative_to(state_root).as_posix()
-            gate = perry_conform().gate(project_root, state_root, gate_file,
-                                        tool="perry-goals", root_arg=args.root)
-            # **`--migrate` is exempt, and the exemption is the whole point of
-            # the gate rather than a hole in it.** The gate stops writers
-            # writing into a file that is not Perry's shape (ADR-004); a
-            # pre-split register IS out of shape, by exactly the defect this
-            # command exists to fix, so enforcing it here would make the file
-            # permanently unmigratable — refuse to write, refuse to fix, no
-            # third command. `perry-migrate` is exempt from its own gate for
-            # the same reason, and this is the transform it hands over.
-            # Three outcomes, and they are mutually exclusive — the first
-            # version wrote them as three independent `if`s, which was
-            # unreachable while the gate shipped advisory (`gate.ok` was always
-            # true) and started double-printing the moment TASK-047 flipped the
-            # default: an exempt `--migrate` run announced the exemption and
-            # then announced itself as advisory, under `enforce`.
-            if not gate.ok:
-                if not args.migrate:
-                    raise Refused(gate.message)
-                if not args.as_json:
-                    print(f"perry-goals: ⚠ migrating a file the conformance "
-                          f"gate refuses — that is what a migration is. "
-                          f"{gate.message}", file=sys.stderr)
-            elif gate.message and not args.as_json:
-                print(f"perry-goals: ⚠ conformance ({gate.mode}) — "
-                      f"{gate.message}", file=sys.stderr)
             with project_lock(state_root):
                 ctx = {"project_root": project_root, "state_root": state_root}
                 if register_file is not None:
@@ -3062,11 +3244,6 @@ def main(argv: list[str]) -> int:
                                 "tracks": tracks_of(project_root),
                                 "events": read_events(project_root)})
                 result = COMMANDS[args.cmd](args, ctx)
-            # `list` is a published contract and gets nothing added to it.
-            # Every other payload is Perry-internal, so the verdict rides along
-            # there rather than making an agent shell out to a second tool to
-            # learn its write was allowed under protest.
-            result["conformance"] = gate.as_dict()
     # A value a markdown table row cannot carry, translated into the ordinary
     # refusal channel **here, where `args` is in scope** — the twin in
     # `bin/perry-task § main` is in the same place for the same reason. The
@@ -3091,6 +3268,8 @@ def main(argv: list[str]) -> int:
 
     if args.as_json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.cmd == "krs":
+        print(render_krs(result))
     elif args.cmd == "commit" and result.get("migrated"):
         m = result["migrated"]
         verb = "would split" if args.dry_run else "split"

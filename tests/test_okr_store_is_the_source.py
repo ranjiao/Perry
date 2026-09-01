@@ -48,7 +48,6 @@ sys.path.insert(0, str(ROOT / "bin"))
 sys.path.insert(0, str(ROOT / "viewer"))
 import perry_md_store as M                                      # noqa: E402
 
-from gate import GATE_OFF                                       # noqa: E402
 
 GOALS = ROOT / "bin" / "perry-goals"
 OKR_TOOL = ROOT / "bin" / "perry-okr"
@@ -57,7 +56,7 @@ CONFIG = """# Perry configuration
 
 - Document language: English
 - Repo layout: single
-""" + GATE_OFF + """
+""" + """
 ## Tracks
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |

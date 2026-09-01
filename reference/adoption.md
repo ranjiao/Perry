@@ -429,62 +429,31 @@ If Perry state already exists (a partially adopted project, or one adopted at
   the worse direction: silently dropping real work.
 - Existing state is never overwritten. Adoption only adds.
 
-## Migration — the project that already has state
+## Migration — deleted, and what replaced it
 
-Adoption converts a project that has *no* Perry state. A different case turns up
-just as often: a project whose `BOARD.md`, `OKR.md` and `design/` already exist,
-written by hand or by an older Perry, in a shape today's readers cannot parse.
-ADR-004 says those files are **read-only until they migrate**, and this is where
-that happens.
+A section here used to cover *the project that already has state*: a
+`BOARD.md`, `OKR.md` and `design/` written by hand or by an older Perry, in a
+shape today's readers cannot parse. ADR-004 made those files **read-only until
+they migrated**, and `bin/perry-migrate` was the road out.
 
-**Do not do it by hand, and do not describe it here.** Run it:
+**All three of those things are gone** (`TASK-261`, `USER-910`). The ADR-004
+write gate is deleted, so nothing is read-only for want of a declaration any
+more — a writer that can render a file writes it. `perry-migrate` is deleted
+with it, because its output *was* the declaration: 2,393 lines that, across the
+whole life of this project, moved zero foreign projects. `.perry/conformance.jsonl`
+held 23 records and not one carried `route: migrate`.
 
-```
-python3 "$PERRY_HOME/bin/perry-migrate" --root .          # the complete diff, writes nothing
-python3 "$PERRY_HOME/bin/perry-migrate" apply --root .    # writes, declares, names a restore point
-```
+If a project's files are in a shape Perry cannot read, the answer now is
+`/perry adopt` — which reads what is there as evidence and writes Perry's own
+state — or `perry-lint`, which names what does not parse. Neither pretends to
+convert somebody's file in place, and nothing refuses a write because a
+declaration is missing.
 
-Prose cannot assert that the id set before equals the id set after. The tool
-does — for every file, before it writes it — and refuses the file if it cannot.
-It also holds the rule this file's § "The one rule" states, in the one place it
-is hardest to hold: **the sections it creates are empty**. A project that files
-work under `## Open — 工程线` keeps that heading and every row under it; nothing
-is moved into `## P0`, because nothing in the file says which work is P0 and
-inferring it is exactly what this pipeline forbids.
+**If foreign projects become a real goal**, the cheap shape is an *importer you
+re-run* — read a foreign board, write Perry state, overwrite on conflict — not
+a lossless recoverable migrator with a declaration format of its own. That is
+recorded in `evidence/2026-08/2026-08-31-TASK-261-migration-fork.md`.
 
-It asserts a second thing, which took longer to learn: **that the file still
-says what it said.** Every id, cell, character and row count can survive an edit
-that reverses the claim — a two-column legend under `## P0` widened into a task
-table, a `Status: not yet locked` normalized to `locked`, a token spliced into a
-sentence about a vendor contract. So the tool also re-reads its own output with
-`viewer/parsers` and refuses a file whose *records* changed, a line it rewrote
-that is neither a table row nor part of the header block, and a canonical value
-the author's own words — kept beside it — do not say. Each check names what it
-cannot see; `bin/perry-migrate § meaning()` is where that is written down.
-
-What the agent does around it:
-
-1. **Show the dry run.** All of it. It is the artifact the user is agreeing to.
-2. **Read back the files it will not touch**, and why. A file it refuses is
-   left byte-identical — an unresolvable status word, a table Perry does not
-   recognise, a file over its size cap. Each is one hand edit, and after it
-   `perry-migrate apply` finishes the job. "Does not recognise" is a
-   vocabulary test, not a shape one: a table is Perry's when more of the
-   schema's column names are already in its header than are missing from it.
-   `ID`, `Status` and `Owner` are the commonest words in any markdown table,
-   and sharing one of them is a coincidence.
-3. **Read the migrated files.** Not the diff — the files, as a reader. The
-   assertions above exist because three defects in a row passed thirty
-   mutations and were found by somebody opening the file, and each check states
-   its own blind spot precisely so this step still has something to do.
-4. **Never run `apply` without being asked.** ADR-004 § 4: mandatory migration
-   means the tool may refuse without it; it never means the tool may perform it
-   unasked.
-5. **Hand the restore point to the user by name.** `perry-migrate restore
-   <run-id>` puts every byte back, including the declarations the run made.
-
-`perry-migrate` refuses outright on a project with no Perry state — that project
-wants `/perry adopt`, above, which writes Perry's shape in the first place.
 
 ## Post-adoption report
 
@@ -518,9 +487,9 @@ Then hand off to the normal standup.
   `evidence/<YYYY-MM>/<TASK-ID>-spec.md`. Two sources of truth means a board that
   rots within a month.
 - **Never fuzzy-matches** — not for attribution, not for dedupe.
-- **Never migrates existing state as a side effect.** A project whose files
-  predate Perry's shape is converted by `bin/perry-migrate`, on the user's
-  explicit instruction, after they have read the diff — see § Migration.
+- **Never rewrites existing state in place.** Adoption reads what is there as
+  evidence and writes Perry's own state; it never edits somebody's file to make
+  it parse. The tool that used to do that is deleted — § Migration.
 - **Never re-asks a question the user already answered.** A banked declaration is
   re-rendered for confirmation, never discarded and re-put.
 - **Never resumes without being asked to.** Detection is automatic; continuation
@@ -529,8 +498,9 @@ Then hand off to the normal standup.
 
 ## See also
 
-- [../bin/perry-migrate](../bin/perry-migrate) — the migration itself, and the
-  five guarantees it holds. § Migration above calls it; it does not restate it.
+- [../perry/evidence/2026-08/2026-08-31-TASK-261-migration-fork.md](../perry/evidence/2026-08/2026-08-31-TASK-261-migration-fork.md)
+  — why `perry-migrate` and the ADR-004 write gate were deleted, and what an
+  importer would look like if foreign projects become a goal. § Migration above.
 - [adoption-sources.md](adoption-sources.md) — the source catalog: detectors, trust
   tiers, what each source may emit, and the depth matrix. Non-code projects are
   handled here, not in this file.

@@ -56,8 +56,19 @@ otherwise be no way to accept one.
   --reviews     advisory pass over V4 VERDICT blocks (work/reference/review.md
                 section 3): every block readable, every FAIL naming a file, every
                 V4 close carrying one, and no row left at `review` after its
-                own verdict already failed it. Prints the block count even at
-                zero findings.
+                own verdict already failed it. Also reports a row that has
+                FAILed TWICE without escalating (`review-rounds-exhausted`) —
+                round 3 is where this board stopped converging. That limit is
+                `schema § thresholds.review_fail_rounds_before_escalation`,
+                overridable per project (`- Review rounds before escalation:`)
+                and per run (`PERRY_REVIEW_ROUNDS`); the finding names its
+                source. Also runs the two PRE-CHECK findings review.md
+                section 2 moves out of the round itself: a cited path the
+                branch does not carry (`citation-not-on-branch`) and a
+                criteria file with no `## Bound` (`criteria-unbounded`). With
+                --strict this mode EXITS NON-ZERO, which is what lets a red
+                exhibit stop a dispatch instead of costing a round. Prints the
+                block count even at zero findings.
   --knowledge   advisory pass over knowledge CARDS (DESIGN-006 section 5.3):
                 the four provenance fields present, `Source:` resolving to
                 something a reader can re-open, and staleness against
@@ -104,7 +115,7 @@ sys.path.insert(0, str(PERRY_HOME / "viewer"))
 sys.path.insert(0, str(PERRY_HOME / "bin"))
 import lib  # noqa: E402
 import parsers as P
-from tables import split_row, squash  # noqa: E402
+from tables import header_index, split_row, squash  # noqa: E402
 
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 
@@ -145,7 +156,7 @@ KR_ID_RE = r"\bP\d{3}-O\d+-KR\d+\b"
 #: the old form*, and a regex that simply stopped matching would have honoured
 #: the letter and broken the spirit: `check_cross_file` reads a phase file's
 #: KR set with `KR_ID_RE` and then guards every comparison with
-#: `if phase_krs and …`. Handed a file still written in the old form, that set
+#: `if own_krs and …`. Handed a file still written in the old form, that set
 #: comes back EMPTY and every linkage check downstream silently passes. A
 #: check that can be handed the old id and do nothing is the compatibility
 #: branch wearing a different hat. So `check_legacy_kr_ids` below turns the
@@ -334,9 +345,18 @@ def column_index(got: list[str], column: str) -> int:
     return -1
 
 
-def canonical_column(header: str) -> str:
-    """A normalized localized header mapped back to its schema column name."""
-    value = norm(header)
+def canonical_column(key: str) -> str:
+    """A FOLDED localized header key mapped back to its schema column name.
+
+    Takes a key straight out of `header_index` and does not fold it again.
+    TASK-050 round 9: this said `value = norm(header)`, and its one caller
+    (`_track_context`) already hands it `header_index`'s own output — so the
+    fold was redundant, and it was a second application of the one rule to a
+    header cell, one edit away from `.strip("*` ").lower()` and the divergence
+    this row exists to close. `viewer/tables.py § header_index` folds a header
+    cell; nothing else does.
+    """
+    value = key
     for column in COLUMN_ALIASES:
         if value in accepted(column):
             return norm(column)
@@ -650,7 +670,7 @@ def _track_context(state_file: Path, cell: str) -> dict:
         for line in text.split("\n"):
             if not line.lstrip().startswith("|"):
                 continue
-            cells = [squash(c) for c in split_row(line)]
+            cells = header_index(split_row(line))
             track_i = column_index(cells, "Track")
             mode_i = column_index(cells, "Mode")
             if track_i >= 0 and mode_i >= 0:
@@ -801,7 +821,7 @@ def check_file(path: Path, rel: str, spec: dict, enums: dict, is_template: bool)
         for body, start in bodies:
             for header, rows_at in tables_with_lines(body):
                 rows = [r for r, _ in rows_at]
-                got = [norm(c) for c in header]
+                got = header_index(header)
                 if not got:
                     continue
                 found_any = True
@@ -1094,7 +1114,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     perry_dir = (project_root or root) / ".perry"
 
     # The old phase-KR form is REJECTED, not merely unmatched. See the note on
-    # `LEGACY_KR_ID_RE`: every guard below is written `if phase_krs and …`, so
+    # `LEGACY_KR_ID_RE`: every guard below is written `if own_krs and …`, so
     # a phase file left in `P-O3.1` [[old-form]] yields an empty KR set and
     # buys silence
     # from every check downstream. This is the one place that can tell the
@@ -1104,7 +1124,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     #
     # Scanned over `phase/*.md` rather than just the CURRENT phase because a
     # scored phase's register is read too — `check_cross_file` re-derives
-    # `phase_krs` per linkage file from the file's own phase — so an unmigrated
+    # `own_krs` per linkage file from the file's own phase — so an unmigrated
     # 001 is exactly as silent as an unmigrated 002.
     _legacy = re.compile(LEGACY_KR_ID_RE)
     for pf in sorted((root / "phase").glob("*.md")) if (root / "phase").is_dir() else []:
@@ -1137,10 +1157,17 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                 ))
                 phase_file = None
 
-    # linkage: every KR the graph names must exist in the phase file
-    phase_krs: set[str] = set()
-    if phase_file and phase_file.exists():
-        phase_krs = set(re.findall(KR_ID_RE, strip_comments(phase_file.read_text())))
+    # **The phase's KR set is no longer read here at all** — TASK-157.
+    #
+    # It used to be `re.findall(KR_ID_RE, <the CURRENT phase document>)`, and
+    # the two guards below compared every register against it. The document
+    # carried a KR table declaring those ids; it does not any more
+    # (DESIGN-013 § 5.1: a fact with a schema lives in exactly one store), and
+    # a set scraped from the surviving prose would grade a declaration against
+    # a mention. Each register now answers with its OWN `krs[]` — see the loop
+    # below, which also keeps the document scan for a project that has not
+    # migrated.
+
     # linkage: every TASK the graph names must exist in the task store.
     #
     # **`None` is "this project has not been adopted", not "no tasks"** —
@@ -1187,23 +1214,65 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
         # names its own phase (`<NNN>-linkage.md`), so the right KR set is
         # derivable with no new state.
         own = lf.name.split("-", 1)[0]
-        mine = sorted((root / "phase").glob(f"{own}-*.md"))
-        mine = [m for m in mine if not m.name.endswith("-linkage.md")]
-        if mine:
-            phase_krs = set(re.findall(
-                KR_ID_RE, strip_comments(mine[0].read_text())))
+        # **The register declares its own KR set** — TASK-157. This used to be
+        # `re.findall(KR_ID_RE, <the phase document>)`, because the document
+        # carried a KR table that declared the same ids in the same words. It
+        # does not any more (DESIGN-013 § 5.1), and re-pointing the check at
+        # the document's prose would grade a declaration against a mention.
+        #
+        # A project that has NOT migrated — an adopted one, or a Perry project
+        # older than this row — still has that table and no `krs[]`, and its
+        # ids are still the phase's KR set. So the document is read exactly
+        # when the register declares nothing, which is the same choice
+        # `viewer/parsers.py § phase_key_results` makes, and never both.
+        own_krs = {k.id for o in link.objectives for k in o.krs}
+        if not own_krs:
+            mine = sorted((root / "phase").glob(f"{own}-*.md"))
+            mine = [m for m in mine if not m.name.endswith("-linkage.md")]
+            if mine:
+                own_krs = set(re.findall(
+                    KR_ID_RE, strip_comments(mine[0].read_text())))
         for pr in link.projects:
-            if pr.serves_kr and phase_krs and pr.serves_kr not in phase_krs:
+            if pr.serves_kr and own_krs and pr.serves_kr not in own_krs:
                 findings.append(Finding(
                     "warn", rel, "linkage-kr-exists",
-                    f"{pr.project_id}: serves {pr.serves_kr}, which is not in the "
-                    "current phase's KR set"))
+                    f"{pr.project_id}: serves {pr.serves_kr}, which is not a "
+                    f"KR this register declares"))
         for obj in link.objectives:
             for kr in obj.krs:
-                if phase_krs and kr.id not in phase_krs:
+                # **The id must name the phase whose register it sits in.**
+                # The old form of this guard asked whether the id appeared in
+                # the phase document, which was one file's way of asking this
+                # same question and stopped being answerable when the KR table
+                # left the document. Asked directly it is stronger: a
+                # `P002-…` KR pasted into `003-linkage.md` used to be caught
+                # only because `003-storage-code.md` did not mention it, and
+                # is caught here by the id itself.
+                if not kr.id.startswith(f"P{own}-"):
                     findings.append(Finding(
                         "warn", rel, "linkage-kr-exists",
-                        f"{kr.id} is in the graph but not in the current phase file"))
+                        f"{kr.id} is declared in the register for phase "
+                        f"{own}, and its id names a different phase. A phase "
+                        f"KR id carries its phase (DESIGN-007 decision #4), "
+                        f"so one of the two is wrong"))
+                # **And the objective half of the id, against the objective it
+                # is declared under.** `P001-O9-KR9` sitting under `- id: O1`
+                # used to be caught only sideways — the phase document did not
+                # mention it, so the old document-scan reported it — and that
+                # is the case `tests/test_cadence.py §
+                # test_a_genuinely_wrong_kr_is_still_reported` was written
+                # around. Asked directly it needs no second file, and it is the
+                # same question `linkage-objective-agrees` already asks of a
+                # `projects[]` entry: an id that names its own place must agree
+                # with the place it was put.
+                declared_under = P.kr_objective_id(kr.id)
+                if declared_under and obj.id and declared_under != obj.id:
+                    findings.append(Finding(
+                        "warn", rel, "linkage-kr-exists",
+                        f"{kr.id} names objective {declared_under} and is "
+                        f"declared under {obj.id}. The id carries the "
+                        f"objective, so one of the two is wrong and nothing "
+                        f"here guesses which"))
                 # **The comment above does NOT transfer to task ids, and the
                 # difference is what makes this check simpler than that one.**
                 # A KR id USED TO BE scoped to a phase file rather than
@@ -1261,6 +1330,38 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
                         f"refusal says a mis-aimed edge comes out: on the "
                         f"user's confirmation."))
 
+        # **`unlinked[]` gets the same sweep as `krs[].tasks[]`** (TASK-227).
+        # It never had one: `linkage-task-exists` above proves the task half of
+        # an EDGE, and the declaration list beside it was unchecked at the
+        # linter exactly as it was unchecked at the writer. Both holes were
+        # proven on 2026-08-28 by the same command — `perry-goals link
+        # --unlinked` accepted 48 ids space-joined into one argument, and
+        # separately the literal string `NOT-A-TASK-ID at all`, and
+        # `perry-lint` reported 0 errors over the result.
+        #
+        # `warn`, matching `linkage-task-exists`: it is the same statement one
+        # key over, and a declaration naming a row that has been purged is a
+        # stale record rather than a broken file.
+        #
+        # A declared id costs less than a dangling edge — it lands in no
+        # denominator — but it is not free. `perry-state § attribution` reports
+        # `declared_unlinked` straight from this list (TASK-228), so an id no
+        # row carries is a row the standup says was answered, and no such row
+        # exists to have answered for.
+        for tid in (link.unlinked or []):
+            if store_ids is None or not tid or tid in store_ids:
+                continue
+            findings.append(Finding(
+                "warn", rel, "linkage-unlinked-exists",
+                f"`unlinked` declares {tid!r}, which is not a record in "
+                f"`tasks.jsonl`. A declaration says a KNOWN row serves no KR; "
+                f"an id no row carries declares nothing, and "
+                f"`perry-state --section attribution` still reports it under "
+                f"`declared_unlinked`. Either the id is a typo, the row was "
+                f"purged, or several ids were passed to `perry-goals link "
+                f"--unlinked` as one argument — the shape that put 48 of them "
+                f"on one line here on 2026-08-28."))
+
     # design: locked docs need an implementation plan
     for df in sorted((root / "design").glob("*.md")) if (root / "design").is_dir() else []:
         if df.name == "README.md":
@@ -1283,7 +1384,7 @@ def check_cross_file(root: Path, enums: dict, project_root: Path | None = None) 
     board = root / "BOARD.md"
     if board.exists():
         for header, rows in tables(strip_comments(board.read_text())):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             if "status" not in got or "evidence" not in got:
                 continue
             si, ei = got.index("status"), got.index("evidence")
@@ -1471,7 +1572,7 @@ def check_verification(state_root: Path, perry_dir: Path) -> list["Finding"]:
     seen_ids: set[str] = set()
     for body, _ in section_body(text, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             ci_id, ci_st = column_index(got, "ID"), column_index(got, "Status")
             ci_ev, ci_v = column_index(got, "Evidence"), column_index(got, "Verification")
             ci_ti = column_index(got, "Title")
@@ -1635,7 +1736,8 @@ def intake_rows(text: str) -> int:
         if not s.startswith("|") or re.match(r"^\|\s*:?-{2,}", s):
             continue
         cells = split_row(s)
-        if not cells or squash(cells[0]) in {"arrived", "到达", ""}:
+        if not cells or header_index(cells[:1]).column(
+                "arrived", "到达", "") == 0:
             continue
         # `Outcome` is the last column and holds a drop reason or a routing.
         if len(cells) < 3 or cells[-1].strip() in UNDECLARED_CELL:
@@ -1782,6 +1884,80 @@ def parse_verdicts(text: str) -> list[tuple[dict, int]]:
     return out
 
 
+#: A trailing `:1204` or `:1204-1210` on a cited path. Stripped before the
+#: existence test, and the token is rejected if a `:` survives — a `proof:`
+#: reading `bin/perry-goals:927/:908/` is prose about two lines, not a path.
+_CITE_LINE = re.compile(r":\d+(?:-\d+)?$")
+
+#: Anything that cannot appear in a path Perry would cite. `bin/+viewer/` and
+#: `ADR-007](decisions/ADR-007-probe.md` are both real tokens from this board's
+#: own reviews, and both are prose.
+_CITE_BAD = re.compile(r"[+\[\]()<>*`\s]")
+
+#: Reviewers verify destructively on a COPY (`review-constraints.md § You are
+#: a reader`), so a citation into the scratch tree is the convention working,
+#: not a broken reference. Never reported.
+_CITE_SCRATCH = ("scratchpad", "scratch", "tmp", "/tmp")
+
+
+def verdict_citations(src: str, state_root: Path, project_root: Path
+                      ) -> list[tuple[str, bool]]:
+    """Path claims inside one verdict field, each with whether it resolves.
+
+    `work/reference/review.md § 2 · What V4 does not judge`. Rounds on this
+    board spent a full fresh-context review discovering that a citation named
+    a file the branch does not carry — "three citations point at a file the
+    branch does not carry", "a claimed filing, on the branch, that is not
+    there". A regex knew, and it cost a round each time.
+
+    **What counts as a path claim is bounded on purpose**, because a check that
+    reports correct prose is one people switch off (§ 1's own table). Read only
+    from `criteria:` and `proof:`, which the convention REQUIRES to be a path;
+    `checked:` is a sentence by design and scanning it is guessing. A token is
+    a claim only when ALL of these hold:
+
+    - its first segment is non-empty. `/pmo` is a command, and the first
+      version split on `/`, got an empty head, and `root / ""` is a directory
+      that always exists — so every command name was a broken path.
+    - no `+`, bracket, paren, backtick or angle in it.
+    - no `:` survives the line-suffix strip.
+    - its last segment is not all digits — `tests/3` is a count.
+    - the first segment is a directory that exists.
+    - it is not under a scratch tree.
+
+    Every one of those exclusions is a token this board's own 79 reviews
+    actually produced. The rule is deliberately narrower than "looks like a
+    path": a missed citation costs nothing (the round still runs), and a false
+    one costs the check its credibility.
+    """
+    out: list[tuple[str, bool]] = []
+    for tok in re.split(r"[\s,;·|]+", src.strip()):
+        tok = tok.strip("*`()[]<>\"")
+        for suf in ("'s", "\u2019s"):
+            if tok.endswith(suf):
+                tok = tok[:-len(suf)]
+        tok = tok.rstrip(",.;:)]}\'\"")
+        if not tok:
+            continue
+        bare = _CITE_LINE.sub("", tok)
+        if not bare or ":" in bare or _CITE_BAD.search(bare):
+            continue
+        segs = [s for s in bare.split("/")]
+        head = segs[0]
+        if not head or not segs[-1] or segs[-1].isdigit():
+            continue
+        if head in _CITE_SCRATCH or bare.startswith("/tmp"):
+            continue
+        if not ((state_root / head).is_dir() or (project_root / head).is_dir()):
+            continue
+        out.append((bare, (state_root / bare).exists() or
+                          (project_root / bare).exists()))
+    return out
+
+
+_BOUND_RE = re.compile(r"^#{2,}\s*Bound\b", re.M)
+
+
 #: `reference/glossary.md` — one entry per concept, and the `Implemented:` line
 #: is the brake. See that file's own header for why this is a constraint rather
 #: than documentation.
@@ -1879,6 +2055,68 @@ def check_glossary(project_root: Path) -> list["Finding"]:
     return findings
 
 
+#: The store key `- Review rounds before escalation: N` mints, per the same
+#: label→key rule every other setting follows (`Document language` →
+#: `document_language`).
+ROUNDS_SETTING_KEY = "review_rounds_before_escalation"
+
+
+def rounds_before_escalation(project_root: Path) -> tuple[int, str]:
+    """How many V4 FAILs a row may take, and WHERE that number came from.
+
+    Most specific wins, the same order `perry-conform § gate_mode` established
+    for `Conformance gate`: env `PERRY_REVIEW_ROUNDS` beats the project's
+    declared `Review rounds before escalation` beats the shipped default in
+    `schema § thresholds`.
+
+    **The source is returned beside the number** because a threshold that
+    fires without saying which register set it is the shape this repository
+    keeps re-finding — a rule stated in one place and implemented from
+    another. A reader who disagrees with the gate needs to know which file to
+    edit.
+
+    **The store answering without the key is an ANSWER**, not a reason to read
+    the markdown: the store is derived from the preamble, so a key it does not
+    carry is a line the file does not have. Falling through there would
+    reintroduce the two-registers problem TASK-233 removed.
+    """
+    # **A limit below 1 is not a limit, it is an inversion.** `len(fails) <
+    # 0` is never true, so a declared 0 would fire this finding on every live
+    # row carrying any verdict block at all — including rows with zero FAILs.
+    # Values under 1 are refused here rather than clamped, so the report names
+    # the register that actually set the number in force.
+    #
+    # **Every return below is >= 1, and the caller relies on exactly that.**
+    # A second guard at the comparison was written first and then deleted: it
+    # was unreachable while this holds, and two implementations of one rule is
+    # the defect this repository finds most often. The invariant is pinned by
+    # `test_the_resolver_never_returns_a_limit_below_one` instead.
+    env = (os.environ.get("PERRY_REVIEW_ROUNDS") or "").strip()
+    if env.isdigit() and int(env) >= 1:
+        return int(env), "PERRY_REVIEW_ROUNDS"
+
+    declared, register = None, ""
+    stored, _why = P.config_store_settings(Path(project_root))
+    if stored is not None:
+        declared = (stored.get(ROUNDS_SETTING_KEY) or "").strip()
+        register = ".perry/config.jsonl"
+    else:
+        cfg = Path(project_root) / ".perry" / "config.md"
+        if cfg.exists():
+            m = re.search(r"Review rounds before escalation\s*[:：]\s*([^\n]+)",
+                          cfg.read_text(errors="replace"), re.I)
+            declared = m.group(1).strip().strip("*` ") if m else None
+            register = ".perry/config.md"
+    if declared and declared.isdigit() and int(declared) >= 1:
+        return int(declared), register
+
+    value = (SCHEMA_THRESHOLDS.get("review_fail_rounds_before_escalation")
+             or {}).get("value")
+    if isinstance(value, int) and value >= 1:
+        return value, "schema § thresholds"
+    return 2, "built-in default"
+
+
 def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     """A V4 verdict that a tool can read, and a row that moved when it arrived.
 
@@ -1896,7 +2134,10 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     documents written in prose, and promoting those to errors would retroactive
     -ly condemn every review it ever ran. What it reports is a worklist.
 
-    Four findings, and the fourth is the one that matters:
+    Eight findings. The last three are about the cost of the round rather
+    than its shape — two of them are the pre-check `review.md § 2` moves OUT
+    of the round, because a full fresh-context review is the most expensive
+    way this board has found to discover a broken citation:
 
     - `verdict-malformed` — a block missing a required key, or a `result` that
       is neither `PASS` nor `FAIL`.
@@ -1909,9 +2150,44 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     - `fail-verdict-left-at-review` — a FAIL exists and the row is still at
       `review`. `review` means *out for verification*; a row whose verdict has
       arrived is no longer there in either direction.
+    - `review-with-no-verdict` — the symmetric half: a row at `review` at V4
+      for which no round was ever dispatched.
+    - `review-rounds-exhausted` — two FAILs and no PASS, with no open ask
+      blocking the row. The third round is where this board stopped
+      converging and started re-deriving; see the comment on the check.
+    - `citation-not-on-branch` — a `criteria:`, `proof:` or `checked:` path
+      the branch does not carry. Found four times by a reviewer, at a round
+      each, when a regex knew.
+    - `criteria-unbounded` — the criteria file carries no `## Bound`, so the
+      round has no finite set to check. TASK-050 ran ELEVEN rounds against a
+      universal negative and passed on the round the criterion became
+      decidable, not on the round the last hole closed (`review.md § 1`).
     """
     findings: list[Finding] = []
     seen: dict[str, list[tuple[str, dict, int]]] = {}
+
+    # The two pre-check findings below are scoped to rows that are still OPEN.
+    # A closed row's criteria cannot be re-bounded and its exhibit cannot be
+    # re-filed, so reporting them condemns every review this project ran before
+    # the convention existed — the exact retroactive verdict this mode's
+    # docstring refuses. It also keeps `--reviews --strict` able to gate a
+    # dispatch: a backlog nobody can clear is a gate that is red forever, which
+    # is a gate people delete.
+    closed_rows: set[str] = set()
+    _log = project_root / ".perry" / "events.jsonl"
+    if _log.exists():
+        for raw in _log.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ev = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ev.get("event") in ("done", "drop"):
+                tid = str(ev.get("task") or ev.get("id") or "")
+                if tid:
+                    closed_rows.add(tid)
 
     edir = state_root / "evidence"
     for md in sorted(edir.rglob("*.md")) if edir.exists() else []:
@@ -1940,6 +2216,42 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
                     f"file — a FAIL that cannot point at a line is a "
                     f"suspicion, not a verdict", line))
 
+            # ── the two pre-check findings ────────────────────────────────
+            # The ones a round must NEVER spend itself on: `review.md § 2 ·
+            # What V4 does not judge`. Both are cheap and both are decidable,
+            # and this board discovered them four and eleven rounds late.
+            #
+            # `criteria:` and `proof:` only. `checked:` is a sentence by
+            # design — "guarantees 1,2,4,5 on gimegime-pmo (365→380 ids)" is
+            # the shape the convention asks for — and mining a sentence for
+            # paths is how this check first reported `tables.py`, `/pmo` and
+            # `bin/perry-lint:812's` as broken references.
+            if tid and tid not in closed_rows:
+                for key in ("criteria", "proof"):
+                    for tok, ok in verdict_citations(
+                            fields.get(key, ""), state_root, project_root):
+                        if ok:
+                            continue
+                        findings.append(Finding(
+                            "warn", rel, "citation-not-on-branch",
+                            f"`{key}:` cites {tok} — the branch does not "
+                            f"carry it. Fix the exhibit before dispatching, "
+                            f"not in a round", line))
+
+                for tok, ok in verdict_citations(
+                        fields.get("criteria", ""), state_root, project_root):
+                    if not ok or not tok.endswith(".md"):
+                        continue
+                    cpath = (state_root / tok if (state_root / tok).exists()
+                             else project_root / tok)
+                    if not _BOUND_RE.search(
+                            strip_comments(cpath.read_text(errors="replace"))):
+                        findings.append(Finding(
+                            "warn", rel, "criteria-unbounded",
+                            f"{tok} carries no `## Bound` — the round has no "
+                            f"finite set to check and no last element. "
+                            f"work/reference/review.md § 1", line))
+
     board = state_root / "BOARD.md"
     if not board.exists():
         check_reviews.blocks_seen = sum(len(v) for v in seen.values())
@@ -1956,7 +2268,7 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
     rungs: dict[str, str] = {}
     for body, _ in section_body(btext, 2, re.compile(r"^P[012]\b")):
         for header, rows in tables(body):
-            got = [norm(c) for c in header]
+            got = header_index(header)
             ci_id = column_index(got, "ID")
             ci_st = column_index(got, "Status")
             ci_v = column_index(got, "Verification")
@@ -2108,6 +2420,82 @@ def check_reviews(state_root: Path, project_root: Path) -> list["Finding"]:
             f"verdict block naming it. It moved there {how_long}. Either a "
             f"round is in flight, or one was never sent — `review` is not a "
             f"resting place, and only you can tell those apart"))
+
+    # **Two FAILs is a decision, not a third round.** Measured on this board:
+    # 20 rows entered V4, 74 rounds were burned, and 10 rows needed three or
+    # more. TASK-050 and TASK-249 each reached round 11; TASK-095 FAILed five
+    # times and the escalation that ended it (USER-905) was filed by hand at
+    # round 5. Every one of the five reads the same in the journal — "two
+    # situations answered as one, one step to the left of the last" — so the
+    # rounds after the second were not finding new defects, they were
+    # re-deriving one principle differently. The agent could already name that
+    # shape at round 2; nothing ASKED it to stop there.
+    #
+    # The trigger moves to two, and this is the check that moves it. A round
+    # costs a full dispatch, a fresh-context review and a fix cycle, and the
+    # session pays its whole context on every turn of all three — so the
+    # rounds after the second are the most expensive thing Perry does and the
+    # least likely to converge.
+    #
+    # **No new field.** `round` was measured and refused a bearer
+    # (`bin/perry-task.evidence_relations`) because it lived only in some
+    # filenames. It does not need one: a round that returned is a verdict
+    # block, so the count is the FAILs already on disk. A PASS anywhere ends
+    # the row's history and the question with it.
+    #
+    # **An escalation clears it.** The out is the one TASK-095 took — file the
+    # ask, name the options, let the user pick a principle. An open ask in
+    # `asks.jsonl` whose `blocks` names the row IS that escalation, so the
+    # finding reports rows that have neither converged nor escalated, and goes
+    # quiet the moment either happens.
+    limit, limit_from = rounds_before_escalation(project_root)
+    asks = state_root / "asks.jsonl"
+    escalated: set[str] = set()
+    if asks.exists():
+        for raw in asks.read_text(errors="replace").split("\n"):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                ask = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            if ask.get("answered"):
+                continue
+            for tid in re.findall(r"\b[A-Z]+-\d+\b", str(ask.get("blocks") or "")):
+                escalated.add(tid)
+
+    # **Only a row that can still RECEIVE a round.** The first cut of this
+    # check asked the evidence directory alone and reported five rows, four of
+    # them long closed — TASK-037 and TASK-203 `done`, TASK-042 `dropped`,
+    # TASK-050 `done` after eleven rounds. Their round counts are history, and
+    # history is not a worklist. `done` removes the row, so `live` is exactly
+    # the set a next round could be dispatched against.
+    #
+    # (That those four closed carrying FAILs and no PASS block is a real and
+    # separate finding — it is `v4-close-without-verdict`'s territory, not
+    # this one's, and widening here would answer two questions with one rule,
+    # which is the defect five TASK-095 rounds were spent on.)
+    for tid, blocks in sorted(seen.items()):
+        if not tid or tid in escalated or tid not in live:
+            continue
+        results = [f.get("result") for _, f, _ in blocks]
+        if "PASS" in results:
+            continue
+        fails = [b for b in blocks if b[1].get("result") == "FAIL"]
+        if len(fails) < limit:
+            continue
+        where = ", ".join(r for r, _, _ in fails)
+        findings.append(Finding(
+            "warn", "BOARD.md", "review-rounds-exhausted",
+            f"{tid} has FAILed {len(fails)} V4 rounds and never PASSed "
+            f"({where}); the limit is {limit} (from {limit_from}). Another "
+            f"round is not the next step — a row that has failed {limit} "
+            f"times is failing on a PRINCIPLE nobody has picked, and each "
+            f"further round re-derives it differently. File "
+            f"the ask: name the two readings, say which one you recommend and "
+            f"why, and let the user choose. An open ask blocking this row "
+            f"clears this finding"))
 
     check_reviews.blocks_seen = sum(len(v) for v in seen.values())
     return findings
@@ -3335,7 +3723,7 @@ def is_adopted(project_root: Path, state_root: Path) -> bool:
     file as missing — noise on someone else's project, and unusable as the
     stage-4 gate in `reference/adoption.md`, which needs to distinguish "the
     files adoption wrote are malformed" from "adoption hasn't run"."""
-    return ((project_root / ".perry" / "config.md").exists()
+    return (P.configured(project_root)
             or (state_root / "BOARD.md").exists()
             or (state_root / "OKR.md").exists()
             or (state_root / "phase").is_dir())
@@ -3755,7 +4143,13 @@ def main(argv: list[str]) -> int:
                   f"and acted on" if blocks else
                   "\n  \u00b7 no verdict blocks yet \u2014 see "
                   "work/reference/review.md \u00a7 3")
-        return 0
+        # `--reviews` stays advisory by DEFAULT for the reason its docstring
+        # gives — a project predating the convention would be condemned
+        # retroactively. `--strict` is opt-in and is what `review.md § 2` tells
+        # the dispatcher to run: a red exhibit must be able to STOP a round,
+        # or the pre-check is one more rule stated in prose that nothing
+        # implements, which is the defect this whole page exists over.
+        return 1 if (strict and findings) else 0
 
     if mode_knowledge:
         project_root = (Path(root_arg).expanduser().resolve() if root_arg
@@ -3858,7 +4252,7 @@ def main(argv: list[str]) -> int:
         if not root_arg:
             for d in [project_root, *project_root.parents]:
                 if ((d / "BOARD.md").exists() or (d / "OKR.md").exists()
-                        or (d / ".perry" / "config.md").exists()):
+                        or P.configured(d)):
                     project_root = d
                     break
         # State may live in a subdirectory when the project already uses a name
@@ -3929,18 +4323,6 @@ def main(argv: list[str]) -> int:
             label += f" (state root: {root.relative_to(project_root).as_posix()}/)"
         if not adopted:
             label += " — not a Perry project yet"
-        # The declaration ADR-004 needs is a DIFFERENT fact from anything above:
-        # this loop answers "does the shape hold", and that answers "did the user
-        # say so". Reported as a note rather than as a Finding — a project that
-        # has simply not run `perry-conform declare` yet is not malformed, and
-        # promoting it to a warning would make `--strict` red on every project
-        # in existence for a reason lint cannot fix.
-        declared = P.read_conformance(project_root).declarations
-        conformance_note = {
-            "declared": len(declared),
-            "shape_version": schema.get("schema_version"),
-            "command": "perry-conform status",
-        }
 
     errors = [f for f in findings if f.severity == "error"]
     warns = [f for f in findings if f.severity == "warn"]
@@ -3952,7 +4334,6 @@ def main(argv: list[str]) -> int:
             "findings": [f.as_dict() for f in findings],
         }
         if not mode_templates:
-            payload["conformance"] = conformance_note
             payload["store_drift"] = dict(getattr(
                 check_store_drift, "stats", _empty_store_drift_stats()))
             payload["risk_store_drift"] = dict(getattr(
@@ -4071,11 +4452,6 @@ def main(argv: list[str]) -> int:
                 else:
                     print(f"  · {_label}: {_s['records']} record(s), "
                           f"{_s['drifted']} row(s) drifted")
-        if not mode_templates:
-            n = conformance_note["declared"]
-            print(f"  · {n} file(s) declared conformant at shape version "
-                  f"{conformance_note['shape_version']} "
-                  f"(`perry-conform status` for the per-file verdict)")
 
     if errors:
         return 1

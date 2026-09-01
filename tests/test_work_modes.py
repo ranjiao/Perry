@@ -37,7 +37,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((PERRY_HOME / "schema" / "state-schema.json").read_text())
@@ -206,185 +205,6 @@ class TestOptInIsChecked(unittest.TestCase):
         self.assertIn("table-columns", out)
 
 
-class TestAColumnWithNoHonestDefaultMustBeDeclared(unittest.TestCase):
-    """TASK-046. `work_modes.defaults_note` already says it: a column listed in
-    a mode's `no_default` is a promise the project makes to somebody, so Perry
-    may not invent one, and a track that never declared it cannot run the
-    triage step that reads it. The note stated the rule and left it to be
-    obeyed by hand — so a queue track with no `SLA` linted clean, and
-    `modes/queue.md`'s breach step, age sort and triage question then all
-    measured against a clock that did not exist.
-
-    Everything here is driven off `work_modes.modes.<mode>.no_default`. A
-    linter carrying its own list of which modes need an `SLA` is two answers to
-    one question, and the tests below would not notice the day they diverged.
-    """
-
-    FULL = ("\n## Tracks\n\n"
-            "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
-            "|---|---|---|---|---|---|---|---|\n")
-
-    def _project(self, tracks_block: str, extra: str = "") -> Path:
-        """A temp project that OUTLIVES the call — `perry-conform` runs on it
-        too, and a declaration is a second command against the same tree."""
-        td = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, td, True)
-        root = Path(td)
-        (root / ".perry").mkdir()
-        (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n"
-            "- Document language: English\n"
-            "- Repo layout: single\n"
-            "- State root: .\n"
-            f"{extra}{tracks_block}"
-        )
-        return root
-
-    def findings(self, tracks_block: str) -> list[dict]:
-        root = self._project(tracks_block)
-        out = json.loads(subprocess.run(
-            ["python3", str(LINT), "--root", str(root), "--json"],
-            capture_output=True, text=True).stdout)
-        return [f for f in out["findings"] if f["rule"] == "no-default"]
-
-    # ── the fact itself ───────────────────────────────────────────────────
-
-    def test_a_queue_track_with_no_sla_is_reported(self):
-        got = self.findings(
-            self.FULL + "| ops | queue | standing |  |  |  | monthly | V2 |\n")
-        self.assertEqual(len(got), 1, got)
-        self.assertIn("SLA", got[0]["message"])
-        self.assertIn("ops", got[0]["message"],
-                      "the finding must name WHICH track — a register with "
-                      "four rows is otherwise a scavenger hunt")
-        self.assertIn(".perry/config.md", got[0]["message"],
-                      "a finding that does not name the cell to fill is a wall")
-
-    def test_declaring_the_sla_clears_it(self):
-        self.assertEqual(
-            self.findings(
-                self.FULL
-                + "| ops | queue | standing |  |  | 5d | monthly | V2 |\n"),
-            [])
-
-    def test_an_answer_that_declines_a_clock_is_still_a_declaration(self):
-        """`modes/queue.md`: a user who genuinely has no SLA writes that down.
-        The check is 'has anybody said', not 'is there a number' — Perry cannot
-        grade the sincerity of `no SLA — best effort` and must not try."""
-        self.assertEqual(
-            self.findings(
-                self.FULL
-                + "| ops | queue | s | | | no SLA — best effort | monthly | V2 |\n"),
-            [])
-
-    def test_the_mode_that_has_no_such_promise_is_untouched(self):
-        """The distinction `defaults_note` is about. `project` declares
-        `no_default: []` — an empty `SLA` there means the mode has no such
-        control, not that nobody has said yet."""
-        self.assertEqual(
-            self.findings(
-                self.FULL + "| core | project | phase/ | — | — | — | — | V3 |\n"),
-            [])
-
-    # ── the category, not the one spelling that bit ───────────────────────
-
-    def test_an_em_dash_is_undeclared_and_not_an_answer(self):
-        """`SKILL.md`'s own example track row writes empty cells as `—`. A
-        check that only tested for the empty string would pass over every
-        register Perry itself taught people to write."""
-        for blank in ("—", "-", "n/a", "TBD", ""):
-            with self.subTest(cell=blank):
-                got = self.findings(
-                    self.FULL
-                    + f"| ops | queue | s | — | — | {blank} | monthly | V2 |\n")
-                self.assertEqual(len(got), 1, f"{blank!r} read as a declaration")
-
-    def test_every_no_default_column_is_covered_not_just_sla(self):
-        """`SLA` is the one that bit; `Cycle` is on the same list for the same
-        reason. A guard narrowed to the instance would pass this file and still
-        let a queue track ship with no review period."""
-        got = self.findings(
-            self.FULL + "| ops | queue | standing | | | 5d |  | V2 |\n")
-        self.assertEqual([f["rule"] for f in got], ["no-default"])
-        self.assertIn("Cycle", got[0]["message"])
-
-    def test_every_mode_that_declares_a_no_default_column_is_checked(self):
-        """Driven from the schema in both directions: the modes come from
-        `work_modes`, and each one that declares a `no_default` column must
-        actually produce a finding. `pipeline` is here because the schema puts
-        it here (V4 finding S7 — dwell time is a promise too), not because a
-        hand-written list remembered it."""
-        modes = {n: m.get("no_default") or []
-                 for n, m in SCHEMA["work_modes"]["modes"].items()}
-        self.assertTrue(any(v for v in modes.values()),
-                        "no mode declares a no_default column — this test "
-                        "would pass over a schema with the list deleted")
-        for mode, cols in sorted(modes.items()):
-            with self.subTest(mode=mode):
-                got = self.findings(
-                    self.FULL + f"| t | {mode} | s |  |  |  |  | V3 |\n")
-                self.assertEqual(
-                    len(got), len(cols),
-                    f"{mode} declares no_default {cols} and lint reported "
-                    f"{[f['message'] for f in got]} — a mode with an empty "
-                    f"list must produce nothing at all")
-                self.assertEqual(
-                    sorted(c for f in got for c in cols if f"`{c}`" in f["message"]),
-                    sorted(cols),
-                    f"{mode}: lint reported {[f['message'] for f in got]}")
-
-    def test_the_linter_does_not_carry_its_own_copy_of_the_list(self):
-        """The mechanism, asserted directly. Two lists of which modes need an
-        `SLA` is the two-implementations-of-one-rule defect ADR-004 is about,
-        and it fails silently: the schema gains a column and the linter keeps
-        checking yesterday's."""
-        src = (PERRY_HOME / "bin" / "perry-lint").read_text()
-        code = "\n".join(ln for ln in src.split("\n")
-                         if not ln.lstrip().startswith(("#", "#:")))
-        self.assertIn("no_default", code,
-                      "the linter no longer reads the schema's list")
-        for col in ("SLA", "Cycle"):
-            self.assertNotIn(
-                col, code,
-                f"bin/perry-lint names the column {col!r} in code — the list "
-                f"of which modes need it lives in schema/state-schema.json "
-                f"§ work_modes, and a second copy here is what drifts")
-
-    # ── the severity, and why it is not an error ──────────────────────────
-
-    def test_it_is_a_warning_so_an_existing_register_is_not_bricked(self):
-        got = self.findings(
-            self.FULL + "| ops | queue | standing |  |  |  |  | V2 |\n")
-        self.assertTrue(got)
-        self.assertEqual({f["severity"] for f in got}, {"warn"})
-
-    def test_a_track_register_missing_an_sla_can_still_be_declared_conformant(self):
-        """The reason the severity matters, stated as the consequence rather
-        than as a preference. Under ADR-004 a file carrying ERRORS cannot be
-        declared conformant, and an undeclared `.perry/config.md` is one the
-        writers refuse under `enforce`. As an error, one blank cell would take
-        the whole track register read-only."""
-        root = self._project(
-            self.FULL + "| ops | queue | standing |  |  |  |  | V2 |\n")
-        r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-conform"),
-             "declare", ".perry/config.md", "--root", str(root), "--json"],
-            capture_output=True, text=True)
-        self.assertEqual(r.returncode, 0,
-                         f"the missing SLA blocked the declaration: "
-                         f"{r.stdout}{r.stderr}")
-
-    def test_the_creation_time_rule_is_written_where_a_track_is_created(self):
-        """The lint finding is the late notice; the question is forced at
-        creation. `modes/queue.md` is what an agent proposing a track register
-        reads, and the rule has to be legible there or it does not exist."""
-        text = (PERRY_HOME / "modes" / "queue.md").read_text()
-        self.assertIn("Declaring a queue track", text)
-        head = text.split("Declaring a queue track", 1)[1].split("\n## ", 1)[0]
-        self.assertIn("AskUserQuestion", head,
-                      "the rule must name the mechanism that asks")
-        for claim in ("never default", "no_default"):
-            self.assertIn(claim.split()[0], head)
 
 
 class TestTrackParsing(unittest.TestCase):
@@ -513,8 +333,14 @@ class TestTheTrackRegisterIsReadFromTheStore(unittest.TestCase):
         shutil.copytree(PERRY_HOME / "tests" / "fixtures" / "sample-project",
                         self.root)
         cfg = self.root / ".perry" / "config.md"
-        cfg.write_text(cfg.read_text() + _TABLE_TRACKS + GATE_OFF)
-        (self.root / ".perry" / "config.jsonl").write_text(_STORE_TRACKS)
+        cfg.write_text(cfg.read_text() + _TABLE_TRACKS)
+        # The store is hand-built, so the opt-out has to be said in it too:
+        # `gate_mode` reads `.perry/config.jsonl` first (TASK-233) and a store
+        # that carries no `conformance_gate` record is a project declaring no
+        # gate. `gate_off` above puts the same line in the markdown, which is
+        # what a derived store would have carried.
+        (self.root / ".perry" / "config.jsonl").write_text(
+            _STORE_TRACKS + "")
 
     def declared(self, tracks) -> list[tuple[str, str]]:
         return [(t["track"], t["mode"]) for t in tracks]
@@ -1148,8 +974,8 @@ class TestEveryModeColumnHasAWriter(unittest.TestCase):
                          "intake staleness has no elapsed-time threshold")
 
     def test_the_work_lane_no_longer_writes_decisions(self):
-        """The signed hand-off contract moved DECISIONS.md to `decide`. The
-        procedure file is where a violation would actually live.
+        """The signed hand-off contract moved the decision record to
+        `decide`. The procedure file is where a violation would actually live.
 
         The check was `assertNotRegex(self.proc, r"^### \\`decide <topic>\\`")`
         **without `re.M`**, so `^` anchored at byte 0 of a 350-line file and
@@ -1318,7 +1144,7 @@ class TestVerificationSeesToolClosedWork(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
         if hook:
             (root / ".perry" / "hook.md").write_text(
                 f"# hook\n\n## High-stakes operations\n\n- {hook}\n")

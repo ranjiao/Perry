@@ -775,39 +775,23 @@
       ]
     }
   },
-  "migration": {
-    "description": "Read only by bin/perry-migrate. It does NOT widen what perry-lint accepts, and it is not an exception to i18n.invariant - enum values stay ASCII in every language, and making that true of a file that predates the rule is exactly what the migration is for. This table declares the localized spellings that have been SEEN standing where a canonical enum value belongs, so that resolving one is a lookup in a declared vocabulary rather than a translation performed in code. A spelling that is not listed here is not guessed at: perry-migrate reports the field and leaves the file alone. Extend it when a real project shows a new spelling; never from imagination, because an entry here decides what somebody's file is asserting.",
-    "enum_aliases": {
-      "phase_status": {
-        "进行中": "active",
-        "已评分": "scored"
-      }
-    },
-    "negations_description": "The other half of the same vocabulary. A canonical value standing in a sentence is not the same as one standing alone: `> Status: not yet locked - do not build from this` contains the word `locked`, and reading it as `locked` reverses what the author wrote while preserving every character they typed. perry-migrate drops a candidate whose clause is denied by one of these words, so a value that says only what it is NOT resolves to nothing and is reported rather than guessed. Same discipline as enum_aliases: a denial word is looked up here, never inferred in code. What it cannot see is stated in perry-migrate's enum_candidates - negation carried by grammar rather than by a word.",
-    "negations": [
-      "not",
-      "no",
-      "never",
-      "nor",
-      "cannot",
-      "isn't",
-      "aren't",
-      "wasn't",
-      "weren't",
-      "don't",
-      "doesn't",
-      "didn't",
-      "won't",
-      "hasn't",
-      "haven't",
-      "未",
-      "尚未",
-      "没",
-      "不",
-      "非"
-    ]
-  },
   "thresholds": {
+    "review_fail_rounds_before_escalation": {
+      "value": 2,
+      "applies_to": [
+        "task",
+        "review"
+      ],
+      "note": "How many V4 FAILs a row may take before `perry-lint --reviews` reports `review-rounds-exhausted` and the next step becomes an ask rather than another round.\n\nMEASURED, not chosen: 20 rows on this board entered V4 and 74 rounds were burned. Ten rows needed three or more; TASK-050 and TASK-249 each reached round 11. TASK-095 FAILed five times, and all five read the same in the journal — 'two situations answered as one, one step to the left of the last'. The rounds after the second were not finding new defects, they were re-deriving one undecided principle differently; the hand-filed escalation at round 5 (USER-905) ended it in one round. Each round costs a dispatch, a fresh-context review and a fix cycle, with the session paying its whole context on every turn of all three.\n\nRaise it for a project whose reviews genuinely converge by accretion; 1 makes every FAIL a decision point. Per-project override: `- Review rounds before escalation: N` in `.perry/config.md`; `PERRY_REVIEW_ROUNDS` in the environment beats both."
+    },
+    "session_context_ceiling": {
+      "value": 200000,
+      "applies_to": [
+        "autopilot",
+        "session"
+      ],
+      "note": "The context size at which `autopilot` stops, writes a handoff and lets a fresh session resume. Read by `bin/perry-context-budget`, which measures the live figure from the host transcript rather than estimating it.\n\nMEASURED, not chosen: across 25 sessions and 18,941 turns this project spent 8.43 billion tokens, 99.1% of it `cache_read` — the accumulated context re-read on every turn. Output was 0.3%. Cost is therefore the SUM over turns of the context at each turn, and both factors grow together inside one session, so a five-hour run is superlinear rather than five times a one-hour run. Replaying those turns against a cap: 200k costs 58.3% less, 300k 42.3% less, 400k 29.3% less, for exactly the same work.\n\n200k is where the curve is still steep and a dispatch still fits. It is a calibrated default and not a law: a project doing genuinely wide reads can raise it, and `--ceiling` overrides per run. The number that must NOT move quietly is this one, because the gate and the report have to agree on it — which is why it is here and not in either."
+    },
     "stale_run_days": {
       "value": 30,
       "applies_to": [
@@ -917,12 +901,6 @@
       "path": "PROJECT_STATE.md",
       "kind": "file",
       "owner": "work",
-      "anchor": "state"
-    },
-    {
-      "path": "DECISIONS.md",
-      "kind": "file",
-      "owner": "decide",
       "anchor": "state"
     },
     {
@@ -1283,7 +1261,9 @@
             "Linked overall KR"
           ],
           "id_column": "Id",
-          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$"
+          "id_pattern": "^P\\d{3}-O\\d+-KR\\d+$",
+          "optional": true,
+          "note": "PRE-TASK-157 SHAPE — still validated, no longer written. A phase KR's id, title, metric, target and linked overall KR are schema'd fields, and DESIGN-013 § 5.1 puts a schema'd fact in exactly one store: phase/<NNN>-linkage.md. `plan-phase` no longer authors this table, goals/state/phase_TEMPLATE.md no longer carries one, and `perry-goals krs` prints it from the register instead. The entry stays because an ADOPTED project's phase file has a table and nothing else holds its KRs — viewer/parsers.py § phase_key_results reads the document exactly when there is no register — and a table Perry can still meet is a table Perry must still validate."
         }
       ],
       "anchor": "state"
@@ -1364,6 +1344,11 @@
                   "stretch": {
                     "type": "boolean",
                     "required": false
+                  },
+                  "linked": {
+                    "type": "string",
+                    "required": false,
+                    "note": "The overall KR this phase KR serves — the `Linked overall KR` column the phase document used to carry. TASK-157 moved it here with the rest of the KR; additive and optional, so `linkage: 1` is unchanged and a register written without it means what an empty cell always meant."
                   },
                   "tasks": {
                     "type": "array",
@@ -1945,36 +1930,6 @@
       "anchor": "state"
     },
     {
-      "id": "decisions",
-      "path": "DECISIONS.md",
-      "template": "decide/state/DECISIONS_TEMPLATE.md",
-      "owner": "decide",
-      "tier": 2,
-      "cap": 200,
-      "cap_kind": "soft",
-      "required": false,
-      "headings": [
-        {
-          "level": 2,
-          "match": "^Active\\b|^进行中",
-          "label": "## Active"
-        }
-      ],
-      "tables": [
-        {
-          "under": "^Active\\b|^进行中",
-          "columns": [
-            "ADR",
-            "Title",
-            "Type",
-            "Date"
-          ],
-          "column_match": "prefix"
-        }
-      ],
-      "anchor": "state"
-    },
-    {
       "id": "project_state",
       "path": "PROJECT_STATE.md",
       "template": "work/state/PROJECT_STATE_TEMPLATE.md",
@@ -2050,7 +2005,19 @@
           "name": "Conformance gate",
           "required": false,
           "pattern": "advisory|enforce",
-          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.md, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself."
+          "note": "Whether a writer REFUSES a state file that is not declared conformant (ADR-004), or writes it and says so. Default 'enforce' (TASK-047). It shipped 'advisory' for one release on a stated expiry condition - for a project that is not already Perry-shaped the way forward is the migration, and a refusal naming a command nobody can run is a wall - and that condition fired when TASK-044 landed bin/perry-migrate on 2026-08-19, so every refusal now names a road: 'perry-conform declare' for a file that already matches, 'perry-migrate' for one that does not. Set 'advisory' here to go back to writing-under-protest for this project; the env var PERRY_CONFORMANCE overrides this field either way. Read by bin/perry-conform. The per-file declarations themselves live in .perry/conformance.jsonl, which is deliberately NOT a files[] entry: it is a record of the user's decisions ABOUT state, not state, and listing it here would make it declarable-conformant about itself. THAT REASONING SURVIVED THE FORMAT CHANGE UNCHANGED AND IS RESTATED RATHER THAN CARRIED SILENTLY (TASK-234): the record was .perry/conformance.md until 2026-08-30 and became a store under DESIGN-013 section 5.1, and nothing about becoming a store makes a record of decisions into state. It is also what makes the conversion possible at all - the file gates every write under ADR-004's enforce gate INCLUDING the write that migrates it, and the migration needs no exemption because no writer has ever called the gate about a file that is not a files[] entry. An exemption would have been a hole; this is a file the gate has no opinion about. IT IS NOT A claims[] ENTRY OF ITS OWN EITHER, and that is a separate question with its own answer rather than the same one. claims[] asks what territory Perry occupies in someone else's project, and .perry/ is already claimed as a dir - so the store is covered, exactly as the markdown was, and tests/test_conformance.py section 9 measures that declaring conformance does not make Perry collide with itself. .perry/events.jsonl and .perry/config.jsonl are named individually inside that same territory, which tests/test_claims.py reads as naming rather than coverage - 'it adds no second immovable place, it names a file in the immovable one'. So a seventh entry would add nothing the collision check can see, and it would add a seventh store to the six that perry/phase/003-linkage.md's KR1, KR2 and KR3 are each phrased 'of 6' over. Moving that denominator is the goals lane's decision, not a side effect of a format change."
+        },
+        {
+          "name": "Review rounds before escalation",
+          "required": false,
+          "pattern": "\\d+",
+          "note": "How many V4 FAILs a row may take before `perry-lint --reviews` reports `review-rounds-exhausted`. Absent = the shipped default in `thresholds.review_fail_rounds_before_escalation` (2, measured — see that note). `PERRY_REVIEW_ROUNDS` in the environment beats this field, which beats the default."
+        },
+        {
+          "name": "Session context ceiling",
+          "required": false,
+          "pattern": "\\d+[kKmM]?",
+          "note": "The context size at which `autopilot` stops, hands off and lets a fresh session resume, measured by `bin/perry-context-budget`. Accepts 200000 or 200k. Absent = the shipped default in `thresholds.session_context_ceiling`. `--ceiling` beats `PERRY_CONTEXT_CEILING`, which beats this field, which beats the default. A project doing genuinely wide reads can raise it; the cost of doing so is superlinear, not linear."
         }
       ],
       "tables": [

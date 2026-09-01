@@ -14,7 +14,6 @@ import unittest
 from pathlib import Path
 
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 ROOT = Path(__file__).resolve().parent.parent
 TASK = ROOT / "bin" / "perry-task"
@@ -58,7 +57,7 @@ class Project:
         case.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n" + GATE_OFF,
+            "# Perry configuration\n\n- State root: .\n",
             encoding="utf-8")
         (self.root / "BOARD.md").write_text(BOARD, encoding="utf-8")
         self.write_store([

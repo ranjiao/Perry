@@ -47,5 +47,5 @@
 ## References
 
 - Source files: {{paths}}
-- Linked decisions: {{ADR ids in DECISIONS.md}}
+- Linked decisions: {{ADR ids under decisions/}}
 - Linked tasks: {{TASK-IDs}}

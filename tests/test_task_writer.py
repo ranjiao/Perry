@@ -31,7 +31,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 TOOL = PERRY_HOME / "bin" / "perry-task"
@@ -149,7 +148,7 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF + tracks)
+            "- Repo layout: single\n- State root: .\n" + tracks)
         (self.root / "BOARD.md").write_text(board)
         self.import_board()
 
@@ -440,11 +439,11 @@ class TestALocalizedBoard(unittest.TestCase):
 
     def zh(self) -> "Project":
         p = Project(board=ZH_BOARD)
-        # Overwrites the config `Project` wrote, so it has to carry `GATE_OFF`
+        # Overwrites the config `Project` wrote, so it has to carry `""`
         # forward itself — `ZH_BOARD` is deliberately not Perry's shape.
         (p.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: 中文\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
         return p
 
     def row(self, p: "Project") -> list[str]:
@@ -1353,10 +1352,31 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
         **docstring**, which is a hand-maintained fourth copy that nothing kept
         in step: `--arrived`, `--owner`, `--commitment` and `--actor` had all
         shipped without it noticing.
+
+        **`--root`, and why it is not decoration (TASK-249).** This loop used
+        to invoke each name with no root at all. `perry-task` resolves its
+        project root from `$PERRY_PROJECT`, else the cwd, and `tests/run` cds
+        to the repository root — so all 29 commands ran against the live
+        checkout. Twenty-eight refused for want of arguments. `intake-sweep`
+        takes none: it discharged a REAL board row and moved four files —
+        `.perry/events.jsonl`, `perry/BOARD.md`, `perry/intake.jsonl` and
+        `perry/journal/<today>.md` — on every run of the suite, in whatever
+        repository the suite ran in. It went unnoticed for months because the
+        sweep is idempotent: the second run finds nothing left to discharge,
+        so the natural check — run it twice and diff — reports nothing. It
+        reached a coding branch's commit once and was caught only because an
+        append-only file conflicted at merge.
+
+        The root here is a throwaway `Project()`, which is what every other
+        subprocess in this module already uses. `tests/tree_guard.py` is the
+        structural half: it fails the suite if the checkout moves at all, for
+        any reason, whether or not the write came through a fixture.
         """
+        p = Project()
+        tool = str(PERRY_HOME / "bin" / "perry-task")
         for name in PT.COMMANDS:
             r = subprocess.run(
-                ["python3", str(PERRY_HOME / "bin" / "perry-task"), name],
+                ["python3", tool, name, "--root", str(p.root)],
                 capture_output=True, text=True)
             self.assertNotEqual(
                 r.returncode, 2,
@@ -1366,7 +1386,7 @@ class TestEveryStatusHasAToolPath(unittest.TestCase):
                 f"{name!r} crashed instead of refusing:\n{r.stderr}")
 
         r = subprocess.run(
-            ["python3", str(PERRY_HOME / "bin" / "perry-task"), "nonesuch"],
+            ["python3", tool, "nonesuch", "--root", str(p.root)],
             capture_output=True, text=True)
         self.assertEqual(r.returncode, 2)
 
@@ -2189,7 +2209,11 @@ class TestEvidenceIsResolvedForEveryRowNotOnlyLiveOnes(unittest.TestCase):
         reported = {e["id"] for e in d["conformance"]["evidence_not_found"]}
         self.assertTrue(d["tasks"])
         for t in d["tasks"]:
-            if t["evidence"].strip().lower() in PT.ABSENT:
+            # `lib.is_blank_cell`, not `PT.ABSENT` — TASK-213 retired that
+            # set as the fourth copy of the blank-cell list, and the one rule
+            # also knows the declared Chinese spellings and the decorated
+            # forms.
+            if PT.lib.is_blank_cell(t["evidence"]):
                 continue
             self.assertTrue(
                 t["evidence_paths"] or t["id"] in reported,

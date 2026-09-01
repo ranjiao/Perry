@@ -1,7 +1,7 @@
 # Knowledge index — Perry
 
 > Auto-maintained by the `work` lane. Updated on every `/perry work digest`, archive operation, and full rebuild during `end-phase-retro`.
-> Last updated: 2026-08-28
+> Last updated: 2026-08-30
 > Active: 0 · Eternal: 0 · Stale: 0 · Archived: 0
 
 ## Eternal (project constitution; never archived)
@@ -25,6 +25,9 @@
 
 ### goals (1)
 - linkage-graph-before-first-add — A phase's linkage graph must exist before the phase's first task is added — rows added while no graph exists resolve to no KR and are never attributed afterwards (verified 2026-08-28, owner —)
+
+### verification (1)
+- numbers-migrate-between-sentences — a count measured for one claim gets reused in a sentence about a different claim and stays plausible; three instances in one session, each caught only by re-measuring against the new claim (verified 2026-08-30, owner —)
 
 ### toolchain (1)
 - pycache-staleness — a same-second edit-and-revert leaves a stale `.pyc` that Python trusts (verified 2026-08-18, owner —)

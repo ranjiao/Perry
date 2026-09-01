@@ -36,14 +36,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 TOOL = PERRY_HOME / "bin" / "perry-decide"
 SCHEMA = PERRY_HOME / "schema" / "state-schema.json"
 CONTRACT = PERRY_HOME / "schema" / "decide-list-contract.md"
 REFERENCE = PERRY_HOME / "decide" / "reference" / "decisions.md"
-TEMPLATE = PERRY_HOME / "decide" / "state" / "DECISIONS_TEMPLATE.md"
 
 
 def enum() -> list[str]:
@@ -60,7 +58,7 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
 
     def run(self, *argv):
         env = dict(os.environ, PERRY_HOME=str(self.home))
@@ -72,10 +70,6 @@ class Project:
             return r.returncode, json.loads(r.stdout or "{}")
         except json.JSONDecodeError:
             return r.returncode, r.stdout + r.stderr
-
-    def index(self) -> str:
-        p = self.root / "DECISIONS.md"
-        return p.read_text() if p.exists() else ""
 
     def file(self, adr: str, status: str) -> None:
         """Hand-write an ADR with an arbitrary status — the reader's input."""
@@ -156,7 +150,6 @@ class TestOneBinding(unittest.TestCase):
             self.assertEqual([a["id"] for a in listed["decisions"]], ["ADR-001"])
             self.assertEqual(listed["conformance"]["off_enum_status"], [],
                              "a value the schema declares is not off-enum")
-            self.assertIn("Trialled: 1", p.index())
 
     def test_a_value_the_schema_does_not_declare_is_still_refused(self):
         p = Project().ready()
@@ -167,12 +160,34 @@ class TestOneBinding(unittest.TestCase):
 
     def test_the_tool_refuses_rather_than_falling_back_to_its_own_copy(self):
         """A schema with the enum removed must stop the writer, not be
-        papered over with a default — the default is what this task deleted."""
+        papered over with a default — the default is what this task deleted.
+
+        **Asserted on `new`, and it used to be asserted on `bootstrap`.** The
+        old refusal was incidental: `bootstrap` rendered an index, the index
+        header carried a count per status, and the count called `statuses()`.
+        TASK-235 deleted the index, so `bootstrap` now creates a directory and
+        touches no status at all — an honest `rc 0`. `new` is where a status
+        value is actually written into the record (`> Status: active`), and
+        `cmd_new` now checks that literal against the enum before writing it,
+        which is a binding rather than a side effect of a renderer.
+        """
         with perry_home_with([]) as home:
-            p = Project(Path(home))
-            code, out = p.run("bootstrap")
-            self.assertEqual(code, 1)
+            p = Project(Path(home)).ready()
+            code, out = p.run("new", "--title", "X", "--type", "Process")
+            self.assertEqual(code, 1, out)
             self.assertIn("decision_status", str(out))
+            self.assertFalse(list((p.root / "decisions").glob("*.md")),
+                             "the refusal wrote an ADR anyway")
+
+    def test_the_status_a_new_adr_is_born_with_is_one_the_schema_declares(self):
+        """The other half, and the reason the check is not a tautology: the
+        literal `perry-decide` stamps must be IN the enum, not merely checked
+        against a list it also wrote."""
+        with perry_home_with([v for v in enum() if v != "active"]) as home:
+            p = Project(Path(home)).ready()
+            code, out = p.run("new", "--title", "X", "--type", "Process")
+            self.assertEqual(code, 1, out)
+            self.assertIn("active", str(out))
 
 
 class TestTheWordForAProposal(unittest.TestCase):
@@ -205,24 +220,23 @@ class TestTheWordForAProposal(unittest.TestCase):
         _, filtered = p.run("list", "--status", "proposed")
         self.assertEqual([a["id"] for a in filtered["decisions"]], ["ADR-001"])
 
-    def test_the_index_counts_it_and_files_it_under_neither_active_nor_historical(self):
+    def test_a_proposal_counts_as_neither_active_nor_historical(self):
+        """It used to be asserted against a rendered index with its own
+        `## Proposed` section; TASK-235 deleted the index, and the property it
+        was there to protect is a payload property, which is where it is now
+        asserted. `active` excludes a proposal and `total` includes it."""
         p = Project().ready()
         p.run("new", "--title", "One", "--type", "Process")
+        p.run("new", "--title", "Two", "--type", "Process")
         p.run("status", "ADR-001", "--status", "proposed")
-        idx = p.index()
-        self.assertIn("Proposed: 1", idx)
-        head, _, rest = idx.partition("## Proposed")
-        self.assertTrue(rest, "no Proposed section in the rendered index")
-        self.assertNotIn("ADR-001", head, "a proposal was rendered as Active")
-        self.assertNotIn("ADR-001", rest.split("## Superseded")[1],
-                         "a proposal was filed under `(historical)`")
-
-    def test_a_project_with_no_proposal_renders_no_proposed_section(self):
-        """Available, not mandatory: an existing index does not grow a section
-        because the value now exists."""
-        p = Project().ready()
-        p.run("new", "--title", "One", "--type", "Process")
-        self.assertNotIn("## Proposed", p.index())
+        p.run("status", "ADR-002", "--status", "superseded") if False else None
+        _, out = p.run("list")
+        by_id = {a["id"]: a["status"] for a in out["decisions"]}
+        self.assertEqual(by_id["ADR-001"], "proposed")
+        self.assertEqual((out["active"], out["total"]), (1, 2),
+                         "a proposal was counted as a decision in force")
+        _, filtered = p.run("list", "--status", "proposed")
+        self.assertEqual([a["id"] for a in filtered["decisions"]], ["ADR-001"])
 
     def test_the_user_adopts_it_by_flipping_it_back(self):
         p = Project().ready()
@@ -232,7 +246,7 @@ class TestTheWordForAProposal(unittest.TestCase):
         self.assertEqual(code, 0)
         _, out = p.run("list")
         self.assertEqual(out["active"], 1)
-        self.assertNotIn("## Proposed", p.index())
+        self.assertEqual([a["status"] for a in out["decisions"]], ["active"])
 
 
 class TestReadingStaysTolerant(unittest.TestCase):
@@ -260,11 +274,9 @@ class TestReadingStaysTolerant(unittest.TestCase):
             set(out), {"contract", "semantics", "project_root", "state_root",
                        "conformance", "decisions", "active", "total",
                        "expired_sunsets"})
-        self.assertEqual(out["contract"], "perry-decide/list/1.1")
-        self.assertEqual(
-            set(out["conformance"]),
-            {"index_present", "indexed_without_file", "filed_without_index_row",
-             "off_enum_status", "missing_type"})
+        self.assertEqual(out["contract"], "perry-decide/list/2.0")
+        self.assertEqual(set(out["conformance"]),
+                         {"off_enum_status", "missing_type"})
 
 
 class TestTheThreeSpellingsAgree(unittest.TestCase):
@@ -304,17 +316,32 @@ class TestTheThreeSpellingsAgree(unittest.TestCase):
                       "the count in the prose is one more copy of the list, "
                       "and it drifted the same way the list did")
 
-    def test_every_rendered_count_line_lists_exactly_the_enum(self):
-        """The `> Active: 0 · Superseded: 0 · …` header — a fourth and fifth
-        copy of the list, in the shipped template and in the reference's
-        example index. `render_index` builds it from the enum; these two are
-        pictures of what it builds."""
-        for path in (TEMPLATE, REFERENCE):
-            line = next(l for l in path.read_text().split("\n")
-                        if re.match(r"^> [A-Z][a-z]+: [0-9<]", l))
-            spelled = [f.split(":")[0].strip().lower()
-                       for f in line[2:].split("·")]
-            self.assertEqual(spelled, enum(), f"{path.name}: {line}")
+    def test_no_shipped_page_respells_the_enum_as_a_count_line(self):
+        """**This used to check two copies; TASK-235 deleted both.**
+
+        The `> Active: 0 · Superseded: 0 · …` header was a fourth and fifth
+        copy of the enum — one in `DECISIONS_TEMPLATE.md`, one in the example
+        index in `decide/reference/decisions.md`. The index is gone and so are
+        they, so the assertion inverts: no shipped page may grow that line
+        back. Kept rather than deleted because a count line is exactly what
+        somebody re-adds when they miss the index, and it would be a copy of
+        the enum again the moment they did.
+        """
+        offenders = []
+        for path in sorted(PERRY_HOME.glob("decide/**/*.md")):
+            for n, line in enumerate(path.read_text().split("\n"), 1):
+                if not re.match(r"^> [A-Z][a-z]+: [0-9<]", line):
+                    continue
+                spelled = [f.split(":")[0].strip().lower()
+                           for f in line[2:].split("·")]
+                if len(set(spelled) & set(enum())) >= 2:
+                    offenders.append(
+                        f"{path.relative_to(PERRY_HOME)}:{n} → {line.strip()}")
+        self.assertEqual(
+            offenders, [],
+            "a shipped `decide` page carries a status count line, which is "
+            "another copy of `enums.decision_status`:\n    "
+            + "\n    ".join(offenders))
 
     def test_the_tools_help_does_not_respell_the_list(self):
         """`--help` prints the module docstring, which used to carry a sixth

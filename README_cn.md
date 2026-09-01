@@ -89,7 +89,7 @@ git clone https://github.com/ranjiao/Perry.git ~/perry && ~/perry/setup
 
 它会读你的 README、路线图、git 历史、已有的设计笔记、TODO 和 issue，然后**提议**目标、任务和决策。你不点头，它什么都不写。
 
-**adopt 是一次迁移，只做一次。** 以前 Perry 会在运行时迁就你原有的文件格式。它的 bug 大多出在这里：两处代码对同一张表的读法不一致，中间悄悄丢掉一行。所以这份灵活性被有意放弃了，理由记在 [ADR-004](perry/decisions/ADR-004-mandatory-migration.md)。现在的规矩是：**要用 Perry 的写入能力，项目就得先迁到 Perry 的结构；不迁的项目仍然可读，但 Perry 不会去驱动它。**
+**adopt 写出 Perry 自己的状态，只做一次。** 以前 Perry 会在运行时迁就你原有的文件格式。它的 bug 大多出在这里：两处代码对同一张表的读法不一致，中间悄悄丢掉一行。所以这份灵活性被有意放弃了，理由记在 [ADR-004](perry/decisions/ADR-004-mandatory-migration.md)。现在的规矩是：**`/perry adopt` 把你已有的东西当证据读，据此写出 Perry 的结构；它不会就地改写你的文件。** ADR-004 当初还让每个写工具拒绝未被声明合规的文件，那道门禁已经删除（`TASK-261`）—— 23 次声明里它一次都没和实时检查产生过分歧，现在没有任何写入会因为缺一份声明被拒。
 
 「可读」不是安慰奖。`/perry diagnose` 在任何目录上都能跑，而读一个没迁移的项目，恰恰是你判断该不该迁的依据。迁移本身欠你四件事：动手之前先给出完整 diff、不丢任何一行和任何一个 ID、留一个可回退的还原点、以及绝不做你没让它做的事。
 
@@ -244,7 +244,6 @@ your-project/
 │   ├── phase/              当前阶段 + 历史快照
 │   ├── BOARD.md            此刻的开放任务
 │   ├── journal/            每天发生了什么
-│   ├── DECISIONS.md        决策索引
 │   ├── decisions/          一个决策一个文件，含推理过程
 │   ├── design/             设计文档 / RFC
 │   ├── evidence/           任务做完的凭据
@@ -319,7 +318,7 @@ Perry 本身是英文写的，你的项目不必是。首次配置时它会记�
 
 **能用在非代码项目上吗？** 能 —— 研究、写作、运维、业务规划都行。这不是外挂上去的：它们就是[四种 mode](#四种工作形态)，各有各的收尾条件、节奏控制和 triage 问法。`/perry diagnose` 会从你板子上的样子把它们认出来。
 
-**Perry 能直接驱动我现有的板子吗？** 得先用 `/perry adopt` 迁一次。Perry 已经不再在运行时迁就任意文件格式了（[ADR-004](perry/decisions/ADR-004-mandatory-migration.md)）—— 那份灵活性正是它丢数据的那类 bug 的来源。没迁的项目仍然可读、可以 diagnose，只是不被驱动。
+**Perry 能直接驱动我现有的板子吗？** 不是就地驱动。`/perry adopt` 把它当证据读，在旁边写出 Perry 自己的状态，之后 Perry 驱动的是后者。Perry 已经不再在运行时迁就任意文件格式了（[ADR-004](perry/decisions/ADR-004-mandatory-migration.md)）—— 那份灵活性正是它丢数据的那类 bug 的来源。没被 adopt 过的项目仍然可读、可以 diagnose，只是不被驱动。
 
 **我的项目已经有** **`design/`** **目录了怎么办？** 不会撞上 —— Perry 自己的文件默认就在 `perry/` 下面，你的 `design/` 还是你的。setup 在写任何东西之前先查一遍冲突，只有你坚持要用项目根目录时它才会问。
 

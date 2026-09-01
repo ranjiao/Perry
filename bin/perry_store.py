@@ -38,7 +38,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
-from tables import cell_spans, split_row  # noqa: E402
+from tables import cell_spans, header_index, split_row  # noqa: E402
 
 #: Written to the store. Everything else in `perry-task/list` is computed.
 #:
@@ -101,7 +101,12 @@ def markdown_tables(lines: list[str], start: int, end: int, norm) -> list[dict]:
     out: list[dict] = []
     for n, (header_i, sep, header) in enumerate(starts):
         limit = starts[n + 1][0] if n + 1 < len(starts) else end
-        keys = [norm(h) for h in header]
+        # ONE fold, and `norm` is the glossary step that runs after it.
+        # `viewer/tables.py § header_index` is the only function in this
+        # repository allowed to fold a header cell (TASK-050 round 8);
+        # `norm` is idempotent on an already-squashed key, so the mapping
+        # this produces is byte-for-byte the one it always produced.
+        keys = header_index(header, alias=norm)
         rows = []
         active = True
         for i in range(sep + 1, limit):
@@ -526,7 +531,7 @@ def plan(board, records: list[dict], ops) -> dict:
     for table in task_tables:
         heading = table["heading"]
         header = table["header"]
-        keys = [ops.norm(h) for h in header]
+        keys = header_index(header, alias=ops.norm)
         if not table["readable"]:
             # Not a task table — a reference table, a legend. `task_tables()`
             # reports it and reads nothing from it; so does this.

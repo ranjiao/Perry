@@ -77,6 +77,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "viewer"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib  # noqa: E402
 import parsers as P  # noqa: E402
+from tables import header_index  # noqa: E402
 import perry_store  # noqa: E402
 
 #: Written to the store — `bin/perry_store.py` owns the list, and this name is
@@ -922,7 +923,8 @@ def cmd_intake_write(root: Path, argv: list[str]) -> int:
     # two agree today (both walk `perry_store.markdown_tables`), and the day
     # they stop agreeing every integer a consumer holds points at a different
     # request with nothing to say so. Cheap to check, catastrophic to miss.
-    keys = [ops.norm(h) for h in perry_store.intake_table(board, ops)["header"]]
+    keys = header_index(perry_store.intake_table(board, ops)["header"],
+                        alias=ops.norm)
     addressable = [dict(zip(keys, cells))
                    for _line, cells in board.section_rows(
                        perry_store.INTAKE_SECTION)]
