@@ -145,8 +145,30 @@ def is_illustrative(rel: str) -> bool:
     return any(part.lower() in ILLUSTRATIVE_PARTS for part in p.parts[:-1])
 
 
-def find_ids(text: str) -> list[str]:
-    return [t for t in ID_RE.findall(text) if is_real_id(t)]
+def find_ids(text: str, *, allow_filename_slug: bool = False) -> list[str]:
+    """Return complete IDs, never a numeric-looking prefix of a prose token.
+
+    A filename such as ``TASK-050-result.md`` deliberately defines TASK-050,
+    so its slug is allowed at the one filename call site. In prose,
+    ``PROJ-003-LINK`` is one token; reporting its ``PROJ-003`` prefix as a
+    dangling ID invents a reference the author never wrote.
+    """
+    out: list[str] = []
+    for match in ID_RE.finditer(text):
+        token = match.group(1)
+        if (not allow_filename_slug and match.end() < len(text)
+                and text[match.end()] == "-"
+                and match.end() + 1 < len(text)
+                and text[match.end() + 1].isalnum()):
+            tail = text[match.end():]
+            # A prose citation may spell the defining filename in full. Its
+            # slug does not make the leading ID partial; an arbitrary longer
+            # token such as PROJ-003-LINK still does.
+            if not re.match(r"-[A-Za-z0-9._-]+\.md\b", tail, re.I):
+                continue
+        if is_real_id(token):
+            out.append(token)
+    return out
 
 TABLE_ROW = re.compile(r"^\s*\|(.+)\|\s*$")
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
@@ -309,14 +331,16 @@ def harvest(root: Path) -> dict:
 
     for path in sorted(walk_md(root)):
         try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            text = path.read_text(encoding="utf-8", errors="replace")
+            lines = text.splitlines()
+            mention_lines = blank_code_spans(text).splitlines()
         except OSError:
             continue
         rel = str(path.relative_to(root))
         illustrative = is_illustrative(rel)
 
         # A file named for an ID defines it; its H1 is the title.
-        fname_ids = find_ids(path.stem)
+        fname_ids = find_ids(path.stem, allow_filename_slug=True)
         if fname_ids:
             e = ent(fname_ids[0])
             if not e["defined"]:
@@ -371,13 +395,13 @@ def harvest(root: Path) -> dict:
         # anyway.
         fenced = False
 
-        for n, raw in enumerate(lines, 1):
+        for n, (raw, mention_raw) in enumerate(zip(lines, mention_lines), 1):
             if raw.lstrip().startswith("```"):
                 fenced = not fenced
                 continue
             if fenced:
                 continue
-            found = find_ids(blank_code_spans(raw))
+            found = find_ids(mention_raw)
 
             # ── table rows: | ID | Title | … |
             m = TABLE_ROW.match(raw)

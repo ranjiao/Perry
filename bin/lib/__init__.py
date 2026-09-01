@@ -995,7 +995,12 @@ def blank_code_spans(text: str) -> str:
             # Unmatched. `i` already sits past the run, so the search resumes
             # after it rather than re-reading the same backticks forever.
             continue
-        out[opener:close + run] = " " * (close + run - opener)
+        # A CommonMark code span may cross a source line. Preserve newlines so
+        # callers that report file:line locations keep the original mapping.
+        out[opener:close + run] = [
+            "\n" if c == "\n" else " "
+            for c in text[opener:close + run]
+        ]
         i = close + run
     return "".join(out)
 

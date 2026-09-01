@@ -56,6 +56,25 @@ NAMING_SHAPES = ("## {id} — {rest}", "## {id}: {rest}", "## {id} {rest}",
 TRAILING_JUNK = " —–-:·"
 
 
+def is_multi_subject_document(entry: dict) -> bool:
+    """Whether an ID-named evidence file explicitly groups sibling IDs.
+
+    ``TASK-050-053-057-060-v4-review.md`` covers four tasks. Its heading must
+    be allowed to say ``TASK-050 / 053 / 057 / 060``; that is not a subject ID
+    leaking into a single-subject title.
+    """
+    if entry.get("kind") != "document" or not entry.get("defined"):
+        return False
+    rel = entry["defined"].rsplit(":", 1)[0]
+    stem = Path(rel).stem
+    prefix, sep, number = entry["id"].rpartition("-")
+    if not sep or not number.isdigit():
+        return False
+    return bool(re.match(
+        rf"^{re.escape(prefix)}-{re.escape(number)}(?:-\d{{1,4}})+-",
+        stem))
+
+
 def load_explain():
     """Import `bin/perry-explain` as a module (no .py suffix to infer from)."""
     loader = SourceFileLoader("perry_explain", str(EXPLAIN))
@@ -216,10 +235,21 @@ class PerrysOwnHeadingTitles(unittest.TestCase):
             [(e["id"], e["title"]) for e in self.titles
              if e["title"] != e["title"].strip(TRAILING_JUNK)], [])
 
-    def test_none_of_them_contains_its_own_id(self):
+    def test_no_single_subject_title_contains_its_own_id(self):
         self.assertEqual(
             [(e["id"], e["title"]) for e in self.titles
-             if re.search(r"\b" + re.escape(e["id"]) + r"\b", e["title"])], [])
+             if re.search(r"\b" + re.escape(e["id"]) + r"\b", e["title"])
+             and not is_multi_subject_document(e)], [])
+
+    def test_the_group_exception_is_narrow_and_live(self):
+        grouped = [(e["id"], e["title"]) for e in self.titles
+                   if is_multi_subject_document(e)
+                   and re.search(r"\b" + re.escape(e["id"]) + r"\b",
+                                 e["title"])]
+        self.assertEqual(
+            grouped,
+            [("TASK-050", "V4 review — TASK-050 / 053 / 057 / 060")],
+            "the group-document exception widened beyond the measured case")
 
 
 # ── 4 · restoring the old line must move ONE side, not both ───────────────

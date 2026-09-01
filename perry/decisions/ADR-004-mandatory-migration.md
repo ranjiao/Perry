@@ -1,10 +1,10 @@
 # ADR-004 — Legacy projects migrate once, or stay read-only
 
-> Status: active
+> Status: superseded
 > Type: Architecture
 > Date: 2026-08-17
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-011
 > Sunset: —
 
 ## Context

@@ -407,10 +407,19 @@ class TestTheLinkedOverallKrCameWithIt(Fixture):
         shape check would accept `KR-O9.9`, and an edge to a KR that does not
         exist is the dangling reference `perry-lint` exists to report.
         """
-        overall = {k["id"] for k in json.loads(subprocess.run(
+        current = {k["id"] for k in json.loads(subprocess.run(
             [sys.executable, str(GOALS), "list", "--root", str(ROOT),
              "--level", "overall", "--json"],
             capture_output=True, text=True, cwd=ROOT).stdout)["krs"]}
+        # A scored phase keeps the edge it had when that overall OKR version
+        # was current. Revising v2 to v3 may retire a KR; it must not erase the
+        # historical attribution. OKR.md is versioned and retains those
+        # declarations, while `perry-goals list` intentionally returns only
+        # the current version.
+        historical = set(re.findall(
+            r"^\|\s*(KR-O\d+\.\d+)\s*\|", (ROOT / "perry" / "OKR.md").read_text(),
+            re.M))
+        overall = current | historical
         self.assertTrue(overall, "this project declares no overall KRs at "
                                  "all, so the assertion below is vacuous")
         sys.path.insert(0, str(ROOT / "viewer"))

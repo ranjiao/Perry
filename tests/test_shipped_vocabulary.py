@@ -1103,15 +1103,18 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
         for mode in self.MODES:
             self.assertTrue((PERRY_HOME / "modes" / f"{mode}.md").is_file())
 
-    def test_both_readmes_reflect_that_migration_is_mandatory(self):
-        """`ADR-004`. A front door that promises drop-in compatibility is now
-        false, and the README is the place a user forms that expectation."""
+    def test_both_readmes_reflect_that_migration_was_removed(self):
+        """ADR-011 removed the migrator; the front door must not promise it."""
         for doc in self.READMES:
             with self.subTest(doc=doc):
                 text = read(doc)
-                self.assertIn("ADR-004-mandatory-migration.md", text,
-                              f"{doc} never cites the decision")
+                self.assertIn(
+                    "ADR-011-the-representation-layer-comes-out.md", text,
+                    f"{doc} never cites the decision that removed migration")
                 self.assertIn("/perry adopt", text)
+                self.assertIn("TASK-261", text)
+                self.assertNotIn("Adoption writes Perry's own state", text)
+                self.assertNotIn("adopt 写出 Perry 自己的状态", text)
 
     def test_the_readmes_show_where_state_actually_lands(self):
         """Found while fixing i-1, and the same class of defect. The default
@@ -1152,9 +1155,26 @@ class TestTheReadmesNameTheFourModes(unittest.TestCase):
                     f"{doc} draws OKR.md outside `{default}/`")
 
     def test_the_adr_the_readmes_cite_exists_and_is_active(self):
-        adr = PERRY_HOME / "perry" / "decisions" / "ADR-004-mandatory-migration.md"
+        cited = "ADR-011-the-representation-layer-comes-out.md"
+        for doc in self.READMES:
+            self.assertIn(cited, read(doc))
+        adr = PERRY_HOME / "perry" / "decisions" / cited
         self.assertTrue(adr.is_file())
         self.assertRegex(adr.read_text(),
+                         re.compile(r"^>\s*Status:\s*active", re.M))
+
+    def test_a_superseded_migration_adr_points_to_an_active_replacement(self):
+        adr = PERRY_HOME / "perry" / "decisions" / "ADR-004-mandatory-migration.md"
+        self.assertTrue(adr.is_file())
+        text = adr.read_text()
+        replacement = re.search(r"Superseded by:\s*(ADR-\d+)\b", text)
+        if replacement is None:
+            return
+        matches = list((PERRY_HOME / "perry" / "decisions").glob(
+            f"{replacement.group(1)}-*.md"))
+        self.assertEqual(len(matches), 1,
+                         "a superseded ADR has no unique successor record")
+        self.assertRegex(matches[0].read_text(),
                          re.compile(r"^>\s*Status:\s*active", re.M))
 
 

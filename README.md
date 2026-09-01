@@ -79,17 +79,14 @@ That's roughly 15 minutes and you're set up.
 
 ### You already have a project
 
-Don't start from a blank page — Perry can read what's already there:
+Perry currently has **no automated adoption or migration path**. `/perry adopt`
+is not an available import workflow: its migrator and conformance ledger were
+removed after this repository recorded zero migrations and zero conformance
+disagreements (`TASK-261`, [ADR-011](perry/decisions/ADR-011-the-representation-layer-comes-out.md)).
 
-```
-/perry adopt
-```
-
-It reads your README, roadmap, git history, existing design notes, TODOs and issues, then **proposes** goals, tasks and decisions. Nothing is written until you say yes.
-
-**Adoption writes Perry's own state, once.** Perry used to adapt at runtime to whatever shape your files were already in, and that tolerance is where its bugs lived — two branches guessing differently about the same table and quietly losing a row between them. So it was traded away on purpose ([ADR-004](perry/decisions/ADR-004-mandatory-migration.md)). The rule now: **`/perry adopt` reads what you already have as evidence and writes Perry's structure from it; it never rewrites your files in place.** ADR-004 also made every writer refuse a file nobody had declared conformant. That gate is deleted (`TASK-261`) — in 23 declarations it never once disagreed with the live check, so nothing now refuses a write for want of a declaration.
-
-Readable is not the consolation prize. `/perry diagnose` runs on any folder at all, and reading an unmigrated project is exactly how you decide whether to migrate it. And the migration owes you four things: the complete diff before anything is written, no lost rows or IDs, a restore point, and no step you did not ask for.
+Use `/perry diagnose` for a read-only analysis of an existing project. If you
+then choose Perry, initialize Perry's own state explicitly; do not expect it to
+rewrite or import the existing board.
 
 ### Not sure Perry is even what you need
 
@@ -316,7 +313,11 @@ Any language works for prose. Details, and how to switch later: [reference/i18n.
 
 **Can I use it for non-code projects?** Yes — research, writing, ops, business planning. Those are not a bolt-on: they are the [four modes](#four-kinds-of-work), each with its own horizon, throttle and triage. `/perry diagnose` recognises them from what's on your board.
 
-**Can Perry drive the board I already have?** Not in place. `/perry adopt` reads it as evidence and writes Perry's own state alongside; Perry then drives that. Perry stopped bending at runtime to arbitrary file shapes ([ADR-004](perry/decisions/ADR-004-mandatory-migration.md)) — that flexibility was where its data-losing bugs came from. A project Perry has not adopted stays readable and diagnosable; it is just not driven.
+**Can Perry drive the board I already have?** Not currently. `/perry diagnose`
+can read and assess it, but `/perry adopt` has no import implementation after
+the migration layer was removed ([ADR-011](perry/decisions/ADR-011-the-representation-layer-comes-out.md)).
+Initialize Perry's state separately rather than expecting the existing board
+to be migrated.
 
 **What if my project already has a `design/` folder?** Nothing collides — Perry's own files live under `perry/` by default, so your `design/` stays yours. Setup checks for the collision before it writes anything, and only asks if you tell it to use the project root instead.
 

@@ -458,13 +458,12 @@ def open_user_asks(root: Path, entries: dict, explain,
             answered.add(m.group(0))
     if not seen_table:
         return elsewhere(ids)
-    # An id that IS a row of this board's queue is this project's row, whatever
-    # `harvest` picked as its definition point — `defined` is first-seen in a
-    # sorted walk, so a fixture that sorts ahead of the real board owns it, and
-    # dropping on that alone would trade one silent miscount for another.
-    own = {i for i in ids if i in where or not not_a_row_of_this_queue(i)}
-    return sorted((i, where.get(i) or (entries[i].get("defined") or ""))
-                  for i in own - answered)
+    # Once a queue table exists, it is the register. USER rows in evidence,
+    # handoffs, or decision logs are history or another register; mixing the
+    # fallback inventory into a real table is how two answered fixture rows
+    # made Perry report three pending asks against the store's one.
+    own = set(where)
+    return sorted((i, where[i]) for i in own - answered)
 
 
 def open_design_decisions(root: Path, inventory: dict,
@@ -701,6 +700,9 @@ QUOTED_LINE = re.compile(r"^\s{0,3}>")
 #: A check named the way this repository names its checks. `{3,}` so the token
 #: is a function name and not the English word "test" followed by an underscore.
 TEST_NAME = re.compile(r"\btest_[a-z][a-z0-9_]{3,}\b")
+# The executable is also an unambiguous check name. Result records often show
+# the command and its finding without knowing the internal LOAD-* code.
+CHECK_COMMAND = re.compile(r"\bperry-diagnose\b")
 
 
 @functools.lru_cache(maxsize=1)
@@ -712,7 +714,8 @@ def finding_code_re() -> "re.Pattern[str]":
 
 
 def names_a_check(line: str) -> bool:
-    return bool(finding_code_re().search(line) or TEST_NAME.search(line))
+    return bool(finding_code_re().search(line) or TEST_NAME.search(line)
+                or CHECK_COMMAND.search(line))
 
 
 def document_reports_on_a_check(path: Path) -> bool:

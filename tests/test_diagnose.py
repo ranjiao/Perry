@@ -530,6 +530,15 @@ class TestUserLoadFindings(unittest.TestCase):
         for token in ("REL-001", "ADR-003", "USER-014", "EPIC-7", "CTX-01"):
             self.assertTrue(mod.is_real_id(token), f"{token} rejected as an ID")
 
+    def test_a_prose_token_is_not_split_into_an_id_prefix(self):
+        """PROJ-003-LINK is one token, not a PROJ-003 reference."""
+        mod = load_bin_module("perry-explain")
+        self.assertEqual(mod.find_ids("seed PROJ-003-LINK for later"), [])
+        self.assertEqual(
+            mod.find_ids("TASK-050-result", allow_filename_slug=True),
+            ["TASK-050"],
+            "the filename definition rule lost its documented slug support")
+
     def test_illustrative_ids_are_not_dangling(self):
         """`tag your task like TASK-007` in a README refers to nothing and is
         not supposed to."""
@@ -1364,6 +1373,29 @@ class AQuotedIdIsNotAQueueRow(unittest.TestCase):
         self.assertIn("USER-902", load["dangling_in_reports"],
                       "the fixture no longer exercises the quoted case")
 
+    def test_a_real_queue_does_not_merge_rows_from_another_register(self):
+        """The fallback is only for projects with no queue table.
+
+        A historical decision log is a legitimate tracking document, so its
+        USER row reaches the ID inventory. Once BOARD.md carries the queue,
+        though, that inventory cannot become a second queue register.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = self.project(Path(td))
+            (root / "BOARD.md").write_text(board_with_queue(
+                "| USER-001 | Which region | TASK-005 | 3d | pending |\n"))
+            write(root, "history/decisions.md",
+                  "# Decision history\n\n"
+                  "| ID | Question | Status |\n"
+                  "|---|---|---|\n"
+                  "| USER-902 | Old fixture choice | pending |\n")
+            load = scan(root)["user_load"]
+        self.assertEqual(load["open_decisions_by_register"],
+                         {"queue": 1, "design": 0})
+        self.assertEqual(
+            [s.split(" — ")[-1] for s in load["open_decision_samples"]],
+            ["USER-001"])
+
     def test_the_two_halves_of_user_load_agree_about_every_id(self):
         """The shape of the defect, pinned directly: an id the report
         exemption covers must not also be a row of the queue register. Before
@@ -1388,7 +1420,6 @@ class AQuotedIdIsNotAQueueRow(unittest.TestCase):
         explain = diagnose.load_sibling("perry-explain")
         with tempfile.TemporaryDirectory() as td:
             root = self.project(Path(td))
-            (root / "BOARD.md").write_text(board_with_queue(""))
             write(root, "notes/check-log.md",
                   "# Check log\n\nLOAD-03 named USER-902.\n")
             entries = explain.harvest(root)
@@ -1464,6 +1495,14 @@ Quoted the same way, inline: `perry-task: wrote ZZZ-406 (risk-add)`.
             "ZZZ-406", e,
             "an id quoted in a code span was read as a citation, which is "
             "how a regex character class became a dangling id")
+
+    def test_a_code_span_may_cross_a_source_line(self):
+        """CommonMark permits a code span to contain a line ending."""
+        e = self.harvest(
+            "# Notes\n\nThe captured row is `first line ZZZ-420\n"
+            "second line ZZZ-421` and is not project state.\n")
+        self.assertNotIn("ZZZ-420", e)
+        self.assertNotIn("ZZZ-421", e)
 
     def test_an_id_in_prose_is_still_counted(self):
         """The exemption must not swallow the check it lives in."""
@@ -1603,6 +1642,9 @@ class TestTheQuotationRuleHasOneImplementation(unittest.TestCase):
         # it, so a later closed span on the same line is still found. The run
         # of two here never closes; the run of one after it does.
         self.assertEqual(blank("``x `y` z"), "``x     z")
+        # Newlines are content inside a span, but remain newlines in the
+        # blanked result so file:line locations do not move.
+        self.assertEqual(blank("x `a\nb` y"), "x   \n   y")
         # A lone backtick pairs with the NEXT single-backtick run, which is
         # CommonMark and not a fallback: the span here is "` a `", and `b` is
         # left outside it holding the stray closer.
@@ -1777,6 +1819,15 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
                          "the paragraph mark leaked past its blank line")
         self.assertIn("ZZZ-404", load["dangling_in_reports"])
 
+    def test_the_diagnose_command_is_itself_a_check_name(self):
+        """A result can name the public check without knowing LOAD-02."""
+        load = self.load({
+            "notes/result.md":
+                "# Result\n\n`perry-diagnose` reports ZZZ-404 dangling.\n"
+        })
+        self.assertEqual(load["dangling"], [])
+        self.assertIn("ZZZ-404", load["dangling_in_reports"])
+
     # ── the fourth shape: a record narrating a check it reported ─────────
     #
     # Both halves of that mark are exercised below, one test each way. The
@@ -1863,6 +1914,7 @@ class TestWritingThatACodeIsGoneDoesNotBringItBack(unittest.TestCase):
         self.assertIsNone(pattern.search("TASK-042 is a row, not a finding"))
         self.assertFalse(mod.names_a_check("a test_ is not a check name"))
         self.assertTrue(mod.names_a_check("test_two_flags_do_not_agree"))
+        self.assertTrue(mod.names_a_check("perry-diagnose reports a finding"))
 
     # ── the cost, named rather than hidden ───────────────────────────────
     def test_bare_prose_saying_a_code_is_gone_is_still_a_reference(self):
