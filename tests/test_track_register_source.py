@@ -51,7 +51,6 @@ import sys
 import tempfile
 import unittest
 
-from gate import GATE_OFF, gate_off_record   # tests/gate.py — the opt-out
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bin"))
@@ -76,7 +75,7 @@ def _state_module():
 
 PS = _state_module()
 
-#: `GATE_OFF` is appended rather than spelled out: `tests/gate.py` exists so
+#: `""` is appended rather than spelled out: `tests/gate.py` exists so
 #: that renaming the `Conformance gate` matcher reddens every fixture using it
 #: at once, and a fixture that inlines the line opts itself out of that.
 CONFIG_MD = ("""# Perry configuration
@@ -84,7 +83,7 @@ CONFIG_MD = ("""# Perry configuration
 - Document language: English
 - Repo layout: single
 - State root: .
-""" + GATE_OFF + """
+""" + """
 ## Tracks
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
@@ -128,7 +127,7 @@ def track_record(name: str, mode: str, order: int) -> str:
 #: an ADR-004 reason that has nothing to do with the track register, the exact
 #: trap this module was written after.
 GOOD_STORE = track_record("main", "project", 0) + "\n" \
-    + track_record("intake", "queue", 1) + "\n" + gate_off_record()
+    + track_record("intake", "queue", 1) + "\n" + ""
 
 
 class Fixture(unittest.TestCase):
@@ -304,7 +303,7 @@ class TestTheFourSituationsAreDistinguished(Fixture):
 #: measuring nothing.
 SETTING_ONLY = json.dumps({"kind": "setting", "key": "language",
                            "value": "English", "order": 0}) + "\n" \
-    + gate_off_record()
+    + ""
 
 #: A `## Tracks` row whose every cell is FILLED, so that a store record which
 #: merely EXISTS under the same name still contradicts it. Round 5's FAIL
@@ -316,7 +315,7 @@ DECLARING_MAIN = ("""# Perry configuration
 - Document language: English
 - Repo layout: single
 - State root: .
-""" + GATE_OFF + """
+""" + """
 ## Tracks
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |
@@ -954,7 +953,7 @@ class TestWhatTheProjectionDeclares(Fixture):
 - Document language: English
 - Repo layout: single
 - State root: .
-""" + GATE_OFF + """
+""" + """
 ## Tracks
 
 | Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |

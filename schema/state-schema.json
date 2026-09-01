@@ -775,38 +775,6 @@
       ]
     }
   },
-  "migration": {
-    "description": "Read only by bin/perry-migrate. It does NOT widen what perry-lint accepts, and it is not an exception to i18n.invariant - enum values stay ASCII in every language, and making that true of a file that predates the rule is exactly what the migration is for. This table declares the localized spellings that have been SEEN standing where a canonical enum value belongs, so that resolving one is a lookup in a declared vocabulary rather than a translation performed in code. A spelling that is not listed here is not guessed at: perry-migrate reports the field and leaves the file alone. Extend it when a real project shows a new spelling; never from imagination, because an entry here decides what somebody's file is asserting.",
-    "enum_aliases": {
-      "phase_status": {
-        "进行中": "active",
-        "已评分": "scored"
-      }
-    },
-    "negations_description": "The other half of the same vocabulary. A canonical value standing in a sentence is not the same as one standing alone: `> Status: not yet locked - do not build from this` contains the word `locked`, and reading it as `locked` reverses what the author wrote while preserving every character they typed. perry-migrate drops a candidate whose clause is denied by one of these words, so a value that says only what it is NOT resolves to nothing and is reported rather than guessed. Same discipline as enum_aliases: a denial word is looked up here, never inferred in code. What it cannot see is stated in perry-migrate's enum_candidates - negation carried by grammar rather than by a word.",
-    "negations": [
-      "not",
-      "no",
-      "never",
-      "nor",
-      "cannot",
-      "isn't",
-      "aren't",
-      "wasn't",
-      "weren't",
-      "don't",
-      "doesn't",
-      "didn't",
-      "won't",
-      "hasn't",
-      "haven't",
-      "未",
-      "尚未",
-      "没",
-      "不",
-      "非"
-    ]
-  },
   "thresholds": {
     "review_fail_rounds_before_escalation": {
       "value": 2,

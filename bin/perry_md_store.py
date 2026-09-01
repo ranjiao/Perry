@@ -1037,7 +1037,6 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
             if "--write" not in argv:
                 sys.stdout.write(rendered)
                 return 0
-            _gate_or_refuse(doc, root, state_root, tool, argv)
             lib.write_atomic(path, rendered)
             print(f"{tool}: rendered {path} from {len(records)} stored "
                   f"record(s)")
@@ -1138,61 +1137,14 @@ def main(doc: Doc, argv: list[str], _locked: bool = False) -> int:
     return 0
 
 
-def _gate_or_refuse(doc: Doc, root: Path, state_root: Path, tool: str,
-                    argv: list[str]) -> None:
-    """ADR-004's conformance gate, on the one file about to be written.
-
-    **`.perry/config.md` is gated through the same call as `OKR.md`, and that
-    is a small circularity worth naming:** `perry-conform § gate_mode` reads
-    `Conformance gate` out of `.perry/config.md` to decide the mode, so this
-    file's own contents decide whether this file may be rendered. It is benign
-    — the mode is read from the bytes on disk before the write, exactly as it
-    is for every other file — but it means a fixture that writes a
-    `.perry/config.md` is writing the file the gate consults about itself, and
-    `tests/gate.py § GATE_OFF` is the documented way out.
-    """
-    conform = _conform_module()
-    if conform is None:
-        return
-    gate = conform.gate(root, state_root, str(doc.rel_file).replace("\\", "/"),
-                        tool=tool,
-                        root_arg=argv[argv.index("--root") + 1]
-                        if "--root" in argv else None)
-    if not gate.ok:
-        raise Refused(gate.message)
-    if gate.message:
-        print(f"{tool}: ⚠ conformance ({gate.mode}) — {gate.message}",
-              file=sys.stderr)
-
-
-_CONFORM = None
-
-
-def _conform_module():
-    """`bin/perry-conform` as a module — hyphenated, so not importable."""
-    global _CONFORM
-    if _CONFORM is not None:
-        return _CONFORM
-    import importlib.machinery
-    import importlib.util
-    path = HERE / "perry-conform"
-    if not path.exists():
-        return None
-    spec = importlib.util.spec_from_loader(
-        "perry_conform", importlib.machinery.SourceFileLoader(
-            "perry_conform", str(path)))
-    mod = importlib.util.module_from_spec(spec)
-    # **Registered BEFORE it is executed**, the same note `bin/perry-goals §
-    # _sibling` and `bin/perry-task` both carry: `dataclasses` resolves the
-    # annotation strings that `from __future__ import annotations` leaves
-    # behind by looking the class's own module up in `sys.modules`, and
-    # `perry-conform` decorates a dataclass at import time. Without this line
-    # the load dies inside `dataclasses._is_type` with an `AttributeError` on
-    # `None`, several frames away from anything that names the cause.
-    sys.modules["perry_conform"] = mod
-    spec.loader.exec_module(mod)
-    _CONFORM = mod
-    return mod
+# **The ADR-004 conformance gate stood here and is gone (TASK-261).**
+# `render --write` used to consult a stored DECLARATION about the file it was
+# about to render and refuse when the shape no longer matched. On this
+# repository that ledger held 23 records, all `route: declare`, all Perry's
+# own files — zero disagreements, because a disagreement needs a foreign
+# project and Perry has never been pointed at one. `tests/gate.py § GATE_OFF`,
+# the documented way out of the self-referential case this function's own
+# docstring described, goes with it.
 
 
 __all__ = ["CONFIG", "COMMANDS", "CONFIG_TITLE", "DOCS", "OKR", "Doc",

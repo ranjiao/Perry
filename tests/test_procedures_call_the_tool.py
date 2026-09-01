@@ -5,7 +5,7 @@
      evidence documents."
                     — perry/decisions/ADR-007-fields-are-typed-prose-is-not.md
 
-A procedure that says *"append a declaration to `.perry/conformance.jsonl`"* or
+A procedure that says *"append a declaration to `BOARD.md`"* or
 *"append the full definition to the journal"* is that rule inverted back. The field write
 lands wherever the agent's markdown happened to land, the tool's event is never
 appended, and the row shows up at the next standup as drift — which is the
@@ -79,21 +79,21 @@ list of blessed lines:
    promise on the write side — *adoption proposes, the user declares*. So a
    step under a `Migration` / `Adoption` heading may write an **authored
    document** (an ADR file) by hand. It may **not** write a **projection**
-   (`BOARD.md`, `OKR.md § Commitments`, `.perry/conformance.jsonl`): a projection
+   (`BOARD.md`, `OKR.md § Commitments`, `BOARD.md`): a projection
    is rendered from the documents, so transcribing one is drift the moment the
    next tool call re-renders it.
 6. **Bootstrap from a shipped template, for a file the tool cannot create.**
    `perry-task` refuses on a missing board — `no BOARD.md at <path>` — so
    `work/reference/bootstrap.md` copying `state/BOARD_TEMPLATE.md` is how the
    board comes to exist, not a hand edit of a field. This is conditioned on
-   `creates_file`, not on the word "template": `perry-conform declare` DOES
-   create `.perry/conformance.jsonl`, so the identical template phrasing about the
+   `creates_file`, not on the word "template": `perry-task add` DOES
+   create `BOARD.md`, so the identical template phrasing about the
    record stays reportable.
 
    **The example this paragraph used to give was `DECISIONS.md`**, whose
    `perry-decide bootstrap` created it — three of the nineteen were exactly
    that phrasing. TASK-235 deleted the file, so the asymmetry needed a target
-   that still has a creating writer, and `.perry/conformance.jsonl` is one.
+   that still has a creating writer, and `BOARD.md` is one.
 
 Run: python3 tests/parallel test_procedures_call_the_tool
 """
@@ -208,15 +208,6 @@ TARGETS = {
         pattern=r"(?:##\s*Cards by topic[^.]{0,80}knowledge/INDEX\.md"
                 r"|knowledge/INDEX\.md[^.]{0,80}##\s*Cards by topic)",
         tool="perry-knowledge", kind="projection"),
-    ".perry/conformance.jsonl": dict(
-        # **Both spellings** (TASK-234). The record is the jsonl store; the
-        # markdown is what every pre-conversion project still has on disk, and
-        # a procedure telling a user to hand-edit EITHER is the step this
-        # module exists to catch. Dropping the old spelling when the record
-        # moved would have retired the guard for the file that is still out
-        # there, which is the half that can still be hand-edited by mistake.
-        pattern=r"\.perry/conformance\.(?:jsonl|md)",
-        tool="perry-conform", kind="projection"),
 }
 
 def owner_pattern(tool: str) -> str:
@@ -264,7 +255,7 @@ DETECTION_LIST = re.compile(
     r"\s*[`'\"*(\[]*$", re.I)
 
 #: How close a write verb has to sit to the target to be a write TO it. Wide
-#: enough for "Update `.perry/conformance.jsonl` (move the row to the new shape
+#: enough for "Update `BOARD.md` (move the row to the new shape
 #: version)", narrow enough that a read at the head of a step and a write to
 #: some other file two sentences later are not read as one instruction.
 BEFORE, AFTER = 60, 90
@@ -358,8 +349,8 @@ ADOPTION_HEADING = re.compile(
 #: not a field write, and it is exempt only where the owning tool cannot create
 #: that file (`creates_file=False`). `perry-task` refuses on a missing
 #: `BOARD.md`, so `work/reference/bootstrap.md` copying `BOARD_TEMPLATE.md` is
-#: how the board comes to exist at all. `perry-conform declare` DOES create
-#: `.perry/conformance.jsonl`, so the same phrasing about that record stays
+#: how the board comes to exist at all. `perry-task add` DOES create
+#: `BOARD.md`, so the same phrasing about that record stays
 #: reportable — the asymmetry that caught three of the nineteen, restated on a
 #: target that still exists after TASK-235.
 def from_target_template(flat: str, spec: dict) -> bool:
@@ -586,7 +577,7 @@ class ProceduresCallTheTool(unittest.TestCase):
                 root / "SKILL.md":
                     "1. Add a row to `BOARD.md` by hand.\n",
                 root / "reference" / "deep" / "page.md":
-                    "1. Update `.perry/conformance.jsonl` by hand.\n",
+                    "1. Update `BOARD.md` by hand.\n",
                 root / "packs" / "ops" / "incidents.md":
                     "1. Append the `## Status changes` line by hand.\n",
             }
@@ -617,7 +608,7 @@ class ProceduresCallTheTool(unittest.TestCase):
             (lane / "state").mkdir()
             (lane / "SKILL.md").write_text(
                 "# reckon\n\n## Procedure\n\n"
-                "1. Update `.perry/conformance.jsonl`: add a row for the file.\n")
+                "1. Update `BOARD.md`: add a row for the file.\n")
             (lane / "reference" / "deep" / "buried.md").write_text(
                 "# buried\n\n## Procedure\n\n"
                 "1. Append the row to `BOARD.md` and write the "
@@ -632,7 +623,7 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "# bootstrap\n\n"
                 "1. Write `BOARD.md` from `state/BOARD_TEMPLATE.md`, empty "
                 "tables.\n"
-                "2. Write `.perry/conformance.jsonl` from "
+                "2. Write `BOARD.md` from "
                 "`state/conformance_TEMPLATE.md`, empty record.\n")
             (lane / "state" / "SHIPPED.md").write_text(
                 "1. Update `BOARD.md`: add a row by hand.\n")
@@ -661,9 +652,9 @@ class ProceduresCallTheTool(unittest.TestCase):
                              "reporting it is how a guard gets switched off")
 
             # Exemption 6 cuts one way and not the other, on one page: nothing
-            # creates `BOARD.md`, `perry-conform declare` creates the record.
+            # creates `BOARD.md`, `perry-task add` creates the record.
             boot = reported["bootstrap.md"]
-            self.assertEqual([f[1] for f in boot], [".perry/conformance.jsonl"],
+            self.assertEqual([f[1] for f in boot], ["BOARD.md row"],
                              "the template exemption is conditioned on whether "
                              "the owning tool can create the file, not on the "
                              f"word 'template'; got {boot}")
@@ -762,13 +753,13 @@ class ProceduresCallTheTool(unittest.TestCase):
         """
         step = ("1. Edit the target ADR yourself: flip its `Status:` header "
                 "to `active`.\n"
-                "2. Add the matching row to `.perry/conformance.jsonl` by hand.\n")
+                "2. Add the matching row to `BOARD.md` by hand.\n")
         with tempfile.TemporaryDirectory() as tmp:
             page = Path(tmp) / "migrate.md"
 
             page.write_text("# m\n\n## Migration from a legacy board\n\n" + step)
             under = scan(page)
-            self.assertEqual([f[1] for f in under], [".perry/conformance.jsonl"],
+            self.assertEqual([f[1] for f in under], ["BOARD.md row"],
                              "under an adoption heading the ADR file is the "
                              "authored document adoption exists to transcribe, "
                              "and the record is the projection it may never "
@@ -778,7 +769,7 @@ class ProceduresCallTheTool(unittest.TestCase):
             outside = scan(page)
             self.assertEqual(
                 sorted(f[1] for f in outside),
-                [".perry/conformance.jsonl", "an ADR's typed header"],
+                ["BOARD.md row", "an ADR's typed header"],
                 "outside an adoption heading both are reportable — if the "
                 "document half is silent here, the exemption is not scoped to "
                 f"the heading at all; got {outside}")
@@ -850,9 +841,6 @@ class ProceduresCallTheTool(unittest.TestCase):
                 "`phase/<NNN>-linkage.md`.\n",
                 "1. `perry-goals link` appends the task id to its KR's "
                 "`tasks[]`.\n"),
-            ".perry/conformance.jsonl": (
-                "1. Append a declaration to `.perry/conformance.jsonl`.\n",
-                "1. `perry-conform declare` writes `.perry/conformance.jsonl`.\n"),
         }
         self.assertEqual(set(TARGETS), set(cases),
                          "a declared rule without both fixtures is unreviewed")
@@ -890,9 +878,9 @@ class ProceduresCallTheTool(unittest.TestCase):
     def test_paragraph_steps_lists_and_leading_prose_are_all_scanned(self):
         paragraph, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
-            "Update `.perry/conformance.jsonl` by hand.\n")
+            "Update `BOARD.md` by hand.\n")
         self.assertEqual([(f[1], f[2]) for f in paragraph],
-                         [(".perry/conformance.jsonl", "R1")])
+                         [("BOARD.md row", "R1")])
 
         split_from_tool, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
@@ -910,24 +898,11 @@ class ProceduresCallTheTool(unittest.TestCase):
 
         leading, _ = self.scan_text(
             "# page\n\n## Procedure\n\n"
-            "Update `.perry/conformance.jsonl` by hand.\n"
-            "1. Run `perry-conform status` afterward.\n")
+            "Update `BOARD.md` by hand.\n"
+            "1. Run `perry-task list` afterward.\n")
         self.assertEqual([(f[1], f[2]) for f in leading],
-                         [(".perry/conformance.jsonl", "R1")])
+                         [("BOARD.md row", "R1")])
 
-    def test_the_markdown_record_is_still_a_target_under_its_old_name(self):
-        """TASK-234 moved the record to `.perry/conformance.jsonl` and the
-        markdown is still on disk in every project written before it — the
-        half a user can still be told to hand-edit by mistake. Its own test,
-        because the old spelling is exactly what a rename would quietly drop:
-        the suite above would stay green with the guard covering only the file
-        that no longer exists in the wild.
-        """
-        legacy, _ = self.scan_text(
-            "# page\n\n## Procedure\n\n"
-            "Update `.perry/conformance.md` by hand.\n")
-        self.assertEqual([(f[1], f[2]) for f in legacy],
-                         [(".perry/conformance.jsonl", "R1")])
 
     def test_bulleted_steps_keep_exemptions_inside_their_item(self):
         """Both Markdown bullet forms segment steps just like numbered items."""
@@ -993,7 +968,7 @@ class ProceduresCallTheTool(unittest.TestCase):
         """Four TASK-101 exemptions suppress descriptions, not instructions."""
         allowed = [
             ("1. `pmo` still writes `BOARD.md`.\n", True),
-            ("1. Detect `OKR.md` / code / `.perry/conformance.jsonl` to pre-fill "
+            ("1. Detect `OKR.md` / code / `BOARD.md` to pre-fill "
              "a draft.\n", False),
             ("1. The BOARD row flips to `review` after verification.\n", True),
             ("1. `BOARD.md` + `journal/` move to `work`.\n", True),
@@ -1012,8 +987,8 @@ class ProceduresCallTheTool(unittest.TestCase):
                                     "semantic exemptions must be observable")
 
         refused = [
-            "1. Detect the problem, then update `.perry/conformance.jsonl`.\n",
-            "1. Detect `OKR.md` / code. Then update `.perry/conformance.jsonl`.\n",
+            "1. Detect the problem, then update `BOARD.md`.\n",
+            "1. Detect `OKR.md` / code. Then update `BOARD.md`.\n",
             "1. For the BOARD row, after checking its id, update Status.\n",
         ]
         for text in refused:
@@ -1028,7 +1003,7 @@ class ProceduresCallTheTool(unittest.TestCase):
              "prohibition"),
             ("1. It updates the `BOARD.md` row.\n", "descriptive"),
             ("1. It already updates the `BOARD.md` row.\n", "descriptive"),
-            ("1. Writes the accompanying `.perry/conformance.jsonl` row itself.\n",
+            ("1. Writes the accompanying `BOARD.md` row itself.\n",
              "descriptive"),
             ("1. Creating a queue row also creates `BOARD.md § Intake`.\n",
              "descriptive"),
@@ -1046,12 +1021,12 @@ class ProceduresCallTheTool(unittest.TestCase):
         findings, suppressed = self.scan_text(
             "# page\n\n## Inventory\n\n"
             "| Action | Update `BOARD.md`: add a row. |\n"
-            "> Update `.perry/conformance.jsonl`: add a declaration row.\n")
+            "> Update `BOARD.md`: add a declaration row.\n")
         self.assertEqual(findings, [])
         self.assertEqual(
             [(s.exemption, s.target) for s in suppressed],
             [("quoted-or-table", "BOARD.md row"),
-             ("quoted-or-table", ".perry/conformance.jsonl")])
+             ("quoted-or-table", "BOARD.md row")])
 
     def test_write_participles_and_read_anchors_do_not_go_silent(self):
         passive, _ = self.scan_text(

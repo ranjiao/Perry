@@ -30,7 +30,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
@@ -186,7 +185,7 @@ class TestTheWriterDoesNotDuplicateTheSection(unittest.TestCase):
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n" + GATE_OFF,
+            "# Perry configuration\n\n- State root: perry\n",
             encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text(
             BOARD.format(heading=heading), encoding="utf-8")

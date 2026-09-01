@@ -64,7 +64,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "viewer"))
@@ -195,7 +194,7 @@ class TestTheWriterRefusesAndWritesNothing(unittest.TestCase):
                                                       encoding="utf-8")
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
-            "# Config\n\nState root: perry/\n" + GATE_OFF, encoding="utf-8")
+            "# Config\n\nState root: perry/\n", encoding="utf-8")
         self.addCleanup(self.tmp.cleanup)
 
     def run_add(self, next_action: str):

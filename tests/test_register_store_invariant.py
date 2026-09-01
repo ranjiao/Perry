@@ -41,7 +41,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF          # tests/gate.py — why these fixtures opt out
 from test_asks_store import REGISTER as ASK_TABLE
 from test_intake_store import REGISTER as INTAKE_TABLE
 from test_risks_store import REGISTER as RISK_TABLE
@@ -183,7 +182,7 @@ class Fixture:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF + tracks,
+            "- Repo layout: single\n- State root: .\n" + tracks,
             encoding="utf-8")
         (self.root / "BOARD.md").write_text(board, encoding="utf-8")
         self._tasks("write", "--from-board")

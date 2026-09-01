@@ -46,7 +46,6 @@ import sys
 import tempfile
 import unittest
 
-from gate import gate_off   # tests/gate.py — why this fixture opts out
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 GOALS = ROOT / "bin" / "perry-goals"
@@ -86,7 +85,7 @@ class Case(unittest.TestCase):
         # the one test that expects a SUCCESS. The refusal tests assert on the
         # message for the same reason.
         cfg = dest / ".perry" / "config.md"
-        cfg.write_text(gate_off(cfg.read_text()))
+        cfg.write_text(cfg.read_text())
         rows = STORE_ROWS if store is None else store
         if rows is not None:
             (dest / "tasks.jsonl").write_text(

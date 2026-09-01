@@ -38,7 +38,6 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PERRY_HOME / "bin"))
@@ -47,7 +46,7 @@ import lib  # noqa: E402
 STATE = PERRY_HOME / "bin" / "perry-state"
 TASK = PERRY_HOME / "bin" / "perry-task"
 
-CONFIG = ("# Perry configuration\n\n- State root: perry\n" + GATE_OFF
+CONFIG = ("# Perry configuration\n\n- State root: perry\n"
           + "\n## Tracks\n\n"
           "| Track | Mode | Spine | Stages | WIP | SLA | Cycle | Default rung |\n"
           "|---|---|---|---|---|---|---|---|\n{rows}")
@@ -517,7 +516,7 @@ class TestTheImplicitTrackKeepsTheShape(Base):
         (root / ".perry").mkdir()
         (root / "perry").mkdir()
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: perry\n" + GATE_OFF,
+            "# Perry configuration\n\n- State root: perry\n",
             encoding="utf-8")
         (root / "perry" / "BOARD.md").write_text(
             "# Board\n\n## P1\n\n" + HEAD, encoding="utf-8")

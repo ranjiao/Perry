@@ -1,4 +1,4 @@
-# `.perry/config.md` — repo layout, state root, tracks, conformance gate
+# `.perry/config.md` — repo layout, state root, tracks
 
 Tier 1. Loaded on demand from `SKILL.md § Configuration`, which carries the
 field list and points here for what each field means.
@@ -140,31 +140,21 @@ converge by accretion; `1` makes every FAIL a decision point. Raise
 `Session context ceiling` for a project doing genuinely wide reads, knowing the
 cost of doing so does not grow linearly.
 
-### `Conformance gate` — and the one thing the agent must not do
+### `Conformance gate` — deleted
 
-Under [ADR-004](perry/decisions/ADR-004-mandatory-migration.md) a project
-migrates to Perry's shape once, and every writer then gates on a **declared**
-marker: *this file matches Perry's shape, at shape version N, and the user said
-so*. The declarations live in `.perry/conformance.jsonl` — a store, one JSON
-object per line, since TASK-234, with no rendered markdown beside it because
-`perry-conform status` is the human surface. A project written before that keeps
-its `.perry/conformance.md` and converts it once with `perry-conform migrate`,
-which declares nothing and carries every date and route across unchanged.
-`bin/perry-conform`
-computes the verdict and is the only thing that writes them.
+This setting is gone (`TASK-261`). Under ADR-004 every writer gated on a
+**declared** marker — *this file matches Perry's shape, at shape version N, and
+the user said so* — and refused a file nobody had declared.
 
-The gate **enforces** — `perry-task`, `perry-goals` and `perry-decide` refuse a
-file nobody has declared, and the refusal names the file, the shape version it
-was checked against, and the command that fixes it (`perry-conform declare` for
-a file that already matches Perry's shape, `perry-migrate` for one that does
-not). Set `Conformance gate: advisory` (or export `PERRY_CONFORMANCE=advisory`)
-to make them write anyway and print what they found instead. **Reading is never
-gated in either mode**, and neither is `perry-migrate` — it is how an undeclared
-project becomes declarable, so a gate that refused it would be a wall with no
-door. `perry-goals commit --migrate` is exempt for the same reason.
+It never caught anything. `.perry/conformance.jsonl` held 23 records at the
+end, all `route: declare`, all files in Perry's own repository: zero
+disagreements, because the disagreement the design exists to surface needs a
+foreign project that drifts and Perry has never been pointed at one. The gate,
+its ledger, `bin/perry-conform` and `bin/perry-migrate` are all deleted.
 
-When a write prints a conformance line, **relay it and let the user decide.** Do
-not run `perry-conform declare` on the user's behalf: `perry/OKR.md` — *"adoption
-proposes; the user declares"* — is the rule the marker exists to encode, and a
-tool or an agent stamping it unasked is the violation, not the shortcut. Say
-which file, which verdict, and which command; then wait.
+**What this changes for you**: nothing refuses a write for want of a
+declaration. A writer that can render a file writes it. `perry-lint` still says
+whether a file matches the schema — that half was never the gate.
+
+A `- Conformance gate:` line left in an existing `.perry/config.md` is inert.
+Nothing reads it and nothing reports it.

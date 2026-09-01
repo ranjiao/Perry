@@ -981,7 +981,6 @@ class ImplementationPlanPlaceholdersAreNotUserDecisions(unittest.TestCase):
 #: `tests/gate.py` — which will own this string — lands on `feat/work-modes`
 #: after this branch was cut; the line is inert on a tree whose gate is still
 #: advisory by default, so it is correct both before and after that merge.
-GATE_OFF = "- Conformance gate: advisory\n"
 
 
 def board_with_queue(rows: str) -> str:
@@ -1019,7 +1018,7 @@ class DecisionsAreCountedPerRecordNotPerMention(unittest.TestCase):
     def project(self, root: Path, board: str | None = None) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+            "# Perry configuration\n\n- State root: .\n")
         if board is not None:
             (root / "BOARD.md").write_text(board)
         return root
@@ -1206,7 +1205,7 @@ class AFixtureIsNotTheProjectsState(unittest.TestCase):
     def project(self, root: Path) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+            "# Perry configuration\n\n- State root: .\n")
         return root
 
     # ── the half the objection is about ──────────────────────────────────
@@ -1329,7 +1328,7 @@ class AQuotedIdIsNotAQueueRow(unittest.TestCase):
     def project(self, root: Path) -> Path:
         (root / ".perry").mkdir(parents=True, exist_ok=True)
         (root / ".perry" / "config.md").write_text(
-            "# Perry configuration\n\n- State root: .\n" + GATE_OFF)
+            "# Perry configuration\n\n- State root: .\n")
         return root
 
     # ── the one that stops a fix which just suppresses everything ────────

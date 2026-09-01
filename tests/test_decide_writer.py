@@ -33,7 +33,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gate import GATE_OFF   # tests/gate.py — why this fixture opts out
 
 PERRY_HOME = Path(os.environ.get("PERRY_HOME") or Path(__file__).resolve().parent.parent)
 TOOL = PERRY_HOME / "bin" / "perry-decide"
@@ -46,7 +45,7 @@ class Project:
         (self.root / ".perry").mkdir()
         (self.root / ".perry" / "config.md").write_text(
             "# Perry configuration\n\n- Document language: English\n"
-            "- Repo layout: single\n- State root: .\n" + GATE_OFF)
+            "- Repo layout: single\n- State root: .\n")
 
     def run(self, *argv):
         r = subprocess.run(

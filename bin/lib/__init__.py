@@ -22,7 +22,7 @@ importable rather than to ask people not to retype them.
 **Each tool keeps its own `Refused`.** These functions take the exception class
 to raise rather than defining one here, because a shared `Refused` would make
 `perry-task`'s `except Refused` start catching refusals raised inside
-`perry-conform` when one tool loads another — a real change in control flow,
+another tool it loads — a real change in control flow,
 and this extraction is supposed to change none.
 """
 
@@ -460,8 +460,8 @@ def resolve_state_root(project_root: Path) -> Path:
 
     **The implementation is `viewer/parsers.py`'s and stays there**, because
     that is where every other reader already gets it — `perry-lint`,
-    `perry-state`, `perry-task`, `perry-goals`, `perry-decide`, `perry-conform`,
-    `perry-knowledge` and `perry-migrate` all call `P.resolve_state_root`. This
+    `perry-state`, `perry-task`, `perry-goals`, `perry-decide` and
+    `perry-knowledge` all call `P.resolve_state_root`. This
     is a re-export so that `bin/` has one import site rather than one function
     with two bodies; it is not a second implementation and must never become
     one.

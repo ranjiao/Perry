@@ -119,10 +119,10 @@ board.
 Implemented: schema/state-schema.json
 
 ### conformance
-Two unrelated things, and the collision is deliberate only in that both are
-named in the schema: (a) the block in a read contract naming what the board did
-**not** parse cleanly; (b) a file's declared shape version under
-`perry-conform`.
+The block in a read contract naming what the board did **not** parse cleanly.
+It used to be two unrelated things under one word; the other — a file's
+declared shape version under `perry-conform` — is deleted (`TASK-261`), and the
+collision went with it.
 Implemented: schema/task-list-contract.md
 
 ### the hand-off contract
@@ -144,11 +144,6 @@ Implemented: modes/project.md
 A named stream of work inside one project, declared in `.perry/config.md §
 Tracks`. A blank `Track` cell means the implicit `main` track.
 Implemented: schema/state-schema.json
-
-### restore point
-The copy `perry-migrate` takes before it writes, so a migration can be undone
-as a unit.
-Implemented: bin/perry-migrate
 
 ### knowledge card
 A reusable claim about how to do something correctly, with mandatory

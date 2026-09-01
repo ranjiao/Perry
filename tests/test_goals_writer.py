@@ -1345,15 +1345,6 @@ class TestTheLockAndTheGate(WriterCase):
         self.assertIn("another Perry write is holding", r.stderr)
         self.assertNotIn("Commitments", p.text())
 
-    def test_the_conformance_gate_refuses_a_write_on_an_undeclared_file(self):
-        """ADR-004. `perry-task` and `perry-decide` already gate; this one
-        gates on `OKR.md`, its own file and no other."""
-        p = self.project()
-        before = p.text()
-        r = p.run("commit", "--track", "ops", "--promise", "a", "--to", "x",
-                  "--due", "3d", expect=1, PERRY_CONFORMANCE="enforce")
-        self.assertIn("ADR-004", r.stderr)
-        self.assertEqual(before, p.text())
 
     def test_reading_is_never_gated(self):
         p = self.project()
@@ -1763,23 +1754,6 @@ class TestMigratingAPreSplitRegister(WriterCase):
         self.assertEqual(before, p.text())
         self.assertEqual([], p.events())
 
-    def test_the_conformance_gate_does_not_lock_the_split_out(self):
-        """**The deadlock this exemption exists to break.** Under `enforce`,
-        ADR-004's gate makes a file that is not Perry's shape read-only — and a
-        pre-split register is out of shape by exactly the defect this command
-        fixes. Gated, the file could never be written to and never be repaired,
-        with no third command. `perry-migrate` is exempt from its own gate for
-        the same reason, and this is the transform it hands over."""
-        p = self.project(PRE_SPLIT)
-        blocked = p.commit("--track", "ops", "--promise", "a", "--to", "x",
-                           "--due", "3d", expect=1,
-                           PERRY_CONFORMANCE="enforce")
-        self.assertIn("read-only", blocked.stderr)
-
-        r = p.commit("--migrate", PERRY_CONFORMANCE="enforce")
-        self.assertIn("split", r.stdout)
-        self.assertIn("Due", p.text())
-        self.assertIn("By when note", p.text())
 
     def test_it_takes_no_row_flags(self):
         p = self.project(PRE_SPLIT)
