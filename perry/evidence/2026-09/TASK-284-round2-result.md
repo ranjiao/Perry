@@ -429,7 +429,7 @@ figure, as the round's brief requires.
 |---|---|---|---|---|
 | 1 | 14.8 → 39.4 | 484s | `tests/parallel`, 8 workers | steps 1–4 green; **tree guard red — self-inflicted** |
 | 2 | 37.0 → 29.2 | 503s | `tests/parallel`, 8 workers, **109 modules · 3032 tests · 500.3s** | **1 module red**, 1 failure |
-| 3 | see below | | | |
+| 3 | 9.5 → 4.0 | **313s** | `tests/parallel`, 8 workers, **109 modules · 3032 tests · 310.7s** | **`✓ all green`, exit 0** |
 
 **Run 1's failure was mine and was not a test defect.** The tree guard records
 the checkout at step 0 and re-verifies it at the end; I committed an edit to
@@ -472,7 +472,32 @@ Two things worth separating out:
   The attribution that matters is earned: run 2's single failure was traced to
   a file this round added, and fixing that file turns it green.
 
-Run 3, the clean full run of the finished branch:
+**Run 3 — the finished branch, clean tree, `bash tests/run` exit 0:**
+
+```
+START 15:20:37 load: 9.45 26.21 31.92
+…
+109 modules · 3032 tests · 310.7s · 8 workers
+✓ all green          ← step 2, the parallel set
+✓ all green          ← the tree guard's closing verdict, whole run
+END 15:25:51 load: 4.03 14.51 24.98
+WALL_SECONDS=313 EXIT=0
+```
+
+Both `✓ all green` lines matter and are different claims: the first is
+`tests/parallel`'s verdict on the 3032 tests, the second is the EXIT-trap
+banner, which only prints after the tree guard confirms the checkout the suite
+started in is the checkout it ended in.
+
+The three runs' wall times — 484s, 503s, 313s — track load, not the change: the
+run that finished in 313s started at load 9.5, the two 500s runs at 15 and 37.
+`tests/parallel` reports its own 310.7s inside the 313s wall, so the suite is
+essentially all of it.
+
+**Delta against round 1**, which recorded 109 modules / 3016 tests on its
+branch: same 109 modules, **3032 tests, +16** — the sixteen guards this round
+adds to `tests/test_spec_scannability.py`, which is the only test file it
+touches. The module count does not move because the file already existed.
 
 ## Files changed
 
