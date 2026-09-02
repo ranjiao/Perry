@@ -1,10 +1,10 @@
 # ADR-013 — An ADR id is an address, and is never reissued
 
-> Status: active
+> Status: superseded
 > Type: Architecture
 > Date: 2026-09-02
 > Deciders: Ran Jiao
-> Supersedes: —   · Superseded by: —
+> Supersedes: —   · Superseded by: ADR-014
 > Sunset: —
 
 ## Context

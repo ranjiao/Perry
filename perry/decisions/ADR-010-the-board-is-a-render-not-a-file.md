@@ -111,3 +111,45 @@ a project that already ran one.
 - Evidence that the loss of a linkable, web-readable board costs more than the
   parser did. `drift: 0` was the measurement offered in 2026-08-19; the
   equivalent here is how often anyone actually opens the file.
+
+## Implementation status — added 2026-09-02
+
+**This ADR is `active` and its implementation has not started. Read it as a
+decision, not as an account of the repository.**
+
+Raised by the 2026-09-02 design-register audit, finding `G-01`, and confirmed by
+measurement the same day:
+
+```
+perry/BOARD.md                                    85,611 bytes — it exists
+grep -c 'BOARD\.md'  SKILL.md work/ goals/ decide/    2 · 13 · 5 · 11
+perl -e 'KR table rows in perry/OKR.md'                       38
+```
+
+The chain this ADR sets out is `DECISIONS.md` → `OKR.md` → `BOARD.md`, and it
+states its own gate twice — here and in `DESIGN-013 § 7`:
+
+> The `OKR.md` step must report **in writing** on whether the CLI render is a
+> good enough reading surface. If that report is negative, the board step stops
+> and returns to `DESIGN-013` rather than proceeding because the decision was
+> already made.
+
+**Step 1 landed** — `TASK-235` deleted `DECISIONS.md` and `perry-decide list`
+is the view. **Step 2 has not**: `OKR.md` still carries its KR tables, and
+`TASK-236`, which is that step, is `not_started` and blocked behind `TASK-181`
+and `TASK-182`. **So step 3's precondition has never been evaluated**, and the
+report the gate requires does not exist.
+
+Nothing here reverses the decision. What is corrected is how the document
+reads: its title, *"BOARD.md stops existing"*, is a decision taken, not an
+outcome reached, and the sections below state it in the perfect tense.
+
+**The audit's reason for caring, which is the reason this note exists:** *"An
+ADR that describes an outcome rather than a decision cannot be checked against
+reality, which is the property that makes the register worth keeping."*
+
+This also resolves a live contradiction rather than merely annotating one.
+`DESIGN-015`, locked four days after this ADR, specifies `perry-task add`
+writing `BOARD.md` and marks it `(work, unchanged)`. That is correct for the
+repository as it stands, and only conflicts with this ADR if this ADR is read as
+already done. It is not.
