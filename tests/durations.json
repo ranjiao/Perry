@@ -1,105 +1,457 @@
 {
- "test_amend_matches_create.py": 0.28,
- "test_answered_ask_is_legible.py": 16.7,
- "test_ask_is_a_node.py": 20.93,
- "test_asks_store.py": 13.61,
- "test_attribution_buckets.py": 6.16,
- "test_blank_cell_is_one_rule.py": 0.29,
- "test_board_render.py": 45.67,
- "test_cadence.py": 22.14,
- "test_claims.py": 15.79,
- "test_conformance.py": 21.84,
- "test_contract_invariance.py": 7.64,
- "test_contract_key_parity.py": 48.4,
- "test_count_fields.py": 2.47,
- "test_decide_status_enum.py": 7.1,
- "test_decide_writer.py": 12.86,
- "test_decoration_changes_nothing.py": 20.27,
- "test_design_handoff.py": 0.88,
- "test_diagnose.py": 83.25,
- "test_dispatch_limit_honesty.py": 3.12,
- "test_entrance.py": 0.15,
- "test_escalation_boundaries.py": 2.49,
- "test_escalation_union.py": 7.19,
- "test_escaped_pipe_corpus.py": 2.58,
- "test_events_feed.py": 5.89,
- "test_evidence_relation.py": 4.86,
- "test_explain_typed_tasks.py": 1.74,
- "test_glossary.py": 50.5,
- "test_goals_contract.py": 2.43,
- "test_goals_writer.py": 86.22,
- "test_header_rule_harness.py": 25.53,
- "test_heading_defines.py": 1.71,
- "test_heading_title.py": 2.48,
- "test_host_support.py": 34.29,
- "test_i18n.py": 1.8,
- "test_i18n_one_table.py": 0.39,
- "test_id_families.py": 6.02,
- "test_intake_signal.py": 2.8,
- "test_intake_store.py": 18.6,
- "test_knowledge_cards.py": 6.08,
- "test_knowledge_promotion.py": 12.18,
- "test_kr_progress_provenance.py": 6.34,
- "test_last_updated_header.py": 3.25,
- "test_linkage_task_exists.py": 3.79,
- "test_linkage_writer.py": 15.58,
- "test_live_state_expectations.py": 6.45,
- "test_md_store.py": 15.06,
- "test_migrate.py": 97.25,
- "test_missing_defaults.py": 2.48,
- "test_ns_collision.py": 26.19,
- "test_okr_store_is_the_source.py": 11.79,
- "test_one_header_rule.py": 1.85,
- "test_one_heading_predicate.py": 3.62,
- "test_one_line_break_rule.py": 12.5,
- "test_one_primitive.py": 0.25,
- "test_one_startable_rule.py": 9.5,
- "test_ownership.py": 0.43,
- "test_parallel_runner.py": 0.32,
- "test_parsers.py": 6.37,
- "test_pointers_resolve.py": 0.69,
- "test_prioritize.py": 18.23,
- "test_procedures_call_the_tool.py": 2.36,
- "test_procedures_read_the_contract.py": 1.17,
- "test_project_root_resolution.py": 27.37,
- "test_purge.py": 85.95,
- "test_queue_sla.py": 22.49,
- "test_reference_pages_are_reachable.py": 0.18,
- "test_register_minters.py": 35.1,
- "test_resume.py": 7.46,
- "test_retired_tolerance.py": 5.68,
- "test_review_verdicts.py": 9.54,
- "test_risks.py": 49.98,
- "test_risks_store.py": 26.34,
- "test_role_cards.py": 11.01,
- "test_role_delegation.py": 11.43,
- "test_role_on_rows.py": 8.29,
- "test_router_budget.py": 2.09,
- "test_row_integrity.py": 5.56,
- "test_rung_vocabulary.py": 72.67,
- "test_semantics_on_every_payload.py": 12.44,
- "test_shipped_vocabulary.py": 8.79,
- "test_stage_separators.py": 2.88,
- "test_stale_blocked.py": 23.76,
- "test_state_cost.py": 43.81,
- "test_store_drift.py": 14.33,
- "test_store_is_canonical.py": 10.96,
- "test_store_is_the_write_target.py": 46.72,
- "test_stranded_rows.py": 71.98,
- "test_task_store.py": 58.41,
- "test_task_store_read_cutover.py": 6.59,
- "test_task_summary.py": 34.75,
- "test_task_writer_contracts.py": 22.82,
- "test_task_writer_core.py": 26.28,
- "test_task_writer_dependencies.py": 22.91,
- "test_task_writer_intake.py": 22.4,
- "test_task_writer_modes.py": 22.43,
- "test_track_attribution.py": 24.93,
- "test_track_axes.py": 0.31,
- "test_track_move.py": 94.96,
- "test_track_register_source.py": 15.56,
- "test_unlinked_declaration.py": 20.68,
- "test_v5_signoff.py": 62.66,
- "test_wip_and_stages.py": 9.69,
- "test_work_modes.py": 35.88
+ "schema": 1,
+ "sources": {
+  "unstamped-pre-304": {
+   "ref": null,
+   "taken": null,
+   "workers": null,
+   "load1": null,
+   "note": "Inherited from the flat tests/durations.json as it stood at d49964e. No run recorded itself, so when, at what ref, at what worker count and under what load these were taken is not known and is not guessed here. Two independent reasons to distrust them as a set: tests/parallel's own docstring says they were taken under foreign load and are 3-4x too LARGE, while test_header_rule_harness.py is 10x too SMALL (25.53 recorded; 265.996s and 260.74s measured at d49964e, the very commit that wrote this file). Both cannot be true of one run. Their serial total is 1968.9s against a measured 162.4s at 8 workers = 1299 worker-seconds, so as a set they describe no run that has happened. Retained anyway: TASK-230 measured that even these produce a schedule equal to the perfect-knowledge one in three runs of four. A hint may be wrong and still useful; it may not be wrong and silent. Replace with `python3 tests/parallel --record` on a quiet machine."
+  },
+  "never-measured": {
+   "ref": null,
+   "taken": null,
+   "workers": null,
+   "load1": null,
+   "note": "Listed with no number because none has ever been taken. sec:null sorts as inf, so these still run FIRST - which is what an unmentioned module already did, now by declaration instead of by omission. Being listed is what lets the drift check tell 'nobody has measured this yet' apart from 'somebody deleted the entry'; those were the same thing before TASK-304."
+  }
+ },
+ "modules": {
+  "test_amend_matches_create.py": {
+   "sec": 0.28,
+   "source": "unstamped-pre-304"
+  },
+  "test_answered_ask_is_legible.py": {
+   "sec": 16.7,
+   "source": "unstamped-pre-304"
+  },
+  "test_ask_is_a_node.py": {
+   "sec": 20.93,
+   "source": "unstamped-pre-304"
+  },
+  "test_asks_store.py": {
+   "sec": 13.61,
+   "source": "unstamped-pre-304"
+  },
+  "test_attribution_buckets.py": {
+   "sec": 6.16,
+   "source": "unstamped-pre-304"
+  },
+  "test_blank_cell_is_one_rule.py": {
+   "sec": 0.29,
+   "source": "unstamped-pre-304"
+  },
+  "test_board_render.py": {
+   "sec": 45.67,
+   "source": "unstamped-pre-304"
+  },
+  "test_cadence.py": {
+   "sec": 22.14,
+   "source": "unstamped-pre-304"
+  },
+  "test_claims.py": {
+   "sec": 15.79,
+   "source": "unstamped-pre-304"
+  },
+  "test_config_store_readers.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_context_budget.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_contract_invariance.py": {
+   "sec": 7.64,
+   "source": "unstamped-pre-304"
+  },
+  "test_contract_key_parity.py": {
+   "sec": 48.4,
+   "source": "unstamped-pre-304"
+  },
+  "test_count_fields.py": {
+   "sec": 2.47,
+   "source": "unstamped-pre-304"
+  },
+  "test_decide_status_enum.py": {
+   "sec": 7.1,
+   "source": "unstamped-pre-304"
+  },
+  "test_decide_writer.py": {
+   "sec": 12.86,
+   "source": "unstamped-pre-304"
+  },
+  "test_decoration_changes_nothing.py": {
+   "sec": 20.27,
+   "source": "unstamped-pre-304"
+  },
+  "test_design_handoff.py": {
+   "sec": 0.88,
+   "source": "unstamped-pre-304"
+  },
+  "test_diagnose.py": {
+   "sec": 83.25,
+   "source": "unstamped-pre-304"
+  },
+  "test_dispatch_limit_honesty.py": {
+   "sec": 3.12,
+   "source": "unstamped-pre-304"
+  },
+  "test_durations_provenance.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_entrance.py": {
+   "sec": 0.15,
+   "source": "unstamped-pre-304"
+  },
+  "test_escalation_boundaries.py": {
+   "sec": 2.49,
+   "source": "unstamped-pre-304"
+  },
+  "test_escalation_union.py": {
+   "sec": 7.19,
+   "source": "unstamped-pre-304"
+  },
+  "test_escaped_pipe_corpus.py": {
+   "sec": 2.58,
+   "source": "unstamped-pre-304"
+  },
+  "test_events_feed.py": {
+   "sec": 5.89,
+   "source": "unstamped-pre-304"
+  },
+  "test_evidence_relation.py": {
+   "sec": 4.86,
+   "source": "unstamped-pre-304"
+  },
+  "test_explain_typed_tasks.py": {
+   "sec": 1.74,
+   "source": "unstamped-pre-304"
+  },
+  "test_glossary.py": {
+   "sec": 50.5,
+   "source": "unstamped-pre-304"
+  },
+  "test_goals_contract.py": {
+   "sec": 2.43,
+   "source": "unstamped-pre-304"
+  },
+  "test_goals_writer.py": {
+   "sec": 86.22,
+   "source": "unstamped-pre-304"
+  },
+  "test_header_index_is_the_only_fold.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_header_rule_harness.py": {
+   "sec": 25.53,
+   "source": "unstamped-pre-304"
+  },
+  "test_heading_defines.py": {
+   "sec": 1.71,
+   "source": "unstamped-pre-304"
+  },
+  "test_heading_title.py": {
+   "sec": 2.48,
+   "source": "unstamped-pre-304"
+  },
+  "test_host_support.py": {
+   "sec": 34.29,
+   "source": "unstamped-pre-304"
+  },
+  "test_i18n.py": {
+   "sec": 1.8,
+   "source": "unstamped-pre-304"
+  },
+  "test_i18n_one_table.py": {
+   "sec": 0.39,
+   "source": "unstamped-pre-304"
+  },
+  "test_id_families.py": {
+   "sec": 6.02,
+   "source": "unstamped-pre-304"
+  },
+  "test_intake_signal.py": {
+   "sec": 2.8,
+   "source": "unstamped-pre-304"
+  },
+  "test_intake_store.py": {
+   "sec": 18.6,
+   "source": "unstamped-pre-304"
+  },
+  "test_knowledge_cards.py": {
+   "sec": 6.08,
+   "source": "unstamped-pre-304"
+  },
+  "test_knowledge_promotion.py": {
+   "sec": 12.18,
+   "source": "unstamped-pre-304"
+  },
+  "test_kr_progress_provenance.py": {
+   "sec": 6.34,
+   "source": "unstamped-pre-304"
+  },
+  "test_last_updated_header.py": {
+   "sec": 3.25,
+   "source": "unstamped-pre-304"
+  },
+  "test_linkage_task_exists.py": {
+   "sec": 3.79,
+   "source": "unstamped-pre-304"
+  },
+  "test_linkage_writer.py": {
+   "sec": 15.58,
+   "source": "unstamped-pre-304"
+  },
+  "test_live_state_expectations.py": {
+   "sec": 6.45,
+   "source": "unstamped-pre-304"
+  },
+  "test_md_store.py": {
+   "sec": 15.06,
+   "source": "unstamped-pre-304"
+  },
+  "test_missing_defaults.py": {
+   "sec": 2.48,
+   "source": "unstamped-pre-304"
+  },
+  "test_ns_collision.py": {
+   "sec": 26.19,
+   "source": "unstamped-pre-304"
+  },
+  "test_okr_store_is_the_source.py": {
+   "sec": 11.79,
+   "source": "unstamped-pre-304"
+  },
+  "test_one_header_rule.py": {
+   "sec": 1.85,
+   "source": "unstamped-pre-304"
+  },
+  "test_one_heading_predicate.py": {
+   "sec": 3.62,
+   "source": "unstamped-pre-304"
+  },
+  "test_one_line_break_rule.py": {
+   "sec": 12.5,
+   "source": "unstamped-pre-304"
+  },
+  "test_one_primitive.py": {
+   "sec": 0.25,
+   "source": "unstamped-pre-304"
+  },
+  "test_one_startable_rule.py": {
+   "sec": 9.5,
+   "source": "unstamped-pre-304"
+  },
+  "test_ownership.py": {
+   "sec": 0.43,
+   "source": "unstamped-pre-304"
+  },
+  "test_parallel_runner.py": {
+   "sec": 0.32,
+   "source": "unstamped-pre-304"
+  },
+  "test_parsers.py": {
+   "sec": 6.37,
+   "source": "unstamped-pre-304"
+  },
+  "test_phase_kr_declared_once.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_pointers_resolve.py": {
+   "sec": 0.69,
+   "source": "unstamped-pre-304"
+  },
+  "test_prioritize.py": {
+   "sec": 18.23,
+   "source": "unstamped-pre-304"
+  },
+  "test_procedures_call_the_tool.py": {
+   "sec": 2.36,
+   "source": "unstamped-pre-304"
+  },
+  "test_procedures_read_the_contract.py": {
+   "sec": 1.17,
+   "source": "unstamped-pre-304"
+  },
+  "test_project_root_resolution.py": {
+   "sec": 27.37,
+   "source": "unstamped-pre-304"
+  },
+  "test_purge.py": {
+   "sec": 85.95,
+   "source": "unstamped-pre-304"
+  },
+  "test_queue_sla.py": {
+   "sec": 22.49,
+   "source": "unstamped-pre-304"
+  },
+  "test_reference_pages_are_reachable.py": {
+   "sec": 0.18,
+   "source": "unstamped-pre-304"
+  },
+  "test_register_minters.py": {
+   "sec": 35.1,
+   "source": "unstamped-pre-304"
+  },
+  "test_register_store_invariant.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_register_substitution.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_resume.py": {
+   "sec": 7.46,
+   "source": "unstamped-pre-304"
+  },
+  "test_retired_tolerance.py": {
+   "sec": 5.68,
+   "source": "unstamped-pre-304"
+  },
+  "test_review_verdicts.py": {
+   "sec": 9.54,
+   "source": "unstamped-pre-304"
+  },
+  "test_risks.py": {
+   "sec": 49.98,
+   "source": "unstamped-pre-304"
+  },
+  "test_risks_store.py": {
+   "sec": 26.34,
+   "source": "unstamped-pre-304"
+  },
+  "test_role_cards.py": {
+   "sec": 11.01,
+   "source": "unstamped-pre-304"
+  },
+  "test_role_delegation.py": {
+   "sec": 11.43,
+   "source": "unstamped-pre-304"
+  },
+  "test_role_on_rows.py": {
+   "sec": 8.29,
+   "source": "unstamped-pre-304"
+  },
+  "test_router_budget.py": {
+   "sec": 2.09,
+   "source": "unstamped-pre-304"
+  },
+  "test_row_integrity.py": {
+   "sec": 5.56,
+   "source": "unstamped-pre-304"
+  },
+  "test_rung_vocabulary.py": {
+   "sec": 72.67,
+   "source": "unstamped-pre-304"
+  },
+  "test_semantics_on_every_payload.py": {
+   "sec": 12.44,
+   "source": "unstamped-pre-304"
+  },
+  "test_shipped_vocabulary.py": {
+   "sec": 8.79,
+   "source": "unstamped-pre-304"
+  },
+  "test_stage_separators.py": {
+   "sec": 2.88,
+   "source": "unstamped-pre-304"
+  },
+  "test_stale_blocked.py": {
+   "sec": 23.76,
+   "source": "unstamped-pre-304"
+  },
+  "test_state_cost.py": {
+   "sec": 43.81,
+   "source": "unstamped-pre-304"
+  },
+  "test_store_drift.py": {
+   "sec": 14.33,
+   "source": "unstamped-pre-304"
+  },
+  "test_store_is_canonical.py": {
+   "sec": 10.96,
+   "source": "unstamped-pre-304"
+  },
+  "test_store_is_the_write_target.py": {
+   "sec": 46.72,
+   "source": "unstamped-pre-304"
+  },
+  "test_stranded_rows.py": {
+   "sec": 71.98,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_store.py": {
+   "sec": 58.41,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_store_read_cutover.py": {
+   "sec": 6.59,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_summary.py": {
+   "sec": 34.75,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_writer_contracts.py": {
+   "sec": 22.82,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_writer_core.py": {
+   "sec": 26.28,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_writer_dependencies.py": {
+   "sec": 22.91,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_writer_intake.py": {
+   "sec": 22.4,
+   "source": "unstamped-pre-304"
+  },
+  "test_task_writer_modes.py": {
+   "sec": 22.43,
+   "source": "unstamped-pre-304"
+  },
+  "test_track_attribution.py": {
+   "sec": 24.93,
+   "source": "unstamped-pre-304"
+  },
+  "test_track_axes.py": {
+   "sec": 0.31,
+   "source": "unstamped-pre-304"
+  },
+  "test_track_move.py": {
+   "sec": 94.96,
+   "source": "unstamped-pre-304"
+  },
+  "test_track_register_source.py": {
+   "sec": 15.56,
+   "source": "unstamped-pre-304"
+  },
+  "test_tree_guard.py": {
+   "sec": null,
+   "source": "never-measured"
+  },
+  "test_unlinked_declaration.py": {
+   "sec": 20.68,
+   "source": "unstamped-pre-304"
+  },
+  "test_v5_signoff.py": {
+   "sec": 62.66,
+   "source": "unstamped-pre-304"
+  },
+  "test_wip_and_stages.py": {
+   "sec": 9.69,
+   "source": "unstamped-pre-304"
+  },
+  "test_work_modes.py": {
+   "sec": 35.88,
+   "source": "unstamped-pre-304"
+  }
+ }
 }
